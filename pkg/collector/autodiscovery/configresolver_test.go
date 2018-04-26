@@ -38,7 +38,7 @@ func TestResolveTemplate(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 	}
 	// add the template to the cache
-	tc.Set(tpl, "test provider")
+	tc.Set(tpl)
 
 	// no services
 	res := cr.ResolveTemplate(tpl)
@@ -374,7 +374,7 @@ func TestResolve(t *testing.T) {
 		},
 	}
 	ac := &AutoConfig{
-		providerLoadedConfigs: make(map[string][]check.Config),
+		loadedConfigs: make([]check.Config, 0),
 	}
 	cr := newConfigResolver(nil, ac, NewTemplateCache())
 	validTemplates := 0
@@ -396,6 +396,6 @@ func TestResolve(t *testing.T) {
 		})
 
 		// Assert the valid configs are stored in the AC
-		assert.Equal(t, validTemplates, len(ac.providerLoadedConfigs[UnknownProvider]))
+		assert.Equal(t, validTemplates, len(ac.loadedConfigs))
 	}
 }

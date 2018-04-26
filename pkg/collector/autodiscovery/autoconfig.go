@@ -64,36 +64,36 @@ type providerDescriptor struct {
 // Notice the `AutoConfig` public API speaks in terms of `check.Config`,
 // meaning that you cannot use it to schedule check instances directly.
 type AutoConfig struct {
-	collector             *collector.Collector
-	providers             []*providerDescriptor
-	loaders               []check.Loader
-	templateCache         *TemplateCache
-	listeners             []listeners.ServiceListener
-	configResolver        *ConfigResolver
-	configsPollTicker     *time.Ticker
-	config2checks         map[string][]check.ID       // cache the ID of checks we load for each config
-	check2config          map[check.ID]string         // cache the config digest corresponding to a check
-	name2jmxmetrics       map[string]check.ConfigData // holds the metrics to collect for JMX checks
-	providerLoadedConfigs map[string][]check.Config   // holds the resolved config per provider
-	stop                  chan bool
-	pollerActive          bool
-	health                *health.Handle
-	m                     sync.RWMutex
+	collector         *collector.Collector
+	providers         []*providerDescriptor
+	loaders           []check.Loader
+	templateCache     *TemplateCache
+	listeners         []listeners.ServiceListener
+	configResolver    *ConfigResolver
+	configsPollTicker *time.Ticker
+	config2checks     map[string][]check.ID       // cache the ID of checks we load for each config
+	check2config      map[check.ID]string         // cache the config digest corresponding to a check
+	name2jmxmetrics   map[string]check.ConfigData // holds the metrics to collect for JMX checks
+	loadedConfigs     []check.Config              // holds the resolved configs
+	stop              chan bool
+	pollerActive      bool
+	health            *health.Handle
+	m                 sync.RWMutex
 }
 
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
-		collector:             collector,
-		providers:             make([]*providerDescriptor, 0, 5),
-		loaders:               make([]check.Loader, 0, 5),
-		templateCache:         NewTemplateCache(),
-		config2checks:         make(map[string][]check.ID),
-		check2config:          make(map[check.ID]string),
-		name2jmxmetrics:       make(map[string]check.ConfigData),
-		providerLoadedConfigs: make(map[string][]check.Config),
-		stop:   make(chan bool),
-		health: health.Register("ad-autoconfig"),
+		collector:       collector,
+		providers:       make([]*providerDescriptor, 0, 5),
+		loaders:         make([]check.Loader, 0, 5),
+		templateCache:   NewTemplateCache(),
+		config2checks:   make(map[string][]check.ID),
+		check2config:    make(map[check.ID]string),
+		name2jmxmetrics: make(map[string]check.ConfigData),
+		loadedConfigs:   make([]check.Config, 0),
+		stop:            make(chan bool),
+		health:          health.Register("ad-autoconfig"),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
 	return ac
@@ -229,7 +229,8 @@ func (ac *AutoConfig) GetAllConfigs() []check.Config {
 
 		// resolve configs if needed
 		for _, config := range cfgs {
-			rc := ac.resolve(config, pd.provider.String())
+			config.Provider = pd.provider.String()
+			rc := ac.resolve(config)
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 	}
@@ -279,7 +280,7 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 }
 
 // resolve loads and resolves a given config into a slice of resolved configs
-func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Config {
+func (ac *AutoConfig) resolve(config check.Config) []check.Config {
 	configs := []check.Config{}
 
 	// add default metrics to collect to JMX checks
@@ -294,7 +295,7 @@ func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Conf
 
 	if config.IsTemplate() {
 		// store the template in the cache in any case
-		if err := ac.templateCache.Set(config, provider); err != nil {
+		if err := ac.templateCache.Set(config); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
@@ -315,7 +316,7 @@ func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Conf
 	} else {
 		configs = append(configs, config)
 		// store non template configs in the AC
-		ac.providerLoadedConfigs[provider] = append(ac.providerLoadedConfigs[provider], config)
+		ac.loadedConfigs = append(ac.loadedConfigs, config)
 	}
 
 	return configs
@@ -385,7 +386,8 @@ func (ac *AutoConfig) pollConfigs() {
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
-						resolvedConfigs := ac.resolve(config, pd.provider.String())
+						config.Provider = pd.provider.String()
+						resolvedConfigs := ac.resolve(config)
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 						ac.schedule(checks)
 					}
@@ -490,9 +492,9 @@ func (ac *AutoConfig) getChecks(config check.Config) ([]check.Check, error) {
 	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
 }
 
-// GetProviderLoadedConfigs returns configs loaded by provider
-func (ac *AutoConfig) GetProviderLoadedConfigs() map[string][]check.Config {
-	return ac.providerLoadedConfigs
+// GetLoadedConfigs returns configs loaded
+func (ac *AutoConfig) GetLoadedConfigs() []check.Config {
+	return ac.loadedConfigs
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved

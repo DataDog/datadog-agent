@@ -13,16 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
-// UnknownProvider is used if we can't match the config back
-// to its original provider
-const UnknownProvider string = "Unknown provider"
-
 // TemplateCache is a data structure to store configuration templates
 type TemplateCache struct {
 	id2digests      map[string][]string     // map an AD identifier to all the configs that have it
 	digest2ids      map[string][]string     // map a config digest to the list of AD identifiers it has
 	digest2template map[string]check.Config // map a digest to the corresponding config object
-	digest2provider map[string]string       // map a digest to it's provider name
 	m               sync.RWMutex
 }
 
@@ -32,12 +27,11 @@ func NewTemplateCache() *TemplateCache {
 		id2digests:      map[string][]string{},
 		digest2ids:      map[string][]string{},
 		digest2template: map[string]check.Config{},
-		digest2provider: map[string]string{},
 	}
 }
 
 // Set stores or updates a template in the cache
-func (cache *TemplateCache) Set(tpl check.Config, provider string) error {
+func (cache *TemplateCache) Set(tpl check.Config) error {
 	// return an error if configuration has no AD identifiers
 	if len(tpl.ADIdentifiers) == 0 {
 		return fmt.Errorf("template has no AD identifiers, unable to store it in the cache")
@@ -57,7 +51,6 @@ func (cache *TemplateCache) Set(tpl check.Config, provider string) error {
 	// store the template
 	cache.digest2template[d] = tpl
 	cache.digest2ids[d] = tpl.ADIdentifiers
-	cache.digest2provider[d] = provider
 	for _, id := range tpl.ADIdentifiers {
 		cache.id2digests[id] = append(cache.id2digests[id], d)
 	}
@@ -80,14 +73,6 @@ func (cache *TemplateCache) Get(adID string) ([]check.Config, error) {
 	}
 
 	return nil, fmt.Errorf("AD id %s not found in cache", adID)
-}
-
-// GetProviderFromDigest returns the provider name from the config digest
-func (cache *TemplateCache) GetProviderFromDigest(digest string) string {
-	if provider, found := cache.digest2provider[digest]; found {
-		return provider
-	}
-	return UnknownProvider
 }
 
 // GetUnresolvedTemplates returns templates yet to be resolved
@@ -116,7 +101,6 @@ func (cache *TemplateCache) Del(tpl check.Config) error {
 	// remove the template
 	delete(cache.digest2ids, d)
 	delete(cache.digest2template, d)
-	delete(cache.digest2provider, d)
 
 	// iterate through the AD identifiers for this config
 	for _, id := range tpl.ADIdentifiers {

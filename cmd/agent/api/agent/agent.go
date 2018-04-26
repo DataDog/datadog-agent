@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
@@ -230,7 +231,11 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 	var response response.ConfigCheckResponse
 
-	response.Configs = common.AC.GetProviderLoadedConfigs()
+	configs := common.AC.GetLoadedConfigs()
+	sort.Slice(configs, func(i, j int) bool {
+		return configs[i].Name < configs[j].Name
+	})
+	response.Configs = configs
 	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
 	response.ConfigErrors = autodiscovery.GetConfigErrors()
 	response.Unresolved = common.AC.GetUnresolvedTemplates()
