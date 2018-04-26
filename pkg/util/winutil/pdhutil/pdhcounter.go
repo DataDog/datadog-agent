@@ -13,11 +13,12 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows"
 )
 
 var (
-	counterToIndex map[string]int
+	counterToIndex map[string][]int
 )
 
 // CounterInstanceVerify is a callback function called by GetCounterSet for each
@@ -36,8 +37,8 @@ type PdhCounterSet struct {
 
 const singleInstanceKey = "_singleInstance_"
 
-func init() {
-	counterToIndex = make(map[string]int)
+func makeCounterSetIndexes() error {
+	counterToIndex = make(map[string][]int)
 
 	bufferIncrement := uint32(1024)
 	bufferSize := bufferIncrement
@@ -57,43 +58,52 @@ func init() {
 			// buffer's not big enough
 			bufferSize += bufferIncrement
 			continue
+		} else if regerr != nil {
+			return regerr
 		}
 		break
 	}
 	clist := winutil.ConvertWindowsStringList(counterlist)
 	for i := 0; i < len(clist); i += 2 {
 		ndx, _ := strconv.Atoi(clist[i])
-		counterToIndex[clist[i+1]] = ndx
+		counterToIndex[clist[i+1]] = append(counterToIndex[clist[i+1]], ndx)
 	}
-
+	return nil
 }
 
 // GetCounterSet returns an initialized PDH counter set.
 func GetCounterSet(className string, counterName string, instanceName string, verifyfn CounterInstanceVerify) (*PdhCounterSet, error) {
 	var p PdhCounterSet
 	p.countermap = make(map[string]PDH_HCOUNTER)
-	var ndx int
 	var err error
-	if ndx = getCounterIndex(className); ndx == -1 {
-		return nil, fmt.Errorf("Class name not found: %s", className)
-	}
-	p.className, err = pdhLookupPerfNameByIndex(ndx)
+
+	// the counter index list may be > 1, but for class name, only take the first
+	// one.  If not present at all, try the english counter name
+	ndxlist, err := getCounterIndexList(className)
 	if err != nil {
 		return nil, err
 	}
-	if ndx = getCounterIndex(counterName); ndx == -1 {
-		return nil, fmt.Errorf("Class name not found: %s", counterName)
+	if ndxlist == nil || len(ndxlist) == 0 {
+		log.Warnf("Didn't find counter index for class %s, attempting english counter", className)
+		p.className = className
+	} else {
+		if len(ndxlist) > 1 {
+			log.Warnf("Class %s had multiple (%d) indices, using first", className, len(ndxlist))
+		}
+		ndx := ndxlist[0]
+		p.className, err = pdhLookupPerfNameByIndex(ndx)
+		if err != nil {
+			return nil, fmt.Errorf("Class name not found: %s", counterName)
+		}
+		log.Debugf("Found class name for %s %s", className, p.className)
 	}
-	p.counterName, err = pdhLookupPerfNameByIndex(ndx)
-	if err != nil {
-		return nil, err
-	}
+
 	winerror := PdhOpenQuery(uintptr(0), uintptr(0), &p.query)
 	if ERROR_SUCCESS != winerror {
 		err = fmt.Errorf("Failed to open PDH query handle %d", winerror)
 		return nil, err
 	}
-	_, instances, err := pdhEnumObjectItems(p.className)
+	allcounters, instances, err := pdhEnumObjectItems(p.className)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +116,7 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 					continue
 				}
 			}
-			path, err := pdhMakeCounterPath("", p.className, inst, p.counterName)
+			path, err := p.MakeCounterPath("", counterName, inst, allcounters)
 			if err != nil {
 				continue
 			}
@@ -134,7 +144,7 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 				return nil, fmt.Errorf("Didn't find instance name %s", instanceName)
 			}
 		}
-		path, err := pdhMakeCounterPath("", p.className, instanceName, p.counterName)
+		path, err := p.MakeCounterPath("", counterName, instanceName, allcounters)
 		if err != nil {
 			return nil, err
 		}
@@ -146,6 +156,49 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 	// do the initial collect now
 	PdhCollectQueryData(p.query)
 	return &p, nil
+}
+
+// MakeCounterPath creates a counter path from the counter instance and
+// counter name.  Tries all available translated counter indexes from
+// the english name
+func (p *PdhCounterSet) MakeCounterPath(machine, counterName, instanceName string, counters []string) (string, error) {
+	/*
+	   When handling non english versions, the counters don't work quite as documented.
+	   This is because strings like "Bytes Sent/sec" might appear multiple times in the
+	   english master, and might not have mappings for each index.
+
+	   Search each index, and make sure the requested counter name actually appears in
+	   the list of available counters; that's the counter we'll use.
+	*/
+	idxList, err := getCounterIndexList(counterName)
+	if err != nil {
+		return "", err
+	}
+	for _, ndx := range idxList {
+		counter, e := pdhLookupPerfNameByIndex(ndx)
+		if e != nil {
+			log.Debugf("Counter index %d not found, skipping", ndx)
+			continue
+		}
+		// see if the counter we got back is in the list of counters
+		if !stringInSlice(counter, counters) {
+			log.Debugf("counter %s not in counter list", counter)
+			continue
+		}
+		// check to see if we can create the counter
+		path, err := pdhMakeCounterPath(machine, p.className, instanceName, counter)
+		if err == nil {
+			log.Debugf("Successfully created counter path %s", path)
+			p.counterName = counter
+			return path, nil
+		}
+		// else
+		log.Debugf("Unable to create path with %s, trying again", counter)
+	}
+	// if we get here, was never able to find a counter path or create a valid
+	// path.  Return failure.
+	log.Warnf("Unable to create counter path for %s %s", counterName, instanceName)
+	return "", fmt.Errorf("Unable to create counter path %s %s", counterName, instanceName)
 }
 
 // GetAllValues returns the data associated with each instance in a query.
@@ -183,10 +236,25 @@ func (p *PdhCounterSet) Close() {
 	PdhCloseQuery(p.query)
 }
 
-func getCounterIndex(cname string) int {
-	ndx, found := counterToIndex[cname]
-	if !found {
-		return -1
+func getCounterIndexList(cname string) ([]int, error) {
+	if counterToIndex == nil || len(counterToIndex) == 0 {
+		if err := makeCounterSetIndexes(); err != nil {
+			return []int{}, err
+		}
 	}
-	return ndx
+
+	ndxlist, found := counterToIndex[cname]
+	if !found {
+		return []int{}, nil
+	}
+	return ndxlist, nil
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }
