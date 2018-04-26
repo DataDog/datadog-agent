@@ -1,0 +1,10 @@
+---
+upgrade:
+  - |
+    The Agent's forwarder now reads the proxy settings of the environment (``HTTP_PROXY``,
+    ``HTTPS_PROXY`` and ``NO_PROXY``) unless proxy settings are configured in the Agent's
+    configuration. This will affect your Agents if `proxy` is not specified in your
+    Agent configuration.
+fixes:
+  - |
+    Read proxy settings from the environment when none are set in the Agent's configuration.
