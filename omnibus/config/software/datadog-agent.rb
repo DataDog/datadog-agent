@@ -64,44 +64,44 @@ build do
     if debian?
       erb source: "upstart_debian.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent.conf",
-          mode: 0755,
+          mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.process.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent-process.conf",
-          mode: 0755,
+          mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.trace.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
-          mode: 0755,
+          mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat? || suse?
       # Ship a different upstart job definition on RHEL to accommodate the old
       # version of upstart (0.6.5) that RHEL 6 provides.
       erb source: "upstart_redhat.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent.conf",
-          mode: 0755,
+          mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.process.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent-process.conf",
-          mode: 0755,
+          mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.trace.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
-          mode: 0755,
+          mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
 
     erb source: "systemd.service.erb",
         dest: "#{install_dir}/scripts/datadog-agent.service",
-        mode: 0755,
+        mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.process.service.erb",
         dest: "#{install_dir}/scripts/datadog-agent-process.service",
-        mode: 0755,
+        mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.trace.service.erb",
         dest: "#{install_dir}/scripts/datadog-agent-trace.service",
-        mode: 0755,
+        mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
   end
 
@@ -109,7 +109,7 @@ build do
     # Launchd service definition
     erb source: "launchd.plist.example.erb",
         dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
-        mode: 0755,
+        mode: 0644,
         vars: { install_dir: install_dir }
 
     # Systray GUI
