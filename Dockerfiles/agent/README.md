@@ -186,7 +186,7 @@ sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrole.yaml | oc apply -f -
 sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrolebinding.yaml | oc apply -f -
 ```
 
-- The `kubelet` check retrieves metrics from the Kubernetes 1.7.6+ (OpenShift 3.7.0+) prometheus endpoint. You need to [enable cAdvisor port mode](https://github.com/DataDog/integrations-core/tree/master/kubelet#compatibility) for older versions.
+- The `kubelet` check retrieves metrics from the Kubernetes 1.7.6+ (OpenShift 3.7.0+) prometheus endpoint. You need to [enable cAdvisor port mode](https://github.com/DataDog/integrations-core/blob/41cb3c5164b4eebd01e250a0f322896493233813/kubelet/README.md#compatibility) for older versions.
 
 - Our default daemonset makes use of the [downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/) to pass the kubelet's IP to the agent. This only works on versions 1.7 and up. For older versions, here are other ways to enable kubelet connectivity:
 
