@@ -66,7 +66,9 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 	}
 
 	// Add sample to bucket
-	bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval)
+	if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval); err != nil {
+		log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+	}
 }
 
 func (s *TimeSampler) flush(timestamp float64) metrics.Series {
@@ -92,7 +94,7 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 			// It is ok to add 0 samples to a counter that was already sampled for real in the bucket, since it won't change its value
 			s.countersSampleZeroValue(bucketTimestamp, contextMetrics, counterContextsToDelete)
 
-			rawSeries = append(rawSeries, contextMetrics.Flush(float64(bucketTimestamp))...)
+			rawSeries = append(rawSeries, s.flushContextMetrics(bucketTimestamp, contextMetrics)...)
 
 			delete(s.metricsByTimestamp, bucketTimestamp)
 		}
@@ -104,7 +106,7 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 
 		s.countersSampleZeroValue(cutoffTime-s.interval, contextMetrics, counterContextsToDelete)
 
-		rawSeries = append(rawSeries, contextMetrics.Flush(float64(cutoffTime-s.interval))...)
+		rawSeries = append(rawSeries, s.flushContextMetrics(cutoffTime-s.interval, contextMetrics)...)
 	}
 
 	// Delete the contexts associated to an expired counter
@@ -119,7 +121,11 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
 		} else {
 			// Resolve context and populate new Serie
-			context := s.contextResolver.contextsByKey[serie.ContextKey]
+			context, ok := s.contextResolver.contextsByKey[serie.ContextKey]
+			if !ok {
+				log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
+				continue
+			}
 			serie.Name = context.Name + serie.NameSuffix
 			serie.Tags = context.Tags
 			if context.Host != "" {
@@ -137,6 +143,20 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 	s.contextResolver.expireContexts(timestamp - defaultExpiry)
 	s.lastCutOffTime = cutoffTime
 	return result
+}
+
+// flushContextMetrics flushes the passed contextMetrics, handles its errors, and returns its series
+func (s *TimeSampler) flushContextMetrics(timestamp int64, contextMetrics metrics.ContextMetrics) []*metrics.Serie {
+	series, errors := contextMetrics.Flush(float64(timestamp))
+	for ckey, err := range errors {
+		context, ok := s.contextResolver.contextsByKey[ckey]
+		if !ok {
+			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
+			continue
+		}
+		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
+	}
+	return series
 }
 
 func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics, counterContextsToDelete map[ckey.ContextKey]struct{}) {

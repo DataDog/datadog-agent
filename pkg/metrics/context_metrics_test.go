@@ -25,8 +25,9 @@ func TestContextMetricsGaugeSampling(t *testing.T) {
 	}
 
 	metrics.AddSample(contextKey, &mSample, 1, 10)
-	series := metrics.Flush(12345)
+	series, err := metrics.Flush(12345)
 
+	assert.Len(t, err, 0)
 	expectedSerie := &Serie{
 		ContextKey: contextKey,
 		Points:     []Point{{12345.0, mSample.Value}},
@@ -50,11 +51,13 @@ func TestContextMetricsGaugeSamplingNoSample(t *testing.T) {
 	}
 
 	metrics.AddSample(contextKey, &mSample, 1, 10)
-	series := metrics.Flush(12345)
+	series, err := metrics.Flush(12345)
 
+	assert.Len(t, err, 0)
 	assert.Equal(t, 1, len(series))
 
-	series = metrics.Flush(12355)
+	series, err = metrics.Flush(12355)
+	assert.Len(t, err, 0)
 	// No series flushed since there's no new sample since last flush
 	assert.Equal(t, 0, len(series))
 }
@@ -77,7 +80,8 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 
 	metrics.AddSample(contextKey1, &mSample1, 1, 10)
 	metrics.AddSample(contextKey2, &mSample2, 1, 10)
-	series := metrics.Flush(20)
+	series, err := metrics.Flush(20)
+	assert.Len(t, err, 0)
 	assert.Equal(t, 0, len(series))
 
 	// NaN
@@ -86,7 +90,8 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 		Mtype: GaugeType,
 	}
 	metrics.AddSample(contextKey1, &mSample3, 1, 30)
-	series = metrics.Flush(40)
+	series, err = metrics.Flush(40)
+	assert.Len(t, err, 0)
 	assert.Equal(t, 0, len(series))
 
 	// Regular value, should flush a series
@@ -95,7 +100,8 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 		Mtype: GaugeType,
 	}
 	metrics.AddSample(contextKey1, &mSample4, 1, 50)
-	series = metrics.Flush(60)
+	series, err = metrics.Flush(60)
+	assert.Len(t, err, 0)
 	expectedSerie := &Serie{
 		ContextKey: contextKey1,
 		Points:     []Point{{60., 1.}},
@@ -108,18 +114,21 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 
 // No series should be flushed when the rate has been sampled only once overall
 // Important for check metrics aggregation
-func TestContextMetricsRateSampling(t *testing.T) {
+func TestContextMetricsSingleRateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12340, 10)
-	series := metrics.Flush(12345)
+	series, err := metrics.Flush(12345)
 
+	assert.Len(t, err, 0)
 	// No series flushed since the rate was sampled once only
 	assert.Equal(t, 0, len(series))
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12350, 10)
-	series = metrics.Flush(12351)
+	series, err = metrics.Flush(12351)
+
+	assert.Len(t, err, 0)
 	expectedSerie := &Serie{
 		ContextKey: contextKey,
 		Points:     []Point{{12350.0, 1. / 10.}},
@@ -132,13 +141,30 @@ func TestContextMetricsRateSampling(t *testing.T) {
 	}
 }
 
+// No series should be flushed when the rate is negative, and an error should be returned
+// Important for check metrics aggregation
+func TestContextMetricsNegativeRateSampling(t *testing.T) {
+	metrics := MakeContextMetrics()
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
+
+	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12340, 10)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12350, 10)
+	series, err := metrics.Flush(12351)
+
+	assert.Len(t, series, 0)
+	require.Len(t, err, 1)
+	assert.Contains(t, err, contextKey)
+}
+
 func TestContextMetricsCountSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 5}, 12345, 10)
-	series := metrics.Flush(12350)
+	series, err := metrics.Flush(12350)
+
+	assert.Len(t, err, 0)
 	expectedSerie := &Serie{
 		ContextKey: contextKey,
 		Points:     []Point{{12350.0, 6.}},
@@ -157,7 +183,9 @@ func TestContextMetricsMonotonicCountSampling(t *testing.T) {
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 5}, 12345, 10)
-	series := metrics.Flush(12350)
+	series, err := metrics.Flush(12350)
+
+	assert.Len(t, err, 0)
 	expectedSerie := &Serie{
 		ContextKey: contextKey,
 		Points:     []Point{{12350.0, 4.}},
@@ -178,8 +206,9 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 2}, 12342, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12350, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 6}, 12350, 10)
-	series := metrics.Flush(12351)
+	series, err := metrics.Flush(12351)
 
+	assert.Len(t, err, 0)
 	expectedSeries := []*Serie{
 		{
 			ContextKey: contextKey,
@@ -228,8 +257,9 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 2}, 12341, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12342, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12343, 10)
-	series := metrics.Flush(12351)
+	series, err := metrics.Flush(12351)
 
+	assert.Len(t, err, 0)
 	require.Len(t, series, 5)
 	AssertSerieEqual(t,
 		&Serie{
