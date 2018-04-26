@@ -8,10 +8,10 @@ package flare
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"regexp"
-	"strings"
 )
 
 type replacer struct {
@@ -27,43 +27,35 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 var replacers []replacer
 
 func init() {
-	apiKeyReplacer = replacer{
-		regex: regexp.MustCompile(`(?m)^\s*api_key:( *['"]?\w+['"]? ?,?)+$`),
-		replFunc: func(b []byte) []byte {
-			s := string(b)
-			s = strings.TrimSuffix(s, `"`)
-			s = strings.TrimSuffix(s, `'`)
-			replacement := "api_key: **************************" + s[len(s)-5:]
-			return []byte(replacement)
-		},
-	}
-	dockerAPIKeyReplacer = replacer{
-		regex: regexp.MustCompile(`DD_API_KEY=['"]?\w+['"]?`),
-		replFunc: func(b []byte) []byte {
-			s := string(b)
-			s = strings.TrimSuffix(s, `"`)
-			s = strings.TrimSuffix(s, `'`)
-			replacement := "DD_API_KEY=**************************" + s[len(s)-5:]
-			return []byte(replacement)
-		},
+	apiKeyReplacer := replacer{
+		regex: regexp.MustCompile(`[a-fA-F0-9]{27}([a-fA-F0-9]{5})`),
+		repl:  []byte(`***************************$1`),
 	}
 	uriPasswordReplacer = replacer{
-		regex: regexp.MustCompile(`(.*\ ["']?[A-Za-z0-9]+)\:\/\/([A-Za-z0-9_]+)\:(.+)\@`),
-		repl:  []byte(`$1://$2:********@`),
+		regex: regexp.MustCompile(`\:\/\/([A-Za-z0-9_]+)\:(.+)\@`),
+		repl:  []byte(`://$1:********@`),
 	}
 	passwordReplacer = replacer{
-		regex: regexp.MustCompile(`( *(\w|_)*pass(word)?:).+`),
+		regex: matchYAMLKeyPart(`pass(word)?`),
 		repl:  []byte(`$1 ********`),
 	}
 	tokenReplacer = replacer{
-		regex: regexp.MustCompile(`( *(\w|_)*token:).+`),
+		regex: matchYAMLKeyPart(`token`),
 		repl:  []byte(`$1 ********`),
 	}
 	snmpReplacer = replacer{
-		regex: regexp.MustCompile(`^(\s*community_string:) *.+$`),
+		regex: matchYAMLKey(`(community_string|authKey|privKey)`),
 		repl:  []byte(`$1 ********`),
 	}
-	replacers = []replacer{apiKeyReplacer, dockerAPIKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	replacers = []replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+}
+
+func matchYAMLKeyPart(part string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s(\w|_)*\s*:).+`, part))
+}
+
+func matchYAMLKey(key string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
 }
 
 func credentialsCleanerFile(filePath string) ([]byte, error) {
