@@ -67,10 +67,9 @@ func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) 
 
 		if nw, ok := nwByIface[iface]; ok {
 			stat = &InterfaceNetStats{NetworkName: nw.dockerName}
+		} else if iface == "lo" {
+			continue // Ignore loopback
 		} else {
-			if iface == "lo" {
-				continue // Ignore loopback
-			}
 			log.Debugf("Container %s: interface %s does not match a network, tagging with interface name", containerID, iface)
 			stat = &InterfaceNetStats{NetworkName: iface}
 		}
