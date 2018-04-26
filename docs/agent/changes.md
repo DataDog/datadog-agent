@@ -75,7 +75,7 @@ new layout is strongly recommended.
 ### Configuration through Environment Variables
 
 When running the agent in a container, it is also possible to set some of the configuration through environment variables.
-**The environment variables used in the agent 6 are different from those available in agent 5.** 
+**The environment variables used in the agent 6 are different from those available in agent 5.**
 
 To not miss some specific configuration details, if you are currently using environment variables to setup your agent's v5 configuration, [consult the new list of environment variables for Agent v6](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent#environment-variables).
 
@@ -473,29 +473,33 @@ You will have to install the missing dependencies manually as described above.
 
 ## JMX
 
-The Agent 6 ships JMXFetch and include a few changes :
+The Agent 6 ships JMXFetch, with the following changes:
+
+### JMXTerm JAR
 
 The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jmxterm`, please refer to the [upstream project](https://github.com/jiaqi/jmxterm).
 
-Troubleshooting commands syntax have changed :
+### Troubleshooting commands
 
-`sudo -u dd-agent datadog-agent jmx list matching`: List attributes that match at least one of your instances configuration.
+Troubleshooting commands syntax have changed. These commands are available since v6.2.0, for earlier v6 versions please refer to [the earlier docs](https://github.com/DataDog/datadog-agent/blob/6.1.4/docs/agent/changes.md#jmx):
 
-`sudo -u dd-agent datadog-agent jmx list limited`: List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.
+* `sudo -u dd-agent datadog-agent jmx list matching`: List attributes that match at least one of your instances configuration.
 
-`sudo -u dd-agent datadog-agent jmx list collected`: List attributes that will actually be collected by your current instances configuration.
+* `sudo -u dd-agent datadog-agent jmx list limited`: List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.
 
-`sudo -u dd-agent datadog-agent jmx list not-matching`: List attributes that don’t match any of your instances configuration.
+* `sudo -u dd-agent datadog-agent jmx list collected`: List attributes that will actually be collected by your current instances configuration.
 
-`sudo -u dd-agent datadog-agent jmx list everything`: List every attributes available that has a type supported by JMXFetch.
+* `sudo -u dd-agent datadog-agent jmx list not-matching`: List attributes that don’t match any of your instances configuration.
 
-`sudo -u dd-agent datadog-agent jmx collect`: Start the collection of metrics based on your current configuration and display them in the console.
+* `sudo -u dd-agent datadog-agent jmx list everything`: List every attributes available that has a type supported by JMXFetch.
+
+* `sudo -u dd-agent datadog-agent jmx collect`: Start the collection of metrics based on your current configuration and display them in the console.
 
 By default theses command will run on all the configured jmx checks. If you want to
 use them for specific checks, you can specify them using the `--checks` flag :
 `sudo datadog-agent jmx list collected --checks tomcat`
 
-### GCE hostname
+## GCE hostname
 
 _Only affects Agents running on GCE_
 
