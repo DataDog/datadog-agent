@@ -189,19 +189,14 @@ func TestIsNameMatch(t *testing.T) {
 	container = NewContainer(types.Container{Names: []string{"foo", "bar"}})
 	assert.True(t, container.isNameMatch("foo"))
 	assert.True(t, container.isNameMatch("bar"))
-	assert.False(t, container.isNameMatch("boo"))
-	assert.False(t, container.isNameMatch(""))
-
-	container = NewContainer(types.Container{Names: []string{""}})
-	assert.False(t, container.isNameMatch("foo"))
-	assert.False(t, container.isNameMatch("bar"))
+	assert.True(t, container.isNameMatch(""))
 	assert.False(t, container.isNameMatch("boo"))
 
-	container = NewContainer(types.Container{Names: nil})
-	assert.False(t, container.isNameMatch("foo"))
-	assert.False(t, container.isNameMatch("bar"))
+	container = NewContainer(types.Container{Names: []string{"/api/v1/pods/foo", "/bar"}})
+	assert.True(t, container.isNameMatch("foo"))
+	assert.True(t, container.isNameMatch("bar"))
+	assert.True(t, container.isNameMatch(""))
 	assert.False(t, container.isNameMatch("boo"))
-	assert.False(t, container.isNameMatch(""))
 }
 
 func TestParseConfigWithNoValidKeyShouldFail(t *testing.T) {
