@@ -9,6 +9,7 @@ package container
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 
 	log "github.com/cihub/seelog"
@@ -96,8 +97,13 @@ func (c *Container) isImageMatch(imageFilter string) bool {
 
 // isNameMatch returns true if one of the container name matches with the filter.
 func (c *Container) isNameMatch(nameFilter string) bool {
+	re, err := regexp.Compile(nameFilter)
+	if err != nil {
+		log.Warn("used invalid name to filter containers: ", nameFilter)
+		return false
+	}
 	for _, name := range c.Names {
-		if name == nameFilter {
+		if re.MatchString(name) {
 			return true
 		}
 	}
