@@ -385,13 +385,9 @@ func (ac *AutoConfig) pollConfigs() {
 					// retrieve the list of newly added configurations as well
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
-					for _, config := range newConfigs {
-						config.Provider = pd.provider.String()
-						resolvedConfigs := ac.resolve(config)
-						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
-						ac.schedule(checks)
-					}
 
+					// Process removed configs first to handle the case where a
+					// container churn would result in the same configuration hash.
 					for _, config := range removedConfigs {
 						// unschedule all the checks corresponding to this config
 						digest := config.Digest()
@@ -429,6 +425,12 @@ func (ac *AutoConfig) pollConfigs() {
 						if config.IsTemplate() {
 							ac.templateCache.Del(config)
 						}
+					}
+					for _, config := range newConfigs {
+						config.Provider = pd.provider.String()
+						resolvedConfigs := ac.resolve(config)
+						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
+						ac.schedule(checks)
 					}
 				}
 				ac.m.RUnlock()
