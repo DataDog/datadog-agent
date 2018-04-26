@@ -60,6 +60,8 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 		fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
 		if len(c.Provider) > 0 {
 			fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.CyanString(c.Provider)))
+		} else {
+			fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.RedString("Unknown provider")))
 		}
 		for i, inst := range c.Instances {
 			fmt.Fprintln(w, fmt.Sprintf("%s %s:", color.BlueString("Instance"), color.CyanString(strconv.Itoa(i+1))))
