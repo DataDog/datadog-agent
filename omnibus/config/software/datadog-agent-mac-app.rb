@@ -17,7 +17,7 @@ build do
     block do # defer in a block to allow getting the project's build version
       erb source: "Info.plist.erb",
           dest: "#{app_temp_dir}/Info.plist",
-          mode: 0755,
+          mode: 0644,
           vars: { version: project.build_version, year: Time.now.year, executable: "gui" }
     end
 end
