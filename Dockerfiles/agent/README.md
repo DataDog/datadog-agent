@@ -92,6 +92,8 @@ Please refer to the dedicated section about the [Kubernetes integration](#kubern
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
 - `DD_ENABLE_GOHAI`: enable or disable the system information collector [gohai](https://github.com/DataDog/gohai) (enabled by default if not set)
 
+Some options are not yet available as environment variable bindings (including proxy settings). To customize these, the agent supports mounting a custom `/etc/datadog-agent/datadog.yaml` configuration file (based on the [docker](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/datadog-docker.yaml) or [kubernetes](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/datadog-kubernetes.yaml) base configurations) for these options, and using environment variables for the rest.
+
 ### Optional volumes
 
 To run custom checks and configurations without buidling your own image, you can mount additional files in these folders:
