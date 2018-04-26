@@ -80,23 +80,24 @@ type Check interface {
 
 // Stats holds basic runtime statistics about check instances
 type Stats struct {
-	CheckName          string
-	CheckID            ID
-	TotalRuns          uint64
-	TotalErrors        uint64
-	TotalWarnings      uint64
-	Metrics            int64
-	Events             int64
-	ServiceChecks      int64
-	TotalMetrics       int64
-	TotalEvents        int64
-	TotalServiceChecks int64
-	ExecutionTimes     [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
-	LastExecutionTime  int64     // most recent run duration, provided for convenience
-	LastError          string    // error that occurred in the last run, if any
-	LastWarnings       []string  // warnings that occurred in the last run, if any
-	UpdateTimestamp    int64     // latest update to this instance, unix timestamp in seconds
-	m                  sync.Mutex
+	CheckName            string
+	CheckID              ID
+	TotalRuns            uint64
+	TotalErrors          uint64
+	TotalWarnings        uint64
+	Metrics              int64
+	Events               int64
+	ServiceChecks        int64
+	TotalMetrics         int64
+	TotalEvents          int64
+	TotalServiceChecks   int64
+	ExecutionTimes       [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
+	AverageExecutionTime int64     // average run duration
+	LastExecutionTime    int64     // most recent run duration, provided for convenience
+	LastError            string    // error that occurred in the last run, if any
+	LastWarnings         []string  // warnings that occurred in the last run, if any
+	UpdateTimestamp      int64     // latest update to this instance, unix timestamp in seconds
+	m                    sync.Mutex
 }
 
 // NewStats returns a new check stats instance
@@ -117,6 +118,15 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	cs.LastExecutionTime = tms
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
+	var totalExecutionTime int64
+	ringSize := cs.TotalRuns
+	if ringSize > uint64(len(cs.ExecutionTimes)) {
+		ringSize = uint64(len(cs.ExecutionTimes))
+	}
+	for i := uint64(0); i < ringSize; i++ {
+		totalExecutionTime += cs.ExecutionTimes[i]
+	}
+	cs.AverageExecutionTime = totalExecutionTime / int64(ringSize)
 	if err != nil {
 		cs.TotalErrors++
 		cs.LastError = err.Error()
