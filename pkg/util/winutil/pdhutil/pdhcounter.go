@@ -79,12 +79,12 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 
 	// the counter index list may be > 1, but for class name, only take the first
 	// one.  If not present at all, try the english counter name
-	ndxlist, err := getCounterIndex(className)
+	ndxlist, err := getCounterIndexList(className)
 	if err != nil {
 		return nil, err
 	}
 	if ndxlist == nil || len(ndxlist) == 0 {
-		log.Warnf("Didn't find counter index for %s, attempting english counter", className)
+		log.Warnf("Didn't find counter index for class %s, attempting english counter", className)
 		p.className = className
 	} else {
 		if len(ndxlist) > 1 {
@@ -170,7 +170,7 @@ func (p *PdhCounterSet) MakeCounterPath(machine, counterName, instanceName strin
 	   Search each index, and make sure the requested counter name actually appears in
 	   the list of available counters; that's the counter we'll use.
 	*/
-	idxList, err := getCounterIndex(counterName)
+	idxList, err := getCounterIndexList(counterName)
 	if err != nil {
 		return "", err
 	}
@@ -236,7 +236,7 @@ func (p *PdhCounterSet) Close() {
 	PdhCloseQuery(p.query)
 }
 
-func getCounterIndex(cname string) ([]int, error) {
+func getCounterIndexList(cname string) ([]int, error) {
 	if counterToIndex == nil || len(counterToIndex) == 0 {
 		if err := makeCounterSetIndexes(); err != nil {
 			return []int{}, err
