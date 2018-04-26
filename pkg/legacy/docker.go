@@ -149,6 +149,6 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		config.Datadog.Set("docker_labels_as_tags", dockerLabelAsTags)
 	}
 
-	fmt.Printf("Successfully move information needed from %s into the datadog.yaml (see 'Autodiscovery' section in datadog.yaml.example)\n\n", src)
+	fmt.Printf("Successfully imported the contents of %s into datadog.yaml (see 'Autodiscovery' section in datadog.yaml.example)\n\n", src)
 	return nil
 }

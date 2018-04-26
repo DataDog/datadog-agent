@@ -301,7 +301,17 @@ Agent 6 currently supports Kubernetes versions 1.7.6 and above. Support for prev
 The `kubernetes` integration insights are provided combining:
   * The [`kubelet`](https://github.com/DataDog/integrations-core/tree/master/kubelet) check
   retrieving metrics from the kubelet
-  * The `kubernetes_apiserver` check retrieving events and service checks from the apiserver
+  * The [`kubernetes_apiserver`](https://github.com/DataDog/datadog-agent/tree/master/cmd/agent/dist/conf.d/kubernetes_apiserver.d) check retrieving events and service checks from the apiserver
+
+The `agent import` command (in versions 6.2 and higher) will import settings from the legacy `kubernetes.yaml` configuration, if found. The following  options are deprecated:
+
+  - API Server credentials (`api_server_url`, `apiserver_client_crt`, `apiserver_client_key`, `apiserver_ca_cert`) please provide a a kubeconfig file to the agent via the `kubernetes_kubeconfig_path` option
+  - `use_histogram`: please contact support to determine the best alternative for you
+  - `namespaces`, `namespace_name_regexp`: Agent6 now collects metrics from all available namespaces
+
+The upgrade logic enables the new prometheus metric collection, that is compatible with Kubernetes versions 1.7.6 and up. If you run an older version or want to revert to the cadvisor collection logic, you can set the `cadvisor_port` option back to `4194` (or the port your kubelet exposes cadvisor at).
+
+The [`kubernetes_state` integration](https://github.com/DataDog/integrations-core/tree/master/kubernetes_state) works on both versions of the agent.
 
 ### Tagging
 
@@ -316,8 +326,6 @@ The following options and tags are deprecated:
      - `kube_replicate_controller` is only added if the pod is created by a replication controller,
      not systematically. Use the relevant creator tag (`kube_deployment` / `kube_daemon_set`...)
 
-The `kube_service` tagging depends on the `Datadog Cluster Agent`, which is not released yet.
-
 ## Autodiscovery
 
 We reworked the [Autodiscovery](https://docs.datadoghq.com/agent/autodiscovery/) system from the ground up to be faster and more reliable.
@@ -327,9 +335,7 @@ All documented use cases are supported, please contact our support team if you r
 
 ### Kubernetes
 
-When using Kubernetes, the Autodiscovery system now sources information from the kubelet, instead of the Docker daemon. This will allow AD
-to work without access to the Docker socket, and enable a more consistent experience accross all parts of the agent. The side effect of that
-is that templates in Docker labels are not supported when using the kubelet AD listener. Templates in pod annotations still work as intended.
+When using Kubernetes, the Autodiscovery system now sources information from the kubelet, instead of the Docker daemon. This will allow AD to work without access to the Docker socket, and enable a more consistent experience accross all parts of the agent. Also, the default behaviour is to source AD templates from pod annotations. You can enable the `docker` config-provider to use container labels, and replace the `kubelet` listener by the `kubelet` one if you need AD on containers running out of pods.
 
 When specifying AD templates in pod annotations, the new annotation name prefix is `ad.datadoghq.com/`. the previous annotation prefix
 `service-discovery.datadoghq.com/` is still supported for Agent6 but support will be removed in Agent7.
