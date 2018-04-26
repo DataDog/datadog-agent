@@ -351,7 +351,58 @@ func TestFindDockerNetworks(t *testing.T) {
 				PacketsSent: 3,
 			},
 		},
-		// Dumb error case to make sure we don't panic
+		// Fallback to interface name if bridge is not in inspect (docker swarm bug)
+		{
+			pid: 5153,
+			container: types.Container{
+				ID: "test-find-docker-networks-multiple",
+				NetworkSettings: &types.SummaryNetworkSettings{
+					Networks: map[string]*dockernetwork.EndpointSettings{
+						"test": {
+							IPAddress: "172.18.0.1",
+						},
+					},
+				},
+			},
+			routes: detab(`
+				Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
+				eth0	00000000	010011AC	0003	0	0	0	00000000	0	0	0
+				eth0	000011AC	00000000	0001	0	0	0	0000FFFF	0	0	0
+				eth1	000012AC	00000000	0001	0	0	0	0000FFFF	0	0	0
+            `),
+			dev: detab(`
+				Inter-|   Receive                                                |  Transmit
+				 face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+				    lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+				  eth0:     648       8    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+				  eth1:    1478      19    0    0    0     0          0         0      182       3    0    0    0     0       0          0`),
+			networks: []dockerNetwork{
+				{iface: "eth1", dockerName: "test"},
+			},
+			stat: ContainerNetStats{
+				&InterfaceNetStats{
+					NetworkName: "eth0",
+					BytesRcvd:   648,
+					PacketsRcvd: 8,
+					BytesSent:   0,
+					PacketsSent: 0,
+				},
+				&InterfaceNetStats{
+					NetworkName: "test",
+					BytesRcvd:   1478,
+					PacketsRcvd: 19,
+					BytesSent:   182,
+					PacketsSent: 3,
+				},
+			},
+			summedStat: &InterfaceNetStats{
+				BytesRcvd:   2126,
+				PacketsRcvd: 27,
+				BytesSent:   182,
+				PacketsSent: 3,
+			},
+		},
+		// Dumb error case to make sure we don't panic, fallback to interface name
 		{
 			pid: 5157,
 			container: types.Container{
@@ -380,8 +431,21 @@ func TestFindDockerNetworks(t *testing.T) {
                   eth0:    1111       2    0    0    0     0          0         0     1024      80    0    0    0     0       0          0
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
-			stat:       ContainerNetStats{},
-			summedStat: &InterfaceNetStats{},
+			stat: ContainerNetStats{
+				&InterfaceNetStats{
+					NetworkName: "eth0",
+					BytesRcvd:   1111,
+					PacketsRcvd: 2,
+					BytesSent:   1024,
+					PacketsSent: 80,
+				},
+			},
+			summedStat: &InterfaceNetStats{
+				BytesRcvd:   1111,
+				PacketsRcvd: 2,
+				BytesSent:   1024,
+				PacketsSent: 80,
+			},
 		},
 	} {
 		t.Run("", func(t *testing.T) {

@@ -63,19 +63,27 @@ func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) 
 		}
 		iface := fields[0][:len(fields[0])-1]
 
-		if nw, ok := nwByIface[iface]; ok {
-			stat := &InterfaceNetStats{NetworkName: nw.dockerName}
-			rcvd, _ := strconv.Atoi(fields[1])
-			stat.BytesRcvd = uint64(rcvd)
-			pktRcvd, _ := strconv.Atoi(fields[2])
-			stat.PacketsRcvd = uint64(pktRcvd)
-			sent, _ := strconv.Atoi(fields[9])
-			stat.BytesSent = uint64(sent)
-			pktSent, _ := strconv.Atoi(fields[10])
-			stat.PacketsSent = uint64(pktSent)
+		var stat *InterfaceNetStats
 
-			netStats = append(netStats, stat)
+		if nw, ok := nwByIface[iface]; ok {
+			stat = &InterfaceNetStats{NetworkName: nw.dockerName}
+		} else if iface == "lo" {
+			continue // Ignore loopback
+		} else {
+			log.Debugf("Container %s: interface %s does not match a network, tagging with interface name", containerID, iface)
+			stat = &InterfaceNetStats{NetworkName: iface}
 		}
+
+		rcvd, _ := strconv.Atoi(fields[1])
+		stat.BytesRcvd = uint64(rcvd)
+		pktRcvd, _ := strconv.Atoi(fields[2])
+		stat.PacketsRcvd = uint64(pktRcvd)
+		sent, _ := strconv.Atoi(fields[9])
+		stat.BytesSent = uint64(sent)
+		pktSent, _ := strconv.Atoi(fields[10])
+		stat.PacketsSent = uint64(pktSent)
+
+		netStats = append(netStats, stat)
 	}
 	return netStats, nil
 }
