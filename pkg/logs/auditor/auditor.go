@@ -207,11 +207,11 @@ func (a *Auditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry, error)
 	// ensure backward compatibility
 	switch int(version) {
 	case 2:
-		return a.unmarshalRegistryV2(b)
+		return unmarshalRegistryV2(b)
 	case 1:
-		return a.unmarshalRegistryV1(b)
+		return unmarshalRegistryV1(b)
 	case 0:
-		return a.unmarshalRegistryV0(b)
+		return unmarshalRegistryV0(b)
 	default:
 		return nil, fmt.Errorf("invalid registry version number")
 	}
