@@ -30,16 +30,15 @@ PUPPY_TAGS = set([
     "zlib",
 ])
 
-LINUX_ONLY_TAGS = set([
+LINUX_ONLY_TAGS = [
     "docker",
     "kubelet",
     "kubeapiserver",
-])
+]
 
-DEBIAN_ONLY_TAGS = set([
+DEBIAN_ONLY_TAGS = [
     "systemd",
-])
-
+]
 
 def get_default_build_tags(puppy=False):
     """
