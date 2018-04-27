@@ -52,9 +52,10 @@ func (t *Tailer) setup() error {
 	for _, unit := range config.Units {
 		// add filters to collect only the logs of the units defined in the configuration,
 		// if no units are defined, collect all the logs of the journal by default.
-		err := t.journal.AddMatch("unit=" + unit)
+		match := "_SYSTEMD_UNIT=" + unit
+		err := t.journal.AddMatch(match)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not add filter %s: %s", match, err)
 		}
 	}
 
@@ -65,7 +66,13 @@ func (t *Tailer) setup() error {
 // returns an error if the operation failed.
 func (t *Tailer) seek(cursor string) error {
 	if cursor != "" {
-		return t.journal.SeekCursor(cursor)
+		err := t.journal.SeekCursor(cursor)
+		if err != nil {
+			return err
+		}
+		// must skip one entry since the cursor points to the last commited one.
+		_, err = t.journal.NextSkip(1)
+		return err
 	} else {
 		return t.journal.SeekTail()
 	}
@@ -85,7 +92,7 @@ func (t *Tailer) tail() {
 		default:
 			n, err := t.journal.Next()
 			if err != nil && err != io.EOF {
-				err := fmt.Errorf("Cant't tail journal: %s", err)
+				err := fmt.Errorf("cant't tail journal: %s", err)
 				t.source.Status.Error(err)
 				log.Error(err)
 				return
