@@ -140,7 +140,7 @@ api_key:
 # Whether dogstatsd should listen to non local UDP traffic
 # dogstatsd_non_local_traffic: no
 #
-# Publish dogstatsd's internal stats as Go epxvars
+# Publish dogstatsd's internal stats as Go expvars
 # dogstatsd_stats_enable: no
 #
 # How many items in the dogstatsd's stats circular buffer
