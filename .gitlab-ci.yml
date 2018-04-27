@@ -741,6 +741,16 @@ cluster_agent_dev_docker_hub:
     DEST_IMAGE: datadog/cluster-agent-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
 
+cluster_agent_dev_docker_hub_master:
+  <<: *docker_tag_job_definition
+  only:
+    - master
+  variables:
+    <<: *docker_hub_variables
+    SOURCE_IMAGE: *cluster-agent_ecr
+    DEST_IMAGE: datadog/cluster-agent-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
+
 dogstatsd_dev_docker_hub:
   <<: *docker_tag_job_definition
   when: manual
