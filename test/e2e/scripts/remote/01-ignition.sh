@@ -8,7 +8,7 @@ set -ex
 ssh-keygen -b 4096 -t rsa -C "datadog" -N "" -f "id_rsa"
 SSH_RSA=$(cat id_rsa.pub)
 
-cat << EOF | tee ignition.json
+tee ignition.json << EOF
 {
   "passwd": {
     "users": [
@@ -43,7 +43,16 @@ cat << EOF | tee ignition.json
       {
         "enabled": true,
         "name": "pupernetes.service",
-        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes run /opt/sandbox -v 5 --kubectl-link /opt/bin/kubectl\nRestart=on-failure\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n"
+        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes run /opt/sandbox --kubectl-link /opt/bin/kubectl -v 5 --timeout 6h\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+      },
+      {
+        "name": "terminate.service",
+        "contents": "[Unit]\nDescription=Trigger a poweroff\n\n[Service]\nExecStart=/bin/systemctl poweroff\nRestart=no\n"
+      },
+      {
+        "enabled": true,
+        "name": "terminate.timer",
+        "contents": "[Timer]\nOnBootSec=7200\n\n[Install]\nWantedBy=multi-user.target\n"
       }
     ]
   },
@@ -53,7 +62,15 @@ cat << EOF | tee ignition.json
         "path": "/opt/bin/setup-pupernetes",
         "mode": 320,
         "contents": {
-          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0A%0Acd%20%2Fopt%2Fbin%0A%0Acurl%20-Lf%20https%3A%2F%2Fs3.us-east-2.amazonaws.com%2Fpupernetes%2Flatest%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Acurl%20-Lf%20https%3A%2F%2Fs3.us-east-2.amazonaws.com%2Fpupernetes%2Flatest%2Fpupernetes.sha512sum%20-o%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0A%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0A%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
+          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0Acurl%20-Lf%20https%3A%2F%2Fs3.us-east-2.amazonaws.com%2Fpupernetes%2Flatest%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
+        },
+        "filesystem": "root"
+      },
+      {
+        "path": "/opt/bin/pupernetes.sha512sum",
+        "mode": 256,
+        "contents": {
+          "source": "data:,62b515f47362e26d50384c7efc89bcc27899be1953b8f550d1f904270d7d28b6a2c3a13243799cad0e3419ab5f60b40e690d54cc9f06b253bbb201e0b5d86692%20%2Fopt%2Fbin%2Fpupernetes%0A"
         },
         "filesystem": "root"
       },

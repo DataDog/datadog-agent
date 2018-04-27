@@ -24,6 +24,10 @@ function _ssh_logged() {
     ssh ${SSH_OPTS} -lcore ${MACHINE} /bin/bash -l -c "$@"
 }
 
+until _ssh /bin/true
+do
+    sleep 5
+done
 
 _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-agent
 _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
