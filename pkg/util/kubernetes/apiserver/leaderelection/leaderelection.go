@@ -6,6 +6,7 @@
 package leaderelection
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -16,12 +17,9 @@ import (
 	log "github.com/cihub/seelog"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
-
-	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -42,7 +40,9 @@ var (
 type LeaderEngine struct {
 	initRetry retry.Retrier
 
-	once sync.Once
+	running bool
+	m       sync.Mutex
+	once    sync.Once
 
 	HolderIdentity  string
 	LeaseDuration   time.Duration
@@ -140,26 +140,35 @@ func (le *LeaderEngine) init() error {
 	return nil
 }
 
-func (le *LeaderEngine) startLeaderElection() {
-	log.Infof("Starting Leader Election process for %q ...", le.HolderIdentity)
-	go wait.Forever(le.leaderElector.Run, 0)
-}
-
-// EnsureLeaderElectionRuns start the Leader election process if not already started,
+// EnsureLeaderElectionRuns start the Leader election process if not already running,
 // return nil if the process is effectively running
 func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
-	var leaderIdentity string
+	le.m.Lock()
+	defer le.m.Unlock()
+	if le.running {
+		log.Debugf("Currently leader %s, leader identity: %q", le.IsLeader(), le.CurrentLeaderName())
+		return nil
+	}
 
-	le.once.Do(le.startLeaderElection)
+	le.once.Do(
+		func() {
+			log.Infof("Starting Leader Election process for %q ...", le.HolderIdentity)
+			go le.leaderElector.Run()
+		},
+	)
+
 	timeoutDuration := clientTimeout * 2
 	timeout := time.After(timeoutDuration)
 	tick := time.NewTicker(time.Millisecond * 500)
+	defer tick.Stop()
+	var leaderIdentity string
 	for {
 		select {
 		case <-tick.C:
 			leaderIdentity = le.CurrentLeaderName()
 			if leaderIdentity != "" {
 				log.Infof("Leader Election run, current leader is %q", leaderIdentity)
+				le.running = true
 				return nil
 			}
 			log.Tracef("Leader identity is unset")
