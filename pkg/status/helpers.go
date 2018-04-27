@@ -75,7 +75,7 @@ func LastErrorMessage(value string) template.HTML {
 			return template.HTML(lastErrorArray[0]["message"])
 		}
 	}
-	return template.HTML("UNKNOWN ERROR")
+	return template.HTML(value)
 }
 
 // FormatUnixTime formats the unix time to make it more readable
