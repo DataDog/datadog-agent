@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,8 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
-
 )
 
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
@@ -154,15 +153,6 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Errorf("Could not start the Cluster Agent Process.")
 
 	}
-
-	// Start the k8s custom metrics server
-	err = custommetrics.ValidateArgs(args)
-	if err != nil {
-		log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
-	} else {
-		custommetrics.StartServer()
-	}
-
 	// Start the Service Mapper.
 	asc, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -178,6 +168,17 @@ func start(cmd *cobra.Command, args []string) error {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
+
+	// Start the k8s custom metrics server This is a blocking call - We don;t go beyond, therefore the stop channel is never listening.
+	err = custommetrics.ValidateArgs(args)
+	if err != nil {
+		log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
+	} else {
+		err = custommetrics.StartServer()
+		if err != nil {
+			log.Errorf("Could not start the custom metrics API server: %s", err.Error())
+		}
+	}
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
