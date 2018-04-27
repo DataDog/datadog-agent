@@ -70,7 +70,7 @@ func (t *Tailer) seek(cursor string) error {
 		if err != nil {
 			return err
 		}
-		// must skip one entry since the cursor points to the last commited one.
+		// must skip one entry since the cursor points to the last committed one.
 		_, err = t.journal.NextSkip(1)
 		return err
 	} else {
