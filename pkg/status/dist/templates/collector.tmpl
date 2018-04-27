@@ -17,7 +17,7 @@ Collector
       Events: {{.Events}}, Total Events: {{humanize .TotalEvents}}
       Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanize .TotalServiceChecks}}
       Average Execution Time : {{.AverageExecutionTime}}ms
-      {{- if .LastError -}}
+      {{if .LastError -}}
       Error: {{lastErrorMessage .LastError}}
       {{lastErrorTraceback .LastError -}}
       {{- end }}
