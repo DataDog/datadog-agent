@@ -88,7 +88,7 @@
 
 [[constraint]]
   name = "github.com/shirou/gopsutil"
-  version = "^v2.18.3"
+  version = "^v2.18.4"
 
 [[constraint]]
   name = "github.com/spf13/cobra"
