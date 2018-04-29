@@ -149,12 +149,12 @@ def stat_records():
     return j
 
 
-@app.route("/records")
+@app.route("/_/records")
 def available_records():
     return jsonify(stat_records())
 
 
-@app.route("/records/<string:name>")
+@app.route("/_/records/<string:name>")
 def get_records(name):
     if name not in payload_names:
         return Response(status=404)
@@ -177,7 +177,7 @@ def api_mapper():
     return jsonify(rules)
 
 
-@application.route('/reset', methods=['POST'])
+@application.route('/_/reset', methods=['POST'])
 def reset():
     reset_records()
     return jsonify(stat_records())

@@ -454,7 +454,7 @@ spec:
         set -o pipefail
         set -x
 
-        until curl -f http://fake-datadog.default.svc.cluster.local/reset -XPOST --connect-timeout 1
+        until curl -f http://fake-datadog.default.svc.cluster.local/_/reset -XPOST --connect-timeout 1
         do
           sleep 3
         done
