@@ -98,11 +98,11 @@ func TestDigest(t *testing.T) {
 func TestCollectDefaultMetrics(t *testing.T) {
 	cfg, err := LoadCheck("foo", "testdata/collect_default_false.yaml")
 	assert.Nil(t, err)
-	assert.False(t, cfg.CollectDefaultMetrics())
+	assert.False(t, CollectDefaultMetrics(cfg))
 
 	cfg, err = LoadCheck("foo", "testdata/no_metrics/conf.yaml")
 	assert.Nil(t, err)
-	assert.True(t, cfg.CollectDefaultMetrics())
+	assert.True(t, CollectDefaultMetrics(cfg))
 }
 
 func TestAddMetrics(t *testing.T) {

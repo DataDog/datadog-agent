@@ -48,7 +48,7 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
 
-	if !check.IsConfigJMX(config.Name, config.InitConfig) {
+	if !check.IsJMXConfig(config.Name, config.InitConfig) {
 		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 

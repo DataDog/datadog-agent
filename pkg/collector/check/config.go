@@ -9,10 +9,13 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
+	"regexp"
 	"strconv"
 
 	yaml "gopkg.in/yaml.v2"
 )
+
+var tplVarRegex = regexp.MustCompile(`%%.+?%%`)
 
 // ConfigData contains YAML code
 type ConfigData []byte
@@ -70,31 +73,6 @@ func (c *Config) String() string {
 // IsTemplate returns if the config has AD identifiers
 func (c *Config) IsTemplate() bool {
 	return len(c.ADIdentifiers) > 0
-}
-
-// CollectDefaultMetrics returns if the config is for a JMX check which has collect_default_metrics: true
-func (c *Config) CollectDefaultMetrics() bool {
-	if !IsConfigJMX(c.String(), c.InitConfig) {
-		return false
-	}
-
-	rawInitConfig := ConfigRawMap{}
-	err := yaml.Unmarshal(c.InitConfig, &rawInitConfig)
-	if err != nil {
-		return false
-	}
-
-	x, ok := rawInitConfig["collect_default_metrics"]
-	if !ok {
-		return false
-	}
-
-	collect, ok := x.(bool)
-	if !collect || !ok {
-		return false
-	}
-
-	return true
 }
 
 // AddMetrics adds metrics to a check configuration
@@ -205,37 +183,4 @@ func (c *Config) Digest() string {
 	}
 
 	return strconv.FormatUint(h.Sum64(), 16)
-}
-
-// IsJMX checks if the config is a JMX config
-func (c *Config) IsJMX() bool {
-	return IsConfigJMX(c.Name, c.InitConfig)
-}
-
-// IsConfigJMX checks if a certain YAML config is a JMX config
-func IsConfigJMX(name string, initConf ConfigData) bool {
-
-	for _, check := range JMXChecks {
-		if check == name {
-			return true
-		}
-	}
-
-	rawInitConfig := ConfigRawMap{}
-	err := yaml.Unmarshal(initConf, &rawInitConfig)
-	if err != nil {
-		return false
-	}
-
-	x, ok := rawInitConfig["is_jmx"]
-	if !ok {
-		return false
-	}
-
-	isJMX, ok := x.(bool)
-	if !isJMX || !ok {
-		return false
-	}
-
-	return true
 }

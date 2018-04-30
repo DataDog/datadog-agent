@@ -284,7 +284,7 @@ func (ac *AutoConfig) resolve(config check.Config) []check.Config {
 	configs := []check.Config{}
 
 	// add default metrics to collect to JMX checks
-	if config.CollectDefaultMetrics() {
+	if check.CollectDefaultMetrics(config) {
 		metrics, ok := ac.name2jmxmetrics[config.Name]
 		if !ok {
 			log.Infof("%s doesn't have an additional metric configuration file: not collecting default metrics", config.Name)
