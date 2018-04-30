@@ -16,7 +16,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )

@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )

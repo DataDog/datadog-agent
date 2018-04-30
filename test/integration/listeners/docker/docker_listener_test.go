@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/test/integration/utils"

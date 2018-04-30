@@ -8,8 +8,8 @@ package autodiscovery
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

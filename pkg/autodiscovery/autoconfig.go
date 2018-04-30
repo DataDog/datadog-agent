@@ -14,10 +14,10 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
-	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 

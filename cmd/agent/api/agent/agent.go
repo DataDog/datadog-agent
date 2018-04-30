@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"

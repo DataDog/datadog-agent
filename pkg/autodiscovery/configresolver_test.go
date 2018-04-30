@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
