@@ -17,7 +17,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/samuel/go-zookeeper/zk"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -59,8 +59,8 @@ func (z *ZookeeperConfigProvider) String() string {
 
 // Collect retrieves templates from Zookeeper, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
-func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
-	configs := make([]check.Config, 0)
+func (z *ZookeeperConfigProvider) Collect() ([]adconfig.Config, error) {
+	configs := make([]adconfig.Config, 0)
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
 		return nil, err
@@ -152,7 +152,7 @@ func (z *ZookeeperConfigProvider) getIdentifiers(key string) ([]string, error) {
 
 // getTemplates takes a path and returns a slice of templates if it finds
 // sufficient data under this path to build one.
-func (z *ZookeeperConfigProvider) getTemplates(key string) []check.Config {
+func (z *ZookeeperConfigProvider) getTemplates(key string) []adconfig.Config {
 	checkNameKey := path.Join(key, checkNamePath)
 	initKey := path.Join(key, initConfigPath)
 	instanceKey := path.Join(key, instancePath)
@@ -184,7 +184,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []check.Config {
 	return buildTemplates(key, checkNames, initConfigs, instances)
 }
 
-func (z *ZookeeperConfigProvider) getJSONValue(key string) ([]check.ConfigData, error) {
+func (z *ZookeeperConfigProvider) getJSONValue(key string) ([]adconfig.Data, error) {
 	rawValue, _, err := z.client.Get(key)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't get key '%s' from zookeeper: %s", key, err)

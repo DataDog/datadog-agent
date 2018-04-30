@@ -16,6 +16,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -98,7 +99,7 @@ func (cr *ConfigResolver) Stop() {
 }
 
 // ResolveTemplate attempts to resolve a configuration template using the AD
-// identifiers in the `check.Config` struct to match a Service.
+// identifiers in the `adconfig.Config` struct to match a Service.
 //
 // The function might return more than one configuration for a single template,
 // for example when the `ad_identifiers` section of a config.yaml file contains
@@ -108,9 +109,9 @@ func (cr *ConfigResolver) Stop() {
 // The function might return an empty list in the case the configuration has a
 // list of Autodiscovery identifiers for services that are unknown to the
 // resolver at this moment.
-func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
+func (cr *ConfigResolver) ResolveTemplate(tpl adconfig.Config) []adconfig.Config {
 	// use a map to dedupe configurations
-	resolvedSet := map[string]check.Config{}
+	resolvedSet := map[string]adconfig.Config{}
 
 	// go through the AD identifiers provided by the template
 	for _, id := range tpl.ADIdentifiers {
@@ -137,7 +138,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 	}
 
 	// build the slice of configs to return
-	resolved := []check.Config{}
+	resolved := []adconfig.Config{}
 	for _, v := range resolvedSet {
 		resolved = append(resolved, v)
 	}
@@ -147,12 +148,12 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (check.Config, error) {
+func (cr *ConfigResolver) resolve(tpl adconfig.Config, svc listeners.Service) (adconfig.Config, error) {
 	// Copy original template
-	resolvedConfig := check.Config{
+	resolvedConfig := adconfig.Config{
 		Name:          tpl.Name,
-		Instances:     make([]check.ConfigData, len(tpl.Instances)),
-		InitConfig:    make(check.ConfigData, len(tpl.InitConfig)),
+		Instances:     make([]adconfig.Data, len(tpl.Instances)),
+		InitConfig:    make(adconfig.Data, len(tpl.InitConfig)),
 		MetricConfig:  tpl.MetricConfig,
 		ADIdentifiers: tpl.ADIdentifiers,
 		Provider:      tpl.Provider,
@@ -172,7 +173,7 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 			if f, found := templateVariables[string(name)]; found {
 				resolvedVar, err := f(key, svc)
 				if err != nil {
-					return check.Config{}, err
+					return adconfig.Config{}, err
 				}
 				// init config vars are replaced by the first found
 				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v, resolvedVar, -1)
@@ -203,7 +204,7 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	cr.serviceToChecks[svc.GetID()] = make([]check.ID, 0)
 
 	// get all the templates matching service identifiers
-	templates := []check.Config{}
+	templates := []adconfig.Config{}
 	ADIdentifiers, err := svc.GetADIdentifiers()
 	if err != nil {
 		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetID(), err)
@@ -231,7 +232,7 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 		errorStats.removeResolveWarnings(config.Name)
 
 		// load the checks for this config using Autoconfig
-		checks := cr.ac.getChecksFromConfigs([]check.Config{config}, true)
+		checks := cr.ac.getChecksFromConfigs([]adconfig.Config{config}, true)
 
 		// ask the Collector to schedule the checks
 		cr.ac.schedule(checks)

@@ -17,7 +17,7 @@ import (
 	log "github.com/cihub/seelog"
 	consul "github.com/hashicorp/consul/api"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -103,8 +103,8 @@ func (p *ConsulConfigProvider) String() string {
 }
 
 // Collect retrieves templates from consul, builds Config objects and returns them
-func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
-	configs := make([]check.Config, 0)
+func (p *ConsulConfigProvider) Collect() ([]adconfig.Config, error) {
+	configs := make([]adconfig.Config, 0)
 	identifiers := p.getIdentifiers(p.TemplateDir)
 	log.Debugf("identifiers found in backend: %v", identifiers)
 	for _, id := range identifiers {
@@ -196,8 +196,8 @@ func (p *ConsulConfigProvider) getIdentifiers(prefix string) []string {
 
 // getTemplates takes a path and returns a slice of templates if it finds
 // sufficient data under this path to build one.
-func (p *ConsulConfigProvider) getTemplates(key string) []check.Config {
-	templates := make([]check.Config, 0)
+func (p *ConsulConfigProvider) getTemplates(key string) []adconfig.Config {
+	templates := make([]adconfig.Config, 0)
 
 	checkNameKey := buildStoreKey(key, checkNamePath)
 	initKey := buildStoreKey(key, initConfigPath)
@@ -251,7 +251,7 @@ func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, error) {
 	return checks, err
 }
 
-func (p *ConsulConfigProvider) getJSONValue(key string) ([]check.ConfigData, error) {
+func (p *ConsulConfigProvider) getJSONValue(key string) ([]adconfig.Data, error) {
 	rawValue, err := p.getValue(key)
 	if err != nil {
 		err := fmt.Errorf("Couldn't get key %s from consul: %s", key, err)

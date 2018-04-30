@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,15 +17,15 @@ import (
 
 type LoaderOne struct{}
 
-func (lo LoaderOne) Load(config check.Config) ([]check.Check, error) { return nil, nil }
+func (lo LoaderOne) Load(config adconfig.Config) ([]check.Check, error) { return nil, nil }
 
 type LoaderTwo struct{}
 
-func (lt LoaderTwo) Load(config check.Config) ([]check.Check, error) { return nil, nil }
+func (lt LoaderTwo) Load(config adconfig.Config) ([]check.Check, error) { return nil, nil }
 
 type LoaderThree struct{}
 
-func (lt *LoaderThree) Load(config check.Config) ([]check.Check, error) { return nil, nil }
+func (lt *LoaderThree) Load(config adconfig.Config) ([]check.Check, error) { return nil, nil }
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}

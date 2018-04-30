@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/xc"
 	log "github.com/cihub/seelog"
@@ -32,7 +32,7 @@ type IOCheck struct {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *IOCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
 	err := c.commonConfigure(data, initConfig)
 	return err
 }

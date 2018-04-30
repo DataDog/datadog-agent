@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package check
+package config
 
 import (
 	"fmt"
@@ -17,33 +17,33 @@ import (
 
 var tplVarRegex = regexp.MustCompile(`%%.+?%%`)
 
-// ConfigData contains YAML code
-type ConfigData []byte
+// Data contains YAML code
+type Data []byte
 
-// ConfigRawMap is the generic type to hold YAML configurations
-type ConfigRawMap map[interface{}]interface{}
+// RawMap is the generic type to hold YAML configurations
+type RawMap map[interface{}]interface{}
 
-// ConfigJSONMap is the generic type to hold JSON configurations
-type ConfigJSONMap map[string]interface{}
+// JSONMap is the generic type to hold JSON configurations
+type JSONMap map[string]interface{}
 
 // Config is a generic container for configuration files
 type Config struct {
-	Name          string       `json:"check_name"`     // the name of the check
-	Instances     []ConfigData `json:"instances"`      // array of Yaml configurations
-	InitConfig    ConfigData   `json:"init_config"`    // the init_config in Yaml (python check only)
-	MetricConfig  ConfigData   `json:"metric_config"`  // the metric config in Yaml (jmx check only)
-	LogsConfig    ConfigData   `json:"log_config"`     // the logs config in Yaml (logs-agent only)
-	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
-	Provider      string       `json:"provider"`       // the provider that issued the config
+	Name          string   `json:"check_name"`     // the name of the check
+	Instances     []Data   `json:"instances"`      // array of Yaml configurations
+	InitConfig    Data     `json:"init_config"`    // the init_config in Yaml (python check only)
+	MetricConfig  Data     `json:"metric_config"`  // the metric config in Yaml (jmx check only)
+	LogsConfig    Data     `json:"log_config"`     // the logs config in Yaml (logs-agent only)
+	ADIdentifiers []string `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
+	Provider      string   `json:"provider"`       // the provider that issued the config
 }
 
 // Equal determines whether the passed config is the same
-func (c *Config) Equal(config *Config) bool {
-	if config == nil {
+func (c *Config) Equal(cfg *Config) bool {
+	if cfg == nil {
 		return false
 	}
 
-	return c.Digest() == config.Digest()
+	return c.Digest() == cfg.Digest()
 }
 
 // String YAML representation of the config
@@ -76,8 +76,8 @@ func (c *Config) IsTemplate() bool {
 }
 
 // AddMetrics adds metrics to a check configuration
-func (c *Config) AddMetrics(metrics ConfigData) error {
-	var rawInitConfig ConfigRawMap
+func (c *Config) AddMetrics(metrics Data) error {
+	var rawInitConfig RawMap
 	err := yaml.Unmarshal(c.InitConfig, &rawInitConfig)
 	if err != nil {
 		return err
@@ -134,8 +134,8 @@ func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
 }
 
 // MergeAdditionalTags merges additional tags to possible existing config tags
-func (c *ConfigData) MergeAdditionalTags(tags []string) error {
-	rawConfig := ConfigRawMap{}
+func (c *Data) MergeAdditionalTags(tags []string) error {
+	rawConfig := RawMap{}
 	err := yaml.Unmarshal(*c, &rawConfig)
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (c *ConfigData) MergeAdditionalTags(tags []string) error {
 	if err != nil {
 		return err
 	}
-	*c = ConfigData(out)
+	*c = Data(out)
 
 	return nil
 }

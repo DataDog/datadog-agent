@@ -14,6 +14,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -48,7 +49,7 @@ func init() {
 // `providers.ConfigProvider` and whether it should be polled or not.
 type providerDescriptor struct {
 	provider providers.ConfigProvider
-	configs  []check.Config
+	configs  []adconfig.Config
 	poll     bool
 }
 
@@ -61,7 +62,7 @@ type providerDescriptor struct {
 //  - it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events
 //  - it runs the `ConfigResolver` that resolves a configuration template to an actual configuration based on data it extracts from a service that matches it the template
 //
-// Notice the `AutoConfig` public API speaks in terms of `check.Config`,
+// Notice the `AutoConfig` public API speaks in terms of `adconfig.Config`,
 // meaning that you cannot use it to schedule check instances directly.
 type AutoConfig struct {
 	collector         *collector.Collector
@@ -71,10 +72,10 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	config2checks     map[string][]check.ID       // cache the ID of checks we load for each config
-	check2config      map[check.ID]string         // cache the config digest corresponding to a check
-	name2jmxmetrics   map[string]check.ConfigData // holds the metrics to collect for JMX checks
-	loadedConfigs     []check.Config              // holds the resolved configs
+	config2checks     map[string][]check.ID    // cache the ID of checks we load for each config
+	check2config      map[check.ID]string      // cache the config digest corresponding to a check
+	name2jmxmetrics   map[string]adconfig.Data // holds the metrics to collect for JMX checks
+	loadedConfigs     []adconfig.Config        // holds the resolved configs
 	stop              chan bool
 	pollerActive      bool
 	health            *health.Handle
@@ -90,8 +91,8 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		templateCache:   NewTemplateCache(),
 		config2checks:   make(map[string][]check.ID),
 		check2config:    make(map[check.ID]string),
-		name2jmxmetrics: make(map[string]check.ConfigData),
-		loadedConfigs:   make([]check.Config, 0),
+		name2jmxmetrics: make(map[string]adconfig.Data),
+		loadedConfigs:   make([]adconfig.Config, 0),
 		stop:            make(chan bool),
 		health:          health.Register("ad-autoconfig"),
 	}
@@ -160,7 +161,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 
 	pd := &providerDescriptor{
 		provider: provider,
-		configs:  []check.Config{},
+		configs:  []adconfig.Config{},
 		poll:     shouldPoll,
 	}
 	ac.providers = append(ac.providers, pd)
@@ -193,14 +194,14 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 
 // GetAllConfigs queries all the providers and returns all the check
 // configurations found, resolving the ones it can
-func (ac *AutoConfig) GetAllConfigs() []check.Config {
-	resolvedConfigs := []check.Config{}
+func (ac *AutoConfig) GetAllConfigs() []adconfig.Config {
+	resolvedConfigs := []adconfig.Config{}
 
 	for _, pd := range ac.providers {
 		cfgs, _ := pd.provider.Collect()
 
 		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
-			var goodConfs []check.Config
+			var goodConfs []adconfig.Config
 			for _, cfg := range cfgs {
 				// JMX checks can have 2 YAML files: one containing the metrics to collect, one containing the
 				// instance configuration
@@ -240,7 +241,7 @@ func (ac *AutoConfig) GetAllConfigs() []check.Config {
 
 // getChecksFromConfigs gets all the check instances for given configurations
 // optionally can populate ac cache config2checks
-func (ac *AutoConfig) getChecksFromConfigs(configs []check.Config, populateCache bool) []check.Check {
+func (ac *AutoConfig) getChecksFromConfigs(configs []adconfig.Config, populateCache bool) []check.Check {
 	allChecks := []check.Check{}
 	for _, config := range configs {
 		configDigest := config.Digest()
@@ -280,8 +281,8 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 }
 
 // resolve loads and resolves a given config into a slice of resolved configs
-func (ac *AutoConfig) resolve(config check.Config) []check.Config {
-	configs := []check.Config{}
+func (ac *AutoConfig) resolve(config adconfig.Config) []adconfig.Config {
+	configs := []adconfig.Config{}
 
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
@@ -441,9 +442,9 @@ func (ac *AutoConfig) pollConfigs() {
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
 // see what changed from the last time we called Collect().
-func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Config) {
-	new = []check.Config{}
-	removed = []check.Config{}
+func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []adconfig.Config) {
+	new = []adconfig.Config{}
+	removed = []adconfig.Config{}
 
 	fetched, err := pd.provider.Collect()
 	if err != nil {
@@ -473,7 +474,7 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
-func (ac *AutoConfig) getChecks(config check.Config) ([]check.Check, error) {
+func (ac *AutoConfig) getChecks(config adconfig.Config) ([]check.Check, error) {
 	for _, loader := range ac.loaders {
 		res, err := loader.Load(config)
 		if err == nil {
@@ -495,12 +496,12 @@ func (ac *AutoConfig) getChecks(config check.Config) ([]check.Check, error) {
 }
 
 // GetLoadedConfigs returns configs loaded
-func (ac *AutoConfig) GetLoadedConfigs() []check.Config {
+func (ac *AutoConfig) GetLoadedConfigs() []adconfig.Config {
 	return ac.loadedConfigs
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
-func (ac *AutoConfig) GetUnresolvedTemplates() map[string]check.Config {
+func (ac *AutoConfig) GetUnresolvedTemplates() map[string]adconfig.Config {
 	return ac.templateCache.GetUnresolvedTemplates()
 }
 
@@ -510,7 +511,7 @@ func (ac *AutoConfig) unschedule(id check.ID) {
 }
 
 // check if the descriptor contains the Config passed
-func (pd *providerDescriptor) contains(c *check.Config) bool {
+func (pd *providerDescriptor) contains(c *adconfig.Config) bool {
 	for _, config := range pd.configs {
 		if config.Equal(c) {
 			return true

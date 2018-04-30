@@ -7,6 +7,8 @@ package check
 
 import (
 	yaml "gopkg.in/yaml.v2"
+
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 )
 
 // JMXChecks list of JMXFetch checks supported
@@ -21,7 +23,7 @@ var JMXChecks = []string{
 }
 
 // IsJMXConfig checks if a certain YAML config is a JMX config
-func IsJMXConfig(name string, initConf ConfigData) bool {
+func IsJMXConfig(name string, initConf adconfig.Data) bool {
 
 	for _, check := range JMXChecks {
 		if check == name {
@@ -29,7 +31,7 @@ func IsJMXConfig(name string, initConf ConfigData) bool {
 		}
 	}
 
-	rawInitConfig := ConfigRawMap{}
+	rawInitConfig := adconfig.RawMap{}
 	err := yaml.Unmarshal(initConf, &rawInitConfig)
 	if err != nil {
 		return false
@@ -49,12 +51,12 @@ func IsJMXConfig(name string, initConf ConfigData) bool {
 }
 
 // CollectDefaultMetrics returns if the config is for a JMX check which has collect_default_metrics: true
-func CollectDefaultMetrics(c Config) bool {
+func CollectDefaultMetrics(c adconfig.Config) bool {
 	if !IsJMXConfig(c.String(), c.InitConfig) {
 		return false
 	}
 
-	rawInitConfig := ConfigRawMap{}
+	rawInitConfig := adconfig.RawMap{}
 	err := yaml.Unmarshal(c.InitConfig, &rawInitConfig)
 	if err != nil {
 		return false

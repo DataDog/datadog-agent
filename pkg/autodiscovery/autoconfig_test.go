@@ -8,6 +8,7 @@ package autodiscovery
 import (
 	"testing"
 
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
@@ -18,9 +19,9 @@ type MockProvider struct {
 	collectCounter int
 }
 
-func (p *MockProvider) Collect() ([]check.Config, error) {
+func (p *MockProvider) Collect() ([]adconfig.Config, error) {
 	p.collectCounter++
-	return []check.Config{}, nil
+	return []adconfig.Config{}, nil
 }
 
 func (p *MockProvider) String() string {
@@ -37,7 +38,7 @@ type MockProvider2 struct {
 
 type MockLoader struct{}
 
-func (l *MockLoader) Load(config check.Config) ([]check.Check, error) { return []check.Check{}, nil }
+func (l *MockLoader) Load(config adconfig.Config) ([]check.Check, error) { return []check.Check{}, nil }
 
 type MockListener struct {
 	ListenCount  int
@@ -80,8 +81,8 @@ func TestAddListener(t *testing.T) {
 }
 
 func TestContains(t *testing.T) {
-	c1 := check.Config{Name: "bar"}
-	c2 := check.Config{Name: "foo"}
+	c1 := adconfig.Config{Name: "bar"}
+	c2 := adconfig.Config{Name: "foo"}
 	pd := providerDescriptor{}
 	pd.configs = append(pd.configs, c1)
 	assert.True(t, pd.contains(&c1))

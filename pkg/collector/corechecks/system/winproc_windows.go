@@ -8,6 +8,7 @@ package system
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
@@ -39,7 +40,7 @@ func (c *processChk) Run() error {
 	return nil
 }
 
-func (c *processChk) Configure(data check.ConfigData, initConfig check.ConfigData) (err error) {
+func (c *processChk) Configure(data adconfig.Data, initConfig adconfig.Data) (err error) {
 	c.numprocs, err = pdhutil.GetCounterSet("System", "Processes", "", nil)
 	if err != nil {
 		return err

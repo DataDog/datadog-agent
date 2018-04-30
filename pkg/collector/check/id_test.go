@@ -10,32 +10,33 @@ import (
 	"testing"
 	"time"
 
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/stretchr/testify/assert"
 )
 
 // FIXTURE
 type TestCheck struct{}
 
-func (c *TestCheck) String() string                            { return "TestCheck" }
-func (c *TestCheck) Stop()                                     {}
-func (c *TestCheck) Configure(ConfigData, ConfigData) error    { return nil }
-func (c *TestCheck) Interval() time.Duration                   { return 1 }
-func (c *TestCheck) Run() error                                { return nil }
-func (c *TestCheck) ID() ID                                    { return ID(c.String()) }
-func (c *TestCheck) GetWarnings() []error                      { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) String() string                               { return "TestCheck" }
+func (c *TestCheck) Stop()                                        {}
+func (c *TestCheck) Configure(adconfig.Data, adconfig.Data) error { return nil }
+func (c *TestCheck) Interval() time.Duration                      { return 1 }
+func (c *TestCheck) Run() error                                   { return nil }
+func (c *TestCheck) ID() ID                                       { return ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                         { return []error{} }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error)    { return make(map[string]int64), nil }
 
 func TestIdentify(t *testing.T) {
 	testCheck := &TestCheck{}
 
-	instance1 := ConfigData("key1:value1\nkey2:value2")
-	initConfig1 := ConfigData("key:value")
+	instance1 := adconfig.Data("key1:value1\nkey2:value2")
+	initConfig1 := adconfig.Data("key:value")
 	instance2 := instance1
 	initConfig2 := initConfig1
 	assert.Equal(t, Identify(testCheck, instance1, initConfig1), Identify(testCheck, instance2, initConfig2))
 
-	instance3 := ConfigData("key1:value1\nkey2:value3")
-	initConfig3 := ConfigData("key:value")
+	instance3 := adconfig.Data("key1:value1\nkey2:value3")
+	initConfig3 := adconfig.Data("key:value")
 	assert.NotEqual(t, Identify(testCheck, instance1, initConfig1), Identify(testCheck, instance3, initConfig3))
 }
 

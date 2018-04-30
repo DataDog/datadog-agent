@@ -19,7 +19,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -112,19 +112,19 @@ func GetJSONSerializableMap(m interface{}) interface{} {
 	switch x := m.(type) {
 	// unbelievably I cannot collapse this into the next (identical) case
 	case map[interface{}]interface{}:
-		j := check.ConfigJSONMap{}
+		j := adconfig.JSONMap{}
 		for k, v := range x {
 			j[k.(string)] = GetJSONSerializableMap(v)
 		}
 		return j
-	case check.ConfigRawMap:
-		j := check.ConfigJSONMap{}
+	case adconfig.RawMap:
+		j := adconfig.JSONMap{}
 		for k, v := range x {
 			j[k.(string)] = GetJSONSerializableMap(v)
 		}
 		return j
-	case check.ConfigJSONMap:
-		j := check.ConfigJSONMap{}
+	case adconfig.JSONMap:
+		j := adconfig.JSONMap{}
 		for k, v := range x {
 			j[k] = GetJSONSerializableMap(v)
 		}

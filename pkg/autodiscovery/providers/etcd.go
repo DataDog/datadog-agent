@@ -17,7 +17,7 @@ import (
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -57,8 +57,8 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
-func (p *EtcdConfigProvider) Collect() ([]check.Config, error) {
-	configs := make([]check.Config, 0)
+func (p *EtcdConfigProvider) Collect() ([]adconfig.Config, error) {
+	configs := make([]adconfig.Config, 0)
 	identifiers := p.getIdentifiers(p.templateDir)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
@@ -89,7 +89,7 @@ func (p *EtcdConfigProvider) getIdentifiers(key string) []string {
 
 // getTemplates takes a path and returns a slice of templates if it finds
 // sufficient data under this path to build one.
-func (p *EtcdConfigProvider) getTemplates(key string) []check.Config {
+func (p *EtcdConfigProvider) getTemplates(key string) []adconfig.Config {
 	checkNameKey := buildStoreKey(key, checkNamePath)
 	initKey := buildStoreKey(key, initConfigPath)
 	instanceKey := buildStoreKey(key, instancePath)
@@ -135,7 +135,7 @@ func (p *EtcdConfigProvider) getCheckNames(key string) ([]string, error) {
 	return parseCheckNames(rawNames)
 }
 
-func (p *EtcdConfigProvider) getJSONValue(key string) ([]check.ConfigData, error) {
+func (p *EtcdConfigProvider) getJSONValue(key string) ([]adconfig.Data, error) {
 	rawValue, err := p.getEtcdValue(key)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't get key %s from etcd: %s", key, err)

@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -127,7 +128,7 @@ func (c *ProcessAgentCheck) run() error {
 }
 
 // Configure the ProcessAgentCheck
-func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *ProcessAgentCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
 	// handle the case when the agent is disabled via the old `datadog.conf` file
 	if enabled := config.Datadog.GetBool("process_agent_enabled"); !enabled {
 		return fmt.Errorf("Process Agent disabled through main configuration file")

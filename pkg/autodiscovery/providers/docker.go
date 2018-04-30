@@ -12,7 +12,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -43,19 +43,19 @@ func (d *DockerConfigProvider) String() string {
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.
-func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
+func (d *DockerConfigProvider) Collect() ([]adconfig.Config, error) {
 	var err error
 	if d.dockerUtil == nil {
 		d.dockerUtil, err = docker.GetDockerUtil()
 		if err != nil {
-			return []check.Config{}, err
+			return []adconfig.Config{}, err
 		}
 		go d.listen()
 	}
 
 	containers, err := d.dockerUtil.AllContainerLabels()
 	if err != nil {
-		return []check.Config{}, err
+		return []adconfig.Config{}, err
 	}
 
 	d.Lock()
@@ -117,8 +117,8 @@ func (d *DockerConfigProvider) IsUpToDate() (bool, error) {
 	return (d.streaming && d.upToDate), nil
 }
 
-func parseDockerLabels(containers map[string]map[string]string) ([]check.Config, error) {
-	var configs []check.Config
+func parseDockerLabels(containers map[string]map[string]string) ([]adconfig.Config, error) {
+	var configs []adconfig.Config
 	for cID, labels := range containers {
 		c, err := extractTemplatesFromMap(docker.ContainerIDToEntityName(cID), labels, dockerADLabelPrefix)
 		switch {

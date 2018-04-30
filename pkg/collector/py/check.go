@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/sbinet/go-python"
@@ -193,12 +194,12 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *PythonCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
 	// Generate check ID
 	c.id = check.Identify(c, data, initConfig)
 
 	// Unmarshal instances config to a RawConfigMap
-	rawInstances := check.ConfigRawMap{}
+	rawInstances := adconfig.RawMap{}
 	err := yaml.Unmarshal(data, &rawInstances)
 	if err != nil {
 		log.Errorf("error in yaml %s", err)
@@ -206,7 +207,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	}
 
 	// Unmarshal initConfig to a RawConfigMap
-	rawInitConfig := check.ConfigRawMap{}
+	rawInitConfig := adconfig.RawMap{}
 	err = yaml.Unmarshal(initConfig, &rawInitConfig)
 	if err != nil {
 		log.Errorf("error in yaml %s", err)
@@ -225,7 +226,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 
 	// To be retrocompatible with the Python code, still use an `instance` dictionary
 	// to contain the (now) unique instance for the check
-	conf := make(check.ConfigRawMap)
+	conf := make(adconfig.RawMap)
 	conf["name"] = c.ModuleName
 	conf["init_config"] = rawInitConfig
 	conf["instances"] = []interface{}{rawInstances}

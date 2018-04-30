@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -51,7 +51,7 @@ func (p *ECSConfigProvider) IsUpToDate() (bool, error) {
 
 // Collect finds all running containers in the agent's task, reads their labels
 // and extract configuration templates from them for auto discovery.
-func (p *ECSConfigProvider) Collect() ([]check.Config, error) {
+func (p *ECSConfigProvider) Collect() ([]adconfig.Config, error) {
 	meta, err := p.getTaskMetadata()
 	if err != nil {
 		return nil, err
@@ -80,8 +80,8 @@ func (p *ECSConfigProvider) getTaskMetadata() (ecs.TaskMetadata, error) {
 
 // parseECSContainers loops through ecs containers found in the ecs metadata response
 // and extracts configuration templates out of their labels.
-func parseECSContainers(containers []ecs.Container) ([]check.Config, error) {
-	var templates []check.Config
+func parseECSContainers(containers []ecs.Container) ([]adconfig.Config, error) {
+	var templates []adconfig.Config
 	for _, c := range containers {
 		configs, err := extractTemplatesFromMap(docker.ContainerIDToEntityName(c.DockerID), c.Labels, ecsADLabelPrefix)
 		switch {

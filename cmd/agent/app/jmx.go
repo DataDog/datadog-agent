@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -179,7 +180,7 @@ func loadConfigs() {
 	}
 }
 
-func configIncluded(config check.Config) bool {
+func configIncluded(config adconfig.Config) bool {
 	for _, c := range checks {
 		if strings.EqualFold(config.Name, c) {
 			return true

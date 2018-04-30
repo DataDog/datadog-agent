@@ -12,6 +12,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
@@ -43,7 +44,7 @@ func NewCheckBase(name string) CheckBase {
 
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
-func (c *CheckBase) BuildID(instance, initConfig check.ConfigData) {
+func (c *CheckBase) BuildID(instance, initConfig adconfig.Data) {
 	c.checkID = check.BuildID(c.checkName, instance, initConfig)
 }
 

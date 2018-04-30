@@ -8,6 +8,7 @@ package system
 import (
 	"runtime"
 
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/shirou/gopsutil/mem"
@@ -28,7 +29,7 @@ type MemoryCheck struct {
 const mbSize float64 = 1024 * 1024
 
 // Configure the Python check from YAML data
-func (c *MemoryCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *MemoryCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
 	// do nothing
 	return nil
 }

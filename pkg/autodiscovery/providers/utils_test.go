@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 )
 
 func TestParseJSONValue(t *testing.T) {
@@ -43,8 +43,8 @@ func TestParseJSONValue(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, res)
 	require.Len(t, res, 2)
-	assert.Equal(t, check.ConfigData("{\"test\":1}"), res[0])
-	assert.Equal(t, check.ConfigData("{\"test\":2}"), res[1])
+	assert.Equal(t, adconfig.Data("{\"test\":1}"), res[0])
+	assert.Equal(t, adconfig.Data("{\"test\":2}"), res[1])
 }
 
 func TestParseCheckNames(t *testing.T) {
@@ -93,27 +93,27 @@ func TestBuildTemplates(t *testing.T) {
 	// wrong number of checkNames
 	res := buildTemplates("id",
 		[]string{"a", "b"},
-		[]check.ConfigData{check.ConfigData("")},
-		[]check.ConfigData{check.ConfigData("")})
+		[]adconfig.Data{adconfig.Data("")},
+		[]adconfig.Data{adconfig.Data("")})
 	assert.Len(t, res, 0)
 
 	res = buildTemplates("id",
 		[]string{"a", "b"},
-		[]check.ConfigData{check.ConfigData("{\"test\": 1}"), check.ConfigData("{}")},
-		[]check.ConfigData{check.ConfigData("{}"), check.ConfigData("{1:2}")})
+		[]adconfig.Data{adconfig.Data("{\"test\": 1}"), adconfig.Data("{}")},
+		[]adconfig.Data{adconfig.Data("{}"), adconfig.Data("{1:2}")})
 	require.Len(t, res, 2)
 
 	assert.Len(t, res[0].ADIdentifiers, 1)
 	assert.Equal(t, "id", res[0].ADIdentifiers[0])
 	assert.Equal(t, res[0].Name, "a")
-	assert.Equal(t, res[0].InitConfig, check.ConfigData("{\"test\": 1}"))
-	assert.Equal(t, res[0].Instances, []check.ConfigData{check.ConfigData("{}")})
+	assert.Equal(t, res[0].InitConfig, adconfig.Data("{\"test\": 1}"))
+	assert.Equal(t, res[0].Instances, []adconfig.Data{adconfig.Data("{}")})
 
 	assert.Len(t, res[1].ADIdentifiers, 1)
 	assert.Equal(t, "id", res[1].ADIdentifiers[0])
 	assert.Equal(t, res[1].Name, "b")
-	assert.Equal(t, res[1].InitConfig, check.ConfigData("{}"))
-	assert.Equal(t, res[1].Instances, []check.ConfigData{check.ConfigData("{1:2}")})
+	assert.Equal(t, res[1].InitConfig, adconfig.Data("{}"))
+	assert.Equal(t, res[1].Instances, []adconfig.Data{adconfig.Data("{1:2}")})
 }
 
 func TestExtractTemplatesFromMap(t *testing.T) {
@@ -121,7 +121,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 		source       map[string]string
 		adIdentifier string
 		prefix       string
-		output       []check.Config
+		output       []adconfig.Config
 		err          error
 	}{
 		{
@@ -133,17 +133,17 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output: []check.Config{
+			output: []adconfig.Config{
 				{
 					Name:          "apache",
-					Instances:     []check.ConfigData{check.ConfigData("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
-					InitConfig:    check.ConfigData("{}"),
+					Instances:     []adconfig.Data{adconfig.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:    adconfig.Data("{}"),
 					ADIdentifiers: []string{"id"},
 				},
 				{
 					Name:          "http_check",
-					Instances:     []check.ConfigData{check.ConfigData("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					InitConfig:    check.ConfigData("{}"),
+					Instances:     []adconfig.Data{adconfig.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:    adconfig.Data("{}"),
 					ADIdentifiers: []string{"id"},
 				},
 			},
@@ -160,11 +160,11 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output: []check.Config{
+			output: []adconfig.Config{
 				{
 					Name:          "apache",
-					Instances:     []check.ConfigData{check.ConfigData("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
-					InitConfig:    check.ConfigData("{}"),
+					Instances:     []adconfig.Data{adconfig.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:    adconfig.Data("{}"),
 					ADIdentifiers: []string{"id"},
 				},
 			},
@@ -177,7 +177,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []check.Config{},
+			output:       []adconfig.Config{},
 		},
 		{
 			// Missing init_configs, error out
@@ -187,7 +187,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []check.Config{},
+			output:       []adconfig.Config{},
 			err:          errors.New("missing init_configs key"),
 		},
 		{
@@ -199,7 +199,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []check.Config{},
+			output:       []adconfig.Config{},
 			err:          errors.New("in instances: Failed to unmarshal JSON"),
 		},
 	} {

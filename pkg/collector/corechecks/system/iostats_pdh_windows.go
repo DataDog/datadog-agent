@@ -16,6 +16,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -83,7 +84,7 @@ func isDrive(instance string) bool {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *IOCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
 	err := c.commonConfigure(data, initConfig)
 	if err != nil {
 		return err

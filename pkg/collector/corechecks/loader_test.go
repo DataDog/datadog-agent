@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
@@ -23,7 +24,7 @@ func (c *TestCheck) Interval() time.Duration                   { return 1 }
 func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
 func (c *TestCheck) GetWarnings() []error                      { return []error{} }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
-func (c *TestCheck) Configure(data check.ConfigData, initData check.ConfigData) error {
+func (c *TestCheck) Configure(data adconfig.Data, initData adconfig.Data) error {
 	if string(data) == "err" {
 		return fmt.Errorf("testError")
 	}
@@ -52,11 +53,11 @@ func TestLoad(t *testing.T) {
 	RegisterCheck("foo", testCheckFactory)
 
 	// check is in catalog, pass 2 instances
-	i := []check.ConfigData{
-		check.ConfigData("foo: bar"),
-		check.ConfigData("bar: baz"),
+	i := []adconfig.Data{
+		adconfig.Data("foo: bar"),
+		adconfig.Data("bar: baz"),
 	}
-	cc := check.Config{Name: "foo", Instances: i}
+	cc := adconfig.Config{Name: "foo", Instances: i}
 	l, _ := NewGoCheckLoader()
 
 	lst, err := l.Load(cc)
@@ -69,11 +70,11 @@ func TestLoad(t *testing.T) {
 	}
 
 	// check is in catalog, pass 1 good instance & 1 bad instance
-	i = []check.ConfigData{
-		check.ConfigData("foo: bar"),
-		check.ConfigData("err"),
+	i = []adconfig.Data{
+		adconfig.Data("foo: bar"),
+		adconfig.Data("err"),
 	}
-	cc = check.Config{Name: "foo", Instances: i}
+	cc = adconfig.Config{Name: "foo", Instances: i}
 
 	lst, err = l.Load(cc)
 
@@ -85,8 +86,8 @@ func TestLoad(t *testing.T) {
 	}
 
 	// check is in catalog, pass no instances
-	i = []check.ConfigData{}
-	cc = check.Config{Name: "foo", Instances: i}
+	i = []adconfig.Data{}
+	cc = adconfig.Config{Name: "foo", Instances: i}
 
 	lst, err = l.Load(cc)
 
@@ -98,7 +99,7 @@ func TestLoad(t *testing.T) {
 	}
 
 	// check not in catalog
-	cc = check.Config{Name: "bar", Instances: nil}
+	cc = adconfig.Config{Name: "bar", Instances: nil}
 
 	lst, err = l.Load(cc)
 

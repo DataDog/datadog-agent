@@ -8,7 +8,7 @@ package autodiscovery
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func TestNew(t *testing.T) {
 func TestSet(t *testing.T) {
 	cache := NewTemplateCache()
 
-	tpl1 := check.Config{ADIdentifiers: []string{"foo", "bar"}}
+	tpl1 := adconfig.Config{ADIdentifiers: []string{"foo", "bar"}}
 	err := cache.Set(tpl1)
 	require.Nil(t, err)
 	// adding again should be no-op
@@ -36,7 +36,7 @@ func TestSet(t *testing.T) {
 	assert.Len(t, cache.digest2ids, 1)
 	assert.Len(t, cache.digest2template, 1)
 
-	tpl2 := check.Config{ADIdentifiers: []string{"foo"}}
+	tpl2 := adconfig.Config{ADIdentifiers: []string{"foo"}}
 	err = cache.Set(tpl2)
 
 	require.Nil(t, err)
@@ -47,7 +47,7 @@ func TestSet(t *testing.T) {
 	assert.Len(t, cache.digest2template, 2)
 
 	// no identifiers at all
-	tpl3 := check.Config{ADIdentifiers: []string{}}
+	tpl3 := adconfig.Config{ADIdentifiers: []string{}}
 	err = cache.Set(tpl3)
 
 	require.NotNil(t, err)
@@ -55,7 +55,7 @@ func TestSet(t *testing.T) {
 
 func TestDel(t *testing.T) {
 	cache := NewTemplateCache()
-	tpl := check.Config{ADIdentifiers: []string{"foo", "bar"}}
+	tpl := adconfig.Config{ADIdentifiers: []string{"foo", "bar"}}
 	err := cache.Set(tpl)
 	require.Nil(t, err)
 
@@ -69,13 +69,13 @@ func TestDel(t *testing.T) {
 	assert.Len(t, cache.digest2template, 0)
 
 	// delete for an unknown identifier
-	err = cache.Del(check.Config{ADIdentifiers: []string{"baz"}})
+	err = cache.Del(adconfig.Config{ADIdentifiers: []string{"baz"}})
 	require.NotNil(t, err)
 }
 
 func TestGet(t *testing.T) {
 	cache := NewTemplateCache()
-	tpl := check.Config{ADIdentifiers: []string{"foo", "bar"}}
+	tpl := adconfig.Config{ADIdentifiers: []string{"foo", "bar"}}
 	cache.Set(tpl)
 
 	ret, err := cache.Get("foo")
@@ -91,9 +91,9 @@ func TestGet(t *testing.T) {
 
 func TestGetUnresolvedTemplates(t *testing.T) {
 	cache := NewTemplateCache()
-	tpl := check.Config{ADIdentifiers: []string{"foo", "bar"}}
+	tpl := adconfig.Config{ADIdentifiers: []string{"foo", "bar"}}
 	cache.Set(tpl)
-	expected := map[string]check.Config{
+	expected := map[string]adconfig.Config{
 		"foo,bar": tpl,
 	}
 
