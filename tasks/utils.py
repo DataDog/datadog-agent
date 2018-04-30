@@ -6,6 +6,7 @@ from __future__ import print_function
 import os
 import platform
 import re
+import sys
 import json
 from subprocess import check_output
 
@@ -20,7 +21,7 @@ def bin_name(name):
     """
     Generate platform dependent names for binaries
     """
-    if invoke.platform.WINDOWS:
+    if sys.platform == 'win32':
         return "{}.exe".format(name)
     return name
 
@@ -59,9 +60,9 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
         "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
     }
 
-    if invoke.platform.WINDOWS:
+    if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
-    
+
     if static:
         ldflags += "-s -w -linkmode external -extldflags '-static' "
     elif use_embedded_libs:
@@ -74,7 +75,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
-        if invoke.platform.WINDOWS:
+        if sys.platform == 'win32':
             # On windows, need to build with the extra argument -ldflags="-linkmode internal"
             # if you want to be able to use the delve debugger.
             ldflags += "-linkmode internal "

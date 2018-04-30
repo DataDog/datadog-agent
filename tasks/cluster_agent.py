@@ -123,7 +123,7 @@ def image_build(ctx):
     if not dca_binary:
         print("No bin found in {}".format(BIN_PATH))
         print("See cluster-agent.build")
-        raise Exit(1)
+        raise Exit(code=1)
     latest_file = max(dca_binary, key=os.path.getctime)
     ctx.run("chmod +x {}".format(latest_file))
 

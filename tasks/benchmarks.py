@@ -3,6 +3,7 @@ Benchmarking tasks
 """
 from __future__ import print_function
 import os
+import sys
 
 import invoke
 from invoke import task
@@ -29,7 +30,7 @@ def build_aggregator(ctx, rebuild=False):
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
-        if invoke.platform.WINDOWS:
+        if sys.platform == 'win32':
             # On windows, need to build with the extra argument -ldflags="-linkmode internal"
             # if you want to be able to use the delve debugger.
             ldflags += " -linkmode internal"

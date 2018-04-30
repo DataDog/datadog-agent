@@ -95,7 +95,7 @@ COPY test.bin /test.bin
         client.images.remove(test_image.id)
 
     if exit_code != 0:
-        raise Exit(exit_code)
+        raise Exit(code=exit_code)
 
 
 @task
@@ -109,7 +109,7 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
         match = re.search('([^:\/\s]+):[v]?(.*)$', src_image)
         if not match:
             print("Cannot guess destination tag for {}, please provide a --dst-tag option".format(src_image))
-            raise Exit(1)
+            raise Exit(code=1)
         dst_tag = "_".join(match.groups()).replace(".", "_")
 
     dst = "{}:{}".format(dst_image, dst_tag)

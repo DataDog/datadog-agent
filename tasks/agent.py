@@ -60,7 +60,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
-    if invoke.platform.WINDOWS:
+    if sys.platform == 'win32':
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
@@ -169,7 +169,7 @@ def image_build(ctx, base_dir="omnibus"):
     if not list_of_files:
         print("No debian package build found in {}".format(pkg_dir))
         print("See agent.omnibus-build")
-        raise Exit(1)
+        raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, "Dockerfiles/agent/")
     ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
@@ -234,7 +234,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             cmd += " --path {}".format(gem_path)
         ctx.run(cmd, env=env)
 
-        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
+        omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
