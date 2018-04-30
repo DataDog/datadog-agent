@@ -138,7 +138,7 @@ def size_test(ctx, skip_build=False):
     if size > MAX_BINARY_SIZE:
         print("DogStatsD static build size too big: {} kB".format(size))
         print("This means your PR added big classes or dependencies in the packages dogstatsd uses")
-        raise Exit(1)
+        raise Exit(code=1)
 
     print("DogStatsD static build size OK: {} kB".format(size))
 
@@ -169,7 +169,7 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
         if gem_path:
             cmd += " --path {}".format(gem_path)
         ctx.run(cmd)
-        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
+        omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build dogstatsd --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
@@ -220,7 +220,7 @@ def image_build(ctx, skip_build=False):
     if not skip_build:
         build(ctx, rebuild=True, static=True)
     if not os.path.exists(src):
-        raise Exit(1)
+        raise Exit(code=1)
     if not os.path.exists(dst):
         os.makedirs(dst)
 

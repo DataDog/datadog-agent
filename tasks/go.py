@@ -44,7 +44,7 @@ def fmt(ctx, targets, fail_on_fmt=False):
         print("Reformatted the following files: {}".format(','.join(files)))
         if fail_on_fmt:
             print("Code was not properly formatted, exiting...")
-            raise Exit(1)
+            raise Exit(code=1)
     print("gofmt found no issues")
 
 
@@ -77,7 +77,7 @@ def lint(ctx, targets):
 
         if files:
             print("Linting issues found in {} files.".format(len(files)))
-            raise Exit(1)
+            raise Exit(code=1)
 
         if skipped_files:
             for skipped in skipped_files:

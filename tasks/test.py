@@ -109,7 +109,7 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
         matches = ["{}/...".format(t) for t in test_targets]
     print("\n--- Running unit tests:")
     for match in matches:
-        if invoke.platform.WINDOWS:
+        if sys.platform == 'win32':
             if match in WIN_PKG_BLACKLIST:
                 print("Skipping blacklisted directory {}\n".format(match))
                 continue
@@ -182,7 +182,7 @@ def lint_releasenote(ctx):
                 url = res.links['next']['url']
             else:
                 print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
-                raise Exit(1)
+                raise Exit(code=1)
 
     # The PR has not been created yet, let's compare with master (the usual base branch of the future PR)
     else:
@@ -208,7 +208,7 @@ def lint_releasenote(ctx):
                         url = res.links['next']['url']
                     else:
                         print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
-                        raise Exit(1)
+                        raise Exit(code=1)
 
     ctx.run("reno lint")
 
@@ -217,7 +217,7 @@ def lint_filenames(ctx):
     """
     Scan files to ensure there are no filenames containing illegal characters
     """
-    if invoke.platform.WINDOWS:
+    if sys.platform == 'win32':
         print("Running on windows, no need to check filenames for illegal characters")
     else:
         print("Checking filenames for illegal characters")
@@ -229,7 +229,7 @@ def lint_filenames(ctx):
                 print("Error: Found illegal character in path {}".format(file))
                 failure = True
         if failure:
-            raise Exit(1)
+            raise Exit(code=1)
 
 
 @task

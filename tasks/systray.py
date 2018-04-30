@@ -3,6 +3,7 @@ systray tasks
 """
 from __future__ import print_function
 import os
+import sys
 
 import invoke
 from invoke import task
@@ -28,7 +29,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         inv systray.build
     """
 
-    if not invoke.platform.WINDOWS:
+    if not sys.platform == 'win32':
         print("Systray only available on Windows")
         return
 
