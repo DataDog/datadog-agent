@@ -4,7 +4,7 @@ This package is providing the `ServiceListener` concept to the agent. A `Service
 
 ## `Service`
 
-`Service` represents an application we can run a check against. It should be matched with a check template by the ConfigResolver.
+`Service` represents an application we can run a integration against. It should be matched with a config template by the ConfigResolver.
 Services can only be Docker containers for now.
 
 ## `ServiceListener`
