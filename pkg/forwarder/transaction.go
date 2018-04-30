@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
 )
 
@@ -34,12 +34,6 @@ type HTTPTransaction struct {
 	createdAt time.Time
 }
 
-const (
-	apiKeyReplacement = "api_key=*************************$1"
-)
-
-var apiKeyRegExp = regexp.MustCompile("api_key=*\\w+(\\w{5})")
-
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	return &HTTPTransaction{
@@ -57,14 +51,14 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 // GetTarget return the url used by the transaction
 func (t *HTTPTransaction) GetTarget() string {
 	url := t.Domain + t.Endpoint
-	return apiKeyRegExp.ReplaceAllString(url, apiKeyReplacement) // sanitized url that can be logged
+	return util.SanitizeURL(url) // sanitized url that can be logged
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint
-	logURL := apiKeyRegExp.ReplaceAllString(url, apiKeyReplacement) // sanitized url that can be logged
+	logURL := util.SanitizeURL(url) // sanitized url that can be logged
 
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
@@ -83,7 +77,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		}
 		t.ErrorCount++
 		transactionsExpvar.Add("Errors", 1)
-		return fmt.Errorf("error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
+		return fmt.Errorf("error while sending transaction, rescheduling it: %s", util.SanitizeURL(err.Error()))
 	}
 	defer resp.Body.Close()
 
