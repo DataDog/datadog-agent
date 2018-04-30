@@ -32,10 +32,12 @@ func GetTags() ([]string, error) {
 		return tags, err
 	}
 
-	awsCreds := credentials.NewStaticCredentials(iamParams["AccessKeyId"], iamParams["SecretAccessKey"], iamParams["Token"])
+	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyId,
+		iamParams.SecretAccessKey,
+		iamParams.Token)
 
 	awsSess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(instanceIdentity["region"]),
+		Region:      aws.String(instanceIdentity.Region),
 		Credentials: awsCreds,
 	})
 	if err != nil {
@@ -47,7 +49,7 @@ func GetTags() ([]string, error) {
 		Filters: []*ec2.Filter{{
 			Name: aws.String("resource-id"),
 			Values: []*string{
-				aws.String(instanceIdentity["instanceId"]),
+				aws.String(instanceIdentity.InstanceId),
 			},
 		}},
 	})
@@ -62,8 +64,13 @@ func GetTags() ([]string, error) {
 	return tags, nil
 }
 
-func getInstanceIdentity() (map[string]string, error) {
-	instanceIdentity := map[string]string{}
+type ec2Identity struct {
+	Region     string
+	InstanceId string
+}
+
+func getInstanceIdentity() (*ec2Identity, error) {
+	instanceIdentity := &ec2Identity{}
 
 	res, err := getResponse(instanceIdentityURL)
 	if err != nil {
@@ -84,8 +91,14 @@ func getInstanceIdentity() (map[string]string, error) {
 	return instanceIdentity, nil
 }
 
-func getSecurityCreds() (map[string]string, error) {
-	iamParams := map[string]string{}
+type ec2SecurityCred struct {
+	AccessKeyId     string
+	SecretAccessKey string
+	Token           string
+}
+
+func getSecurityCreds() (*ec2SecurityCred, error) {
+	iamParams := &ec2SecurityCred{}
 
 	iamRole, err := getIAMRole()
 	if err != nil {
