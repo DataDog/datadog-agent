@@ -9,10 +9,13 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
+	"regexp"
 	"strconv"
 
 	yaml "gopkg.in/yaml.v2"
 )
+
+var tplVarRegex = regexp.MustCompile(`%%.+?%%`)
 
 // ConfigData contains YAML code
 type ConfigData []byte
