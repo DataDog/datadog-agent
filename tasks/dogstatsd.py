@@ -4,6 +4,7 @@ Dogstatsd tasks
 from __future__ import print_function, absolute_import
 
 import os
+import sys
 import shutil
 from distutils.dir_util import copy_tree
 
