@@ -6,6 +6,8 @@
 package journald
 
 import (
+	"fmt"
+
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -22,12 +24,32 @@ type JournalConfig struct {
 	Path         string
 }
 
+// TailError represents a fatal error causing the agent to stop tailing a journal
+type TailError struct {
+	journalID string
+	err       error
+}
+
+// NewTailError returns a new TailError
+func NewTailError(journalID string, err error) TailError {
+	return TailError{
+		journalID: journalID,
+		err:       err,
+	}
+}
+
+// Error returns the message of the TailError
+func (e *TailError) Error() string {
+	return fmt.Sprintf("cant't tail journal: %s", e.err)
+}
+
 // NewTailer returns a new tailer.
-func NewTailer(config JournalConfig, source *config.LogSource, outputChan chan message.Message) *Tailer {
+func NewTailer(config JournalConfig, source *config.LogSource, outputChan chan message.Message, errHandler chan TailError) *Tailer {
 	return &Tailer{
 		config:     config,
 		source:     source,
 		outputChan: outputChan,
+		errHandler: errHandler,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -31,6 +30,7 @@ type Tailer struct {
 	outputChan chan message.Message
 	journal    *sdjournal.Journal
 	blacklist  map[string]bool
+	errHandler chan TailError
 	stop       chan struct{}
 	done       chan struct{}
 }
@@ -100,9 +100,7 @@ func (t *Tailer) tail() {
 		default:
 			n, err := t.journal.Next()
 			if err != nil && err != io.EOF {
-				err := fmt.Errorf("cant't tail journal: %s", err)
-				t.source.Status.Error(err)
-				log.Error(err)
+				t.errHandler <- NewTailError(t.Identifier(), err)
 				return
 			}
 			if n < 1 {
