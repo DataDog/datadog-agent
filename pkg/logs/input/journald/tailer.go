@@ -13,11 +13,13 @@ import (
 )
 
 // JournalConfig enables to configure the tailer:
-// - Units: the units to filter on
+// - IncludeUnits: the units to filter in
+// - ExcludeUnits: the units to filter out
 // - Path: the path of the journal
 type JournalConfig struct {
-	Units []string
-	Path  string
+	IncludeUnits []string
+	ExcludeUnits []string
+	Path         string
 }
 
 // NewTailer returns a new tailer.

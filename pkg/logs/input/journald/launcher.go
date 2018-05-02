@@ -70,13 +70,18 @@ func (l *Launcher) Stop() {
 // setupTailer configures and starts a new tailer,
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
-	var units []string
-	if source.Config.Unit != "" {
-		units = strings.Split(source.Config.Unit, ",")
+	var includeUnits []string
+	var excludeUnits []string
+	if source.Config.IncludeUnits != "" {
+		includeUnits = strings.Split(source.Config.IncludeUnits, ",")
+	}
+	if source.Config.ExcludeUnits != "" {
+		excludeUnits = strings.Split(source.Config.ExcludeUnits, ",")
 	}
 	config := JournalConfig{
-		Units: units,
-		Path:  source.Config.Path,
+		IncludeUnits: includeUnits,
+		ExcludeUnits: excludeUnits,
+		Path:         source.Config.Path,
 	}
 	tailer := NewTailer(config, source, l.pipelineProvider.NextPipelineChan())
 	err := tailer.Start(l.auditor.GetLastCommittedCursor(tailer.Identifier()))

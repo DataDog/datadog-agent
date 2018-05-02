@@ -30,6 +30,7 @@ type Tailer struct {
 	source     *config.LogSource
 	outputChan chan message.Message
 	journal    *sdjournal.Journal
+	blacklist  map[string]bool
 	stop       chan struct{}
 	done       chan struct{}
 }
@@ -49,15 +50,22 @@ func (t *Tailer) setup() error {
 		return err
 	}
 
-	for _, unit := range config.Units {
+	for _, unit := range config.IncludeUnits {
 		// add filters to collect only the logs of the units defined in the configuration,
 		// if no units are defined, collect all the logs of the journal by default.
-		match := "_SYSTEMD_UNIT=" + unit
+		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT + "=" + strings.TrimSpace(unit)
 		err := t.journal.AddMatch(match)
 		if err != nil {
 			return fmt.Errorf("could not add filter %s: %s", match, err)
 		}
 	}
+
+	blacklist := make(map[string]bool)
+	for _, unit := range config.ExcludeUnits {
+		unit = strings.TrimSpace(unit)
+		blacklist[unit] = true
+	}
+	t.blacklist = blacklist
 
 	return nil
 }
@@ -107,9 +115,25 @@ func (t *Tailer) tail() {
 				// could not parse entry
 				continue
 			}
-			t.outputChan <- t.toMessage(entry)
+			if t.isWhitelisted(entry) {
+				t.outputChan <- t.toMessage(entry)
+			}
 		}
 	}
+}
+
+// isWhitelisted returns true if the entry should be forwarded,
+// returns false otherwise.
+func (t *Tailer) isWhitelisted(entry *sdjournal.JournalEntry) bool {
+	unit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
+	if !exists {
+		return true
+	}
+	if _, blacklisted := t.blacklist[unit]; blacklisted {
+		// drop the entry
+		return false
+	}
+	return true
 }
 
 // toMessage transforms a journal entry into a message.

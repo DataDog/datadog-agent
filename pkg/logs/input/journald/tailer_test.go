@@ -21,16 +21,14 @@ func TestIdentifier(t *testing.T) {
 
 	// expect default identifier
 	config = JournalConfig{
-		Units: nil,
-		Path:  "",
+		Path: "",
 	}
 	tailer = NewTailer(config, source, nil)
 	assert.Equal(t, "journald:default", tailer.Identifier())
 
 	// expect identifier to be overidden
 	config = JournalConfig{
-		Units: nil,
-		Path:  "any_path",
+		Path: "any_path",
 	}
 	tailer = NewTailer(config, source, nil)
 	assert.Equal(t, "journald:any_path", tailer.Identifier())

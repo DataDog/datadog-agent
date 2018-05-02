@@ -58,9 +58,10 @@ type LogsProcessingRule struct {
 type LogsConfig struct {
 	Type string
 
-	Port int    // Network
-	Path string // File, Journald
-	Unit string // Journald
+	Port         int    // Network
+	Path         string // File, Journald
+	IncludeUnits string `mapstructure:"include_units"` // Journald
+	ExcludeUnits string `mapstructure:"exclude_units"` // Journald
 
 	Image string // Docker
 	Label string // Docker
