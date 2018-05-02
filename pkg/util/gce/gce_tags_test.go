@@ -25,6 +25,8 @@ func TestGetHostTags(t *testing.T) {
 		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
 	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.String(), "/instance/?recursive=true")
+		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, string(content))
 		lastRequests = append(lastRequests, r)
