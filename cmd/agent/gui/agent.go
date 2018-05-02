@@ -108,7 +108,7 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 
 	if flip {
 		// Reverse the order so that the bottom of the file is read first
-		arr := strings.Split(string(logFileContents), "\n")
+		arr := strings.Split(escapedLogFileContents, "\n")
 		for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
 			arr[i], arr[j] = arr[j], arr[i]
 		}
