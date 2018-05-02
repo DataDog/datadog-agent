@@ -17,7 +17,7 @@ import (
 func GetTags() ([]string, error) {
 	tags := []string{}
 
-	metadataResponse, err := getResponse(metadataURL + "/instance")
+	metadataResponse, err := getResponse(metadataURL + "/instance/?recursive=true")
 	if err != nil {
 		return tags, err
 	}
