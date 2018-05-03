@@ -238,9 +238,15 @@ func expQueues(s *Scheduler) func() interface{} {
 		queues := make([]map[string]interface{}, 0)
 
 		for interval, queue := range s.jobQueues {
+			nJobs := 0
+			// FIXME: this is not threadsafe
+			for _, bucket := range queue.buckets {
+				nJobs += len(bucket.jobs)
+			}
 			queueStats := map[string]interface{}{
 				"Interval": interval / time.Second,
-				"Size":     len(queue.jobs),
+				"Buckets":  len(queue.buckets),
+				"Size":     nJobs,
 			}
 			queues = append(queues, queueStats)
 		}

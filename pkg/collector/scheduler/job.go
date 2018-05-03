@@ -7,6 +7,7 @@ package scheduler
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -16,29 +17,95 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
+const (
+	oCHAN = 0
+	hCHAN = 1
+)
+
+type jobBucket struct {
+	idx     uint
+	starter *time.Timer
+	ticker  *time.Ticker
+	halt    chan bool // to stop this bucket
+	jobs    []check.Check
+	mu      sync.RWMutex // to protect critical sections in struct's fields
+}
+
+func newJobBucket(idx uint, interval, start time.Duration) *jobBucket {
+	bucket := &jobBucket{
+		idx:  idx,
+		halt: make(chan bool),
+	}
+
+	// ticker starts after start duration
+	bucket.starter = time.AfterFunc(start, func() {
+		bucket.mu.Lock()
+		defer bucket.mu.Unlock()
+
+		bucket.ticker = time.NewTicker(interval)
+		log.Debugf("Bucket %d ticker started at interval %s", idx, interval)
+	})
+
+	return bucket
+}
+
+func (jb *jobBucket) stop() {
+	select {
+	case jb.halt <- true:
+	default:
+	}
+
+	jb.mu.RLock()
+	defer jb.mu.RUnlock()
+
+	jb.starter.Stop()
+	if jb.ticker != nil {
+		jb.ticker.Stop()
+	}
+}
+
+func (jb *jobBucket) addJob(c check.Check) {
+	jb.mu.Lock()
+	defer jb.mu.Unlock()
+
+	jb.jobs = append(jb.jobs, c)
+}
+
 // jobQueue contains a list of checks (called jobs) that need to be
 // scheduled at a certain interval.
 type jobQueue struct {
-	interval time.Duration
-	stop     chan bool // to stop this queue
-	stopped  chan bool // signals that this queue has stopped
-	ticker   *time.Ticker
-	jobs     []check.Check
-	running  bool
-	health   *health.Handle
-	mu       sync.RWMutex // to protect critical sections in struct's fields
+	interval        time.Duration
+	stop            chan bool // to stop this queue
+	stopped         chan bool // signals that this queue has stopped
+	buckets         []*jobBucket
+	nextBucket      uint
+	bucketScheduled uint
+	running         bool
+	health          *health.Handle
+	mu              sync.RWMutex // to protect critical sections in struct's fields
 }
 
 // newJobQueue creates a new jobQueue instance
 func newJobQueue(interval time.Duration) *jobQueue {
-	return &jobQueue{
+	jq := &jobQueue{
 		interval: interval,
-		ticker:   time.NewTicker(time.Duration(interval)),
 		stop:     make(chan bool),
 		stopped:  make(chan bool),
 		health:   health.Register("collector-queue"),
 	}
 
+	var nb int
+	if interval <= time.Second {
+		nb = 1
+	} else {
+		nb = int(interval.Truncate(time.Second).Seconds())
+	}
+	for i := 0; i < nb; i++ {
+		bucket := newJobBucket(uint(i), interval, time.Duration(time.Duration(i)*time.Second))
+		jq.buckets = append(jq.buckets, bucket)
+	}
+
+	return jq
 }
 
 // addJob is a convenience method to add a check to a queue
@@ -46,18 +113,25 @@ func (jq *jobQueue) addJob(c check.Check) {
 	jq.mu.Lock()
 	defer jq.mu.Unlock()
 
-	jq.jobs = append(jq.jobs, c)
+	// Checks scheduled to buckets scheduled in round-robin
+	jq.buckets[jq.nextBucket].addJob(c)
+	jq.nextBucket = (jq.nextBucket + 1) % uint(len(jq.buckets))
 }
 
 func (jq *jobQueue) removeJob(id check.ID) error {
 	jq.mu.Lock()
 	defer jq.mu.Unlock()
 
-	for i, c := range jq.jobs {
-		if c.ID() == id {
-			jq.jobs = append(jq.jobs[:i], jq.jobs[i+1:]...)
-			return nil
+	for i, bucket := range jq.buckets {
+		bucket.mu.Lock()
+		for j, c := range bucket.jobs {
+			if c.ID() == id {
+				jq.buckets[i].jobs = append(bucket.jobs[:j], bucket.jobs[j+1:]...)
+				bucket.mu.Unlock()
+				return nil
+			}
 		}
+		bucket.mu.Unlock()
 	}
 
 	return fmt.Errorf("check with id %s is not in this Job Queue", id)
@@ -67,8 +141,57 @@ func (jq *jobQueue) removeJob(id check.ID) error {
 // execution pipeline.
 // Not blocking, runs in a new goroutine.
 func (jq *jobQueue) run(out chan<- check.Check) {
+
+	time.Sleep(time.Second) // wait for one ticker
+
 	go func() {
-		for jq.waitForTick(out) {
+		cases := make([]reflect.SelectCase, 2+len(jq.buckets))
+		cases[oCHAN] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(jq.stop),
+		}
+		cases[hCHAN] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(jq.health.C),
+		}
+
+		ready := true
+		for i, bucket := range jq.buckets {
+
+			bucket.mu.RLock()
+			if bucket.ticker != nil {
+				cases[2+i] = reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(bucket.ticker.C),
+				}
+			} else {
+				ready = false
+				cases[2+i] = reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(nil),
+				}
+			}
+			bucket.mu.RUnlock()
+		}
+
+		for jq.waitForTick(cases, out) {
+			if ready {
+				continue
+			}
+
+			log.Debugf("Not all buckets are ticking")
+
+			ready = true
+			for i, bucket := range jq.buckets {
+				bucket.mu.RLock()
+				if bucket.ticker == nil {
+					ready = false
+				} else if bucket.ticker != nil && (!cases[2+i].Chan.IsValid() || cases[2+i].Chan.IsNil()) {
+					log.Debugf("Adding ticker to select case")
+					cases[2+i].Chan = reflect.ValueOf(bucket.ticker.C)
+				}
+				bucket.mu.RUnlock()
+			}
 		}
 		jq.stopped <- true
 	}()
@@ -76,31 +199,55 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 
 // waitForTicks enqueues the checks at a tick, and returns whether the queue
 // should listen to the following tick (or stop)
-func (jq *jobQueue) waitForTick(out chan<- check.Check) bool {
-	select {
-	case <-jq.stop:
+func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Check) bool {
+
+	chosen, _, ok := reflect.Select(cases)
+	if !ok {
+		// The chosen channel has been closed, so zero out the channel to disable the case
+		// should never really happen: we use the stop channel.
+		cases[chosen].Chan = reflect.ValueOf(nil)
+		return true
+	}
+
+	switch chosen {
+	case oCHAN:
 		// someone asked to stop this queue
-		jq.ticker.Stop()
+		jq.mu.RLock()
+		defer jq.mu.RUnlock()
+
+		for _, bucket := range jq.buckets {
+			bucket.stop()
+		}
 		jq.health.Deregister()
 		return false
-	case <-jq.health.C:
-	case <-jq.ticker.C:
+	case hCHAN:
+	default:
 		// normal case, (re)schedule the queue
-		jq.mu.RLock()
-		for _, check := range jq.jobs {
+		idx := chosen - 2
+		log.Debugf("Processing checks in queue %s and bucket %d", jq.interval, idx)
+
+		bucket := jq.buckets[idx]
+		bucket.mu.RLock()
+
+		for _, check := range bucket.jobs {
 			// sending to `out` is blocking, we need to constantly check that someone
 			// isn't asking to stop this queue
 			select {
 			case <-jq.stop:
-				jq.ticker.Stop()
+				bucket.mu.RUnlock()
+				jq.mu.RLock()
+				defer jq.mu.RUnlock()
+
+				for _, bucket := range jq.buckets {
+					bucket.stop()
+				}
 				jq.health.Deregister()
-				jq.mu.RUnlock()
 				return false
 			case out <- check:
-				log.Debugf("Enqueuing check %s for queue %d", check, jq.interval)
+				log.Debugf("Enqueuing check %s for queue %s", check, jq.interval)
 			}
 		}
-		jq.mu.RUnlock()
+		bucket.mu.RUnlock()
 	}
 
 	return true
