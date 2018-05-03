@@ -26,7 +26,6 @@ type jobBucket struct {
 	idx     uint
 	starter *time.Timer
 	ticker  *time.Ticker
-	cue     chan uint
 	halt    chan bool // to stop this bucket
 	jobs    []check.Check
 	mu      sync.RWMutex // to protect critical sections in struct's fields
@@ -35,7 +34,6 @@ type jobBucket struct {
 func newJobBucket(idx uint, interval, start time.Duration) *jobBucket {
 	bucket := &jobBucket{
 		idx:  idx,
-		cue:  make(chan uint),
 		halt: make(chan bool),
 	}
 
@@ -46,27 +44,6 @@ func newJobBucket(idx uint, interval, start time.Duration) *jobBucket {
 
 		bucket.ticker = time.NewTicker(interval)
 	})
-
-	// start ticker bucket cue processor
-	go func() {
-		for {
-			bucket.mu.RLock()
-			if bucket.ticker == nil {
-				time.Sleep(time.Duration(time.Second))
-			} else {
-				select {
-				case <-bucket.ticker.C:
-					if len(bucket.jobs) > 0 {
-						bucket.cue <- bucket.idx
-					}
-				case <-bucket.halt:
-					bucket.mu.RUnlock()
-					return
-				}
-			}
-			bucket.mu.RUnlock()
-		}
-	}()
 
 	return bucket
 }
@@ -173,10 +150,23 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 			Dir:  reflect.SelectRecv,
 			Chan: reflect.ValueOf(jq.health.C),
 		}
-		for i, bucket := range jq.buckets {
-			cases[2+i] = reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(bucket.cue),
+
+		for i := 0; i < len(jq.buckets); {
+			idx := i
+			jq.buckets[i].mu.RLock()
+			if jq.buckets[i].ticker == nil {
+				time.Sleep(time.Second)
+			} else {
+				cases[2+i] = reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(jq.buckets[i].ticker.C),
+				}
+				idx++
+			}
+			jq.buckets[i].mu.RUnlock()
+
+			if idx != i {
+				i = idx
 			}
 		}
 
@@ -190,7 +180,7 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 // should listen to the following tick (or stop)
 func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Check) bool {
 
-	chosen, idx, ok := reflect.Select(cases)
+	chosen, _, ok := reflect.Select(cases)
 	if !ok {
 		// The chosen channel has been closed, so zero out the channel to disable the case
 		// should never really happen: we use the stop channel.
@@ -212,9 +202,10 @@ func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Che
 	case hCHAN:
 	default:
 		// normal case, (re)schedule the queue
-		log.Debugf("Processing checks in queue %s and bucket %d", jq.interval, idx.Uint())
+		idx := chosen - 2
+		log.Debugf("Processing checks in queue %s and bucket %d", jq.interval, idx)
 
-		bucket := jq.buckets[idx.Uint()]
+		bucket := jq.buckets[idx]
 		bucket.mu.RLock()
 
 		for _, check := range bucket.jobs {
