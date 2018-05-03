@@ -43,6 +43,7 @@ func newJobBucket(idx uint, interval, start time.Duration) *jobBucket {
 		defer bucket.mu.Unlock()
 
 		bucket.ticker = time.NewTicker(interval)
+		log.Debugf("Bucket %d ticker started at interval %s", idx, interval)
 	})
 
 	return bucket
@@ -152,21 +153,18 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 		}
 
 		for i := 0; i < len(jq.buckets); {
-			idx := i
+
 			jq.buckets[i].mu.RLock()
 			if jq.buckets[i].ticker == nil {
+				jq.buckets[i].mu.RUnlock()
 				time.Sleep(time.Second)
 			} else {
 				cases[2+i] = reflect.SelectCase{
 					Dir:  reflect.SelectRecv,
 					Chan: reflect.ValueOf(jq.buckets[i].ticker.C),
 				}
-				idx++
-			}
-			jq.buckets[i].mu.RUnlock()
-
-			if idx != i {
-				i = idx
+				jq.buckets[i].mu.RUnlock()
+				i++
 			}
 		}
 
