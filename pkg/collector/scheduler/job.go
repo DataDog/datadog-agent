@@ -43,6 +43,7 @@ func newJobBucket(idx uint, interval, start time.Duration) *jobBucket {
 		defer bucket.mu.Unlock()
 
 		bucket.ticker = time.NewTicker(interval)
+		log.Debugf("Bucket %d ticker started at interval %s", idx, interval)
 	})
 
 	return bucket
@@ -140,6 +141,9 @@ func (jq *jobQueue) removeJob(id check.ID) error {
 // execution pipeline.
 // Not blocking, runs in a new goroutine.
 func (jq *jobQueue) run(out chan<- check.Check) {
+
+	time.Sleep(time.Second) // wait for one ticker
+
 	go func() {
 		cases := make([]reflect.SelectCase, 2+len(jq.buckets))
 		cases[oCHAN] = reflect.SelectCase{
@@ -151,26 +155,43 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 			Chan: reflect.ValueOf(jq.health.C),
 		}
 
-		for i := 0; i < len(jq.buckets); {
-			idx := i
-			jq.buckets[i].mu.RLock()
-			if jq.buckets[i].ticker == nil {
-				time.Sleep(time.Second)
-			} else {
+		ready := true
+		for i, bucket := range jq.buckets {
+
+			bucket.mu.RLock()
+			if bucket.ticker != nil {
 				cases[2+i] = reflect.SelectCase{
 					Dir:  reflect.SelectRecv,
-					Chan: reflect.ValueOf(jq.buckets[i].ticker.C),
+					Chan: reflect.ValueOf(bucket.ticker.C),
 				}
-				idx++
+			} else {
+				ready = false
+				cases[2+i] = reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(nil),
+				}
 			}
-			jq.buckets[i].mu.RUnlock()
-
-			if idx != i {
-				i = idx
-			}
+			bucket.mu.RUnlock()
 		}
 
 		for jq.waitForTick(cases, out) {
+			if ready {
+				continue
+			}
+
+			log.Debugf("Not all buckets are ticking")
+
+			ready = true
+			for i, bucket := range jq.buckets {
+				bucket.mu.RLock()
+				if bucket.ticker == nil {
+					ready = false
+				} else if bucket.ticker != nil && (!cases[2+i].Chan.IsValid() || cases[2+i].Chan.IsNil()) {
+					log.Debugf("Adding ticker to select case")
+					cases[2+i].Chan = reflect.ValueOf(bucket.ticker.C)
+				}
+				bucket.mu.RUnlock()
+			}
 		}
 		jq.stopped <- true
 	}()
