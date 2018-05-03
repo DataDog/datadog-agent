@@ -235,6 +235,7 @@ func expQueues(s *Scheduler) func() interface{} {
 
 		for interval, queue := range s.jobQueues {
 			nJobs := 0
+			// FIXME: this is not threadsafe
 			for _, bucket := range queue.buckets {
 				nJobs += len(bucket.jobs)
 			}
