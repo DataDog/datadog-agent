@@ -46,6 +46,7 @@ func Stop() {
 	if isRunning {
 		log.Info("Stopping logs-agent")
 		agent.Stop()
+		isRunning = false
 	}
 }
 
@@ -55,4 +56,9 @@ func GetStatus() status.Status {
 		return status.Status{IsRunning: false}
 	}
 	return status.Get()
+}
+
+// IsRunning returns the isRunning value for logs-agent
+func IsRunning() bool {
+	return isRunning
 }
