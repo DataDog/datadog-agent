@@ -44,7 +44,7 @@ func (e *TailError) Error() string {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(config JournalConfig, source *config.LogSource, outputChan chan message.Message, errHandler chan TailError) *Tailer {
+func NewTailer(config JournalConfig, source *config.LogSource, outputChan chan message.Message, errHandler ErrorHandler) *Tailer {
 	return &Tailer{
 		config:     config,
 		source:     source,

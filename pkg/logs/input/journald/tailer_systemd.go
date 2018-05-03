@@ -30,7 +30,7 @@ type Tailer struct {
 	outputChan chan message.Message
 	journal    *sdjournal.Journal
 	blacklist  map[string]bool
-	errHandler chan TailError
+	errHandler ErrorHandler
 	stop       chan struct{}
 	done       chan struct{}
 }
@@ -100,7 +100,7 @@ func (t *Tailer) tail() {
 		default:
 			n, err := t.journal.Next()
 			if err != nil && err != io.EOF {
-				t.errHandler <- NewTailError(t.Identifier(), err)
+				t.errHandler.Handle(NewTailError(t.Identifier(), err))
 				return
 			}
 			if n < 1 {

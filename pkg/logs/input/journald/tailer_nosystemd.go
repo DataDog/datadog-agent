@@ -19,7 +19,7 @@ type Tailer struct {
 	config     JournalConfig
 	source     *config.LogSource
 	outputChan chan message.Message
-	errHandler chan TailError
+	errHandler ErrorHandler
 	stop       chan struct{}
 	done       chan struct{}
 }

@@ -16,13 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
+// ErrorHandler handles tailing errors
+type ErrorHandler interface {
+	Handle(error TailError)
+}
+
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
 	sources          []*config.LogSource
 	pipelineProvider pipeline.Provider
 	auditor          *auditor.Auditor
 	tailers          map[string]*Tailer
-	tailErrors       chan TailError
 }
 
 // New returns a new Launcher.
@@ -38,7 +42,6 @@ func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, audito
 		pipelineProvider: pipelineProvider,
 		auditor:          auditor,
 		tailers:          make(map[string]*Tailer),
-		tailErrors:       make(chan TailError),
 	}
 }
 
@@ -57,7 +60,6 @@ func (l *Launcher) Start() {
 			l.tailers[identifier] = tailer
 		}
 	}
-	go l.run()
 }
 
 // Stop stops all active tailers
@@ -68,20 +70,17 @@ func (l *Launcher) Stop() {
 		delete(l.tailers, identifier)
 	}
 	stopper.Stop()
-	close(l.tailErrors)
 }
 
-// run keeps all tailers alive, restarting them when a fatal error occurs.
-func (l *Launcher) run() {
-	for tailError := range l.tailErrors {
-		log.Error(tailError.err)
-		if tailer, exists := l.tailers[tailError.journalID]; exists {
-			// safely stop and restart the tailer from its last committed cursor
-			tailer.Stop()
-			err := tailer.Start(l.auditor.GetLastCommittedCursor(tailer.Identifier()))
-			if err != nil {
-				log.Warn("Could not restart journald tailer: ", err)
-			}
+// Handle keeps all tailers alive, restarting them when a fatal error occurs.
+func (l *Launcher) Handle(tailError TailError) {
+	log.Error(tailError.err)
+	if tailer, exists := l.tailers[tailError.journalID]; exists {
+		// safely stop and restart the tailer from its last committed cursor
+		tailer.Stop()
+		err := tailer.Start(l.auditor.GetLastCommittedCursor(tailer.Identifier()))
+		if err != nil {
+			log.Warn("Could not restart journald tailer: ", err)
 		}
 	}
 }
@@ -102,7 +101,7 @@ func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
 		ExcludeUnits: excludeUnits,
 		Path:         source.Config.Path,
 	}
-	tailer := NewTailer(config, source, l.pipelineProvider.NextPipelineChan(), l.tailErrors)
+	tailer := NewTailer(config, source, l.pipelineProvider.NextPipelineChan(), l)
 	err := tailer.Start(l.auditor.GetLastCommittedCursor(tailer.Identifier()))
 	if err != nil {
 		return nil, err
