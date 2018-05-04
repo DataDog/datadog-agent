@@ -14,15 +14,13 @@ import (
 )
 
 func TestIdentifier(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{Type: config.JournaldType})
+	source := config.NewLogSource("", &config.LogsConfig{})
 
 	var tailer *Tailer
 	var config JournalConfig
 
 	// expect default identifier
-	config = JournalConfig{
-		Path: "",
-	}
+	config = JournalConfig{}
 	tailer = NewTailer(config, source, nil, nil)
 	assert.Equal(t, "journald:default", tailer.Identifier())
 
