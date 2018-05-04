@@ -141,6 +141,9 @@ func (jq *jobQueue) removeJob(id check.ID) error {
 // execution pipeline.
 // Not blocking, runs in a new goroutine.
 func (jq *jobQueue) run(out chan<- check.Check) {
+
+	time.Sleep(time.Second) // wait for one ticker
+
 	go func() {
 		cases := make([]reflect.SelectCase, 2+len(jq.buckets))
 		cases[oCHAN] = reflect.SelectCase{
@@ -152,23 +155,40 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 			Chan: reflect.ValueOf(jq.health.C),
 		}
 
-		for i := 0; i < len(jq.buckets); {
+		ready := true
+		for i, bucket := range jq.buckets {
 
-			jq.buckets[i].mu.RLock()
-			if jq.buckets[i].ticker == nil {
-				jq.buckets[i].mu.RUnlock()
-				time.Sleep(time.Second)
+			bucket.mu.RLock()
+			ticker := reflect.ValueOf(nil)
+			if bucket.ticker != nil {
+				ticker = reflect.ValueOf(bucket.ticker.C)
 			} else {
-				cases[2+i] = reflect.SelectCase{
-					Dir:  reflect.SelectRecv,
-					Chan: reflect.ValueOf(jq.buckets[i].ticker.C),
-				}
-				jq.buckets[i].mu.RUnlock()
-				i++
+				ready = false
 			}
+
+			cases[2+i] = reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: ticker,
+			}
+
+			bucket.mu.RUnlock()
 		}
 
 		for jq.waitForTick(cases, out) {
+			if ready {
+				continue
+			}
+
+			ready = true
+			for i, bucket := range jq.buckets {
+				bucket.mu.RLock()
+				if bucket.ticker != nil && cases[2+i].Chan == reflect.ValueOf(nil) {
+					cases[2+1].Chan = reflect.ValueOf(bucket.ticker.C)
+				} else {
+					ready = false
+				}
+				bucket.mu.RUnlock()
+			}
 		}
 		jq.stopped <- true
 	}()
