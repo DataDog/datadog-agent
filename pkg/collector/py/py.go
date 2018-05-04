@@ -43,6 +43,10 @@ var (
 	// PythonPath contains the string representation of the Python list returned
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
+	// globalStickyLock is a global stickyLock. When it's locked, all goroutines
+	// should assume that the caller took care of locking the thread and python GIL
+	// and should not attempt further locking operations
+	globalStickyLock = &stickyLock{locked: 0}
 )
 
 // Initialize wraps all the operations needed to start the Python interpreter and

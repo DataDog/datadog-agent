@@ -48,6 +48,9 @@ const (
 	pyMemSummaryFunc      = "get_mem_stats"
 	pyPkgModule           = "utils.py_packages"
 	pyIntegrationListFunc = "get_datadog_wheels"
+	pyProfileModule       = "utils.py_profile"
+	pyProfileStartFunc    = "start_cpu_profile"
+	pyProfileStopFunc     = "stop_cpu_profile"
 )
 
 // newStickyLock register the current thread with the interpreter and locks
@@ -230,6 +233,80 @@ func decAllRefs(refs []*python.PyObject) {
 	for _, ref := range refs {
 		ref.DecRef()
 	}
+}
+
+// StartCPUProfile starts a cpu profile of the python runtime.
+// This locks the globalStickyLock to ensure the whole profile runs on the same
+// physical thread, until StopCPUProfile is called or the global stickyLock is
+// unlocked manually.
+func StartCPUProfile() error {
+	globalStickyLock = newStickyLock()
+
+	profileModule := python.PyImport_ImportModule(pyProfileModule)
+	if profileModule == nil {
+		return fmt.Errorf("unable to import Python module: %s", profileModule)
+	}
+	defer profileModule.DecRef()
+
+	start := profileModule.GetAttrString(pyProfileStartFunc)
+	if start == nil {
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("an error occurred while grabbing the python profile starter: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+	defer start.DecRef()
+
+	startError := start.CallFunction()
+	if startError == nil {
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("an error occurred while starting the CPU profile: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+
+	return nil
+}
+
+// StopCPUProfile stops the running CPU profile and writes results to the path.
+// This unlocks the globalStickyLock.
+func StopCPUProfile(path string) error {
+	defer globalStickyLock.unlock()
+
+	profileModule := python.PyImport_ImportModule(pyProfileModule)
+	if profileModule == nil {
+		return fmt.Errorf("unable to import Python module: %s", profileModule)
+	}
+	defer profileModule.DecRef()
+
+	stop := profileModule.GetAttrString(pyProfileStopFunc)
+	if stop == nil {
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("an error occurred while grabbing the python profile stopper: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+	defer stop.DecRef()
+
+	pyPath := python.PyString_FromString(path)
+	defer pyPath.DecRef()
+	stopError := stop.CallFunction(pyPath)
+	if stopError == nil {
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("an error occurred while stopping the CPU profile: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+
+	return nil
 }
 
 // GetPythonInterpreterMemoryUsage collects python interpreter memory usage

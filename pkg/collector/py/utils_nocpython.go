@@ -14,6 +14,16 @@ import (
 // ErrNotCompiled is returned by methods when cpython is not compiled in
 var ErrNotCompiled = errors.New("cpython is not compiled in")
 
+// StartCPUProfile stubs when cpython is not compiled in
+func StartCPUProfile() error {
+	return nil
+}
+
+// StopCPUProfile stubs when cpython is not compiled in
+func StopCPUProfile(path string) error {
+	return nil
+}
+
 // GetPythonInterpreterMemoryUsage stub when cpython is not compiled in
 func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 	return nil, ErrNotCompiled

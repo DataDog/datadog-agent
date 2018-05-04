@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -55,9 +56,12 @@ func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 
 // Run a Python check
 func (c *PythonCheck) Run() error {
-	// Lock the GIL and release it at the end of the run
-	gstate := newStickyLock()
-	defer gstate.unlock()
+	// Lock the GIL ourselves if the global lock isn't already, and release it at the end of the run
+	gstate := globalStickyLock
+	if atomic.LoadUint32(&globalStickyLock.locked) != 1 {
+		gstate = newStickyLock()
+		defer gstate.unlock()
+	}
 
 	// call run function, it takes no args so we pass an empty tuple
 	log.Debugf("Running python check %s %s", c.ModuleName, c.id)

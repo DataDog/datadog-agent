@@ -8,6 +8,10 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -17,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -24,14 +29,28 @@ import (
 )
 
 var (
-	checkRate  bool
-	checkName  string
-	checkDelay int
-	logLevel   string
+	checkRate     bool
+	checkName     string
+	checkDelay    int
+	isCpuProfiled bool
+	logLevel      string
+	runs          int
+	output        string
 )
+
+const CPUProfileMsgTmpl = `Open CPU profiles with:
+* Go profile: go tool pprof %s
+* Embedded python profile: python -m pstats %s
+`
 
 // Make the check cmd aggregator never flush by setting a very high interval
 const checkCmdFlushInterval = time.Hour
+
+type CPUProfile struct {
+	enabled       bool
+	pyProfilePath string
+	goProfilePath string
+}
 
 func init() {
 	AgentCmd.AddCommand(checkCmd)
@@ -39,6 +58,9 @@ func init() {
 	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice")
 	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
+	checkCmd.Flags().BoolVarP(&isCpuProfiled, "cpu-profile", "p", false, "write cpu profiles of the check run(s) in the working directory")
+	checkCmd.Flags().IntVarP(&runs, "runs", "t", 1, "force check to run n times, set to '2' if --check-rate is used")
+	checkCmd.Flags().StringVarP(&output, "output-file", "o", "", "write metrics/events/service checks to file instead of stdout")
 	checkCmd.SetArgs([]string{"checkName"})
 }
 
@@ -119,19 +141,45 @@ var checkCmd = &cobra.Command{
 			fmt.Println("Multiple check instances found, running each of them")
 		}
 
+		times := runs
+		if checkRate {
+			times = 2
+		}
+
 		for _, c := range cs {
-			s := runCheck(c, agg)
+			cpuProfile := CPUProfile{enabled: false}
+			if isCpuProfiled {
+				cpuProfile.enabled = true
+				baseProfilePath := strings.Replace(fmt.Sprintf("%s_%s.prof", checkName, c.ID()), ":", "_", -1)
+				cpuProfile.pyProfilePath = fmt.Sprintf("py_%s", baseProfilePath)
+				cpuProfile.goProfilePath = fmt.Sprintf("go_%s", baseProfilePath)
+			}
+
+			s := runCheck(c, times, agg, cpuProfile)
 
 			// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 			time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
-			printMetrics(agg)
+			if output == "" {
+				FprintMetrics(color.Output, agg)
+			} else {
+				outputFile, err := os.Create(output)
+				if err != nil {
+					color.Red("Could not create output file '%s': %v", output, err)
+				}
+				FprintMetrics(outputFile, agg)
+				outputFile.Close()
+			}
 
 			checkStatus, _ := status.GetCheckStatus(c, s)
 			fmt.Println(string(checkStatus))
+
+			if cpuProfile.enabled {
+				color.Green(CPUProfileMsgTmpl, cpuProfile.goProfilePath, cpuProfile.pyProfilePath)
+			}
 		}
 
-		if checkRate == false {
+		if times == 1 {
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 		}
 
@@ -139,12 +187,13 @@ var checkCmd = &cobra.Command{
 	},
 }
 
-func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
+func runCheck(c check.Check, times int, agg *aggregator.BufferedAggregator, cpuProfile CPUProfile) *check.Stats {
 	s := check.NewStats(c)
 	i := 0
-	times := 1
-	if checkRate {
-		times = 2
+
+	if cpuProfile.enabled {
+		cpuProfile.start()
+		defer cpuProfile.stop()
 	}
 	for i < times {
 		t0 := time.Now()
@@ -158,32 +207,54 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func printMetrics(agg *aggregator.BufferedAggregator) {
+func (p *CPUProfile) start() {
+	err := py.StartCPUProfile()
+	if err != nil {
+		color.Red("Could not start py profile: %v", err)
+	}
+
+	goProfile, err := os.Create(p.goProfilePath)
+	if err != nil {
+		color.Red("Could not write go profile to '%s': %v", p.goProfilePath, err)
+	}
+	pprof.StartCPUProfile(goProfile)
+}
+
+func (p *CPUProfile) stop() {
+	pprof.StopCPUProfile()
+
+	err := py.StopCPUProfile(p.pyProfilePath)
+	if err != nil {
+		color.Red("Could not stop py profile: %v", err)
+	}
+}
+
+func FprintMetrics(w io.Writer, agg *aggregator.BufferedAggregator) {
 	series := agg.GetSeries()
 	if len(series) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
+		fmt.Fprintln(w, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
 		j, _ := json.MarshalIndent(series, "", "  ")
-		fmt.Println(string(j))
+		fmt.Fprintln(w, string(j))
 	}
 
 	sketches := agg.GetSketches()
 	if len(sketches) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
+		fmt.Fprintln(w, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
-		fmt.Println(string(j))
+		fmt.Fprintln(w, string(j))
 	}
 
 	serviceChecks := agg.GetServiceChecks()
 	if len(serviceChecks) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
+		fmt.Fprintln(w, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
 		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-		fmt.Println(string(j))
+		fmt.Fprintln(w, string(j))
 	}
 
 	events := agg.GetEvents()
 	if len(events) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
+		fmt.Fprintln(w, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
 		j, _ := json.MarshalIndent(events, "", "  ")
-		fmt.Println(string(j))
+		fmt.Fprintln(w, string(j))
 	}
 }
