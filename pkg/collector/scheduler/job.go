@@ -159,18 +159,18 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 		for i, bucket := range jq.buckets {
 
 			bucket.mu.RLock()
-			ticker := reflect.ValueOf(nil)
 			if bucket.ticker != nil {
-				ticker = reflect.ValueOf(bucket.ticker.C)
+				cases[2+i] = reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(bucket.ticker.C),
+				}
 			} else {
 				ready = false
+				cases[2+i] = reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(nil),
+				}
 			}
-
-			cases[2+i] = reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: ticker,
-			}
-
 			bucket.mu.RUnlock()
 		}
 
@@ -179,13 +179,16 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 				continue
 			}
 
+			log.Debugf("Not all buckets are ticking")
+
 			ready = true
 			for i, bucket := range jq.buckets {
 				bucket.mu.RLock()
-				if bucket.ticker != nil && cases[2+i].Chan == reflect.ValueOf(nil) {
-					cases[2+1].Chan = reflect.ValueOf(bucket.ticker.C)
-				} else {
+				if bucket.ticker == nil {
 					ready = false
+				} else if bucket.ticker != nil && (!cases[2+i].Chan.IsValid() || cases[2+i].Chan.IsNil()) {
+					log.Debugf("Adding ticker to select case")
+					cases[2+i].Chan = reflect.ValueOf(bucket.ticker.C)
 				}
 				bucket.mu.RUnlock()
 			}
