@@ -31,10 +31,9 @@ func GetPodMetadataNames(nodeName string, podName string) ([]string, error) {
 	}
 	// The list of metadata collected in the metaBundle is extensible and is handled here.
 	// If new cluster level tags need to be collected by the agent, only this needs to be modified.
-	serviceList, foundServices := metaBundle.PodNameToService[podName]
+	serviceList, foundServices := metaBundle.ServicesForPod(podName)
 	if !foundServices {
 		return nil, fmt.Errorf("no cached services list found for the pod %s on the node %s", podName, nodeName)
-
 	}
 	log.Debugf("CacheKey: %s, with %d services", cacheKey, len(serviceList))
 	for _, s := range serviceList {
