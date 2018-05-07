@@ -49,7 +49,6 @@ Default: `2`
 - `forwarder_backoff_max` - This is the maximum number of seconds to wait for
 a retry. Default: `64`
 - `forwarder_recovery_interval` - This controls how many retry interval ranges to
-step down for an endpoint upon success. Increasing this should only be considered
-when `forwarder_backoff_max` is particularly high. Default: `1`
+step down for an endpoint upon success. Default: `2`
 - `forwarder_recovery_reset` - Whether or not a successful request should completely
 clear an endpoint's error count. Default: `false`
