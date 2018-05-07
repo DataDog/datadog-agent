@@ -20,7 +20,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -30,12 +29,6 @@ import (
 )
 
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
-	var err error
-
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
-
 	var ts int
 	queries := r.URL.Query()
 	if timestamps, ok := queries["timestamp"]; ok {
@@ -57,7 +50,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	for name, config := range configItems {
 		m, ok := config.(map[string]interface{})
 		if !ok {
-			err = fmt.Errorf("wrong type in cache")
+			err := fmt.Errorf("wrong type in cache")
 			log.Errorf("%s", err.Error())
 			http.Error(w, err.Error(), 500)
 			return
@@ -65,14 +58,14 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 
 		cfg, ok := m["config"].(integration.Config)
 		if !ok {
-			err = fmt.Errorf("wrong type for config")
+			err := fmt.Errorf("wrong type for config")
 			log.Errorf("%s", err.Error())
 			http.Error(w, err.Error(), 500)
 			return
 		}
 
 		var rawInitConfig integration.RawMap
-		err = yaml.Unmarshal(cfg.InitConfig, &rawInitConfig)
+		err := yaml.Unmarshal(cfg.InitConfig, &rawInitConfig)
 		if err != nil {
 			log.Errorf("unable to parse JMX configuration: %s", err)
 			http.Error(w, err.Error(), 500)
@@ -109,10 +102,6 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
-
 	decoder := json.NewDecoder(r.Body)
 
 	var jmxStatus status.JMXStatus
