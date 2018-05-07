@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	log "github.com/cihub/seelog"
@@ -90,7 +90,7 @@ func (c *fhCheck) Run() error {
 }
 
 // The check doesn't need configuration
-func (c *fhCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
+func (c *fhCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
 	// do nothing
 	return nil
 }

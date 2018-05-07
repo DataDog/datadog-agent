@@ -11,7 +11,7 @@ import (
 	"github.com/shirou/gopsutil/disk"
 	yaml "gopkg.in/yaml.v2"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -27,7 +27,7 @@ const (
 var ioCounters = disk.IOCounters
 
 // Configure the IOstats check
-func (c *IOCheck) commonConfigure(data adconfig.Data, initConfig adconfig.Data) error {
+func (c *IOCheck) commonConfigure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
 	conf := make(map[interface{}]interface{})
 
 	err := yaml.Unmarshal([]byte(initConfig), &conf)

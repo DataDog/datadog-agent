@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/beevik/ntp"
 	log "github.com/cihub/seelog"
@@ -92,7 +92,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
+func (c *NTPCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
 	cfg := new(ntpConfig)
 	err := cfg.parse(data, initConfig)
 	if err != nil {

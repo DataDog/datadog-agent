@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -25,7 +25,7 @@ import (
 var JMXConfigCache = cache.NewBasicCache()
 
 // AddJMXCachedConfig adds a config to the jmx config cache
-func AddJMXCachedConfig(config adconfig.Config) {
+func AddJMXCachedConfig(config autodiscovery.Config) {
 	mapConfig := map[string]interface{}{}
 	mapConfig["name"] = config.Name
 	mapConfig["timestamp"] = time.Now().Unix()
@@ -45,7 +45,7 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 }
 
 // Load returns an (empty?) list of checks and nil if it all works out
-func (jl *JMXCheckLoader) Load(config adconfig.Config) ([]check.Check, error) {
+func (jl *JMXCheckLoader) Load(config autodiscovery.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
 
@@ -53,7 +53,7 @@ func (jl *JMXCheckLoader) Load(config adconfig.Config) ([]check.Check, error) {
 		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 
-	rawInitConfig := adconfig.RawMap{}
+	rawInitConfig := autodiscovery.RawMap{}
 	err = yaml.Unmarshal(config.InitConfig, &rawInitConfig)
 	if err != nil {
 		log.Errorf("jmx.loader: could not unmarshal instance config: %s", err)

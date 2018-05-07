@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"path"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
@@ -31,13 +31,13 @@ func init() {
 
 // parseJSONValue returns a slice of ConfigData parsed from the JSON
 // contained in the `value` parameter
-func parseJSONValue(value string) ([]adconfig.Data, error) {
+func parseJSONValue(value string) ([]autodiscovery.Data, error) {
 	if value == "" {
 		return nil, fmt.Errorf("Value is empty")
 	}
 
 	var rawRes []interface{}
-	var result []adconfig.Data
+	var result []autodiscovery.Data
 
 	err := json.Unmarshal([]byte(value), &rawRes)
 	if err != nil {
@@ -75,8 +75,8 @@ func buildStoreKey(key ...string) string {
 	return path.Join(parts...)
 }
 
-func buildTemplates(key string, checkNames []string, initConfigs, instances []adconfig.Data) []adconfig.Config {
-	templates := make([]adconfig.Config, 0)
+func buildTemplates(key string, checkNames []string, initConfigs, instances []autodiscovery.Data) []autodiscovery.Config {
+	templates := make([]autodiscovery.Config, 0)
 
 	// sanity check
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
@@ -85,12 +85,12 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []ad
 	}
 
 	for idx := range checkNames {
-		instance := adconfig.Data(instances[idx])
+		instance := autodiscovery.Data(instances[idx])
 
-		templates = append(templates, adconfig.Config{
+		templates = append(templates, autodiscovery.Config{
 			Name:          checkNames[idx],
-			InitConfig:    adconfig.Data(initConfigs[idx]),
-			Instances:     []adconfig.Data{instance},
+			InitConfig:    autodiscovery.Data(initConfigs[idx]),
+			Instances:     []autodiscovery.Data{instance},
 			ADIdentifiers: []string{key},
 		})
 	}
@@ -99,32 +99,32 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []ad
 
 // extractTemplatesFromMap looks for autodiscovery configurations in a given map
 // (either docker labels or kubernetes annotations) and returns them if found.
-func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]adconfig.Config, error) {
+func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]autodiscovery.Config, error) {
 	value, found := input[prefix+checkNamePath]
 	if !found {
-		return []adconfig.Config{}, nil
+		return []autodiscovery.Config{}, nil
 	}
 	checkNames, err := parseCheckNames(value)
 	if err != nil {
-		return []adconfig.Config{}, fmt.Errorf("in %s: %s", checkNamePath, err)
+		return []autodiscovery.Config{}, fmt.Errorf("in %s: %s", checkNamePath, err)
 	}
 
 	value, found = input[prefix+initConfigPath]
 	if !found {
-		return []adconfig.Config{}, errors.New("missing init_configs key")
+		return []autodiscovery.Config{}, errors.New("missing init_configs key")
 	}
 	initConfigs, err := parseJSONValue(value)
 	if err != nil {
-		return []adconfig.Config{}, fmt.Errorf("in %s: %s", initConfigPath, err)
+		return []autodiscovery.Config{}, fmt.Errorf("in %s: %s", initConfigPath, err)
 	}
 
 	value, found = input[prefix+instancePath]
 	if !found {
-		return []adconfig.Config{}, errors.New("missing instances key")
+		return []autodiscovery.Config{}, errors.New("missing instances key")
 	}
 	instances, err := parseJSONValue(value)
 	if err != nil {
-		return []adconfig.Config{}, fmt.Errorf("in %s: %s", instancePath, err)
+		return []autodiscovery.Config{}, fmt.Errorf("in %s: %s", instancePath, err)
 	}
 
 	return buildTemplates(key, checkNames, initConfigs, instances), nil

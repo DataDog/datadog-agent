@@ -32,7 +32,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -643,7 +643,7 @@ func (c *SNMPCheck) getSNMP() error {
 }
 
 // Configure the check from YAML data
-func (c *SNMPCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
+func (c *SNMPCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
 
 	cfg := new(snmpConfig)
 	err := cfg.parse(data, initConfig)

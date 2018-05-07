@@ -6,7 +6,7 @@
 package providers
 
 import (
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -45,7 +45,7 @@ func NewCPCache() *ProviderCache {
 // or data needed to access the resource providing the configuration.
 // IsUpToDate checks the local cache of the CP and returns accordingly.
 type ConfigProvider interface {
-	Collect() ([]adconfig.Config, error)
+	Collect() ([]autodiscovery.Config, error)
 	String() string
 	IsUpToDate() (bool, error)
 }

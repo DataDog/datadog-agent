@@ -16,7 +16,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 )
 
 type configFormat struct {
@@ -24,18 +24,18 @@ type configFormat struct {
 	InitConfig    interface{} `yaml:"init_config"`
 	MetricConfig  interface{} `yaml:"jmx_metrics"`
 	LogsConfig    interface{} `yaml:"logs"`
-	Instances     []adconfig.RawMap
+	Instances     []autodiscovery.RawMap
 	DockerImages  []string `yaml:"docker_images"` // Only imported for deprecation warning
 }
 
 type configPkg struct {
-	confs    []adconfig.Config
-	defaults []adconfig.Config
-	metrics  []adconfig.Config
+	confs    []autodiscovery.Config
+	defaults []autodiscovery.Config
+	metrics  []autodiscovery.Config
 }
 
 type configEntry struct {
-	conf       adconfig.Config
+	conf       autodiscovery.Config
 	name       string
 	isDefault  bool
 	isMetric   bool
@@ -61,10 +61,10 @@ func NewFileConfigProvider(paths []string) *FileConfigProvider {
 // Collect scans provided paths searching for configuration files. When found,
 // it parses the files and try to unmarshall Yaml contents into a CheckConfig
 // instance
-func (c *FileConfigProvider) Collect() ([]adconfig.Config, error) {
-	configs := []adconfig.Config{}
+func (c *FileConfigProvider) Collect() ([]autodiscovery.Config, error) {
+	configs := []autodiscovery.Config{}
 	configNames := make(map[string]struct{}) // use this map as a python set
-	defaultConfigs := []adconfig.Config{}
+	defaultConfigs := []autodiscovery.Config{}
 
 	for _, path := range c.paths {
 		log.Infof("%v: searching for configuration files at: %s", c, path)
@@ -197,9 +197,9 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 
 // collectDir collects entries in subdirectories of the main conf folder
 func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) configPkg {
-	configs := []adconfig.Config{}
-	defaultConfigs := []adconfig.Config{}
-	metricConfigs := []adconfig.Config{}
+	configs := []autodiscovery.Config{}
+	defaultConfigs := []autodiscovery.Config{}
+	metricConfigs := []autodiscovery.Config{}
 	const dirExt string = ".d"
 	dirPath := filepath.Join(parentPath, folder.Name())
 
@@ -245,10 +245,10 @@ func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) c
 	return configPkg{confs: configs, defaults: defaultConfigs, metrics: metricConfigs}
 }
 
-// GetCheckConfigFromFile returns an instance of adconfig.Config if `fpath` points to a valid config file
-func GetCheckConfigFromFile(name, fpath string) (adconfig.Config, error) {
+// GetCheckConfigFromFile returns an instance of autodiscovery.Config if `fpath` points to a valid config file
+func GetCheckConfigFromFile(name, fpath string) (autodiscovery.Config, error) {
 	cf := configFormat{}
-	config := adconfig.Config{Name: name}
+	config := autodiscovery.Config{Name: name}
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications

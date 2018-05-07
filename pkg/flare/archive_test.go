@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -58,11 +58,11 @@ func TestCreateArchiveBadConfig(t *testing.T) {
 // Ensure sensitive data is redacted
 func TestZipConfigCheck(t *testing.T) {
 	cr := response.ConfigCheckResponse{
-		Configs: make([]adconfig.Config, 0),
+		Configs: make([]autodiscovery.Config, 0),
 	}
-	cr.Configs = append(cr.Configs, adconfig.Config{
+	cr.Configs = append(cr.Configs, autodiscovery.Config{
 		Name:      "TestCheck",
-		Instances: []adconfig.Data{[]byte("username: User\npassword: MySecurePass")},
+		Instances: []autodiscovery.Data{[]byte("username: User\npassword: MySecurePass")},
 		Provider:  "FooProvider",
 	})
 

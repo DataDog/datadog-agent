@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 )
@@ -21,10 +21,10 @@ type TestCheck struct {
 	hasRun bool
 }
 
-func (c *TestCheck) String() string                               { return "TestCheck" }
-func (c *TestCheck) Stop()                                        {}
-func (c *TestCheck) Configure(adconfig.Data, adconfig.Data) error { return nil }
-func (c *TestCheck) Interval() time.Duration                      { return 1 }
+func (c *TestCheck) String() string                                         { return "TestCheck" }
+func (c *TestCheck) Stop()                                                  {}
+func (c *TestCheck) Configure(autodiscovery.Data, autodiscovery.Data) error { return nil }
+func (c *TestCheck) Interval() time.Duration                                { return 1 }
 func (c *TestCheck) Run() error {
 	if c.doErr {
 		msg := "A tremendous error occurred."

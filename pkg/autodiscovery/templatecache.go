@@ -10,14 +10,14 @@ import (
 	"strings"
 	"sync"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 )
 
 // TemplateCache is a data structure to store configuration templates
 type TemplateCache struct {
-	id2digests      map[string][]string        // map an AD identifier to all the configs that have it
-	digest2ids      map[string][]string        // map a config digest to the list of AD identifiers it has
-	digest2template map[string]adconfig.Config // map a digest to the corresponding config object
+	id2digests      map[string][]string             // map an AD identifier to all the configs that have it
+	digest2ids      map[string][]string             // map a config digest to the list of AD identifiers it has
+	digest2template map[string]autodiscovery.Config // map a digest to the corresponding config object
 	m               sync.RWMutex
 }
 
@@ -26,12 +26,12 @@ func NewTemplateCache() *TemplateCache {
 	return &TemplateCache{
 		id2digests:      map[string][]string{},
 		digest2ids:      map[string][]string{},
-		digest2template: map[string]adconfig.Config{},
+		digest2template: map[string]autodiscovery.Config{},
 	}
 }
 
 // Set stores or updates a template in the cache
-func (cache *TemplateCache) Set(tpl adconfig.Config) error {
+func (cache *TemplateCache) Set(tpl autodiscovery.Config) error {
 	// return an error if configuration has no AD identifiers
 	if len(tpl.ADIdentifiers) == 0 {
 		return fmt.Errorf("template has no AD identifiers, unable to store it in the cache")
@@ -59,13 +59,13 @@ func (cache *TemplateCache) Set(tpl adconfig.Config) error {
 }
 
 // Get retrieves a template from the cache
-func (cache *TemplateCache) Get(adID string) ([]adconfig.Config, error) {
+func (cache *TemplateCache) Get(adID string) ([]autodiscovery.Config, error) {
 	cache.m.RLock()
 	defer cache.m.RUnlock()
 
 	// do we know the identifier?
 	if digests, found := cache.id2digests[adID]; found {
-		templates := []adconfig.Config{}
+		templates := []autodiscovery.Config{}
 		for _, digest := range digests {
 			templates = append(templates, cache.digest2template[digest])
 		}
@@ -76,8 +76,8 @@ func (cache *TemplateCache) Get(adID string) ([]adconfig.Config, error) {
 }
 
 // GetUnresolvedTemplates returns templates yet to be resolved
-func (cache *TemplateCache) GetUnresolvedTemplates() map[string]adconfig.Config {
-	tpls := make(map[string]adconfig.Config)
+func (cache *TemplateCache) GetUnresolvedTemplates() map[string]autodiscovery.Config {
+	tpls := make(map[string]autodiscovery.Config)
 	for d, config := range cache.digest2template {
 		ids := strings.Join(cache.digest2ids[d][:], ",")
 		tpls[ids] = config
@@ -86,7 +86,7 @@ func (cache *TemplateCache) GetUnresolvedTemplates() map[string]adconfig.Config 
 }
 
 // Del removes a template from the cache
-func (cache *TemplateCache) Del(tpl adconfig.Config) error {
+func (cache *TemplateCache) Del(tpl autodiscovery.Config) error {
 	// compute the digest once
 	d := tpl.Digest()
 

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +31,7 @@ func TestToPython(t *testing.T) {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
 
-	c := make(adconfig.RawMap)
+	c := make(autodiscovery.RawMap)
 
 	err = yaml.Unmarshal(yamlFile, &c)
 	if err != nil {

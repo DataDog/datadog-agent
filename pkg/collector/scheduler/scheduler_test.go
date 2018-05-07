@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,14 +17,14 @@ import (
 // FIXTURE
 type TestCheck struct{ intl time.Duration }
 
-func (c *TestCheck) String() string                               { return "TestCheck" }
-func (c *TestCheck) Configure(adconfig.Data, adconfig.Data) error { return nil }
-func (c *TestCheck) Interval() time.Duration                      { return c.intl }
-func (c *TestCheck) Run() error                                   { return nil }
-func (c *TestCheck) Stop()                                        {}
-func (c *TestCheck) ID() check.ID                                 { return check.ID(c.String()) }
-func (c *TestCheck) GetWarnings() []error                         { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error)    { return make(map[string]int64), nil }
+func (c *TestCheck) String() string                                         { return "TestCheck" }
+func (c *TestCheck) Configure(autodiscovery.Data, autodiscovery.Data) error { return nil }
+func (c *TestCheck) Interval() time.Duration                                { return c.intl }
+func (c *TestCheck) Run() error                                             { return nil }
+func (c *TestCheck) Stop()                                                  {}
+func (c *TestCheck) ID() check.ID                                           { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                                   { return []error{} }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error)              { return make(map[string]int64), nil }
 
 var initialMinAllowedInterval = minAllowedInterval
 

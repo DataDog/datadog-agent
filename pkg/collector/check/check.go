@@ -6,7 +6,7 @@
 package check
 
 import (
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"time"
 )
 
@@ -18,12 +18,12 @@ const (
 
 // Check is an interface for types capable to run checks
 type Check interface {
-	Run() error                                       // run the check
-	Stop()                                            // stop the check if it's running
-	String() string                                   // provide a printable version of the check name
-	Configure(config, initConfig adconfig.Data) error // configure the check from the outside
-	Interval() time.Duration                          // return the interval time for the check
-	ID() ID                                           // provide a unique identifier for every check instance
-	GetWarnings() []error                             // return the last warning registered by the check
-	GetMetricStats() (map[string]int64, error)        // get metric stats from the sender
+	Run() error                                            // run the check
+	Stop()                                                 // stop the check if it's running
+	String() string                                        // provide a printable version of the check name
+	Configure(config, initConfig autodiscovery.Data) error // configure the check from the outside
+	Interval() time.Duration                               // return the interval time for the check
+	ID() ID                                                // provide a unique identifier for every check instance
+	GetWarnings() []error                                  // return the last warning registered by the check
+	GetMetricStats() (map[string]int64, error)             // get metric stats from the sender
 }

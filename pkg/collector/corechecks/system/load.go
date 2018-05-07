@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	log "github.com/cihub/seelog"
@@ -53,7 +53,7 @@ func (c *LoadCheck) Run() error {
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *LoadCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
+func (c *LoadCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
 	// do nothing
 	// NOTE: This check is disabled on windows - so the following doesn't apply
 	//       currently:

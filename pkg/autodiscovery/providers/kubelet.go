@@ -13,7 +13,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -43,18 +43,18 @@ func (k *KubeletConfigProvider) String() string {
 
 // Collect retrieves templates from the kubelet's pdolist, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
-func (k *KubeletConfigProvider) Collect() ([]adconfig.Config, error) {
+func (k *KubeletConfigProvider) Collect() ([]autodiscovery.Config, error) {
 	var err error
 	if k.kubelet == nil {
 		k.kubelet, err = kubelet.GetKubeUtil()
 		if err != nil {
-			return []adconfig.Config{}, err
+			return []autodiscovery.Config{}, err
 		}
 	}
 
 	pods, err := k.kubelet.GetLocalPodList()
 	if err != nil {
-		return []adconfig.Config{}, err
+		return []autodiscovery.Config{}, err
 	}
 
 	return parseKubeletPodlist(pods)
@@ -65,8 +65,8 @@ func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
 	return false, nil
 }
 
-func parseKubeletPodlist(podlist []*kubelet.Pod) ([]adconfig.Config, error) {
-	var configs []adconfig.Config
+func parseKubeletPodlist(podlist []*kubelet.Pod) ([]autodiscovery.Config, error) {
+	var configs []autodiscovery.Config
 	for _, pod := range podlist {
 		// Filter out pods with no AD annotation
 		var adExtractFormat string

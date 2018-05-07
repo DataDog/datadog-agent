@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 
@@ -33,7 +33,7 @@ func TestResolveTemplate(t *testing.T) {
 	ac.AddLoader(l)
 	tc := NewTemplateCache()
 	cr := newConfigResolver(nil, ac, tc)
-	tpl := adconfig.Config{
+	tpl := autodiscovery.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 	}
@@ -104,9 +104,9 @@ func TestResolve(t *testing.T) {
 
 	testCases := []struct {
 		testName    string
-		tpl         adconfig.Config
+		tpl         autodiscovery.Config
 		svc         listeners.Service
-		out         adconfig.Config
+		out         autodiscovery.Config
 		errorString string
 	}{
 		//// %%host%% tag testing
@@ -117,15 +117,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"bridge": "127.0.0.1"},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: %%host%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: %%host%%")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: 127.0.0.1")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: 127.0.0.1")},
 			},
 		},
 		{
@@ -135,15 +135,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"custom": "127.0.0.2"},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: %%host%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: %%host%%")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: 127.0.0.2")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: 127.0.0.2")},
 			},
 		},
 		{
@@ -153,15 +153,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"custom": "127.0.0.2", "other": "127.0.0.3"},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: %%host_custom%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: %%host_custom%%")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: 127.0.0.2")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: 127.0.0.2")},
 			},
 		},
 		{
@@ -171,15 +171,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"other": "127.0.0.2", "custom_net": "127.0.0.3"},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: %%host_custom_net%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: %%host_custom_net%%")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: 127.0.0.3")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: 127.0.0.3")},
 			},
 		},
 		{
@@ -189,15 +189,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"other": "127.0.0.3"},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: %%host_custom%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: %%host_custom%%")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: 127.0.0.3")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: 127.0.0.3")},
 			},
 		},
 		{
@@ -207,10 +207,10 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: %%host%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: %%host%%")},
 			},
 			errorString: "no network found for container a5901276aed1, ignoring it",
 		},
@@ -222,15 +222,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{1, 2, 3},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("port: %%port%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("port: %%port%%")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("port: 3")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("port: 3")},
 			},
 		},
 		{
@@ -240,15 +240,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{1, 2, 3},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("port: %%port_0%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("port: %%port_0%%")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("port: 1")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("port: 1")},
 			},
 		},
 		{
@@ -258,10 +258,10 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{1, 2, 3},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("port: %%port_4%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("port: %%port_4%%")},
 			},
 			errorString: "index given for the port template var is too big, skipping container a5901276aed1",
 		},
@@ -272,10 +272,10 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{1, 2, 3},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("port: %%port_A%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("port: %%port_A%%")},
 			},
 			errorString: "index given for the port template var is not an int, skipping container a5901276aed1",
 		},
@@ -286,10 +286,10 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("port: %%port%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("port: %%port%%")},
 			},
 			errorString: "no port found for container a5901276aed1 - ignoring it",
 		},
@@ -301,15 +301,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Pid:           1337,
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("test: %%env_test_envvar_key%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("test: %%env_test_envvar_key%%")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("test: test_value")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("test: test_value")},
 			},
 		},
 		{
@@ -319,10 +319,10 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Pid:           1337,
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("test: %%env_test_envvar_not_set%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("test: %%env_test_envvar_not_set%%")},
 			},
 			errorString: "failed to retrieve envvar test_envvar_not_set, skipping service a5901276aed1"},
 		{
@@ -332,10 +332,10 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Pid:           1337,
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("test: %%env%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("test: %%env%%")},
 			},
 			errorString: "envvar name is missing, skipping service a5901276aed1",
 		},
@@ -347,15 +347,15 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Pid:           1337,
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("pid: %%pid%%\ntags: [\"foo\"]")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("pid: %%pid%%\ntags: [\"foo\"]")},
 			},
-			out: adconfig.Config{
+			out: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("pid: 1337\ntags:\n- foo\n")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("pid: 1337\ntags:\n- foo\n")},
 			},
 		},
 		//// unknown tag
@@ -365,16 +365,16 @@ func TestResolve(t *testing.T) {
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 			},
-			tpl: adconfig.Config{
+			tpl: autodiscovery.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []adconfig.Data{adconfig.Data("host: %%FOO%%")},
+				Instances:     []autodiscovery.Data{autodiscovery.Data("host: %%FOO%%")},
 			},
 			errorString: "yaml: found character that cannot start any token",
 		},
 	}
 	ac := &AutoConfig{
-		loadedConfigs: make([]adconfig.Config, 0),
+		loadedConfigs: make([]autodiscovery.Config, 0),
 	}
 	cr := newConfigResolver(nil, ac, NewTemplateCache())
 	validTemplates := 0

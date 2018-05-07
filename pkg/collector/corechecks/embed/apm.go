@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -123,7 +123,7 @@ func (c *APMCheck) run() error {
 }
 
 // Configure the APMCheck
-func (c *APMCheck) Configure(data adconfig.Data, initConfig adconfig.Data) error {
+func (c *APMCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
 	// handle the case when apm agent is disabled via the old `datadog.conf` file
 	if enabled := config.Datadog.GetBool("apm_enabled"); !enabled {
 		return fmt.Errorf("APM agent disabled through main configuration file")

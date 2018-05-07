@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 )
 
 func TestParseJSONValue(t *testing.T) {
@@ -43,8 +43,8 @@ func TestParseJSONValue(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, res)
 	require.Len(t, res, 2)
-	assert.Equal(t, adconfig.Data("{\"test\":1}"), res[0])
-	assert.Equal(t, adconfig.Data("{\"test\":2}"), res[1])
+	assert.Equal(t, autodiscovery.Data("{\"test\":1}"), res[0])
+	assert.Equal(t, autodiscovery.Data("{\"test\":2}"), res[1])
 }
 
 func TestParseCheckNames(t *testing.T) {
@@ -93,27 +93,27 @@ func TestBuildTemplates(t *testing.T) {
 	// wrong number of checkNames
 	res := buildTemplates("id",
 		[]string{"a", "b"},
-		[]adconfig.Data{adconfig.Data("")},
-		[]adconfig.Data{adconfig.Data("")})
+		[]autodiscovery.Data{autodiscovery.Data("")},
+		[]autodiscovery.Data{autodiscovery.Data("")})
 	assert.Len(t, res, 0)
 
 	res = buildTemplates("id",
 		[]string{"a", "b"},
-		[]adconfig.Data{adconfig.Data("{\"test\": 1}"), adconfig.Data("{}")},
-		[]adconfig.Data{adconfig.Data("{}"), adconfig.Data("{1:2}")})
+		[]autodiscovery.Data{autodiscovery.Data("{\"test\": 1}"), autodiscovery.Data("{}")},
+		[]autodiscovery.Data{autodiscovery.Data("{}"), autodiscovery.Data("{1:2}")})
 	require.Len(t, res, 2)
 
 	assert.Len(t, res[0].ADIdentifiers, 1)
 	assert.Equal(t, "id", res[0].ADIdentifiers[0])
 	assert.Equal(t, res[0].Name, "a")
-	assert.Equal(t, res[0].InitConfig, adconfig.Data("{\"test\": 1}"))
-	assert.Equal(t, res[0].Instances, []adconfig.Data{adconfig.Data("{}")})
+	assert.Equal(t, res[0].InitConfig, autodiscovery.Data("{\"test\": 1}"))
+	assert.Equal(t, res[0].Instances, []autodiscovery.Data{autodiscovery.Data("{}")})
 
 	assert.Len(t, res[1].ADIdentifiers, 1)
 	assert.Equal(t, "id", res[1].ADIdentifiers[0])
 	assert.Equal(t, res[1].Name, "b")
-	assert.Equal(t, res[1].InitConfig, adconfig.Data("{}"))
-	assert.Equal(t, res[1].Instances, []adconfig.Data{adconfig.Data("{1:2}")})
+	assert.Equal(t, res[1].InitConfig, autodiscovery.Data("{}"))
+	assert.Equal(t, res[1].Instances, []autodiscovery.Data{autodiscovery.Data("{1:2}")})
 }
 
 func TestExtractTemplatesFromMap(t *testing.T) {
@@ -121,7 +121,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 		source       map[string]string
 		adIdentifier string
 		prefix       string
-		output       []adconfig.Config
+		output       []autodiscovery.Config
 		err          error
 	}{
 		{
@@ -133,17 +133,17 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output: []adconfig.Config{
+			output: []autodiscovery.Config{
 				{
 					Name:          "apache",
-					Instances:     []adconfig.Data{adconfig.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
-					InitConfig:    adconfig.Data("{}"),
+					Instances:     []autodiscovery.Data{autodiscovery.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:    autodiscovery.Data("{}"),
 					ADIdentifiers: []string{"id"},
 				},
 				{
 					Name:          "http_check",
-					Instances:     []adconfig.Data{adconfig.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					InitConfig:    adconfig.Data("{}"),
+					Instances:     []autodiscovery.Data{autodiscovery.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:    autodiscovery.Data("{}"),
 					ADIdentifiers: []string{"id"},
 				},
 			},
@@ -160,11 +160,11 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output: []adconfig.Config{
+			output: []autodiscovery.Config{
 				{
 					Name:          "apache",
-					Instances:     []adconfig.Data{adconfig.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
-					InitConfig:    adconfig.Data("{}"),
+					Instances:     []autodiscovery.Data{autodiscovery.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:    autodiscovery.Data("{}"),
 					ADIdentifiers: []string{"id"},
 				},
 			},
@@ -177,7 +177,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []adconfig.Config{},
+			output:       []autodiscovery.Config{},
 		},
 		{
 			// Missing init_configs, error out
@@ -187,7 +187,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []adconfig.Config{},
+			output:       []autodiscovery.Config{},
 			err:          errors.New("missing init_configs key"),
 		},
 		{
@@ -199,7 +199,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []adconfig.Config{},
+			output:       []autodiscovery.Config{},
 			err:          errors.New("in instances: Failed to unmarshal JSON"),
 		},
 	} {

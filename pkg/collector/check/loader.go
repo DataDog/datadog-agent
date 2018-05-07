@@ -6,7 +6,7 @@
 package check
 
 import (
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 )
 
 // Loader is the interface wrapping the operations to load a check from
@@ -15,5 +15,5 @@ import (
 // A check is loaded for every `instance` found in the configuration file.
 // Load is supposed to break down instances and return different checks.
 type Loader interface {
-	Load(config adconfig.Config) ([]Check, error)
+	Load(config autodiscovery.Config) ([]Check, error)
 }

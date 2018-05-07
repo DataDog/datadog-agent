@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -23,7 +23,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 	for nb, tc := range []struct {
 		desc        string
 		pod         *kubelet.Pod
-		expectedCfg []adconfig.Config
+		expectedCfg []autodiscovery.Config
 	}{
 		{
 			desc: "No annotations",
@@ -61,12 +61,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: []adconfig.Config{
+			expectedCfg: []autodiscovery.Config{
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
-					InitConfig:    adconfig.Data("{}"),
-					Instances:     []adconfig.Data{adconfig.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:    autodiscovery.Data("{}"),
+					Instances:     []autodiscovery.Data{autodiscovery.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 				},
 			},
 		},
@@ -96,18 +96,18 @@ func TestParseKubeletPodlist(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: []adconfig.Config{
+			expectedCfg: []autodiscovery.Config{
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
-					InitConfig:    adconfig.Data("{}"),
-					Instances:     []adconfig.Data{adconfig.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:    autodiscovery.Data("{}"),
+					Instances:     []autodiscovery.Data{autodiscovery.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 				},
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
-					InitConfig:    adconfig.Data("{}"),
-					Instances:     []adconfig.Data{adconfig.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
+					InitConfig:    autodiscovery.Data("{}"),
+					Instances:     []autodiscovery.Data{autodiscovery.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
 				},
 			},
 		},
@@ -130,18 +130,18 @@ func TestParseKubeletPodlist(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: []adconfig.Config{
+			expectedCfg: []autodiscovery.Config{
 				{
 					Name:          "apache",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
-					InitConfig:    adconfig.Data("{}"),
-					Instances:     []adconfig.Data{adconfig.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:    autodiscovery.Data("{}"),
+					Instances:     []autodiscovery.Data{autodiscovery.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
 				},
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
-					InitConfig:    adconfig.Data("{}"),
-					Instances:     []adconfig.Data{adconfig.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:    autodiscovery.Data("{}"),
+					Instances:     []autodiscovery.Data{autodiscovery.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 				},
 			},
 		},

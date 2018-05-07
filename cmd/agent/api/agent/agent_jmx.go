@@ -21,7 +21,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -51,7 +51,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("Getting latest JMX Configs as of: %#v", ts)
 
 	j := map[string]interface{}{}
-	configs := map[string]adconfig.JSONMap{}
+	configs := map[string]autodiscovery.JSONMap{}
 
 	configItems := embed.JMXConfigCache.Items()
 	for name, config := range configItems {
@@ -63,7 +63,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		cfg, ok := m["config"].(adconfig.Config)
+		cfg, ok := m["config"].(autodiscovery.Config)
 		if !ok {
 			err = fmt.Errorf("wrong type for config")
 			log.Errorf("%s", err.Error())
@@ -71,7 +71,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var rawInitConfig adconfig.RawMap
+		var rawInitConfig autodiscovery.RawMap
 		err = yaml.Unmarshal(cfg.InitConfig, &rawInitConfig)
 		if err != nil {
 			log.Errorf("unable to parse JMX configuration: %s", err)
@@ -81,16 +81,16 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 
 		c := map[string]interface{}{}
 		c["init_config"] = util.GetJSONSerializableMap(rawInitConfig)
-		instances := []adconfig.JSONMap{}
+		instances := []autodiscovery.JSONMap{}
 		for _, instance := range cfg.Instances {
-			var rawInstanceConfig adconfig.JSONMap
+			var rawInstanceConfig autodiscovery.JSONMap
 			err = yaml.Unmarshal(instance, &rawInstanceConfig)
 			if err != nil {
 				log.Errorf("unable to parse JMX configuration: %s", err)
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			instances = append(instances, util.GetJSONSerializableMap(rawInstanceConfig).(adconfig.JSONMap))
+			instances = append(instances, util.GetJSONSerializableMap(rawInstanceConfig).(autodiscovery.JSONMap))
 		}
 
 		c["instances"] = instances

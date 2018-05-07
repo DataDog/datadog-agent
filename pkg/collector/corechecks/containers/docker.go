@@ -18,7 +18,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -311,7 +311,7 @@ func (d *DockerCheck) Run() error {
 }
 
 // Configure parses the check configuration and init the check
-func (d *DockerCheck) Configure(config, initConfig adconfig.Data) error {
+func (d *DockerCheck) Configure(config, initConfig autodiscovery.Data) error {
 	d.instance.Parse(config)
 
 	if len(d.instance.FilteredEventType) == 0 {

@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 
-	adconfig "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/sbinet/go-python"
@@ -52,7 +52,7 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(config adconfig.Config) ([]check.Check, error) {
+func (cl *PythonCheckLoader) Load(config autodiscovery.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
 	whlModuleName := fmt.Sprintf("datadog_checks.%s", config.Name)
