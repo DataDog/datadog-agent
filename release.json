@@ -1,9 +1,9 @@
 {
 	"nightly": {
-		"INTEGRATIONS_CORE_VERSION": "master",
+		"INTEGRATIONS_CORE_VERSION": "jaime/tuf-meta",
 		"TRACE_AGENT_VERSION": "master",
 		"PROCESS_AGENT_VERSION": "master",
-		"OMNIBUS_SOFTWARE_VERSION": "master",
+		"OMNIBUS_SOFTWARE_VERSION": "jaime/datadog-pip",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
 		"JMXFETCH_VERSION": "0.20.0",
 		"JMXFETCH_HASH": "5aad61dfec602ad536f855a12e6c47289515a10808422fc984a57c6a59964c04"
