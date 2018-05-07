@@ -1,4 +1,3 @@
 ---
 fixes:
-  - |
-    Lower case the label and env keys gotten from the inspect of the containers and pods in kubeutil and dockerutil.
+  - Fix case issues in tag extraction for docker/kubernetes container tags and kubernetes host tags
