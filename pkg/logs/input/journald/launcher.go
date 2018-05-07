@@ -6,8 +6,6 @@
 package journald
 
 import (
-	"strings"
-
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -88,17 +86,9 @@ func (l *Launcher) Handle(tailError TailError) {
 // setupTailer configures and starts a new tailer,
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
-	var includeUnits []string
-	var excludeUnits []string
-	if source.Config.IncludeUnits != "" {
-		includeUnits = strings.Split(source.Config.IncludeUnits, ",")
-	}
-	if source.Config.ExcludeUnits != "" {
-		excludeUnits = strings.Split(source.Config.ExcludeUnits, ",")
-	}
 	config := JournalConfig{
-		IncludeUnits: includeUnits,
-		ExcludeUnits: excludeUnits,
+		IncludeUnits: source.Config.IncludeUnits,
+		ExcludeUnits: source.Config.ExcludeUnits,
 		Path:         source.Config.Path,
 	}
 	tailer := NewTailer(config, source, l.pipelineProvider.NextPipelineChan(), l)

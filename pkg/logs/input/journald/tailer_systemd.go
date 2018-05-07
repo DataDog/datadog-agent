@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/cihub/seelog"
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -53,7 +54,7 @@ func (t *Tailer) setup() error {
 	for _, unit := range config.IncludeUnits {
 		// add filters to collect only the logs of the units defined in the configuration,
 		// if no units are defined, collect all the logs of the journal by default.
-		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT + "=" + strings.TrimSpace(unit)
+		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT + "=" + unit
 		err := t.journal.AddMatch(match)
 		if err != nil {
 			return fmt.Errorf("could not add filter %s: %s", match, err)
@@ -62,7 +63,6 @@ func (t *Tailer) setup() error {
 
 	blacklist := make(map[string]bool)
 	for _, unit := range config.ExcludeUnits {
-		unit = strings.TrimSpace(unit)
 		blacklist[unit] = true
 	}
 	t.blacklist = blacklist
@@ -110,28 +110,29 @@ func (t *Tailer) tail() {
 			}
 			entry, err := t.journal.GetEntry()
 			if err != nil {
-				// could not parse entry
+				log.Warnf("Could not retrieve journal entry: %s", err)
 				continue
 			}
-			if t.isWhitelisted(entry) {
-				t.outputChan <- t.toMessage(entry)
+			if t.shouldDrop(entry) {
+				continue
 			}
+			t.outputChan <- t.toMessage(entry)
 		}
 	}
 }
 
-// isWhitelisted returns true if the entry should be forwarded,
+// shouldDrop returns true if the entry should be forwarded,
 // returns false otherwise.
-func (t *Tailer) isWhitelisted(entry *sdjournal.JournalEntry) bool {
+func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 	unit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
 	if !exists {
-		return true
+		return false
 	}
 	if _, blacklisted := t.blacklist[unit]; blacklisted {
 		// drop the entry
-		return false
+		return true
 	}
-	return true
+	return false
 }
 
 // toMessage transforms a journal entry into a message.

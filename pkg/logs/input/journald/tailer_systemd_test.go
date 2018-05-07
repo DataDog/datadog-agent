@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build systemd
+
 package journald
 
 import (
@@ -14,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
-func TestIsWhiteListed(t *testing.T) {
+func TestShouldDropEntry(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
 	config := JournalConfig{
 		ExcludeUnits: []string{"foo", "bar"},
@@ -23,21 +25,21 @@ func TestIsWhiteListed(t *testing.T) {
 	err := tailer.setup()
 	assert.Nil(t, err)
 
-	assert.False(t, tailer.isWhitelisted(
+	assert.True(t, tailer.shouldDrop(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo",
 			},
 		}))
 
-	assert.False(t, tailer.isWhitelisted(
+	assert.True(t, tailer.shouldDrop(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "bar",
 			},
 		}))
 
-	assert.True(t, tailer.isWhitelisted(
+	assert.False(t, tailer.shouldDrop(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "boo",
