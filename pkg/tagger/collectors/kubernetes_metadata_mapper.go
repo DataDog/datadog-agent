@@ -49,7 +49,7 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		if !config.Datadog.GetBool("cluster_agent") {
 			metadataNames, err = apiserver.GetPodMetadataNames(po.Spec.NodeName, po.Metadata.Name)
 			if err != nil {
-				log.Errorf("Could not fetch tags for pod %s from the Cluster Agent: %s", po.Metadata.Name, err.Error())
+				log.Errorf("Could not fetch cluster level tags for the pod %s: %s", po.Metadata.Name, err.Error())
 				continue
 			}
 		} else {

@@ -22,7 +22,8 @@ func GetPodMetadataNames(nodeName string, podName string) ([]string, error) {
 
 	metaBundleInterface, found := cache.Cache.Get(cacheKey)
 	if !found {
-		return nil, fmt.Errorf("no metadata was found for the pod %s on node %s", podName, nodeName)
+		log.Tracef("no metadata was found for the pod %s on node %s", podName, nodeName)
+		return nil, nil
 	}
 
 	metaBundle, ok := metaBundleInterface.(*MetadataMapperBundle)
@@ -33,7 +34,8 @@ func GetPodMetadataNames(nodeName string, podName string) ([]string, error) {
 	// If new cluster level tags need to be collected by the agent, only this needs to be modified.
 	serviceList, foundServices := metaBundle.ServicesForPod(podName)
 	if !foundServices {
-		return nil, fmt.Errorf("no cached services list found for the pod %s on the node %s", podName, nodeName)
+		log.Tracef("no cached services list found for the pod %s on the node %s", podName, nodeName)
+		return nil, nil
 	}
 	log.Debugf("CacheKey: %s, with %d services", cacheKey, len(serviceList))
 	for _, s := range serviceList {
