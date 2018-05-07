@@ -35,9 +35,10 @@ type tags struct {
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Os            string       `json:"os"`
-	PythonVersion string       `json:"python"`
-	SystemStats   *systemStats `json:"systemStats"`
-	Meta          *Meta        `json:"meta"`
-	HostTags      *tags        `json:"host-tags"`
+	Os            string            `json:"os"`
+	PythonVersion string            `json:"python"`
+	SystemStats   *systemStats      `json:"systemStats"`
+	Meta          *Meta             `json:"meta"`
+	HostTags      *tags             `json:"host-tags"`
+	ContainerMeta map[string]string `json:"container-meta,omitempty"`
 }

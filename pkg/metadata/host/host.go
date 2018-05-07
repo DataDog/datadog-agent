@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -54,6 +55,7 @@ func GetPayload(hostname string) *Payload {
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
+		ContainerMeta: getContainerMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -245,6 +247,18 @@ func getMeta() *Meta {
 	cache.Cache.Set(key, m, cache.NoExpiration)
 
 	return m
+}
+
+func getContainerMeta() map[string]string {
+	containerMeta := make(map[string]string)
+
+	for _, getMeta := range container.DefaultCatalog {
+		for k, v := range getMeta() {
+			containerMeta[k] = v
+		}
+	}
+
+	return containerMeta
 }
 
 func buildKey(key string) string {
