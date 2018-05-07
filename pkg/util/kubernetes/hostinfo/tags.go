@@ -23,6 +23,13 @@ func GetTags() ([]string, error) {
 		// Nothing to extract
 		return nil, nil
 	}
+
+	// viper lower-cases map keys from yaml, but not from envvars
+	for label, value := range labelsToTags {
+		delete(labelsToTags, label)
+		labelsToTags[strings.ToLower(label)] = value
+	}
+
 	nodeName, err := kubelet.HostnameProvider("")
 	if err != nil {
 		return nil, err
@@ -42,7 +49,6 @@ func extractTags(nodeLabels, labelsToTags map[string]string) []string {
 	var tags []string
 
 	for labelName, labelValue := range nodeLabels {
-		// viper lower-cases map keys, so we must lowercase before matching
 		if tagName, found := labelsToTags[strings.ToLower(labelName)]; found {
 			tags = append(tags, fmt.Sprintf("%s:%s", tagName, labelValue))
 		}
