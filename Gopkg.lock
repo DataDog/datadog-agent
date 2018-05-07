@@ -554,7 +554,7 @@
     "net",
     "process"
   ]
-  revision = "fc04d2dd9a512906a2604242b35275179e250eda"
+  revision = "c95755e4bcd7a62bb8bd33f3a597a7c7f35e2cf3"
   version = "v2.18.04"
 
 [[projects]]
@@ -845,6 +845,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "87dbde113e3698dcb4123d383a1b58d457bd17ecd8762c271f09498f89a66f91"
+  inputs-digest = "c768e3f32aefa661ed7922fb185da197c0452fbee71c857942c40a7516217ddd"
   solver-name = "gps-cdcl"
   solver-version = 1
