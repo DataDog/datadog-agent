@@ -60,3 +60,12 @@ func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.Pod
 	log.Tracef("The services matched %q", fmt.Sprintf("%s", metaBundle.PodNameToService))
 	return nil
 }
+
+// ServicesForPod returns the services mapped to a given pod.
+// If nothing is found, the boolean is false. This call is thread-safe.
+func (metaBundle *MetadataMapperBundle) ServicesForPod(podName string) ([]string, bool) {
+	metaBundle.m.RLock()
+	svc, found := metaBundle.PodNameToService[podName]
+	metaBundle.m.RUnlock()
+	return svc, found
+}

@@ -20,12 +20,13 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/ericchiang/k8s"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 const (
@@ -311,5 +312,7 @@ func (suite *testSuite) TestMetadataMapper() {
 	list := fullmapper["Nodes"]
 	assert.Contains(suite.T(), list, "ip-172-31-119-125")
 	fullMap := list.(map[string]*apiserver.MetadataMapperBundle)
-	assert.Contains(suite.T(), fullMap["ip-172-31-119-125"].PodNameToService["nginx"], "nginx-1")
+	services, found := fullMap["ip-172-31-119-125"].ServicesForPod("nginx")
+	assert.True(suite.T(), found)
+	assert.Contains(suite.T(), services, "nginx-1")
 }
