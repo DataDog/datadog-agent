@@ -19,6 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// DefaultForwarderRecoveryInterval is the default recovery interval, also used if
+// the user-provided value is invalid.
+const DefaultForwarderRecoveryInterval = 2
+
 // Datadog is the global configuration object
 var Datadog = viper.New()
 
@@ -104,7 +108,7 @@ func init() {
 	Datadog.SetDefault("forwarder_backoff_factor", 2)
 	Datadog.SetDefault("forwarder_backoff_base", 2)
 	Datadog.SetDefault("forwarder_backoff_max", 64)
-	Datadog.SetDefault("forwarder_recovery_interval", 1)
+	Datadog.SetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
 	Datadog.SetDefault("forwarder_recovery_reset", false)
 
 	// Use to output logs in JSON format

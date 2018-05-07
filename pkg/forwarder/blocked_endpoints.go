@@ -76,8 +76,8 @@ func newBlockedEndpoints() *blockedEndpoints {
 
 	recInterval := config.Datadog.GetInt("forwarder_recovery_interval")
 	if recInterval <= 0 {
-		log.Warnf("Configured forwarder_recovery_interval (%v) is not positive; 1 will be used", recInterval)
-		recInterval = 1
+		log.Warnf("Configured forwarder_recovery_interval (%v) is not positive; %v will be used", recInterval, config.DefaultForwarderRecoveryInterval)
+		recInterval = config.DefaultForwarderRecoveryInterval
 	}
 
 	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")

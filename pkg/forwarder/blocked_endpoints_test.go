@@ -108,7 +108,7 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	// Verify default
 	defaultValue := e.recoveryInterval
 	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")
-	assert.Equal(t, 1, defaultValue)
+	assert.Equal(t, 2, defaultValue)
 	assert.Equal(t, false, recoveryReset)
 
 	// Reset original values when finished
@@ -116,9 +116,9 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	defer config.Datadog.Set("forwarder_recovery_interval", defaultValue)
 
 	// Verify configuration updates global var
-	config.Datadog.Set("forwarder_recovery_interval", 2)
+	config.Datadog.Set("forwarder_recovery_interval", 1)
 	e = newBlockedEndpoints()
-	assert.Equal(t, 2, e.recoveryInterval)
+	assert.Equal(t, 1, e.recoveryInterval)
 
 	// Verify invalid values recover gracefully
 	config.Datadog.Set("forwarder_recovery_interval", 0)
