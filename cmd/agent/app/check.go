@@ -202,6 +202,13 @@ func runCheck(c check.Check, times int, agg *aggregator.BufferedAggregator, cpuP
 		mStats, _ := c.GetMetricStats()
 		s.Add(time.Since(t0), err, warnings, mStats)
 		i++
+
+		if i == 1 && times > 1 && !cpuProfile.enabled {
+			py.StartMemProfile()
+		}
+	}
+	if !cpuProfile.enabled {
+		py.PrintMemDiff()
 	}
 
 	return s

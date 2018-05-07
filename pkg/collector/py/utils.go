@@ -272,6 +272,74 @@ func StartCPUProfile() error {
 	return nil
 }
 
+// StartMemProfile starts the mem profile
+func StartMemProfile() error {
+	globalStickyLock = newStickyLock()
+
+	profileModule := python.PyImport_ImportModule(pyProfileModule)
+	if profileModule == nil {
+		return fmt.Errorf("unable to import Python module: %s", profileModule)
+	}
+	defer profileModule.DecRef()
+
+	start := profileModule.GetAttrString("first_mem_stats")
+	if start == nil {
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("an error occurred while grabbing the python mem profile starter: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+	defer start.DecRef()
+
+	startError := start.CallFunction()
+	if startError == nil {
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("an error occurred while starting the mem profile: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+
+	return nil
+}
+
+// PrintMemDiff prints the mem diff
+func PrintMemDiff() error {
+	globalStickyLock = newStickyLock()
+
+	profileModule := python.PyImport_ImportModule(pyProfileModule)
+	if profileModule == nil {
+		return fmt.Errorf("unable to import Python module: %s", profileModule)
+	}
+	defer profileModule.DecRef()
+
+	start := profileModule.GetAttrString("print_mem_diff")
+	if start == nil {
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("an error occurred while grabbing the python mem profile printer: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+	defer start.DecRef()
+
+	startError := start.CallFunction()
+	if startError == nil {
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("an error occurred while printing the mem profile: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+
+	return nil
+}
+
 // StopCPUProfile stops the running CPU profile and writes results to the path.
 // This unlocks the globalStickyLock.
 func StopCPUProfile(path string) error {
