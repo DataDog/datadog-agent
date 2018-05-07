@@ -201,12 +201,6 @@ def deps(ctx):
     ctx.run("go get -u github.com/gordonklaus/ineffassign")
     ctx.run("go get -u github.com/client9/misspell/cmd/misspell")
     ctx.run("dep ensure")
-    # prune packages from /vendor, remove this hack
-    # as soon as `dep prune` is merged within `dep ensure`,
-    # see https://github.com/golang/dep/issues/944
-    ctx.run("mv vendor/github.com/shirou/gopsutil/host/include .")
-    ctx.run("dep prune")
-    ctx.run("mv include vendor/github.com/shirou/gopsutil/host/")
 
 
 @task
