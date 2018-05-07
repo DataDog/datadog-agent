@@ -21,25 +21,23 @@ rules:
   resources:
   - configmaps
   resourceNames:
-  - datadogtoken
+  - datadogtoken             # Kubernetes event collection state
+  - datadog-leader-election  # Leader election token
   verbs:
   - get
   - update
-- apiGroups:
+- apiGroups:  # To create the leader election token
   - ""
   resources:
   - configmaps
   verbs:
-  - get
-  - update
   - create
 - nonResourceURLs:
   - "/version"
   - "/healthz"
   verbs:
   - get
-# Kubelet connectivity
-- apiGroups:
+- apiGroups:  # Kubelet connectivity
   - ""
   resources:
   - nodes/metrics
