@@ -395,7 +395,10 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 			log.Debugf("Kubelet endpoint is: %s", ku.kubeletApiEndpoint)
 			return nil
 		}
-		return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
+		if code != http.StatusUnauthorized {
+			return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
+		}
+		log.Info("The communication with the kubelet is unauthorized, trying to connect over HTTP")
 	}
 	log.Debugf("Cannot query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, httpsUrlErr)
 
