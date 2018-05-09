@@ -86,12 +86,7 @@ func (l *Launcher) Handle(tailError TailError) {
 // setupTailer configures and starts a new tailer,
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
-	config := JournalConfig{
-		IncludeUnits: source.Config.IncludeUnits,
-		ExcludeUnits: source.Config.ExcludeUnits,
-		Path:         source.Config.Path,
-	}
-	tailer := NewTailer(config, source, l.pipelineProvider.NextPipelineChan(), l)
+	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan(), l)
 	err := tailer.Start(l.auditor.GetLastCommittedCursor(tailer.Identifier()))
 	if err != nil {
 		return nil, err

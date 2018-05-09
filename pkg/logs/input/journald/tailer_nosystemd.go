@@ -16,7 +16,6 @@ import (
 
 // Tailer collects logs from a journal.
 type Tailer struct {
-	config     JournalConfig
 	source     *config.LogSource
 	outputChan chan message.Message
 	errHandler ErrorHandler

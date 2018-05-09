@@ -26,7 +26,6 @@ const defaultWaitDuration = 1 * time.Second
 
 // Tailer collects logs from a journal.
 type Tailer struct {
-	config     JournalConfig
 	source     *config.LogSource
 	outputChan chan message.Message
 	journal    *sdjournal.Journal
@@ -38,7 +37,7 @@ type Tailer struct {
 
 // setup configures the tailer
 func (t *Tailer) setup() error {
-	config := t.config
+	config := t.source.Config
 	var err error
 
 	if config.Path == "" {
@@ -139,12 +138,18 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 // A journal entry has different fields that may vary depending on its nature,
 // for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
 func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) message.Message {
-	payload := make(map[string]string)
-	for key, value := range entry.Fields {
-		// clean all keys
-		key = strings.TrimLeft(key, "_")
-		key = strings.ToLower(key)
-		payload[key] = value
+	var payload map[string]string
+	if !t.source.Config.DisableNormalization {
+		// clean all keys by striping all leading underscores and converting to lowercase:
+		// ex: { "_A": "valueA", "_B": "valueB", "c": "valueC"} -> { "a": "valueA", "b": "valueB", "c": "valueC"}
+		payload = make(map[string]string)
+		for key, value := range entry.Fields {
+			key = strings.TrimLeft(key, "_")
+			key = strings.ToLower(key)
+			payload[key] = value
+		}
+	} else {
+		payload = entry.Fields
 	}
 	content, err := json.Marshal(payload)
 	if err != nil {

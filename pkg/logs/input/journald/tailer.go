@@ -14,16 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// JournalConfig enables to configure the tailer:
-// - IncludeUnits: the units to filter in
-// - ExcludeUnits: the units to filter out
-// - Path: the path of the journal
-type JournalConfig struct {
-	IncludeUnits []string
-	ExcludeUnits []string
-	Path         string
-}
-
 // TailError represents a fatal error causing the agent to stop tailing a journal
 type TailError struct {
 	journalID string
@@ -44,9 +34,8 @@ func (e *TailError) Error() string {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(config JournalConfig, source *config.LogSource, outputChan chan message.Message, errHandler ErrorHandler) *Tailer {
+func NewTailer(source *config.LogSource, outputChan chan message.Message, errHandler ErrorHandler) *Tailer {
 	return &Tailer{
-		config:     config,
 		source:     source,
 		outputChan: outputChan,
 		errHandler: errHandler,
@@ -87,8 +76,8 @@ func (t *Tailer) Stop() {
 
 // journalName returns the name of the journal
 func (t *Tailer) journalName() string {
-	if t.config.Path != "" {
-		return t.config.Path
+	if t.source.Config.Path != "" {
+		return t.source.Config.Path
 	}
 	return "default"
 }

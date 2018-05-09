@@ -17,11 +17,8 @@ import (
 )
 
 func TestShouldDropEntry(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
-	config := JournalConfig{
-		ExcludeUnits: []string{"foo", "bar"},
-	}
-	tailer := NewTailer(config, source, nil, nil)
+	source := config.NewLogSource("", &config.LogsConfig{ExcludeUnits: []string{"foo", "bar"}})
+	tailer := NewTailer(source, nil, nil)
 	err := tailer.setup()
 	assert.Nil(t, err)
 
@@ -47,12 +44,9 @@ func TestShouldDropEntry(t *testing.T) {
 		}))
 }
 
-func TestToMessage(t *testing.T) {
+func TestToMessageWithNormalization(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
-	config := JournalConfig{
-		ExcludeUnits: []string{"foo", "bar"},
-	}
-	tailer := NewTailer(config, source, nil, nil)
+	tailer := NewTailer(source, nil, nil)
 
 	var err error
 	err = tailer.setup()
@@ -61,6 +55,27 @@ func TestToMessage(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, []byte("{\"a\":\"1\",\"b\":\"2\",\"c\":\"3\",\"d\":\"4\"}"), tailer.toMessage(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				"_A": "1",
+				"B":  "2",
+				"_c": "3",
+				"d":  "4",
+			},
+		}).Content())
+}
+
+func TestToMessageWithoutNormalization(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{DisableNormalization: true})
+	tailer := NewTailer(source, nil, nil)
+
+	var err error
+	err = tailer.setup()
+	assert.Nil(t, err)
+	err = tailer.seek("")
+	assert.Nil(t, err)
+
+	assert.Equal(t, []byte("{\"B\":\"2\",\"_A\":\"1\",\"_c\":\"3\",\"d\":\"4\"}"), tailer.toMessage(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				"_A": "1",

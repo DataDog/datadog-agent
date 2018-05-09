@@ -14,20 +14,16 @@ import (
 )
 
 func TestIdentifier(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
-
 	var tailer *Tailer
-	var config JournalConfig
+	var source *config.LogSource
 
 	// expect default identifier
-	config = JournalConfig{}
-	tailer = NewTailer(config, source, nil, nil)
+	source = config.NewLogSource("", &config.LogsConfig{})
+	tailer = NewTailer(source, nil, nil)
 	assert.Equal(t, "journald:default", tailer.Identifier())
 
 	// expect identifier to be overidden
-	config = JournalConfig{
-		Path: "any_path",
-	}
-	tailer = NewTailer(config, source, nil, nil)
+	source = config.NewLogSource("", &config.LogsConfig{Path: "any_path"})
+	tailer = NewTailer(source, nil, nil)
 	assert.Equal(t, "journald:any_path", tailer.Identifier())
 }
