@@ -16,6 +16,8 @@ type Origin struct {
 	Identifier string
 	LogSource  *config.LogSource
 	Offset     string
+	Service    string
+	Source     string
 	tags       []string
 }
 
@@ -23,14 +25,16 @@ type Origin struct {
 func NewOrigin(source *config.LogSource) *Origin {
 	return &Origin{
 		LogSource: source,
+		Service:   source.Config.Service,
+		Source:    source.Config.Source,
 	}
 }
 
 // Tags returns the tags of the origin.
 func (o *Origin) Tags() []string {
 	tags := o.tags
-	if o.LogSource.Config.Source != "" {
-		tags = append(tags, "source:"+o.LogSource.Config.Source)
+	if o.Source != "" {
+		tags = append(tags, "source:"+o.Source)
 	}
 	if o.LogSource.Config.SourceCategory != "" {
 		tags = append(tags, "sourcecategory:"+o.LogSource.Config.SourceCategory)
@@ -43,8 +47,8 @@ func (o *Origin) Tags() []string {
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload() []byte {
 	var tagsPayload []byte
-	if o.LogSource.Config.Source != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+o.LogSource.Config.Source+"\"]")...)
+	if o.Source != "" {
+		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+o.Source+"\"]")...)
 	}
 	if o.LogSource.Config.SourceCategory != "" {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+o.LogSource.Config.SourceCategory+"\"]")...)

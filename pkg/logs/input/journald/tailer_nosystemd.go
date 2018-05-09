@@ -25,7 +25,7 @@ type Tailer struct {
 
 // setup does nothing
 func (t *Tailer) setup() error {
-	return fmt.Errorf("journald is not supported on your system")
+	return fmt.Errorf("journald is not supported on this system")
 }
 
 // seek does nothing

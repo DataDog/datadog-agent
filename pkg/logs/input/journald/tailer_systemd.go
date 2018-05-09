@@ -138,27 +138,57 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 // A journal entry has different fields that may vary depending on its nature,
 // for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
 func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) message.Message {
+	origin := message.NewOrigin(t.source)
+	origin.Identifier = t.Identifier()
+	origin.Offset, _ = t.journal.GetCursor()
+	origin.Source = journaldIntegration
+	origin.Service = t.getService(entry)
+	return message.New(t.getContent(entry), origin, nil)
+}
+
+// getContent returns all the fields of the entry as a json-string.
+func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
+	// delete the hostname from the entry fields to ensure the hostname computed by the agent won't be overridden later on
+	fields := entry.Fields
+	delete(fields, sdjournal.SD_JOURNAL_FIELD_HOSTNAME)
+
 	var payload map[string]string
 	if !t.source.Config.DisableNormalization {
 		// clean all keys by striping all leading underscores and converting to lowercase:
 		// ex: { "_A": "valueA", "_B": "valueB", "c": "valueC"} -> { "a": "valueA", "b": "valueB", "c": "valueC"}
 		payload = make(map[string]string)
-		for key, value := range entry.Fields {
+		for key, value := range fields {
 			key = strings.TrimLeft(key, "_")
 			key = strings.ToLower(key)
 			payload[key] = value
 		}
 	} else {
-		payload = entry.Fields
+		payload = fields
 	}
+
 	content, err := json.Marshal(payload)
 	if err != nil {
 		// ensure the message has some content if the json encoding failed
 		value, _ := entry.Fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]
 		content = []byte(value)
 	}
-	origin := message.NewOrigin(t.source)
-	origin.Identifier = t.Identifier()
-	origin.Cursor, _ = t.journal.GetCursor()
-	return message.New(content, origin, nil)
+
+	return content
+}
+
+// serviceKeys represents all the valid attributes used to extract the value of the service of a journal entry.
+var serviceKeys = []string{
+	sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER, // "SYSLOG_IDENTIFIER"
+	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT,      // "_SYSTEMD_UNIT"
+	sdjournal.SD_JOURNAL_FIELD_COMM,              // "_COMM"
+}
+
+// getService returns the name of the service from where the entry is from.
+func (t *Tailer) getService(entry *sdjournal.JournalEntry) string {
+	for _, key := range serviceKeys {
+		if value, exists := entry.Fields[key]; exists {
+			return value
+		}
+	}
+	return ""
 }

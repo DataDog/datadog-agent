@@ -44,9 +44,13 @@ func NewTailer(source *config.LogSource, outputChan chan message.Message, errHan
 	}
 }
 
+// journaldIntegration represents the name of the integration,
+// it's used to override the source of the message and as a fingerprint to store the journal cursor.
+const journaldIntegration = "journald"
+
 // Identifier returns the unique identifier of the current journal being tailed.
 func (t *Tailer) Identifier() string {
-	return "journald:" + t.journalName()
+	return journaldIntegration + ":" + t.journalName()
 }
 
 // Start starts tailing the journal from a given offset.

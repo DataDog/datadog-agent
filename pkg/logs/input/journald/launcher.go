@@ -76,7 +76,7 @@ func (l *Launcher) Handle(tailError TailError) {
 	if tailer, exists := l.tailers[tailError.journalID]; exists {
 		// safely stop and restart the tailer from its last committed cursor
 		tailer.Stop()
-		err := tailer.Start(l.auditor.GetLastCommittedCursor(tailer.Identifier()))
+		err := tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
 		if err != nil {
 			log.Warn("Could not restart journald tailer: ", err)
 		}
@@ -87,7 +87,7 @@ func (l *Launcher) Handle(tailError TailError) {
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
 	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan(), l)
-	err := tailer.Start(l.auditor.GetLastCommittedCursor(tailer.Identifier()))
+	err := tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
 	if err != nil {
 		return nil, err
 	}

@@ -85,3 +85,61 @@ func TestToMessageWithoutNormalization(t *testing.T) {
 			},
 		}).Content())
 }
+
+func TestHostnameGetsDeletedFromMessage(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil, nil)
+
+	var err error
+	err = tailer.setup()
+	assert.Nil(t, err)
+	err = tailer.seek("")
+	assert.Nil(t, err)
+
+	assert.Equal(t, []byte("{}"), tailer.toMessage(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_HOSTNAME: "foo",
+			},
+		}).Content())
+}
+
+func TestServiceValue(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil, nil)
+
+	var err error
+	err = tailer.setup()
+	assert.Nil(t, err)
+	err = tailer.seek("")
+	assert.Nil(t, err)
+
+	assert.Equal(t, "kernel", tailer.toMessage(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "kernel",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo",
+			},
+		}).GetOrigin().Service)
+
+	assert.Equal(t, "foo.service", tailer.toMessage(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo.service",
+				sdjournal.SD_JOURNAL_FIELD_COMM:         "foo",
+			},
+		}).GetOrigin().Service)
+
+	assert.Equal(t, "foo", tailer.toMessage(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_COMM: "foo",
+			},
+		}).GetOrigin().Service)
+
+	assert.Equal(t, "", tailer.toMessage(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{},
+		}).GetOrigin().Service)
+}

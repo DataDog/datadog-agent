@@ -57,3 +57,23 @@ func TestSetTagsWithConfigTags(t *testing.T) {
 	assert.Equal(t, []string{"foo:bar", "baz", "source:a", "sourcecategory:b", "c:d", "e"}, origin.Tags())
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e,foo:bar,baz\"]", string(origin.TagsPayload()))
 }
+
+func TestDefaultSourceValueIsSourceFromConfig(t *testing.T) {
+	cfg := &config.LogsConfig{Source: "foo"}
+	source := config.NewLogSource("", cfg)
+	origin := NewOrigin(source)
+	assert.Equal(t, "foo", origin.Source)
+
+	origin.Source = "bar"
+	assert.Equal(t, "bar", origin.Source)
+}
+
+func TestDefaultServiceValueIsServiceFromConfig(t *testing.T) {
+	cfg := &config.LogsConfig{Service: "foo"}
+	source := config.NewLogSource("", cfg)
+	origin := NewOrigin(source)
+	assert.Equal(t, "foo", origin.Service)
+
+	origin.Service = "bar"
+	assert.Equal(t, "bar", origin.Service)
+}
