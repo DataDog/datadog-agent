@@ -13,6 +13,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	_ "golang.org/x/mobile/app"
 )
 
 func main() {
