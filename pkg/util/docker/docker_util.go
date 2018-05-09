@@ -155,10 +155,15 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			// FIXME: We might need to invalidate this cache if a containers networks are changed live.
 			d.Lock()
 			if _, ok := d.networkMappings[c.ID]; !ok {
+				// FIXME: Use du.Inspect instead
 				i, err := d.cli.ContainerInspect(ctx, c.ID)
 				if err != nil && client.IsErrContainerNotFound(err) {
 					d.Unlock()
 					log.Debugf("Error inspecting container %s: %s", c.ID, err)
+					continue
+				}
+				if i.ContainerJSONBase == nil {
+					log.Debugf("Invalid inspect data for container %s", c.ID)
 					continue
 				}
 				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c)
