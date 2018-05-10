@@ -13,10 +13,8 @@ from collections import defaultdict
 
 import aggregator
 import datadog_agent
-from config import (
-    _is_affirmative,
-    _get_py_loglevel
-)
+from config import _is_affirmative, _get_py_loglevel
+from utils.common import ensure_bytes
 from utils.proxy import (
     get_requests_proxy,
     get_no_proxy_from_env,
@@ -192,11 +190,13 @@ class AgentCheck(object):
     def service_check(self, name, status, tags=None, hostname=None, message=None):
         tags = self._normalize_tags_type(tags)
         if hostname is None:
-            hostname = ""
+            hostname = b''
         if message is None:
-            message = ""
+            message = b''
+        else:
+            message = ensure_bytes(message)
 
-        aggregator.submit_service_check(self, self.check_id, name, status, tags, hostname, message)
+        aggregator.submit_service_check(self, self.check_id, ensure_bytes(name), status, tags, hostname, message)
 
     def event(self, event):
         # Enforce types of some fields, considerably facilitates handling in go bindings downstream
@@ -304,9 +304,9 @@ class AgentCheck(object):
                     except Exception:
                         self.log.warning("Error converting tag to string, ignoring tag")
                         continue
-                elif isinstance(tag, unicode):
+                else:
                     try:
-                        tag = tag.encode('utf-8')
+                        tag = ensure_bytes(tag)
                     except UnicodeError:
                         self.log.warning("Error encoding unicode tag to utf-8 encoded string, ignoring tag")
                         continue
