@@ -4,7 +4,7 @@ Release Notes
 
 6.2.0
 =====
-2019-05-11
+2018-05-11
 
 Prelude
 -------
@@ -84,13 +84,6 @@ Known Issues
 - Kubernetes 1.3 & OpenShift 3.3 are currently not fully supported: docker and kubelet
   integrations work OK, but apiserver communication (event collection, `kube_service`
   tagging) is not implemented
-
-Upgrade Notes
--------------
-
-- Improving the service mapper to a metadata mapper.
-  The agent just queries metadata from the DCA and can directly tag the kubernetes metrics.
-  The processing of new tags can be easily done and only the DCA needs to be modified.
 
 Deprecation Notes
 -----------------
