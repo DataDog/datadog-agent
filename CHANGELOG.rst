@@ -30,10 +30,6 @@ Enhancements
 - Adding Datadog Cluster Agent client in Node Agent.
   Adding support for TLS in the Datadog Cluster Agent API.
 
-- Introduce the flare command for the DCA CLI.
-
-- Add a svcmap command in the CLI of the Datadog Cluster Agent. Core components will also be used for the flare.
-
 - Docker: set a default 5 seconds timeout on all docker requests to mitigate
   possible docker daemon freezes
 
@@ -58,7 +54,7 @@ Enhancements
 
 - Added a support for docker labels to enrich logs metadata.
 
-- Add a `filename` tag to messages with the name of the file being tailed.
+- Logs Agent: add a `filename` tag to messages with the name of the file being tailed.
 
 - Shipping protobuf C++ implementation for the protobuf package, this should
   help us be more performant when parsing larger/binary protobuf messages in
@@ -92,11 +88,6 @@ Deprecation Notes
   in the integrations-core` repository and bundled with datadog_checks_base wheel.
   This provides a single source of truth for the python PDH logic.
 
-Security Issues
----------------
-
-- Separate the tokens for the internal API (used for flare, status, metamap) and the external endpoint (used for the tagger of the agent).
-
 Bug Fixes
 ---------
 
@@ -122,8 +113,6 @@ Bug Fixes
   counter strings, and non-english locales
 
 - Bind the kubelet_tls_verify as an environment variable.
-
-- Kubernetes: remove configmap listing logic, as leader election now uses endpoints
 
 - Docker image: fix entrypoint bug causing the kubernetes_apiserver check
   to not be enabled
