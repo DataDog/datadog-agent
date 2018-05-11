@@ -8,37 +8,96 @@ package flare
 import (
 	"bufio"
 	"bytes"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRedactingWriter(t *testing.T) {
-	input := `dd_url: https://app.datadoghq.com
+const (
+	input = `dd_url: https://app.datadoghq.com
 api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-proxy: http://user:password@host:port
+proxy: http://user:password@host:1234
 password: foo
 auth_token: bar
 # comment to strip
 log_level: info`
+)
+
+func TestRedactingWriter(t *testing.T) {
 	redacted := `dd_url: https://app.datadoghq.com
 api_key: ***************************aaaaa
-proxy: http://user:********@host:port
+proxy: http://user:********@host:1234
 password: ********
 auth_token: ********
 log_level: info
 `
 
 	buf := bytes.NewBuffer([]byte{})
-	r := RedactingWriter{
+	w := RedactingWriter{
 		targetBuf: bufio.NewWriter(buf),
 	}
 
-	n, err := r.Write([]byte(input))
+	n, err := w.Write([]byte(input))
 	assert.Nil(t, err)
-	err = r.Flush()
+	err = w.Flush()
 	assert.Nil(t, err)
-	assert.Equal(t, n, len(redacted))
-	assert.Equal(t, buf.String(), redacted)
+	assert.Equal(t, len(redacted), n)
+	assert.Equal(t, redacted, buf.String())
 
+}
+
+func TestRedactingWriterReplacers(t *testing.T) {
+	redacted := `dd_url: https://app.datadoghq.com
+api_key: ***************************aaaaa
+proxy: http://USERISREDACTEDTOO:********@foo:bar
+password: ********
+auth_token: ********
+log_level: info
+`
+
+	buf := bytes.NewBuffer([]byte{})
+	w := RedactingWriter{
+		targetBuf: bufio.NewWriter(buf),
+	}
+
+	w.RegisterReplacer(replacer{
+		regex: regexp.MustCompile(`user`),
+		replFunc: func(s []byte) []byte {
+			return []byte("USERISREDACTEDTOO")
+		},
+	})
+	w.RegisterReplacer(replacer{
+		regex: regexp.MustCompile(`@.*\:[0-9]+`),
+		replFunc: func(s []byte) []byte {
+			return []byte("@foo:bar")
+		},
+	})
+
+	n, err := w.Write([]byte(input))
+	assert.Nil(t, err)
+	err = w.Flush()
+	assert.Nil(t, err)
+	assert.Equal(t, len(redacted), n)
+	assert.Equal(t, redacted, buf.String())
+
+}
+func TestRedactingNothing(t *testing.T) {
+	src := `dd_url: https://app.datadoghq.com
+log_level: info`
+	dst := `dd_url: https://app.datadoghq.com
+log_level: info
+`
+
+	buf := bytes.NewBuffer([]byte{})
+	w := RedactingWriter{
+		targetBuf: bufio.NewWriter(buf),
+	}
+
+	n, err := w.Write([]byte(src))
+	assert.Nil(t, err)
+	err = w.Flush()
+	assert.Nil(t, err)
+	assert.Equal(t, n, len(dst))
+	assert.Equal(t, dst, buf.String())
 }

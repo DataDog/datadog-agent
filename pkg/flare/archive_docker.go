@@ -10,7 +10,6 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -45,7 +44,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	}
 	defer w.Close()
 
-	w.RegisterReplacer(repl{
+	w.RegisterReplacer(replacer{
 		regex: regexp.MustCompile(`\"Image\": \"sha256:\w+"`),
 		replFunc: func(s []byte) []byte {
 			m := string(s[10 : len(s)-1])
@@ -54,6 +53,6 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		},
 	})
 
-	_, err := w.Write(serialized)
+	_, err = w.Write(serialized)
 	return err
 }

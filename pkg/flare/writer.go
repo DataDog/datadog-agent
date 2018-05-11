@@ -29,7 +29,7 @@ func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWrite
 		return nil, err
 	}
 
-	f, err := os.Create(t)
+	f, err := os.OpenFile(t, os.O_RDWR|os.O_CREATE, p)
 	if err != nil {
 		return nil, err
 	}
