@@ -18,7 +18,6 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 
@@ -501,15 +500,4 @@ func (d *DockerUtil) AllContainerLabels() (map[string]map[string]string, error) 
 	}
 
 	return labelMap, nil
-}
-
-// GetSwarmState returns the swarm local node state
-func (d *DockerUtil) GetSwarmState() (swarm.LocalNodeState, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
-	defer cancel()
-	info, err := d.cli.Info(ctx)
-	if err != nil {
-		return "", fmt.Errorf("unable to get Docker info: %s", err)
-	}
-	return info.Swarm.LocalNodeState, nil
 }

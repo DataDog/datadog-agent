@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types/swarm"
@@ -27,19 +28,17 @@ func getMetadata() map[string]string {
 		log.Debugf("Unable to collect Docker host metadata: %s", err)
 		return metadata
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), du.queryTimeout)
+	// short timeout to minimize metadata collection time
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	v, err := du.cli.ServerVersion(ctx)
-	if err == nil {
-		metadata["docker_version"] = v.Version
+	i, err := du.cli.Info(ctx)
+	if err != nil {
+		return metadata
 	}
-
-	swarmState, err := du.GetSwarmState()
-	if err == nil {
-		metadata["docker_swarm"] = "inactive"
-		if swarmState == swarm.LocalNodeStateActive {
-			metadata["docker_swarm"] = "active"
-		}
+	metadata["docker_version"] = i.ServerVersion
+	metadata["docker_swarm"] = "inactive"
+	if i.Swarm.LocalNodeState == swarm.LocalNodeStateActive {
+		metadata["docker_swarm"] = "active"
 	}
 
 	return metadata
