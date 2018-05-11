@@ -2,6 +2,173 @@
 Release Notes
 =============
 
+6.2.0
+=====
+2018-05-11
+
+Prelude
+-------
+
+- Please refer to the `6.2.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.2.0>`_
+  for the list of changes on the Core Checks.
+
+- Please refer to the `6.2.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.2.0>`_
+  for the list of changes on the Trace Agent.
+
+- Please refer to the `6.2.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.2.0>`_
+  for the list of changes on the Process Agent.
+
+Enhancements
+------------
+
+- Introduce new docker cpu shares gauge.
+
+- Add ability to configure the namespace in which the resources related to the kubernetes check are created.
+
+- The kubelet check now honors container filtering options
+
+- Adding Datadog Cluster Agent client in Node Agent.
+  Adding support for TLS in the Datadog Cluster Agent API.
+
+- Docker: set a default 5 seconds timeout on all docker requests to mitigate
+  possible docker daemon freezes
+
+- Connection to the ECS agent should be more resilient
+
+- Add agent5-like JMXFetch helper commands to help with JMXFetch troubleshooting.
+
+- The agent has been tested on Kubernetes 1.4 & OpenShift 3.4. Refer to
+  https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md
+  for installation instructions
+
+- Extract creator tags from kubernetes legacy `created-by` annotation if
+  the new `ownerReferences` field is not found
+
+- The `agent import` command now handles converting options from the legacy
+  `kubernetes.yaml` file, for agents running on the host
+
+- The memory corecheck sends 2 new metrics on Linux: ``system.mem.commit_limit``
+  and ``system.mem.committed_as``
+
+- Added the possibility to filter docker containers by name for log collection.
+
+- Added a support for docker labels to enrich logs metadata.
+
+- Logs Agent: add a `filename` tag to messages with the name of the file being tailed.
+
+- Shipping protobuf C++ implementation for the protobuf package, this should
+  help us be more performant when parsing larger/binary protobuf messages in
+  relevant integrations.
+
+- Enable to set collect_ec2_tags from environment variable DD_COLLECT_EC2_TAGS
+
+- The configcheck command now display checks in alphabetical orders and are
+  no longer grouped by configuration provider
+
+- Add average check run time to ``datadog-agent status`` and to the GUI.
+
+- Consider every configuration having autodiscovery identifier a template
+
+- Implement a circuit breaker and use jittered, truncated exponential backoff for network error retries.
+
+- Change logs agent configuration to use protocol buffers encoding and
+  endpoint by default.
+
+Known Issues
+------------
+
+- Kubernetes 1.3 & OpenShift 3.3 are currently not fully supported: docker and kubelet
+  integrations work OK, but apiserver communication (event collection, `kube_service`
+  tagging) is not implemented
+
+Deprecation Notes
+-----------------
+
+- Removing python PDH code bundled with the agent in favor of code already included
+  in the integrations-core` repository and bundled with datadog_checks_base wheel.
+  This provides a single source of truth for the python PDH logic.
+
+Bug Fixes
+---------
+
+- Fix a possible race condition in AutoDiscovery where configuration is
+  identical on container churn and considered as duplicate before being
+  de-scheduled.
+
+- It is now possible to save logs only configuration in the GUI without getting an error message.
+
+- Docker network metrics are now tagged by interface name as a fallback if a
+  docker network name cannot be determined (affects some Swarm stack deployments)
+
+- Dogstatsd now support listening on an IPv6 address when using ``bind_host``
+  config option.
+
+- The agent now fetches a hostname alias from kubernetes when possible. It fixes some duplicated
+  host issues that could happen when metrics were using kubernetes host names, as the
+  kubernetes_state integration
+
+- Fix case issues in tag extraction for docker/kubernetes container tags and kubernetes host tags
+
+- Fixes initialization of performance counter (Windows) to be able to better cope with missing
+  counter strings, and non-english locales
+
+- Bind the kubelet_tls_verify as an environment variable.
+
+- Docker image: fix entrypoint bug causing the kubernetes_apiserver check
+  to not be enabled
+
+- Fixed an issue with collecting logs bigger than 4096 chars on windows.
+
+- Fixes a misleading log line on windows for logs file tailing
+
+- Fixed a concurrent issue in the logs auditor causing the agent to crash.
+
+- Fix an issue for docker image name filtering when images contain a tag.
+
+- On Windows, changes the configuration for Process Agent and Trace
+  Agent services to be manual-start.  There is no impact if the
+  services are configured to be active; however, if they're disabled,
+  will stop the behavior where they're briefly started then stopped,
+  which creates excessive Windows service alert.
+
+- API key validation logic was ignoring proxy settings, leading to situations
+  where the agent reported that it was "Unable to validate API key" in the GUI.
+
+- Fix EC2 tags collection when multiple marketplaces are set.
+
+- Fixes collection of host tags from GCE metadata
+
+- Fix Go checks errors not being displayed in the status page.
+
+- Sanitize logged Datadog URLs when proxies are configured.
+
+- Fix a race condition in the kubernetes service tagging logic
+
+- Fix a possible panic when docker cannot inspect a container
+
+Other Notes
+-----------
+
+- In the metrics aggregator, log readable context information (metric name,
+  host, tags) instead of the raw context key to help troubleshooting
+
+- Remove executable permission bits from systemd/upstart/launchd service definition
+  files.
+
+- Improved the flare credential removing logic to work in a few edge cases
+  that where not accounted for previously.
+
+- Make file tailing a little less verbose. We avoid logging at every iteration
+  the different issues we encountered, instead we log them at first run only.
+  The status command shows the up-to-date information, and can
+  be used at anytime to troubleshoot such issues
+
+- Adds collection of PDH counter information to the flare; saves the
+  step of always asking the customer for this information.
+
+- Improve logging for the metamap, avoid spammy error when no cluster level metadata is found.
+
+
 6.1.4
 =====
 2018-04-19
