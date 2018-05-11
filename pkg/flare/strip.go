@@ -10,8 +10,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"regexp"
+
+	log "github.com/cihub/seelog"
 )
 
 type replacer struct {
@@ -58,13 +61,43 @@ func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
 }
 
-func credentialsCleanerFile(filePath string) ([]byte, error) {
-	file, err := os.Open(filePath)
-	defer file.Close()
+func credentialsWriter(filename string, data []byte, perm os.FileMode) error {
+
+	// Clean up creds
+	cleaned, err := credentialsCleanerBytes(data)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return credentialsCleaner(file)
+
+	err = ensureParentDirsExist(filename)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(filename, cleaned, perm)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func credentialsWriterFromFile(filename string, filePath string, perm os.FileMode) error {
+	if _, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			log.Warnf("the specified path: %s does not exist", filePath)
+		}
+
+		return err
+	}
+
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	return credentialsWriter(filename, data, perm)
+
 }
 
 func credentialsCleanerBytes(file []byte) ([]byte, error) {

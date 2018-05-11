@@ -154,20 +154,9 @@ func zipStatusFile(tempDir, hostname string) error {
 		return err
 	}
 
-	// Clean it up
-	cleaned, err := credentialsCleanerBytes(s)
-	if err != nil {
-		return err
-	}
-
 	f := filepath.Join(tempDir, hostname, "status.log")
 
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	err = credentialsWriter(f, s, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -212,19 +201,9 @@ func zipExpVar(tempDir, hostname string) error {
 			return err
 		}
 
-		cleanedYAML, err := credentialsCleanerBytes(yamlValue)
-		if err != nil {
-			return err
-		}
-
 		f := filepath.Join(tempDir, hostname, "expvar", key)
 
-		err = ensureParentDirsExist(f)
-		if err != nil {
-			return err
-		}
-
-		err = ioutil.WriteFile(f, cleanedYAML, os.ModePerm)
+		err = credentialsWriter(f, yamlValue, os.ModePerm)
 		if err != nil {
 			return err
 		}
@@ -238,20 +217,10 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 	if err != nil {
 		return err
 	}
-	// zip up the actual config
-	cleaned, err := credentialsCleanerBytes(c)
-	if err != nil {
-		return err
-	}
 
 	f := filepath.Join(tempDir, hostname, "runtime_config_dump.yaml")
 
-	err = ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	err = credentialsWriter(f, c, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -268,19 +237,9 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 		// Check if the file exists
 		_, err := os.Stat(filePath)
 		if err == nil {
-			cleaned, err = credentialsCleanerFile(filePath)
-			if err != nil {
-				return err
-			}
-
 			f = filepath.Join(tempDir, hostname, "etc", "datadog.yaml")
 
-			err = ensureParentDirsExist(f)
-			if err != nil {
-				return err
-			}
-
-			err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+			err = credentialsWriterFromFile(f, filePath, os.ModePerm)
 			if err != nil {
 				return err
 			}
@@ -321,17 +280,7 @@ func zipConfigCheck(tempDir, hostname string) error {
 
 	f := filepath.Join(tempDir, hostname, "config-check.log")
 
-	err := ensureParentDirsExist(f)
-	if err != nil {
-		return err
-	}
-
-	data, err := credentialsCleanerBytes(b.Bytes())
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(f, data, os.ModePerm)
+	err := credentialsWriter(f, b.Bytes(), os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -379,20 +328,11 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) 
 			}
 
 			if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
-				cleaned, err := credentialsCleanerFile(src)
-				if err != nil {
-					return err
-				}
 
 				baseName := strings.Replace(src, filePath, "", 1)
 				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
 
-				err = ensureParentDirsExist(f)
-				if err != nil {
-					return err
-				}
-
-				err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+				err = credentialsWriterFromFile(f, src, os.ModePerm)
 				if err != nil {
 					return err
 				}
