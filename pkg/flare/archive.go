@@ -68,13 +68,13 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 
 	if local {
 		f := filepath.Join(tempDir, hostname, "local")
-
-		err = ensureParentDirsExist(f)
+		w, err := NewRedactingWriter(f, os.ModePerm, true)
 		if err != nil {
 			return "", err
 		}
+		defer w.Close()
 
-		err = ioutil.WriteFile(f, []byte{}, os.ModePerm)
+		_, err = w.Write([]byte{})
 		if err != nil {
 			return "", err
 		}
@@ -155,12 +155,13 @@ func zipStatusFile(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "status.log")
-
-	err = credentialsWriter(f, s, os.ModePerm)
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
+	_, err = w.Write(s)
 	return err
 }
 
@@ -202,8 +203,13 @@ func zipExpVar(tempDir, hostname string) error {
 		}
 
 		f := filepath.Join(tempDir, hostname, "expvar", key)
+		w, err := NewRedactingWriter(f, os.ModePerm, true)
+		if err != nil {
+			return err
+		}
+		defer w.Close()
 
-		err = credentialsWriter(f, yamlValue, os.ModePerm)
+		_, err = w.Write(yamlValue)
 		if err != nil {
 			return err
 		}
@@ -219,8 +225,13 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 	}
 
 	f := filepath.Join(tempDir, hostname, "runtime_config_dump.yaml")
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
 
-	err = credentialsWriter(f, c, os.ModePerm)
+	_, err = w.Write(c)
 	if err != nil {
 		return err
 	}
@@ -238,8 +249,13 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 		_, err := os.Stat(filePath)
 		if err == nil {
 			f = filepath.Join(tempDir, hostname, "etc", "datadog.yaml")
+			w, err := NewRedactingWriter(f, os.ModePerm, true)
+			if err != nil {
+				return err
+			}
+			defer w.Close()
 
-			err = credentialsWriterFromFile(f, filePath, os.ModePerm)
+			_, err = w.WriteFromFile(filePath)
 			if err != nil {
 				return err
 			}
@@ -257,18 +273,14 @@ func zipDiagnose(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
-
-	err := ensureParentDirsExist(f)
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
-	err = ioutil.WriteFile(f, b.Bytes(), os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = w.Write(b.Bytes())
+	return err
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
@@ -279,13 +291,14 @@ func zipConfigCheck(tempDir, hostname string) error {
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "config-check.log")
-
-	err := credentialsWriter(f, b.Bytes(), os.ModePerm)
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
-	return nil
+	_, err = w.Write(b.Bytes())
+	return err
 }
 
 func zipHealth(tempDir, hostname string) error {
@@ -299,18 +312,14 @@ func zipHealth(tempDir, hostname string) error {
 	}
 
 	f := filepath.Join(tempDir, hostname, "health.yaml")
-
-	err = ensureParentDirsExist(f)
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
-	err = ioutil.WriteFile(f, yamlValue, os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = w.Write(yamlValue)
+	return err
 }
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) error {
@@ -331,9 +340,13 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) 
 
 				baseName := strings.Replace(src, filePath, "", 1)
 				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
-
-				err = credentialsWriterFromFile(f, src, os.ModePerm)
+				w, err := NewRedactingWriter(f, os.ModePerm, true)
 				if err != nil {
+					return err
+				}
+				defer w.Close()
+
+				if _, err = w.WriteFromFile(src); err != nil {
 					return err
 				}
 			}
