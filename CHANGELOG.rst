@@ -90,7 +90,7 @@ Deprecation Notes
 Security Issues
 ---------------
 
-- Separate the tokens for the internal API (used for flare, status, metamap) and the external enpoint (used for the tagger of the agent).
+- Separate the tokens for the internal API (used for flare, status, metamap) and the external endpoint (used for the tagger of the agent).
 
 Bug Fixes
 ---------
@@ -104,9 +104,6 @@ Bug Fixes
 - Docker network metrics are now tagged by interface name as a fallback if a
   docker network name cannot be determined (affects some Swarm stack deployments)
 
-- Fix a bug where the `docker_network` tag incorrectly appeared on
-  non-network docker metrics and autodiscovery tags
-
 - Dogstatsd now support listening on an IPv6 address when using ``bind_host``
   config option.
 
@@ -114,20 +111,10 @@ Bug Fixes
   host issues that could happen when metrics were using kubernetes host names, as the
   kubernetes_state integration
 
-- Fix the use of "docker restart" with the agent image
-
 - Fix case issues in tag extraction for docker/kubernetes container tags and kubernetes host tags
-
-- Fix a crash in the docker check when collecting sizes on an image with no repository tags.
 
 - Fixes initialization of performance counter (Windows) to be able to better cope with missing
   counter strings, and non-english locales
-
-- Fixes bug on Windows where, if configuration options are specified on the
-  installation command line, invalid proxy options are set.
-
-- Fix some edge cases where flare could contain secrets if the secrets where
-  encapsulated in quotes.
 
 - Bind the kubelet_tls_verify as an environment variable.
 
@@ -144,15 +131,11 @@ Bug Fixes
 
 - Fix an issue for docker image name filtering when images contain a tag.
 
-- Removed the read timeout for UDP connections causing the agent to stop forwarding logs after one minute of nonactivity.
-
 - On Windows, changes the configuration for Process Agent and Trace
   Agent services to be manual-start.  There is no impact if the
   services are configured to be active; however, if they're disabled,
   will stop the behavior where they're briefly started then stopped,
   which creates excessive Windows service alert.
-
-- Updating the data type of the CPU of the task and the metadata name for Version to Revision.
 
 - API key validation logic was ignoring proxy settings, leading to situations
   where the agent reported that it was "Unable to validate API key" in the GUI.
@@ -171,8 +154,6 @@ Bug Fixes
 
 Other Notes
 -----------
-
-- Add environment variable DD_ENABLE_GOHAI for setting option enable_gohai when running in a container.
 
 - In the metrics aggregator, log readable context information (metric name,
   host, tags) instead of the raw context key to help troubleshooting
