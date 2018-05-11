@@ -11,7 +11,6 @@ import (
 	"context"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types/swarm"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
@@ -21,19 +20,18 @@ func init() {
 	container.RegisterMetadataProvider("docker", getMetadata)
 }
 
-func getMetadata() map[string]string {
+func getMetadata() (map[string]string, error) {
 	metadata := make(map[string]string)
 	du, err := GetDockerUtil()
 	if err != nil {
-		log.Debugf("Unable to collect Docker host metadata: %s", err)
-		return metadata
+		return metadata, err
 	}
 	// short timeout to minimize metadata collection time
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	i, err := du.cli.Info(ctx)
 	if err != nil {
-		return metadata
+		return metadata, err
 	}
 	metadata["docker_version"] = i.ServerVersion
 	metadata["docker_swarm"] = "inactive"
@@ -41,5 +39,5 @@ func getMetadata() map[string]string {
 		metadata["docker_swarm"] = "active"
 	}
 
-	return metadata
+	return metadata, nil
 }

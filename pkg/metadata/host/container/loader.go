@@ -22,4 +22,4 @@ func RegisterMetadataProvider(name string, m MetadataProvider) {
 }
 
 // MetadataProvider should return a map of metadata
-type MetadataProvider func() map[string]string
+type MetadataProvider func() (map[string]string, error)

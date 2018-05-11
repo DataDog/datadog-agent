@@ -252,8 +252,13 @@ func getMeta() *Meta {
 func getContainerMeta() map[string]string {
 	containerMeta := make(map[string]string)
 
-	for _, getMeta := range container.DefaultCatalog {
-		for k, v := range getMeta() {
+	for provider, getMeta := range container.DefaultCatalog {
+		meta, err := getMeta()
+		if err != nil {
+			log.Debugf("Unable to get %s metadata: %s", provider, err)
+			continue
+		}
+		for k, v := range meta {
 			containerMeta[k] = v
 		}
 	}
