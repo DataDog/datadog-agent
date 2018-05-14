@@ -29,6 +29,8 @@ The goal of the DCA is to enhance the experience of monitoring Kubernetes:
 * It acts as a proxy between the API server and the node agent in order to separate concerns.
 * It provides cluster level metadata that can only be found in the API server to the node agents for them to enrich the metadata of the locally collected metrics.
 * It enables a cluster level collection of data such as the monitoring of services or SPOF and events that could otherwise than via a mix of [Leader Election] and [Autodiscovery] could not be monitored.
+* It implements the External Metrics Provider interface and can be registered as such in Kubernetes.
+
 
 ## When to use the DCA
 
@@ -36,11 +38,19 @@ Beyond a few hundred nodes hitting the API Server, can surface a non negligible 
 We recommend using the DCA should you want to alleviate the impact of the agents on your infrastructure and continue getting the same experience.
 Furthermore, should you want to isolate the node agent to the node, reducing the RBAC rules to solely read metrics and metadata from the kubelet.
 
+Should you want to leverage the Horizontal Pod Autoscaling feature of Kubernetes you can use the DCA to pull metrics from Datadog.
+You will be able to autoscale your deployments based off of any metric available in your Datadog account.
+Please refer to the HPA section of the technical documentation if you want to read more about this feature.
+
+
 ## Limitations of the DCA
 
 The DCA implements a go HTTP server (from http/net) to expose its API.
 This implementations is [largely sufficient](https://github.com/valyala/fasthttp#http-server-performance-comparison-with-nethttp) as the DCA should only be receiving calls from up to 5K nodes that will be made every 5 minutes by default.
 Load testing the DCA, there were no problems handling 200 rq/s for an extended period of time. We would still recommend running 3 replicas of the DCA for infrastructures beyond 1 thousand nodes with the agent.
+
+Only the External Metrics Provider is implemented as of v1.0.0, hence you will need to be running Kubernetes v1.10+ should you want to leverage this feature.
+
 
 ## Poka yoke
 

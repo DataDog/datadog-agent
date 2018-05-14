@@ -10,20 +10,25 @@ spec:
         app: datadog-cluster-agent
       name: datadog-agent
     spec:
-      serviceAccountName: datadog-cluster-agent
+      serviceAccountName: dca
       containers:
       - image: datadog/cluster-agent:latest
         imagePullPolicy: Always
         name: datadog-agent
         env:
           - name: DD_API_KEY
-            value: <YOUR_API_KEY>
+            value: '<YOUR_API_KEY>'
+          # Optionally reference an APP KEY for the External Metrics Provider.
+          #- name: DD_APP_KEY
+          #  value: '<YOUR_APP_KEY>'
           - name: DD_COLLECT_KUBERNETES_EVENTS
             value: "true"
           - name: DD_LEADER_ELECTION
             value: "true"
-         - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-           value: <Thirty_2_characters_long_token>
+          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+            value: <Thirty_2_characters_long_token>
+          - name: DD_ENABLE_HPA
+            value: 'true'
          # If using a secret, you can alternatively use:
 #          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
 #            valueFrom:

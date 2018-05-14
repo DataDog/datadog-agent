@@ -27,9 +27,26 @@ Therefore, you will need to have docker installed on your system.
 Start by creating the binary by running `inv -e cluster-agent.build`. This will add a binary in `./bin/datadog-cluster-agent/`
 Then from the current folder, run `inv -e cluster-agent.image-build`.
 
-
 ## Running the DCA with Kubernetes
 
+### Security premise
+<a name="security-premise"></a>
+
+You can create the secret that will be used for your agents to communicate with the DCA. 
+You can modify the value in [this file](/manifests/cluster-agent/dca-secret.yaml) then create it:
+
+`kubectl create -f manifests/cluster-agent/dca-secret.yaml` 
+
+Will yield:
+
+```
+kubectl get secret datadog-auth-token
+NAME                 TYPE      DATA      AGE
+datadog-auth-token   Opaque    1         16s
+
+```
+
+### Spin up the DCA
 To run the DCA in Kubernetes, you can simply run `kubectl create -f dca_deploy.yaml` and use the following manifest
 
 ```
