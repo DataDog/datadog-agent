@@ -121,7 +121,7 @@ func TestServiceValue(t *testing.T) {
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo",
 			},
-		}).GetOrigin().Service)
+		}).GetOrigin().Service())
 
 	assert.Equal(t, "foo.service", tailer.toMessage(
 		&sdjournal.JournalEntry{
@@ -129,17 +129,17 @@ func TestServiceValue(t *testing.T) {
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:         "foo",
 			},
-		}).GetOrigin().Service)
+		}).GetOrigin().Service())
 
 	assert.Equal(t, "foo", tailer.toMessage(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_COMM: "foo",
 			},
-		}).GetOrigin().Service)
+		}).GetOrigin().Service())
 
 	assert.Equal(t, "", tailer.toMessage(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{},
-		}).GetOrigin().Service)
+		}).GetOrigin().Service())
 }

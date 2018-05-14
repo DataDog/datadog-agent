@@ -16,8 +16,8 @@ type Origin struct {
 	Identifier string
 	LogSource  *config.LogSource
 	Offset     string
-	Service    string
-	Source     string
+	service    string
+	source     string
 	tags       []string
 }
 
@@ -25,16 +25,14 @@ type Origin struct {
 func NewOrigin(source *config.LogSource) *Origin {
 	return &Origin{
 		LogSource: source,
-		Service:   source.Config.Service,
-		Source:    source.Config.Source,
 	}
 }
 
 // Tags returns the tags of the origin.
 func (o *Origin) Tags() []string {
 	tags := o.tags
-	if o.Source != "" {
-		tags = append(tags, "source:"+o.Source)
+	if o.Source() != "" {
+		tags = append(tags, "source:"+o.Source())
 	}
 	if o.LogSource.Config.SourceCategory != "" {
 		tags = append(tags, "sourcecategory:"+o.LogSource.Config.SourceCategory)
@@ -47,8 +45,8 @@ func (o *Origin) Tags() []string {
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload() []byte {
 	var tagsPayload []byte
-	if o.Source != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+o.Source+"\"]")...)
+	if o.Source() != "" {
+		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+o.Source()+"\"]")...)
 	}
 	if o.LogSource.Config.SourceCategory != "" {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+o.LogSource.Config.SourceCategory+"\"]")...)
@@ -70,4 +68,30 @@ func (o *Origin) TagsPayload() []byte {
 // SetTags sets the tags of the origin.
 func (o *Origin) SetTags(tags []string) {
 	o.tags = tags
+}
+
+// SetSource sets the source of the origin.
+func (o *Origin) SetSource(source string) {
+	o.source = source
+}
+
+// Source returns the source of the origin.
+func (o *Origin) Source() string {
+	if o.LogSource.Config.Source != "" {
+		return o.LogSource.Config.Source
+	}
+	return o.source
+}
+
+// SetService sets the service of the origin.
+func (o *Origin) SetService(service string) {
+	o.service = service
+}
+
+// Service returns the service of the origin.
+func (o *Origin) Service() string {
+	if o.LogSource.Config.Service != "" {
+		return o.LogSource.Config.Service
+	}
+	return o.service
 }

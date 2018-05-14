@@ -141,8 +141,8 @@ func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) message.Message {
 	origin := message.NewOrigin(t.source)
 	origin.Identifier = t.Identifier()
 	origin.Offset, _ = t.journal.GetCursor()
-	origin.Source = journaldIntegration
-	origin.Service = t.getService(entry)
+	origin.SetSource(journaldIntegration)
+	origin.SetService(t.getService(entry))
 	return message.New(t.getContent(entry), origin, nil)
 }
 
