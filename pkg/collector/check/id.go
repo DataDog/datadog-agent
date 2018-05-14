@@ -10,19 +10,19 @@ import (
 	"hash/fnv"
 	"strings"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 // ID is the representation of the unique ID of a Check instance
 type ID string
 
 // Identify returns an unique ID for a check and its configuration
-func Identify(check Check, instance autodiscovery.Data, initConfig autodiscovery.Data) ID {
+func Identify(check Check, instance integration.Data, initConfig integration.Data) ID {
 	return BuildID(check.String(), instance, initConfig)
 }
 
 // BuildID returns an unique ID for a check name and its configuration
-func BuildID(checkName string, instance, initConfig autodiscovery.Data) ID {
+func BuildID(checkName string, instance, initConfig integration.Data) ID {
 	h := fnv.New64()
 	h.Write([]byte(instance))
 	h.Write([]byte(initConfig))

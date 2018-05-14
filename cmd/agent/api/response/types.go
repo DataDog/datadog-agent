@@ -6,13 +6,13 @@
 package response
 
 import (
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 // ConfigCheckResponse holds the config check response
 type ConfigCheckResponse struct {
-	Configs         []autodiscovery.Config          `json:"configs"`
-	ResolveWarnings map[string][]string             `json:"resolve_warnings"`
-	ConfigErrors    map[string]string               `json:"config_errors"`
-	Unresolved      map[string]autodiscovery.Config `json:"unresolved"`
+	Configs         []integration.Config          `json:"configs"`
+	ResolveWarnings map[string][]string           `json:"resolve_warnings"`
+	ConfigErrors    map[string]string             `json:"config_errors"`
+	Unresolved      map[string]integration.Config `json:"unresolved"`
 }

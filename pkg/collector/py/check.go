@@ -16,9 +16,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/sbinet/go-python"
 
 	log "github.com/cihub/seelog"
@@ -194,12 +194,12 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
+func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data) error {
 	// Generate check ID
 	c.id = check.Identify(c, data, initConfig)
 
 	// Unmarshal instances config to a RawConfigMap
-	rawInstances := autodiscovery.RawMap{}
+	rawInstances := integration.RawMap{}
 	err := yaml.Unmarshal(data, &rawInstances)
 	if err != nil {
 		log.Errorf("error in yaml %s", err)
@@ -207,7 +207,7 @@ func (c *PythonCheck) Configure(data autodiscovery.Data, initConfig autodiscover
 	}
 
 	// Unmarshal initConfig to a RawConfigMap
-	rawInitConfig := autodiscovery.RawMap{}
+	rawInitConfig := integration.RawMap{}
 	err = yaml.Unmarshal(initConfig, &rawInitConfig)
 	if err != nil {
 		log.Errorf("error in yaml %s", err)
@@ -226,7 +226,7 @@ func (c *PythonCheck) Configure(data autodiscovery.Data, initConfig autodiscover
 
 	// To be retrocompatible with the Python code, still use an `instance` dictionary
 	// to contain the (now) unique instance for the check
-	conf := make(autodiscovery.RawMap)
+	conf := make(integration.RawMap)
 	conf["name"] = c.ModuleName
 	conf["init_config"] = rawInitConfig
 	conf["instances"] = []interface{}{rawInstances}

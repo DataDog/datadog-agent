@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 
 	"gopkg.in/yaml.v2"
 )
@@ -107,9 +107,9 @@ func TestJSONConverter(t *testing.T) {
 		"jmx_alt",
 	}
 
-	cache := map[string]autodiscovery.RawMap{}
+	cache := map[string]integration.RawMap{}
 	for _, c := range checks {
-		var cf autodiscovery.RawMap
+		var cf integration.RawMap
 
 		// Read file contents
 		yamlFile, err := ioutil.ReadFile(fmt.Sprintf("../collector/corechecks/embed/fixtures/%s.yaml", c))

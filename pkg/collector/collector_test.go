@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -24,7 +24,7 @@ type TestCheck struct {
 }
 
 func (c *TestCheck) Stop()                                     { c.stop <- true }
-func (c *TestCheck) Configure(a, b autodiscovery.Data) error   { return nil }
+func (c *TestCheck) Configure(a, b integration.Data) error     { return nil }
 func (c *TestCheck) Interval() time.Duration                   { return 1 * time.Minute }
 func (c *TestCheck) Run() error                                { <-c.stop; return nil }
 func (c *TestCheck) GetWarnings() []error                      { return []error{} }
@@ -99,7 +99,7 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 
 func (suite *CollectorTestSuite) TestReloadCheck() {
 	ch := NewCheck()
-	empty := autodiscovery.Data{}
+	empty := integration.Data{}
 
 	// schedule a check
 	_, err := suite.c.RunCheck(ch)

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	yaml "gopkg.in/yaml.v2"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 func TestCollectDefaultMetrics(t *testing.T) {
@@ -64,12 +64,12 @@ func TestAddMetrics(t *testing.T) {
 type config struct {
 	InitConfig interface{} `yaml:"init_config"`
 	JMXMetrics interface{} `yaml:"jmx_metrics"`
-	Instances  []autodiscovery.RawMap
+	Instances  []integration.RawMap
 }
 
-func LoadCheck(name, path string) (autodiscovery.Config, error) {
+func LoadCheck(name, path string) (integration.Config, error) {
 	cf := config{}
-	config := autodiscovery.Config{Name: name}
+	config := integration.Config{Name: name}
 
 	yamlFile, err := ioutil.ReadFile(path)
 	if err != nil {

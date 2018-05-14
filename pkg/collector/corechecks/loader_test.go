@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 // FIXTURE
@@ -24,7 +24,7 @@ func (c *TestCheck) Interval() time.Duration                   { return 1 }
 func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
 func (c *TestCheck) GetWarnings() []error                      { return []error{} }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
-func (c *TestCheck) Configure(data autodiscovery.Data, initData autodiscovery.Data) error {
+func (c *TestCheck) Configure(data integration.Data, initData integration.Data) error {
 	if string(data) == "err" {
 		return fmt.Errorf("testError")
 	}
@@ -53,11 +53,11 @@ func TestLoad(t *testing.T) {
 	RegisterCheck("foo", testCheckFactory)
 
 	// check is in catalog, pass 2 instances
-	i := []autodiscovery.Data{
-		autodiscovery.Data("foo: bar"),
-		autodiscovery.Data("bar: baz"),
+	i := []integration.Data{
+		integration.Data("foo: bar"),
+		integration.Data("bar: baz"),
 	}
-	cc := autodiscovery.Config{Name: "foo", Instances: i}
+	cc := integration.Config{Name: "foo", Instances: i}
 	l, _ := NewGoCheckLoader()
 
 	lst, err := l.Load(cc)
@@ -70,11 +70,11 @@ func TestLoad(t *testing.T) {
 	}
 
 	// check is in catalog, pass 1 good instance & 1 bad instance
-	i = []autodiscovery.Data{
-		autodiscovery.Data("foo: bar"),
-		autodiscovery.Data("err"),
+	i = []integration.Data{
+		integration.Data("foo: bar"),
+		integration.Data("err"),
 	}
-	cc = autodiscovery.Config{Name: "foo", Instances: i}
+	cc = integration.Config{Name: "foo", Instances: i}
 
 	lst, err = l.Load(cc)
 
@@ -86,8 +86,8 @@ func TestLoad(t *testing.T) {
 	}
 
 	// check is in catalog, pass no instances
-	i = []autodiscovery.Data{}
-	cc = autodiscovery.Config{Name: "foo", Instances: i}
+	i = []integration.Data{}
+	cc = integration.Config{Name: "foo", Instances: i}
 
 	lst, err = l.Load(cc)
 
@@ -99,7 +99,7 @@ func TestLoad(t *testing.T) {
 	}
 
 	// check not in catalog
-	cc = autodiscovery.Config{Name: "bar", Instances: nil}
+	cc = integration.Config{Name: "bar", Instances: nil}
 
 	lst, err = l.Load(cc)
 

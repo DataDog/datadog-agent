@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	log "github.com/cihub/seelog"
 )
 
@@ -54,7 +54,7 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 }
 
 // Load returns a list of checks, one for every configuration instance found in `config`
-func (gl *GoCheckLoader) Load(config autodiscovery.Config) ([]check.Check, error) {
+func (gl *GoCheckLoader) Load(config integration.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 
 	// If JMX check, just skip - coincidence

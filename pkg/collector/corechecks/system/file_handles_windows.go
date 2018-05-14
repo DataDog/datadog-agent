@@ -7,9 +7,9 @@
 package system
 
 import (
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 	log "github.com/cihub/seelog"
 
@@ -43,7 +43,7 @@ func (c *fhCheck) Run() error {
 }
 
 // The check doesn't need configuration
-func (c *fhCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) (err error) {
+func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data) (err error) {
 	c.counter, err = pdhutil.GetCounterSet("Process", "Handle Count", "_Total", nil)
 	return err
 }

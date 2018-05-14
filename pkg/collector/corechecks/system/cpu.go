@@ -8,9 +8,9 @@ package system
 import (
 	"fmt"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/cpu"
 
@@ -77,7 +77,7 @@ func (c *CPUCheck) Run() error {
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *CPUCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
+func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data) error {
 	// do nothing
 	// NOTE: This runs before the python checks, so we should be good, but cpuInfo()
 	//       on windows initializes COM to the multithreaded model. Therefore,

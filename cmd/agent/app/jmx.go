@@ -13,10 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/spf13/cobra"
 )
@@ -180,7 +180,7 @@ func loadConfigs() {
 	}
 }
 
-func configIncluded(config autodiscovery.Config) bool {
+func configIncluded(config integration.Config) bool {
 	for _, c := range checks {
 		if strings.EqualFold(config.Name, c) {
 			return true

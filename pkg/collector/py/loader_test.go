@@ -11,14 +11,14 @@ package py
 import (
 	"testing"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLoad(t *testing.T) {
 	l, _ := NewPythonCheckLoader()
-	config := autodiscovery.Config{Name: "testcheck"}
+	config := integration.Config{Name: "testcheck"}
 	config.Instances = append(config.Instances, []byte("foo: bar"))
 	config.Instances = append(config.Instances, []byte("bar: baz"))
 
@@ -27,19 +27,19 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, 2, len(instances))
 
 	// the python module doesn't exist
-	config = autodiscovery.Config{Name: "doesntexist"}
+	config = integration.Config{Name: "doesntexist"}
 	instances, err = l.Load(config)
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))
 
 	// the python module contains errors
-	config = autodiscovery.Config{Name: "bad"}
+	config = integration.Config{Name: "bad"}
 	instances, err = l.Load(config)
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))
 
 	// the python module is good but nothing derives from AgentCheck
-	config = autodiscovery.Config{Name: "foo"}
+	config = integration.Config{Name: "foo"}
 	instances, err = l.Load(config)
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))

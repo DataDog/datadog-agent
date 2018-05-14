@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
@@ -181,7 +181,7 @@ type configFormat struct {
 	InitConfig    interface{} `yaml:"init_config"`
 	MetricConfig  interface{} `yaml:"jmx_metrics"`
 	LogsConfig    interface{} `yaml:"logs"`
-	Instances     []autodiscovery.RawMap
+	Instances     []integration.RawMap
 }
 
 // Overwrites a specific check's configuration (yaml) file with new data

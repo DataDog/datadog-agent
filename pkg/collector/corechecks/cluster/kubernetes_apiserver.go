@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
@@ -57,7 +57,7 @@ func (c *KubeASConfig) parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check.
-func (k *KubeASCheck) Configure(config, initConfig autodiscovery.Data) error {
+func (k *KubeASCheck) Configure(config, initConfig integration.Data) error {
 	// Check connectivity to the APIServer
 	err := k.instance.parse(config)
 	if err != nil {

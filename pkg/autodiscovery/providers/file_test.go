@@ -8,7 +8,7 @@ package providers
 import (
 	"testing"
 
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,8 +76,8 @@ func TestCollect(t *testing.T) {
 	assert.Nil(t, err)
 
 	// count how many configs were found for a given check
-	get := func(name string) []autodiscovery.Config {
-		out := []autodiscovery.Config{}
+	get := func(name string) []integration.Config {
+		out := []integration.Config{}
 		for _, c := range configs {
 			if c.Name == name {
 				out = append(out, c)

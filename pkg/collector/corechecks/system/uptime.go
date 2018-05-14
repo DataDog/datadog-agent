@@ -6,9 +6,9 @@
 package system
 
 import (
-	autodiscovery "github.com/DataDog/datadog-agent/pkg/autodiscovery/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/host"
 
@@ -45,7 +45,7 @@ func (c *UptimeCheck) Run() error {
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *UptimeCheck) Configure(data autodiscovery.Data, initConfig autodiscovery.Data) error {
+func (c *UptimeCheck) Configure(data integration.Data, initConfig integration.Data) error {
 	// do nothing
 	return nil
 }
