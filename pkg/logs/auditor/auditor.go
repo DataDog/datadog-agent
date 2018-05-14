@@ -22,12 +22,20 @@ const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 const defaultTTL = 23 * time.Hour
 
+// latest version of the API used by the auditor to retrieve the registry from disk.
+const registryAPIVersion = 2
+
 // A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
 type RegistryEntry struct {
-	Timestamp   string
-	Offset      int64
 	LastUpdated time.Time
+	Offset      string
+}
+
+// JSONRegistry represents the registry that will be written on disk
+type JSONRegistry struct {
+	Version  int
+	Registry map[string]RegistryEntry
 }
 
 // An Auditor handles messages successfully submitted to the intake
@@ -68,6 +76,17 @@ func (a *Auditor) Stop() {
 	}
 }
 
+// GetLastCommittedOffset returns the last committed offset for a given identifier,
+// returns an empty string if it does not exist.
+func (a *Auditor) GetLastCommittedOffset(identifier string) string {
+	r := a.readOnlyRegistryCopy()
+	entry, exists := r[identifier]
+	if !exists {
+		return ""
+	}
+	return entry.Offset
+}
+
 // run keeps up to date the registry depending on different events
 func (a *Auditor) run() {
 	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
@@ -87,7 +106,7 @@ func (a *Auditor) run() {
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.GetOrigin().Identifier, msg.GetOrigin().Offset, msg.GetOrigin().Timestamp)
+			a.updateRegistry(msg.GetOrigin().Identifier, msg.GetOrigin().Offset)
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()
@@ -129,7 +148,7 @@ func (a *Auditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
-func (a *Auditor) updateRegistry(identifier string, offset int64, timestamp string) {
+func (a *Auditor) updateRegistry(identifier string, offset string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if identifier == "" {
@@ -141,7 +160,6 @@ func (a *Auditor) updateRegistry(identifier string, offset int64, timestamp stri
 	a.registry[identifier] = &RegistryEntry{
 		LastUpdated: time.Now().UTC(),
 		Offset:      offset,
-		Timestamp:   timestamp,
 	}
 }
 
@@ -166,37 +184,10 @@ func (a *Auditor) flushRegistry() error {
 	return ioutil.WriteFile(a.registryPath, mr, 0644)
 }
 
-// GetLastCommittedOffset returns the last committed offset for a given identifier,
-// returns 0 if it does not exist.
-func (a *Auditor) GetLastCommittedOffset(identifier string) int64 {
-	r := a.readOnlyRegistryCopy()
-	entry, exists := r[identifier]
-	if !exists {
-		return 0
-	}
-	return entry.Offset
-}
-
-// GetLastCommittedTimestamp returns the last committed offset for a given identifier
-func (a *Auditor) GetLastCommittedTimestamp(identifier string) string {
-	r := a.readOnlyRegistryCopy()
-	entry, ok := r[identifier]
-	if !ok {
-		return ""
-	}
-	return entry.Timestamp
-}
-
-// JSONRegistry represents the registry that will be written on disk
-type JSONRegistry struct {
-	Version  int
-	Registry map[string]RegistryEntry
-}
-
 // marshalRegistry marshals a registry
 func (a *Auditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
 	r := JSONRegistry{
-		Version:  1,
+		Version:  registryAPIVersion,
 		Registry: registry,
 	}
 	return json.Marshal(r)
@@ -204,51 +195,24 @@ func (a *Auditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, er
 
 // unmarshalRegistry unmarshals a registry
 func (a *Auditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry, error) {
-	var r JSONRegistry
+	var r map[string]interface{}
 	err := json.Unmarshal(b, &r)
 	if err != nil {
 		return nil, err
 	}
-	registry := make(map[string]*RegistryEntry)
-	if r.Version == 1 {
-		for path, entry := range r.Registry {
-			newEntry := entry
-			registry[path] = &newEntry
-		}
-	} else if r.Version == 0 {
-		return a.unmarshalRegistryV0(b)
+	version, exists := r["Version"].(float64)
+	if !exists {
+		return nil, fmt.Errorf("registry retrieved from disk must have a version number")
 	}
-	return registry, nil
-}
-
-// Legacy Registry logic
-
-type registryEntryV0 struct {
-	Path      string
-	Timestamp time.Time
-	Offset    int64
-}
-
-type jsonRegistryV0 struct {
-	Version  int
-	Registry map[string]registryEntryV0
-}
-
-func (a *Auditor) unmarshalRegistryV0(b []byte) (map[string]*RegistryEntry, error) {
-	var r jsonRegistryV0
-	err := json.Unmarshal(b, &r)
-	if err != nil {
-		return nil, err
+	// ensure backward compatibility
+	switch int(version) {
+	case 2:
+		return unmarshalRegistryV2(b)
+	case 1:
+		return unmarshalRegistryV1(b)
+	case 0:
+		return unmarshalRegistryV0(b)
+	default:
+		return nil, fmt.Errorf("invalid registry version number")
 	}
-	registry := make(map[string]*RegistryEntry)
-	for path, entry := range r.Registry {
-		newEntry := RegistryEntry{}
-		newEntry.Offset = entry.Offset
-		newEntry.LastUpdated = entry.Timestamp
-		newEntry.Timestamp = ""
-		// from v0 to v1, we also prefixed path with file:
-		newPath := fmt.Sprintf("file:%s", path)
-		registry[newPath] = &newEntry
-	}
-	return registry, nil
 }

@@ -6,6 +6,7 @@
 package tailer
 
 import (
+	"strconv"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -91,9 +92,12 @@ func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tai
 func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
 	tailer := s.createTailer(file, s.pp.NextPipelineChan())
 	offset := s.auditor.GetLastCommittedOffset(tailer.Identifier())
-	var err error
-	if offset > 0 {
-		err = tailer.recoverTailing(offset)
+	value, err := strconv.ParseInt(offset, 10, 64)
+	if err != nil {
+		value = 0
+	}
+	if value > 0 {
+		err = tailer.recoverTailing(value)
 	} else if tailFromBeginning {
 		err = tailer.tailFromBeginning()
 	} else {
