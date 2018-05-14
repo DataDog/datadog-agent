@@ -178,8 +178,8 @@ func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
 
 // serviceKeys represents all the valid attributes used to extract the value of the service of a journal entry.
 var serviceKeys = []string{
-	sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER, // "SYSLOG_IDENTIFIER"
 	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT,      // "_SYSTEMD_UNIT"
+	sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER, // "SYSLOG_IDENTIFIER"
 	sdjournal.SD_JOURNAL_FIELD_COMM,              // "_COMM"
 }
 
