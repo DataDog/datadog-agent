@@ -1,4 +1,4 @@
-# Cluster Agent 6 docker image
+# Datadog Cluster Agent | Containerized environments 
 
 This is how the official Datadog Cluster Agent (also known as `DCA`) image, available [here](https://hub.docker.com/r/datadog/cluster-agent/), is built.
 
@@ -8,7 +8,12 @@ The following environment variables are supported:
 
 - `DD_API_KEY`: your API key (**required**)
 - `DD_HOSTNAME`: hostname to use for the DCA.
-- `DD_CLUSTER_AGENT_CMD_PORT`: Port you want the DCA to serve
+- `DD_CLUSTER_AGENT_CMD_PORT`: Port you want the DCA to serve, by default 5005.
+- `DD_USE_METADATA_MAPPER`: Enable the cluster level metadata mapping (enabled by default)
+- `DD_COLLECT_KUBERNETES_EVENTS`: configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
+- `DD_LEADER_ELECTION`: activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
+- `DD_LEADER_LEASE_DURATION`: only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
+- `DD_CLUSTER_AGENT_AUTH_TOKEN`: 32 characters long token that needs to be shared between the node agent and the DCA.
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/)
 
@@ -50,14 +55,16 @@ spec:
             value: XXXX
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN
             value: <32 characters long string shared with node agent>
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: "true"
 ```
 And use the RBAC below to get the best out of it.
 
 ## Pre-requisites for the DCA to interact with the API server.
 
 For the DCA to produce events, service checks and run checks one needs to enable it to perform a few actions.
-Please find the minimum RBAC below to get the full scope of features.
-This manifest will create a Service Account, a Cluster Role with a restricted scope and actions detailed below and a Cluster Role Binding as well.
+Please find the minimum RBAC listed in [the manifests](/manifests/rbac) to get the full scope of features.
+These manifests will create a Service Account, a Cluster Role with a restricted scope and actions detailed below and a Cluster Role Binding as well.
 
 ### The DCA needs:
 
@@ -67,57 +74,6 @@ This manifest will create a Service Account, a Cluster Role with a restricted sc
 - `get`, `list` and `watch` of the `Pods`
 - `get`, `list` and `watch`  of the `Nodes`
 - `get`, `list` and `watch`  of the `Endpoints` to run cluster level health checks.
-
-
-```
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: datadog-dca
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - services
-  - events
-  - endpoints
-  - pods
-  - nodes
-  - componentstatuses
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  resourceNames:
-  - configmapdcatoken
-  verbs:
-  - get
-  - update
----
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: datadog-dca
-  namespace: default
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: datadog-dca
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: datadog-dca
-subjects:
-- kind: ServiceAccount
-  name: datadog-dca
-  namespace: default
----
-```
 
 The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace and be named `configmapdcatoken`
 One can simply run `kubectl create configmap configmapdcatoken --from-literal="event.tokenKey"="0"` .

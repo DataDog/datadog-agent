@@ -10,7 +10,7 @@ spec:
         app: datadog-cluster-agent
       name: datadog-agent
     spec:
-      serviceAccountName: datadog-dca
+      serviceAccountName: datadog-cluster-agent
       containers:
       - image: datadog/cluster-agent:latest
         imagePullPolicy: Always
