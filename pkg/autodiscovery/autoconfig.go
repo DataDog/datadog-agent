@@ -14,10 +14,10 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
-	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -284,7 +284,7 @@ func (ac *AutoConfig) resolve(config check.Config) []check.Config {
 	configs := []check.Config{}
 
 	// add default metrics to collect to JMX checks
-	if config.CollectDefaultMetrics() {
+	if check.CollectDefaultMetrics(config) {
 		metrics, ok := ac.name2jmxmetrics[config.Name]
 		if !ok {
 			log.Infof("%s doesn't have an additional metric configuration file: not collecting default metrics", config.Name)

@@ -172,7 +172,7 @@ func loadConfigs() {
 	includeEverything := len(checks) == 0
 
 	for _, c := range configs {
-		if c.IsJMX() && (includeEverything || configIncluded(c)) {
+		if check.IsJMXConfig(c.Name, c.InitConfig) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
 			embed.AddJMXCachedConfig(c)
 		}

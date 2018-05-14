@@ -8,7 +8,7 @@ package agentchecks
 import (
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
