@@ -67,6 +67,11 @@ do
         sleep 5
         continue
     fi
+    if [[ "${INSTANCE_ENDPOINT}" == "null" ]]
+    then
+        sleep 1
+        continue
+    fi
     break
 done
 
