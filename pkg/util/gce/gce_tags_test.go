@@ -40,7 +40,7 @@ func TestGetHostTags(t *testing.T) {
 	}
 
 	assert.Len(t, tags, 7)
-	expectedTags := []string{"tag", "zone:us-east1-b", "instance-type:n1-standard-1", "internal-hostname:dd-test.c.datadog-dd-test.internal", "instance-id:1111111111111111111", "project:111111111111", "numeric_project_id:111111111111"}
+	expectedTags := []string{"tag", "zone:us-east1-b", "instance-type:n1-standard-1", "internal-hostname:dd-test.c.datadog-dd-test.internal", "instance-id:1111111111111111111", "project:111111111111", "numeric_project_id:111111111111", "cluster-name": "test-cluster", "cluster-location": "us-east1-d"}
 	for i, actual := range tags {
 		expected := expectedTags[i]
 		assert.Equal(t, expected, actual)

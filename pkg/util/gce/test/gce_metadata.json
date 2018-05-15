@@ -1,5 +1,8 @@
 {
-  "attributes": {},
+  "attributes": {
+    "cluster-name":"test-cluster",
+    "cluster-location":"us-east1-d"
+  },
   "cpuPlatform": "Intel Haswell",
   "description": "",
   "disks": [{
