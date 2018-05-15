@@ -1,2 +1,10 @@
+init_config:
+  # By default, stats for all block devices (listed in /proc/diskstats on Linux)
+  # will be collected. You might want to ignore sub-devices and transient devices
+  # for more accurate accounting, by providing a regex pattern acting as a blacklist.
+  #
+  # This example regexp excludes LVM logical volumes:
+  # device_blacklist_re: "^dm-[0-9]+"
+
 instances:
 - {}
