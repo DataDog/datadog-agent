@@ -8,9 +8,11 @@ dd_url: https://app.datadoghq.com
 api_key:
 
 # If you need a proxy to connect to the Internet, provide it here (default:
-# disabled). You can use the 'no_proxy' list to specify hosts that should bypass the
-# proxy. These settings might impact your checks requests, please refer to the
-# specific check documentation for more details.
+# disabled). You can use the 'no_proxy' list to specify hosts that should
+# bypass the proxy. These settings might impact your checks requests, please
+# refer to the specific check documentation for more details. Environment
+# variables HTTP_PROXY, HTTPS_PROXY and NO_PROXY (coma-separated string) will
+# override the values set here. See https://docs.datadoghq.com/agent/proxy/.
 #
 # proxy:
 #   http: http(s)://user:password@proxy_for_http:port

@@ -202,19 +202,11 @@ func CreateHTTPTransport() *http.Transport {
 		TLSClientConfig: tlsConfig,
 	}
 
-	if proxies := config.Datadog.Get("proxy"); proxies != nil {
-		proxies := &config.Proxy{}
-		if err := config.Datadog.UnmarshalKey("proxy", proxies); err != nil {
-			log.Errorf("Could not load the proxy configuration: %s", err)
-		} else {
-			transport.Proxy = GetProxyTransportFunc(proxies)
-		}
+	proxies, err := config.GetProxies()
+	if err != nil {
+		log.Errorf("%s", err)
+	} else if proxies != nil {
+		transport.Proxy = GetProxyTransportFunc(proxies)
 	}
-
-	if os.Getenv("http_proxy") != "" || os.Getenv("https_proxy") != "" ||
-		os.Getenv("HTTP_PROXY") != "" || os.Getenv("HTTPS_PROXY") != "" {
-		log.Warn("Env variables 'http_proxy' and 'https_proxy' are not enforced by the agent, please use the configuration file.")
-	}
-
 	return transport
 }

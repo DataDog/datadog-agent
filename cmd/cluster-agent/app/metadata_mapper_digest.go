@@ -36,7 +36,7 @@ as well as which services are serving the pods. Or the deployment name for the p
 		if len(confPath) != 0 {
 			// we'll search for a config file named `datadog-cluster.yaml`
 			config.Datadog.AddConfigPath(confPath)
-			confErr := config.Datadog.ReadInConfig()
+			confErr := config.Load()
 			if confErr != nil {
 				log.Error(confErr)
 			} else {

@@ -76,7 +76,7 @@ func start(cmd *cobra.Command, args []string) error {
 	if len(confPath) != 0 {
 		// we'll search for a config file named `datadog-cluster.yaml`
 		config.Datadog.AddConfigPath(confPath)
-		confErr := config.Datadog.ReadInConfig()
+		confErr := config.Load()
 		if confErr != nil {
 			log.Error(confErr)
 		} else {
