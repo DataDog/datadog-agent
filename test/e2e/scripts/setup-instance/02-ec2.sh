@@ -58,7 +58,7 @@ do
         --region ${REGION} | tee instance-id.json
 
     INSTANCE_ENDPOINT=$(jq -re .Reservations[].Instances[].PrivateIpAddress instance-id.json)
-    if [[ "${INSTANCE_ENDPOINT}x" == "x" ]]
+    if [[ $? != "0" ]]
     then
         sleep 5
         continue
