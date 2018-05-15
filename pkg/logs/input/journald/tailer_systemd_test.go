@@ -18,7 +18,7 @@ import (
 
 func TestShouldDropEntry(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{ExcludeUnits: []string{"foo", "bar"}})
-	tailer := NewTailer(source, nil, nil)
+	tailer := NewTailer(source, nil)
 	err := tailer.setup()
 	assert.Nil(t, err)
 
@@ -44,9 +44,9 @@ func TestShouldDropEntry(t *testing.T) {
 		}))
 }
 
-func TestToMessageWithNormalization(t *testing.T) {
+func TestApplicationName(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil, nil)
+	tailer := NewTailer(source, nil)
 
 	var err error
 	err = tailer.setup()
@@ -54,92 +54,63 @@ func TestToMessageWithNormalization(t *testing.T) {
 	err = tailer.seek("")
 	assert.Nil(t, err)
 
-	assert.Equal(t, []byte("{\"a\":\"1\",\"b\":\"2\",\"c\":\"3\",\"d\":\"4\"}"), tailer.toMessage(
+	assert.Equal(t, "foo", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
-				"_A": "1",
-				"B":  "2",
-				"_c": "3",
-				"d":  "4",
-			},
-		}).Content())
-}
-
-func TestToMessageWithoutNormalization(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{DisableNormalization: true})
-	tailer := NewTailer(source, nil, nil)
-
-	var err error
-	err = tailer.setup()
-	assert.Nil(t, err)
-	err = tailer.seek("")
-	assert.Nil(t, err)
-
-	assert.Equal(t, []byte("{\"B\":\"2\",\"_A\":\"1\",\"_c\":\"3\",\"d\":\"4\"}"), tailer.toMessage(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				"_A": "1",
-				"B":  "2",
-				"_c": "3",
-				"d":  "4",
-			},
-		}).Content())
-}
-
-func TestHostnameGetsDeletedFromMessage(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil, nil)
-
-	var err error
-	err = tailer.setup()
-	assert.Nil(t, err)
-	err = tailer.seek("")
-	assert.Nil(t, err)
-
-	assert.Equal(t, []byte("{}"), tailer.toMessage(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_HOSTNAME: "foo",
-			},
-		}).Content())
-}
-
-func TestServiceValue(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, nil, nil)
-
-	var err error
-	err = tailer.setup()
-	assert.Nil(t, err)
-	err = tailer.seek("")
-	assert.Nil(t, err)
-
-	assert.Equal(t, "foo.service", tailer.toMessage(
-		&sdjournal.JournalEntry{
-			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
-				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo.sh",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo",
+				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
 			},
-		}).GetOrigin().Service())
+		}))
 
-	assert.Equal(t, "foo.sh", tailer.toMessage(
+	assert.Equal(t, "foo.service", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo.sh",
-				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo.service",
+				sdjournal.SD_JOURNAL_FIELD_COMM:         "foo.sh",
 			},
-		}).GetOrigin().Service())
+		}))
 
-	assert.Equal(t, "foo", tailer.toMessage(
+	assert.Equal(t, "foo.sh", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
-				sdjournal.SD_JOURNAL_FIELD_COMM: "foo",
+				sdjournal.SD_JOURNAL_FIELD_COMM: "foo.sh",
 			},
-		}).GetOrigin().Service())
+		}))
 
-	assert.Equal(t, "", tailer.toMessage(
+	assert.Equal(t, "", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{},
-		}).GetOrigin().Service())
+		}))
+}
+
+func TestContent(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil)
+
+	var err error
+	err = tailer.setup()
+	assert.Nil(t, err)
+	err = tailer.seek("")
+	assert.Nil(t, err)
+
+	assert.Equal(t, []byte(`{"journald":{"_A":"foo.service"},"message":"bar"}`), tailer.getContent(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_MESSAGE: "bar",
+				"_A": "foo.service",
+			},
+		}))
+
+	assert.Equal(t, []byte(`{"journald":{"_A":"foo.service"}}`), tailer.getContent(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				"_A": "foo.service",
+			},
+		}))
+
+	assert.Equal(t, []byte(`{"journald":{}}`), tailer.getContent(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{},
+		}))
 }

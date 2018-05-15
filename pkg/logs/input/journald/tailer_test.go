@@ -19,11 +19,11 @@ func TestIdentifier(t *testing.T) {
 
 	// expect default identifier
 	source = config.NewLogSource("", &config.LogsConfig{})
-	tailer = NewTailer(source, nil, nil)
+	tailer = NewTailer(source, nil)
 	assert.Equal(t, "journald:default", tailer.Identifier())
 
 	// expect identifier to be overidden
 	source = config.NewLogSource("", &config.LogsConfig{Path: "any_path"})
-	tailer = NewTailer(source, nil, nil)
+	tailer = NewTailer(source, nil)
 	assert.Equal(t, "journald:any_path", tailer.Identifier())
 }

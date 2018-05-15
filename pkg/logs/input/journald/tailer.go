@@ -34,11 +34,10 @@ func (e *TailError) Error() string {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *config.LogSource, outputChan chan message.Message, errHandler ErrorHandler) *Tailer {
+func NewTailer(source *config.LogSource, outputChan chan message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		outputChan: outputChan,
-		errHandler: errHandler,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}
@@ -50,7 +49,7 @@ const journaldIntegration = "journald"
 
 // Identifier returns the unique identifier of the current journal being tailed.
 func (t *Tailer) Identifier() string {
-	return journaldIntegration + ":" + t.journalName()
+	return journaldIntegration + ":" + t.journalPath()
 }
 
 // Start starts tailing the journal from a given offset.
@@ -64,22 +63,22 @@ func (t *Tailer) Start(cursor string) error {
 		return err
 	}
 	t.source.Status.Success()
-	t.source.AddInput(t.journalName())
-	log.Info("Start tailing journal")
+	t.source.AddInput(t.journalPath())
+	log.Info("Start tailing journal ", t.journalPath())
 	go t.tail()
 	return nil
 }
 
 // Stop stops the tailer
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing journal")
+	log.Info("Stop tailing journal ", t.journalPath())
 	t.stop <- struct{}{}
-	t.source.RemoveInput(t.journalName())
+	t.source.RemoveInput(t.journalPath())
 	<-t.done
 }
 
-// journalName returns the name of the journal
-func (t *Tailer) journalName() string {
+// journalPath returns the path of the journal
+func (t *Tailer) journalPath() string {
 	if t.source.Config.Path != "" {
 		return t.source.Config.Path
 	}

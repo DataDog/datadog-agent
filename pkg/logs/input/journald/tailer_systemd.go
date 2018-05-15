@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -30,7 +29,6 @@ type Tailer struct {
 	outputChan chan message.Message
 	journal    *sdjournal.Journal
 	blacklist  map[string]bool
-	errHandler ErrorHandler
 	stop       chan struct{}
 	done       chan struct{}
 }
@@ -99,7 +97,9 @@ func (t *Tailer) tail() {
 		default:
 			n, err := t.journal.Next()
 			if err != nil && err != io.EOF {
-				t.errHandler.Handle(NewTailError(t.Identifier(), err))
+				err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
+				t.source.Status.Error(err)
+				log.Error(err)
 				return
 			}
 			if n < 1 {
@@ -138,33 +138,38 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 // A journal entry has different fields that may vary depending on its nature,
 // for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
 func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) message.Message {
-	origin := message.NewOrigin(t.source)
-	origin.Identifier = t.Identifier()
-	origin.Offset, _ = t.journal.GetCursor()
-	origin.SetSource(journaldIntegration)
-	origin.SetService(t.getService(entry))
-	return message.New(t.getContent(entry), origin, nil)
+	return message.New(
+		t.getContent(entry),
+		t.getOrigin(entry),
+		t.getSeverity(entry),
+	)
 }
 
-// getContent returns all the fields of the entry as a json-string.
+// getContent returns all the fields of the entry as a json-string,
+// remapping "MESSAGE" into "message" and bundling all the other keys in a "journald" attribute.
+// ex:
+// * journal-entry:
+//  {
+//    "MESSAGE": "foo",
+//    "_SYSTEMD_UNIT": "foo",
+//    ...
+//  }
+// * message-content:
+//  {
+//    "message": "foo",
+//    "journald": {
+//      "_SYSTEMD_UNIT": "foo",
+//      ...
+//    }
+//  }
 func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
-	// delete the hostname from the entry fields to ensure the hostname computed by the agent won't be overridden later on
+	payload := make(map[string]interface{})
 	fields := entry.Fields
-	delete(fields, sdjournal.SD_JOURNAL_FIELD_HOSTNAME)
-
-	var payload map[string]string
-	if !t.source.Config.DisableNormalization {
-		// clean all keys by striping all leading underscores and converting to lowercase:
-		// ex: { "_A": "valueA", "_B": "valueB", "c": "valueC"} -> { "a": "valueA", "b": "valueB", "c": "valueC"}
-		payload = make(map[string]string)
-		for key, value := range fields {
-			key = strings.TrimLeft(key, "_")
-			key = strings.ToLower(key)
-			payload[key] = value
-		}
-	} else {
-		payload = fields
+	if message, exists := fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]; exists {
+		payload["message"] = message
+		delete(fields, sdjournal.SD_JOURNAL_FIELD_MESSAGE)
 	}
+	payload["journald"] = fields
 
 	content, err := json.Marshal(payload)
 	if err != nil {
@@ -176,19 +181,39 @@ func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
 	return content
 }
 
-// serviceKeys represents all the valid attributes used to extract the value of the service of a journal entry.
-var serviceKeys = []string{
-	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT,      // "_SYSTEMD_UNIT"
+// getOrigin returns the message origin computed from the journal entry
+func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
+	origin := message.NewOrigin(t.source)
+	origin.Identifier = t.Identifier()
+	origin.Offset, _ = t.journal.GetCursor()
+	applicationName := t.getApplicationName(entry)
+	origin.SetSource(applicationName)
+	origin.SetService(applicationName)
+	return origin
+}
+
+// applicationKeys represents all the valid attributes used to extract the value of the application name of a journal entry.
+var applicationKeys = []string{
 	sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER, // "SYSLOG_IDENTIFIER"
+	sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT,      // "_SYSTEMD_UNIT"
 	sdjournal.SD_JOURNAL_FIELD_COMM,              // "_COMM"
 }
 
-// getService returns the name of the service from where the entry is from.
-func (t *Tailer) getService(entry *sdjournal.JournalEntry) string {
-	for _, key := range serviceKeys {
+// getApplicationName returns the name of the application from where the entry is from.
+func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry) string {
+	for _, key := range applicationKeys {
 		if value, exists := entry.Fields[key]; exists {
 			return value
 		}
 	}
 	return ""
+}
+
+// getSeverity returns the severity of the journal entry
+func (t *Tailer) getSeverity(entry *sdjournal.JournalEntry) []byte {
+	var severity []byte
+	if priority, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_PRIORITY]; exists {
+		severity = []byte(priority)
+	}
+	return severity
 }

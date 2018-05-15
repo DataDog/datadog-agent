@@ -18,7 +18,6 @@ import (
 type Tailer struct {
 	source     *config.LogSource
 	outputChan chan message.Message
-	errHandler ErrorHandler
 	stop       chan struct{}
 	done       chan struct{}
 }

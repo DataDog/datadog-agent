@@ -14,11 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// ErrorHandler handles tailing errors
-type ErrorHandler interface {
-	Handle(error TailError)
-}
-
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
 	sources          []*config.LogSource
@@ -70,23 +65,10 @@ func (l *Launcher) Stop() {
 	stopper.Stop()
 }
 
-// Handle keeps all tailers alive, restarting them when a fatal error occurs.
-func (l *Launcher) Handle(tailError TailError) {
-	log.Error(tailError.err)
-	if tailer, exists := l.tailers[tailError.journalID]; exists {
-		// safely stop and restart the tailer from its last committed cursor
-		tailer.Stop()
-		err := tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
-		if err != nil {
-			log.Warn("Could not restart journald tailer: ", err)
-		}
-	}
-}
-
 // setupTailer configures and starts a new tailer,
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
-	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan(), l)
+	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan())
 	err := tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
 	if err != nil {
 		return nil, err
