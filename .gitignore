@@ -43,3 +43,4 @@ datadog-agent*_amd64.deb
 /test/e2e/scripts/setup-instance/id_rsa
 /test/e2e/scripts/setup-instance/id_rsa.pub
 /test/e2e/scripts/setup-instance/ignition.json
+/test/e2e/containers/fake_datadog/venv/

@@ -272,7 +272,7 @@ spec:
             spec:
               containers:
               - name: api
-                image: julienbalestra/fake-datadog:latest
+                image: datadog/fake-datadog:latest
               - name: mongo
                 image: mongo:3.6.3
 
