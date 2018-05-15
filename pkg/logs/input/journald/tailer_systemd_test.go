@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestShouldDropEntry(t *testing.T) {
@@ -113,4 +114,27 @@ func TestContent(t *testing.T) {
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{},
 		}))
+}
+
+func TestSeverity(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil)
+
+	var err error
+	err = tailer.setup()
+	assert.Nil(t, err)
+	err = tailer.seek("")
+	assert.Nil(t, err)
+
+	priorityValues := []string{"0", "1", "2", "3", "4", "5", "6", "7", "foo"}
+	statuses := []string{message.StatusEmergency, message.StatusAlert, message.StatusCritical, message.StatusError, message.StatusWarning, message.StatusNotice, message.StatusInfo, message.StatusDebug, message.StatusInfo}
+
+	for i, priority := range priorityValues {
+		assert.Equal(t, statuses[i], tailer.getStatus(
+			&sdjournal.JournalEntry{
+				Fields: map[string]string{
+					sdjournal.SD_JOURNAL_FIELD_PRIORITY: priority,
+				},
+			}))
+	}
 }

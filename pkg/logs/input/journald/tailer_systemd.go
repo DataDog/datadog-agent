@@ -120,7 +120,7 @@ func (t *Tailer) tail() {
 	}
 }
 
-// shouldDrop returns true if the entry should be forwarded,
+// shouldDrop returns true if the entry should be dropped,
 // returns false otherwise.
 func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 	unit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
@@ -141,7 +141,7 @@ func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) message.Message {
 	return message.New(
 		t.getContent(entry),
 		t.getOrigin(entry),
-		t.getSeverity(entry),
+		t.getStatus(entry),
 	)
 }
 
@@ -209,11 +209,28 @@ func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry) string {
 	return ""
 }
 
-// getSeverity returns the severity of the journal entry
-func (t *Tailer) getSeverity(entry *sdjournal.JournalEntry) []byte {
-	var severity []byte
-	if priority, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_PRIORITY]; exists {
-		severity = []byte(priority)
+// priorityStatusMapping represents the 1:1 mapping between journal entry priorities and statuses.
+var priorityStatusMapping = map[string]string{
+	"0": message.StatusEmergency,
+	"1": message.StatusAlert,
+	"2": message.StatusCritical,
+	"3": message.StatusError,
+	"4": message.StatusWarning,
+	"5": message.StatusNotice,
+	"6": message.StatusInfo,
+	"7": message.StatusDebug,
+}
+
+// getStatus returns the status of the journal entry,
+// returns "info" by default if no valid value is found.
+func (t *Tailer) getStatus(entry *sdjournal.JournalEntry) string {
+	priority, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_PRIORITY]
+	if !exists {
+		return message.StatusInfo
 	}
-	return severity
+	status, exists := priorityStatusMapping[priority]
+	if !exists {
+		return message.StatusInfo
+	}
+	return status
 }
