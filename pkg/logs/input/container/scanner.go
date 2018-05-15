@@ -103,11 +103,11 @@ func (s *Scanner) run() {
 // tail, as well as stopped containers or containers that
 // restarted
 func (s *Scanner) scan(tailFromBeginning bool) {
-	runningContainers := s.listContainers()
+	allContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
 	// monitor new containers, and restart tailers if needed
-	for _, container := range runningContainers {
+	for _, container := range allContainers {
 		source := NewContainer(container).findSource(s.sources)
 		if source == nil {
 			continue
@@ -187,7 +187,7 @@ func (s *Scanner) dismissTailer(tailer *DockerTailer) {
 }
 
 func (s *Scanner) listContainers() []types.Container {
-	containers, err := s.cli.ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := s.cli.ContainerList(context.Background(), types.ContainerListOptions{All: true})
 	if err != nil {
 		log.Error("Can't tail containers, ", err)
 		log.Error("Is datadog-agent part of docker user group?")
