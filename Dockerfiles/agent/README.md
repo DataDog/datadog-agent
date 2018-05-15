@@ -27,6 +27,19 @@ The agent is highly customizable, here are the most used environment variables:
 - `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
 - `DD_CHECK_RUNNERS`: the agent runs all checks in sequence by default (default value = `1` runner). If you need to run a high number of checks (or slow checks) the `collector-queue` component might fall behind and fail the healthcheck. You can increase the number of runners to run checks in parallel
 
+#### Proxies
+
+The agent proxy settings can be overridden with the standard `*_PROXY`
+environment variables:
+
+- `HTTP_PROXY`: an http URL to use as a proxy for `http` requests.
+- `HTTPS_PROXY`: an http URL to use as a proxy for `https` requests.
+- `NO_PROXY`: a comma-separated list of URLs for which no proxy should be used.
+
+Notice: these variables don't use the `DD_` prefix.
+
+For more information: https://docs.datadoghq.com/agent/proxy/#agent-v6
+
 #### Optional collection agents
 
 These features are disabled by default for security or performance reasons, you need to explicitly enable them:
@@ -92,7 +105,7 @@ Please refer to the dedicated section about the [Kubernetes integration](#kubern
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
 - `DD_ENABLE_GOHAI`: enable or disable the system information collector [gohai](https://github.com/DataDog/gohai) (enabled by default if not set)
 
-Some options are not yet available as environment variable bindings (including proxy settings). To customize these, the agent supports mounting a custom `/etc/datadog-agent/datadog.yaml` configuration file (based on the [docker](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/datadog-docker.yaml) or [kubernetes](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/datadog-kubernetes.yaml) base configurations) for these options, and using environment variables for the rest.
+Some options are not yet available as environment variable bindings. To customize these, the agent supports mounting a custom `/etc/datadog-agent/datadog.yaml` configuration file (based on the [docker](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/datadog-docker.yaml) or [kubernetes](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/datadog-kubernetes.yaml) base configurations) for these options, and using environment variables for the rest.
 
 ### Optional volumes
 

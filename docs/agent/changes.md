@@ -90,6 +90,30 @@ When running the agent in a container, it is also possible to set some of the co
 
 To not miss some specific configuration details, if you are currently using environment variables to setup your agent's v5 configuration, [consult the new list of environment variables for Agent v6](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent#environment-variables).
 
+#### Proxies
+
+The agent proxy settings can be overridden with the standard `*_PROXY`
+environment variables:
+
+- `HTTP_PROXY`: an http URL to use as a proxy for `http` requests.
+- `HTTPS_PROXY`: an http URL to use as a proxy for `https` requests.
+- `NO_PROXY`: a comma-separated list of URLs for which no proxy should be used.
+
+Notice: these variables don't use the `DD_` prefix.
+
+**The behaviour of the Agent 6 is different from Agent 5**:
+
+The Agent 6 will first use the environment variables and the configuration file
+(as for every other setting available through environment variables). This is
+the opposite of Agent 5, which would always use the proxy from the configuration
+file if set.
+
+For proxies, the Agent 6 will override the values from the configuration file
+with the ones in the environment. This means that if both a `HTTP` and `HTTPS`
+proxy are set in the configuration file but only the `HTTPS_PROXY` is set in
+the environment, the agent will use the `HTTPS` value from the environment and
+the `HTTP` value from the configuration file.
+
 ## GUI
 
 Agent 6 deprecated Agent5's Windows Agent Manager GUI, replacing it with a browser-based, cross-platform one. See the [specific docs](gui.md) for more details.
