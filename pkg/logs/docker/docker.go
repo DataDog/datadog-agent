@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // Length of the docker message header.
@@ -29,9 +29,9 @@ func ParseMessage(msg []byte) (string, []byte, []byte, error) {
 	}
 
 	// First byte is 1 for stdout and 2 for stderr
-	sev := config.SevInfo
+	sev := message.SevInfo
 	if msg[0] == 2 {
-		sev = config.SevError
+		sev = message.SevError
 	}
 
 	// timestamp goes from byte 8 till first space

@@ -6,7 +6,6 @@
 package processor
 
 import (
-	"bytes"
 	"time"
 
 	"regexp"
@@ -53,7 +52,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		if msg.GetSeverity() != nil {
 			extraContent = append(extraContent, msg.GetSeverity()...)
 		} else {
-			extraContent = append(extraContent, config.SevInfo...)
+			extraContent = append(extraContent, message.SevInfo...)
 		}
 
 		// Protocol version
@@ -108,19 +107,9 @@ func (r *raw) isRFC5424Formatted(content []byte) bool {
 type proto struct{}
 
 func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
-
-	// TODO Remove occurrences of "severity" (it is now "status")
-	// Compute the status
-	var status string
-	if msg.GetSeverity() != nil && bytes.Equal(msg.GetSeverity(), config.SevError) {
-		status = config.StatusError
-	} else {
-		status = config.StatusInfo
-	}
-
 	return (&pb.Log{
 		Message:   string(redactedMsg),
-		Status:    status,
+		Status:    message.SeverityToStatus(msg.GetSeverity()),
 		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
 		Service:   msg.GetOrigin().LogSource.Config.Service,

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,28 +35,28 @@ func TestRawEncoder(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
-	message := newMessage([]byte(rawMessage), source, config.SevError)
-	message.GetOrigin().LogSource = source
-	message.GetOrigin().SetTags([]string{"a", "b:c"})
+	msg := newMessage([]byte(rawMessage), source, message.SevError)
+	msg.GetOrigin().LogSource = source
+	msg.GetOrigin().SetTags([]string{"a", "b:c"})
 
 	redactedMessage := "redacted"
 
-	raw, err := rawEncoder.encode(message, []byte(redactedMessage))
+	raw, err := rawEncoder.encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
 
-	msg := string(raw)
-	parts := strings.Fields(msg)
-	assert.Equal(t, string(config.SevError)+"0", parts[0])
+	content := string(raw)
+	parts := strings.Fields(content)
+	assert.Equal(t, string(message.SevError)+"0", parts[0])
 	assert.Equal(t, day, parts[1][:len(day)])
 	assert.NotEmpty(t, parts[2])
 	assert.Equal(t, "Service", parts[3])
 	assert.Equal(t, "-", parts[4])
 	assert.Equal(t, "-", parts[5])
-	extra := msg[strings.Index(msg, "[") : strings.LastIndex(msg, "]")+1]
+	extra := content[strings.Index(content, "[") : strings.LastIndex(content, "]")+1]
 	assert.Equal(t, "[dd ddsource=\"Source\"][dd ddsourcecategory=\"SourceCategory\"][dd ddtags=\"foo:bar,baz,a,b:c\"]", extra)
-	assert.Equal(t, "redacted", msg[strings.LastIndex(msg, " ")+1:])
+	assert.Equal(t, "redacted", content[strings.LastIndex(content, " ")+1:])
 
 }
 
@@ -66,19 +67,19 @@ func TestRawEncoderDefaults(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "a"
-	message := newMessage([]byte(rawMessage), source, nil)
+	msg := newMessage([]byte(rawMessage), source, nil)
 
 	redactedMessage := "a"
 
-	raw, err := rawEncoder.encode(message, []byte(redactedMessage))
+	raw, err := rawEncoder.encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
 
-	msg := string(raw)
-	parts := strings.Fields(msg)
+	content := string(raw)
+	parts := strings.Fields(content)
 	assert.Equal(t, 8, len(parts))
-	assert.Equal(t, string(config.SevInfo)+"0", parts[0])
+	assert.Equal(t, string(message.SevInfo)+"0", parts[0])
 	assert.Equal(t, day, parts[1][:len(day)])
 	assert.NotEmpty(t, parts[2])
 	assert.Equal(t, "-", parts[3])
@@ -96,11 +97,11 @@ func TestRawEncoderEmpty(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := ""
-	message := newMessage([]byte(rawMessage), source, nil)
+	msg := newMessage([]byte(rawMessage), source, nil)
 
 	redactedMessage := "foo"
 
-	raw, err := rawEncoder.encode(message, []byte(redactedMessage))
+	raw, err := rawEncoder.encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 	assert.Equal(t, redactedMessage, string(raw))
 
@@ -125,13 +126,13 @@ func TestProtoEncoder(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
-	message := newMessage([]byte(rawMessage), source, config.SevError)
-	message.GetOrigin().LogSource = source
-	message.GetOrigin().SetTags([]string{"a", "b:c"})
+	msg := newMessage([]byte(rawMessage), source, message.SevError)
+	msg.GetOrigin().LogSource = source
+	msg.GetOrigin().SetTags([]string{"a", "b:c"})
 
 	redactedMessage := "redacted"
 
-	proto, err := protoEncoder.encode(message, []byte(redactedMessage))
+	proto, err := protoEncoder.encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -145,7 +146,7 @@ func TestProtoEncoder(t *testing.T) {
 	assert.Equal(t, []string{"a", "b:c", "source:" + logsConfig.Source, "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
 
 	assert.Equal(t, redactedMessage, log.Message)
-	assert.Equal(t, config.StatusError, log.Status)
+	assert.Equal(t, message.StatusError, log.Status)
 	assert.NotEmpty(t, log.Timestamp)
 
 }
@@ -157,11 +158,11 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := ""
-	message := newMessage([]byte(rawMessage), source, nil)
+	msg := newMessage([]byte(rawMessage), source, nil)
 
 	redactedMessage := ""
 
-	raw, err := protoEncoder.encode(message, []byte(redactedMessage))
+	raw, err := protoEncoder.encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -175,7 +176,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	assert.Empty(t, log.Tags)
 
 	assert.Empty(t, log.Message)
-	assert.Equal(t, log.Status, config.StatusInfo)
+	assert.Equal(t, log.Status, message.StatusInfo)
 	assert.NotEmpty(t, log.Timestamp)
 
 }
