@@ -32,10 +32,10 @@ done
 _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-agent
 _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
 
-_ssh timeout 180 /home/core/datadog-agent/test/e2e/scripts/local/10-pupernetes-ready.sh
+_ssh timeout 180 /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-ready.sh
 
 # Use a logged bash
-_ssh_logged /home/core/datadog-agent/test/e2e/scripts/local/20-argo-download.sh
-_ssh_logged /home/core/datadog-agent/test/e2e/scripts/local/21-argo-setup.sh
-_ssh_logged /home/core/datadog-agent/test/e2e/scripts/local/22-argo-submit.sh
-_ssh_logged /home/core/datadog-agent/test/e2e/scripts/local/23-argo-get.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/21-argo-setup.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submit.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh

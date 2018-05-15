@@ -49,6 +49,10 @@ aws ec2 create-tags --resources ${SPOT_REQUEST_ID} ${INSTANCE_ID} \
     Key=commit,Value=${COMMIT_ID:0:8} \
     Key=user,Value=${COMMIT_USER}
 
+aws ec2 cancel-spot-instance-requests \
+    --spot-instance-request-ids ${SPOT_REQUEST_ID} \
+    --region ${REGION}
+
 set +e
 INSTANCE_ENDPOINT=""
 while true

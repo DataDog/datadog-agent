@@ -102,5 +102,5 @@ EOF
 )
 
 ./argo submit ../../argo-workflows/agent.yaml -w --parameter agent-daemonset="${AGENT_DAEMONSET}"
-
+# we are waiting for the end of the workflow but we don't care about its return code
 exit 0
