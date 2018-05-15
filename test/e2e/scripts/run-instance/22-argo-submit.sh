@@ -8,7 +8,7 @@ cd $(dirname $0)
 
 ls -l ../../argo-workflows/agent.yaml || exit 2
 
-CONTAINER_IMAGE=datadog/agent-dev:master
+# ${DATADOG_AGENT_IMAGE} is provided by the CI
 
 AGENT_DAEMONSET=$(cat << EOF
 ---
@@ -30,7 +30,7 @@ spec:
       serviceAccount: datadog-agent
       containers:
       - name: agent
-        image: ${CONTAINER_IMAGE}
+        image: ${DATADOG_AGENT_IMAGE}
         command:
         - /opt/datadog-agent/bin/agent/agent
         - start

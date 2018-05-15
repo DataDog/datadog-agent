@@ -35,4 +35,6 @@ tee specification.json << EOF
 }
 EOF
 
+export DATADOG_AGENT_IMAGE="${SOURCE_IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHA:0:7}${TAG_SUFFIX}"
+
 exec ./02-ec2.sh

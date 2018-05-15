@@ -29,6 +29,19 @@ do
     sleep 5
 done
 
+if [[ "${DATADOG_AGENT_IMAGE}x" == "x" ]]
+then
+    DATADOG_AGENT_IMAGE=datadog/agent-dev:master
+    echo "Running outside the gitlab pipeline, setting DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
+else
+    # This is not elegant...
+    echo "Running inside a gitlab pipeline, using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
+    eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
+    scp -i id_rsa ${HOME}/.docker/config.json core@${MACHINE}:/home/core/.docker/config.json
+fi
+
+export DATADOG_AGENT_IMAGE
+
 _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-agent
 _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
 
