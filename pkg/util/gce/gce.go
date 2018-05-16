@@ -30,6 +30,7 @@ type gceInstanceMetadata struct {
 	Zone        string
 	MachineType string
 	Hostname    string
+	Attributes  map[string]string
 }
 
 type gceProjectMetadata struct {

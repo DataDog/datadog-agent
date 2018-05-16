@@ -13,6 +13,10 @@ import (
 	"strings"
 )
 
+// Slice of attributes to exclude from the tags (because they're too long, useless or sensitive)
+var excludedAttributes = []string{"kube-env", "startup-script", "shutdown-script", "configure-sh",
+	"sshKeys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"}
+
 // GetTags gets the tags from the GCE api
 func GetTags() ([]string, error) {
 	tags := []string{}
@@ -51,5 +55,23 @@ func GetTags() ([]string, error) {
 		tags = append(tags, fmt.Sprintf("numeric_project_id:%d", metadata.Project.NumericProjectID))
 	}
 
+	if metadata.Instance.Attributes != nil {
+		for k, v := range metadata.Instance.Attributes {
+			if !isAttributeExcluded(k) {
+				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+			}
+		}
+	}
+
 	return tags, nil
+}
+
+// isAttributeExcluded returns whether the attribute key should be excluded from the tags
+func isAttributeExcluded(attr string) bool {
+	for _, excluded := range excludedAttributes {
+		if attr == excluded {
+			return true
+		}
+	}
+	return false
 }
