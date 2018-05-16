@@ -17,7 +17,7 @@ import (
 func GetTags() ([]string, error) {
 	tags := []string{}
 
-	metadataResponse, err := getResponse(metadataURL + "/instance/?recursive=true")
+	metadataResponse, err := getResponse(metadataURL + "/?recursive=true")
 	if err != nil {
 		return tags, err
 	}
@@ -29,26 +29,26 @@ func GetTags() ([]string, error) {
 		return tags, err
 	}
 
-	tags = metadata.Tags
-	if metadata.Zone != "" {
-		ts := strings.Split(metadata.Zone, "/")
+	tags = metadata.Instance.Tags
+	if metadata.Instance.Zone != "" {
+		ts := strings.Split(metadata.Instance.Zone, "/")
 		tags = append(tags, fmt.Sprintf("zone:%s", ts[len(ts)-1]))
 	}
-	if metadata.MachineType != "" {
-		ts := strings.Split(metadata.MachineType, "/")
+	if metadata.Instance.MachineType != "" {
+		ts := strings.Split(metadata.Instance.MachineType, "/")
 		tags = append(tags, fmt.Sprintf("instance-type:%s", ts[len(ts)-1]))
 	}
-	if metadata.Hostname != "" {
-		tags = append(tags, fmt.Sprintf("internal-hostname:%s", metadata.Hostname))
+	if metadata.Instance.Hostname != "" {
+		tags = append(tags, fmt.Sprintf("internal-hostname:%s", metadata.Instance.Hostname))
 	}
-	if metadata.ID != 0 {
-		tags = append(tags, fmt.Sprintf("instance-id:%d", metadata.ID))
+	if metadata.Instance.ID != 0 {
+		tags = append(tags, fmt.Sprintf("instance-id:%d", metadata.Instance.ID))
 	}
-	if metadata.ProjectID != 0 {
-		tags = append(tags, fmt.Sprintf("project:%d", metadata.ProjectID))
+	if metadata.Project.ProjectID != "" {
+		tags = append(tags, fmt.Sprintf("project:%s", metadata.Project.ProjectID))
 	}
-	if metadata.NumericProjectID != 0 {
-		tags = append(tags, fmt.Sprintf("numeric_project_id:%d", metadata.NumericProjectID))
+	if metadata.Project.NumericProjectID != 0 {
+		tags = append(tags, fmt.Sprintf("numeric_project_id:%d", metadata.Project.NumericProjectID))
 	}
 
 	return tags, nil
