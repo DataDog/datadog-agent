@@ -49,11 +49,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent := []byte("")
 
 		// Severity
-		if msg.GetSeverity() != nil {
-			extraContent = append(extraContent, msg.GetSeverity()...)
-		} else {
-			extraContent = append(extraContent, message.SevInfo...)
-		}
+		extraContent = append(extraContent, message.StatusToSeverity(msg.GetStatus())...)
 
 		// Protocol version
 		extraContent = append(extraContent, '0')
@@ -109,7 +105,7 @@ type proto struct{}
 func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 	return (&pb.Log{
 		Message:   string(redactedMsg),
-		Status:    message.SeverityToStatus(msg.GetSeverity()),
+		Status:    msg.GetStatus(),
 		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
 		Service:   msg.GetOrigin().LogSource.Config.Service,

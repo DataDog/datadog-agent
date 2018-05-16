@@ -153,7 +153,7 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(t.tags)
-		t.outputChan <- message.New(output.Content, origin, nil)
+		t.outputChan <- message.New(output.Content, origin, "")
 	}
 }
 

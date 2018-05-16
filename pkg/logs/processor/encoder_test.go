@@ -35,7 +35,7 @@ func TestRawEncoder(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
-	msg := newMessage([]byte(rawMessage), source, message.SevError)
+	msg := newMessage([]byte(rawMessage), source, message.StatusError)
 	msg.GetOrigin().LogSource = source
 	msg.GetOrigin().SetTags([]string{"a", "b:c"})
 
@@ -67,7 +67,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "a"
-	msg := newMessage([]byte(rawMessage), source, nil)
+	msg := newMessage([]byte(rawMessage), source, "")
 
 	redactedMessage := "a"
 
@@ -97,7 +97,7 @@ func TestRawEncoderEmpty(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := ""
-	msg := newMessage([]byte(rawMessage), source, nil)
+	msg := newMessage([]byte(rawMessage), source, "")
 
 	redactedMessage := "foo"
 
@@ -126,7 +126,7 @@ func TestProtoEncoder(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
-	msg := newMessage([]byte(rawMessage), source, message.SevError)
+	msg := newMessage([]byte(rawMessage), source, message.StatusError)
 	msg.GetOrigin().LogSource = source
 	msg.GetOrigin().SetTags([]string{"a", "b:c"})
 
@@ -158,7 +158,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := ""
-	msg := newMessage([]byte(rawMessage), source, nil)
+	msg := newMessage([]byte(rawMessage), source, "")
 
 	redactedMessage := ""
 

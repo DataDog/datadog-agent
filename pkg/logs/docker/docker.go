@@ -17,29 +17,29 @@ import (
 // [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 const messageHeaderLength = 8
 
-// ParseMessage extracts the date and the severity from the raw docker message
+// ParseMessage extracts the date and the status from the raw docker message
 // see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func ParseMessage(msg []byte) (string, []byte, []byte, error) {
+func ParseMessage(msg []byte) (string, string, []byte, error) {
 
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < messageHeaderLength {
-		return "", nil, nil, errors.New("Can't parse docker message: expected a 8 bytes header")
+		return "", "", nil, errors.New("Can't parse docker message: expected a 8 bytes header")
 	}
 
 	// First byte is 1 for stdout and 2 for stderr
-	sev := message.SevInfo
+	status := message.StatusInfo
 	if msg[0] == 2 {
-		sev = message.SevError
+		status = message.StatusError
 	}
 
 	// timestamp goes from byte 8 till first space
 	to := bytes.Index(msg[messageHeaderLength:], []byte{' '})
 	if to == -1 {
-		return "", nil, nil, errors.New("Can't parse docker message: expected a whitespace after header")
+		return "", "", nil, errors.New("Can't parse docker message: expected a whitespace after header")
 	}
 	to += messageHeaderLength
 	ts := string(msg[messageHeaderLength:to])
-	return ts, sev, msg[to+1:], nil
+	return ts, status, msg[to+1:], nil
 }

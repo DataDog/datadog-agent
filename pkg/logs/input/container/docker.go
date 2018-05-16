@@ -192,7 +192,7 @@ func (dt *DockerTailer) forwardMessages() {
 		dt.done <- struct{}{}
 	}()
 	for output := range dt.decoder.OutputChan {
-		ts, sev, content, err := parser.ParseMessage(output.Content)
+		ts, status, content, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -201,7 +201,7 @@ func (dt *DockerTailer) forwardMessages() {
 		origin.Offset = ts
 		origin.Identifier = dt.Identifier()
 		origin.SetTags(dt.containerTags)
-		dt.outputChan <- message.New(content, origin, sev)
+		dt.outputChan <- message.New(content, origin, status)
 	}
 }
 
