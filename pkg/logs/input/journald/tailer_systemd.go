@@ -58,11 +58,11 @@ func (t *Tailer) setup() error {
 		}
 	}
 
-	blacklist := make(map[string]bool)
+	t.blacklist = make(map[string]bool)
 	for _, unit := range config.ExcludeUnits {
-		blacklist[unit] = true
+		// add filters to drop all the logs related to units to exclude.
+		t.blacklist[unit] = true
 	}
-	t.blacklist = blacklist
 
 	return nil
 }
@@ -186,6 +186,8 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	origin := message.NewOrigin(t.source)
 	origin.Identifier = t.Identifier()
 	origin.Offset, _ = t.journal.GetCursor()
+	// set the service and the source attributes of the message,
+	// those values are still overridden by the integration config when defined
 	applicationName := t.getApplicationName(entry)
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
