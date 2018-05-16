@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	log "github.com/cihub/seelog"
 )
 
@@ -112,7 +113,7 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 }
 
 // ReloadCheck stops and restart a check with a new configuration
-func (c *Collector) ReloadCheck(id check.ID, config, initConfig check.ConfigData) error {
+func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data) error {
 	if !c.started() {
 		return fmt.Errorf("the collector is not running")
 	}

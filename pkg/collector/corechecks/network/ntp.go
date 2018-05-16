@@ -11,6 +11,7 @@ import (
 	"math/rand"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/beevik/ntp"
 	log "github.com/cihub/seelog"
 
@@ -91,7 +92,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data) error {
 	cfg := new(ntpConfig)
 	err := cfg.parse(data, initConfig)
 	if err != nil {

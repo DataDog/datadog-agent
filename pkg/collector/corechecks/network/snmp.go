@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	log "github.com/cihub/seelog"
@@ -642,7 +643,7 @@ func (c *SNMPCheck) getSNMP() error {
 }
 
 // Configure the check from YAML data
-func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *SNMPCheck) Configure(data integration.Data, initConfig integration.Data) error {
 
 	cfg := new(snmpConfig)
 	err := cfg.parse(data, initConfig)

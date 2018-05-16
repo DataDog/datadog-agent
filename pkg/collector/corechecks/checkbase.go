@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 // CheckBase provides default implementations for most of the check.Check
@@ -43,7 +44,7 @@ func NewCheckBase(name string) CheckBase {
 
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
-func (c *CheckBase) BuildID(instance, initConfig check.ConfigData) {
+func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
 	c.checkID = check.BuildID(c.checkName, instance, initConfig)
 }
 

@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -23,7 +23,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 	for nb, tc := range []struct {
 		desc        string
 		pod         *kubelet.Pod
-		expectedCfg []check.Config
+		expectedCfg []integration.Config
 	}{
 		{
 			desc: "No annotations",
@@ -61,12 +61,12 @@ func TestParseKubeletPodlist(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: []check.Config{
+			expectedCfg: []integration.Config{
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
-					InitConfig:    check.ConfigData("{}"),
-					Instances:     []check.ConfigData{check.ConfigData("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 				},
 			},
 		},
@@ -96,18 +96,18 @@ func TestParseKubeletPodlist(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: []check.Config{
+			expectedCfg: []integration.Config{
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
-					InitConfig:    check.ConfigData("{}"),
-					Instances:     []check.ConfigData{check.ConfigData("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 				},
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
-					InitConfig:    check.ConfigData("{}"),
-					Instances:     []check.ConfigData{check.ConfigData("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
 				},
 			},
 		},
@@ -130,18 +130,18 @@ func TestParseKubeletPodlist(t *testing.T) {
 					},
 				},
 			},
-			expectedCfg: []check.Config{
+			expectedCfg: []integration.Config{
 				{
 					Name:          "apache",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
-					InitConfig:    check.ConfigData("{}"),
-					Instances:     []check.ConfigData{check.ConfigData("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
 				},
 				{
 					Name:          "http_check",
 					ADIdentifiers: []string{"docker://3b8efe0c50e8"},
-					InitConfig:    check.ConfigData("{}"),
-					Instances:     []check.ConfigData{check.ConfigData("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 				},
 			},
 		},

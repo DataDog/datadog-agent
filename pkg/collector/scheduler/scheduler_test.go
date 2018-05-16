@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,7 +18,7 @@ import (
 type TestCheck struct{ intl time.Duration }
 
 func (c *TestCheck) String() string                                     { return "TestCheck" }
-func (c *TestCheck) Configure(check.ConfigData, check.ConfigData) error { return nil }
+func (c *TestCheck) Configure(integration.Data, integration.Data) error { return nil }
 func (c *TestCheck) Interval() time.Duration                            { return c.intl }
 func (c *TestCheck) Run() error                                         { return nil }
 func (c *TestCheck) Stop()                                              {}

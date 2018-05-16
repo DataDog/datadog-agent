@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"
@@ -24,7 +25,7 @@ import (
 var JMXConfigCache = cache.NewBasicCache()
 
 // AddJMXCachedConfig adds a config to the jmx config cache
-func AddJMXCachedConfig(config check.Config) {
+func AddJMXCachedConfig(config integration.Config) {
 	mapConfig := map[string]interface{}{}
 	mapConfig["name"] = config.Name
 	mapConfig["timestamp"] = time.Now().Unix()
@@ -44,7 +45,7 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 }
 
 // Load returns an (empty?) list of checks and nil if it all works out
-func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
+func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
 
@@ -52,7 +53,7 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 
-	rawInitConfig := check.ConfigRawMap{}
+	rawInitConfig := integration.RawMap{}
 	err = yaml.Unmarshal(config.InitConfig, &rawInitConfig)
 	if err != nil {
 		log.Errorf("jmx.loader: could not unmarshal instance config: %s", err)

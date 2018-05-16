@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	log "github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
@@ -114,7 +115,7 @@ func (c *JMXCheck) run() error {
 	return err
 }
 
-func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
+func (c *JMXCheck) Parse(data, initConfig integration.Data) error {
 
 	var initConf checkInitCfg
 	var instanceConf checkInstanceCfg
@@ -167,7 +168,7 @@ func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
 }
 
 // Configure the JMXCheck
-func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
+func (c *JMXCheck) Configure(data, initConfig integration.Data) error {
 	return c.Parse(data, initConfig)
 }
 

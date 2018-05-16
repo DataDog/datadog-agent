@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +31,7 @@ func TestToPython(t *testing.T) {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
 
-	c := make(check.ConfigRawMap)
+	c := make(integration.RawMap)
 
 	err = yaml.Unmarshal(yamlFile, &c)
 	if err != nil {

@@ -5,12 +5,14 @@
 
 package response
 
-import "github.com/DataDog/datadog-agent/pkg/collector/check"
+import (
+	"github.com/DataDog/datadog-agent/pkg/integration"
+)
 
 // ConfigCheckResponse holds the config check response
 type ConfigCheckResponse struct {
-	Configs         []check.Config          `json:"configs"`
-	ResolveWarnings map[string][]string     `json:"resolve_warnings"`
-	ConfigErrors    map[string]string       `json:"config_errors"`
-	Unresolved      map[string]check.Config `json:"unresolved"`
+	Configs         []integration.Config          `json:"configs"`
+	ResolveWarnings map[string][]string           `json:"resolve_warnings"`
+	ConfigErrors    map[string]string             `json:"config_errors"`
+	Unresolved      map[string]integration.Config `json:"unresolved"`
 }
