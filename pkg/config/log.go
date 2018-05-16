@@ -17,7 +17,9 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/pkg/flare"
+	"github.com/DataDog/util/log"
+	"github.com/cihub/seelog"
 )
 
 const logFileMaxSize = 10 * 1024 * 1024         // 10MB
@@ -84,11 +86,13 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 	</formats>
 </seelog>`, logDateFormat, logDateFormat)
 
-	logger, err := log.LoggerFromConfigAsString(configTemplate)
+	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
 	if err != nil {
 		return err
 	}
-	log.ReplaceLogger(logger)
+	seelog.ReplaceLogger(logger)
+
+	log.SetupDatadogLogger(logger)
 	return nil
 }
 
@@ -97,22 +101,22 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 type ErrorLogWriter struct{}
 
 func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
-	log.Error(string(p))
+	seelog.Error(string(p))
 	return len(p), nil
 }
 
-var levelToSyslogSeverity = map[log.LogLevel]int{
+var levelToSyslogSeverity = map[seelog.LogLevel]int{
 	// Mapping to RFC 5424 where possible
-	log.TraceLvl:    7,
-	log.DebugLvl:    7,
-	log.InfoLvl:     6,
-	log.WarnLvl:     4,
-	log.ErrorLvl:    3,
-	log.CriticalLvl: 2,
-	log.Off:         7,
+	seelog.TraceLvl:    7,
+	seelog.DebugLvl:    7,
+	seelog.InfoLvl:     6,
+	seelog.WarnLvl:     4,
+	seelog.ErrorLvl:    3,
+	seelog.CriticalLvl: 2,
+	seelog.Off:         7,
 }
 
-func createSyslogHeaderFormatter(params string) log.FormatterFunc {
+func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 	facility := 20
 	rfc := false
 
@@ -132,13 +136,13 @@ func createSyslogHeaderFormatter(params string) log.FormatterFunc {
 	appName := filepath.Base(os.Args[0])
 
 	if rfc { // RFC 5424
-		return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
+		return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
 		}
 	}
 
 	// otherwise old-school logging
-	return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
 	}
 }
@@ -195,7 +199,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 }
 
 // ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, level log.LogLevel, context log.LogContextInterface) error {
+func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
 	if !s.enabled {
 		return nil
 	}
@@ -224,7 +228,7 @@ func (s *SyslogReceiver) ReceiveMessage(message string, level log.LogLevel, cont
 }
 
 // AfterParse parses the receiver configuration
-func (s *SyslogReceiver) AfterParse(initArgs log.CustomReceiverInitArgs) error {
+func (s *SyslogReceiver) AfterParse(initArgs seelog.CustomReceiverInitArgs) error {
 	var conn net.Conn
 	var ok bool
 	var err error
@@ -272,7 +276,21 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
+type ScrubbingWriter struct{}
+
+func (sw *ScrubbingWriter) Write(p []byte) (n int, err error) {
+	l := len(p)
+	if scrubbed, err = flare.CredentialsCleanerBytes(p); err == nil {
+		fmt.Printf("%s", string(scrubbed))
+		l = len(scrubbed)
+	} else {
+		fmt.Printf("%s", string(p))
+	}
+
+	return l, nil
+}
+
 func init() {
-	log.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
-	log.RegisterReceiver("syslog", &SyslogReceiver{})
+	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
+	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
 }

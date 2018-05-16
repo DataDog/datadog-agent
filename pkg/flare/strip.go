@@ -57,7 +57,17 @@ func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
 }
 
-func credentialsCleanerBytes(file []byte) ([]byte, error) {
+func credentialsCleanerFile(filePath string) ([]byte, error) {
+	file, err := os.Open(filePath)
+	defer file.Close()
+	if err != nil {
+		return nil, err
+	}
+	return credentialsCleaner(file)
+}
+
+//CredentialsCleanerBytes scrubs credentials from slice of bytes
+func CredentialsCleanerBytes(file []byte) ([]byte, error) {
 	r := bytes.NewReader(file)
 	return credentialsCleaner(r)
 }
