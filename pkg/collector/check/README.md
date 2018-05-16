@@ -6,7 +6,7 @@ existing configuration.
 
 ### Check Loaders
 Loaders implement the `CheckLoader` interface, they are responsible to instantiate one object of type `check.Check` for
-every configuration instance within a `CheckConfig` object. A Loader usually invokes the `Configure` method on check
+every configuration instance within a `integration.Config` object. A Loader usually invokes the `Configure` method on check
 objects passing in the configuration instance in YAML format: how to use it, it's up to the check itself.
 
 Usage example:
