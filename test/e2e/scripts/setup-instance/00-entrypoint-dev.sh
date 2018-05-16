@@ -10,7 +10,7 @@ IGNITION_BASE64=$(cat ignition.json | base64 -w 0)
 
 tee specification.json << EOF
 {
-  "ImageId": "ami-9e2685e3",
+  "ImageId": "ami-5555ff2a",
   "InstanceType": "t2.medium",
   "Monitoring": {
     "Enabled": false

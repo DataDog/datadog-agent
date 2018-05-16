@@ -9,6 +9,12 @@ cd $(dirname $0)
 ls -l ../../argo-workflows/agent.yaml || exit 2
 
 # ${DATADOG_AGENT_IMAGE} is provided by the CI
+test ${DATADOG_AGENT_IMAGE} || {
+    echo "DATADOG_AGENT_IMAGE needs to be set" >&2
+    exit 2
+}
+
+echo "DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
 
 AGENT_DAEMONSET=$(cat << EOF
 ---

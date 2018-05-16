@@ -10,7 +10,7 @@ IGNITION_BASE64=$(cat ignition.json | base64 -w 0)
 
 tee specification.json << EOF
 {
-  "ImageId": "ami-9e2685e3",
+  "ImageId": "ami-5555ff2a",
   "InstanceType": "t2.medium",
   "Monitoring": {
     "Enabled": false
@@ -36,5 +36,6 @@ tee specification.json << EOF
 EOF
 
 export DATADOG_AGENT_IMAGE="${SOURCE_IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHA:0:7}${TAG_SUFFIX}"
+echo "Using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
 
 exec ./02-ec2.sh
