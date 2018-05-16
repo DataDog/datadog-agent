@@ -31,6 +31,10 @@ tee ignition.json << EOF
         "name": "user-configvirtfs.service"
       },
       {
+        "mask": true,
+        "name": "locksmithd.service"
+      },
+      {
         "enabled": true,
         "name": "oem-cloudinit.service",
         "contents": "[Unit]\nDescription=Cloudinit from platform metadata\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/coreos-cloudinit --oem=ec2-compat\n\n[Install]\nWantedBy=multi-user.target\n"
@@ -58,6 +62,14 @@ tee ignition.json << EOF
   },
   "storage": {
     "files": [
+      {
+        "path": "/etc/coreos/update.conf",
+        "mode": 420,
+        "contents": {
+          "source": "data:,GROUP%3Dalpha%0AREBOOT_STRATEGY%3Doff%0A"
+        },
+        "filesystem": "root"
+      },
       {
         "path": "/opt/bin/setup-pupernetes",
         "mode": 320,
