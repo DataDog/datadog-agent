@@ -213,6 +213,25 @@ func (c ContainerCgroup) MemLimit() (uint64, error) {
 	return v, nil
 }
 
+// SoftMemLimit returns the soft memory limit of the cgroup, if it exists. If the file does not
+// exist or there is no limit then this will default to 0.
+func (c ContainerCgroup) SoftMemLimit() (uint64, error) {
+	v, err := c.ParseSingleStat("memory", "memory.soft_limit_in_bytes")
+	if os.IsNotExist(err) {
+		log.Debugf("Missing cgroup file: %s",
+			c.cgroupFilePath("memory", "memory.soft_limit_in_bytes"))
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	// limit_in_bytes is a special case here, it's possible that it shows a ridiculous number,
+	// in which case it represents unlimited, so return 0 here
+	if v > uint64(math.Pow(2, 60)) {
+		v = 0
+	}
+	return v, nil
+}
+
 // CPU returns the CPU status for this cgroup instance
 // If the cgroup file does not exist then we just log debug return nothing.
 func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {

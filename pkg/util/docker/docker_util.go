@@ -256,7 +256,11 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 			}
 			container.MemLimit, err = cgroup.MemLimit()
 			if err != nil {
-				log.Debugf("Cgroup cpu limit: %s", err)
+				log.Debugf("Cgroup mem limit: %s", err)
+			}
+			container.SoftMemLimit, err = cgroup.SoftMemLimit()
+			if err != nil {
+				log.Debugf("Cgroup soft mem limit: %s", err)
 			}
 		}
 		cache.Cache.Set(cacheKey, containers, d.cfg.CacheDuration)
