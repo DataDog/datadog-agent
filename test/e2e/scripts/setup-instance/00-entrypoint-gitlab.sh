@@ -55,7 +55,7 @@ kubectl create secret docker-registry ecr-credentials \
   --docker-password="$(cat ecr.login | cut -f6 -d ' ')" \
   --docker-email=dev@null.com
 
-kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "ecr-credentials"}]}'
+kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "ecr"}]}'
 EOF
 chmod +x kube-script.sh
 
