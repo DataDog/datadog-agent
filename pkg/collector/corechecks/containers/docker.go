@@ -202,6 +202,10 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
+		if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
+			sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
+		}
+
 		sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
 		sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
 

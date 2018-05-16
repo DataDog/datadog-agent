@@ -101,6 +101,38 @@ func TestMemLimit(t *testing.T) {
 	assert.Equal(t, value, uint64(1234))
 }
 
+func TestSoftMemLimit(t *testing.T) {
+	tempFolder, err := newTempFolder("soft-mem-limit")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "memory")
+
+	// No file
+	value, err := cgroup.SoftMemLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Invalid file
+	tempFolder.add("memory/memory.soft_limit_in_bytes", "ab")
+	value, err = cgroup.SoftMemLimit()
+	assert.NotNil(t, err)
+	assert.IsType(t, err, &strconv.NumError{})
+	assert.Equal(t, value, uint64(0))
+
+	// Overflow value
+	tempFolder.add("memory/memory.soft_limit_in_bytes", strconv.Itoa(int(math.Pow(2, 61))))
+	value, err = cgroup.SoftMemLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Valid value
+	tempFolder.add("memory/memory.soft_limit_in_bytes", "1234")
+	value, err = cgroup.SoftMemLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(1234))
+}
+
 func TestParseSingleStat(t *testing.T) {
 	tempFolder, err := newTempFolder("test-parse-single-stat")
 	assert.Nil(t, err)
