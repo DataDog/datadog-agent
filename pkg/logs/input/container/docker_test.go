@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -38,10 +39,10 @@ func (suite *DockerTailerTestSuite) TestDockerTailerRemovesDate() {
 		msg = append(msg, msgMeta[i])
 	}
 	msg = append(msg, []byte("2007-01-12T01:01:01.000000000Z my message")...)
-	ts, sev, msg, err := parser.ParseMessage(msg)
+	ts, status, msg, err := parser.ParseMessage(msg)
 	suite.Nil(err)
 	suite.Equal("my message", string(msg))
-	suite.Equal("<46>", string(sev))
+	suite.Equal(message.StatusInfo, status)
 	suite.Equal("2007-01-12T01:01:01.000000000Z", ts)
 
 	msgMeta[0] = 2
@@ -50,10 +51,10 @@ func (suite *DockerTailerTestSuite) TestDockerTailerRemovesDate() {
 		msg = append(msg, msgMeta[i])
 	}
 	msg = append(msg, []byte("2008-01-12T01:01:01.000000000Z my error")...)
-	ts, sev, msg, err = parser.ParseMessage(msg)
+	ts, status, msg, err = parser.ParseMessage(msg)
 	suite.Nil(err)
 	suite.Equal("my error", string(msg))
-	suite.Equal("<43>", string(sev))
+	suite.Equal(message.StatusError, status)
 	suite.Equal("2008-01-12T01:01:01.000000000Z", ts)
 }
 

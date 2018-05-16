@@ -10,21 +10,21 @@ type Message interface {
 	Content() []byte
 	SetContent([]byte)
 	GetOrigin() *Origin
-	GetSeverity() []byte
+	GetStatus() string
 }
 
 type message struct {
-	content  []byte
-	origin   *Origin
-	severity []byte
+	content []byte
+	origin  *Origin
+	status  string
 }
 
 // New returns a new Message
-func New(content []byte, origin *Origin, severity []byte) Message {
+func New(content []byte, origin *Origin, status string) Message {
 	return &message{
-		content:  content,
-		origin:   origin,
-		severity: severity,
+		content: content,
+		origin:  origin,
+		status:  status,
 	}
 }
 
@@ -43,7 +43,10 @@ func (m *message) GetOrigin() *Origin {
 	return m.origin
 }
 
-// GetSeverity returns the severity of the message when set
-func (m *message) GetSeverity() []byte {
-	return m.severity
+// GetStatus returns the status of the message
+func (m *message) GetStatus() string {
+	if m.status != "" {
+		return m.status
+	}
+	return StatusInfo
 }
