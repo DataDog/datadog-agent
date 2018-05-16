@@ -10,11 +10,17 @@ ls -l ../../argo-workflows/agent.yaml || exit 2
 
 # ${DATADOG_AGENT_IMAGE} is provided by the CI
 test ${DATADOG_AGENT_IMAGE} || {
-    echo "DATADOG_AGENT_IMAGE needs to be set" >&2
+    echo "DATADOG_AGENT_IMAGE envvar needs to be set" >&2
     exit 2
 }
 
 echo "DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
+
+IMAGE_PULL_SECRETS=$(kubectl get serviceaccount default -o json | jq -rec .imagePullSecrets)
+if [[ $? != 0 ]]
+then
+    IMAGE_PULL_SECRETS="[]"
+fi
 
 AGENT_DAEMONSET=$(cat << EOF
 ---
@@ -34,6 +40,7 @@ spec:
       name: datadog-agent
     spec:
       serviceAccount: datadog-agent
+      imagePullSecrets: ${IMAGE_PULL_SECRETS}
       containers:
       - name: agent
         image: ${DATADOG_AGENT_IMAGE}
