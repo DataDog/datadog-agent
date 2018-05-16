@@ -1,0 +1,86 @@
+active_directory==1.1.0; sys_platform == 'windows'
+activemq_xml==1.0.0
+apache==1.2.0
+aspdotnet==0.1.2; sys_platform == 'windows'
+btrfs==1.1.0; sys_platform != 'windows'
+cacti==1.1.0; sys_platform != 'windows'
+cassandra_nodetool==0.1.1
+ceph==1.3.0; sys_platform != 'windows'
+consul==1.4.0
+couch==2.5.0
+couchbase==1.3.0
+datadog_checks_base==1.2.2; sys_platform != 'windows'
+directory==1.2.0
+disk==1.2.0
+dns_check==1.1.0
+dotnetclr==1.0.0; sys_platform == 'windows'
+ecs_fargate==1.2.0
+elastic==1.6.0
+envoy==1.1.0
+etcd==1.4.0
+exchange_server==1.1.0; sys_platform == 'windows'
+fluentd==1.0.0
+gearmand==1.1.0; sys_platform != 'windows'
+gitlab==1.1.0
+gitlab_runner==1.1.0
+go_expvar==1.0.3
+gunicorn==1.2.0; sys_platform != 'windows'
+haproxy==1.3.0
+hdfs_datanode==1.2.0; sys_platform != 'windows'
+hdfs_namenode==1.2.1; sys_platform != 'windows'
+http_check==2.1.0
+iis==2.1.0; sys_platform == 'windows'
+istio==1.0.0
+kafka_consumer==1.4.0; sys_platform != 'windows'
+kong==1.2.0
+kube_dns==1.3.0
+kube_proxy==1.0.0
+kubelet==1.2.0; sys_platform != 'windows'
+kubernetes_state==2.5.0; sys_platform != 'windows'
+kyototycoon==1.3.0
+lighttpd==1.2.0
+linkerd==1.0.0
+linux_proc_extras==1.0.0; sys_platform == 'linux'
+mapreduce==1.2.0
+marathon==1.3.0; sys_platform != 'windows'
+mcache==1.2.0; sys_platform != 'windows'
+mesos_master==1.2.0; sys_platform != 'windows'
+mesos_slave==1.2.0; sys_platform != 'windows'
+mongo==1.5.4
+mysql==1.2.0
+nagios==1.1.0
+network==1.5.0
+nfsstat==0.2.0; sys_platform != 'windows'
+nginx==2.2.0
+openstack==1.2.0
+oracle==1.3.0
+pdh_check==1.2.0; sys_platform == 'windows'
+pgbouncer==1.2.0; sys_platform != 'windows'
+php_fpm==1.1.0
+postfix==1.1.0; sys_platform != 'windows'
+postgres==2.1.1
+powerdns_recursor==1.0.0
+process==1.3.0
+prometheus==1.0.0
+rabbitmq==1.5.1
+redisdb==1.5.0
+riak==1.2.0
+riakcs==1.1.0
+snmp==1.4.0
+spark==1.2.0
+sqlserver==1.4.0; sys_platform == 'windows'
+squid==1.0.0
+ssh_check==1.2.0
+system_core==1.0.0
+system_swap==1.1.0
+tcp_check==2.0.0
+teamcity==1.0.0
+tokumx==1.2.0
+twemproxy==1.2.0
+varnish==1.2.0
+vsphere==2.1.0
+win32_event_log==1.1.1; sys_platform == 'windows'
+windows_service==1.2.0; sys_platform == 'windows'
+wmi_check==1.1.1; sys_platform == 'windows'
+yarn==1.2.0
+zk==1.2.0; sys_platform != 'windows'
