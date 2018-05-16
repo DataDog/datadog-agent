@@ -4,6 +4,8 @@ set -ex
 
 cd $(dirname $0)
 
+git clean -fdx .
+
 # Generate ssh-key and ignition files
 ./01-ignition.sh
 IGNITION_BASE64=$(cat ignition.json | base64 -w 0)

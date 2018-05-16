@@ -21,7 +21,7 @@ function _ssh() {
 }
 
 function _ssh_logged() {
-    ssh ${SSH_OPTS} -lcore ${MACHINE} -o SendEnv "DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}" /bin/bash -l -c "$@"
+    ssh ${SSH_OPTS} -lcore ${MACHINE} -o SendEnv "DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master}" /bin/bash -l -c "$@"
 }
 
 until _ssh /bin/true
@@ -29,16 +29,6 @@ do
     sleep 5
 done
 
-if [[ "${DATADOG_AGENT_IMAGE}x" == "x" ]]
-then
-    DATADOG_AGENT_IMAGE=datadog/agent-dev:master
-    echo "Running outside the gitlab pipeline, setting DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
-else
-    # This is not elegant...
-    echo "Running inside a gitlab pipeline, using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
-    eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
-    ls -l ${HOME}/.docker/config.json && scp -i id_rsa ${HOME}/.docker/config.json core@${MACHINE}:/home/core/.docker/config.json
-fi
 
 _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-agent
 _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
@@ -48,5 +38,14 @@ _ssh timeout 180 /home/core/datadog-agent/test/e2e/scripts/run-instance/10-puper
 # Use a logged bash
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/21-argo-setup.sh
+
+# AWS ECR specific
+if [[ -e kube-script.sh ]]
+then
+    KUBE_SCRIPT="/home/core/datadog-agent/test/e2e/scripts/run-instance/kube-script.sh"
+    scp ${SSH_OPTS} kube-script.sh core@${MACHINE}:${KUBE_SCRIPT}
+    _ssh_logged ${KUBE_SCRIPT}
+fi
+
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submit.sh
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
