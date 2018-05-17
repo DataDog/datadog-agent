@@ -9,7 +9,6 @@
 package kubernetes
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,13 +16,11 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/ericchiang/k8s"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -90,12 +87,12 @@ func (suite *testSuite) SetupTest() {
 
 func (suite *testSuite) TestKubeEvents() {
 	// Init own client to write the events
-	var k8sConf *k8s.Config
-	k8sConf, err := apiserver.ParseKubeConfig(suite.kubeConfigPath)
+	config.Datadog.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
+	c, err := apiserver.GetAPIClient()
+
 	require.Nil(suite.T(), err)
-	rawClient, err := k8s.NewClient(k8sConf)
-	require.Nil(suite.T(), err)
-	core := rawClient.CoreV1()
+
+	core := c.Client
 	require.NotNil(suite.T(), core)
 
 	// Ignore potential startup events
@@ -104,8 +101,8 @@ func (suite *testSuite) TestKubeEvents() {
 
 	// Create started event
 	testReference := createObjectReference("default", "integration_test", "event_test")
-	startedEvent := createEvent("default", "test_started", "started", testReference)
-	_, err = core.CreateEvent(context.Background(), startedEvent)
+	startedEvent := createEvent("default", "test_started", "started", *testReference)
+	_, err = core.Events("default").Create(startedEvent)
 	require.Nil(suite.T(), err)
 
 	// Test we get the new started event
@@ -113,11 +110,11 @@ func (suite *testSuite) TestKubeEvents() {
 	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), added, 1)
 	assert.Len(suite.T(), modified, 0)
-	assert.Equal(suite.T(), "started", *added[0].Reason)
+	assert.Equal(suite.T(), "started", added[0].Reason)
 
 	// Create tick event
-	tickEvent := createEvent("default", "test_tick", "tick", testReference)
-	_, err = core.CreateEvent(context.Background(), tickEvent)
+	tickEvent := createEvent("default", "test_tick", "tick", *testReference)
+	_, err = core.Events("default").Create(tickEvent)
 	require.Nil(suite.T(), err)
 
 	// Test we get the new tick event
@@ -125,19 +122,19 @@ func (suite *testSuite) TestKubeEvents() {
 	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), added, 1)
 	assert.Len(suite.T(), modified, 0)
-	assert.Equal(suite.T(), "tick", *added[0].Reason)
+	assert.Equal(suite.T(), "tick", added[0].Reason)
 
 	// Update tick event
 	pointer2 := int32(2)
 	tickEvent2 := added[0]
-	tickEvent2.Count = &pointer2
-	tickEvent3, err := core.UpdateEvent(context.Background(), tickEvent2)
+	tickEvent2.Count = pointer2
+	tickEvent3, err := core.Events("default").Update(tickEvent2)
 	require.Nil(suite.T(), err)
 
 	// Update tick event a second time
 	pointer3 := int32(3)
-	tickEvent3.Count = &pointer3
-	_, err = core.UpdateEvent(context.Background(), tickEvent3)
+	tickEvent3.Count = pointer3
+	_, err = core.Events("default").Update(tickEvent3)
 	require.Nil(suite.T(), err)
 
 	// Test we get the two modified test events
@@ -145,11 +142,11 @@ func (suite *testSuite) TestKubeEvents() {
 	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), added, 0)
 	assert.Len(suite.T(), modified, 2)
-	assert.Equal(suite.T(), "tick", *modified[0].Reason)
-	assert.EqualValues(suite.T(), 2, *modified[0].Count)
-	assert.Equal(suite.T(), "tick", *modified[1].Reason)
-	assert.EqualValues(suite.T(), 3, *modified[1].Count)
-	assert.EqualValues(suite.T(), *modified[0].Metadata.Uid, *modified[1].Metadata.Uid)
+	assert.Equal(suite.T(), "tick", modified[0].Reason)
+	assert.EqualValues(suite.T(), 2, modified[0].Count)
+	assert.Equal(suite.T(), "tick", modified[1].Reason)
+	assert.EqualValues(suite.T(), 3, modified[1].Count)
+	assert.EqualValues(suite.T(), modified[0].InvolvedObject.UID, modified[1].InvolvedObject.UID)
 
 	// We should get nothing new now
 	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion)
@@ -165,9 +162,12 @@ func (suite *testSuite) TestKubeEvents() {
 	assert.Len(suite.T(), modified, 0)
 }
 
-func (suite *testSuite) TestMetadataMapper() {
-	c, err := apiserver.GetCoreV1Client()
+func (suite *testSuite) TestServiceMapper() {
+	client, err := apiserver.GetAPIClient()
 	require.Nil(suite.T(), err)
+
+	c := client.Client
+	require.NotNil(suite.T(), c)
 
 	// Create a Ready Schedulable node
 	// As we don't have a controller they don't need to have some heartbeat mechanism

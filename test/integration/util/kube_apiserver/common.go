@@ -8,8 +8,8 @@
 package kubernetes
 
 import (
-	apiv1 "github.com/ericchiang/k8s/api/v1"
-	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
+	apiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -28,19 +28,19 @@ func initAPIServerCompose() (*utils.ComposeConf, error) {
 
 func createObjectReference(namespace, kind, name string) *apiv1.ObjectReference {
 	return &apiv1.ObjectReference{
-		Namespace: &namespace,
-		Kind:      &kind,
-		Name:      &name,
+		Namespace: namespace,
+		Kind:      kind,
+		Name:      name,
 	}
 }
 
-func createEvent(namespace, name, reason string, involvedObject *apiv1.ObjectReference) *apiv1.Event {
+func createEvent(namespace, name, reason string, involvedObject apiv1.ObjectReference) *apiv1.Event {
 	return &apiv1.Event{
-		Metadata: &metav1.ObjectMeta{
-			Namespace: &namespace,
-			Name:      &name,
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
 		},
 		InvolvedObject: involvedObject,
-		Reason:         &reason,
+		Reason:         reason,
 	}
 }

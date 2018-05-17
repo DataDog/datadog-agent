@@ -21,8 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
-	"github.com/ericchiang/k8s/api/v1"
 	yaml "gopkg.in/yaml.v2"
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -236,24 +237,24 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
 	for _, component := range componentsStatus.Items {
 
-		if component.Metadata == nil {
+		if component.ObjectMeta.Name == "" {
 			return errors.New("metadata structure has changed. Not collecting API Server's Components status")
 		}
-		if component.Conditions == nil || component.Metadata.Name == nil {
+		if component.Conditions == nil || component.Name == "" {
 			log.Debug("API Server component's structure is not expected")
 			continue
 		}
-		tagComp := append(k.instance.Tags, fmt.Sprintf("component:%s", *component.Metadata.Name))
+		tagComp := append(k.instance.Tags, fmt.Sprintf("component:%s", component.Name))
 		for _, condition := range component.Conditions {
 			status_check := metrics.ServiceCheckUnknown
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
-			if *condition.Type != "Healthy" {
-				log.Debugf("Condition %q not supported", *condition.Type)
+			if condition.Type != "Healthy" {
+				log.Debugf("Condition %q not supported", condition.Type)
 				continue
 			}
 			// We only expect True, False and Unknown (default).
-			switch *condition.Status {
+			switch condition.Status {
 			case "True":
 				status_check = metrics.ServiceCheckOK
 
@@ -271,22 +272,22 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 // - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
 // - formats the bundle and submit the Datadog event
 func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event, modified bool) error {
-	eventsByObject := make(map[string]*kubernetesEventBundle)
+	eventsByObject := make(map[types.UID]*kubernetesEventBundle)
 	filteredByType := make(map[string]int)
 
 	// Only process the events which actions aren't part of the FilteredEventType list in the yaml config.
 ITER_EVENTS:
 	for _, event := range events {
 		for _, action := range k.instance.FilteredEventType {
-			if *event.Reason == action {
+			if event.Reason == action {
 				filteredByType[action] = filteredByType[action] + 1
 				continue ITER_EVENTS
 			}
 		}
-		bundle, found := eventsByObject[*event.InvolvedObject.Uid]
+		bundle, found := eventsByObject[event.InvolvedObject.UID]
 		if found == false {
-			bundle = newKubernetesEventBundler(*event.InvolvedObject.Uid, *event.Source.Component)
-			eventsByObject[*event.InvolvedObject.Uid] = bundle
+			bundle = newKubernetesEventBundler(event.InvolvedObject.UID, event.Source.Component)
+			eventsByObject[event.InvolvedObject.UID] = bundle
 		}
 		err := bundle.addEvent(event)
 		if err != nil {

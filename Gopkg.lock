@@ -183,43 +183,6 @@
   revision = "cc9eb1d7ad760af14e8f918698f745e80377af4f"
 
 [[projects]]
-  name = "github.com/ericchiang/k8s"
-  packages = [
-    ".",
-    "api/resource",
-    "api/unversioned",
-    "api/v1",
-    "apis/apps/v1alpha1",
-    "apis/apps/v1beta1",
-    "apis/authentication/v1",
-    "apis/authentication/v1beta1",
-    "apis/authorization/v1",
-    "apis/authorization/v1beta1",
-    "apis/autoscaling/v1",
-    "apis/autoscaling/v2alpha1",
-    "apis/batch/v1",
-    "apis/batch/v2alpha1",
-    "apis/certificates/v1alpha1",
-    "apis/certificates/v1beta1",
-    "apis/extensions/v1beta1",
-    "apis/imagepolicy/v1alpha1",
-    "apis/meta/v1",
-    "apis/policy/v1alpha1",
-    "apis/policy/v1beta1",
-    "apis/rbac/v1alpha1",
-    "apis/rbac/v1beta1",
-    "apis/settings/v1alpha1",
-    "apis/storage/v1",
-    "apis/storage/v1beta1",
-    "runtime",
-    "runtime/schema",
-    "util/intstr",
-    "watch/versioned"
-  ]
-  revision = "68b0248f880c5967d1ba7166486cb216af849b15"
-  version = "v0.4.0"
-
-[[projects]]
   name = "github.com/fatih/color"
   packages = ["."]
   revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"

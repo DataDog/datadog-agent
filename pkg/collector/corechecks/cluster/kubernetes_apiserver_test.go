@@ -11,74 +11,72 @@ import (
 
 	"time"
 
-	"github.com/ericchiang/k8s/api/v1"
-	obj "github.com/ericchiang/k8s/apis/meta/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"k8s.io/api/core/v1"
+	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"k8s.io/apimachinery/pkg/types"
 )
-
-func toStr(str string) *string {
-	ptrStr := str
-	return &ptrStr
-}
 
 func TestParseComponentStatus(t *testing.T) {
 	// We only test one Component Condition as only the Healthy Condition is supported.
 	// We check if the OK, Critical and Unknown Service Checks are returned accordingly to the condition and the status given.
 
-	expectedComp := &v1.ComponentCondition{Type: toStr("Healthy"), Status: toStr("True")}
-	unExpectedComp := &v1.ComponentCondition{Type: toStr("Not Supported"), Status: toStr("True")}
-	unHealthyComp := &v1.ComponentCondition{Type: toStr("Healthy"), Status: toStr("False")}
-	unExpectedStatus := &v1.ComponentCondition{Type: toStr("Healthy"), Status: toStr("Other")}
+	expectedComp := v1.ComponentCondition{Type: "Healthy", Status: "True"}
+	unExpectedComp := v1.ComponentCondition{Type: "Not Supported", Status: "True"}
+	unHealthyComp := v1.ComponentCondition{Type: "Healthy", Status: "False"}
+	unExpectedStatus := v1.ComponentCondition{Type: "Healthy", Status: "Other"}
 
 	expected := &v1.ComponentStatusList{
-		Items: []*v1.ComponentStatus{
+		Items: []v1.ComponentStatus{
 			{
-				Conditions: []*v1.ComponentCondition{
+				Conditions: []v1.ComponentCondition{
 					expectedComp,
 				},
-				Metadata: &obj.ObjectMeta{
-					Name: toStr("Zookeeper"),
+				ObjectMeta: obj.ObjectMeta{
+					Name: "Zookeeper",
 				},
 			},
 		},
 	}
 
 	unExpected := &v1.ComponentStatusList{
-		Items: []*v1.ComponentStatus{
+		Items: []v1.ComponentStatus{
 			{
-				Conditions: []*v1.ComponentCondition{
+				Conditions: []v1.ComponentCondition{
 					unExpectedComp,
 				},
-				Metadata: nil,
+				ObjectMeta: obj.ObjectMeta{
+					Name: "",
+				},
 			},
 		},
 	}
 
 	unHealthy := &v1.ComponentStatusList{
-		Items: []*v1.ComponentStatus{
+		Items: []v1.ComponentStatus{
 			{
-				Conditions: []*v1.ComponentCondition{
+				Conditions: []v1.ComponentCondition{
 					unHealthyComp,
 				},
-				Metadata: &obj.ObjectMeta{
-					Name: toStr("ETCD"),
+				ObjectMeta: obj.ObjectMeta{
+					Name: "ETCD",
 				},
 			},
 		},
 	}
 	unknown := &v1.ComponentStatusList{
-		Items: []*v1.ComponentStatus{
+		Items: []v1.ComponentStatus{
 			{
-				Conditions: []*v1.ComponentCondition{
+				Conditions: []v1.ComponentCondition{
 					unExpectedStatus,
 				},
-				Metadata: &obj.ObjectMeta{
-					Name: toStr("DCA"),
+				ObjectMeta: obj.ObjectMeta{
+					Name: "DCA",
 				},
 			},
 		},
@@ -126,26 +124,24 @@ func TestParseComponentStatus(t *testing.T) {
 
 func createEvent(count int32, namespace, objname, objkind, objuid, component, reason string, message string, timestamp int64) *v1.Event {
 	return &v1.Event{
-		Metadata: &obj.ObjectMeta{
-			CreationTimestamp: &obj.Time{
-				Seconds: &timestamp,
-			},
+		InvolvedObject: v1.ObjectReference{
+			Name:      objname,
+			Kind:      objkind,
+			UID:       types.UID(objuid),
+			Namespace: namespace,
 		},
-		InvolvedObject: &v1.ObjectReference{
-			Name:      &objname,
-			Kind:      &objkind,
-			Uid:       &objuid,
-			Namespace: &namespace,
+		Count: count,
+		Source: v1.EventSource{
+			Component: component,
 		},
-		Count: &count,
-		Source: &v1.EventSource{
-			Component: &component,
+		Reason: reason,
+		FirstTimestamp: obj.Time{
+			Time: time.Unix(timestamp, 0),
 		},
-		Reason: &reason,
-		LastTimestamp: &obj.Time{
-			Seconds: &timestamp,
+		LastTimestamp: obj.Time{
+			Time: time.Unix(timestamp, 0),
 		},
-		Message: &message,
+		Message: message,
 	}
 }
 func TestProcessBundledEvents(t *testing.T) {
@@ -230,7 +226,7 @@ func TestProcessEvent(t *testing.T) {
 	// 1 Scheduled:
 	newDatadogEvent := metrics.Event{
 		Title:          "Events from the dca-789976f5d7-2ljx6 Pod",
-		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n \n _New events emitted by the default-scheduler seen at " + time.Unix(709662600, 0).String() + "_ \n\n %%%",
+		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n \n _New events emitted by the default-scheduler seen at " + time.Unix(709662600000, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"test", "source_component:default-scheduler", "namespace:default"},
 		AggregationKey: "kubernetes_apiserver:e6417a7f-f566-11e7-9749-0e4863e1cbf4",
