@@ -60,6 +60,13 @@ a configuration for the `http_check` might look like this:
 └── frontend.yaml
 ```
 
+The agent won't load configuration files from any sub-directories within a
+`<check_name>.d` folder. This means this configuration will **NOT** be loaded:
+```
+/etc/datadog-agent/conf.d/http_check.d/prod.d/
+├── backend.yaml
+```
+
 Autodiscovery template files will be stored in the configuration folder as well,
 for example this is how the `redisdb` check configuration folder looks like:
 ```
@@ -67,6 +74,10 @@ for example this is how the `redisdb` check configuration folder looks like:
 ├── auto_conf.yaml
 └── conf.yaml.example
 ```
+
+The yaml files within a `<check_name.d>` folder can have any name, as long as
+they have a `.yaml` or `.yml` extension. Only their content and the folder name
+matter.
 
 To keep backwards compatibility, the Agent will still pick up configuration files
 in the form `/etc/datadog-agent/conf.d/<check_name>.yaml` but migrating to the
