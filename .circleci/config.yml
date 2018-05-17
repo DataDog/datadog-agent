@@ -47,13 +47,16 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: grab go deps
-          command:
-            - invoke deps
-            - git clone https://github.com/DataDog/integrations-core
-            - pip install ./integrations-core/datadog_checks_base
+          command: invoke deps
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
+      - run:
+          name: clone core
+          command: git clone https://github.com/DataDog/integrations-core
+      - run:
+          name: install base
+          command: pip install ./integrations-core/datadog_checks_base
       - save_cache:
           key: v2-godeps-{{ .Branch }}-{{ .Revision }}
           paths:
