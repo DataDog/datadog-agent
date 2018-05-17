@@ -118,11 +118,13 @@ func (le *LeaderEngine) init() error {
 	}
 	log.Debugf("LeaderLeaseDuration: %s", le.LeaseDuration.String())
 
-	le.coreClient, err = apiserver.GetClient()
+	apiClient, err := apiserver.GetAPIClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
 		return err
 	}
+
+	le.coreClient = apiClient.Client
 
 	// check if we can get ConfigMap.
 	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
@@ -195,10 +197,13 @@ func (le *LeaderEngine) IsLeader() bool {
 // GetLeaderDetails is used in for the Flare and for the Status commands.
 func GetLeaderDetails() (leaderDetails rl.LeaderElectionRecord, err error) {
 	var led rl.LeaderElectionRecord
-	c, err := apiserver.GetClient()
+	client, err := apiserver.GetAPIClient()
 	if err != nil {
 		return led, err
 	}
+
+	c := client.Client
+
 	leaderNamespace := apiserver.GetResourcesNamespace()
 	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
 	if err != nil {

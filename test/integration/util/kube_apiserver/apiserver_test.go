@@ -16,11 +16,11 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -88,9 +88,11 @@ func (suite *testSuite) SetupTest() {
 func (suite *testSuite) TestKubeEvents() {
 	// Init own client to write the events
 	config.Datadog.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
-	core, err := apiserver.GetClient()
+	c, err := apiserver.GetAPIClient()
+
 	require.Nil(suite.T(), err)
 
+	core := c.Client
 	require.NotNil(suite.T(), core)
 
 	// Ignore potential startup events
@@ -161,8 +163,11 @@ func (suite *testSuite) TestKubeEvents() {
 }
 
 func (suite *testSuite) TestServiceMapper() {
-	c, err := apiserver.GetClient()
+	client, err := apiserver.GetAPIClient()
 	require.Nil(suite.T(), err)
+
+	c := client.Client
+	require.NotNil(suite.T(), c)
 
 	// Create a Ready Schedulable node
 	// As we don't have a controller they don't need to have some heartbeat mechanism

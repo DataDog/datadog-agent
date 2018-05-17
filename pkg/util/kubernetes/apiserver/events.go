@@ -40,7 +40,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 		log.Errorf("The cached event token could not be parsed: %s, pulling events from the API server's cache", err)
 	}
 
-	eventWatcher, errs := c.client.Events("").Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
+	eventWatcher, errs := c.Client.Events("").Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
 	if errs != nil {
 		log.Debugf("error getting watcher")
 	}

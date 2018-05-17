@@ -50,7 +50,7 @@ type APIClient struct {
 	// used to setup the APIClient
 	initRetry retry.Retrier
 
-	client  *corev1.CoreV1Client
+	Client  *corev1.CoreV1Client
 	timeout time.Duration
 }
 
@@ -77,8 +77,8 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
-// GetClient returns an official Kubernetes core v1 client
-func GetClient() (*corev1.CoreV1Client, error) {
+// getClient returns an official Kubernetes core v1 client
+func getClient() (*corev1.CoreV1Client, error) {
 	var k8sConfig *rest.Config
 	var err error
 
@@ -104,8 +104,8 @@ func GetClient() (*corev1.CoreV1Client, error) {
 
 func (c *APIClient) connect() error {
 	var err error
-	if c.client == nil {
-		c.client, err = GetClient()
+	if c.Client == nil {
+		c.Client, err = getClient()
 		if err != nil {
 			log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
 			return err
@@ -113,7 +113,7 @@ func (c *APIClient) connect() error {
 	}
 
 	// Try to get apiserver version to confim connectivity
-	APIversion := c.client.RESTClient().APIVersion()
+	APIversion := c.Client.RESTClient().APIVersion()
 	if APIversion.Empty() {
 		return fmt.Errorf("cannot retrieve the version of the API server at the moment")
 	}
@@ -152,7 +152,7 @@ func newMetadataMapperBundle() *MetadataMapperBundle {
 // node to the cache
 // Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
 func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) error {
-	endpointList, err := c.client.Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	endpointList, err := c.Client.Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
 		return err
@@ -182,7 +182,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 	// A poll run should take less than the poll frequency.
 	// We fetch nodes to reliably use nodename as key in the cache.
 	// Avoiding to retrieve them from the endpoints/podList.
-	nodeList, err := c.client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	nodeList, err := c.Client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect nodes from the kube-apiserver: %q", err.Error())
 		return err
@@ -192,7 +192,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 		return nil
 	}
 
-	endpointList, err := c.client.Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	endpointList, err := c.Client.Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the kube-apiserver: %q", err.Error())
 		return err
@@ -202,7 +202,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 		return nil
 	}
 
-	podList, err := c.client.Pods("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	podList, err := c.Client.Pods("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect pods from the kube-apiserver: %q", err.Error())
 		return err
@@ -269,7 +269,7 @@ func (c *APIClient) checkResourcesAuth() error {
 	resourceTimeoutSeconds := int64(2)
 
 	// We always want to collect events
-	_, err := c.client.Events("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err := c.Client.Events("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
 	}
@@ -277,15 +277,15 @@ func (c *APIClient) checkResourcesAuth() error {
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
-	_, err = c.client.Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Client.Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
 	}
-	_, err = c.client.Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Client.Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
 	}
-	_, err = c.client.Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Client.Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
 	}
@@ -294,13 +294,13 @@ func (c *APIClient) checkResourcesAuth() error {
 
 // ComponentStatuses returns the component status list from the APIServer
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
-	return c.client.ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	return c.Client.ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 }
 
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
 	namespace := GetResourcesNamespace()
-	tokenConfigMap, err := c.client.ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+	tokenConfigMap, err := c.Client.ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
 		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
 		return "", false, ErrNotFound
@@ -342,7 +342,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	namespace := GetResourcesNamespace()
-	tokenConfigMap, err := c.client.ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+	tokenConfigMap, err := c.Client.ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -354,7 +354,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
 	tokenConfigMap.Data[eventTokenTS] = now.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
 
-	_, err = c.client.ConfigMaps(namespace).Update(tokenConfigMap)
+	_, err = c.Client.ConfigMaps(namespace).Update(tokenConfigMap)
 	if err != nil {
 		return err
 	}
@@ -364,7 +364,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 
 // NodeLabels is used to fetch the labels attached to a given node.
 func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
-	node, err := c.client.Nodes().Get(nodeName, metav1.GetOptions{})
+	node, err := c.Client.Nodes().Get(nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +431,7 @@ func getNodeList() ([]v1.Node, error) {
 		log.Errorf("Can't create client to query the API Server: %s", err.Error())
 		return nil, err
 	}
-	nodes, err := cl.client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	nodes, err := cl.Client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 
 	if err != nil {
 		log.Errorf("Can't list nodes from the API server: %s", err.Error())
