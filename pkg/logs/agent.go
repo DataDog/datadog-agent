@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/eventlog"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/tailer"
@@ -28,6 +29,7 @@ import (
 type Agent struct {
 	auditor           *auditor.Auditor
 	containersScanner *container.Scanner
+	eventlogLauncher  *eventlog.Launcher
 	filesScanner      *tailer.Scanner
 	networkListener   *listener.Listener
 	journaldLauncher  *journald.Launcher
@@ -49,14 +51,17 @@ func NewAgent(sources *config.LogSources) *Agent {
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
 	// setup the collectors
-	containersScanner := container.New(sources.GetValidSources(), pipelineProvider, auditor)
-	networkListeners := listener.New(sources.GetValidSources(), pipelineProvider)
-	filesScanner := tailer.New(sources.GetValidSources(), config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, tailer.DefaultSleepDuration)
-	journaldLauncher := journald.New(sources.GetValidSources(), pipelineProvider, auditor)
+	validSources := sources.GetValidSources()
+	containersScanner := container.New(validSources, pipelineProvider, auditor)
+	networkListeners := listener.New(validSources, pipelineProvider)
+	filesScanner := tailer.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, tailer.DefaultSleepDuration)
+	journaldLauncher := journald.New(validSources, pipelineProvider, auditor)
+	eventlogLauncher := eventlog.New(validSources, pipelineProvider, auditor)
 
 	return &Agent{
 		auditor:           auditor,
 		containersScanner: containersScanner,
+		eventlogLauncher:  eventlogLauncher,
 		filesScanner:      filesScanner,
 		journaldLauncher:  journaldLauncher,
 		networkListener:   networkListeners,
@@ -74,6 +79,7 @@ func (a *Agent) Start() {
 		a.networkListener,
 		a.containersScanner,
 		a.journaldLauncher,
+		a.eventlogLauncher,
 	)
 }
 
@@ -86,6 +92,7 @@ func (a *Agent) Stop() {
 			a.networkListener,
 			a.containersScanner,
 			a.journaldLauncher,
+			a.eventlogLauncher,
 		),
 		a.pipelineProvider,
 		a.auditor,
