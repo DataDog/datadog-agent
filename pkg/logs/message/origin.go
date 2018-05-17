@@ -31,11 +31,14 @@ func NewOrigin(source *config.LogSource) *Origin {
 // Tags returns the tags of the origin.
 func (o *Origin) Tags() []string {
 	tags := o.tags
-	if o.Source() != "" {
-		tags = append(tags, "source:"+o.Source())
+
+	source := o.Source()
+	if source != "" {
+		tags = append(tags, "source:"+source)
 	}
-	if o.LogSource.Config.SourceCategory != "" {
-		tags = append(tags, "sourcecategory:"+o.LogSource.Config.SourceCategory)
+	sourceCategory := o.LogSource.Config.SourceCategory
+	if sourceCategory != "" {
+		tags = append(tags, "sourcecategory:"+sourceCategory)
 	}
 
 	tags = append(tags, o.LogSource.Config.Tags...)
@@ -45,11 +48,14 @@ func (o *Origin) Tags() []string {
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload() []byte {
 	var tagsPayload []byte
-	if o.Source() != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+o.Source()+"\"]")...)
+
+	source := o.Source()
+	if source != "" {
+		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
 	}
-	if o.LogSource.Config.SourceCategory != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+o.LogSource.Config.SourceCategory+"\"]")...)
+	sourceCategory := o.LogSource.Config.SourceCategory
+	if sourceCategory != "" {
+		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
 	}
 
 	var tags []string
@@ -75,7 +81,8 @@ func (o *Origin) SetSource(source string) {
 	o.source = source
 }
 
-// Source returns the source of the origin.
+// Source returns the source of the configuration if set or the source of the message,
+// if none are defined, returns an empty string by default.
 func (o *Origin) Source() string {
 	if o.LogSource.Config.Source != "" {
 		return o.LogSource.Config.Source
@@ -88,7 +95,8 @@ func (o *Origin) SetService(service string) {
 	o.service = service
 }
 
-// Service returns the service of the origin.
+// Service returns the service of the configuration if set or the service of the message,
+// if none are defined, returns an empty string by default.
 func (o *Origin) Service() string {
 	if o.LogSource.Config.Service != "" {
 		return o.LogSource.Config.Service
