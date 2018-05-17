@@ -73,18 +73,6 @@ type JMXFetch struct {
 	exitFilePath       string
 }
 
-// New returns a new instance of JMXFetch with default values.
-func New() *JMXFetch {
-	return &JMXFetch{
-		JavaBinPath:        defaultJavaBinPath,
-		JavaCustomJarPaths: []string{},
-		LogLevel:           defaultLogLevel,
-		Command:            defaultJmxCommand,
-		ReportOnConsole:    false,
-		Checks:             []string{},
-	}
-}
-
 func (j *JMXFetch) setDefaults() {
 	if j.JavaBinPath == "" {
 		j.JavaBinPath = defaultJavaBinPath
