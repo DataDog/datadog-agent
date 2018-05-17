@@ -35,7 +35,7 @@ kafka_consumer==1.4.0; sys_platform != 'win32'
 kong==1.2.0
 kube_dns==1.3.0
 kube_proxy==1.0.0
-kubelet==1.2.0; sys_platform != 'win32'
+kubelet==1.2.0; sys_platform == 'linux2'
 kubernetes_state==2.5.0; sys_platform != 'win32'
 kyototycoon==1.3.0
 lighttpd==1.2.0
@@ -50,7 +50,7 @@ mongo==1.5.4
 mysql==1.2.0
 nagios==1.1.0
 network==1.5.0
-nfsstat==0.2.0; sys_platform != 'win32'
+nfsstat==0.2.0; sys_platform == 'linux2'
 nginx==2.2.0
 openstack==1.2.0
 oracle==1.3.0
