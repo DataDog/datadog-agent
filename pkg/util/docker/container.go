@@ -31,6 +31,7 @@ type Container struct {
 	Excluded bool
 
 	CPULimit       float64
+	SoftMemLimit   uint64
 	MemLimit       uint64
 	CPUNrThrottled uint64
 	CPU            *CgroupTimesStat
