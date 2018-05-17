@@ -2,6 +2,10 @@
 
 set -x
 
+cat /run/systemd/resolve/resolv.conf
+cat /etc/resolv.conf
+cat /etc/hosts
+
 until curl -sf http://127.0.0.1:8989/ready --connect-timeout 1 -w '\n'
 do
 
