@@ -22,8 +22,7 @@ function _ssh() {
 }
 
 function _ssh_logged() {
-    ssh ${SSH_OPTS} -lcore ${MACHINE} ${SEND_ENV}
-     /bin/bash -l -c "$@"
+    ssh ${SSH_OPTS} -lcore ${MACHINE} ${SEND_ENV} /bin/bash -l -c "$@"
 }
 
 until _ssh /bin/true
@@ -41,7 +40,7 @@ _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
 _ssh timeout 600 /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-ready.sh
 
 # Use a logged bash
-_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
+_ssh /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/21-argo-setup.sh
 
 # AWS ECR specific
@@ -53,4 +52,4 @@ then
 fi
 
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submit.sh
-_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
+_ssh /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
