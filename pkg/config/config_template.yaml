@@ -104,6 +104,36 @@ api_key:
 
 # IPC api server timeout in seconds
 # server_timeout: 15
+
+# BETA: Encrypted Secrets (Linux only)
+#
+# This feature is in beta and its options or behaviour might break between
+# minor or bugfix releases of the Agent.
+#
+# The agent can call an external command to fetch secrets. The command will be
+# executed maximum once per instance containing an encrypted password.
+# Secrets are cached by the agent, this will avoid executing again the
+# secret_backend_command to fetch an already known secret (useful when combine
+# with Autodiscovery). This feature is still in beta.
+#
+# For more information see: http://<some doc URL>
+#
+# Path to the script to execute. The script must belong to the same user used
+# to run the agent. Executable right must be given to the agent and no rights
+# for 'group' or 'other'.
+# secret_backend_command: /path/to/command
+#
+# A list of arguments to give the command at each run
+# secret_backend_arguments:
+#   - argument1
+#   - argument2
+#
+# The size in bytes of the buffer used to store the command answer:
+# secret_backend_output_max_size: 1024
+#
+# The timeout to execute the command in second
+# secret_backend_timeout: 5
+
 {{ end -}}
 {{- if .Metadata }}
 # Metadata providers, add or remove from the list to enable or disable collection.

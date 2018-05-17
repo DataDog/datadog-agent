@@ -102,6 +102,12 @@ func init() {
 	Datadog.SetDefault("auth_token_file_path", "")
 	Datadog.SetDefault("bind_host", "localhost")
 
+	// secrets backend
+	Datadog.BindEnv("secret_backend_command")
+	Datadog.BindEnv("secret_backend_arguments")
+	BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
+	BindEnvAndSetDefault("secret_backend_timeout", 5)
+
 	// Retry settings
 	Datadog.SetDefault("forwarder_backoff_factor", 2)
 	Datadog.SetDefault("forwarder_backoff_base", 2)
