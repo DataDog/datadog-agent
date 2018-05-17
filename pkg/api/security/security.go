@@ -16,12 +16,12 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-
 	"fmt"
 	"net"
 	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	log "github.com/cihub/seelog"
 )
 
@@ -171,6 +171,12 @@ func GetClusterAgentAuthToken() (string, error) {
 
 	// Create a new token if it doesn't exist
 	if _, e := os.Stat(tokenAbsPath); os.IsNotExist(e) {
+
+		token, err  := getClusterAgentTokenFromSecret()
+		if err == nil{
+			return token, nil
+		}
+		log.Errorf("Could not locate a secret containing the auth token for the cluster agent, creating a random one...")
 		key := make([]byte, authTokenMinimalLen)
 		_, e = rand.Read(key)
 		if e != nil {
@@ -205,4 +211,17 @@ func validateAuthToken(authToken string) error {
 		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
 	}
 	return nil
+}
+
+func getClusterAgentTokenFromSecret() (string, error) {
+	cl, err := as.GetCoreV1Client()
+	if err != nil {
+		return "", err
+	}
+	ns := as.GetResourcesNamespace()
+	secret, err := cl.Secrets(ns).Get("datadog-cluster-token", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return secret.String(), nil
 }
