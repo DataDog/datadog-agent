@@ -14,7 +14,7 @@ test ${COMMIT_ID} || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS="-o ServerAliveInterval=10 -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i id_rsa "
+SSH_OPTS="-o ServerAliveInterval=20 -o ConnectTimeout=6 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i id_rsa "
 SEND_ENV="-o SendEnv DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master}"
 
 function _ssh() {
@@ -32,7 +32,10 @@ do
 done
 
 
-_ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-agent
+_ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-agent || {
+    # To be able to retry
+    echo "Already cloned ?"
+}
 _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
 
 _ssh timeout 600 /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-ready.sh

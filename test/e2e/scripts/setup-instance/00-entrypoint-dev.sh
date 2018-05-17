@@ -8,7 +8,13 @@ git clean -fdx .
 
 # Generate ssh-key and ignition files
 ./01-ignition.sh
-IGNITION_BASE64=$(cat ignition.json | base64 -w 0)
+
+if [[ $(uname) == "Linux" ]]
+then
+    BASE64_FLAGS="-w 0"
+fi
+
+IGNITION_BASE64=$(cat ignition.json | base64 ${BASE64_FLAGS})
 
 tee specification.json << EOF
 {

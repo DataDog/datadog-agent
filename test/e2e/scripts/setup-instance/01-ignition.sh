@@ -63,18 +63,10 @@ tee ignition.json << EOF
   "storage": {
     "files": [
       {
-        "path": "/etc/coreos/update.conf",
-        "mode": 420,
-        "contents": {
-          "source": "data:,GROUP%3Dalpha%0AREBOOT_STRATEGY%3Doff%0A"
-        },
-        "filesystem": "root"
-      },
-      {
         "path": "/opt/bin/setup-pupernetes",
         "mode": 320,
         "contents": {
-          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0Acurl%20-Lf%20https%3A%2F%2Fgithub.com%2FDataDog%2Fpupernetes%2Freleases%2Fdownload%2Fv0.1%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
+          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0Acurl%20-Lf%20https%3A%2F%2Fs3.us-east-2.amazonaws.com%2Fpupernetes%2Flatest%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
         },
         "filesystem": "root"
       },
@@ -82,7 +74,7 @@ tee ignition.json << EOF
         "path": "/opt/bin/pupernetes.sha512sum",
         "mode": 256,
         "contents": {
-          "source": "data:,1b56ea0b63bb977a28df04f3ff7e93263a7bc761f83796a07821dfedfac0de8f711c011ce1290370586149ec9237e325f95f9aab1fe983a8488c937920ea1ef7%20%2Fopt%2Fbin%2Fpupernetes%0A"
+          "source": "data:,b0f413d09e6228f14a63a0bb82ad66acdc6369c7f689e641f71d2448029aef0ec3fdb33b8eac397d84b8bcbcd5110fcbe15dc70894f68efdc11ceb756e8194a9%20%2Fopt%2Fbin%2Fpupernetes%0A"
         },
         "filesystem": "root"
       },
