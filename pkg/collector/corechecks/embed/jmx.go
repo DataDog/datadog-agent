@@ -53,7 +53,7 @@ var jmxLauncher = JMXCheck{
 	checks:   make(map[string]struct{}),
 	stop:     make(chan struct{}),
 	stopDone: make(chan struct{}),
-	runner:   jmxfetch.New(),
+	runner:   &jmxfetch.JMXFetch{},
 }
 
 func (c *JMXCheck) String() string {
