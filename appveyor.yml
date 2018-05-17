@@ -27,6 +27,8 @@ install:
   - 7z x *.zip > NUL
   - set PATH=C:\deps\bin;%GOPATH%\bin;%GOROOT%\bin;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;%PATH%
   - go version
+  - git clone https://github.com/DataDog/integrations-core
+  - pip install .\integrations-core\datadog_checks_base
   - pip install invoke
 
 cache:
