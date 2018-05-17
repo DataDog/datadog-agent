@@ -5,11 +5,10 @@
 
 // +build jmx
 
-package embed
+package jmx
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -58,18 +58,23 @@ func TestLoadCheckConfig(t *testing.T) {
 	cfgs, err := fp.Collect()
 	assert.Nil(t, err)
 
+	checks := []check.Check{}
+
 	// should be three valid instances
 	assert.Len(t, cfgs, 4)
 	for _, cfg := range cfgs {
-		_, err := jl.Load(cfg)
+		loadedChecks, err := jl.Load(cfg)
 		assert.Nil(t, err)
 
+		for _, c := range loadedChecks {
+			checks = append(checks, c)
+		}
 	}
 
 	for _, cfg := range cfgs {
 		found := false
-		for k := range jmxLauncher.checks {
-			if k == fmt.Sprintf("%s.yaml", cfg.Name) {
+		for _, c := range checks {
+			if c.String() == cfg.Name {
 				found = true
 				break
 			}
