@@ -85,8 +85,28 @@ func New() *JMXFetch {
 	}
 }
 
+func (j *JMXFetch) setDefaults() {
+	if j.JavaBinPath == "" {
+		j.JavaBinPath = defaultJavaBinPath
+	}
+	if j.JavaCustomJarPaths == nil {
+		j.JavaCustomJarPaths = []string{}
+	}
+	if j.LogLevel == "" {
+		j.LogLevel = defaultLogLevel
+	}
+	if j.Command == "" {
+		j.Command = defaultJmxCommand
+	}
+	if j.Checks == nil {
+		j.Checks = []string{}
+	}
+}
+
 // Start starts the JMXFetch process
 func (j *JMXFetch) Start() error {
+	j.setDefaults()
+
 	here, _ := executable.Folder()
 	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {
