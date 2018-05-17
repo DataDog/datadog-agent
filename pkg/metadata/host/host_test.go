@@ -90,7 +90,8 @@ func TestBuildKey(t *testing.T) {
 }
 
 func TestGetContainerMeta(t *testing.T) {
-
+	// reset catalog
+	container.DefaultCatalog = make(container.Catalog)
 	container.RegisterMetadataProvider("provider1", func() (map[string]string, error) { return map[string]string{"foo": "bar"}, nil })
 	container.RegisterMetadataProvider("provider2", func() (map[string]string, error) { return map[string]string{"fizz": "buzz"}, nil })
 	container.RegisterMetadataProvider("provider3", func() (map[string]string, error) { return map[string]string{"fizz": "buzz"}, nil })
@@ -100,6 +101,8 @@ func TestGetContainerMeta(t *testing.T) {
 }
 
 func TestGetContainerMetaTimeout(t *testing.T) {
+	// reset catalog
+	container.DefaultCatalog = make(container.Catalog)
 	container.RegisterMetadataProvider("provider1", func() (map[string]string, error) { return map[string]string{"foo": "bar"}, nil })
 	container.RegisterMetadataProvider("provider2", func() (map[string]string, error) {
 		time.Sleep(time.Second)
