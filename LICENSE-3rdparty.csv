@@ -4,6 +4,7 @@ core,github.com/beevik/ntp,BSD-2-Clause
 core,github.com/cihub/seelog,BSD-3-Clause
 core,github.com/codemirror/CodeMirror,MIT
 core,github.com/coreos/etcd,Apache-2.0
+core,github.com/coreos/go-systemd,Apache-2.0
 core,github.com/DataDog/agent-payload,BSD-3-Clause
 core,github.com/DataDog/gohai,MIT
 core,github.com/DataDog/mmh3,MIT

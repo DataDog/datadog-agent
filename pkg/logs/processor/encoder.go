@@ -63,7 +63,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, ' ')
 
 		// Service
-		service := msg.GetOrigin().LogSource.Config.Service
+		service := msg.GetOrigin().Service()
 		if service != "" {
 			extraContent = append(extraContent, []byte(service)...)
 		} else {
@@ -108,8 +108,8 @@ func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) 
 		Status:    msg.GetStatus(),
 		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
-		Service:   msg.GetOrigin().LogSource.Config.Service,
-		Source:    msg.GetOrigin().LogSource.Config.Source,
+		Service:   msg.GetOrigin().Service(),
+		Source:    msg.GetOrigin().Source(),
 		Tags:      msg.GetOrigin().Tags(),
 	}).Marshal()
 }

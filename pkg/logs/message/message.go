@@ -21,6 +21,9 @@ type message struct {
 
 // New returns a new Message
 func New(content []byte, origin *Origin, status string) Message {
+	if status == "" {
+		status = StatusInfo
+	}
 	return &message{
 		content: content,
 		origin:  origin,
@@ -45,8 +48,5 @@ func (m *message) GetOrigin() *Origin {
 
 // GetStatus returns the status of the message
 func (m *message) GetStatus() string {
-	if m.status != "" {
-		return m.status
-	}
-	return StatusInfo
+	return m.status
 }

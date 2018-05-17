@@ -57,3 +57,47 @@ func TestSetTagsWithConfigTags(t *testing.T) {
 	assert.Equal(t, []string{"foo:bar", "baz", "source:a", "sourcecategory:b", "c:d", "e"}, origin.Tags())
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e,foo:bar,baz\"]", string(origin.TagsPayload()))
 }
+
+func TestDefaultSourceValueIsSourceFromConfig(t *testing.T) {
+	var cfg *config.LogsConfig
+	var source *config.LogSource
+	var origin *Origin
+
+	cfg = &config.LogsConfig{Source: "foo"}
+	source = config.NewLogSource("", cfg)
+	origin = NewOrigin(source)
+	assert.Equal(t, "foo", origin.Source())
+
+	origin.SetSource("bar")
+	assert.Equal(t, "foo", origin.Source())
+
+	cfg = &config.LogsConfig{}
+	source = config.NewLogSource("", cfg)
+	origin = NewOrigin(source)
+	assert.Equal(t, "", origin.Source())
+
+	origin.SetSource("bar")
+	assert.Equal(t, "bar", origin.Source())
+}
+
+func TestDefaultServiceValueIsServiceFromConfig(t *testing.T) {
+	var cfg *config.LogsConfig
+	var source *config.LogSource
+	var origin *Origin
+
+	cfg = &config.LogsConfig{Service: "foo"}
+	source = config.NewLogSource("", cfg)
+	origin = NewOrigin(source)
+	assert.Equal(t, "foo", origin.Service())
+
+	origin.SetService("bar")
+	assert.Equal(t, "foo", origin.Service())
+
+	cfg = &config.LogsConfig{}
+	source = config.NewLogSource("", cfg)
+	origin = NewOrigin(source)
+	assert.Equal(t, "", origin.Service())
+
+	origin.SetService("bar")
+	assert.Equal(t, "bar", origin.Service())
+}

@@ -2,6 +2,7 @@
 Utilities to manage build tags
 """
 import sys
+import platform
 from invoke import task
 
 # ALL_TAGS lists any available build tag
@@ -16,6 +17,7 @@ ALL_TAGS = set([
     "jmx",
     "kubelet",
     "log",
+    "systemd",
     "process",
     "snmp",
     "zk",
@@ -31,9 +33,12 @@ PUPPY_TAGS = set([
 LINUX_ONLY_TAGS = [
     "docker",
     "kubelet",
-    "kubeapiserver"
+    "kubeapiserver",
 ]
 
+DEBIAN_ONLY_TAGS = [
+    "systemd",
+]
 
 def get_default_build_tags(puppy=False):
     """
@@ -47,6 +52,12 @@ def get_default_build_tags(puppy=False):
 
     include = ["all"]
     exclude = [] if sys.platform.startswith('linux') else LINUX_ONLY_TAGS
+
+    # remove all tags that are only availaible on debian distributions
+    distname = platform.linux_distribution()[0].lower()
+    if distname not in ['debian', 'ubuntu']:
+        exclude = exclude + DEBIAN_ONLY_TAGS
+
     return get_build_tags(include, exclude)
 
 
