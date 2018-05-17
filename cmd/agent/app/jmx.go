@@ -144,7 +144,7 @@ func runJmxCommand(command string) error {
 		return err
 	}
 
-	runner := jmxfetch.New()
+	runner := &jmxfetch.JMXFetch{}
 
 	runner.ReportOnConsole = true
 	runner.Command = command
