@@ -4,10 +4,9 @@ set -x
 
 until curl -sf http://127.0.0.1:8989/ready --connect-timeout 1 -w '\n'
 do
-    for unit in pupernetes p8s-kubelet p8s-etcd
-    do
-        systemctl status ${unit}.service --no-pager
-        echo "---"
-    done
+
+    systemctl status pupernetes.service --no-pager --full
+    journalctl -u pupernetes.service --no-pager -o cat -n 50 -e
+
     sleep 10
 done
