@@ -282,7 +282,14 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 	case <-c:
 		return containerMeta
 	case <-time.After(timeout):
-		return containerMeta
+		// in this case the map might be incomplete so return a copy to avoid race
+		incompleteMeta := make(map[string]string)
+		mutex.Lock()
+		for k, v := range containerMeta {
+			incompleteMeta[k] = v
+		}
+		mutex.Unlock()
+		return incompleteMeta
 	}
 }
 
