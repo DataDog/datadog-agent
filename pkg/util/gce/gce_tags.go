@@ -13,11 +13,15 @@ import (
 	"strings"
 )
 
+// Slice of attributes to exclude from the tags (because they're too long, useless or sensitive)
+var excludedAttributes = []string{"kube-env", "startup-script", "shutdown-script", "configure-sh",
+	"sshKeys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"}
+
 // GetTags gets the tags from the GCE api
 func GetTags() ([]string, error) {
 	tags := []string{}
 
-	metadataResponse, err := getResponse(metadataURL + "/instance/?recursive=true")
+	metadataResponse, err := getResponse(metadataURL + "/?recursive=true")
 	if err != nil {
 		return tags, err
 	}
@@ -29,27 +33,45 @@ func GetTags() ([]string, error) {
 		return tags, err
 	}
 
-	tags = metadata.Tags
-	if metadata.Zone != "" {
-		ts := strings.Split(metadata.Zone, "/")
+	tags = metadata.Instance.Tags
+	if metadata.Instance.Zone != "" {
+		ts := strings.Split(metadata.Instance.Zone, "/")
 		tags = append(tags, fmt.Sprintf("zone:%s", ts[len(ts)-1]))
 	}
-	if metadata.MachineType != "" {
-		ts := strings.Split(metadata.MachineType, "/")
+	if metadata.Instance.MachineType != "" {
+		ts := strings.Split(metadata.Instance.MachineType, "/")
 		tags = append(tags, fmt.Sprintf("instance-type:%s", ts[len(ts)-1]))
 	}
-	if metadata.Hostname != "" {
-		tags = append(tags, fmt.Sprintf("internal-hostname:%s", metadata.Hostname))
+	if metadata.Instance.Hostname != "" {
+		tags = append(tags, fmt.Sprintf("internal-hostname:%s", metadata.Instance.Hostname))
 	}
-	if metadata.ID != 0 {
-		tags = append(tags, fmt.Sprintf("instance-id:%d", metadata.ID))
+	if metadata.Instance.ID != 0 {
+		tags = append(tags, fmt.Sprintf("instance-id:%d", metadata.Instance.ID))
 	}
-	if metadata.ProjectID != 0 {
-		tags = append(tags, fmt.Sprintf("project:%d", metadata.ProjectID))
+	if metadata.Project.ProjectID != "" {
+		tags = append(tags, fmt.Sprintf("project:%s", metadata.Project.ProjectID))
 	}
-	if metadata.NumericProjectID != 0 {
-		tags = append(tags, fmt.Sprintf("numeric_project_id:%d", metadata.NumericProjectID))
+	if metadata.Project.NumericProjectID != 0 {
+		tags = append(tags, fmt.Sprintf("numeric_project_id:%d", metadata.Project.NumericProjectID))
+	}
+
+	if metadata.Instance.Attributes != nil {
+		for k, v := range metadata.Instance.Attributes {
+			if !isAttributeExcluded(k) {
+				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+			}
+		}
 	}
 
 	return tags, nil
+}
+
+// isAttributeExcluded returns whether the attribute key should be excluded from the tags
+func isAttributeExcluded(attr string) bool {
+	for _, excluded := range excludedAttributes {
+		if attr == excluded {
+			return true
+		}
+	}
+	return false
 }

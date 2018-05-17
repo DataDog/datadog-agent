@@ -20,12 +20,21 @@ var (
 )
 
 type gceMetadata struct {
-	ID               int64
-	Tags             []string
-	Zone             string
-	MachineType      string
-	Hostname         string
-	ProjectID        int64
+	Instance gceInstanceMetadata
+	Project  gceProjectMetadata
+}
+
+type gceInstanceMetadata struct {
+	ID          int64
+	Tags        []string
+	Zone        string
+	MachineType string
+	Hostname    string
+	Attributes  map[string]string
+}
+
+type gceProjectMetadata struct {
+	ProjectID        string
 	NumericProjectID int64
 }
 
