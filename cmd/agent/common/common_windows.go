@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
 )

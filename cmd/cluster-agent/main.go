@@ -16,7 +16,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/app"
 )

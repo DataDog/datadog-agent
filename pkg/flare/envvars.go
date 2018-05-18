@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var envvarPrefixWhitelist = []string{

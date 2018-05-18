@@ -13,7 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
 )
 

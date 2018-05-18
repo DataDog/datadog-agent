@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mholt/archiver"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -120,7 +120,7 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 	}
 
 	// Clean it up
-	cleaned, err := credentialsCleanerBytes(s)
+	cleaned, err := log.CredentialsCleanerBytes(s)
 	if err != nil {
 		log.Infof("Error redacting the log files: %q", err)
 		return err
@@ -153,7 +153,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 		return err
 	}
 	// Clean it up
-	cleanedMetaBytes, err := credentialsCleanerBytes(metaBytes)
+	cleanedMetaBytes, err := log.CredentialsCleanerBytes(metaBytes)
 	if err != nil {
 		log.Infof("Error redacting the log files: %q", err)
 		return err

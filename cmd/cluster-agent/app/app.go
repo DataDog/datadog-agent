@@ -13,7 +13,7 @@ import (
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"

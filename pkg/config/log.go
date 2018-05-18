@@ -17,8 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/pkg/flare"
-	"github.com/DataDog/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 )
 
@@ -274,20 +273,6 @@ func (s *SyslogReceiver) Flush() {
 // Close is a NOP in current implementation
 func (s *SyslogReceiver) Close() error {
 	return nil
-}
-
-type ScrubbingWriter struct{}
-
-func (sw *ScrubbingWriter) Write(p []byte) (n int, err error) {
-	l := len(p)
-	if scrubbed, err = flare.CredentialsCleanerBytes(p); err == nil {
-		fmt.Printf("%s", string(scrubbed))
-		l = len(scrubbed)
-	} else {
-		fmt.Printf("%s", string(p))
-	}
-
-	return l, nil
 }
 
 func init() {

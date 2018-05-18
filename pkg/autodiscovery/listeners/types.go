@@ -8,7 +8,7 @@ package listeners
 import (
 	"errors"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ID is the representation of the unique ID of a Service

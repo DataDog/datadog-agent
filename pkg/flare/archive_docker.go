@@ -15,6 +15,7 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func zipDockerSelfInspect(tempDir, hostname string) error {

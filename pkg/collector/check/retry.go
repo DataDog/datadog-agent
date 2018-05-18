@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RetryableError is the error type that Retry interprets as a request to retry the callback

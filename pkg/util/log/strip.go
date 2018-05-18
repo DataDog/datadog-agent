@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package flare
+package log
 
 import (
 	"bufio"
@@ -57,7 +57,8 @@ func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
 }
 
-func credentialsCleanerFile(filePath string) ([]byte, error) {
+//CredentialsCleanerFile scrubs credentials from file in path
+func CredentialsCleanerFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	defer file.Close()
 	if err != nil {
