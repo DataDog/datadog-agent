@@ -70,6 +70,9 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          name: see
+          command: pip freeze
+      - run:
           name: run unit tests
           command: inv -e test --coverage --race --profile --fail-on-fmt
 
