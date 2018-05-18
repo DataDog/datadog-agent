@@ -146,7 +146,7 @@ def size_test(ctx, skip_build=False):
 
 @task
 def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False):
+                  skip_deps=False, omnibus_cache=False):
     """
     Build the Dogstatsd packages with Omnibus Installer.
     """
@@ -178,7 +178,8 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
             "overrides": overrides_cmd,
             "populate_s3_cache": ""
         }
-        args['populate_s3_cache'] = " --populate-s3-cache "
+        if omnibus_s3_cache:
+            args['populate_s3_cache'] = " --populate-s3-cache "
         ctx.run(cmd.format(**args))
 
 
