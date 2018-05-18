@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"

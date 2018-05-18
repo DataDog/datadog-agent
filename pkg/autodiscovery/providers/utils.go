@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	log "github.com/cihub/seelog"
 )
 

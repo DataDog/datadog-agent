@@ -17,8 +17,8 @@ import (
 	log "github.com/cihub/seelog"
 	consul "github.com/hashicorp/consul/api"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 // Abstractions for testing

@@ -11,9 +11,9 @@ import (
 	"github.com/shirou/gopsutil/disk"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 const (

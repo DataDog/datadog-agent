@@ -10,7 +10,7 @@ import (
 	"hash/fnv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 // ID is the representation of the unique ID of a Check instance
