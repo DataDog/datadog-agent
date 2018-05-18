@@ -411,7 +411,7 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 			log.Debugf("Kubelet endpoint is: %s", ku.kubeletApiEndpoint)
 			return nil
 		}
-		if code != http.StatusUnauthorized {
+		if code < 400 && code >= 500 {
 			return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
 		}
 		log.Warn("Failed to securely reach the kubelet over HTTPS. Trying a non secure connection over HTTP. We highly recommend configuring TLS to access the kubelet")
