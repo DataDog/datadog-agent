@@ -43,13 +43,5 @@ _ssh timeout 600 /home/core/datadog-agent/test/e2e/scripts/run-instance/10-puper
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/21-argo-setup.sh
 
-# AWS ECR specific
-if [[ -e kube-script.sh ]]
-then
-    KUBE_SCRIPT="/home/core/datadog-agent/test/e2e/scripts/run-instance/kube-script.sh"
-    scp ${SSH_OPTS} kube-script.sh core@${MACHINE}:${KUBE_SCRIPT}
-    _ssh_logged ${KUBE_SCRIPT}
-fi
-
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submit.sh
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh

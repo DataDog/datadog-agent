@@ -8,8 +8,8 @@ stages:
   - testkitchen_cleanup
   - image_build
   - image_deploy
-  - e2e
   - deploy
+  - e2e
 
 variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
@@ -807,19 +807,6 @@ dogstatsd_dev_quay_master:
     DEST_IMAGE: quay.io/datawhale/dogstatsd-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
 
-#
-# end to end
-#
-
-
-argo:
-  stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
-  tags: [ "runner:main", "size:large" ]
-  before_script: [ "# noop" ] # Override top level entry
-  script:
-  - ./test/e2e/scripts/setup-instance/00-entrypoint-gitlab.sh
-
 
 #
 # deploy
@@ -1036,3 +1023,17 @@ latest_dsd_push:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd
+
+
+#
+# end to end
+#
+
+argo:
+  stage: e2e
+  when: manual
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  tags: [ "runner:main", "size:large" ]
+  before_script: [ "# noop" ] # Override top level entry
+  script:
+  - ./test/e2e/scripts/setup-instance/00-entrypoint-gitlab.sh

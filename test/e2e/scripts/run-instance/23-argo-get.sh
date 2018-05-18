@@ -22,6 +22,7 @@ then
     exit 1
 fi
 
+set +x
 echo "${WORKFLOWS} workflows are not in Running status anymore"
 
 EXIT_CODE=0
@@ -30,7 +31,7 @@ do
     WF=$(./argo get ${workflow} -o json)
     echo ${WF} | jq 'select(.metadata.labels["workflows.argoproj.io/phase"]=="Succeeded")' -re || {
         # Display the workflow because it didn't match the jq select
-        echo ${WF}
+        echo ${WF} | jq .
         EXIT_CODE=2
     }
 done
