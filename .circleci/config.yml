@@ -66,6 +66,7 @@ jobs:
             - /go/src/github.com/DataDog/datadog-agent/vendor
             - /go/pkg
             - /go/bin
+            - /usr/local/lib/python2.7/dist-packages
             - /root/.local/lib/python2.7/base-packages
             - /usr/local/lib/python2.7/base-packages
             - /root/.local/lib/python2.7/site-packages
