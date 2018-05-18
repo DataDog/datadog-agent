@@ -35,12 +35,6 @@ jobs:
     <<: *job_template
     steps:
       - checkout
-      - run:
-          name: clone core
-          command: git clone https://github.com/DataDog/integrations-core
-      - run:
-          name: install base
-          command: pip install ./integrations-core/datadog_checks_base
       - save_cache:
           key: v2-repo-{{ .Revision }}
           paths:
@@ -51,6 +45,15 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
+      - run:
+          name: clone core
+          command: git clone https://github.com/DataDog/integrations-core
+      - run:
+          name: install base
+          command: pip install ./integrations-core/datadog_checks_base
+      - run:
+          name: see
+          command: pip freeze
       - run:
           name: grab go deps
           command: invoke deps
