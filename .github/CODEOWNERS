@@ -22,10 +22,10 @@
 /pkg/version/                           @DataDog/croissant
 
 /Dockerfiles/                           @DataDog/kenafeh
-/pkg/collector/autodiscovery/           @DataDog/kenafeh @DataDog/croissant
+/pkg/autodiscovery/                     @DataDog/kenafeh @DataDog/croissant
+/pkg/autodiscovery/listeners/           @DataDog/kenafeh
 /pkg/collector/corechecks/containers/   @DataDog/kenafeh
 /pkg/collector/corechecks/cluster/      @DataDog/kenafeh
-/pkg/collector/listeners/docker*        @DataDog/kenafeh
 /pkg/tagger/                            @DataDog/kenafeh
 /pkg/util/docker/                       @DataDog/kenafeh @DataDog/burrito
 /pkg/util/ecs/                          @DataDog/kenafeh @DataDog/burrito
