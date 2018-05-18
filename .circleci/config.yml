@@ -53,7 +53,7 @@ jobs:
           command: pip install ./integrations-core/datadog_checks_base
       - run:
           name: see
-          command: pip freeze
+          command: python -m site --user-site
       - run:
           name: grab go deps
           command: invoke deps
