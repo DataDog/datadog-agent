@@ -1,5 +1,6 @@
 #!/bin/bash
 
+printf '=%.0s' {0..79} ; echo
 set -x
 
 # ${DATADOG_AGENT_IMAGE} is provided by the CI
