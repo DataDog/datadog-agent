@@ -20,3 +20,12 @@ subjects:
   name: default
   namespace: default
 EOF
+
+set +e
+
+for i in {0..300}
+do
+    ./argo list && break
+    kubectl get hpa,svc,ep,ds,deploy,job,po --all-namespaces -o wide
+    sleep 10
+done

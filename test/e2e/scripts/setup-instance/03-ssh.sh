@@ -40,7 +40,7 @@ _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
 _ssh timeout 600 /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-ready.sh
 
 # Use a logged bash
-_ssh /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/21-argo-setup.sh
 
 # AWS ECR specific
@@ -52,4 +52,4 @@ then
 fi
 
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/22-argo-submit.sh
-_ssh /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/23-argo-get.sh

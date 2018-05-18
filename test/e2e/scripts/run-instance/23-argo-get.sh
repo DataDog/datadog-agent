@@ -35,4 +35,6 @@ do
     }
 done
 
+kubectl get hpa,svc,ep,ds,deploy,job,po --all-namespaces -o wide
+
 exit ${EXIT_CODE}
