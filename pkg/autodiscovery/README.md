@@ -1,6 +1,6 @@
 ## package `autodiscovery`
 
-This package is a core piece of the agent. It is responsible for collecting checks configurations from different sources (see package [config providers](https://github.com/DataDog/datadog-agent/tree/master/pkg/collector/providers)) and then create, update or destroy check instances with the help of the Collector.
+This package is a core piece of the agent. It is responsible for collecting checks configurations from different sources (see package [config providers](https://github.com/DataDog/datadog-agent/tree/master/pkg/autodiscovery/providers)) and then create, update or destroy check instances with the help of the Collector.
 
 It is also responsible for listening to container-related events and trigger check scheduling decisions based on them.
 
@@ -11,8 +11,8 @@ As a central component, `AutoConfig` owns and orchestrates several key modules:
 
 - it owns a reference to the `Collector` that it uses to (un)schedule checks when template or container updates warrant them
 - it stores a list of `ConfigProviders` and poll them according to their policy
-- it owns and uses [check loaders](https://github.com/DataDog/datadog-agent/tree/haissam/docker-listener/pkg/collector/check#check-loaders) to load configurations into `Check` objects
-- it owns [listeners](https://github.com/DataDog/datadog-agent/tree/haissam/docker-listener/pkg/collector/listeners) that it uses to listen to container lifecycle events
+- it owns and uses [check loaders](https://github.com/DataDog/datadog-agent/blob/master/pkg/collector/check#check-loaders) to load configurations into `Check` objects
+- it owns [listeners](https://github.com/DataDog/datadog-agent/blob/master/pkg/autodiscovery/listeners) that it uses to listen to container lifecycle events
 - it runs the `ConfigResolver` that resolves a configuration template to an actual configuration based on data it extracts from a service that matches it the template
 
 **TODO:**
