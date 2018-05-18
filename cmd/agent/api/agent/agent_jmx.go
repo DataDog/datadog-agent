@@ -21,8 +21,8 @@ import (
 	log "github.com/cihub/seelog"
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 

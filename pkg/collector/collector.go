@@ -10,10 +10,10 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	log "github.com/cihub/seelog"
 )
 

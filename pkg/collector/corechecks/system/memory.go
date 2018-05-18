@@ -8,9 +8,9 @@ package system
 import (
 	"runtime"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/shirou/gopsutil/mem"
 )
 

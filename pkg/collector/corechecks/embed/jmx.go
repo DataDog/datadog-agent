@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	log "github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"

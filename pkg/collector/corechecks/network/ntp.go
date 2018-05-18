@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"math/rand"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/beevik/ntp"
 	log "github.com/cihub/seelog"
 

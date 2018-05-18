@@ -6,8 +6,8 @@
 package providers
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 // ProviderCatalog keeps track of config providers by name

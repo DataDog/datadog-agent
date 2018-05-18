@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
 )
 

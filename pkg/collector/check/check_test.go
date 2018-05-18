@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestCollectDefaultMetrics(t *testing.T) {
