@@ -20,19 +20,21 @@ import (
 type jmxState struct {
 	configs     *cache.BasicCache
 	runnerError chan struct{}
+	runner      *runner
 	lock        *sync.Mutex
 }
 
 var state jmxState = jmxState{
 	configs:     cache.NewBasicCache(),
 	runnerError: make(chan struct{}),
+	runner:      &runner{},
 	lock:        &sync.Mutex{},
 }
 
 func (s *jmxState) scheduleCheck(c *JMXCheck) error {
 	s.lock.Lock()
-	if runner == nil {
-		err := check.Retry(5*time.Second, 3, startRunner, "jmxfetch")
+	if !s.runner.started {
+		err := check.Retry(5*time.Second, 3, s.runner.startRunner, "jmxfetch")
 		if err != nil {
 			return err
 		}

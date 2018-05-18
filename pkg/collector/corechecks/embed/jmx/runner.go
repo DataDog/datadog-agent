@@ -17,7 +17,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var runner *jmxfetch.JMXFetch = &jmxfetch.JMXFetch{}
+type runner struct {
+	jmxfetch *jmxfetch.JMXFetch
+	started  bool
+}
 
 // checkInstanceCfg lists the config options on the instance against which we make some sanity checks
 // on how they're configured. All the other options should be checked on JMXFetch's side.
@@ -37,24 +40,25 @@ type checkInitCfg struct {
 
 const windowsExitFile = "jmxfetch_exit"
 
-func initRunner() {
-	runner = &jmxfetch.JMXFetch{}
-	runner.LogLevel = config.Datadog.GetString("log_level")
+func (r *runner) initRunner() {
+	r.jmxfetch = &jmxfetch.JMXFetch{}
+	r.jmxfetch.LogLevel = config.Datadog.GetString("log_level")
 
 	if runtime.GOOS == "windows" {
-		runner.JmxExitFile = windowsExitFile
+		r.jmxfetch.JmxExitFile = windowsExitFile
 	}
 }
 
-func startRunner() error {
-	err := runner.Start()
+func (r *runner) startRunner() error {
+	err := r.jmxfetch.Start()
 	if err != nil {
 		return err
 	}
+	r.started = true
 	return nil
 }
 
-func configureRunner(instance, initConfig integration.Data) error {
+func (r *runner) configureRunner(instance, initConfig integration.Data) error {
 
 	var initConf checkInitCfg
 	var instanceConf checkInstanceCfg
@@ -69,35 +73,35 @@ func configureRunner(instance, initConfig integration.Data) error {
 		return err
 	}
 
-	if runner.JavaBinPath == "" {
+	if r.jmxfetch.JavaBinPath == "" {
 		if instanceConf.JavaBinPath != "" {
-			runner.JavaBinPath = instanceConf.JavaBinPath
+			r.jmxfetch.JavaBinPath = instanceConf.JavaBinPath
 		} else if initConf.JavaBinPath != "" {
-			runner.JavaBinPath = initConf.JavaBinPath
+			r.jmxfetch.JavaBinPath = initConf.JavaBinPath
 		}
 	}
-	if runner.JavaOptions == "" {
+	if r.jmxfetch.JavaOptions == "" {
 		if instanceConf.JavaOptions != "" {
-			runner.JavaOptions = instanceConf.JavaOptions
+			r.jmxfetch.JavaOptions = instanceConf.JavaOptions
 		} else if initConf.JavaOptions != "" {
-			runner.JavaOptions = initConf.JavaOptions
+			r.jmxfetch.JavaOptions = initConf.JavaOptions
 		}
 	}
-	if runner.JavaToolsJarPath == "" {
+	if r.jmxfetch.JavaToolsJarPath == "" {
 		if instanceConf.ToolsJarPath != "" {
-			runner.JavaToolsJarPath = instanceConf.ToolsJarPath
+			r.jmxfetch.JavaToolsJarPath = instanceConf.ToolsJarPath
 		} else if initConf.ToolsJarPath != "" {
-			runner.JavaToolsJarPath = initConf.ToolsJarPath
+			r.jmxfetch.JavaToolsJarPath = initConf.ToolsJarPath
 		}
 	}
-	if runner.JavaCustomJarPaths == nil {
+	if r.jmxfetch.JavaCustomJarPaths == nil {
 		if initConf.CustomJarPaths != nil {
-			runner.JavaCustomJarPaths = initConf.CustomJarPaths
+			r.jmxfetch.JavaCustomJarPaths = initConf.CustomJarPaths
 		}
 	}
 
 	if instanceConf.ProcessNameRegex != "" {
-		if runner.JavaToolsJarPath == "" {
+		if r.jmxfetch.JavaToolsJarPath == "" {
 			return fmt.Errorf("You must specify the path to tools.jar. See http://docs.datadoghq.com/integrations/java/ for more information")
 		}
 	}

@@ -25,7 +25,7 @@ type JMXCheckLoader struct {
 
 // NewJMXCheckLoader creates a loader for go checks
 func NewJMXCheckLoader() (*JMXCheckLoader, error) {
-	initRunner()
+	state.runner.initRunner()
 	return &JMXCheckLoader{}, nil
 }
 
@@ -60,7 +60,7 @@ func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error)
 	}
 
 	for _, instance := range config.Instances {
-		if err = configureRunner(instance, config.InitConfig); err != nil {
+		if err = state.runner.configureRunner(instance, config.InitConfig); err != nil {
 			log.Errorf("jmx.loader: could not configure check: %s", err)
 			return checks, err
 		}
