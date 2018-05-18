@@ -52,9 +52,6 @@ jobs:
           name: install base
           command: pip install ./integrations-core/datadog_checks_base
       - run:
-          name: see
-          command: pip freeze
-      - run:
           name: grab go deps
           command: invoke deps
       - run:
@@ -67,19 +64,12 @@ jobs:
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
-            - /root/.local/lib/python2.7/base-packages
-            - /usr/local/lib/python2.7/base-packages
-            - /root/.local/lib/python2.7/site-packages
-            - /usr/local/lib/python2.7/site-packages
 
   unit_tests:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run:
-          name: see
-          command: pip freeze
       - run:
           name: run unit tests
           command: inv -e test --coverage --race --profile --fail-on-fmt
