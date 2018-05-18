@@ -196,8 +196,8 @@ func lastErrorMessage(value string) string {
 	var lastErrorArray []map[string]string
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err == nil && len(lastErrorArray) > 0 {
-		if _, ok := lastErrorArray[0]["message"]; ok {
-			return lastErrorArray[0]["message"]
+		if msg, ok := lastErrorArray[0]["message"]; ok {
+			return msg
 		}
 	}
 	return "UNKNOWN ERROR"
