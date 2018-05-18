@@ -7,6 +7,8 @@ import (
 )
 
 func TestConfigureRunner(t *testing.T) {
+	initRunner()
+
 	// Test for no instances in jmx check conf file
 	initConfYaml := []byte("")
 	instanceConfYaml := []byte("")
@@ -16,7 +18,7 @@ func TestConfigureRunner(t *testing.T) {
 
 	// Test basic jmx_url
 	instanceConfYaml = []byte("jmx_url: foo\n")
-	initConfYaml = []byte(" tools_jar_path: some/path")
+	initConfYaml = []byte("tools_jar_path: some/path")
 	err = configureRunner(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
 	assert.Equal(t, runner.JavaToolsJarPath, "some/path")
