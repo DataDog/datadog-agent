@@ -1029,9 +1029,12 @@ latest_dsd_push:
 # end to end
 #
 
-argo:
+pupernetes:
   stage: e2e
   when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   tags: [ "runner:main", "size:large" ]
   before_script: [ "# noop" ] # Override top level entry

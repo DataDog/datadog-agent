@@ -10,6 +10,7 @@ git clean -fdx .
 ./01-ignition.sh
 IGNITION_BASE64=$(cat ignition.json | base64 -w 0)
 
+# TODO remove the IamInstanceProfile
 tee specification.json << EOF
 {
   "ImageId": "ami-5555ff2a",
