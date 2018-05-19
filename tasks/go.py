@@ -186,17 +186,17 @@ def deps(ctx, core_dir=None):
     ctx.run("dep ensure")
 
     checks_base = 'datadog_checks_base'
-    core_default = os.path.join(os.getcwd(), 'integrations-core')
+    core_default = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
     core_dir = (
         core_dir or
         os.getenv('DD_CORE_DIR') or
         core_default if os.path.isdir(core_default) else None
     )
     if core_dir:
-        ctx.run('pip install -e {}'.format(os.path.join(os.path.abspath(core_dir), checks_base)))
+        ctx.run('pip install -q -e {}'.format(os.path.join(os.path.abspath(core_dir), checks_base)))
     else:
-        ctx.run('git clone https://github.com/DataDog/integrations-core')
-        ctx.run('pip install -e {}'.format(os.path.join(core_default, checks_base)))
+        ctx.run('git clone -q https://github.com/DataDog/integrations-core')
+        ctx.run('pip install -q -e {}'.format(os.path.join(core_default, checks_base)))
 
 
 @task
