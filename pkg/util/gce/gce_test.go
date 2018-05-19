@@ -31,6 +31,21 @@ func TestGetHostname(t *testing.T) {
 	assert.Equal(t, lastRequest.URL.Path, "/instance/hostname")
 }
 
+func TestGetHostnameEmptyBody(t *testing.T) {
+	var lastRequest *http.Request
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		lastRequest = r
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	val, err := GetHostname()
+	assert.Error(t, err)
+	assert.Equal(t, "", val)
+	assert.Equal(t, lastRequest.URL.Path, "/instance/hostname")
+}
+
 func TestGetHostAliases(t *testing.T) {
 	lastRequests := []*http.Request{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

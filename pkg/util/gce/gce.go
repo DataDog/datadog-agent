@@ -88,6 +88,10 @@ func getResponse(url string) (string, error) {
 		return "", fmt.Errorf("GCE hostname, error reading response body: %s", err)
 	}
 
+	if len(all) <= 0 {
+		return "", fmt.Errorf("empty response body")
+	}
+
 	return string(all), nil
 }
 
