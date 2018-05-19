@@ -174,7 +174,7 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx):
+def deps(ctx, core_dir=None):
     """
     Setup Go dependencies
     """
@@ -184,6 +184,19 @@ def deps(ctx):
     ctx.run("go get -u github.com/gordonklaus/ineffassign")
     ctx.run("go get -u github.com/client9/misspell/cmd/misspell")
     ctx.run("dep ensure")
+
+    checks_base = 'datadog_checks_base'
+    core_default = os.path.join(os.getcwd(), 'integrations-core')
+    core_dir = (
+        core_dir or
+        os.getenv('DD_CORE_DIR') or
+        core_default if os.path.isdir(core_default) else None
+    )
+    if core_dir:
+        ctx.run('pip install -e {}'.format(os.path.join(os.path.abspath(core_dir), checks_base)))
+    else:
+        ctx.run('git clone https://github.com/DataDog/integrations-core')
+        ctx.run('pip install -e {}'.format(os.path.join(core_default, checks_base)))
 
 
 @task
