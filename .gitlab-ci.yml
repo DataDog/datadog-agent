@@ -42,16 +42,8 @@ before_script:
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
-  - python -c "import sys;print(sys.version)"
-  - pip --version
-  - pip install -U pyOpenSSL cryptography idna certifi
-  - pip install urllib3[secure]
-  - pip install requests[security]
-  - pip install pytest-runner
   - pip install -U pip
-  - python -c "import json;import urllib2;print(json.load(urllib2.urlopen('https://www.howsmyssl.com/a/check'))['tls_version'])"
   - inv -e deps
-  - pip freeze
 
 
 #
@@ -65,7 +57,6 @@ run_tests_deb-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - pip freeze
     - inv -e test --race --profile
 
 # run tests for rpm-x64
