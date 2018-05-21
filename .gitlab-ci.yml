@@ -49,6 +49,7 @@ before_script:
   - pip install requests[security]
   - pip install pytest-runner
   - pip install -U pip
+  - python -c "import json;import urllib2;print(json.load(urllib2.urlopen('https://www.howsmyssl.com/a/check'))['tls_version'])"
   - inv -e deps
   - pip freeze
 
