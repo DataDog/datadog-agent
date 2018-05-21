@@ -194,7 +194,7 @@ def deps(ctx, core_dir=None):
         checks_base = os.path.join(core_dir, 'datadog_checks_base')
         if not os.path.isdir(core_dir):
             ctx.run('git clone -q https://github.com/DataDog/integrations-core {}'.format(core_dir))
-        ctx.run('pip install -U {}'.format(checks_base))
+        ctx.run('pip install {}'.format(checks_base))
 
 
 @task
