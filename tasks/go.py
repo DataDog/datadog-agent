@@ -7,6 +7,7 @@ import os
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
+from .utils import pkg_config_path
 
 
 # List of modules to ignore when running lint on Windows platform
@@ -87,7 +88,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets):
+def vet(ctx, targets, use_embedded_libs=False):
     """
     Run go vet on targets.
 
@@ -102,7 +103,12 @@ def vet(ctx, targets):
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
     build_tags = get_default_build_tags()
-    ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args))
+
+    env = {
+        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
+    }
+
+    ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")

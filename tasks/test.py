@@ -72,7 +72,7 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     lint_filenames(ctx)
     fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=tool_targets)
-    vet(ctx, targets=tool_targets)
+    vet(ctx, targets=tool_targets, use_embedded_libs=use_embedded_libs)
     misspell(ctx, targets=tool_targets)
     ineffassign(ctx, targets=tool_targets)
 
