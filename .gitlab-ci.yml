@@ -47,6 +47,8 @@ before_script:
   - pip install -U pyOpenSSL cryptography idna certifi
   - pip install urllib3[secure]
   - pip install requests[security]
+  - pip install pytest-runner
+  - pip install -U pip
   - inv -e deps
   - pip freeze
 
