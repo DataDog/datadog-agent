@@ -44,8 +44,7 @@ before_script:
   - cd $SRC_PATH
   - python -c "import sys;print(sys.version)"
   - pip --version
-  - pip install -U pip
-  - pip --version
+  - pip install -U requests[security]
   - inv -e deps
   - pip freeze
 
