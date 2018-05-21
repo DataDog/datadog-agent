@@ -44,7 +44,7 @@ before_script:
   - cd $SRC_PATH
   - python -c "import sys;print(sys.version)"
   - pip --version
-  - pip install -U requests[security]
+  - pip install urllib3[secure]
   - inv -e deps
   - pip freeze
 
