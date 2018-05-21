@@ -44,7 +44,9 @@ before_script:
   - cd $SRC_PATH
   - python -c "import sys;print(sys.version)"
   - pip --version
+  - pip install -U pyOpenSSL cryptography idna certifi
   - pip install urllib3[secure]
+  - pip install requests[security]
   - inv -e deps
   - pip freeze
 
