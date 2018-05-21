@@ -42,6 +42,7 @@ before_script:
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
+  - python -c "import sys;print(sys.version)"
   - pip --version
   - inv -e deps
   - pip freeze
