@@ -38,7 +38,7 @@
           {{- range $checkname, $error := .ConfigErrors}}
             <span class="stat_subtitle">{{$checkname}}</span>
             <span class="stat_subdata">
-              {{ stringToHTML $error -}}
+              {{ $error -}}
             </span>
           {{end -}}
         </span>
@@ -55,7 +55,7 @@
                 {{- if eq $kind "Python Check Loader"}}
                   {{$kind}}: {{ pythonLoaderError $err -}}<br>
                 {{- else}}
-                  {{$kind}}: {{ stringToHTML $err -}}<br>
+                  {{$kind}}: {{ $err -}}<br>
                 {{end -}}
               {{end -}}
             </span>
