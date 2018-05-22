@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Allow overriding procfs path. Should allow to collect relevant host metrics
+    in containerized environments. 
