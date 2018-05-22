@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/beevik/ntp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/beevik/ntp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
