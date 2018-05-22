@@ -41,6 +41,24 @@ func newJMXCheck(config integration.Config) *JMXCheck {
 	return check
 }
 
+func splitConfig(config integration.Config) []integration.Config {
+	configs := []integration.Config{}
+
+	for _, instance := range config.Instances {
+		c := integration.Config{
+			ADIdentifiers: config.ADIdentifiers,
+			InitConfig:    config.InitConfig,
+			Instances:     []integration.Data{instance},
+			LogsConfig:    config.LogsConfig,
+			MetricConfig:  config.MetricConfig,
+			Name:          config.Name,
+			Provider:      config.Provider,
+		}
+		configs = append(configs, c)
+	}
+	return configs
+}
+
 // Load returns an (empty?) list of checks and nil if it all works out
 func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error) {
 	var err error
@@ -49,8 +67,6 @@ func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error)
 	if !check.IsJMXConfig(config.Name, config.InitConfig) {
 		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
-
-	c := newJMXCheck(config)
 
 	rawInitConfig := integration.RawMap{}
 	err = yaml.Unmarshal(config.InitConfig, &rawInitConfig)
@@ -66,7 +82,10 @@ func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error)
 		}
 	}
 
-	checks = append(checks, c)
+	for _, cf := range splitConfig(config) {
+		c := newJMXCheck(cf)
+		checks = append(checks, c)
+	}
 
 	return checks, nil
 }
