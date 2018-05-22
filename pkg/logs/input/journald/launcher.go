@@ -6,12 +6,11 @@
 package journald
 
 import (
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Launcher is in charge of starting and stopping new journald tailers
