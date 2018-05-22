@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    The core Agent check Python code is no longer duplicated here and is instead
+    pulled from integrations-core. The code now resides in the `datadog_checks`
+    namespace, though the old `checks`, `utils`, etc. paths are still supported.
