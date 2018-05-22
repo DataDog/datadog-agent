@@ -1029,14 +1029,23 @@ latest_dsd_push:
 # end to end
 #
 
-pupernetes:
+.pupernetes_template: &pupernetes_template
   stage: e2e
-  when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   tags: [ "runner:main", "size:large" ]
   before_script: [ "# noop" ] # Override top level entry
   script:
   - ./test/e2e/scripts/setup-instance/00-entrypoint-gitlab.sh
+
+pupernetes-dev:
+  <<: *pupernetes_template
+  when: manual
+  except:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+
+pupernetes:
+  <<: *pupernetes_template
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
