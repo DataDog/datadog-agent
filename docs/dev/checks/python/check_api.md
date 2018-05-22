@@ -4,7 +4,7 @@ An Agent Check is a Python class that inherits from `AgentCheck` and implements
 the `check` method:
 
 ```python
-from checks import AgentCheck
+from datadog_checks.checks import AgentCheck
 
 class MyCheck(AgentCheck):
     def check(self, instance):
@@ -148,7 +148,7 @@ def __init__(self, *args, **kwargs):
 When overriding, the following convention must be followed:
 
 ```python
-from checks import AgentCheck
+from datadog_checks.checks import AgentCheck
 
 class MyCheck(AgentCheck):
     def __init__(self, name, init_config, instances):
