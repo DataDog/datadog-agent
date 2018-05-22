@@ -27,6 +27,40 @@ You must install [go](https://golang.org/doc/install) version 1.9.2 or above. Ma
 sure that `$GOPATH/bin` is in your `$PATH` otherwise Invoke cannot use any
 additional tool it might need.
 
+### Python
+
+The Agent embeds a full-fledged CPython interpreter so it requires the development
+files to be available in the dev env.
+
+If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
+bring along all the development files needed:
+```
+brew install python@2
+```
+
+On Windows, the [official installer](https://www.python.org/downloads/) will
+provide all the files needed.
+
+On Linux, depending on the distribution, you might need to explicitly install
+the development files, for example on Ubuntu:
+```
+sudo apt-get install python2.7-dev
+```
+
+## Installing dependencies
+
+From the root of `datadog-agent`, run `invoke deps`. This will:
+
+- Use `go` to install the necessary dependencies
+- Use `git` to clone [integrations-core](integrations-core)
+- Use `pip` to install [datadog_checks_base](datadog_checks_base)
+
+If you already installed [datadog_checks_base](datadog_checks_base) in your desired
+Python, you can do `invoke deps --no-checks` to prevent cloning and pip install. If
+you are already doing development on [integrations-core](integrations-core), you
+can specify a path to [integrations-core](integrations-core) using the `--core-dir`
+option to omit just the cloning step.
+
 ## System or Embedded?
 
 When working on the Agent codebase you can choose among two different ways to
@@ -72,26 +106,6 @@ boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_L
 changing the `invoke.yaml` file or passing the corresponding arg to the build and
 test tasks, like `invoke build --use-system-libs=false`.
 
-### Python
-
-The Agent embeds a full-fledged CPython interpreter so it requires the development
-files to be available in the dev env.
-
-If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
-bring along all the development files needed:
-```
-brew install python
-```
-
-On Windows, the [official installer](https://www.python.org/downloads/) will
-provide all the files needed.
-
-On Linux, depending on the distribution, you might need to explicitly install
-the development files, for example on Ubuntu:
-```
-sudo apt-get install python2.7-dev
-```
-
 ### SNMP (Simple Network Management Protocol)
 
 The new SNMP check is written in Go, so the Agent must be built against few
@@ -125,3 +139,5 @@ dev environment.
 [testing]: agent_tests.md
 [building]: agent_build.md
 [agent-omnibus]: agent_omnibus.md
+[integrations-core]: https://github.com/DataDog/integrations-core
+[datadog_checks_base]: https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base
