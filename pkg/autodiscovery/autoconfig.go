@@ -192,7 +192,7 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	return checks
 }
 
-// GetAllConfigs queries all the providers and returns all the check
+// GetAllConfigs queries all the providers and returns all the integration
 // configurations found, resolving the ones it can
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	resolvedConfigs := []integration.Config{}
@@ -244,6 +244,10 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	allChecks := []check.Check{}
 	for _, config := range configs {
+		if config.MetricConfig == nil && len(config.Instances) == 0 {
+			// skip non check configs.
+			continue
+		}
 		configDigest := config.Digest()
 		checks, err := ac.getChecks(config)
 		if err != nil {
@@ -390,6 +394,10 @@ func (ac *AutoConfig) pollConfigs() {
 					// Process removed configs first to handle the case where a
 					// container churn would result in the same configuration hash.
 					for _, config := range removedConfigs {
+						if config.MetricConfig == nil && len(config.Instances) == 0 {
+							// skip non check configs.
+							continue
+						}
 						// unschedule all the checks corresponding to this config
 						digest := config.Digest()
 						ids := ac.config2checks[digest]
