@@ -65,7 +65,6 @@ run_test_rpm-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - pip freeze
     - inv -e test --race --profile
 
 # scan the dependencies for security vulnerabilities with snyk
