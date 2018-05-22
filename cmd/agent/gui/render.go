@@ -144,30 +144,17 @@ func lastErrorTraceback(value string) template.HTML {
 	return template.HTML(traceback)
 }
 
-// same as mkHuman, but accepts integer input (vs float)
 func mkHumanI(i int64) string {
-	str := fmt.Sprintf("%d", i)
-
-	if i > 1000000 {
-		str = "over 1M"
-	} else if i > 100000 {
-		str = "over 100K"
-	}
-
-	return str
+	return mkHuman(float64(i))
 }
 
 func mkHuman(f float64) string {
-	i := int64(f)
-	str := fmt.Sprintf("%d", i)
-
-	if i > 1000000 {
-		str = "over 1M"
-	} else if i > 100000 {
-		str = "over 100K"
+	if f > 1000000 {
+		return fmt.Sprintf("%.1fM", f/1000000.0)
+	} else if f > 100000 {
+		return fmt.Sprintf("%.1fK", f/1000.0)
 	}
-
-	return str
+	return fmt.Sprintf("%.0f", f)
 }
 
 func formatTitle(title string) string {
