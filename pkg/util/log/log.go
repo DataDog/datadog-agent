@@ -24,6 +24,11 @@ func SetupDatadogLogger(l seelog.LoggerInterface) {
 	logger = &DatadogLogger{
 		inner: l,
 	}
+
+	//We're not going to call DatadogLogger directly, but using the
+	//exported functions, that will give us two frames in the stack
+	//trace that should be skipped to get to the original caller.
+	logger.inner.SetAdditionalStackDepth(2)
 }
 
 func (sw *DatadogLogger) scrub(s string) string {
@@ -34,81 +39,82 @@ func (sw *DatadogLogger) scrub(s string) string {
 	return s
 }
 
-//Trace logs at the trace level
-func (sw *DatadogLogger) Trace(s string) {
+//trace logs at the trace level
+func (sw *DatadogLogger) trace(s string) {
 	sw.inner.Trace(sw.scrub(s))
 }
 
-//Debug logs at the debug level
-func (sw *DatadogLogger) Debug(s string) {
+//debug logs at the debug level
+func (sw *DatadogLogger) debug(s string) {
 	sw.inner.Debug(sw.scrub(s))
 }
 
-//Info logs at the info level
-func (sw *DatadogLogger) Info(s string) {
+//info logs at the info level
+func (sw *DatadogLogger) info(s string) {
 	sw.inner.Info(sw.scrub(s))
 }
 
-//Warn logs at the warn level
-func (sw *DatadogLogger) Warn(s string) error {
+//warn logs at the warn level
+func (sw *DatadogLogger) warn(s string) error {
 	return sw.inner.Warn(sw.scrub(s))
 }
 
-//Error logs at the error level
-func (sw *DatadogLogger) Error(s string) error {
+//error logs at the error level
+func (sw *DatadogLogger) error(s string) error {
 	return sw.inner.Error(sw.scrub(s))
 }
 
-//Critical logs at the critical level
-func (sw *DatadogLogger) Critical(s string) error {
+//critical logs at the critical level
+func (sw *DatadogLogger) critical(s string) error {
 	return sw.inner.Critical(sw.scrub(s))
 }
 
-//Tracef logs with format at the trace level
-func (sw *DatadogLogger) Tracef(format string, params ...interface{}) {
-	sw.inner.Trace(fmt.Sprintf(format, params))
+//tracef logs with format at the trace level
+func (sw *DatadogLogger) tracef(format string, params ...interface{}) {
+	sw.inner.Trace(sw.scrub(fmt.Sprintf(format, params...)))
 }
 
-//Debugf logs with format at the debug level
-func (sw *DatadogLogger) Debugf(format string, params ...interface{}) {
-	sw.inner.Debug(fmt.Sprintf(format, params))
+//debugf logs with format at the debug level
+func (sw *DatadogLogger) debugf(format string, params ...interface{}) {
+	sw.inner.Debug(sw.scrub(fmt.Sprintf(format, params...)))
 }
 
-//Infof logs with format at the info level
-func (sw *DatadogLogger) Infof(format string, params ...interface{}) {
-	sw.inner.Info(fmt.Sprintf(format, params))
+//infof logs with format at the info level
+func (sw *DatadogLogger) infof(format string, params ...interface{}) {
+	sw.inner.Info(sw.scrub(fmt.Sprintf(format, params...)))
 }
 
-//Warnf logs with format at the warn level
-func (sw *DatadogLogger) Warnf(format string, params ...interface{}) error {
-	return sw.inner.Warn(fmt.Sprintf(format, params))
+//warnf logs with format at the warn level
+func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
+	return sw.inner.Warn(sw.scrub(fmt.Sprintf(format, params...)))
 }
 
-//Errorf logs with format at the error level
-func (sw *DatadogLogger) Errorf(format string, params ...interface{}) error {
-	return sw.inner.Error(fmt.Sprintf(format, params))
+//errorf logs with format at the error level
+func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
+	return sw.inner.Error(sw.scrub(fmt.Sprintf(format, params...)))
 }
 
-//Criticalf logs with format at the critical level
-func (sw *DatadogLogger) Criticalf(format string, params ...interface{}) error {
-	return sw.inner.Critical(fmt.Sprintf(format, params))
+//criticalf logs with format at the critical level
+func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
+	return sw.inner.Critical(sw.scrub(fmt.Sprintf(format, params...)))
 }
 
 func buildLogEntry(v ...interface{}) string {
 	var fmtBuffer bytes.Buffer
-	for i := 0; i < len(v)-1; i++ {
-		fmtBuffer.WriteString("%s ")
-	}
-	fmtBuffer.WriteString("%s")
 
-	return fmt.Sprintf(fmtBuffer.String(), v)
+	for i := 0; i < len(v)-1; i++ {
+		fmtBuffer.WriteString("%v ")
+	}
+	fmtBuffer.WriteString("%v")
+
+	return fmt.Sprintf(fmtBuffer.String(), v...)
 }
 
 //Trace logs at the trace level
 func Trace(v ...interface{}) {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v)
-		logger.Trace(logger.scrub(s))
+		logger.trace(logger.scrub(s))
 	}
 }
 
@@ -116,7 +122,7 @@ func Trace(v ...interface{}) {
 func Debug(v ...interface{}) {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v)
-		logger.Debug(logger.scrub(s))
+		logger.debug(logger.scrub(s))
 	}
 }
 
@@ -124,7 +130,7 @@ func Debug(v ...interface{}) {
 func Info(v ...interface{}) {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v)
-		logger.Info(logger.scrub(s))
+		logger.info(logger.scrub(s))
 	}
 }
 
@@ -132,7 +138,7 @@ func Info(v ...interface{}) {
 func Warn(v ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v)
-		return logger.Warn(logger.scrub(s))
+		return logger.warn(logger.scrub(s))
 	}
 	return nil
 }
@@ -141,7 +147,7 @@ func Warn(v ...interface{}) error {
 func Error(v ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v)
-		return logger.Error(logger.scrub(s))
+		return logger.error(logger.scrub(s))
 	}
 	return nil
 }
@@ -150,7 +156,7 @@ func Error(v ...interface{}) error {
 func Critical(v ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v)
-		return logger.Critical(logger.scrub(s))
+		return logger.critical(logger.scrub(s))
 	}
 	return nil
 }
@@ -164,30 +170,45 @@ func Flush() {
 
 //Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	Trace(fmt.Sprintf(format, params))
+	if logger != nil && logger.inner != nil {
+		logger.tracef(format, params...)
+	}
 }
 
 //Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	Debug(fmt.Sprintf(format, params))
+	if logger != nil && logger.inner != nil {
+		logger.debugf(format, params...)
+	}
 }
 
 //Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	Info(fmt.Sprintf(format, params))
+	if logger != nil && logger.inner != nil {
+		logger.infof(format, params...)
+	}
 }
 
 //Warnf logs with format at the warn level
 func Warnf(format string, params ...interface{}) error {
-	return Warn(fmt.Sprintf(format, params))
+	if logger != nil && logger.inner != nil {
+		return logger.warnf(format, params...)
+	}
+	return nil
 }
 
 //Errorf logs with format at the error level
 func Errorf(format string, params ...interface{}) error {
-	return Error(fmt.Sprintf(format, params))
+	if logger != nil && logger.inner != nil {
+		return logger.errorf(format, params...)
+	}
+	return nil
 }
 
 //Criticalf logs with format at the critical level
 func Criticalf(format string, params ...interface{}) error {
-	return Critical(fmt.Sprintf(format, params))
+	if logger != nil && logger.inner != nil {
+		return logger.criticalf(format, params...)
+	}
+	return nil
 }
