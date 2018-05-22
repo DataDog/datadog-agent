@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -49,9 +48,6 @@ func SetupHandlers(r *mux.Router) {
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
@@ -59,9 +55,6 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.New(version.AgentVersion, version.Commit)
 	j, _ := json.Marshal(av)
@@ -69,9 +62,6 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	hname, err := util.GetHostname()
 	if err != nil {
@@ -95,10 +85,6 @@ func getPythonStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
-
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
@@ -157,10 +143,6 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
-
 	log.Info("Got a request for the status. Making status.")
 	s, err := status.GetStatus()
 	w.Header().Set("Content-Type", "application/json")
@@ -183,10 +165,6 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
-
 	log.Info("Got a request for the formatted status. Making formatted status.")
 	s, err := status.GetAndFormatStatus()
 	if err != nil {
@@ -201,9 +179,6 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	h := health.GetStatus()
 
 	jsonHealth, err := json.Marshal(h)
@@ -218,17 +193,10 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func getCSRFToken(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	w.Write([]byte(gui.CsrfToken))
 }
 
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
-
 	var response response.ConfigCheckResponse
 
 	configs := common.AC.GetLoadedConfigs()
