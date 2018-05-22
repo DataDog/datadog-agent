@@ -7,7 +7,9 @@ package log
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/cihub/seelog"
 )
@@ -17,18 +19,63 @@ var logger *DatadogLogger
 //DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
 	inner seelog.LoggerInterface
+	extra map[string]seelog.LoggerInterface
+	l     sync.Mutex
 }
 
 //SetupDatadogLogger configure logger singleton with seelog interface
 func SetupDatadogLogger(l seelog.LoggerInterface) {
 	logger = &DatadogLogger{
 		inner: l,
+		extra: make(map[string]seelog.LoggerInterface),
 	}
 
 	//We're not going to call DatadogLogger directly, but using the
 	//exported functions, that will give us two frames in the stack
 	//trace that should be skipped to get to the original caller.
+	//
+	//The fact we need a constant "additional depth" means some
+	//theoretical refactor to avoid duplication in the functions
+	//below cannot be performed.
 	logger.inner.SetAdditionalStackDepth(2)
+}
+
+func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	old := sw.inner
+	sw.inner = l
+
+	return old
+}
+
+func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	if sw.extra == nil {
+		return errors.New("logger not fully initialized, additional logging unavailable")
+	}
+
+	if _, ok := sw.extra[n]; ok {
+		return errors.New("logger already registered with that name")
+	}
+	sw.extra[n] = l
+
+	return nil
+}
+
+func (sw *DatadogLogger) unregisterAdditionalLogger(n string) error {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	if sw.extra == nil {
+		return errors.New("logger not fully initialized, additional logging unavailable")
+	}
+
+	delete(sw.extra, n)
+	return nil
 }
 
 func (sw *DatadogLogger) scrub(s string) string {
@@ -41,62 +88,170 @@ func (sw *DatadogLogger) scrub(s string) string {
 
 //trace logs at the trace level
 func (sw *DatadogLogger) trace(s string) {
-	sw.inner.Trace(sw.scrub(s))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.Trace(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Trace(scrubbed)
+	}
 }
 
 //debug logs at the debug level
 func (sw *DatadogLogger) debug(s string) {
-	sw.inner.Debug(sw.scrub(s))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.Debug(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Debug(scrubbed)
+	}
 }
 
 //info logs at the info level
 func (sw *DatadogLogger) info(s string) {
-	sw.inner.Info(sw.scrub(s))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.Info(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Info(scrubbed)
+	}
 }
 
 //warn logs at the warn level
 func (sw *DatadogLogger) warn(s string) error {
-	return sw.inner.Warn(sw.scrub(s))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	err := sw.inner.Warn(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Warn(scrubbed)
+	}
+
+	return err
 }
 
 //error logs at the error level
 func (sw *DatadogLogger) error(s string) error {
-	return sw.inner.Error(sw.scrub(s))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	err := sw.inner.Error(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Error(scrubbed)
+	}
+
+	return err
 }
 
 //critical logs at the critical level
 func (sw *DatadogLogger) critical(s string) error {
-	return sw.inner.Critical(sw.scrub(s))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	err := sw.inner.Critical(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Critical(scrubbed)
+	}
+
+	return err
 }
 
 //tracef logs with format at the trace level
 func (sw *DatadogLogger) tracef(format string, params ...interface{}) {
-	sw.inner.Trace(sw.scrub(fmt.Sprintf(format, params...)))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
+	sw.inner.Trace(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Trace(scrubbed)
+	}
 }
 
 //debugf logs with format at the debug level
 func (sw *DatadogLogger) debugf(format string, params ...interface{}) {
-	sw.inner.Debug(sw.scrub(fmt.Sprintf(format, params...)))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
+	sw.inner.Debug(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Debug(scrubbed)
+	}
 }
 
 //infof logs with format at the info level
 func (sw *DatadogLogger) infof(format string, params ...interface{}) {
-	sw.inner.Info(sw.scrub(fmt.Sprintf(format, params...)))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
+	sw.inner.Info(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Info(scrubbed)
+	}
 }
 
 //warnf logs with format at the warn level
 func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
-	return sw.inner.Warn(sw.scrub(fmt.Sprintf(format, params...)))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
+	err := sw.inner.Warn(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Warn(scrubbed)
+	}
+
+	return err
 }
 
 //errorf logs with format at the error level
 func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
-	return sw.inner.Error(sw.scrub(fmt.Sprintf(format, params...)))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
+	err := sw.inner.Error(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Error(scrubbed)
+	}
+
+	return err
 }
 
 //criticalf logs with format at the critical level
 func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
-	return sw.inner.Critical(sw.scrub(fmt.Sprintf(format, params...)))
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
+	err := sw.inner.Critical(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Critical(scrubbed)
+	}
+
+	return err
 }
 
 func buildLogEntry(v ...interface{}) string {
@@ -211,4 +366,31 @@ func Criticalf(format string, params ...interface{}) error {
 		return logger.criticalf(format, params...)
 	}
 	return nil
+}
+
+//ReplaceLogger allows replacing the internal logger, returns old logger
+func ReplaceLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
+	if logger != nil && logger.inner != nil {
+		return logger.replaceInnerLogger(l)
+	}
+
+	return nil
+}
+
+//RegisterAdditionalLogger registers an additional logger for logging
+func RegisterAdditionalLogger(n string, l seelog.LoggerInterface) error {
+	if logger != nil && logger.inner != nil {
+		return logger.registerAdditionalLogger(n, l)
+	}
+
+	return errors.New("cannot register: logger not initialized")
+}
+
+//UnregisterAdditionalLogger unregisters additional logger with name n
+func UnregisterAdditionalLogger(n string) error {
+	if logger != nil && logger.inner != nil {
+		return logger.unregisterAdditionalLogger(n)
+	}
+
+	return errors.New("cannot unregister: logger not initialized")
 }
