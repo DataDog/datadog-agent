@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Scrub all logging output from credentials, should reduce the likelihood of
+    leakage.
