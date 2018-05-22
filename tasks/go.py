@@ -174,19 +174,19 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_core=False, core_dir=None, verbose=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False):
     """
     Setup Go dependencies
     """
     verbosity = ' -v' if verbose else ''
-    ctx.run("go get{} -u github.com/golang/dep/cmd/dep".format(verbosity))
-    ctx.run("go get{} -u github.com/golang/lint/golint".format(verbosity))
-    ctx.run("go get{} -u github.com/fzipp/gocyclo".format(verbosity))
-    ctx.run("go get{} -u github.com/gordonklaus/ineffassign".format(verbosity))
-    ctx.run("go get{} -u github.com/client9/misspell/cmd/misspell".format(verbosity))
-    ctx.run("dep ensure{}".format(verbosity))
+    ctx.run('go get{} -u github.com/golang/dep/cmd/dep'.format(verbosity))
+    ctx.run('go get{} -u github.com/golang/lint/golint'.format(verbosity))
+    ctx.run('go get{} -u github.com/fzipp/gocyclo'.format(verbosity))
+    ctx.run('go get{} -u github.com/gordonklaus/ineffassign'.format(verbosity))
+    ctx.run('go get{} -u github.com/client9/misspell/cmd/misspell'.format(verbosity))
+    ctx.run('dep ensure{}'.format(verbosity))
 
-    if not no_core:
+    if not no_checks:
         verbosity = 'v' if verbose else 'q'
         core_dir = core_dir or os.getenv('DD_CORE_DIR')
 
