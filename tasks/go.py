@@ -174,27 +174,31 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, core_dir=None):
+def deps(ctx, no_core=False, core_dir=None, verbose=False):
     """
     Setup Go dependencies
     """
-    ctx.run("go get -u github.com/golang/dep/cmd/dep")
-    ctx.run("go get -u github.com/golang/lint/golint")
-    ctx.run("go get -u github.com/fzipp/gocyclo")
-    ctx.run("go get -u github.com/gordonklaus/ineffassign")
-    ctx.run("go get -u github.com/client9/misspell/cmd/misspell")
-    ctx.run("dep ensure")
+    verbosity = ' -v' if verbose else ''
+    ctx.run("go get{} -u github.com/golang/dep/cmd/dep".format(verbosity))
+    ctx.run("go get{} -u github.com/golang/lint/golint".format(verbosity))
+    ctx.run("go get{} -u github.com/fzipp/gocyclo".format(verbosity))
+    ctx.run("go get{} -u github.com/gordonklaus/ineffassign".format(verbosity))
+    ctx.run("go get{} -u github.com/client9/misspell/cmd/misspell".format(verbosity))
+    ctx.run("dep ensure{}".format(verbosity))
 
-    core_dir = core_dir or os.getenv('DD_CORE_DIR')
-    if core_dir:
-        checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
-        ctx.run('pip install -q -e {}'.format(checks_base))
-    else:
-        core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
-        checks_base = os.path.join(core_dir, 'datadog_checks_base')
-        if not os.path.isdir(core_dir):
-            ctx.run('git clone -q https://github.com/DataDog/integrations-core {}'.format(core_dir))
-        ctx.run('pip install {}'.format(checks_base))
+    if not no_core:
+        verbosity = 'v' if verbose else 'q'
+        core_dir = core_dir or os.getenv('DD_CORE_DIR')
+
+        if core_dir:
+            checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
+            ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
+        else:
+            core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
+            checks_base = os.path.join(core_dir, 'datadog_checks_base')
+            if not os.path.isdir(core_dir):
+                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
+            ctx.run('pip install -{} {}'.format(verbosity, checks_base))
 
 
 @task
