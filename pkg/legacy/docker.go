@@ -69,7 +69,7 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 	fmt.Printf("%s\n", warningNewCheck)
 
 	// read docker_daemon.yaml
-	c, err := providers.GetCheckConfigFromFile("docker_daemon", src)
+	c, err := providers.GetIntegrationConfigFromFile("docker_daemon", src)
 	if err != nil {
 		return fmt.Errorf("Could not load %s: %s", src, err)
 	}

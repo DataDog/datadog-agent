@@ -31,7 +31,7 @@ type configFormat struct {
 type configPkg struct {
 	confs    []integration.Config
 	defaults []integration.Config
-	metrics  []integration.Config
+	others   []integration.Config
 }
 
 type configEntry struct {
@@ -82,9 +82,9 @@ func (c *FileConfigProvider) Collect() ([]integration.Config, error) {
 				if len(dirConfigs.defaults) > 0 {
 					defaultConfigs = append(defaultConfigs, dirConfigs.defaults...)
 				}
-				if len(dirConfigs.metrics) > 0 {
-					// don't save metric file names in the configNames maps so they don't override defaults
-					configs = append(configs, dirConfigs.metrics...)
+				if len(dirConfigs.others) > 0 {
+					// don't save file names for others configs in the configNames maps so they don't override defaults
+					configs = append(configs, dirConfigs.others...)
 				}
 				if len(dirConfigs.confs) > 0 {
 					configs = append(configs, dirConfigs.confs...)
@@ -100,15 +100,13 @@ func (c *FileConfigProvider) Collect() ([]integration.Config, error) {
 				continue
 			}
 
-			if entry.isLogsOnly {
-				// skip logs-only configs for now as they are not processed by autodiscovery
-				continue
-			}
-
 			// determine if a check has to be run by default by
 			// searching for check.yaml.default files
 			if entry.isDefault {
 				defaultConfigs = append(defaultConfigs, entry.conf)
+			} else if entry.isLogsOnly {
+				// don't save file names for logs only configs in the configNames maps so they don't override defaults
+				configs = append(configs, entry.conf)
 			} else {
 				configs = append(configs, entry.conf)
 				configNames[entry.name] = struct{}{}
@@ -140,8 +138,8 @@ func (c *FileConfigProvider) String() string {
 }
 
 // collectEntry collects a file entry and return it's configuration if valid
-// the checkName can be manually provided else it'll use the filename
-func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkName string) configEntry {
+// the integrationName can be manually provided else it'll use the filename
+func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, integrationName string) configEntry {
 	const defaultExt string = ".default"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
@@ -149,8 +147,8 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 	absPath := filepath.Join(path, fileName)
 
 	// skip config files that are not of type:
-	//  * check.yaml, check.yml
-	//  * check.yaml.default, check.yml.default
+	//  * integration.yaml, integration.yml
+	//  * integration.yaml.default, integration.yml.default
 
 	if fileName == "metrics.yaml" || fileName == "metrics.yml" {
 		entry.isMetric = true
@@ -161,14 +159,14 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 		ext = filepath.Ext(strings.TrimSuffix(fileName, defaultExt))
 	}
 
-	if checkName == "" {
-		checkName = fileName
+	if integrationName == "" {
+		integrationName = fileName
 		if entry.isDefault {
-			checkName = strings.TrimSuffix(checkName, defaultExt)
+			integrationName = strings.TrimSuffix(integrationName, defaultExt)
 		}
-		checkName = strings.TrimSuffix(checkName, ext)
+		integrationName = strings.TrimSuffix(integrationName, ext)
 	}
-	entry.name = checkName
+	entry.name = integrationName
 
 	if ext != ".yaml" && ext != ".yml" {
 		log.Tracef("Skipping file: %s", absPath)
@@ -177,10 +175,10 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 	}
 
 	var err error
-	entry.conf, err = GetCheckConfigFromFile(checkName, absPath)
+	entry.conf, err = GetIntegrationConfigFromFile(integrationName, absPath)
 	if err != nil {
 		log.Warnf("%s is not a valid config file: %s", absPath, err)
-		c.Errors[checkName] = err.Error()
+		c.Errors[integrationName] = err.Error()
 		entry.err = errors.New("Invalid config file format")
 		return entry
 	}
@@ -190,7 +188,7 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 		entry.isLogsOnly = true
 	}
 
-	delete(c.Errors, checkName) // noop if entry is nonexistant
+	delete(c.Errors, integrationName) // noop if entry is nonexistant
 	log.Debug("Found valid configuration in file:", absPath)
 	return entry
 }
@@ -199,54 +197,52 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) configPkg {
 	configs := []integration.Config{}
 	defaultConfigs := []integration.Config{}
-	metricConfigs := []integration.Config{}
+	otherConfigs := []integration.Config{}
 	const dirExt string = ".d"
 	dirPath := filepath.Join(parentPath, folder.Name())
 
 	if filepath.Ext(folder.Name()) != dirExt {
-		// the name of this directory isn't in the form `checkname.d`, skip it
+		// the name of this directory isn't in the form `integrationName.d`, skip it
 		log.Debugf("Not a config folder, skipping directory: %s", dirPath)
-		return configPkg{configs, defaultConfigs, metricConfigs}
+		return configPkg{configs, defaultConfigs, otherConfigs}
 	}
 
 	// search for yaml files within this directory
 	subEntries, err := ioutil.ReadDir(dirPath)
 	if err != nil {
 		log.Warnf("Skipping config directory %s: %s", dirPath, err)
-		return configPkg{configs, defaultConfigs, metricConfigs}
+		return configPkg{configs, defaultConfigs, otherConfigs}
 	}
 
 	// strip the trailing `.d`
-	checkName := strings.TrimSuffix(folder.Name(), dirExt)
+	integrationName := strings.TrimSuffix(folder.Name(), dirExt)
 
 	// try to load any config file in it
 	for _, sEntry := range subEntries {
 		if !sEntry.IsDir() {
 
-			entry := c.collectEntry(sEntry, dirPath, checkName)
+			entry := c.collectEntry(sEntry, dirPath, integrationName)
 			if entry.err != nil {
 				// logging already done in collectEntry
 				continue
 			}
 			// determine if a check has to be run by default by
-			// searching for check.yaml.default files
+			// searching for integratio.yaml.default files
 			if entry.isDefault {
 				defaultConfigs = append(defaultConfigs, entry.conf)
-			} else if entry.isMetric {
-				metricConfigs = append(metricConfigs, entry.conf)
-			} else if entry.isLogsOnly {
-				// skip logs-only configs for now as they are not processed by autodiscovery
+			} else if entry.isMetric || entry.isLogsOnly {
+				otherConfigs = append(otherConfigs, entry.conf)
 			} else {
 				configs = append(configs, entry.conf)
 			}
 		}
 	}
 
-	return configPkg{confs: configs, defaults: defaultConfigs, metrics: metricConfigs}
+	return configPkg{confs: configs, defaults: defaultConfigs, others: otherConfigs}
 }
 
-// GetCheckConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
-func GetCheckConfigFromFile(name, fpath string) (integration.Config, error) {
+// GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
+func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error) {
 	cf := configFormat{}
 	config := integration.Config{Name: name}
 
@@ -288,14 +284,14 @@ func GetCheckConfigFromFile(name, fpath string) (integration.Config, error) {
 		config.MetricConfig = rawMetricConfig
 	}
 
-	// Copy auto discovery identifiers
-	config.ADIdentifiers = cf.ADIdentifiers
-
 	// If logs was found, add it to the config
 	if cf.LogsConfig != nil {
 		rawLogsConfig, _ := yaml.Marshal(cf.LogsConfig)
 		config.LogsConfig = rawLogsConfig
 	}
+
+	// Copy auto discovery identifiers
+	config.ADIdentifiers = cf.ADIdentifiers
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {
