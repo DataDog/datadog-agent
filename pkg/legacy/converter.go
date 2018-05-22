@@ -18,7 +18,9 @@ import (
 // the values into the current config.Datadog object
 func FromAgentConfig(agentConfig Config) error {
 
-	config.Datadog.Set("dd_url", agentConfig["dd_url"])
+	if err := extractURLAPIKeys(agentConfig); err != nil {
+		return err
+	}
 
 	if proxy, err := buildProxySettings(agentConfig); err == nil {
 		config.Datadog.Set("proxy", proxy)
@@ -28,7 +30,6 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("skip_ssl_validation", enabled)
 	}
 
-	config.Datadog.Set("api_key", agentConfig["api_key"])
 	config.Datadog.Set("hostname", agentConfig["hostname"])
 
 	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); enabled {
@@ -173,6 +174,35 @@ func isAffirmative(value string) (bool, error) {
 
 	v := strings.ToLower(value)
 	return v == "true" || v == "yes" || v == "1", nil
+}
+
+func extractURLAPIKeys(agentConfig Config) error {
+	urls := strings.Split(agentConfig["dd_url"], ",")
+	keys := strings.Split(agentConfig["api_key"], ",")
+
+	if len(urls) != len(keys) {
+		return fmt.Errorf("Invalid number of 'dd_url'/'api_key': please provide one api_key for each url")
+	}
+
+	config.Datadog.Set("dd_url", urls[0])
+	config.Datadog.Set("api_key", keys[0])
+	if len(urls) == 1 {
+		return nil
+	}
+
+	urls = urls[1:]
+	keys = keys[1:]
+
+	additionalEndpoints := map[string][]string{}
+	for idx, url := range urls {
+		if _, ok := additionalEndpoints[url]; ok {
+			additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
+		} else {
+			additionalEndpoints[url] = []string{keys[idx]}
+		}
+	}
+	config.Datadog.Set("additional_endpoints", additionalEndpoints)
+	return nil
 }
 
 func buildProxySettings(agentConfig Config) (map[string]string, error) {
