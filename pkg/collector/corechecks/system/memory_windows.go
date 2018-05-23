@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
-const memCheckName = "memory"
-
 // For testing purpose
 var virtualMemory = winutil.VirtualMemory
 var swapMemory = winutil.SwapMemory
