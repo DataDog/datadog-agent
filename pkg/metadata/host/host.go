@@ -15,14 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/cpu"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
@@ -32,16 +27,12 @@ import (
 const packageCachePrefix = "host"
 
 // Collect at init time
-var cpuInfo []cpu.InfoStat
+//var cpuInfo []cpu.InfoStat
 
 // InitHostMetadata initializes necessary CPU info
 func InitHostMetadata() error {
-	// Collect before even loading any python check to avoid
-	// COM model mayhem on windows
-	var err error
-	cpuInfo, err = cpu.Info()
 
-	return err
+	return nil
 }
 
 // GetPayload builds a metadata payload every time is called.

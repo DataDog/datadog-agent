@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/gohai/cpu"
@@ -101,7 +102,7 @@ func (c *CPUCheck) Run() error {
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data) error {
 	// do nothing
 	info, err := cpu.GetCpuInfo()
 	if err != nil {
