@@ -31,7 +31,8 @@ func GetVersion() (maj uint64, min uint64, err error) {
 
 }
 
-func getArchInfo() (systemInfo map[string]interface{}, err error) {
+// GetArchInfo() returns basic host architecture information
+func GetArchInfo() (systemInfo map[string]interface{}, err error) {
 	systemInfo = make(map[string]interface{})
 
 	systemInfo["hostname"], _ = os.Hostname()
