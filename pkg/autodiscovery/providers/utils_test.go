@@ -170,6 +170,43 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 		},
 		{
+			// Logs config
+			source: map[string]string{
+				"prefix.logs": "[{\"service\":\"any_service\",\"source\":\"any_source\"}]",
+			},
+			adIdentifier: "id",
+			prefix:       "prefix.",
+			output: []integration.Config{
+				{
+					LogsConfig:    integration.Data("{\"service\":\"any_service\",\"source\":\"any_source\"}"),
+					ADIdentifiers: []string{"id"},
+				},
+			},
+		},
+		{
+			// Check + logs
+			source: map[string]string{
+				"prefix.check_names":  "[\"apache\"]",
+				"prefix.init_configs": "[{}]",
+				"prefix.instances":    "[{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}]",
+				"prefix.logs":         "[{\"service\":\"any_service\",\"source\":\"any_source\"}]",
+			},
+			adIdentifier: "id",
+			prefix:       "prefix.",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{"id"},
+				},
+				{
+					LogsConfig:    integration.Data("{\"service\":\"any_service\",\"source\":\"any_source\"}"),
+					ADIdentifiers: []string{"id"},
+				},
+			},
+		},
+		{
 			// Missing check_names, silently ignore map
 			source: map[string]string{
 				"prefix.init_configs": "[{}]",
@@ -201,6 +238,16 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			prefix:       "prefix.",
 			output:       []integration.Config{},
 			err:          errors.New("in instances: Failed to unmarshal JSON"),
+		},
+		{
+			// Invalid logs json
+			source: map[string]string{
+				"prefix.logs": "{\"service\":\"any_service\",\"source\":\"any_source\"}",
+			},
+			adIdentifier: "id",
+			prefix:       "prefix.",
+			output:       []integration.Config{},
+			err:          errors.New("in logs: Failed to unmarshal JSON"),
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
