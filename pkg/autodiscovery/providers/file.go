@@ -227,7 +227,7 @@ func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) c
 				continue
 			}
 			// determine if a check has to be run by default by
-			// searching for integratio.yaml.default files
+			// searching for integration.yaml.default files
 			if entry.isDefault {
 				defaultConfigs = append(defaultConfigs, entry.conf)
 			} else if entry.isMetric || entry.isLogsOnly {
