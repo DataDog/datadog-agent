@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -51,7 +52,7 @@ func EnableLoggingToFile() {
 		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\agent.log" maxsize="1000000" maxrolls="2" />
 	</outputs>
 </seelog>`
-	logger, _ := log.LoggerFromConfigAsBytes([]byte(seeConfig))
+	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
 	log.ReplaceLogger(logger)
 }
 
