@@ -212,6 +212,7 @@ def lint_releasenote(ctx):
 
     ctx.run("reno lint")
 
+
 @task
 def lint_filenames(ctx):
     """
@@ -243,6 +244,18 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
+def e2e_tests(ctx, target="gitlab"):
+    """
+    Run e2e tests in several environments.
+    """
+    choices = ["gitlab", "dev", "local"]
+    if target not in choices:
+        print('target %s not in %s' % (target, choices))
+        raise Exit(1)
+    ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
+
+
+@task
 def version(ctx, url_safe=False, git_sha_length=7):
     """
     Get the agent version.
@@ -252,6 +265,7 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))
+
 
 class TestProfiler:
     times = []

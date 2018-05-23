@@ -1035,7 +1035,7 @@ latest_dsd_push:
   tags: [ "runner:main", "size:large" ]
   before_script: [ "# noop" ] # Override top level entry
   script:
-  - ./test/e2e/scripts/setup-instance/00-entrypoint-gitlab.sh
+  - inv -e e2e-tests
 
 pupernetes-dev:
   <<: *pupernetes_template
