@@ -30,7 +30,7 @@ func getPlatformInfo() (platformInfo map[string]interface{}, err error) {
 
 	// for this, no error check.  The successful results will be added
 	// to the return value, and the error stored.
-	platformInfo, err = getArchInfo()
+	platformInfo, err = GetArchInfo()
 
 	platformInfo["goV"] = strings.Replace(runtime.Version(), "go", "", -1)
 	// If this errors, swallow the error.
