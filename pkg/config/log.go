@@ -91,7 +91,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 	}
 	seelog.ReplaceLogger(logger)
 
-	log.SetupDatadogLogger(logger)
+	log.SetupDatadogLogger(logger, seelogLogLevel)
 	return nil
 }
 

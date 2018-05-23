@@ -17,7 +17,7 @@ func TestBasicLogging(t *testing.T) {
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 
-	SetupDatadogLogger(l)
+	SetupDatadogLogger(l, "debug")
 	assert.NotNil(t, logger)
 
 	Tracef("%s", "foo")
@@ -52,7 +52,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 
-	SetupDatadogLogger(l)
+	SetupDatadogLogger(l, "info")
 	assert.NotNil(t, logger)
 
 	Info("this is an API KEY: ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
@@ -75,7 +75,7 @@ func TestExtraLogging(t *testing.T) {
 	lA, err := seelog.LoggerFromWriterWithMinLevelAndFormat(wA, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 
-	SetupDatadogLogger(l)
+	SetupDatadogLogger(l, "info")
 	assert.NotNil(t, logger)
 
 	err = RegisterAdditionalLogger("extra", lA)

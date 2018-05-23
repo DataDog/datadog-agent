@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/cihub/seelog"
@@ -19,16 +20,23 @@ var logger *DatadogLogger
 //DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
 	inner seelog.LoggerInterface
+	level seelog.LogLevel
 	extra map[string]seelog.LoggerInterface
 	l     sync.Mutex
 }
 
 //SetupDatadogLogger configure logger singleton with seelog interface
-func SetupDatadogLogger(l seelog.LoggerInterface) {
+func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	logger = &DatadogLogger{
 		inner: l,
 		extra: make(map[string]seelog.LoggerInterface),
 	}
+
+	lvl, ok := seelog.LogLevelFromString(level)
+	if !ok {
+		lvl = seelog.InfoLvl
+	}
+	logger.level = lvl
 
 	//We're not going to call DatadogLogger directly, but using the
 	//exported functions, that will give us two frames in the stack
@@ -48,6 +56,25 @@ func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.Log
 	sw.inner = l
 
 	return old
+}
+
+func (sw *DatadogLogger) changeLogLevel(level string) error {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	lvl, ok := seelog.LogLevelFromString(strings.ToLower(level))
+	if !ok {
+		return errors.New("bad log level")
+	}
+	logger.level = lvl
+	return nil
+}
+
+func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	return (level >= sw.level)
 }
 
 func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
@@ -267,7 +294,7 @@ func buildLogEntry(v ...interface{}) string {
 
 //Trace logs at the trace level
 func Trace(v ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
 		s := buildLogEntry(v)
 		logger.trace(logger.scrub(s))
 	}
@@ -275,7 +302,7 @@ func Trace(v ...interface{}) {
 
 //Debug logs at the debug level
 func Debug(v ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
 		s := buildLogEntry(v)
 		logger.debug(logger.scrub(s))
 	}
@@ -283,7 +310,7 @@ func Debug(v ...interface{}) {
 
 //Info logs at the info level
 func Info(v ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		s := buildLogEntry(v)
 		logger.info(logger.scrub(s))
 	}
@@ -291,7 +318,7 @@ func Info(v ...interface{}) {
 
 //Warn logs at the warn level
 func Warn(v ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
 		s := buildLogEntry(v)
 		return logger.warn(logger.scrub(s))
 	}
@@ -300,7 +327,7 @@ func Warn(v ...interface{}) error {
 
 //Error logs at the error level
 func Error(v ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		s := buildLogEntry(v)
 		return logger.error(logger.scrub(s))
 	}
@@ -309,7 +336,7 @@ func Error(v ...interface{}) error {
 
 //Critical logs at the critical level
 func Critical(v ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		s := buildLogEntry(v)
 		return logger.critical(logger.scrub(s))
 	}
@@ -325,28 +352,28 @@ func Flush() {
 
 //Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
 		logger.tracef(format, params...)
 	}
 }
 
 //Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
 		logger.debugf(format, params...)
 	}
 }
 
 //Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		logger.infof(format, params...)
 	}
 }
 
 //Warnf logs with format at the warn level
 func Warnf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
 		return logger.warnf(format, params...)
 	}
 	return nil
@@ -354,7 +381,7 @@ func Warnf(format string, params ...interface{}) error {
 
 //Errorf logs with format at the error level
 func Errorf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		return logger.errorf(format, params...)
 	}
 	return nil
@@ -362,7 +389,7 @@ func Errorf(format string, params ...interface{}) error {
 
 //Criticalf logs with format at the critical level
 func Criticalf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		return logger.criticalf(format, params...)
 	}
 	return nil
@@ -393,4 +420,12 @@ func UnregisterAdditionalLogger(n string) error {
 	}
 
 	return errors.New("cannot unregister: logger not initialized")
+}
+
+func changeLogLevel(level string) error {
+	if logger == nil {
+		return errors.New("logger initialized, cant set log-level")
+	}
+
+	return logger.changeLogLevel(level)
 }
