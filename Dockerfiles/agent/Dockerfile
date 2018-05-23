@@ -77,6 +77,7 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
 # make sure we have recent dependencies
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
   # CVE-fixing time!
+  && apt-get install -y util-linux \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
