@@ -24,11 +24,6 @@ type RedactingWriter struct {
 
 //NewRedactingWriter instantiates a RedactingWriter to target with given permissions
 func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWriter, error) {
-	err := ensureParentDirsExist(t)
-	if err != nil {
-		return nil, err
-	}
-
 	f, err := os.OpenFile(t, os.O_RDWR|os.O_CREATE, p)
 	if err != nil {
 		return nil, err
@@ -68,6 +63,8 @@ func (f *RedactingWriter) WriteFromFile(filePath string) (int, error) {
 		return 0, err
 	}
 
+	f.Truncate(0)
+	f.target.Seek(0, 0) // offset, whence: 0 relative to start of file
 	return f.Write(data)
 }
 
@@ -99,6 +96,11 @@ func (f *RedactingWriter) Write(p []byte) (int, error) {
 	}
 
 	return n, err
+}
+
+//Truncate truncates the file of the target file to the specified size
+func (f *RedactingWriter) Truncate(size int64) error {
+	return f.target.Truncate(size)
 }
 
 //Flush if this is a buffered writer, it flushes the buffer, otherwise NOP
