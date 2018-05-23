@@ -303,7 +303,7 @@ func Trace(v ...interface{}) {
 //Debug logs at the debug level
 func Debug(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
-		s := buildLogEntry(v)
+		s := buildLogEntry(v...)
 		logger.debug(logger.scrub(s))
 	}
 }
@@ -311,7 +311,7 @@ func Debug(v ...interface{}) {
 //Info logs at the info level
 func Info(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
-		s := buildLogEntry(v)
+		s := buildLogEntry(v...)
 		logger.info(logger.scrub(s))
 	}
 }
@@ -319,7 +319,7 @@ func Info(v ...interface{}) {
 //Warn logs at the warn level
 func Warn(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
-		s := buildLogEntry(v)
+		s := buildLogEntry(v...)
 		return logger.warn(logger.scrub(s))
 	}
 	return nil
@@ -328,7 +328,7 @@ func Warn(v ...interface{}) error {
 //Error logs at the error level
 func Error(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
-		s := buildLogEntry(v)
+		s := buildLogEntry(v...)
 		return logger.error(logger.scrub(s))
 	}
 	return nil
@@ -337,7 +337,7 @@ func Error(v ...interface{}) error {
 //Critical logs at the critical level
 func Critical(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
-		s := buildLogEntry(v)
+		s := buildLogEntry(v...)
 		return logger.critical(logger.scrub(s))
 	}
 	return nil
