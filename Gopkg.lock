@@ -19,7 +19,7 @@
     "processes",
     "processes/gops"
   ]
-  revision = "d80d0f562a71fa2380fbeccc93ba5a2e325606e4"
+  revision = "8958cdf2097cb1046813004afce15f580ff7c67d"
 
 [[projects]]
   branch = "master"
