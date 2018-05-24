@@ -9,7 +9,7 @@ RUN mkdir -p /opt/datadog-cluster-agent/bin/datadog-cluster-agent/
 
 COPY datadog-cluster-agent /opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent
 
-COPY ./conf.d /etc/datadog-agent/etc/conf.d
+COPY ./conf.d /etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog.yaml
 COPY ./dist /opt/datadog-cluster-agent/bin/datadog-cluster-agent/dist
 
