@@ -175,8 +175,7 @@ func TestLoadProxyFromEnvNoValue(t *testing.T) {
 	loadProxyFromEnv()
 	assert.Nil(t, Datadog.Get("proxy"))
 
-	proxies, err := GetProxies()
-	require.Nil(t, err)
+	proxies := GetProxies()
 	require.Nil(t, proxies)
 }
 
@@ -192,8 +191,7 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	defer os.Setenv("NO_PROXY", ciValue)
 
 	loadProxyFromEnv()
-	proxies, err := GetProxies()
-	require.Nil(t, err)
+	proxies := GetProxies()
 	assert.Equal(t, p, proxies)
 }
 
@@ -205,8 +203,7 @@ func TestLoadProxyEnvOnly(t *testing.T) {
 
 	loadProxyFromEnv()
 
-	proxies, err := GetProxies()
-	require.Nil(t, err)
+	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
 			HTTP:    "http_url",
@@ -225,8 +222,7 @@ func TestLoadProxyEnvOnly(t *testing.T) {
 	os.Setenv("no_proxy", "1,2,3")
 
 	loadProxyFromEnv()
-	proxies, err = GetProxies()
-	require.Nil(t, err)
+	proxies = GetProxies()
 	assert.Equal(t,
 		&Proxy{
 			HTTP:    "http_url2",
@@ -248,8 +244,7 @@ func TestLoadProxyEnvAndConf(t *testing.T) {
 	defer Datadog.Set("proxy", nil)
 
 	loadProxyFromEnv()
-	proxies, err := GetProxies()
-	require.Nil(t, err)
+	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
 			HTTP:    "http_conf",
