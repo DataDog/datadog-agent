@@ -384,6 +384,9 @@ name is still supported for Agent6 but support will be removed in Agent7.
 
 ## Python Modules
 
+All check-related Python code should now be imported from the `datadog_checks`
+[namespace](https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base).
+
 While we are continuing to ship the python libraries that ship with Agent 5,
 some of the embedded libraries have been removed. `util.py` and its associated
 functions have been removed from the agent. `util.headers(...)` is still included
@@ -410,8 +413,8 @@ Agent as they are not currently implemented:
 
 ### Check API
 
-The base class for python checks remains `AgentCheck`, and you will import it in
-the same way. However, there are a number of things that have been removed or
+The base class for python checks remains `AgentCheck`, though now you will import it from
+`datadog_checks.checks`. However, there are a number of things that have been removed or
 changed in the class API. In addition, each check instance is now its own instance
 of the class. So you cannot share state between them.
 
