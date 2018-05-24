@@ -150,7 +150,8 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	return buildTemplates(key, checkNames, initConfigs, instances), nil
 }
 
-// extractLogsTemplatesFromMap returns the first logs configuration from a given map.
+// extractLogsTemplatesFromMap returns the first logs configuration from a given map
+// if none are found return an empty list.
 func extractLogsTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
 	value, found := input[prefix+logsConfigPath]
 	if !found {
