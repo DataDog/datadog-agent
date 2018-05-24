@@ -11,7 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //RedactingWriter is a writer that will redact content before writing to target
@@ -19,7 +19,7 @@ type RedactingWriter struct {
 	target    *os.File
 	targetBuf *bufio.Writer
 	perm      os.FileMode
-	r         []replacer
+	r         []log.Replacer
 }
 
 //NewRedactingWriter instantiates a RedactingWriter to target with given permissions
@@ -38,12 +38,12 @@ func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWrite
 		target:    f,
 		targetBuf: b,
 		perm:      p,
-		r:         []replacer{},
+		r:         []log.Replacer{},
 	}, nil
 }
 
 //RegisterReplacer register additional replacers to run on stream
-func (f *RedactingWriter) RegisterReplacer(r replacer) {
+func (f *RedactingWriter) RegisterReplacer(r log.Replacer) {
 	f.r = append(f.r, r)
 }
 
@@ -77,14 +77,14 @@ func (f *RedactingWriter) Write(p []byte) (int, error) {
 		return 0, errors.New("No viable target defined")
 	}
 
-	cleaned, err := credentialsCleanerBytes(p)
+	cleaned, err := log.CredentialsCleanerBytes(p)
 	if err != nil {
 		return 0, err
 	}
 
 	for _, r := range f.r {
-		if r.regex != nil && r.replFunc != nil {
-			cleaned = r.regex.ReplaceAllFunc(cleaned, r.replFunc)
+		if r.Regex != nil && r.ReplFunc != nil {
+			cleaned = r.Regex.ReplaceAllFunc(cleaned, r.ReplFunc)
 		}
 	}
 

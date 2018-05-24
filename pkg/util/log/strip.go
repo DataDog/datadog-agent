@@ -10,43 +10,45 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 )
 
-type replacer struct {
-	regex    *regexp.Regexp
-	repl     []byte
-	replFunc func(b []byte) []byte
+//Replacer structure to store regex matching and replacement functions
+type Replacer struct {
+	Regex    *regexp.Regexp
+	Repl     []byte
+	ReplFunc func(b []byte) []byte
 }
 
-var apiKeyReplacer, dockerAPIKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer replacer
+var apiKeyReplacer, dockerAPIKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer Replacer
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 
-var replacers []replacer
+var replacers []Replacer
 
 func init() {
-	apiKeyReplacer := replacer{
-		regex: regexp.MustCompile(`[a-fA-F0-9]{27}([a-fA-F0-9]{5})`),
-		repl:  []byte(`***************************$1`),
+	apiKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`[a-fA-F0-9]{27}([a-fA-F0-9]{5})`),
+		Repl:  []byte(`***************************$1`),
 	}
-	uriPasswordReplacer = replacer{
-		regex: regexp.MustCompile(`\:\/\/([A-Za-z0-9_]+)\:(.+)\@`),
-		repl:  []byte(`://$1:********@`),
+	uriPasswordReplacer = Replacer{
+		Regex: regexp.MustCompile(`\:\/\/([A-Za-z0-9_]+)\:(.+)\@`),
+		Repl:  []byte(`://$1:********@`),
 	}
-	passwordReplacer = replacer{
-		regex: matchYAMLKeyPart(`pass(word)?`),
-		repl:  []byte(`$1 ********`),
+	passwordReplacer = Replacer{
+		Regex: matchYAMLKeyPart(`pass(word)?`),
+		Repl:  []byte(`$1 ********`),
 	}
-	tokenReplacer = replacer{
-		regex: matchYAMLKeyPart(`token`),
-		repl:  []byte(`$1 ********`),
+	tokenReplacer = Replacer{
+		Regex: matchYAMLKeyPart(`token`),
+		Repl:  []byte(`$1 ********`),
 	}
-	snmpReplacer = replacer{
-		regex: matchYAMLKey(`(community_string|authKey|privKey)`),
-		repl:  []byte(`$1 ********`),
+	snmpReplacer = Replacer{
+		Regex: matchYAMLKey(`(community_string|authKey|privKey)`),
+		Repl:  []byte(`$1 ********`),
 	}
-	replacers = []replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	replacers = []Replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 }
 
 func matchYAMLKeyPart(part string) *regexp.Regexp {
@@ -83,10 +85,10 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
 			for _, repl := range replacers {
-				if repl.replFunc != nil {
-					b = repl.regex.ReplaceAllFunc(b, repl.replFunc)
+				if repl.ReplFunc != nil {
+					b = repl.Regex.ReplaceAllFunc(b, repl.ReplFunc)
 				} else {
-					b = repl.regex.ReplaceAll(b, repl.repl)
+					b = repl.Regex.ReplaceAll(b, repl.Repl)
 				}
 			}
 			if !first {
