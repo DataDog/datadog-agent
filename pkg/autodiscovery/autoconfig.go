@@ -400,7 +400,7 @@ func (ac *AutoConfig) pollConfigs() {
 					// Process removed configs first to handle the case where a
 					// container churn would result in the same configuration hash.
 					for _, config := range removedConfigs {
-						if isCheckConfig(config) {
+						if !isCheckConfig(config) {
 							// skip non check configs.
 							continue
 						}
