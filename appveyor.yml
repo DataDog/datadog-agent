@@ -8,7 +8,7 @@ clone_folder: C:\gopath\src\github.com\DataDog\datadog-agent
 # environment must be set for python 64 bit
 environment:
   GOPATH: C:\gopath
-  GOROOT: C:\go19
+  GOROOT: C:\go110
   RUBY_PATH: C:\Ruby23-x64
   RI_DEVKIT: C:\Ruby23-x64\DevKit\
   PYTHONPATH: c:\python27-x64
