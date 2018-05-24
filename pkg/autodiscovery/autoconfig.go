@@ -244,7 +244,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	allChecks := []check.Check{}
 	for _, config := range configs {
-		if isCheckConfig(config) {
+		if !isCheckConfig(config) {
 			// skip non check configs.
 			continue
 		}
@@ -270,7 +270,7 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populat
 // isCheckConfig returns true if the config is a check configuration,
 // this method should be moved to pkg/collector/check while removing the check related-code from the autodiscovery package.
 func isCheckConfig(config integration.Config) bool {
-	return config.MetricConfig == nil && len(config.Instances) == 0
+	return config.MetricConfig != nil || len(config.Instances) > 0
 }
 
 // schedule takes a slice of checks and schedule them
