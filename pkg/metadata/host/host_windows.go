@@ -27,8 +27,7 @@ var (
 	procGetTickCount64 = modkernel.NewProc("GetTickCount64")
 )
 
-// A HostInfoStat describes the host status.
-// This is not in the psutil but it useful.
+// InfoStat describes the host status.  This is not in the psutil but it useful.
 type InfoStat struct {
 	Hostname             string `json:"hostname"`
 	Uptime               uint64 `json:"uptime"`
@@ -125,12 +124,13 @@ func getTickCount64() int64 {
 	return int64(ret)
 }
 
+// Pids returns a list of process ids.
 func Pids() ([]int32, error) {
 
 	// inspired by https://gist.github.com/henkman/3083408
 	// and https://github.com/giampaolo/psutil/blob/1c3a15f637521ba5c0031283da39c733fda53e4c/psutil/arch/windows/process_info.c#L315-L329
 	var ret []int32
-	var read uint32 = 0
+	var read uint32
 	var psSize uint32 = 1024
 	const dwordSize uint32 = 4
 

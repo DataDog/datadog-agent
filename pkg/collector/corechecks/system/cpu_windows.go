@@ -22,9 +22,9 @@ import (
 )
 
 var (
-	Modkernel32 = windows.NewLazyDLL("kernel32.dll")
+	modkernel32 = windows.NewLazyDLL("kernel32.dll")
 
-	ProcGetSystemTimes = Modkernel32.NewProc("GetSystemTimes")
+	procGetSystemTimes = modkernel32.NewProc("GetSystemTimes")
 )
 
 const cpuCheckName = "cpu"
@@ -123,6 +123,7 @@ func init() {
 	core.RegisterCheck(cpuCheckName, cpuFactory)
 }
 
+// FILETIME is a copy of the Windows FILETIME structure
 type FILETIME struct {
 	DwLowDateTime  uint32
 	DwHighDateTime uint32
@@ -134,7 +135,7 @@ func Times() ([]TimesStat, error) {
 	var lpIdleTime FILETIME
 	var lpKernelTime FILETIME
 	var lpUserTime FILETIME
-	r, _, _ := ProcGetSystemTimes.Call(
+	r, _, _ := procGetSystemTimes.Call(
 		uintptr(unsafe.Pointer(&lpIdleTime)),
 		uintptr(unsafe.Pointer(&lpKernelTime)),
 		uintptr(unsafe.Pointer(&lpUserTime)))

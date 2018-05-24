@@ -14,13 +14,14 @@ import (
 )
 
 var (
-	Modkernel32 = syscall.NewLazyDLL("kernel32.dll")
-	ModPsapi    = syscall.NewLazyDLL("psapi.dll")
+	modkernel32 = syscall.NewLazyDLL("kernel32.dll")
+	modPsapi    = syscall.NewLazyDLL("psapi.dll")
 
-	procGlobalMemoryStatusEx = Modkernel32.NewProc("GlobalMemoryStatusEx")
-	procGetPerformanceInfo   = ModPsapi.NewProc("GetPerformanceInfo")
+	procGlobalMemoryStatusEx = modkernel32.NewProc("GlobalMemoryStatusEx")
+	procGetPerformanceInfo   = modPsapi.NewProc("GetPerformanceInfo")
 )
 
+// VirtualMemoryStat contains basic metrics for virtual memory
 type VirtualMemoryStat struct {
 	// Total amount of RAM on this system
 	Total uint64
@@ -41,6 +42,7 @@ type VirtualMemoryStat struct {
 	UsedPercent float64
 }
 
+// SwapMemoryStat contains swap statistics
 type SwapMemoryStat struct {
 	Total       uint64
 	Used        uint64
@@ -60,6 +62,7 @@ type memoryStatusEx struct {
 	ullAvailExtendedVirtual uint64
 }
 
+// VirtualMemory returns virtual memory metrics for the machine
 func VirtualMemory() (*VirtualMemoryStat, error) {
 	var memInfo memoryStatusEx
 	memInfo.cbSize = uint32(unsafe.Sizeof(memInfo))
@@ -95,6 +98,7 @@ type performanceInformation struct {
 	threadCount       uint32
 }
 
+// SwapMemory returns swapfile statistics
 func SwapMemory() (*SwapMemoryStat, error) {
 	var perfInfo performanceInformation
 	perfInfo.cb = uint32(unsafe.Sizeof(perfInfo))

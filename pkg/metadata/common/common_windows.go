@@ -14,7 +14,7 @@ import (
 
 var getUUID = GetUUID
 
-// GetUUID() returns the machine GUID on windows; copied from gopsutil
+// GetUUID returns the machine GUID on windows; copied from gopsutil
 func GetUUID() string {
 	var h syscall.Handle
 	err := syscall.RegOpenKeyEx(syscall.HKEY_LOCAL_MACHINE, syscall.StringToUTF16Ptr(`SOFTWARE\Microsoft\Cryptography`), 0, syscall.KEY_READ|syscall.KEY_WOW64_64KEY, &h)
