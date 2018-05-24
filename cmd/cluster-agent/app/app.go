@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/fatih/color"
 )
 
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
@@ -48,11 +49,26 @@ metadata for their metrics.`,
 
 	versionCmd = &cobra.Command{
 		Use:   "version",
-		Short: "Print the version number",
+		Short: "Print the version info",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
+			if flagNoColor {
+				color.NoColor = true
+			}
 			av, _ := version.New(version.DCAVersion, version.Commit)
-			fmt.Println(fmt.Sprintf("Cluster Agent from Agent %s - Codename: %s - Commit: %s - Serialization version: %s", av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion))
+			meta := ""
+			if av.Meta != "" {
+				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
+			}
+			fmt.Fprintln(
+				color.Output,
+				fmt.Sprintf("Agent %s %s- Commit: '%s' - Serialization version: %s",
+					color.BlueString(av.GetNumberAndPre()),
+					meta,
+					color.GreenString(version.Commit),
+					color.MagentaString(serializer.AgentPayloadVersion),
+				),
+			)
 		},
 	}
 

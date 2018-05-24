@@ -40,7 +40,7 @@ const (
 	tokenTime                 = "tokenTimestamp"
 	tokenKey                  = "tokenKey"
 	metadataPollIntl          = 20 * time.Second
-	metadataMapExpire         = 1 * time.Minute
+	metadataMapExpire         = 5 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
 
@@ -124,12 +124,6 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	log.Debug("Could successfully collect Pods, Nodes, Services and Events")
-
-	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
-		log.Infof("The metadata mapper was configured to be disabled, not collecting metadata for the pods from the API Server")
-		return nil
-	}
-
 	return nil
 }
 
@@ -225,13 +219,26 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 	for _, node := range nodeList.Items {
 		nodeName := node.Name
 		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
+		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
+
+		metaBundle, found := cache.Cache.Get(nodeNameCacheKey) // We get the old one with the dead pods. if diff reset metabundle and deledte key. Then compute again.
+		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
+
 		if !found {
 			metaBundle = newMetadataMapperBundle()
+			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
 		}
+
+		if found && freshnessCache != len(podList.Items) || !freshnessFound {
+			cache.Cache.Delete(nodeNameCacheKey)
+			metaBundle = newMetadataMapperBundle()
+			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
+			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
+		}
+
 		err := metaBundle.(*MetadataMapperBundle).mapServices(nodeName, *podList, *endpointList)
 		if err != nil {
-			log.Errorf("Could not map the services: %s on node %s", err.Error(), node.Name)
+			log.Errorf("Could not map the serviceson node %s: %s", node.Name, err.Error())
 			continue
 		}
 		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)

@@ -148,7 +148,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	le.m.Lock()
 	defer le.m.Unlock()
 	if le.running {
-		log.Debugf("Currently leader %s, leader identity: %q", le.IsLeader(), le.CurrentLeaderName())
+		log.Debugf("Currently leader %t, leader identity: %q", le.IsLeader(), le.CurrentLeaderName())
 		return nil
 	}
 

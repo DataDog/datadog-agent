@@ -36,7 +36,7 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
     ldflags, gcflags, env = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
-    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent/"
+    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent"
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "-i",
