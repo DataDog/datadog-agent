@@ -51,7 +51,7 @@ metadata for their metrics.`,
 		Short: "Print the version number",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.New(version.AgentVersion, version.Commit)
+			av, _ := version.New(version.DCAVersion, version.Commit)
 			fmt.Println(fmt.Sprintf("Cluster Agent from Agent %s - Codename: %s - Commit: %s - Serialization version: %s", av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion))
 		},
 	}
@@ -128,7 +128,7 @@ func start(cmd *cobra.Command, args []string) error {
 	s := &serializer.Serializer{Forwarder: f}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
-	aggregatorInstance.AddAgentStartupEvent("DCA")
+	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("DCA %s", version.DCAVersion))
 
 	clusterAgent, err := clusteragent.Run(aggregatorInstance.GetChannels())
 	if err != nil {

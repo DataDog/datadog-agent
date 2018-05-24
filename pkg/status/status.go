@@ -111,8 +111,8 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		log.Errorf("Error Getting ExpVar Stats: %v", err)
 	}
 	stats["config"] = getDCAPartialConfig()
-
-	stats["version"] = version.AgentVersion
+	stats["conf_file"] = config.Datadog.ConfigFileUsed()
+	stats["version"] = version.DCAVersion
 	stats["pid"] = os.Getpid()
 	hostname, err := util.GetHostname()
 	if err != nil {

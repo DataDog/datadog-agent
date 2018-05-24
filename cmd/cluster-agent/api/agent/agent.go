@@ -83,7 +83,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	av, err := version.New(version.AgentVersion, version.Commit)
+	av, err := version.New(version.DCAVersion, version.Commit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
