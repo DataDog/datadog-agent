@@ -9,7 +9,8 @@ import (
 	"strings"
 )
 
-func getArchInfo() (archInfo map[string]interface{}, err error) {
+// GetArchInfo() returns basic host architecture information
+func GetArchInfo() (archInfo map[string]interface{}, err error) {
 	archInfo = make(map[string]interface{})
 
 	out, err := exec.Command("uname", unameOptions...).Output()
