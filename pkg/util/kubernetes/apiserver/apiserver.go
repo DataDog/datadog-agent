@@ -40,7 +40,7 @@ const (
 	tokenTime                 = "tokenTimestamp"
 	tokenKey                  = "tokenKey"
 	metadataPollIntl          = 20 * time.Second
-	metadataMapExpire         = 5 * time.Minute
+	metadataMapExpire         = 1 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
 

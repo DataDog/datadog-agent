@@ -67,7 +67,6 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-// TODO: make sure it works for DCA
 func stopAgent(w http.ResponseWriter, r *http.Request) {
 	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return

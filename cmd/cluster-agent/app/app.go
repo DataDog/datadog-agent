@@ -128,7 +128,7 @@ func start(cmd *cobra.Command, args []string) error {
 	s := &serializer.Serializer{Forwarder: f}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
-	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("DCA %s", version.DCAVersion))
+	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
 
 	clusterAgent, err := clusteragent.Run(aggregatorInstance.GetChannels())
 	if err != nil {
