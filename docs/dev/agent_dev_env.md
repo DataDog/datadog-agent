@@ -27,26 +27,6 @@ You must install [go](https://golang.org/doc/install) version 1.9.2 or above. Ma
 sure that `$GOPATH/bin` is in your `$PATH` otherwise Invoke cannot use any
 additional tool it might need.
 
-### Python
-
-The Agent embeds a full-fledged CPython interpreter so it requires the development
-files to be available in the dev env.
-
-If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
-bring along all the development files needed:
-```
-brew install python@2
-```
-
-On Windows, the [official installer](https://www.python.org/downloads/) will
-provide all the files needed.
-
-On Linux, depending on the distribution, you might need to explicitly install
-the development files, for example on Ubuntu:
-```
-sudo apt-get install python2.7-dev
-```
-
 ## Installing dependencies
 
 From the root of `datadog-agent`, run `invoke deps`. This will:
@@ -105,6 +85,26 @@ If you want to perform an Embedded build, you need to set the `use_system_libs`
 boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_LIBS=false`,
 changing the `invoke.yaml` file or passing the corresponding arg to the build and
 test tasks, like `invoke build --use-system-libs=false`.
+
+### Python
+
+The Agent embeds a full-fledged CPython interpreter so it requires the development
+files to be available in the dev env.
+
+If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
+bring along all the development files needed:
+```
+brew install python@2
+```
+
+On Windows, the [official installer](https://www.python.org/downloads/) will
+provide all the files needed.
+
+On Linux, depending on the distribution, you might need to explicitly install
+the development files, for example on Ubuntu:
+```
+sudo apt-get install python2.7-dev
+```
 
 ### SNMP (Simple Network Management Protocol)
 
