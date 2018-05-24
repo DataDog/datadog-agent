@@ -202,10 +202,7 @@ func CreateHTTPTransport() *http.Transport {
 		TLSClientConfig: tlsConfig,
 	}
 
-	proxies, err := config.GetProxies()
-	if err != nil {
-		log.Errorf("%s", err)
-	} else if proxies != nil {
+	if proxies := config.GetProxies(); proxies != nil {
 		transport.Proxy = GetProxyTransportFunc(proxies)
 	}
 	return transport

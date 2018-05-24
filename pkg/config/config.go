@@ -24,7 +24,10 @@ import (
 const DefaultForwarderRecoveryInterval = 2
 
 // Datadog is the global configuration object
-var Datadog = viper.New()
+var (
+	Datadog = viper.New()
+	proxies *Proxy
+)
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
@@ -310,15 +313,8 @@ var (
 )
 
 // GetProxies returns the proxy settings from the configuration
-func GetProxies() (*Proxy, error) {
-	if proxies := Datadog.Get("proxy"); proxies != nil {
-		proxies := &Proxy{}
-		if err := Datadog.UnmarshalKey("proxy", proxies); err != nil {
-			return nil, fmt.Errorf("Could not load the proxy configuration: %s", err)
-		}
-		return proxies, nil
-	}
-	return nil, nil
+func GetProxies() *Proxy {
+	return proxies
 }
 
 // loadProxyFromEnv overrides the proxy settings with environment variables
@@ -339,9 +335,9 @@ func loadProxyFromEnv() {
 	}
 
 	var isSet bool
-	proxies := &Proxy{}
+	p := &Proxy{}
 	if isSet = Datadog.IsSet("proxy"); isSet {
-		if err := Datadog.UnmarshalKey("proxy", proxies); err != nil {
+		if err := Datadog.UnmarshalKey("proxy", p); err != nil {
 			isSet = false
 			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 		}
@@ -349,23 +345,24 @@ func loadProxyFromEnv() {
 
 	if HTTP := getEnvCaseInsensitive("HTTP_PROXY"); HTTP != "" {
 		isSet = true
-		proxies.HTTP = HTTP
+		p.HTTP = HTTP
 	}
 	if HTTPS := getEnvCaseInsensitive("HTTPS_PROXY"); HTTPS != "" {
 		isSet = true
-		proxies.HTTPS = HTTPS
+		p.HTTPS = HTTPS
 	}
 	if noProxy := getEnvCaseInsensitive("NO_PROXY"); noProxy != "" {
 		isSet = true
-		proxies.NoProxy = strings.Split(noProxy, ",")
+		p.NoProxy = strings.Split(noProxy, ",")
 	}
 
 	// We have to set each value individually so both Datadog.Get("proxy")
 	// and Datadog.Get("proxy.http") work
 	if isSet {
-		Datadog.Set("proxy.http", proxies.HTTP)
-		Datadog.Set("proxy.https", proxies.HTTPS)
-		Datadog.Set("proxy.no_proxy", proxies.NoProxy)
+		Datadog.Set("proxy.http", p.HTTP)
+		Datadog.Set("proxy.https", p.HTTPS)
+		Datadog.Set("proxy.no_proxy", p.NoProxy)
+		proxies = p
 	}
 }
 
