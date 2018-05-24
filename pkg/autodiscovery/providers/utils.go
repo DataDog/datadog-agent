@@ -105,13 +105,13 @@ func extractTemplatesFromMap(key string, input map[string]string, prefix string)
 
 	checksConfigs, err := extractCheckTemplatesFromMap(key, input, prefix)
 	if err != nil {
-		return []integration.Config{}, err
+		return configs, err
 	}
 	configs = append(configs, checksConfigs...)
 
 	logsConfigs, err := extractLogsTemplatesFromMap(key, input, prefix)
 	if err != nil {
-		return []integration.Config{}, err
+		return configs, err
 	}
 	configs = append(configs, logsConfigs...)
 
