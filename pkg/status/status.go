@@ -153,7 +153,7 @@ func getDCAPartialConfig() map[string]string {
 	conf := make(map[string]string)
 	conf["log_file"] = config.Datadog.GetString("log_file")
 	conf["log_level"] = config.Datadog.GetString("log_level")
-	conf["confd_dca_path"] = config.Datadog.GetString("confd_dca_path")
+	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	return conf
 }
 

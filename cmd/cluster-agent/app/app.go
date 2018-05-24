@@ -65,29 +65,16 @@ func init() {
 	ClusterAgentCmd.AddCommand(startCmd)
 	ClusterAgentCmd.AddCommand(versionCmd)
 
-	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog-cluster.yaml")
+	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	configFound := false
-
-	// a path to the folder containing the config file was passed
-	if len(confPath) != 0 {
-		// we'll search for a config file named `datadog-cluster.yaml`
-		config.Datadog.AddConfigPath(confPath)
-		confErr := config.Load()
-		if confErr != nil {
-			log.Error(confErr)
-		} else {
-			configFound = true
-		}
+	// Global Agent configuration
+	err := common.SetupConfig(confPath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
-
-	if !configFound {
-		log.Infof("Config read from env variables")
-	}
-
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
 	logFile := config.Datadog.GetString("log_file")
@@ -99,7 +86,7 @@ func start(cmd *cobra.Command, args []string) error {
 		logFile = ""
 	}
 
-	err := config.SetupLogger(
+	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
 		logFile,
 		syslogURI,
@@ -161,7 +148,7 @@ func start(cmd *cobra.Command, args []string) error {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_dca_path"))
+	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 	// Block here until we receive the interrupt signal

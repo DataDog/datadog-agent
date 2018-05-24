@@ -80,7 +80,6 @@ func init() {
 	Datadog.SetDefault("tags", []string{})
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
-	Datadog.SetDefault("confd_dca_path", defaultDCAConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_payloads", false)
 	Datadog.SetDefault("log_level", "info")
