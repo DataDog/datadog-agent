@@ -56,7 +56,7 @@ func GetPayload(hostname string) *Payload {
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
-		ContainerMeta: getContainerMeta(time.Second),
+		ContainerMeta: getContainerMeta(1 * time.Second),
 	}
 
 	// Cache the metadata for use in other payloads

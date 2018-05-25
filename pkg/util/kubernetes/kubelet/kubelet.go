@@ -387,6 +387,7 @@ func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
 	return ku.rawConnectionInfo
 }
 
+// GetRawMetrics returns the raw kubelet metrics payload
 func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
 	data, code, err := ku.QueryKubelet(kubeletMetricsPath)
 	if err != nil {

@@ -27,7 +27,7 @@ func getMetadata() (map[string]string, error) {
 		return metadata, err
 	}
 	// short timeout to minimize metadata collection time
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	i, err := du.cli.Info(ctx)
 	if err != nil {

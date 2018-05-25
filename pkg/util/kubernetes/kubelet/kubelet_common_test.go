@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetMeta(t *testing.T) {
@@ -25,7 +26,7 @@ process_cpu_seconds_total 127923.04
 # HELP process_max_fds Maximum number of open file descriptors.
 # TYPE process_max_fds gauge`)
 	metric, err := ParseMetricFromRaw(rawData, "kubernetes_build_info")
-	assert.Empty(t, err)
+	require.Empty(t, err)
 	assert.Equal(t, `kubernetes_build_info{buildDate="2018-03-21T19:01:20Z",compiler="gc",gitCommit="cb151369f60073317da686a6ce7de36abe2bda8d",gitTreeState="clean",gitVersion="v1.9.6-gke.0",goVersion="go1.9.3b4",major="1",minor="9+",platform="linux/amd64"} 1`, metric)
 
 	metric, err = ParseMetricFromRaw(rawData, "process_cpu_seconds_total")
