@@ -25,11 +25,30 @@ spec:
                 ad.datadoghq.com/redis.init_configs: '[{}]'
                 ad.datadoghq.com/redis.instances: '[{"host": "%%host%%", "port": "%%port%%"}]'
             spec:
+              initContainers:
+              - name: useless
+                image: busybox:latest
+                command:
+                - /bin/true
+                resources:
+                  requests:
+                    memory: "32Mi"
+                    cpu: "25m"
+                  limits:
+                    memory: "64Mi"
+                    cpu: "50m"
               containers:
               - name: redis
                 image: redis
                 ports:
                 - containerPort: 6379
+                resources:
+                  requests:
+                    memory: "64Mi"
+                    cpu: "50m"
+                  limits:
+                    memory: "128Mi"
+                    cpu: "100m"
 
     - name: agent-service-account
       value: |
