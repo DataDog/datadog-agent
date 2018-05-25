@@ -21,7 +21,10 @@ whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
-integrations_core_version = 'haissam/security-update'
+integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
+if integrations_core_version.nil? || integrations_core_version.empty?
+  integrations_core_version = 'master'
+end
 default_version integrations_core_version
 
 
