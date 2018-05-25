@@ -26,15 +26,6 @@ import (
 
 const packageCachePrefix = "host"
 
-// Collect at init time
-//var cpuInfo []cpu.InfoStat
-
-// InitHostMetadata initializes necessary CPU info
-func InitHostMetadata() error {
-
-	return nil
-}
-
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
 func GetPayload(hostname string) *Payload {
