@@ -45,7 +45,7 @@ DEFAULT_TEST_TARGETS = [
 
 @task()
 def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
-         timeout=60):
+         timeout=120):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
