@@ -3,7 +3,7 @@
 printf '=%.0s' {0..79} ; echo
 set -ex
 
-cd $(dirname $0)
+cd "$(dirname $0)"
 
 git clean -fdx .
 

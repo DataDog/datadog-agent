@@ -3,7 +3,7 @@
 printf '=%.0s' {0..79} ; echo
 set -ex
 
-cd $(dirname $0)
+cd "$(dirname $0)"
 ssh-keygen -b 4096 -t rsa -C "datadog" -N "" -f "id_rsa"
 SSH_RSA=$(cat id_rsa.pub)
 

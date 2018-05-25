@@ -195,7 +195,7 @@ spec:
                     memory: "128Mi"
                     cpu: "100m"
                   limits:
-                    memory: "512Mi"
+                    memory: "256Mi"
                     cpu: "250m"
                 livenessProbe:
                   exec:
@@ -224,7 +224,6 @@ spec:
                 - name: datadog-config
                   mountPath: /etc/datadog-agent/conf.d/network.d/conf.yaml.default
                   subPath: network.yaml
-
                 - name: proc
                   mountPath: /host/proc
                   readOnly: true

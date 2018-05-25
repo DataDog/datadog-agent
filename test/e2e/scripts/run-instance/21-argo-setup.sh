@@ -3,7 +3,7 @@
 printf '=%.0s' {0..79} ; echo
 set -ex
 
-cd $(dirname $0)
+cd "$(dirname $0)"
 
 ./argo install --image-pull-policy IfNotPresent
 
@@ -24,7 +24,7 @@ EOF
 
 set +e
 
-for i in {0..300}
+for i in {0..60}
 do
     ./argo list && break
     kubectl get hpa,svc,ep,ds,deploy,job,po --all-namespaces -o wide

@@ -11,7 +11,7 @@ test ${DATADOG_AGENT_IMAGE} || {
 
 echo "DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
 
-cd $(dirname $0)
+cd "$(dirname $0)"
 
 # TODO run all workflows ?
 
@@ -49,7 +49,7 @@ spec:
             memory: "128Mi"
             cpu: "100m"
           limits:
-            memory: "512Mi"
+            memory: "256Mi"
             cpu: "250m"
         livenessProbe:
           exec:

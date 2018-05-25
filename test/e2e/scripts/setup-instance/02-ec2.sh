@@ -4,7 +4,7 @@ printf '=%.0s' {0..79} ; echo
 set -ex
 set -o pipefail
 
-cd $(dirname $0)
+cd "$(dirname $0)"
 
 export COMMIT_ID=$(git rev-parse --verify HEAD)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)

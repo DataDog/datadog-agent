@@ -2,7 +2,7 @@
 
 printf '=%.0s' {0..79} ; echo
 set -ex
-cd $(dirname $0)
+cd "$(dirname $0)"
 
 ../run-instance/10-pupernetes-ready.sh
 ../run-instance/20-argo-download.sh

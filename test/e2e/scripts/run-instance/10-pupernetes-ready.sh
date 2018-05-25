@@ -9,7 +9,6 @@ cat /etc/hosts
 
 until curl -sf http://127.0.0.1:8989/ready --connect-timeout 1 -w '\n'
 do
-
     systemctl status pupernetes.service --no-pager --full
     journalctl -u pupernetes.service --no-pager -o cat -n 50 -e
 
