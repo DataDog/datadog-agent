@@ -10,11 +10,13 @@ package providers
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -23,6 +25,9 @@ const (
 	newPodAnnotationFormat    = newPodAnnotationPrefix + "%s."
 	legacyPodAnnotationPrefix = "service-discovery.datadoghq.com/"
 	legacyPodAnnotationFormat = legacyPodAnnotationPrefix + "%s."
+
+	kubeletPodAnnotationCachePrefix = "KubeletConfigProvider/"
+	kubeletPodAnnotationCacheTTL    = time.Minute * 15
 )
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
@@ -32,7 +37,7 @@ type KubeletConfigProvider struct {
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeletConfigProvider(_ config.ConfigurationProviders) (ConfigProvider, error) {
 	return &KubeletConfigProvider{}, nil
 }
 
@@ -52,12 +57,12 @@ func (k *KubeletConfigProvider) Collect() ([]integration.Config, error) {
 		}
 	}
 
-	pods, err := k.kubelet.GetLocalPodList()
+	podList, err := k.kubelet.GetLocalPodList()
 	if err != nil {
 		return []integration.Config{}, err
 	}
 
-	return parseKubeletPodlist(pods)
+	return parseKubeletPodlist(podList)
 }
 
 // Updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Kubernetes's data.
@@ -65,33 +70,45 @@ func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
 	return false, nil
 }
 
-func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
-	var configs []integration.Config
-	for _, pod := range podlist {
-		// Filter out pods with no AD annotation
-		var adExtractFormat string
-		for name := range pod.Metadata.Annotations {
-			if strings.HasPrefix(name, newPodAnnotationPrefix) {
-				adExtractFormat = newPodAnnotationFormat
-				break
-			}
-			if strings.HasPrefix(name, legacyPodAnnotationPrefix) {
-				adExtractFormat = legacyPodAnnotationFormat
-				// Don't break so we try to look for the new prefix
-				// which will take precedence
-			}
+func getAutoDiscoveryPodAnnotation(pod *kubelet.Pod) string {
+	cacheKey := kubeletPodAnnotationCachePrefix + pod.Metadata.UID
+	if cached, hit := cache.Cache.Get(cacheKey); hit && cached.(string) != "" {
+		cache.Cache.Set(cacheKey, cached.(string), kubeletPodAnnotationCacheTTL)
+		return cached.(string)
+	}
+	adExtractFormat := ""
+	// Filter out pods with no AD annotation
+	for name := range pod.Metadata.Annotations {
+		if strings.HasPrefix(name, newPodAnnotationPrefix) {
+			adExtractFormat = newPodAnnotationFormat
+			break
 		}
+		if strings.HasPrefix(name, legacyPodAnnotationPrefix) {
+			adExtractFormat = legacyPodAnnotationFormat
+			// Don't break so we try to look for the new prefix
+			// which will take precedence
+		}
+	}
+	if adExtractFormat == "" {
+		return ""
+	}
+	cache.Cache.Set(cacheKey, adExtractFormat, kubeletPodAnnotationCacheTTL)
+	if adExtractFormat == legacyPodAnnotationFormat {
+		log.Warnf("Found legacy annotations %s for %s, please use the new prefix %s", legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
+	}
+	return adExtractFormat
+}
+
+func parseKubeletPodlist(podList []*kubelet.Pod) ([]integration.Config, error) {
+	var configs []integration.Config
+	for _, pod := range podList {
+		adExtractFormat := getAutoDiscoveryPodAnnotation(pod)
 		if adExtractFormat == "" {
 			continue
 		}
-		if adExtractFormat == legacyPodAnnotationFormat {
-			log.Warnf("found legacy annotations %s for %s, please use the new prefix %s",
-				legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
-		}
 
 		for _, container := range pod.Status.Containers {
-			c, err := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
-				fmt.Sprintf(adExtractFormat, container.Name))
+			c, err := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations, fmt.Sprintf(adExtractFormat, container.Name))
 			switch {
 			case err != nil:
 				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
@@ -100,7 +117,6 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 				continue
 			default:
 				configs = append(configs, c...)
-
 			}
 		}
 	}
