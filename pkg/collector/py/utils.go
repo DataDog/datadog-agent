@@ -244,7 +244,12 @@ func StartCPUProfile() error {
 
 	profileModule := python.PyImport_ImportModule(pyProfileModule)
 	if profileModule == nil {
-		return fmt.Errorf("unable to import Python module: %s", profileModule)
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("unable to import Python module: %v", err)
+		}
+		return errors.New(pyErr)
 	}
 	defer profileModule.DecRef()
 
@@ -276,9 +281,14 @@ func StartCPUProfile() error {
 func StartMemProfile() error {
 	globalStickyLock = newStickyLock()
 
-	profileModule := python.PyImport_ImportModule(pyProfileModule)
+	profileModule := python.PyImport_ImportModule(pyMemModule)
 	if profileModule == nil {
-		return fmt.Errorf("unable to import Python module: %s", profileModule)
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("unable to import Python module: %v", err)
+		}
+		return errors.New(pyErr)
 	}
 	defer profileModule.DecRef()
 
@@ -310,9 +320,14 @@ func StartMemProfile() error {
 func PrintMemDiff() error {
 	globalStickyLock = newStickyLock()
 
-	profileModule := python.PyImport_ImportModule(pyProfileModule)
+	profileModule := python.PyImport_ImportModule(pyMemModule)
 	if profileModule == nil {
-		return fmt.Errorf("unable to import Python module: %s", profileModule)
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("unable to import Python module: %v", err)
+		}
+		return errors.New(pyErr)
 	}
 	defer profileModule.DecRef()
 
@@ -347,7 +362,12 @@ func StopCPUProfile(path string) error {
 
 	profileModule := python.PyImport_ImportModule(pyProfileModule)
 	if profileModule == nil {
-		return fmt.Errorf("unable to import Python module: %s", profileModule)
+		pyErr, err := globalStickyLock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("unable to import Python module: %v", err)
+		}
+		return errors.New(pyErr)
 	}
 	defer profileModule.DecRef()
 
