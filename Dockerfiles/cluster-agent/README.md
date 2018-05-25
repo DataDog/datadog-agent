@@ -6,16 +6,16 @@ This is how the official Datadog Cluster Agent (also known as `DCA`) image, avai
 
 The following environment variables are supported:
 
-- `DD_API_KEY`: your API key (**required**)
+- `DD_API_KEY` - **required** - your [Datadog API key][https://app.datadoghq.com/account/settings#api].
 - `DD_HOSTNAME`: hostname to use for the DCA.
-- `DD_CLUSTER_AGENT_CMD_PORT`: Port you want the DCA to serve, by default 5005.
-- `DD_USE_METADATA_MAPPER`: Enable the cluster level metadata mapping (enabled by default)
-- `DD_COLLECT_KUBERNETES_EVENTS`: configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
-- `DD_LEADER_ELECTION`: activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
-- `DD_LEADER_LEASE_DURATION`: only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
+- `DD_CLUSTER_AGENT_CMD_PORT`: Port for the DCA to serve, default is `5005`.
+- `DD_USE_METADATA_MAPPER`: Enables the cluster level metadata mapping, default is `true`.
+- `DD_COLLECT_KUBERNETES_EVENTS` - configures the agent to collect Kubernetes events. See the [Event collection section](#event-collection) for more details.
+- `DD_LEADER_ELECTION`: activates the [leader election](#leader-election). You must set `DD_COLLECT_KUBERNETES_EVENTS` to `true` to activate this feature. Default value is `false`.
+- `DD_LEADER_LEASE_DURATION`: used only if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 - `DD_CLUSTER_AGENT_AUTH_TOKEN`: 32 characters long token that needs to be shared between the node agent and the DCA.
 
-For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/)
+For a more detailed usage please [refer to the official Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/) documentation.
 
 ## How to build it
 

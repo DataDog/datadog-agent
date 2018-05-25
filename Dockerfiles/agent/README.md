@@ -50,7 +50,7 @@ These features are disabled by default for security or performance reasons, you 
 
 #### Dogstatsd (custom metrics)
 
-You can send custom metrics via [the statsd protocol](https://docs.datadoghq.com/developers/dogstatsd/):
+Send custom metrics via [the statsd protocol](https://docs.datadoghq.com/developers/dogstatsd/):
 
 - `DD_DOGSTATSD_NON_LOCAL_TRAFFIC`: listen to dogstatsd packets from other containers, required to send custom metrics
 - `DD_HISTOGRAM_PERCENTILES`: histogram percentiles to compute, separated by spaces. The default is "0.95"
@@ -91,9 +91,9 @@ Please note that the `docker.containers.running`, `.stopped`, `.running.total` a
 
 ### Datadog Cluster Agent
 
-As of 6.2, you can optionnaly use the [Datacong Cluster Agent](#https://github.com/DataDog/datadog-agent/blob/master/docs/cluster-agent/README.md).
-The cluster level features are now taken care of by the cluster agent, and you will find a `[DCA]` notation next to the affected features.
-Please refer to the above user documentation as well as the technical documentation here for further details on the instrumentation.
+As with Agent v6.2, you can use the [Datacong Cluster Agent](#https://github.com/DataDog/datadog-agent/blob/master/docs/cluster-agent/README.md).
+
+Cluster level features are now handled by the cluster agent, and you will find a `[DCA]` notation next to the affected features. Please refer to the below user documentation as well as the technical documentation here for further details on the instrumentation.
 
 #### Kubernetes integration
 
@@ -102,7 +102,7 @@ Please refer to the dedicated section about the [Kubernetes integration](#kubern
 - `DD_KUBERNETES_COLLECT_METADATA_TAGS`: configures the agent to collect Kubernetes metadata (service names) as tags.
 - `DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ`: set the collection frequency in seconds for the Kubernetes metadata (service names).
 - `DD_COLLECT_KUBERNETES_EVENTS` [DCA]: configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
-- `DD_LEADER_ELECTION` [DCA]: activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
+- `DD_LEADER_ELECTION` [DCA]: activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to `true`. The expected value is a bool: true/false.
 - `DD_LEADER_LEASE_DURATION` [DCA]: only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 - `DD_KUBE_RESOURCES_NAMESPACE` [DCA]: can be used to configure the namespace where the configmaps of the Leader Election and the Event Collection live.
 
@@ -127,10 +127,11 @@ For more information about the container's lifecycle, see [SUPERVISION.md](SUPER
 
 ## Kubernetes
 
-The following will only be valid for the agent < 6.2 or when not using the Datadog Cluster Agent.
+#### Without the DCA
+**This sub-section is only valid for the agent versions < 6.2 or when not using the Datadog Cluster Agent.**
+
 <a name="kubernetes"></a>
-To deploy the Agent in your Kubernetes cluster, you can use the manifest in `manifests`.
-Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
+To deploy the Agent in your Kubernetes cluster, you can use the manifest in `manifests`. Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
 `kubectl create -f manifests/rbac`
 
 Then, you can then create the agents with:
@@ -143,10 +144,12 @@ To create such a ConfigMap, you can use the following command:
 `kubectl create -f manifests/datadog_configmap.yaml`
 See details in [Event Collection](#event-collection).
 
-*Should you use the DCA*:
+#### With the DCA
 
-The Event collection will be taken care of by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access.
-The Clusterrole for the agent will become and you will need a dedicated ClusterRoleBinding:
+**This sub-section is only valid for agent versions > 6.2 or when using the Datadog Cluster Agent.**
+
+Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated ClusterRoleBinding, and the Clusterrole for the agent should be as follow: 
+
 ```
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -162,18 +165,19 @@ rules:
   verbs:
   - get
 
-``` 
-
+```
 
 ### Event Collection [DCA]
 
 <a name="event-collection"></a>
-Similarly to the Agent 5, the Agent 6 can collect events from the Kubernetes API server.
-First and foremost, you need to set the `collect_kubernetes_events` variable to `true` in the datadog.yaml, this can be achieved via the environment variable `DD_COLLECT_KUBERNETES_EVENTS` that is resolved at start time.
-You will need to give the agent some rights to activate this feature. See the [RBAC](#rbac) section.
+Similarly to the Agent 5, the Agent 6 collects events from the Kubernetes API server.
+First and foremost, set the `collect_kubernetes_events` variable to `true` in the `datadog.yaml` file, you can use the environment variable `DD_COLLECT_KUBERNETES_EVENTS` for this.
+You also need to give the agent some rights to activate this feature. See the [RBAC](#rbac) section.
 
 A ConfigMap can be used to store the `event.tokenKey` and the `event.tokenTimestamp`. It has to be deployed in the `default` namespace and be named `datadogtoken`.
-One can simply run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` . You can also use the example in manifests/datadog_configmap.yaml.
+
+Then Run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` . 
+You can also use the example in [manifests/datadog_configmap.yaml][https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/manifests/datadog_configmap.yaml].
 
 When the ConfigMap is used, if the agent in charge (via the [Leader election](#leader-election)) of collecting the events dies, the next leader elected will use the ConfigMap to identify the last events pulled.
 This is in order to avoid duplicate the events collected, as well as putting less stress on the API Server.
@@ -195,8 +199,8 @@ It can be configured with the environment variable `DD_LEADER_LEASE_DURATION`.
 
 #### RBAC
 
-*Should you use the DCA*:
-You can find all the RBAC for the agent as well as the Cluster agent [here](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests/cluster-agent)
+If you are using the DCA, find all the RBAC for the agent as well as the Cluster agent [here](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests/cluster-agent)
+
 <a name="rbac"></a>
 In the context of using the Kubernetes integration, and when deploying agents in a Kubernetes cluster, a set of rights are required for the agent to integrate seamlessly.
 
