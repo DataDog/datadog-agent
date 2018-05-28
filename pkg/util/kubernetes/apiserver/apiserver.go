@@ -221,7 +221,7 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
 
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey) // We get the old one with the dead pods. if diff reset metabundle and deledte key. Then compute again.
+		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deledte key. Then compute again.
 		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
 
 		if !found {

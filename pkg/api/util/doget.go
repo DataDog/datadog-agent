@@ -51,36 +51,6 @@ func DoGet(c *http.Client, url string) (body []byte, e error) {
 
 }
 
-// DoGetExternalEndpoint is a wrapper around performing HTTP GET requests designed for external endpoints.
-func DoGetExternalEndpoint(c *http.Client, url string) (body []byte, e error) {
-	req, e := http.NewRequest("GET", url, nil)
-	if e != nil {
-		return body, e
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+GetDCAAuthToken())
-
-	r, e := c.Do(req)
-	if e != nil {
-		return body, e
-	}
-	body, e = ioutil.ReadAll(r.Body)
-	r.Body.Close()
-	if e != nil {
-		return body, e
-	}
-	if r.StatusCode == 503 {
-		// 503 errors are used when the agent can't reach an external service to process a task.
-		// i.e. the svcmap requires access to the Kubernetes API Server.
-		return body, nil
-	}
-	if r.StatusCode >= 400 {
-		return body, fmt.Errorf("%s", body)
-	}
-
-	return body, nil
-}
-
 // DoPost is a wrapper around performing HTTP POST requests
 func DoPost(c *http.Client, url string, contentType string, body io.Reader) (resp []byte, e error) {
 	req, e := http.NewRequest("POST", url, body)
