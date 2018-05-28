@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -45,6 +46,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -213,5 +215,15 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("Unable to marshal config check response: %s", err)
 	}
 
+	w.Write(json)
+}
+
+func getTaggerList(w http.ResponseWriter, r *http.Request) {
+	response := tagger.List(tagger.IsFullCardinality())
+
+	json, err := json.Marshal(response)
+	if err != nil {
+		log.Errorf("Unable to marshal tagger list response: %s", err)
+	}
 	w.Write(json)
 }
