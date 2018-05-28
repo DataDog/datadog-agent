@@ -66,6 +66,16 @@ func TestFilter(t *testing.T) {
 			Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
 			Image: "asia.gcr.io/google_containers/pause-amd64:3.0",
 		},
+		{
+			ID:    "11",
+			Name:  "k8s_POD_AZURE_pause",
+			Image: "k8s-gcrio.azureedge.net/pause-amd64:3.0",
+		},
+		{
+			ID:    "12",
+			Name:  "k8s_POD_AZURE_pause",
+			Image: "gcrio.azureedge.net/google_containers/pause-amd64",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -74,25 +84,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
 		},
 		{
 			blacklist:   []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
 		},
 		{
 			blacklist:   []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
 		},
 		{
 			whitelist:   []string{},
 			blacklist:   []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12"},
 		},
 		{
 			whitelist:   []string{"name:mysql"},
 			blacklist:   []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12"},
 		},
 		// Test kubernetes defaults
 		{
@@ -100,6 +110,7 @@ func TestFilter(t *testing.T) {
 				pauseContainerGCR,
 				pauseContainerOpenshift,
 				pauseContainerKubernetes,
+				pauseContainerAzure,
 			},
 			expectedIDs: []string{"1", "2", "3", "4", "5", "6"},
 		},
