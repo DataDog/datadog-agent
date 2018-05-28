@@ -27,6 +27,7 @@ type kubernetesEventBundle struct {
 	timeStamp     float64        // Used for the new events in the bundle to specify when they first occurred
 	lastTimestamp float64        // Used for the modified events in the bundle to specify when they last occurred
 	countByAction map[string]int // Map of count per action to aggregate several events from the same ObjUid in one event
+	nodename      string         // Stores the nodename that should be used to submit the events
 }
 
 func newKubernetesEventBundler(objUid types.UID, compName string) *kubernetesEventBundle {
@@ -56,13 +57,25 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	k.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
 	k.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Name, event.InvolvedObject.Kind)
+
+	if event.InvolvedObject.Kind == "Node" || event.InvolvedObject.Kind == "Pod" {
+		k.nodename = event.Source.Host
+	}
+
 	return nil
 }
 
-func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (metrics.Event, error) {
+func (k *kubernetesEventBundle) formatEvents(modified bool, clusterName string) (metrics.Event, error) {
 	if len(k.events) == 0 {
 		return metrics.Event{}, errors.New("no event to export")
 	}
+
+	// Adding the clusterName to the nodename if present
+	hostname := k.nodename
+	if k.nodename != "" && clusterName != "" {
+		hostname = hostname + "-" + clusterName
+	}
+	// If hostname was not defined, the aggregator will then set the local hostname
 	output := metrics.Event{
 		Title:          fmt.Sprintf("Events from the %s", k.readableKey),
 		Priority:       metrics.EventPriorityNormal,
