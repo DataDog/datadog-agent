@@ -27,6 +27,8 @@ var (
 
 	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
 	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
+
+	drivePattern = regexp.MustCompile(`[A-Z]:\\`)
 )
 
 const (
@@ -63,7 +65,7 @@ func init() {
 func isDrive(instance string) bool {
 	found := false
 	instance += "\\"
-	if instance != "C:\\" {
+	if !drivePattern.MatchString(instance) {
 		return false
 	}
 	for _, driveletter := range drivelist {
