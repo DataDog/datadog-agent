@@ -425,5 +425,6 @@ func newFakeContainerPorts() []listeners.ContainerPort {
 		{ContainerPort: 1, Name: "foo"},
 		{ContainerPort: 2, Name: "bar"},
 		{ContainerPort: 3, Name: "baz"},
+		{ContainerPort: 4, Name: ""},
 	}
 }
