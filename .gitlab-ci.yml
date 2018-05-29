@@ -470,7 +470,7 @@ deploy_windows_testing:
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" --include "*.msi.metadata.json" --include "*.wixpdb" $OMNIBUS_PACKAGE_DIR s3://%WINDOWS_TESTING_S3_BUCKET%/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" --include "*.msi.metadata.json" --include "*.wixpdb" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # run dd-agent-testing on windows
 kitchen_windows:
