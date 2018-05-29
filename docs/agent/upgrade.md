@@ -1,6 +1,6 @@
 # Upgrade to Agent 6
 
-**Important** Datadog Agent 6 has officially been released. Please utilize the in-application [install instructions](https://app.datadoghq.com/account/settings#agent) for our pre-packaged binaries. You can still refer to the instructions below to upgrade from Agent 5.
+**Important** Datadog Agent 6 has officially been released. Please use the in-application [install instructions](https://app.datadoghq.com/account/settings#agent) for our pre-packaged binaries. You can still refer to the instructions below to upgrade from Agent 5.
 
 * [Linux](#linux)
 * [Windows](#windows)
@@ -162,17 +162,17 @@ Download the latest version available [from here](https://github.com/DataDog/dat
 and run the installation package.
 
 
-## MacOS
+## macOS
 
 You can either download the DMG package and install it manually, or use the one-line install script.
 
 ### Manual installation
 
-1. Download the DMG package of the latest version, please use the latest macOS release listed on the [release page](https://github.com/DataDog/datadog-agent/releases) of the repo
+1. Download the most recent macOS DMG installer package listed on the [release page](https://github.com/DataDog/datadog-agent/releases) of the Agent repository
 2. Install the DMG package
-3. Add your api key to `/opt/datadog-agent/etc/datadog.yaml`
+3. Add your API key to `/opt/datadog-agent/etc/datadog.yaml`
 
-You can then start the Datadog Agent app (once started, you should see it in the system tray), and manage the Agent from there. The Agent6 also ships a web-based GUI to edit the Agent configuration files and much more, refer to the [changes and deprecations document][changes] document for more information.
+You can then start the Datadog Agent app (once started, you should see it in the system tray), and manage the Agent from there. Agent v6 also ships with a web-based GUI to edit the Agent configuration files and much more; refer to the [changes and deprecations document][changes] document for more information.
 
 Unlike on Linux, the configuration path hasn't changed and remains in `~/.datadog-agent` (which links to `/opt/datadog-agent/etc`).
 
