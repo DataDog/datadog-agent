@@ -40,7 +40,7 @@ const (
 	tokenTime                 = "tokenTimestamp"
 	tokenKey                  = "tokenKey"
 	metadataPollIntl          = 20 * time.Second
-	metadataMapExpire         = 5 * time.Minute
+	metadataMapExpire         = 2 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
 
@@ -229,6 +229,8 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
 		}
 
+		// We want to churn the cache every `metadataMapExpire` and if the number of entries varies between 2 runs..
+		// If a pod is killed and rescheduled during a run, we will only keep the old entry for another run, which is acceptable.
 		if found && freshnessCache != len(podList.Items) || !freshnessFound {
 			cache.Cache.Delete(nodeNameCacheKey)
 			metaBundle = newMetadataMapperBundle()
@@ -238,7 +240,7 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 
 		err := metaBundle.(*MetadataMapperBundle).mapServices(nodeName, *podList, *endpointList)
 		if err != nil {
-			log.Errorf("Could not map the serviceson node %s: %s", node.Name, err.Error())
+			log.Errorf("Could not map the services on node %s: %s", node.Name, err.Error())
 			continue
 		}
 		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)
