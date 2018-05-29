@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -37,23 +37,11 @@ var statusCmd = &cobra.Command{
 	Short: "Print the current status",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configFound := false
-		// a path to the folder containing the config file was passed
-		if len(confPath) != 0 {
-			// we'll search for a config file named `datadog-cluster.yaml`
-			config.Datadog.AddConfigPath(confPath)
-			confErr := config.Load()
-			if confErr != nil {
-				log.Error(confErr)
-			} else {
-				configFound = true
-			}
+		err := common.SetupConfig(confPath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
-		if !configFound {
-			log.Debugf("Config read from env variables")
-		}
-
-		err := requestStatus()
+		err = requestStatus()
 		if err != nil {
 			return err
 		}

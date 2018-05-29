@@ -7,7 +7,6 @@ package config
 
 const (
 	defaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
-	defaultDCAConfdPath         = "c:\\programdata\\datadog\\conf.d"
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = ""
 	defaultSyslogURI            = ""

@@ -169,7 +169,7 @@ func (k *KubeASCheck) runLeaderElection() error {
 		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
 		return apiserver.ErrNotLeader
 	}
-	log.Tracef("Currently Leader %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
+	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
 	return nil
 }
 func (k *KubeASCheck) eventCollectionInit() {

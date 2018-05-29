@@ -7,11 +7,11 @@ package util
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"net/http"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (

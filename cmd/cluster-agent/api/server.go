@@ -18,6 +18,7 @@ import (
 	stdLog "log"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -37,6 +38,9 @@ func StartServer() error {
 
 	// IPC REST API server
 	agent.SetupHandlers(r)
+
+	// Validate token for every request
+	r.Use(validateToken)
 
 	// get the transport we're going to use under HTTP
 	var err error
@@ -93,4 +97,22 @@ func StopServer() {
 	if listener != nil {
 		listener.Close()
 	}
+}
+
+// We only want to maintain 1 API and expose an external route to serve the cluster level metadata.
+// As we have 2 different tokens for the validation, we need to validate accordingly.
+func validateToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.String()
+		if strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 6 {
+			if err := util.ValidateDCARequest(w, r); err != nil {
+				return
+			}
+		} else {
+			if err := util.Validate(w, r); err != nil {
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

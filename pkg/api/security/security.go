@@ -157,7 +157,7 @@ func DeleteAuthToken() error {
 // 1st. the configuration value of "cluster_agent.auth_token" in datadog.yaml
 // 2nd. from the filesystem
 // If using the token from the filesystem, the token file must be next to the datadog.yaml
-// with the filename: dca_auth_token
+// with the filename: cluster_agent_auth_token
 func GetClusterAgentAuthToken() (string, error) {
 	authToken := config.Datadog.GetString("cluster_agent.auth_token")
 	if authToken != "" {
@@ -199,7 +199,6 @@ func GetClusterAgentAuthToken() (string, error) {
 	return authToken, validateAuthToken(authToken)
 }
 
-// TODO check the token is base64
 func validateAuthToken(authToken string) error {
 	if len(authToken) < authTokenMinimalLen {
 		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
