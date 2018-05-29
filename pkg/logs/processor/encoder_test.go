@@ -180,3 +180,9 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	assert.NotEmpty(t, log.Timestamp)
 
 }
+
+func TestProtoEncoderInvalidUTF8(t *testing.T) {
+	msg, err := protoEncoder.encode(nil, []byte("\xde\xea\xca\xfe"))
+	assert.Nil(t, msg)
+	assert.Error(t, err)
+}

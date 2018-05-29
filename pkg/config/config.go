@@ -80,7 +80,6 @@ func init() {
 	Datadog.SetDefault("tags", []string{})
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
-	Datadog.SetDefault("confd_dca_path", defaultDCAConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_payloads", false)
 	Datadog.SetDefault("log_level", "info")
@@ -308,6 +307,76 @@ var (
 		"app.datad0g.com":   nil,
 	}
 )
+
+// GetProxies returns the proxy settings from the configuration
+func GetProxies() (*Proxy, error) {
+	if proxies := Datadog.Get("proxy"); proxies != nil {
+		proxies := &Proxy{}
+		if err := Datadog.UnmarshalKey("proxy", proxies); err != nil {
+			return nil, fmt.Errorf("Could not load the proxy configuration: %s", err)
+		}
+		return proxies, nil
+	}
+	return nil, nil
+}
+
+// loadProxyFromEnv overrides the proxy settings with environment variables
+func loadProxyFromEnv() {
+	// Viper doesn't handle mixing nested variables from files and set
+	// manually.  If we manually set one of the sub value for "proxy" all
+	// other values from the conf file will be shadowed when using
+	// 'Datadog.Get("proxy")'. For that reason we first get the value from
+	// the conf files, overwrite them with the env variables and reset
+	// everything.
+
+	getEnvCaseInsensitive := func(key string) string {
+		value, found := os.LookupEnv(key)
+		if found {
+			return value
+		}
+		return os.Getenv(strings.ToLower(key))
+	}
+
+	var isSet bool
+	proxies := &Proxy{}
+	if isSet = Datadog.IsSet("proxy"); isSet {
+		if err := Datadog.UnmarshalKey("proxy", proxies); err != nil {
+			isSet = false
+			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
+		}
+	}
+
+	if HTTP := getEnvCaseInsensitive("HTTP_PROXY"); HTTP != "" {
+		isSet = true
+		proxies.HTTP = HTTP
+	}
+	if HTTPS := getEnvCaseInsensitive("HTTPS_PROXY"); HTTPS != "" {
+		isSet = true
+		proxies.HTTPS = HTTPS
+	}
+	if noProxy := getEnvCaseInsensitive("NO_PROXY"); noProxy != "" {
+		isSet = true
+		proxies.NoProxy = strings.Split(noProxy, ",")
+	}
+
+	// We have to set each value individually so both Datadog.Get("proxy")
+	// and Datadog.Get("proxy.http") work
+	if isSet {
+		Datadog.Set("proxy.http", proxies.HTTP)
+		Datadog.Set("proxy.https", proxies.HTTPS)
+		Datadog.Set("proxy.no_proxy", proxies.NoProxy)
+	}
+}
+
+// Load reads configs files and initializes the config module
+func Load() error {
+	if err := Datadog.ReadInConfig(); err != nil {
+		return err
+	}
+
+	loadProxyFromEnv()
+	return nil
+}
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {

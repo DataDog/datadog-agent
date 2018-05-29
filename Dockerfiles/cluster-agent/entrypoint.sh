@@ -8,19 +8,19 @@
 
 ##### Core config #####
 
-if [[ -z $DD_API_KEY ]]; then
+if [[ -z "$DD_API_KEY" ]]; then
     echo "You must set an DD_API_KEY environment variable to run the Datadog Agent container"
     exit 1
 fi
 
-if [ -z $DD_DD_URL ]; then
+if [[ -z "$DD_DD_URL" ]]; then
     export DD_DD_URL="https://app.datadoghq.com"
 fi
 
-chmod +x /opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent
+chmod +x /opt/datadog-agent/bin/datadog-cluster-agent/datadog-cluster-agent
 sync	# Fix for 'Text file busy' error
 
 ##### Starting up #####
-export PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/":$PATH
+export PATH="/opt/datadog-agent/bin/datadog-cluster-agent/:/opt/datadog-agent/embedded/bin/":$PATH
 
 exec "$@"

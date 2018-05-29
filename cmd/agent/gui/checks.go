@@ -3,6 +3,7 @@ package gui
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -132,7 +133,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 
 // Reloads a running check
 func reloadCheck(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
+	name := html.EscapeString(mux.Vars(r)["name"])
 	instances := common.AC.GetChecksByName(name)
 	if len(instances) == 0 {
 		log.Errorf("Can't reload " + name + ": check has no new instances.")

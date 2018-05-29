@@ -51,7 +51,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 
 	// setup the configuration system
 	config.Datadog.AddConfigPath(newConfigDir)
-	err = config.Datadog.ReadInConfig()
+	err = config.Load()
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}

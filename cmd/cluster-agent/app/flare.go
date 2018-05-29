@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 
-	log "github.com/cihub/seelog"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
@@ -37,20 +36,9 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configFound := false
-		// a path to the folder containing the config file was passed
-		if len(confPath) != 0 {
-			// we'll search for a config file named `datadog-cluster.yaml`
-			config.Datadog.AddConfigPath(confPath)
-			confErr := config.Datadog.ReadInConfig()
-			if confErr != nil {
-				log.Error(confErr)
-			} else {
-				configFound = true
-			}
-		}
-		if !configFound {
-			log.Debugf("Config read from env variables")
+		err := common.SetupConfig(confPath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
 		}
 
 		caseID := ""

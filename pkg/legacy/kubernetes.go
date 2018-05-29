@@ -94,7 +94,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 	deprecations := make(kubeDeprecations)
 
 	// read kubernetes.yaml
-	c, err := providers.GetCheckConfigFromFile("kubernetes", src)
+	c, err := providers.GetIntegrationConfigFromFile("kubernetes", src)
 	if err != nil {
 		return deprecations, fmt.Errorf("Could not load %s: %s", src, err)
 	}

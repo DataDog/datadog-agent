@@ -60,7 +60,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	forwarderStats := stats["forwarderStats"]
 	runnerStats := stats["runnerStats"]
 	autoConfigStats := stats["autoConfigStats"]
-	title := fmt.Sprintf("Agent (v%s)", stats["version"])
+	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
 	renderChecksStats(b, runnerStats, autoConfigStats, "")

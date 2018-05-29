@@ -1,6 +1,6 @@
 # Upgrade to Agent 6
 
-** Important ** Datadog Agent 6.0.0 has officially been released. Please utilize the in-application [install instructions](https://app.datadoghq.com/account/settings#agent) for our pre packaged binaries. 
+**Important** Datadog Agent 6 has officially been released. Please use the in-application [install instructions](https://app.datadoghq.com/account/settings#agent) for our pre-packaged binaries. You can still refer to the instructions below to upgrade from Agent 5.
 
 * [Linux](#linux)
 * [Windows](#windows)
@@ -49,10 +49,10 @@ sudo apt-get update
 sudo apt-get install apt-transport-https
 ```
 
-##### Add the beta repo to your system and import the datadog gpg key
+##### Add the Datadog Agent 6 repo to your system and import the datadog gpg key
 
 ```shell
-echo 'deb https://apt.datadoghq.com/ beta main' | sudo tee /etc/apt/sources.list.d/datadog-beta.list
+echo 'deb https://apt.datadoghq.com/ stable 6' | sudo tee /etc/apt/sources.list.d/datadog.list
 sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 382E94DE
 ```
 
@@ -69,9 +69,9 @@ sudo apt-get install datadog-agent
 ##### Set up Datadog's Yum repo on your system
 
 ```
-[datadog-beta]
-name = Beta, Datadog, Inc.
-baseurl = https://yum.datadoghq.com/beta/x86_64/
+[datadog]
+name = Datadog, Inc.
+baseurl = https://yum.datadoghq.com/stable/6/x86_64/
 enabled=1
 gpgcheck=1
 priority=1
@@ -83,13 +83,13 @@ You can use this command to do it directly:
 
 ```shell
 # Red Hat
-echo -e '[datadog-beta]\nname = Beta, Datadog, Inc.\nbaseurl = https://yum.datadoghq.com/beta/x86_64/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.datadoghq.com/DATADOG_RPM_KEY.public\n       https://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public' | sudo tee /etc/yum.repos.d/datadog-beta.repo
+echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.datadoghq.com/stable/6/x86_64/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.datadoghq.com/DATADOG_RPM_KEY.public\n       https://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public' | sudo tee /etc/yum.repos.d/datadog.repo
 ```
 
 ##### Update your local yum cache and install/update the agent
 
 ```shell
-sudo yum clean expire-cache
+sudo yum clean metadata
 sudo yum install datadog-agent
 ```
 
@@ -98,10 +98,10 @@ sudo yum install datadog-agent
 ##### Set up Datadog's Yum repo on your system
 
 ```
-[datadog-beta]
-name=Beta, Datadog, Inc.
+[datadog]
+name=Datadog, Inc.
 enabled=1
-baseurl=https://yum.datadoghq.com/suse/beta/6/x86_64
+baseurl=https://yum.datadoghq.com/suse/stable/6/x86_64
 type=rpm-md
 gpgcheck=1
 repo_gpgcheck=0
@@ -111,7 +111,7 @@ gpgkey=https://yum.datadoghq.com/DATADOG_RPM_KEY.public
 You can use this command to do this directly:
 ```shell
 # SuSE
-echo -e '[datadog-beta]\nname = Beta, Datadog, Inc.\nbaseurl = https://yum.datadoghq.com/suse/beta/6/x86_64/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.datadoghq.com/DATADOG_RPM_KEY.public\ntype=rpm-md\nrepo_gpgcheck=0' | sudo tee /etc/zypp/repos.d/datadog-beta.repo
+echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.datadoghq.com/suse/stable/6/x86_64/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.datadoghq.com/DATADOG_RPM_KEY.public\ntype=rpm-md\nrepo_gpgcheck=0' | sudo tee /etc/zypp/repos.d/datadog.repo
 ```
 
 ##### Update your local zypper cache and install/update the agent
@@ -162,17 +162,17 @@ Download the latest version available [from here](https://github.com/DataDog/dat
 and run the installation package.
 
 
-## MacOS
+## macOS
 
 You can either download the DMG package and install it manually, or use the one-line install script.
 
 ### Manual installation
 
-1. Download the DMG package of the latest beta version, please use the latest macOS release listed on the [release page](https://github.com/DataDog/datadog-agent/releases) of the repo
+1. Download the most recent macOS DMG installer package listed on the [release page](https://github.com/DataDog/datadog-agent/releases) of the Agent repository
 2. Install the DMG package
-3. Add your api key to `/opt/datadog-agent/etc/datadog.yaml`
+3. Add your API key to `/opt/datadog-agent/etc/datadog.yaml`
 
-You can then start the Datadog Agent app (once started, you should see it in the system tray), and manage the Agent from there. The Agent6 also ships a web-based GUI to edit the Agent configuration files and much more, refer to the [changes and deprecations document][changes] document for more information.
+You can then start the Datadog Agent app (once started, you should see it in the system tray), and manage the Agent from there. Agent v6 also ships with a web-based GUI to edit the Agent configuration files and much more; refer to the [changes and deprecations document][changes] document for more information.
 
 Unlike on Linux, the configuration path hasn't changed and remains in `~/.datadog-agent` (which links to `/opt/datadog-agent/etc`).
 

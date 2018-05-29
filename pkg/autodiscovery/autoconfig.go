@@ -192,7 +192,7 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	return checks
 }
 
-// GetAllConfigs queries all the providers and returns all the check
+// GetAllConfigs queries all the providers and returns all the integration
 // configurations found, resolving the ones it can
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	resolvedConfigs := []integration.Config{}
@@ -244,6 +244,10 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	allChecks := []check.Check{}
 	for _, config := range configs {
+		if !isCheckConfig(config) {
+			// skip non check configs.
+			continue
+		}
 		configDigest := config.Digest()
 		checks, err := ac.getChecks(config)
 		if err != nil {
@@ -261,6 +265,12 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populat
 	}
 
 	return allChecks
+}
+
+// isCheckConfig returns true if the config is a check configuration,
+// this method should be moved to pkg/collector/check while removing the check related-code from the autodiscovery package.
+func isCheckConfig(config integration.Config) bool {
+	return config.MetricConfig != nil || len(config.Instances) > 0
 }
 
 // schedule takes a slice of checks and schedule them
@@ -390,6 +400,10 @@ func (ac *AutoConfig) pollConfigs() {
 					// Process removed configs first to handle the case where a
 					// container churn would result in the same configuration hash.
 					for _, config := range removedConfigs {
+						if !isCheckConfig(config) {
+							// skip non check configs.
+							continue
+						}
 						// unschedule all the checks corresponding to this config
 						digest := config.Digest()
 						ids := ac.config2checks[digest]

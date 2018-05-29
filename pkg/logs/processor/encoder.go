@@ -10,6 +10,10 @@ import (
 
 	"regexp"
 
+	"unicode/utf8"
+
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
@@ -103,6 +107,9 @@ func (r *raw) isRFC5424Formatted(content []byte) bool {
 type proto struct{}
 
 func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
+	if !utf8.Valid(redactedMsg) {
+		return nil, errors.New("invalid UTF-8 string: " + string(redactedMsg))
+	}
 	return (&pb.Log{
 		Message:   string(redactedMsg),
 		Status:    msg.GetStatus(),

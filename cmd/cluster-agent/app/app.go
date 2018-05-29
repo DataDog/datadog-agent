@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/fatih/color"
 )
 
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
@@ -48,11 +49,26 @@ metadata for their metrics.`,
 
 	versionCmd = &cobra.Command{
 		Use:   "version",
-		Short: "Print the version number",
+		Short: "Print the version info",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.New(version.AgentVersion, version.Commit)
-			fmt.Println(fmt.Sprintf("Cluster Agent from Agent %s - Codename: %s - Commit: %s - Serialization version: %s", av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion))
+			if flagNoColor {
+				color.NoColor = true
+			}
+			av, _ := version.New(version.DCAVersion, version.Commit)
+			meta := ""
+			if av.Meta != "" {
+				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
+			}
+			fmt.Fprintln(
+				color.Output,
+				fmt.Sprintf("Agent %s %s- Commit: '%s' - Serialization version: %s",
+					color.BlueString(av.GetNumberAndPre()),
+					meta,
+					color.GreenString(version.Commit),
+					color.MagentaString(serializer.AgentPayloadVersion),
+				),
+			)
 		},
 	}
 
@@ -65,29 +81,16 @@ func init() {
 	ClusterAgentCmd.AddCommand(startCmd)
 	ClusterAgentCmd.AddCommand(versionCmd)
 
-	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog-cluster.yaml")
+	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	configFound := false
-
-	// a path to the folder containing the config file was passed
-	if len(confPath) != 0 {
-		// we'll search for a config file named `datadog-cluster.yaml`
-		config.Datadog.AddConfigPath(confPath)
-		confErr := config.Datadog.ReadInConfig()
-		if confErr != nil {
-			log.Error(confErr)
-		} else {
-			configFound = true
-		}
+	// Global Agent configuration
+	err := common.SetupConfig(confPath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
-
-	if !configFound {
-		log.Infof("Config read from env variables")
-	}
-
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
 	logFile := config.Datadog.GetString("log_file")
@@ -99,7 +102,7 @@ func start(cmd *cobra.Command, args []string) error {
 		logFile = ""
 	}
 
-	err := config.SetupLogger(
+	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
 		logFile,
 		syslogURI,
@@ -141,7 +144,7 @@ func start(cmd *cobra.Command, args []string) error {
 	s := &serializer.Serializer{Forwarder: f}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
-	aggregatorInstance.AddAgentStartupEvent("DCA")
+	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
 
 	clusterAgent, err := clusteragent.Run(aggregatorInstance.GetChannels())
 	if err != nil {
@@ -161,7 +164,7 @@ func start(cmd *cobra.Command, args []string) error {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_dca_path"))
+	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 	// Block here until we receive the interrupt signal

@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -228,7 +229,11 @@ log_level: info
 
 	wd, _ := os.Getwd()
 	filePath := filepath.Join(wd, "test", "datadog.yaml")
-	cleaned, err := credentialsCleanerFile(filePath)
+
+	data, err := ioutil.ReadFile(filePath)
+	assert.Nil(t, err)
+
+	cleaned, err := credentialsCleanerBytes(data)
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 
