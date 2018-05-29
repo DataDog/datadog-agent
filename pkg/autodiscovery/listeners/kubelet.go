@@ -43,7 +43,7 @@ type PodContainerService struct {
 	ID            ID
 	ADIdentifiers []string
 	Hosts         map[string]string
-	Ports         []int
+	Ports         []ContainerPort
 }
 
 func init() {
@@ -155,11 +155,11 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	svc.Hosts = map[string]string{"pod": podIp}
 
 	// Ports
-	var ports []int
+	var ports []ContainerPort
 	for _, container := range pod.Spec.Containers {
 		if container.Name == containerName {
 			for _, port := range container.Ports {
-				ports = append(ports, port.ContainerPort)
+				ports = append(ports, ContainerPort{port.ContainerPort, port.Name})
 			}
 			break
 		}
@@ -232,7 +232,7 @@ func (s *PodContainerService) GetPid() (int, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *PodContainerService) GetPorts() ([]int, error) {
+func (s *PodContainerService) GetPorts() ([]ContainerPort, error) {
 	return s.Ports, nil
 }
 

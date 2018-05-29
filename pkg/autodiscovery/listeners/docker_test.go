@@ -163,8 +163,8 @@ func TestGetPortsFromPs(t *testing.T) {
 	co.Ports = append(co.Ports, types.Port{PrivatePort: 4321})
 	ports := dl.getPortsFromPs(co)
 	assert.Equal(t, 2, len(ports))
-	assert.Contains(t, ports, 1234)
-	assert.Contains(t, ports, 4321)
+	assert.Contains(t, ports, ContainerPort{1234, ""})
+	assert.Contains(t, ports, ContainerPort{4321, ""})
 }
 
 func TestGetADIdentifiers(t *testing.T) {
@@ -366,10 +366,10 @@ func TestGetPorts(t *testing.T) {
 
 	pts, _ := svc.GetPorts()
 	assert.Equal(t, 4, len(pts))
-	assert.Contains(t, pts, 42)
-	assert.Contains(t, pts, 43)
-	assert.Contains(t, pts, 44)
-	assert.Contains(t, pts, 45)
+	assert.Contains(t, pts, ContainerPort{42, ""})
+	assert.Contains(t, pts, ContainerPort{43, ""})
+	assert.Contains(t, pts, ContainerPort{44, ""})
+	assert.Contains(t, pts, ContainerPort{45, ""})
 
 	// Both binding ports and exposed ports, only firsts should be picked up
 	id = "test"
@@ -407,8 +407,8 @@ func TestGetPorts(t *testing.T) {
 
 	pts, _ = svc.GetPorts()
 	assert.Equal(t, 2, len(pts))
-	assert.Contains(t, pts, 1234)
-	assert.Contains(t, pts, 4321)
+	assert.Contains(t, pts, ContainerPort{1234, ""})
+	assert.Contains(t, pts, ContainerPort{4321, ""})
 }
 
 func TestGetPid(t *testing.T) {
@@ -434,19 +434,19 @@ func TestParseDockerPort(t *testing.T) {
 	testCases := []struct {
 		proto         string
 		port          string
-		expectedPorts []int
+		expectedPorts []ContainerPort
 		expectedError error
 	}{
 		{
 			proto:         "tcp",
 			port:          "42",
-			expectedPorts: []int{42},
+			expectedPorts: []ContainerPort{{42, ""}},
 			expectedError: nil,
 		},
 		{
 			proto:         "udp",
 			port:          "500-503",
-			expectedPorts: []int{500, 501, 502, 503},
+			expectedPorts: []ContainerPort{{500, ""}, {501, ""}, {502, ""}, {503, ""}},
 			expectedError: nil,
 		},
 		{

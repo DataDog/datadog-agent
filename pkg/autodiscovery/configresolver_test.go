@@ -220,7 +220,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				Ports:         []int{1, 2, 3},
+				Ports:         newFakeContainerPorts(),
 			},
 			tpl: integration.Config{
 				Name:          "cpu",
@@ -238,7 +238,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				Ports:         []int{1, 2, 3},
+				Ports:         newFakeContainerPorts(),
 			},
 			tpl: integration.Config{
 				Name:          "cpu",
@@ -252,11 +252,43 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
+			testName: "%%port_bar%%, found",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Ports:         newFakeContainerPorts(),
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("port: %%port_bar%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("port: 2")},
+			},
+		},
+		{
+			testName: "%%port_qux%%, not found, error",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Ports:         newFakeContainerPorts(),
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("port: %%port_qux%%")},
+			},
+			errorString: "port qux not found, skipping container a5901276aed1",
+		},
+		{
 			testName: "%%port_4%% too high, error",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				Ports:         []int{1, 2, 3},
+				Ports:         newFakeContainerPorts(),
 			},
 			tpl: integration.Config{
 				Name:          "cpu",
@@ -266,25 +298,11 @@ func TestResolve(t *testing.T) {
 			errorString: "index given for the port template var is too big, skipping container a5901276aed1",
 		},
 		{
-			testName: "%%port_A%% not int, error",
-			svc: &dummyService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				Ports:         []int{1, 2, 3},
-			},
-			tpl: integration.Config{
-				Name:          "cpu",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("port: %%port_A%%")},
-			},
-			errorString: "index given for the port template var is not an int, skipping container a5901276aed1",
-		},
-		{
 			testName: "%%port%% but no port in service, error",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				Ports:         []int{},
+				Ports:         []listeners.ContainerPort{},
 			},
 			tpl: integration.Config{
 				Name:          "cpu",
@@ -399,5 +417,13 @@ func TestResolve(t *testing.T) {
 		// Assert the valid configs are stored in the AC and the store
 		assert.Equal(t, validTemplates, len(ac.loadedConfigs))
 		assert.Equal(t, len(ac.store.getConfigsForService(tc.svc.GetID())), validTemplates)
+	}
+}
+
+func newFakeContainerPorts() []listeners.ContainerPort {
+	return []listeners.ContainerPort{
+		{ContainerPort: 1, Name: "foo"},
+		{ContainerPort: 2, Name: "bar"},
+		{ContainerPort: 3, Name: "baz"},
 	}
 }
