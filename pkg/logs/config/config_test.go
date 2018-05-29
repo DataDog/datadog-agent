@@ -29,9 +29,10 @@ func TestBuildLogsSources(t *testing.T) {
 	var source *LogSource
 	var err error
 
-	// should return an error
+	// should return an empty list
 	logsSources, err = buildLogSources(ddconfdPath, false)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(logsSources.GetValidSources()))
 
 	// should return the default tail all containers source
 	logsSources, err = buildLogSources(ddconfdPath, true)
