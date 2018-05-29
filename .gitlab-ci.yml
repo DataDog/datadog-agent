@@ -24,10 +24,11 @@ variables:
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
+  WIN_S3_BUCKET: dd-agent-mstesting
   DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET: dd-agent-mstesting/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET: $WIN_S3_BUCKET/pipelines/$CI_PIPELINE_ID
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
@@ -294,8 +295,6 @@ build_windows_msi_x64:
     - rm -rf .omnibus/pkg/
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache
-  after_script:
-    - '"C:\Program Files\Amazon\AWSCLI\aws.exe" s3 cp --profile ci-datadog-agent %S3_CP_OPTIONS% --recursive --exclude "*" --include "*.msi" .omnibus/pkg/ s3://%WINDOWS_TESTING_S3_BUCKET%/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732'
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -458,6 +457,20 @@ deploy_suse_rpm_testing:
     - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/suse/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/suse/x86_64
     - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy windows packages to our testing bucket
+deploy_windows_testing:
+  allow_failure: true
+  stage: testkitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR_SUSE
+  only:
+    - master
+    - tags
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" --include "*.msi.metadata.json" --include "*.wixpdb" $OMNIBUS_PACKAGE_DIR s3://%WINDOWS_TESTING_S3_BUCKET%/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # run dd-agent-testing on windows
 kitchen_windows:
