@@ -164,6 +164,27 @@ following:
   configuration file (to be backwards compatible we agent5 checks we have to
   pass a list here).
 
+## Running subprocesses
+
+Due to the Python interpreter being embedded in an inherently multi-threaded environment (the go runtime)
+there are some limitations to the ways in which Python Checks can run subprocesses.
+
+To run a subprocess from your Check, please use the `get_subprocess_output` function
+provided in `datadog_checks.utils.subprocess_output`:
+
+```python
+from datadog_checks.utils.subprocess_output import get_subprocess_output
+
+class MyCheck(AgentCheck):
+    def check(self, instance):
+    # [...]
+    out, err, retcode = get_subprocess_output(cmd, self.log, raise_on_empty_output=True)
+```
+
+Using the `subprocess` and `multiprocessing` modules provided by the python standard library is _not
+supported_, and may result in your Agent crashing and/or creating processes that remain in a stuck or zombie
+state.
+
 
 
 [collector]: /pkg/collector
