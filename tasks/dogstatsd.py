@@ -146,7 +146,7 @@ def size_test(ctx, skip_build=False):
 
 @task
 def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, omnibus_cache=False):
+                  skip_deps=False, omnibus_s3_cache=False):
     """
     Build the Dogstatsd packages with Omnibus Installer.
     """
