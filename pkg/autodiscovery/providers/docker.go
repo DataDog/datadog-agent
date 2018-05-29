@@ -44,6 +44,7 @@ func (d *DockerConfigProvider) String() string {
 
 // Collect retrieves all running containers and extract AD templates from their labels.
 func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
+	log.Errorf("COLLECTINGDOCKERLABELS")
 	var err error
 	if d.dockerUtil == nil {
 		d.dockerUtil, err = docker.GetDockerUtil()

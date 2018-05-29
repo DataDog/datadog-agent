@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -67,14 +68,12 @@ type providerDescriptor struct {
 // Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
 // meaning that you cannot use it to schedule check instances directly.
 type AutoConfig struct {
-	collector         *collector.Collector
 	providers         []*providerDescriptor
-	loaders           []check.Loader
 	templateCache     *TemplateCache
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	configToChecks    map[string][]check.ID // cache the ID of checks we load for each config
+	scheduler         scheduler.MetaScheduler
 	stop              chan bool
 	pollerActive      bool
 	health            *health.Handle
@@ -83,18 +82,16 @@ type AutoConfig struct {
 }
 
 // NewAutoConfig creates an AutoConfig instance.
-func NewAutoConfig(collector *collector.Collector) *AutoConfig {
+func NewAutoConfig() *AutoConfig {
 	ac := &AutoConfig{
-		collector:      collector,
-		providers:      make([]*providerDescriptor, 0, 5),
-		loaders:        make([]check.Loader, 0, 5),
-		templateCache:  NewTemplateCache(),
-		configToChecks: make(map[string][]check.ID),
-		stop:           make(chan bool),
-		store:          newStore(),
-		health:         health.Register("ad-autoconfig"),
+		providers:     make([]*providerDescriptor, 0, 5),
+		templateCache: NewTemplateCache(),
+		stop:          make(chan bool),
+		store:         newStore(),
+		health:        health.Register("ad-autoconfig"),
+		scheduler:     scheduler.MetaScheduler{},
 	}
-	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
+	ac.configResolver = newConfigResolver(ac, ac.templateCache)
 	return ac
 }
 
@@ -121,10 +118,8 @@ func (ac *AutoConfig) Stop() {
 		ac.pollerActive = false
 	}
 
-	// stop the collector
-	if ac.collector != nil {
-		ac.collector.Stop()
-	}
+	// stop the meta scheduler
+	ac.scheduler.Stop()
 
 	// stop the config resolver
 	if ac.configResolver != nil {
@@ -170,8 +165,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 // polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun() {
 	resolvedConfigs := ac.GetAllConfigs()
-	checks := ac.getChecksFromConfigs(resolvedConfigs, true)
-	ac.schedule(checks)
+	ac.schedule(resolvedConfigs)
 }
 
 // GetChecksByName returns any Check instance we can load for the given
@@ -181,12 +175,15 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
 	var checks []check.Check
 
-	for _, c := range ac.getChecksFromConfigs(ac.GetAllConfigs(), false) {
+	checkScheduler, ok := ac.scheduler.GetScheduler("check").(*collector.CheckScheduler)
+	if !ok {
+		return checks
+	}
+	for _, c := range checkScheduler.GetChecksFromConfigs(ac.GetAllConfigs(), false) {
 		if checkName == c.String() || titleCheck == c.String() {
 			checks = append(checks, c)
 		}
 	}
-
 	return checks
 }
 
@@ -240,36 +237,6 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	return resolvedConfigs
 }
 
-// getChecksFromConfigs gets all the check instances for given configurations
-// optionally can populate ac cache configToChecks
-func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	var allChecks []check.Check
-	for _, config := range configs {
-		if !isCheckConfig(config) {
-			// skip non check configs.
-			continue
-		}
-		configDigest := config.Digest()
-		checks, err := ac.getChecks(config)
-		if err != nil {
-			log.Errorf("Unable to load the check: %v", err)
-			continue
-		}
-		for _, c := range checks {
-			allChecks = append(allChecks, c)
-			if populateCache {
-				// store the checks we schedule for this config locally
-				ac.configToChecks[configDigest] = append(ac.configToChecks[configDigest], c.ID())
-			}
-		}
-	}
-
-	return allChecks
-}
-
 // isCheckConfig returns true if the config is a check configuration,
 // this method should be moved to pkg/collector/check while removing the check related-code from the autodiscovery package.
 func isCheckConfig(config integration.Config) bool {
@@ -277,16 +244,8 @@ func isCheckConfig(config integration.Config) bool {
 }
 
 // schedule takes a slice of checks and schedule them
-func (ac *AutoConfig) schedule(checks []check.Check) {
-	for _, c := range checks {
-		log.Infof("Scheduling check %s", c)
-		_, err := ac.collector.RunCheck(c)
-		if err != nil {
-			log.Errorf("Unable to run Check %s: %v", c, err)
-			errorStats.setRunError(c.ID(), err.Error())
-			continue
-		}
-	}
+func (ac *AutoConfig) schedule(configs []integration.Config) {
+	ac.scheduler.ScheduleConfigs(configs)
 }
 
 // resolve loads and resolves a given config into a slice of resolved configs
@@ -356,17 +315,6 @@ func (ac *AutoConfig) AddListener(listener listeners.ServiceListener) {
 
 	ac.listeners = append(ac.listeners, listener)
 	listener.Listen(ac.configResolver.newService, ac.configResolver.delService)
-}
-
-// AddLoader adds a new Loader that AutoConfig can use to load a check.
-func (ac *AutoConfig) AddLoader(loader check.Loader) {
-	for _, l := range ac.loaders {
-		if l == loader {
-			log.Warnf("Loader %s was already added, skipping...", loader)
-			return
-		}
-	}
-	ac.loaders = append(ac.loaders, loader)
 }
 
 func decryptConfig(conf integration.Config) (integration.Config, error) {
@@ -453,12 +401,10 @@ func (ac *AutoConfig) pollConfigs() {
 					newConfigs, removedConfigs := ac.collect(pd)
 					ac.processRemovedConfigs(removedConfigs)
 
-					// TODO: move to check scheduler
 					for _, config := range newConfigs {
 						config.Provider = pd.provider.String()
 						resolvedConfigs := ac.resolve(config)
-						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
-						ac.schedule(checks)
+						ac.schedule(resolvedConfigs)
 					}
 				}
 			}
@@ -466,54 +412,14 @@ func (ac *AutoConfig) pollConfigs() {
 	}()
 }
 
-// TODO: move to check scheduler
-func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config) {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	// Process removed configs first to handle the case where a
-	// container churn would result in the same configuration hash.
-	for _, config := range removedConfigs {
-		if !isCheckConfig(config) {
-			// skip non check configs.
-			continue
-		}
-		// unschedule all the possible checks corresponding to this config
-		digest := config.Digest()
-		ids := ac.configToChecks[digest]
-		stopped := map[check.ID]struct{}{}
-		for _, id := range ids {
-			// `StopCheck` might time out so we don't risk to block
-			// the polling loop forever
-			err := ac.collector.StopCheck(id)
-			if err != nil {
-				log.Errorf("Error stopping check %s: %s", id, err)
-				errorStats.setRunError(id, err.Error())
-			} else {
-				stopped[id] = struct{}{}
-			}
-		}
-
-		// remove the entry from `configToChecks`
-		if len(stopped) == len(ac.configToChecks[digest]) {
-			// we managed to stop all the checks for this config
-			delete(ac.configToChecks, digest)
-			delete(ac.configResolver.configToService, digest)
-			ac.store.removeLoadedConfig(config)
-		} else {
-			// keep the checks we failed to stop in `configToChecks`
-			dangling := []check.ID{}
-			for _, id := range ac.configToChecks[digest] {
-				if _, found := stopped[id]; !found {
-					dangling = append(dangling, id)
-				}
-			}
-			ac.configToChecks[digest] = dangling
-		}
-
+func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
+	ac.scheduler.UnscheduleConfigs(configs)
+	for _, c := range configs {
+		delete(ac.configResolver.configToService, c.Digest())
+		ac.store.removeLoadedConfig(c)
 		// if the config is a template, remove it from the cache
-		if config.IsTemplate() {
-			ac.templateCache.Del(config)
+		if c.IsTemplate() {
+			ac.templateCache.Del(c)
 		}
 	}
 }
@@ -545,29 +451,6 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) ([]integration.Config, []i
 	}
 	log.Infof("%v: collected %d new configurations, removed %d", pd.provider, len(newConf), len(removedConf))
 	return newConf, removedConf
-}
-
-// getChecks takes a check configuration and returns a slice of Check instances
-// along with any error it might happen during the process
-func (ac *AutoConfig) getChecks(config integration.Config) ([]check.Check, error) {
-	for _, loader := range ac.loaders {
-		res, err := loader.Load(config)
-		if err == nil {
-			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-			errorStats.removeLoaderErrors(config.Name)
-			return res, nil
-		}
-
-		errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-
-		// Check if some check instances were loaded correctly (can occur if there's multiple check instances)
-		if len(res) != 0 {
-			return res, nil
-		}
-		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
-	}
-
-	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
 }
 
 // GetLoadedConfigs returns configs loaded

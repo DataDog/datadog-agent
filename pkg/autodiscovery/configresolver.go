@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -42,7 +41,6 @@ var (
 // It is also responsible to send scheduling orders to AutoConfig
 type ConfigResolver struct {
 	ac              *AutoConfig
-	collector       *collector.Collector
 	templates       *TemplateCache
 	services        map[listeners.ID]listeners.Service // Service.ID --> Service
 	adIDToServices  map[string]map[listeners.ID]bool   // AD id --> services that have it
@@ -55,10 +53,9 @@ type ConfigResolver struct {
 }
 
 // NewConfigResolver returns a config resolver
-func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCache) *ConfigResolver {
+func newConfigResolver(ac *AutoConfig, tc *TemplateCache) *ConfigResolver {
 	cr := &ConfigResolver{
 		ac:              ac,
-		collector:       coll,
 		templates:       tc,
 		services:        make(map[listeners.ID]listeners.Service),
 		adIDToServices:  make(map[string]map[listeners.ID]bool),
@@ -244,11 +241,8 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 		}
 		errorStats.removeResolveWarnings(config.Name)
 
-		// load the checks for this config using Autoconfig
-		checks := cr.ac.getChecksFromConfigs([]integration.Config{config}, true)
-
 		// ask the Collector to schedule the checks
-		cr.ac.schedule(checks)
+		cr.ac.schedule([]integration.Config{config})
 	}
 }
 
