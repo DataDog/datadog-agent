@@ -275,9 +275,6 @@ build_windows_msi_x64:
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv -e deps
-    # make sure PSUTIL is gone on windows; the deps stage will vendor it in because it's necessary
-    # on other platforms
-    - rd /s/q vendor\github.com\shirou\gopsutil
   stage: package_build
   tags: ["runner:windows-agent6"]
   script:

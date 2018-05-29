@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/platform"
 	"github.com/shirou/w32"
@@ -116,10 +117,9 @@ func getHostInfo() *InfoStat {
 
 	pi, _ := platform.GetArchInfo()
 	info.Platform = pi["os"].(string)
-	info.PlatformFamily = ""
-	kr := pi["kernel_release"].(string)
-	verparts := strings.Split(kr, ".")
-	info.PlatformVersion = fmt.Sprintf("%s.%s Build %s", verparts[0], verparts[1], verparts[2])
+	info.PlatformFamily = pi["os"].(string)
+
+	info.PlatformVersion, _ = winutil.GetWindowsBuildString()
 	info.HostID = common.GetUUID()
 
 	cache.Cache.Set(key, info, cache.NoExpiration)
