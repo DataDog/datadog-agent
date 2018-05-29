@@ -7,6 +7,7 @@ package runner
 
 import (
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -118,8 +119,10 @@ type TimingoutCheck struct {
 
 func (tc *TimingoutCheck) Stop() {
 	for {
+		runtime.Gosched()
 	}
 }
+func (tc *TimingoutCheck) String() string { return "TimeoutTestCheck" }
 
 func TestStopCheck(t *testing.T) {
 	r := NewRunner()
