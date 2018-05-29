@@ -166,8 +166,8 @@ following:
 
 ## Running subprocesses
 
-Because of the embedded and multi-threaded nature of the Python runtime in Agent v6 there are some
-limitations to running subprocesses from Agent Checks.
+Due to the Python interpreter being embedded in an inherently multi-threaded environment (the go runtime)
+there are some limitations to the ways in which Python Checks can run subprocesses.
 
 To run a subprocess from your Check, please use the `get_subprocess_output` function
 provided in `datadog_checks.utils.subprocess_output`:
