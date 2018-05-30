@@ -60,9 +60,9 @@ func StartServer() error {
 		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
 	}
 
-	cmProvider := custommetrics.NewDatadogProvider(clientPool)
+	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper)
 
-	server, err := config.Complete().New("datadog-custom-metrics-adapter", cmProvider)
+	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)
 	if err != nil {
 		return err
 	}
