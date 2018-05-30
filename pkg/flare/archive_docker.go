@@ -75,7 +75,7 @@ func zipDockerPs(tempDir, hostname string) error {
 
 	// Opening out file
 	f := filepath.Join(tempDir, hostname, "docker_ps.log")
-	file, err := os.Create(f)
+	file, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
