@@ -7,6 +7,8 @@
 
 package docker
 
+import "context"
+
 var (
 	// NullContainer is an empty container object that has
 	// default values for all fields including sub-fields.
@@ -28,4 +30,8 @@ func HostnameProvider(hostName string) (string, error) {
 // IsContainerized returns True if we're running in the docker-dd-agent container.
 func IsContainerized() bool {
 	return false
+}
+
+func GetTags(ctx context.Context) ([]string, error) {
+	return []string{}, nil
 }
