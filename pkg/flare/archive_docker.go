@@ -10,9 +10,13 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"text/tabwriter"
+
+	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,5 +59,37 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	})
 
 	_, err = w.Write(serialized)
+	return err
+}
+
+func zipDockerPs(tempDir, hostname string) error {
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		return err
+	}
+	options := types.ContainerListOptions{All: true}
+	containerList, err := du.RawContainerList(options)
+	if err != nil {
+		return err
+	}
+
+	// Opening out file
+	f := filepath.Join(tempDir, hostname, "docker_ps.log")
+	file, err := os.Create(f)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	w := tabwriter.NewWriter(file, 20, 0, 3, ' ', 0)
+
+	fmt.Fprintln(w, "CONTAINER ID\tIMAGE\tCOMMAND\tSTATUS\tPORTS\tNAMES\t")
+	// Removed CREATED as it only shows a timestamp in the API
+	for _, c := range containerList {
+		fmt.Fprintf(w, "%s\t%s\t%q\t%s\t%v\t%v\t\n",
+			c.ID[:12], c.Image, c.Command, c.Status, c.Ports, c.Names)
+		w.Flush()
+	}
+
 	return err
 }
