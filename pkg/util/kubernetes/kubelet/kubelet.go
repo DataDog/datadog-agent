@@ -437,10 +437,12 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 }
 
 func (ku *KubeUtil) init() error {
+	var err error
+
 	// setting the kubeletHost
 	ku.kubeletHost = config.Datadog.GetString("kubernetes_kubelet_host")
 	if ku.kubeletHost == "" {
-		ku.kubeletHost, err := docker.HostnameProvider("")
+		ku.kubeletHost, err = docker.HostnameProvider("")
 		if err != nil {
 			return fmt.Errorf("unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
 		}
@@ -461,7 +463,8 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
-	if err := ku.setupKubeletApiClient(); err != nil {
+	err = ku.setupKubeletApiClient()
+	if err != nil {
 		return err
 	}
 	return ku.setupKubeletApiEndpoint()
