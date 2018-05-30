@@ -8,7 +8,7 @@ package docker
 import (
 	"net"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const rancherIPLabel = "io.rancher.container.ip"

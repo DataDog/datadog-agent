@@ -12,7 +12,7 @@ import (
 	"unsafe"
 
 	chk "github.com/DataDog/datadog-agent/pkg/collector/check"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"

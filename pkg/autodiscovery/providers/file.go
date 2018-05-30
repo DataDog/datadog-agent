@@ -12,11 +12,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/cihub/seelog"
-
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type configFormat struct {

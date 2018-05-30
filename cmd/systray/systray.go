@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"syscall"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/lxn/walk"

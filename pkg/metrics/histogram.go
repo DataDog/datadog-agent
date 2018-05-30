@@ -11,7 +11,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // weightSample represent a sample with its weight in the histogram (deduce from SampleRate)

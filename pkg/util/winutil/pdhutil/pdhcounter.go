@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows"
 )
 

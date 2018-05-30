@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,8 +31,7 @@ api_key: ***************************aaaaa
 proxy: http://user:********@host:1234
 password: ********
 auth_token: ********
-log_level: info
-`
+log_level: info`
 
 	buf := bytes.NewBuffer([]byte{})
 	w := RedactingWriter{
@@ -53,23 +53,22 @@ api_key: ***************************aaaaa
 proxy: http://USERISREDACTEDTOO:********@foo:bar
 password: ********
 auth_token: ********
-log_level: info
-`
+log_level: info`
 
 	buf := bytes.NewBuffer([]byte{})
 	w := RedactingWriter{
 		targetBuf: bufio.NewWriter(buf),
 	}
 
-	w.RegisterReplacer(replacer{
-		regex: regexp.MustCompile(`user`),
-		replFunc: func(s []byte) []byte {
+	w.RegisterReplacer(log.Replacer{
+		Regex: regexp.MustCompile(`user`),
+		ReplFunc: func(s []byte) []byte {
 			return []byte("USERISREDACTEDTOO")
 		},
 	})
-	w.RegisterReplacer(replacer{
-		regex: regexp.MustCompile(`@.*\:[0-9]+`),
-		replFunc: func(s []byte) []byte {
+	w.RegisterReplacer(log.Replacer{
+		Regex: regexp.MustCompile(`@.*\:[0-9]+`),
+		ReplFunc: func(s []byte) []byte {
 			return []byte("@foo:bar")
 		},
 	})
@@ -86,8 +85,7 @@ func TestRedactingNothing(t *testing.T) {
 	src := `dd_url: https://app.datadoghq.com
 log_level: info`
 	dst := `dd_url: https://app.datadoghq.com
-log_level: info
-`
+log_level: info`
 
 	buf := bytes.NewBuffer([]byte{})
 	w := RedactingWriter{

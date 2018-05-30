@@ -10,7 +10,7 @@ package apiserver
 import (
 	"fmt"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/api/core/v1"
 )
 

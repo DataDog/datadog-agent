@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	log "github.com/cihub/seelog"
 	"github.com/mholt/archiver"
 	yaml "gopkg.in/yaml.v2"
 )

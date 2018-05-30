@@ -10,7 +10,9 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -38,6 +40,20 @@ func doDiagnose(cmd *cobra.Command, args []string) {
 
 	if flagNoColor {
 		color.NoColor = true
+	}
+
+	err := config.SetupLogger(
+		config.Datadog.GetString("log_level"),
+		common.DefaultLogFile,
+		config.GetSyslogURI(),
+		config.Datadog.GetBool("syslog_rfc"),
+		config.Datadog.GetBool("syslog_tls"),
+		config.Datadog.GetString("syslog_pem"),
+		config.Datadog.GetBool("log_to_console"),
+		config.Datadog.GetBool("log_format_json"),
+	)
+	if err != nil {
+		log.Errorf("Error while setting up logging, exiting: %v", err)
 	}
 
 	errors, err := diagnose.RunAll(color.Output)

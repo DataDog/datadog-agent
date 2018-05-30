@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 )
