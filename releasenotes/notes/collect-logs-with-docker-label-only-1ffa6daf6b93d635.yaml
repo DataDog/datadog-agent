@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Collect logs for all containers defining a log autodiscovery label whatsoever the configuration.

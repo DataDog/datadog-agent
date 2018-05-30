@@ -138,10 +138,6 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 
 // Start starts the Scanner
 func (s *Scanner) setup() error {
-	if len(s.sources) == 0 {
-		return fmt.Errorf("No container source defined")
-	}
-
 	cli, err := NewDockerClient()
 	if err != nil {
 		log.Error("Can't tail containers, ", err)
