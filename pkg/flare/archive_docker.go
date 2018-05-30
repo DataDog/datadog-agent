@@ -67,7 +67,7 @@ func zipDockerPs(tempDir, hostname string) error {
 	if err != nil {
 		return err
 	}
-	options := types.ContainerListOptions{All: true}
+	options := types.ContainerListOptions{All: true, Limit: 50}
 	containerList, err := du.RawContainerList(options)
 	if err != nil {
 		return err
@@ -81,15 +81,21 @@ func zipDockerPs(tempDir, hostname string) error {
 	}
 	defer file.Close()
 
-	w := tabwriter.NewWriter(file, 20, 0, 3, ' ', 0)
+	w := tabwriter.NewWriter(file, 20, 0, 3, ' ', tabwriter.AlignRight)
 
 	fmt.Fprintln(w, "CONTAINER ID\tIMAGE\tCOMMAND\tSTATUS\tPORTS\tNAMES\t")
 	// Removed CREATED as it only shows a timestamp in the API
 	for _, c := range containerList {
+		// Trimming command if too large
+		var command_limit = 18
+		command := c.Command
+		if len(c.Command) >= command_limit {
+			command = c.Command[:command_limit] + "…"
+		}
 		fmt.Fprintf(w, "%s\t%s\t%q\t%s\t%v\t%v\t\n",
-			c.ID[:12], c.Image, c.Command, c.Status, c.Ports, c.Names)
+			c.ID[:12], c.Image, command, c.Status, c.Ports, c.Names)
 		w.Flush()
 	}
 
-	return err
+	return nil
 }
