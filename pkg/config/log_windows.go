@@ -6,7 +6,7 @@
 package config
 
 import (
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetSyslogURI returns the configured/default syslog uri

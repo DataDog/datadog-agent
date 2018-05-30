@@ -11,11 +11,10 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (

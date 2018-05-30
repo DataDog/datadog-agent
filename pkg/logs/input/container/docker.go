@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"

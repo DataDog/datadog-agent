@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"sort"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"

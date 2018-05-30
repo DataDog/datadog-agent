@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"runtime"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/mem"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"

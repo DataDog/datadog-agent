@@ -15,6 +15,7 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func zipDockerSelfInspect(tempDir, hostname string) error {
@@ -44,9 +45,9 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	}
 	defer w.Close()
 
-	w.RegisterReplacer(replacer{
-		regex: regexp.MustCompile(`\"Image\": \"sha256:\w+"`),
-		replFunc: func(s []byte) []byte {
+	w.RegisterReplacer(log.Replacer{
+		Regex: regexp.MustCompile(`\"Image\": \"sha256:\w+"`),
+		ReplFunc: func(s []byte) []byte {
 			m := string(s[10 : len(s)-1])
 			shaResolvedInspect, _ := du.ResolveImageName(m)
 			return []byte(shaResolvedInspect)

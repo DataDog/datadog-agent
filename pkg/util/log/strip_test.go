@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package flare
+package log
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -196,7 +195,7 @@ func TestSNMPConfig(t *testing.T) {
 }
 
 func assertClean(t *testing.T, contents, cleanContents string) {
-	cleaned, err := credentialsCleanerBytes([]byte(contents))
+	cleaned, err := CredentialsCleanerBytes([]byte(contents))
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 
@@ -224,16 +223,11 @@ func TestConfigFile(t *testing.T) {
 api_key: ***************************aaaaa
 proxy: http://user:********@host:port
 dogstatsd_port : 8125
-log_level: info
-`
+log_level: info`
 
 	wd, _ := os.Getwd()
 	filePath := filepath.Join(wd, "test", "datadog.yaml")
-
-	data, err := ioutil.ReadFile(filePath)
-	assert.Nil(t, err)
-
-	cleaned, err := credentialsCleanerBytes(data)
+	cleaned, err := CredentialsCleanerFile(filePath)
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 

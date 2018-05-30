@@ -10,13 +10,15 @@ package apiserver
 //// Covered by test/integration/util/kube_apiserver/events_test.go
 
 import (
-	log "github.com/cihub/seelog"
+	"strconv"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
-	"strconv"
-	"time"
 )
 
 var eventReadTimeout = 100 * time.Millisecond

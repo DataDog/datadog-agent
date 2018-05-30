@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows"
 )
 
@@ -169,6 +169,8 @@ func (p *PdhCounterSet) MakeCounterPath(machine, counterName, instanceName strin
 
 	   Search each index, and make sure the requested counter name actually appears in
 	   the list of available counters; that's the counter we'll use.
+
+	   For more information, see README.md.
 	*/
 	idxList, err := getCounterIndexList(counterName)
 	if err != nil {

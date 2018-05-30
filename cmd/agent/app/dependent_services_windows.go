@@ -9,7 +9,7 @@ package app
 import (
 	"fmt"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
