@@ -69,7 +69,7 @@ func zipDockerPs(tempDir, hostname string) error {
 		log.Debugf("Couldn't reach docker for getting `docker ps`: %s", err)
 		return nil
 	}
-	options := types.ContainerListOptions{All: true, Limit: 50}
+	options := types.ContainerListOptions{All: true, Limit: 500}
 	containerList, err := du.RawContainerList(options)
 	if err != nil {
 		return err
