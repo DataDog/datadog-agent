@@ -18,11 +18,11 @@ import (
 )
 
 type MockSystemInfoClient struct {
-	Swarm swarm.Info
+	SwarmInfo swarm.Info
 }
 
 func (c *MockSystemInfoClient) Info(ctx context.Context) (types.Info, error) {
-	return types.Info{Swarm: c.Swarm}, nil
+	return types.Info{Swarm: c.SwarmInfo}, nil
 }
 
 func TestGetTags(t *testing.T) {
@@ -33,7 +33,7 @@ func TestGetTags(t *testing.T) {
 	}{
 		{
 			"manager node with swarm active",
-			&MockSystemInfoClient{Swarm: swarm.Info{
+			&MockSystemInfoClient{SwarmInfo: swarm.Info{
 				LocalNodeState:   swarm.LocalNodeStateActive,
 				ControlAvailable: true,
 			}},
@@ -41,7 +41,7 @@ func TestGetTags(t *testing.T) {
 		},
 		{
 			"worker node with swarm active",
-			&MockSystemInfoClient{Swarm: swarm.Info{
+			&MockSystemInfoClient{SwarmInfo: swarm.Info{
 				LocalNodeState:   swarm.LocalNodeStateActive,
 				ControlAvailable: false,
 			}},
@@ -49,7 +49,7 @@ func TestGetTags(t *testing.T) {
 		},
 		{
 			"swarm inactive",
-			&MockSystemInfoClient{Swarm: swarm.Info{
+			&MockSystemInfoClient{SwarmInfo: swarm.Info{
 				LocalNodeState:   swarm.LocalNodeStatePending,
 				ControlAvailable: true,
 			}},
