@@ -8,8 +8,10 @@ package host
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
@@ -86,4 +88,28 @@ func TestGetEmptyHostTags(t *testing.T) {
 
 func TestBuildKey(t *testing.T) {
 	assert.Equal(t, "metadata/host/foo", buildKey("foo"))
+}
+
+func TestGetContainerMeta(t *testing.T) {
+	// reset catalog
+	container.DefaultCatalog = make(container.Catalog)
+	container.RegisterMetadataProvider("provider1", func() (map[string]string, error) { return map[string]string{"foo": "bar"}, nil })
+	container.RegisterMetadataProvider("provider2", func() (map[string]string, error) { return map[string]string{"fizz": "buzz"}, nil })
+	container.RegisterMetadataProvider("provider3", func() (map[string]string, error) { return map[string]string{"fizz": "buzz"}, nil })
+
+	meta := getContainerMeta(50 * time.Millisecond)
+	assert.Equal(t, map[string]string{"foo": "bar", "fizz": "buzz"}, meta)
+}
+
+func TestGetContainerMetaTimeout(t *testing.T) {
+	// reset catalog
+	container.DefaultCatalog = make(container.Catalog)
+	container.RegisterMetadataProvider("provider1", func() (map[string]string, error) { return map[string]string{"foo": "bar"}, nil })
+	container.RegisterMetadataProvider("provider2", func() (map[string]string, error) {
+		time.Sleep(time.Second)
+		return map[string]string{"fizz": "buzz"}, nil
+	})
+
+	meta := getContainerMeta(50 * time.Millisecond)
+	assert.Equal(t, map[string]string{"foo": "bar"}, meta)
 }

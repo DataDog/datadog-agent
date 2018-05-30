@@ -144,9 +144,9 @@ func Times() ([]TimesStat, error) {
 		return ret, windows.GetLastError()
 	}
 
-	idle := uint64(lpIdleTime.DwHighDateTime<<32) + uint64(lpIdleTime.DwLowDateTime)
-	user := uint64(lpUserTime.DwHighDateTime<<32) + uint64(lpUserTime.DwLowDateTime)
-	kernel := uint64(lpKernelTime.DwHighDateTime<<32) + uint64(lpKernelTime.DwLowDateTime)
+	idle := uint64(uint64(lpIdleTime.DwHighDateTime)<<32) + uint64(lpIdleTime.DwLowDateTime)
+	user := uint64(uint64(lpUserTime.DwHighDateTime)<<32) + uint64(lpUserTime.DwLowDateTime)
+	kernel := uint64(uint64(lpKernelTime.DwHighDateTime)<<32) + uint64(lpKernelTime.DwLowDateTime)
 	system := (kernel - idle)
 
 	ret = append(ret, TimesStat{

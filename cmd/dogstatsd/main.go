@@ -87,7 +87,7 @@ func start(cmd *cobra.Command, args []string) error {
 		// we'll search for a config file named `dogstastd.yaml`
 		config.Datadog.SetConfigName("dogstatsd")
 		config.Datadog.AddConfigPath(confPath)
-		confErr := config.Datadog.ReadInConfig()
+		confErr := config.Load()
 		if confErr != nil {
 			log.Error(confErr)
 		} else {

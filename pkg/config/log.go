@@ -45,13 +45,11 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		seelogLogLevel = "warn"
 	}
 
-	configTemplate := `<seelog minlevel="%s">`
+	configTemplate := fmt.Sprintf(`<seelog minlevel="%s">`, seelogLogLevel)
 
-	formatID := ""
+	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
-	} else {
-		formatID = "common"
 	}
 
 	configTemplate += fmt.Sprintf(`<outputs formatid="%s">`, formatID)
@@ -60,7 +58,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		configTemplate += `<console />`
 	}
 	if logFile != "" {
-		configTemplate += `<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />`
+		configTemplate += fmt.Sprintf(`<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />`, logFile, logFileMaxSize)
 	}
 	if syslog {
 		var syslogTemplate string
@@ -77,18 +75,16 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		configTemplate += syslogTemplate
 	}
 
-	configTemplate += `</outputs>
+	configTemplate += fmt.Sprintf(`</outputs>
 	<formats>
 		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%File&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
 		<format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n"/>
-		<format id="syslog-json" format="%%CustomSyslogHeader(20,` + strconv.FormatBool(rfc) + `){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,` + strconv.FormatBool(rfc) + `) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
+		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />
+	</formats>
+</seelog>`, logDateFormat, logDateFormat)
 
-	configTemplate += `</formats>
-	</seelog>`
-	config := fmt.Sprintf(configTemplate, seelogLogLevel, logFile, logFileMaxSize, logDateFormat, logDateFormat)
-
-	logger, err := log.LoggerFromConfigAsString(config)
+	logger, err := log.LoggerFromConfigAsString(configTemplate)
 	if err != nil {
 		return err
 	}

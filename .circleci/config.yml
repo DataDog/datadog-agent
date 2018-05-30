@@ -57,6 +57,7 @@ jobs:
             - /go/src/github.com/DataDog/datadog-agent/vendor
             - /go/pkg
             - /go/bin
+            - /usr/local/lib/python2.7/dist-packages
 
   unit_tests:
     <<: *job_template

@@ -111,7 +111,7 @@ type tagVSFIXEDFILEINFO struct {
 func getVersionInfo(block []uint8) (ver string, err error) {
 
 	subblock := syscall.StringToUTF16Ptr("\\")
-	var infoptr uintptr
+	var infoptr unsafe.Pointer
 	var ulen uint32
 	ret, _, err := procVerQueryValue.Call(uintptr(unsafe.Pointer(&block[0])),
 		uintptr(unsafe.Pointer(subblock)),
@@ -120,7 +120,7 @@ func getVersionInfo(block []uint8) (ver string, err error) {
 	if ret == 0 {
 		return
 	}
-	ffi := (*tagVSFIXEDFILEINFO)(unsafe.Pointer(infoptr))
+	ffi := (*tagVSFIXEDFILEINFO)(infoptr)
 	ver = fmt.Sprintf("%d.%d Build %d", ffi.dwProductVersionMS>>16, ffi.dwProductVersionMS&0xFF, ffi.dwProductVersionLS>>16)
 
 	return ver, nil

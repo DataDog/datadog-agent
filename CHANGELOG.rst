@@ -2,6 +2,39 @@
 Release Notes
 =============
 
+6.2.1
+=====
+2018-05-23
+
+Prelude
+-------
+
+- Please refer to the `6.2.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.2.1>`_
+  for the list of changes on the Core Checks.
+
+- Please refer to the `6.2.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.2.1>`_
+  for the list of changes on the Trace Agent.
+
+- Please refer to the `6.2.1 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.2.1>`_
+  for the list of changes on the Process Agent.
+
+Known Issues
+------------
+
+- If the kubelet is not configured with TLS auth, the agent will fail to communicate with the API when it should still try HTTP.
+
+Bug Fixes
+---------
+
+- Fix collection of host tags pulled from GCP project (``project:`` and ``numeric_project_id:`` tags)
+  and GCP instance attributes.
+
+- A bug was preventing some jmx configuration options to be set from the jmx
+  checks configs.
+
+- The RPM packages now write systemd service files to `/usr/lib/systemd/system/`
+  (recommended path on RHEL/SUSE) instead of `/lib/systemd/system/`
+
 6.2.0
 =====
 2018-05-11

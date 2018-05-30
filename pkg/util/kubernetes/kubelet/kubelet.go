@@ -29,6 +29,7 @@ import (
 
 const (
 	kubeletPodPath         = "/pods"
+	kubeletMetricsPath     = "/metrics"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
 )
@@ -384,6 +385,19 @@ func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
 		ku.rawConnectionInfo["url"] = ku.kubeletApiEndpoint
 	}
 	return ku.rawConnectionInfo
+}
+
+// GetRawMetrics returns the raw kubelet metrics payload
+func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
+	data, code, err := ku.QueryKubelet(kubeletMetricsPath)
+	if err != nil {
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletMetricsPath, err)
+	}
+	if code != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletMetricsPath, string(data))
+	}
+
+	return data, nil
 }
 
 func (ku *KubeUtil) setupKubeletApiEndpoint() error {

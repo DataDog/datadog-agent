@@ -1,0 +1,4 @@
+---
+collapse_pre_releases: true
+no_show_source: true
+pre_release_tag_re: (?P<pre_release>\-rc\.\d*)$

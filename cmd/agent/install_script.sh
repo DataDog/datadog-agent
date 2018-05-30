@@ -130,7 +130,7 @@ if [ $OS = "RedHat" ]; then
     $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.${dd_url}/stable/6/$ARCHI/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public\n       https://yum.${dd_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/yum.repos.d/datadog.repo"
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
-    $sudo_cmd yum -y clean expire-cache
+    $sudo_cmd yum -y clean metadata
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install datadog-agent || $sudo_cmd yum -y install datadog-agent
 elif [ $OS = "Debian" ]; then
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"

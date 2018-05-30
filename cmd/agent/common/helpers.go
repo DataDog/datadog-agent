@@ -27,7 +27,7 @@ func SetupConfig(confFilePath string) error {
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
 	// load the configuration
-	err := config.Datadog.ReadInConfig()
+	err := config.Load()
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}

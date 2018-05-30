@@ -132,33 +132,33 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	suite.Equal("hello again", string(msg.Content()))
 }
 
-func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
-	s := suite.s
-	sources := suite.sources
+// func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
+// 	s := suite.s
+// 	sources := suite.sources
 
-	var tailer *Tailer
-	var newTailer *Tailer
-	var err error
-	var msg message.Message
+// 	var tailer *Tailer
+// 	var newTailer *Tailer
+// 	var err error
+// 	var msg message.Message
 
-	tailer = s.tailers[sources[0].Config.Path]
-	_, err = suite.testFile.WriteString("hello world\n")
-	suite.Nil(err)
-	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
+// 	tailer = s.tailers[sources[0].Config.Path]
+// 	_, err = suite.testFile.WriteString("hello world\n")
+// 	suite.Nil(err)
+// 	msg = <-suite.outputChan
+// 	suite.Equal("hello world", string(msg.Content()))
 
-	suite.testFile.Truncate(0)
-	suite.testFile.Seek(0, 0)
-	_, err = suite.testFile.WriteString("third\n")
-	suite.Nil(err)
+// 	suite.testFile.Truncate(0)
+// 	suite.testFile.Seek(0, 0)
+// 	_, err = suite.testFile.WriteString("third\n")
+// 	suite.Nil(err)
 
-	s.scan()
-	newTailer = s.tailers[sources[0].Config.Path]
-	suite.True(tailer != newTailer)
+// 	s.scan()
+// 	newTailer = s.tailers[sources[0].Config.Path]
+// 	suite.True(tailer != newTailer)
 
-	msg = <-suite.outputChan
-	suite.Equal("third", string(msg.Content()))
-}
+// 	msg = <-suite.outputChan
+// 	suite.Equal("third", string(msg.Content()))
+// }
 
 func (suite *ScannerTestSuite) TestScannerScanWithFileRemovedAndCreated() {
 	s := suite.s

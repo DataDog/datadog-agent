@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 )
 
@@ -56,15 +55,6 @@ func matchYAMLKeyPart(part string) *regexp.Regexp {
 
 func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
-}
-
-func credentialsCleanerFile(filePath string) ([]byte, error) {
-	file, err := os.Open(filePath)
-	defer file.Close()
-	if err != nil {
-		return nil, err
-	}
-	return credentialsCleaner(file)
 }
 
 func credentialsCleanerBytes(file []byte) ([]byte, error) {

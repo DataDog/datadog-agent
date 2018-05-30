@@ -8,6 +8,7 @@ package host
 import (
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -38,7 +39,7 @@ func GetPayload(hostname string) *Payload {
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
-		ContainerMeta: getContainerMeta(),
+		ContainerMeta: getContainerMeta(1 * time.Second),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -169,21 +170,47 @@ func getMeta() *Meta {
 	return m
 }
 
-func getContainerMeta() map[string]string {
+func getContainerMeta(timeout time.Duration) map[string]string {
+	wg := sync.WaitGroup{}
 	containerMeta := make(map[string]string)
+	// protecting the above map from concurrent access
+	mutex := &sync.Mutex{}
 
 	for provider, getMeta := range container.DefaultCatalog {
-		meta, err := getMeta()
-		if err != nil {
-			log.Debugf("Unable to get %s metadata: %s", provider, err)
-			continue
-		}
-		for k, v := range meta {
-			containerMeta[k] = v
-		}
+		wg.Add(1)
+		go func(provider string, getMeta container.MetadataProvider) {
+			defer wg.Done()
+			meta, err := getMeta()
+			if err != nil {
+				log.Debugf("Unable to get %s metadata: %s", provider, err)
+				return
+			}
+			mutex.Lock()
+			for k, v := range meta {
+				containerMeta[k] = v
+			}
+			mutex.Unlock()
+		}(provider, getMeta)
 	}
-
-	return containerMeta
+	// we want to timeout even if the wait group is not done yet
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return containerMeta
+	case <-time.After(timeout):
+		// in this case the map might be incomplete so return a copy to avoid race
+		incompleteMeta := make(map[string]string)
+		mutex.Lock()
+		for k, v := range containerMeta {
+			incompleteMeta[k] = v
+		}
+		mutex.Unlock()
+		return incompleteMeta
+	}
 }
 
 func buildKey(key string) string {

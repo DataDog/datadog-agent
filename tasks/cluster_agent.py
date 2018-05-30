@@ -36,7 +36,7 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
     ldflags, gcflags, env = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
-    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent/"
+    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent"
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "-i",
@@ -46,7 +46,19 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
+
     ctx.run(cmd.format(**args), env=env)
+    # Render the configuration file template
+    #
+    # We need to remove cross compiling bits if any because go generate must
+    # build and execute in the native platform
+    env.update({
+        "GOOS": "",
+        "GOARCH": "",
+    })
+    cmd = "go generate {}/cmd/cluster-agent"
+
+    ctx.run(cmd.format(REPO_PATH), env=env)
 
 
 @task
