@@ -19,6 +19,8 @@ type SystemInfoClient interface {
 	Info(ctx context.Context) (types.Info, error)
 }
 
+// GetTags returns tags that are automatically added to metrics and events on a
+// host that is running docker.
 func GetTags(ctx context.Context) ([]string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
