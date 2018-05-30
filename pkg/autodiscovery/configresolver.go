@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -38,34 +37,32 @@ var (
 // services it hears about with templates to create valid configs.
 // It is also responsible to send scheduling orders to AutoConfig
 type ConfigResolver struct {
-	ac              *AutoConfig
-	collector       *collector.Collector
-	templates       *TemplateCache
-	services        map[listeners.ID]listeners.Service // Service.ID --> []Service
-	serviceToChecks map[listeners.ID][]check.ID        // Service.ID --> []CheckID
-	adIDToServices  map[string][]listeners.ID          // AD id --> services that have it
-	config2Service  map[string]listeners.ID            // config digest --> service ID
-	newService      chan listeners.Service
-	delService      chan listeners.Service
-	stop            chan bool
-	health          *health.Handle
-	m               sync.Mutex
+	ac             *AutoConfig
+	collector      *collector.Collector
+	templates      *TemplateCache
+	services       map[listeners.ID]listeners.Service // Service.ID --> []Service
+	adIDToServices map[string][]listeners.ID          // AD id --> services that have it
+	config2Service map[string]listeners.ID            // config digest --> service ID
+	newService     chan listeners.Service
+	delService     chan listeners.Service
+	stop           chan bool
+	health         *health.Handle
+	m              sync.Mutex
 }
 
 // NewConfigResolver returns a config resolver
 func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCache) *ConfigResolver {
 	cr := &ConfigResolver{
-		ac:              ac,
-		collector:       coll,
-		templates:       tc,
-		services:        make(map[listeners.ID]listeners.Service),
-		serviceToChecks: make(map[listeners.ID][]check.ID, 0),
-		adIDToServices:  make(map[string][]listeners.ID),
-		config2Service:  make(map[string]listeners.ID),
-		newService:      make(chan listeners.Service),
-		delService:      make(chan listeners.Service),
-		stop:            make(chan bool),
-		health:          health.Register("ad-configresolver"),
+		ac:             ac,
+		collector:      coll,
+		templates:      tc,
+		services:       make(map[listeners.ID]listeners.Service),
+		adIDToServices: make(map[string][]listeners.ID),
+		config2Service: make(map[string]listeners.ID),
+		newService:     make(chan listeners.Service),
+		delService:     make(chan listeners.Service),
+		stop:           make(chan bool),
+		health:         health.Register("ad-configresolver"),
 	}
 
 	// start listening
@@ -187,7 +184,8 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 	}
 
 	// store resolved configs in the AC
-	cr.ac.loadedConfigs = append(cr.ac.loadedConfigs, resolvedConfig)
+	cr.ac.loadedConfigs[resolvedConfig.Digest()] = resolvedConfig
+	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
 	cr.config2Service[resolvedConfig.Digest()] = svc.GetID()
 
 	return resolvedConfig, nil
@@ -201,7 +199,6 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 
 	// in any case, register the service
 	cr.services[svc.GetID()] = svc
-	cr.serviceToChecks[svc.GetID()] = make([]check.ID, 0)
 
 	// get all the templates matching service identifiers
 	templates := []integration.Config{}
@@ -241,36 +238,9 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (cr *ConfigResolver) processDelService(svc listeners.Service) {
-	cr.m.Lock()
-	defer cr.m.Unlock()
-
-	if checks, ok := cr.serviceToChecks[svc.GetID()]; ok {
-		stopped := map[check.ID]struct{}{}
-		for _, id := range checks {
-			err := cr.collector.StopCheck(id)
-			if err != nil {
-				log.Errorf("Failed to stop check '%s': %s", id, err)
-			}
-			// cleaning up the cache map
-			cr.ac.unschedule(id)
-			stopped[id] = struct{}{}
-		}
-
-		// remove the entry from `serviceToChecks`
-		if len(stopped) == len(cr.serviceToChecks[svc.GetID()]) {
-			// we managed to stop all the checks for this config
-			delete(cr.serviceToChecks, svc.GetID())
-		} else {
-			// keep the checks we failed to stop in `serviceToChecks[svc.ID]`
-			dangling := []check.ID{}
-			for _, id := range cr.serviceToChecks[svc.GetID()] {
-				if _, found := stopped[id]; !found {
-					dangling = append(dangling, id)
-				}
-			}
-			cr.serviceToChecks[svc.GetID()] = dangling
-		}
-	}
+	configs := cr.ac.store.getConfigsForService(svc.GetID())
+	cr.ac.store.removeConfigsForService(svc.GetID())
+	cr.ac.processRemovedConfigs(configs)
 }
 
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {

@@ -73,13 +73,14 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	config2checks     map[string][]check.ID       // cache the ID of checks we load for each config
-	check2config      map[check.ID]string         // cache the config digest corresponding to a check
-	name2jmxmetrics   map[string]integration.Data // holds the metrics to collect for JMX checks
-	loadedConfigs     []integration.Config        // holds the resolved configs
+	config2checks     map[string][]check.ID         // cache the ID of checks we load for each config
+	check2config      map[check.ID]string           // cache the config digest corresponding to a check
+	name2jmxmetrics   map[string]integration.Data   // holds the metrics to collect for JMX checks
+	loadedConfigs     map[string]integration.Config // holds the resolved configs
 	stop              chan bool
 	pollerActive      bool
 	health            *health.Handle
+	store             *store
 	m                 sync.RWMutex
 }
 
@@ -93,8 +94,9 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		config2checks:   make(map[string][]check.ID),
 		check2config:    make(map[check.ID]string),
 		name2jmxmetrics: make(map[string]integration.Data),
-		loadedConfigs:   make([]integration.Config, 0),
+		loadedConfigs:   make(map[string]integration.Config),
 		stop:            make(chan bool),
+		store:           newStore(),
 		health:          health.Register("ad-autoconfig"),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
@@ -278,16 +280,12 @@ func isCheckConfig(config integration.Config) bool {
 func (ac *AutoConfig) schedule(checks []check.Check) {
 	for _, check := range checks {
 		log.Infof("Scheduling check %s", check)
-		id, err := ac.collector.RunCheck(check)
+		_, err := ac.collector.RunCheck(check)
 		if err != nil {
 			log.Errorf("Unable to run Check %s: %v", check, err)
 			errorStats.setRunError(check.ID(), err.Error())
 			continue
 		}
-		configDigest := ac.check2config[check.ID()]
-		serviceID := ac.configResolver.config2Service[configDigest]
-
-		ac.configResolver.serviceToChecks[serviceID] = append(ac.configResolver.serviceToChecks[serviceID], id)
 	}
 }
 
@@ -333,7 +331,7 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 		if config, err := decryptConfig(config); err == nil {
 			configs = append(configs, config)
 			// store non template configs in the AC
-			ac.loadedConfigs = append(ac.loadedConfigs, config)
+			ac.loadedConfigs[config.Digest()] = config
 		} else {
 			log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
 		}
@@ -438,50 +436,9 @@ func (ac *AutoConfig) pollConfigs() {
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
 
-					// Process removed configs first to handle the case where a
-					// container churn would result in the same configuration hash.
-					for _, config := range removedConfigs {
-						if !isCheckConfig(config) {
-							// skip non check configs.
-							continue
-						}
-						// unschedule all the checks corresponding to this config
-						digest := config.Digest()
-						ids := ac.config2checks[digest]
-						stopped := map[check.ID]struct{}{}
-						for _, id := range ids {
-							// `StopCheck` might time out so we don't risk to block
-							// the polling loop forever
-							err := ac.collector.StopCheck(id)
-							if err != nil {
-								log.Errorf("Error stopping check %s: %s", id, err)
-								errorStats.setRunError(id, err.Error())
-							} else {
-								stopped[id] = struct{}{}
-							}
-						}
+					ac.processRemovedConfigs(removedConfigs)
 
-						// remove the entry from `config2checks`
-						if len(stopped) == len(ac.config2checks[digest]) {
-							// we managed to stop all the checks for this config
-							delete(ac.config2checks, digest)
-							delete(ac.configResolver.config2Service, digest)
-						} else {
-							// keep the checks we failed to stop in `config2checks`
-							dangling := []check.ID{}
-							for _, id := range ac.config2checks[digest] {
-								if _, found := stopped[id]; !found {
-									dangling = append(dangling, id)
-								}
-							}
-							ac.config2checks[digest] = dangling
-						}
-
-						// if the config is a template, remove it from the cache
-						if config.IsTemplate() {
-							ac.templateCache.Del(config)
-						}
-					}
+					// TODO: move to check scheduler
 					for _, config := range newConfigs {
 						config.Provider = pd.provider.String()
 						resolvedConfigs := ac.resolve(config)
@@ -493,6 +450,55 @@ func (ac *AutoConfig) pollConfigs() {
 			}
 		}
 	}()
+}
+
+// TODO: move to check scheduler
+func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config) {
+	// Process removed configs first to handle the case where a
+	// container churn would result in the same configuration hash.
+	for _, config := range removedConfigs {
+		if !isCheckConfig(config) {
+			// skip non check configs.
+			continue
+		}
+		// unschedule all the checks corresponding to this config
+		digest := config.Digest()
+		ids := ac.config2checks[digest]
+		stopped := map[check.ID]struct{}{}
+		for _, id := range ids {
+			// `StopCheck` might time out so we don't risk to block
+			// the polling loop forever
+			err := ac.collector.StopCheck(id)
+			if err != nil {
+				log.Errorf("Error stopping check %s: %s", id, err)
+				errorStats.setRunError(id, err.Error())
+			} else {
+				stopped[id] = struct{}{}
+			}
+		}
+
+		// remove the entry from `config2checks`
+		if len(stopped) == len(ac.config2checks[digest]) {
+			// we managed to stop all the checks for this config
+			delete(ac.config2checks, digest)
+			delete(ac.configResolver.config2Service, digest)
+			delete(ac.loadedConfigs, digest)
+		} else {
+			// keep the checks we failed to stop in `config2checks`
+			dangling := []check.ID{}
+			for _, id := range ac.config2checks[digest] {
+				if _, found := stopped[id]; !found {
+					dangling = append(dangling, id)
+				}
+			}
+			ac.config2checks[digest] = dangling
+		}
+
+		// if the config is a template, remove it from the cache
+		if config.IsTemplate() {
+			ac.templateCache.Del(config)
+		}
+	}
 }
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
@@ -551,7 +557,7 @@ func (ac *AutoConfig) getChecks(config integration.Config) ([]check.Check, error
 }
 
 // GetLoadedConfigs returns configs loaded
-func (ac *AutoConfig) GetLoadedConfigs() []integration.Config {
+func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 	return ac.loadedConfigs
 }
 
