@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
+
 // +build windows
 
 package winutil
@@ -74,10 +75,10 @@ func VirtualMemory() (*VirtualMemoryStat, error) {
 	ret := &VirtualMemoryStat{
 		Total:       memInfo.ullTotalPhys,
 		Available:   memInfo.ullAvailPhys,
+		Used:        memInfo.ullTotalPhys - memInfo.ullAvailPhys,
 		UsedPercent: float64(memInfo.dwMemoryLoad),
 	}
 
-	ret.Used = ret.Total - ret.Available
 	return ret, nil
 }
 

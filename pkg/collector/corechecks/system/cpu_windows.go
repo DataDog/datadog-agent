@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
+
 // +build windows
 
 package system
@@ -109,7 +110,7 @@ func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data)
 		return fmt.Errorf("system.CPUCheck: could not query CPU info")
 	}
 	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
-	c.nbCPU += cpucount
+	c.nbCPU = cpucount
 	return nil
 }
 
@@ -143,11 +144,9 @@ func Times() ([]TimesStat, error) {
 		return ret, windows.GetLastError()
 	}
 
-	LOT := float64(0.0000001)
-	HIT := (LOT * 4294967296.0)
-	idle := ((HIT * float64(lpIdleTime.DwHighDateTime)) + (LOT * float64(lpIdleTime.DwLowDateTime)))
-	user := ((HIT * float64(lpUserTime.DwHighDateTime)) + (LOT * float64(lpUserTime.DwLowDateTime)))
-	kernel := ((HIT * float64(lpKernelTime.DwHighDateTime)) + (LOT * float64(lpKernelTime.DwLowDateTime)))
+	idle := uint64(lpIdleTime.DwHighDateTime<<32) + uint64(lpIdleTime.DwLowDateTime)
+	user := uint64(lpUserTime.DwHighDateTime<<32) + uint64(lpUserTime.DwLowDateTime)
+	kernel := uint64(lpKernelTime.DwHighDateTime<<32) + uint64(lpKernelTime.DwLowDateTime)
 	system := (kernel - idle)
 
 	ret = append(ret, TimesStat{

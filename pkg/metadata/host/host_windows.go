@@ -66,7 +66,8 @@ func fillOsVersion(stats *systemStats, info *InfoStat) {
 	stats.Winver = osVersion{info.PlatformFamily, info.PlatformVersion}
 }
 
-// GetStatusInformation just returns an InfoStat object, we need some additional information that's not
+// GetStatusInformation just returns an InfoStat object, filled in with various
+// operating system metadata
 func GetStatusInformation() *InfoStat {
 	return getHostInfo()
 }
