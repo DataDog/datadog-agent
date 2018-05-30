@@ -12,40 +12,18 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
 var elog debug.Log
-
-func setupLogger(logLevel string) error {
-	configTemplate := `<seelog minlevel="%s">
-    <outputs formatid="common"><console/></outputs>
-    <formats>
-        <format id="common" format="%%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>
-    </formats>
-</seelog>`
-	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel))
-
-	logger, err := seelog.LoggerFromConfigAsString(config)
-	if err != nil {
-		return err
-	}
-	err = log.ReplaceLogger(logger)
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 func main() {
 	common.EnableLoggingToFile()

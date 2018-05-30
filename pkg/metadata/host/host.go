@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"

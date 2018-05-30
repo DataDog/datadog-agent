@@ -11,8 +11,8 @@ import (
 	"runtime"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )

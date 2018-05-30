@@ -10,8 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
