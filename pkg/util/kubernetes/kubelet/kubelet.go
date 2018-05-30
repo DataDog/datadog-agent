@@ -265,7 +265,7 @@ func (ku *KubeUtil) setupKubeletApiClient() error {
 		transport)
 	if err != nil {
 		log.Debugf("Failed to init tls, will try http only: %s", err)
-		return err
+		return nil
 	}
 
 	ku.kubeletApiClient.Transport = transport
@@ -284,9 +284,10 @@ func (ku *KubeUtil) setupKubeletApiClient() error {
 	case kubernetes.IsServiceAccountTokenAvailable():
 		log.Debug("Using HTTPS with service account bearer token")
 		return ku.setBearerToken(kubernetes.ServiceAccountTokenPath)
+	default:
+		log.Debug("No configured token or TLS certificates, will try http only")
+		return nil
 	}
-	log.Debug("No configured token or TLS certificates, will try http only")
-	return nil
 }
 
 func (ku *KubeUtil) setupTLS(verifyTLS bool, caPath string, transport *http.Transport) error {
