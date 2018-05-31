@@ -37,32 +37,32 @@ var (
 // services it hears about with templates to create valid configs.
 // It is also responsible to send scheduling orders to AutoConfig
 type ConfigResolver struct {
-	ac             *AutoConfig
-	collector      *collector.Collector
-	templates      *TemplateCache
-	services       map[listeners.ID]listeners.Service // Service.ID --> []Service
-	adIDToServices map[string][]listeners.ID          // AD id --> services that have it
-	config2Service map[string]listeners.ID            // config digest --> service ID
-	newService     chan listeners.Service
-	delService     chan listeners.Service
-	stop           chan bool
-	health         *health.Handle
-	m              sync.Mutex
+	ac              *AutoConfig
+	collector       *collector.Collector
+	templates       *TemplateCache
+	services        map[listeners.ID]listeners.Service // Service.ID --> []Service
+	adIDToServices  map[string][]listeners.ID          // AD id --> services that have it
+	configToService map[string]listeners.ID            // config digest --> service ID
+	newService      chan listeners.Service
+	delService      chan listeners.Service
+	stop            chan bool
+	health          *health.Handle
+	m               sync.Mutex
 }
 
 // NewConfigResolver returns a config resolver
 func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCache) *ConfigResolver {
 	cr := &ConfigResolver{
-		ac:             ac,
-		collector:      coll,
-		templates:      tc,
-		services:       make(map[listeners.ID]listeners.Service),
-		adIDToServices: make(map[string][]listeners.ID),
-		config2Service: make(map[string]listeners.ID),
-		newService:     make(chan listeners.Service),
-		delService:     make(chan listeners.Service),
-		stop:           make(chan bool),
-		health:         health.Register("ad-configresolver"),
+		ac:              ac,
+		collector:       coll,
+		templates:       tc,
+		services:        make(map[listeners.ID]listeners.Service),
+		adIDToServices:  make(map[string][]listeners.ID),
+		configToService: make(map[string]listeners.ID),
+		newService:      make(chan listeners.Service),
+		delService:      make(chan listeners.Service),
+		stop:            make(chan bool),
+		health:          health.Register("ad-configresolver"),
 	}
 
 	// start listening
@@ -186,7 +186,7 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 	// store resolved configs in the AC
 	cr.ac.loadedConfigs[resolvedConfig.Digest()] = resolvedConfig
 	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
-	cr.config2Service[resolvedConfig.Digest()] = svc.GetID()
+	cr.configToService[resolvedConfig.Digest()] = svc.GetID()
 
 	return resolvedConfig, nil
 }

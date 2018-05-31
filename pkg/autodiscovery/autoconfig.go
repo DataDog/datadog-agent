@@ -73,8 +73,8 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	config2checks     map[string][]check.ID         // cache the ID of checks we load for each config
-	check2config      map[check.ID]string           // cache the config digest corresponding to a check
+	configToChecks    map[string][]check.ID         // cache the ID of checks we load for each config
+	checkToConfig     map[check.ID]string           // cache the config digest corresponding to a check
 	name2jmxmetrics   map[string]integration.Data   // holds the metrics to collect for JMX checks
 	loadedConfigs     map[string]integration.Config // holds the resolved configs
 	stop              chan bool
@@ -91,8 +91,8 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		providers:       make([]*providerDescriptor, 0, 5),
 		loaders:         make([]check.Loader, 0, 5),
 		templateCache:   NewTemplateCache(),
-		config2checks:   make(map[string][]check.ID),
-		check2config:    make(map[check.ID]string),
+		configToChecks:  make(map[string][]check.ID),
+		checkToConfig:   make(map[check.ID]string),
 		name2jmxmetrics: make(map[string]integration.Data),
 		loadedConfigs:   make(map[string]integration.Config),
 		stop:            make(chan bool),
@@ -261,8 +261,8 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populat
 			allChecks = append(allChecks, check)
 			if populateCache {
 				// store the checks we schedule for this config locally
-				ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
-				ac.check2config[check.ID()] = configDigest
+				ac.configToChecks[configDigest] = append(ac.configToChecks[configDigest], check.ID())
+				ac.checkToConfig[check.ID()] = configDigest
 			}
 		}
 	}
@@ -463,7 +463,7 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 		}
 		// unschedule all the checks corresponding to this config
 		digest := config.Digest()
-		ids := ac.config2checks[digest]
+		ids := ac.configToChecks[digest]
 		stopped := map[check.ID]struct{}{}
 		for _, id := range ids {
 			// `StopCheck` might time out so we don't risk to block
@@ -478,20 +478,20 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 		}
 
 		// remove the entry from `config2checks`
-		if len(stopped) == len(ac.config2checks[digest]) {
+		if len(stopped) == len(ac.configToChecks[digest]) {
 			// we managed to stop all the checks for this config
-			delete(ac.config2checks, digest)
-			delete(ac.configResolver.config2Service, digest)
+			delete(ac.configToChecks, digest)
+			delete(ac.configResolver.configToService, digest)
 			delete(ac.loadedConfigs, digest)
 		} else {
 			// keep the checks we failed to stop in `config2checks`
 			dangling := []check.ID{}
-			for _, id := range ac.config2checks[digest] {
+			for _, id := range ac.configToChecks[digest] {
 				if _, found := stopped[id]; !found {
 					dangling = append(dangling, id)
 				}
 			}
-			ac.config2checks[digest] = dangling
+			ac.configToChecks[digest] = dangling
 		}
 
 		// if the config is a template, remove it from the cache
@@ -568,7 +568,7 @@ func (ac *AutoConfig) GetUnresolvedTemplates() map[string]integration.Config {
 
 // unschedule removes the check to config cache mapping
 func (ac *AutoConfig) unschedule(id check.ID) {
-	delete(ac.check2config, id)
+	delete(ac.checkToConfig, id)
 }
 
 // check if the descriptor contains the Config passed
