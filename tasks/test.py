@@ -70,16 +70,19 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     # pass the `target` param (pre-tasks are invoked without parameters)
     print("--- Linting:")
     lint_filenames(ctx)
+    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
     fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=tool_targets)
-    vet(ctx, targets=tool_targets)
+    # vet(ctx, targets=tool_targets)
+    vet(ctx, targets=["./pkg"], env=env)
+    vet(ctx, targets=["./cmd"], env=env)
     misspell(ctx, targets=tool_targets)
     ineffassign(ctx, targets=tool_targets)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+    
 
     if profile:
         test_profiler = TestProfiler()

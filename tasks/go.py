@@ -87,7 +87,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets):
+def vet(ctx, targets, env=None):
     """
     Run go vet on targets.
 
@@ -102,7 +102,15 @@ def vet(ctx, targets):
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
     build_tags = get_default_build_tags()
-    ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args))
+    build_tags.append("cgo")
+    vetcmd = "go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args)
+    print(vetcmd)
+    try:
+        res =ctx.run(vetcmd, env=env)
+    except Exception as e:
+        print ("Exception %s \n" % str(e))
+        raise
+    print ("Result %s \n" % str(res))
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")

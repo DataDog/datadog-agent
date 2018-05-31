@@ -58,6 +58,14 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     }
     ctx.run(cmd.format(**args), env=env)
 
+    # Manually strip the binary as go 1.10 does not pass the ldflag correctly
+    if static:
+        cmd = "strip {bin_name} "
+        args = {
+            "bin_name": os.path.join(bin_path, bin_name("dogstatsd")),
+        }
+        ctx.run(cmd.format(**args), env=env)
+
     # Render the configuration file template
     #
     # We need to remove cross compiling bits if any because go generate must
