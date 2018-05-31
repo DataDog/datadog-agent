@@ -98,7 +98,6 @@ func init() {
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(1))
-	Datadog.SetDefault("expvar_port", "5000")
 	Datadog.SetDefault("auth_token_file_path", "")
 	Datadog.SetDefault("bind_host", "localhost")
 
