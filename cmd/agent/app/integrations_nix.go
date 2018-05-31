@@ -9,6 +9,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 )
 
@@ -20,4 +21,9 @@ var (
 	relPipPath           = filepath.Join("..", "..", "embedded", "bin", pip)
 	relConstraintsPath   = filepath.Join("..", "..", constraintsFile)
 	relTufConfigFilePath = filepath.Join("..", "..", tufConfigFile)
+	relTufPipCache       = filepath.Join("..", "..", "repositories", "cache")
 )
+
+func authorizedUser() bool {
+	return (os.Geteuid() != 0)
+}

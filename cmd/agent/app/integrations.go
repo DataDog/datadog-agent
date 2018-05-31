@@ -28,6 +28,7 @@ const (
 )
 
 var (
+	allowRoot bool
 	withTuf   bool
 	nativePkg bool
 )
@@ -39,6 +40,7 @@ func init() {
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withTuf, "tuf", "t", true, "use TUF repo")
 	tufCmd.PersistentFlags().BoolVarP(&nativePkg, "pip-package", "p", false, "providing native pip package name")
+	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	tufCmd.PersistentFlags().StringSlice("cmd-flags", []string{}, "command flags to pass onto pip (comma-separated or multiple flags)")
 	tufCmd.PersistentFlags().StringSlice("idx-flags", []string{}, "index flags to pass onto pip (comma-separated or multiple flags)")
 
@@ -113,7 +115,24 @@ func getTUFConfigFilePath() (string, error) {
 	return tPath, nil
 }
 
+func getTUFPipCachePath() (string, error) {
+	here, _ := executable.Folder()
+	cPath := filepath.Join(here, relTufPipCache)
+
+	if _, err := os.Stat(cPath); err != nil {
+		if os.IsNotExist(err) {
+			return cPath, err
+		}
+	}
+
+	return cPath, nil
+}
+
 func tuf(args []string) error {
+	if !allowRoot && !authorizedUser() {
+		return errors.New("Please use this tool as the agent-running user")
+	}
+
 	pipPath, err := getInstrumentedPipPath()
 	if err != nil {
 		return err
@@ -173,8 +192,14 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	cachePath, err := getTUFPipCachePath()
+	if err != nil {
+		return err
+	}
+
 	tufArgs := []string{
 		"install",
+		"--cache-dir", cachePath,
 		"-c", constraintsPath,
 	}
 

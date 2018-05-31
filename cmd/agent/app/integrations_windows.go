@@ -20,4 +20,10 @@ var (
 	relPipPath           = filepath.Join("Scripts", pip)
 	relConstraintsPath   = filepath.Join("..", constraintsFile)
 	relTufConfigFilePath = filepath.Join("..", tufConfigFile)
+	relTufPipCache       = filepath.Join("..", "repositories", "cache")
 )
+
+func authorizedUser() bool {
+	// TODO: implement something useful
+	return true
+}
