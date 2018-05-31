@@ -1,6 +1,6 @@
 {
 	"nightly": {
-		"INTEGRATIONS_CORE_VERSION": "jaime/tuf-meta",
+		"INTEGRATIONS_CORE_VERSION": "master",
 		"TRACE_AGENT_VERSION": "master",
 		"PROCESS_AGENT_VERSION": "master",
 		"OMNIBUS_SOFTWARE_VERSION": "jaime/datadog-pip",
