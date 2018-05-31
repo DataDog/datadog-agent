@@ -91,12 +91,10 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
 			for _, repl := range replacers {
 				containsHint := false
-				if len(repl.Hints) > 0 {
-					for _, hint := range repl.Hints {
-						if strings.Contains(string(b), hint) {
-							containsHint = true
-							break
-						}
+				for _, hint := range repl.Hints {
+					if strings.Contains(string(b), hint) {
+						containsHint = true
+						break
 					}
 				}
 				if len(repl.Hints) == 0 || containsHint {
