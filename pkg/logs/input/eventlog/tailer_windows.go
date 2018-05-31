@@ -43,8 +43,8 @@ func (t *Tailer) tail() {
 	id := t.Identifier()
 	log.Info("IDENTIFIER: ", id) // FIXME
 	ctx := eventContext{
-		name: "FIXME",
-		// name:       id,
+		// name: "FIXME",
+		name: id,
 		// outputChan: t.outputChan,
 	}
 	C.startEventSubscribe(
