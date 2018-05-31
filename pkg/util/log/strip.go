@@ -12,11 +12,13 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strings"
 )
 
 //Replacer structure to store regex matching and replacement functions
 type Replacer struct {
 	Regex    *regexp.Regexp
+	Hints    []string // Hints to speed up regex matching -- if any of these strings exist, then it's possible that this regex might match
 	Repl     []byte
 	ReplFunc func(b []byte) []byte
 }
@@ -38,14 +40,17 @@ func init() {
 	}
 	passwordReplacer = Replacer{
 		Regex: matchYAMLKeyPart(`pass(word)?`),
+		Hints: []string{"pass"},
 		Repl:  []byte(`$1 ********`),
 	}
 	tokenReplacer = Replacer{
 		Regex: matchYAMLKeyPart(`token`),
+		Hints: []string{"token"},
 		Repl:  []byte(`$1 ********`),
 	}
 	snmpReplacer = Replacer{
 		Regex: matchYAMLKey(`(community_string|authKey|privKey)`),
+		Hints: []string{"community_string", "authKey", "privKey"},
 		Repl:  []byte(`$1 ********`),
 	}
 	replacers = []Replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
@@ -85,10 +90,21 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
 			for _, repl := range replacers {
-				if repl.ReplFunc != nil {
-					b = repl.Regex.ReplaceAllFunc(b, repl.ReplFunc)
-				} else {
-					b = repl.Regex.ReplaceAll(b, repl.Repl)
+				shouldTryRepl := len(repl.Hints) == 0
+				if len(repl.Hints) > 0 { // Set this to false to make sure at least one hint exists in the log line
+					shouldTryRepl = false
+					for _, hint := range repl.Hints {
+						if strings.Contains(string(b), hint) {
+							shouldTryRepl = true
+						}
+					}
+				}
+				if shouldTryRepl {
+					if repl.ReplFunc != nil {
+						b = repl.Regex.ReplaceAllFunc(b, repl.ReplFunc)
+					} else {
+						b = repl.Regex.ReplaceAll(b, repl.Repl)
+					}
 				}
 			}
 			if !first {
