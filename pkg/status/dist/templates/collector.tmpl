@@ -13,9 +13,9 @@ Collector
     {{.CheckName}}
     {{printDashes .CheckName "-"}}
       Total Runs: {{.TotalRuns}}
-      Metrics: {{.Metrics}}, Total Metrics: {{humanize .TotalMetrics}}
-      Events: {{.Events}}, Total Events: {{humanize .TotalEvents}}
-      Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanize .TotalServiceChecks}}
+      Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
+      Events: {{.Events}}, Total: {{humanize .TotalEvents}}
+      Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
       Average Execution Time : {{.AverageExecutionTime}}ms
       {{if .LastError -}}
       Error: {{lastErrorMessage .LastError}}

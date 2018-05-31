@@ -37,7 +37,7 @@ type Sender interface {
 }
 
 type metricStats struct {
-	Metrics       int64
+	MetricSamples int64
 	Events        int64
 	ServiceChecks int64
 	Lock          sync.RWMutex
@@ -145,7 +145,7 @@ func (s *checkSender) GetMetricStats() map[string]int64 {
 	defer s.priormetricStats.Lock.RUnlock()
 
 	metricStats := make(map[string]int64)
-	metricStats["Metrics"] = s.priormetricStats.Metrics
+	metricStats["MetricSamples"] = s.priormetricStats.MetricSamples
 	metricStats["Events"] = s.priormetricStats.Events
 	metricStats["ServiceChecks"] = s.priormetricStats.ServiceChecks
 
@@ -155,10 +155,10 @@ func (s *checkSender) GetMetricStats() map[string]int64 {
 func (s *checkSender) cyclemetricStats() {
 	s.metricStats.Lock.Lock()
 	s.priormetricStats.Lock.Lock()
-	s.priormetricStats.Metrics = s.metricStats.Metrics
+	s.priormetricStats.MetricSamples = s.metricStats.MetricSamples
 	s.priormetricStats.Events = s.metricStats.Events
 	s.priormetricStats.ServiceChecks = s.metricStats.ServiceChecks
-	s.metricStats.Metrics = 0
+	s.metricStats.MetricSamples = 0
 	s.metricStats.Events = 0
 	s.metricStats.ServiceChecks = 0
 	s.metricStats.Lock.Unlock()
@@ -187,7 +187,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 	s.smsOut <- senderMetricSample{s.id, metricSample, false}
 
 	s.metricStats.Lock.Lock()
-	s.metricStats.Metrics++
+	s.metricStats.MetricSamples++
 	s.metricStats.Lock.Unlock()
 }
 
