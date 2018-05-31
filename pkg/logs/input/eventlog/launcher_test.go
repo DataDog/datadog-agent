@@ -15,6 +15,6 @@ import (
 
 func TestShouldSanitizeConfig(t *testing.T) {
 	launcher := New(nil, nil, nil)
-	// expect two new tailers
-	assert.Equal(t, "*", launcher.sanitizedConfig(&config.LogsConfig{}).Query)
+	assert.Equal(t, "*", launcher.sanitizedConfig(&config.LogsConfig{ChannelPath: "System", Query: ""}).Query)
+	assert.Equal(t, `<QueryList><Query Id="0"><Select Path="*"></Select></Query></QueryList>`, launcher.sanitizedConfig(&config.LogsConfig{ChannelPath: "", Query: ""}).Query)
 }

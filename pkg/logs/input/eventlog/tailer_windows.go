@@ -22,8 +22,7 @@ import (
 )
 
 type eventContext struct {
-	name  string
-	index int
+	name string
 	// outputChan chan message.Message
 }
 
@@ -44,8 +43,8 @@ func (t *Tailer) tail() {
 	id := t.Identifier()
 	log.Info("IDENTIFIER: ", id) // FIXME
 	ctx := eventContext{
-		name:  "FIXME",
-		index: 0,
+		name: "FIXME",
+		// name:       id,
 		// outputChan: t.outputChan,
 	}
 	C.startEventSubscribe(
@@ -84,7 +83,8 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 	time.Sleep(1000 * time.Millisecond)
 	var goctx eventContext
 	goctx = *(*eventContext)(unsafe.Pointer(uintptr(ctx)))
-	log.Info("Callback from ", goctx.name, " with index ", goctx.index)
+	log.Info("Callback from ", goctx.name)
+	// log.Info("Callback from ", goctx.name, " with outputChan ", goctx.outputChan)
 
 	xml, err := EvtRender(handle)
 	if err == nil {

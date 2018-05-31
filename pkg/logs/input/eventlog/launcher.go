@@ -43,10 +43,10 @@ func (l *Launcher) Start() {
 	log.Info("Start tailing eventlog")
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
-		log.Info("Could list eventlog channels: ", err)
-		return
+		log.Debug("Could not list eventlog channels: ", err)
+	} else {
+		log.Debug("Found available eventlog channels: ", availableChannels)
 	}
-	log.Info("Found available eventlog channels: ", availableChannels)
 
 	for _, source := range l.sources {
 		identifier := Identifier(source.Config.ChannelPath, source.Config.Query)
@@ -78,12 +78,16 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *Config {
 	if config.Query == "" {
 		config.Query = "*"
 	}
+	if config.ChannelPath == "" {
+		config.Query = `<QueryList><Query Id="0"><Select Path="*"></Select></Query></QueryList>`
+	}
 	return config
 }
 
 // setupTailer configures and starts a new tailer
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
-	config := &Config{source.Config.ChannelPath, source.Config.Query}
+	sanitizedConfig := l.sanitizedConfig(source.Config)
+	config := &Config{sanitizedConfig.ChannelPath, sanitizedConfig.Query}
 	tailer := NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
 	tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
 	return tailer, nil
