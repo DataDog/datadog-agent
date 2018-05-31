@@ -40,10 +40,8 @@ func setupLogger(logLevel string) error {
 	if err != nil {
 		return err
 	}
-	err = log.ReplaceLogger(logger)
-	if err != nil {
-		return err
-	}
+	log.ReplaceLogger(logger)
+
 	return nil
 }
 
