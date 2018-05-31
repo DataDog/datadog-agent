@@ -10,7 +10,7 @@ export COMMIT_ID=$(git rev-parse --verify HEAD)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 COMMIT_USER=$(git log -1 --pretty=format:'%an')
 
-# If not using the default value, mind to change the following settings:
+# If not using the default value, remember to change the following settings:
 # - AMI
 # - security groups ids
 # - subnet ids
