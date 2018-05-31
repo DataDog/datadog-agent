@@ -18,7 +18,7 @@ import (
 //Replacer structure to store regex matching and replacement functions
 type Replacer struct {
 	Regex    *regexp.Regexp
-	Hints    []string // Hints to speed up regex matching -- if any of these strings exist, then it's possible that this regex might match
+	Hints    []string // If any of these hints do not exist in the line, then we know the regex wont match either
 	Repl     []byte
 	ReplFunc func(b []byte) []byte
 }
@@ -90,16 +90,16 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
 			for _, repl := range replacers {
-				shouldTryRepl := len(repl.Hints) == 0
-				if len(repl.Hints) > 0 { // Set this to false to make sure at least one hint exists in the log line
-					shouldTryRepl = false
+				containsHint := false
+				if len(repl.Hints) > 0 {
 					for _, hint := range repl.Hints {
 						if strings.Contains(string(b), hint) {
-							shouldTryRepl = true
+							containsHint = true
+							break
 						}
 					}
 				}
-				if shouldTryRepl {
+				if len(repl.Hints) == 0 || containsHint {
 					if repl.ReplFunc != nil {
 						b = repl.Regex.ReplaceAllFunc(b, repl.ReplFunc)
 					} else {
