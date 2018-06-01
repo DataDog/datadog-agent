@@ -87,7 +87,13 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 		log.Warn("Got invalid eventContext id ", goctx.id, " when map is", eventContextToTailerMap)
 		return
 	}
-	t.outputChan <- t.toMessage(xml)
+	msg, err := t.toMessage(xml)
+	if err != nil {
+		log.Warn("Couldn't convert xml to json: ", err, " for event ", xml)
+		return
+	}
+
+	t.outputChan <- msg
 }
 
 var (

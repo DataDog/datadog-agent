@@ -61,23 +61,21 @@ func (t *Tailer) Identifier() string {
 type Map map[string]interface{}
 
 // toMessage converts an XML message into json
-func (t *Tailer) toMessage(event string) message.Message {
+func (t *Tailer) toMessage(event string) (message.Message, error) {
 	log.Debug("Rendered XML: ", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
 	if err != nil {
-		log.Warn("Couldn't create struct from xml: ", err, " for event ", event)
-		return nil
+		return nil, err
 	}
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
-		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
-		return nil
+		return nil, err
 	}
 	log.Debug("Sending JSON: ", string(jsonEvent))
 	return message.New(
 		jsonEvent,
 		message.NewOrigin(t.source),
 		message.StatusInfo,
-	)
+	), nil
 }
