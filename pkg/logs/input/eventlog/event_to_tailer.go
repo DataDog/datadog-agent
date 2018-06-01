@@ -28,9 +28,9 @@ func tailerForIndex(id int) (*Tailer, bool) {
 
 // indexForTailer adds a tailer in the global map, and returs its index
 func indexForTailer(t *Tailer) int {
-	nextId := len(eventContextToTailerMap)
 	lock.Lock()
 	defer lock.Unlock()
+	nextId := len(eventContextToTailerMap)
 	eventContextToTailerMap[nextId] = t
 	return nextId
 }

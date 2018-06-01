@@ -52,10 +52,12 @@ func Identifier(channelPath, query string) string {
 	return fmt.Sprintf("eventlog:%s;%s", channelPath, query)
 }
 
+// Identifier returns a string that uniquely identifies a source
 func (t *Tailer) Identifier() string {
 	return Identifier(t.config.ChannelPath, t.config.Query)
 }
 
+// Map is a convenient structure to convert XML into Json
 type Map map[string]interface{}
 
 // toMessage converts an XML message into json

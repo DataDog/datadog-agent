@@ -23,6 +23,7 @@ func (t *Tailer) Stop() {
 	<-t.done
 }
 
+// tail does nothing
 func (t *Tailer) tail() {
 	<-t.stop
 	t.done <- struct{}{}

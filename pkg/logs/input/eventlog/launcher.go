@@ -73,6 +73,7 @@ func (l *Launcher) Stop() {
 	stopper.Stop()
 }
 
+// sanitizedConfig sets default values for the config
 func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *Config {
 	config := &Config{sourceConfig.ChannelPath, sourceConfig.Query}
 	if config.Query == "" {

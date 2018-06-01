@@ -34,6 +34,7 @@ func (t *Tailer) Stop() {
 	<-t.done
 }
 
+// tail subscribes to the channel for the windows events
 func (t *Tailer) tail() {
 	t.context = &eventContext{
 		id: indexForTailer(t),
