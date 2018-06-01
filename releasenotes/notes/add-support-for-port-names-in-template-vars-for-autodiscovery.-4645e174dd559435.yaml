@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for port names in template vars for autodiscovery.
