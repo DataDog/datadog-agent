@@ -113,7 +113,7 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 	var bufUsed uint32
 	var propCount uint32
 
-	_, _, err := procEvtRender.Call(uintptr(0), // this handle is always null for XML renders
+	_, _, err = procEvtRender.Call(uintptr(0), // this handle is always null for XML renders
 		uintptr(h),                 // handle of event we're rendering
 		uintptr(EvtRenderEventXml), // for now, always render in xml
 		uintptr(bufSize),
@@ -125,7 +125,7 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 	}
 	bufSize = bufUsed
 	buf := make([]uint8, bufSize)
-	ret, _, err = procEvtRender.Call(uintptr(0), // this handle is always null for XML renders
+	ret, _, err := procEvtRender.Call(uintptr(0), // this handle is always null for XML renders
 		uintptr(h),                 // handle of event we're rendering
 		uintptr(EvtRenderEventXml), // for now, always render in xml
 		uintptr(bufSize),
