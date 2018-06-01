@@ -77,12 +77,6 @@
   version = "v1.12.74"
 
 [[projects]]
-  name = "github.com/basgys/goxml2json"
-  packages = ["."]
-  revision = "652b277a9313806ef04f7c0cb0205dd455c4f344"
-  version = "v1.1.0"
-
-[[projects]]
   name = "github.com/beevik/ntp"
   packages = ["."]
   revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
@@ -640,9 +634,6 @@
   packages = [
     "context",
     "context/ctxhttp",
-    "html",
-    "html/atom",
-    "html/charset",
     "http2",
     "http2/hpack",
     "idna",
@@ -671,24 +662,12 @@
   packages = [
     "collate",
     "collate/build",
-    "encoding",
-    "encoding/charmap",
-    "encoding/htmlindex",
-    "encoding/internal",
-    "encoding/internal/identifier",
-    "encoding/japanese",
-    "encoding/korean",
-    "encoding/simplifiedchinese",
-    "encoding/traditionalchinese",
-    "encoding/unicode",
     "internal/colltab",
     "internal/gen",
     "internal/tag",
     "internal/triegen",
     "internal/ucd",
-    "internal/utf8internal",
     "language",
-    "runes",
     "secure/bidirule",
     "transform",
     "unicode/bidi",
@@ -837,6 +816,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6eb6fdd9126b77e38c4f19d14809289c62e4c6ebd0780d21babaab4c389506c3"
+  inputs-digest = "911db74c00c6081d9f9dd94751eb307cf1a3a8f86ba5c35bbe2bfbc70b41eea8"
   solver-name = "gps-cdcl"
   solver-version = 1

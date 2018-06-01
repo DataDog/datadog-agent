@@ -14,13 +14,11 @@ package eventlog
 import "C"
 
 import (
-	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	xj "github.com/basgys/goxml2json"
 	log "github.com/cihub/seelog"
 	"github.com/clbanning/mxj"
 )
@@ -56,31 +54,17 @@ func (t *Tailer) tail() {
 	return
 }
 
-func (t *Tailer) toMessage1(event string) message.Message {
-	log.Warn("Rendered XML: %s\n", event)
-	jsonEvent, err := xj.Convert(strings.NewReader(event))
-	if err != nil {
-		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
-	}
-	log.Warn("Sending JSON1: %s\n", string(jsonEvent.Bytes()))
-	return message.New(
-		[]byte(jsonEvent.Bytes()),
-		message.NewOrigin(t.source),
-		message.StatusInfo,
-	)
-}
-
 type Map map[string]interface{}
 
-func (t *Tailer) toMessage2(event string) message.Message {
-	log.Warn("Rendered XML: %s\n", event)
+func (t *Tailer) toMessage(event string) message.Message {
+	log.Debug("Rendered XML: ", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
 		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
 	}
-	log.Warn("Sending JSON2: %s\n", string(jsonEvent))
+	log.Debug("Sending JSON: ", string(jsonEvent))
 	return message.New(
 		jsonEvent,
 		message.NewOrigin(t.source),
@@ -108,8 +92,8 @@ func goErrorCallback(errCode C.ULONGLONG, ctx C.PVOID) {
 //export goNotificationCallback
 func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 	goctx := *(*eventContext)(unsafe.Pointer(uintptr(ctx)))
-	time.Sleep(1000 * time.Millisecond)  // FIXME
-	log.Info("Callback from ", goctx.id) // FIXME
+	time.Sleep(1000 * time.Millisecond) // FIXME
+	log.Debug("Callback from ", goctx.id)
 
 	xml, err := EvtRender(handle)
 	if err != nil {
@@ -121,8 +105,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 		log.Warn("Got invalid eventContext id ", goctx.id, " when map is", eventContextToTailerMap)
 		return
 	}
-	t.outputChan <- t.toMessage1(xml)
-	t.outputChan <- t.toMessage2(xml)
+	t.outputChan <- t.toMessage(xml)
 }
 
 var (
