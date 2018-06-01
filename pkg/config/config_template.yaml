@@ -182,6 +182,13 @@ api_key:
 # The port for the go_expvar server
 # dogstatsd_stats_port: 5000
 #
+# The number of bytes allocated to dogstatsd's socket receive buffer (POSIX
+# system only). By default, this value is set by the system. If you need to
+# increase the size of this buffer but keep the OS default value the same, you
+# can set dogstatsd's receive buffer size here. The maximum accepted value
+# might change depending on the OS.
+# dogstatsd_so_rcvbuf:
+#
 # If you want to forward every packet received by the dogstatsd server
 # to another statsd server, uncomment these lines.
 # WARNING: Make sure that forwarded packets are regular statsd packets and not "dogstatsd" packets,
