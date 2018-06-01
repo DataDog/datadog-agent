@@ -30,7 +30,7 @@ func tailerForIndex(id int) (*Tailer, bool) {
 func indexForTailer(t *Tailer) int {
 	lock.Lock()
 	defer lock.Unlock()
-	nextId := len(eventContextToTailerMap)
-	eventContextToTailerMap[nextId] = t
-	return nextId
+	nextID := len(eventContextToTailerMap)
+	eventContextToTailerMap[nextID] = t
+	return nextID
 }

@@ -11,7 +11,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// tail waits for message stop
+// Start does not do much
 func (t *Tailer) Start(_ string) {
 	log.Warn("Event Log not supported on this system")
 	go t.tail()

@@ -7,7 +7,7 @@
 
 package eventlog
 
-// tail waits for message stop
+// EnumerateChannels does nothing
 func EnumerateChannels() ([]string, error) {
 	return nil, nil
 }
