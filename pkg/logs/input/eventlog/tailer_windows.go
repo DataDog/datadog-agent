@@ -83,14 +83,14 @@ func goStaleCallback(errCode C.ULONGLONG, ctx C.PVOID) {
 
 //export goErrorCallback
 func goErrorCallback(errCode C.ULONGLONG, ctx C.PVOID) {
-	log.Warn("EventLog tailer got Error callback with code %v", errCode)
+	log.Warn("EventLog tailer got Error callback with code ", errCode)
 }
 
 //export goNotificationCallback
 func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
-	time.Sleep(1000 * time.Millisecond) // FIXME
 	goctx := *(*eventContext)(unsafe.Pointer(uintptr(ctx)))
-	log.Info("Callback from ", goctx.id)
+	time.Sleep(1000 * time.Millisecond)  // FIXME
+	log.Info("Callback from ", goctx.id) // FIXME
 
 	xml, err := EvtRender(handle)
 	if err != nil {
