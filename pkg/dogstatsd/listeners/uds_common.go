@@ -63,6 +63,12 @@ func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListene
 		}
 	}
 
+	if rcvbuf := config.Datadog.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+		if err := conn.SetReadBuffer(rcvbuf); err != nil {
+			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
+		}
+	}
+
 	listener := &UDSListener{
 		OriginDetection: originDection,
 		packetOut:       packetOut,

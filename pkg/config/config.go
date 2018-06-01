@@ -165,6 +165,7 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+	Datadog.SetDefault("dogstatsd_so_rcvbuf", 0)
 	Datadog.SetDefault("statsd_forward_host", "")
 	Datadog.SetDefault("statsd_forward_port", 0)
 	BindEnvAndSetDefault("statsd_metric_namespace", "")
@@ -261,6 +262,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("dogstatsd_origin_detection")
+	Datadog.BindEnv("dogstatsd_so_rcvbuf")
 	Datadog.BindEnv("check_runners")
 
 	Datadog.BindEnv("log_file")
