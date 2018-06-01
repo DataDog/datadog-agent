@@ -18,6 +18,11 @@ type Config struct {
 	Query       string
 }
 
+// eventContext links go and c
+type eventContext struct {
+	id int
+}
+
 // Tailer collects logs from event log.
 type Tailer struct {
 	source     *config.LogSource
@@ -25,6 +30,8 @@ type Tailer struct {
 	outputChan chan message.Message
 	stop       chan struct{}
 	done       chan struct{}
+
+	context *eventContext
 }
 
 // NewTailer returns a new tailer.

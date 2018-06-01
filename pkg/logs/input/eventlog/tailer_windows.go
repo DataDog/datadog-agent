@@ -24,10 +24,6 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-type eventContext struct {
-	id int
-}
-
 // Start starts tailing the event log from a given offset.
 func (t *Tailer) Start(_ string) {
 	log.Info("Starting event log tailing for channel ", t.config.ChannelPath, " query ", t.config.Query)
@@ -42,20 +38,18 @@ func (t *Tailer) Stop() {
 }
 
 func (t *Tailer) tail() {
-	id := indexForTailer(t)
-	ctx := eventContext{
-		id: id,
+	t.context = &eventContext{
+		id: indexForTailer(t),
 	}
 	C.startEventSubscribe(
 		C.CString(t.config.ChannelPath),
 		C.CString(t.config.Query),
 		C.ULONGLONG(0),
 		C.int(EvtSubscribeStartAtOldestRecord), // FIXME
-		C.PVOID(uintptr(unsafe.Pointer(&ctx))),
+		C.PVOID(uintptr(unsafe.Pointer(t.context))),
 	)
 
 	// wait for stop signal
-	// FIXME: do properly, with bookmark & co
 	<-t.stop
 	t.done <- struct{}{}
 	return
