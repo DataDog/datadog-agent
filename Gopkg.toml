@@ -132,9 +132,5 @@
   revision = "8c0409fcbb70099c748d71f714529204975f6c3f"
 
 [[constraint]]
-  name = "github.com/basgys/goxml2json"
-  version = "1.1.0"
-
-[[constraint]]
   name = "github.com/clbanning/mxj"
   version = "1.8.0"
