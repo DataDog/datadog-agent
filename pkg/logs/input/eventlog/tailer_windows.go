@@ -18,12 +18,12 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	log "github.com/cihub/seelog"
 )
 
 type eventContext struct {
-	name string
-	// outputChan chan message.Message
+	id int
 }
 
 // Start starts tailing the event log from a given offset.
@@ -40,25 +40,32 @@ func (t *Tailer) Stop() {
 }
 
 func (t *Tailer) tail() {
-	id := t.Identifier()
-	log.Info("IDENTIFIER: ", id) // FIXME
+	id := indexForTailer(t)
 	ctx := eventContext{
-		name: "FIXME",
-		// name:       id,
-		// outputChan: t.outputChan,
+		id: id,
 	}
 	C.startEventSubscribe(
 		C.CString(t.config.ChannelPath),
 		C.CString(t.config.Query),
 		C.ULONGLONG(0),
-		C.int(EvtSubscribeStartAtOldestRecord),
+		C.int(EvtSubscribeStartAtOldestRecord), // FIXME
 		C.PVOID(uintptr(unsafe.Pointer(&ctx))),
 	)
 
-	// wait for stop signal - FIXME: do properly, with bookmark & co
+	// wait for stop signal
+	// FIXME: do properly, with bookmark & co
 	<-t.stop
 	t.done <- struct{}{}
 	return
+}
+
+func (t *Tailer) toMessage(event string) message.Message {
+	log.Warn("Rendered XML: %s\n", event)
+	return message.New(
+		[]byte(event),
+		message.NewOrigin(t.source),
+		message.StatusInfo,
+	)
 }
 
 /*
@@ -80,19 +87,21 @@ func goErrorCallback(errCode C.ULONGLONG, ctx C.PVOID) {
 
 //export goNotificationCallback
 func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
-	time.Sleep(1000 * time.Millisecond)
-	var goctx eventContext
-	goctx = *(*eventContext)(unsafe.Pointer(uintptr(ctx)))
-	log.Info("Callback from ", goctx.name)
-	// log.Info("Callback from ", goctx.name, " with outputChan ", goctx.outputChan)
+	time.Sleep(1000 * time.Millisecond) // FIXME
+	goctx := *(*eventContext)(unsafe.Pointer(uintptr(ctx)))
+	log.Info("Callback from ", goctx.id)
 
 	xml, err := EvtRender(handle)
-	if err == nil {
-		log.Warn("Rendered XML: %s\n", xml)
-	} else {
-		log.Warn("Error rendering xml %v\n", err)
+	if err != nil {
+		log.Warn("Error rendering xml: %v", err)
+		return
 	}
-	return
+	t, exists := tailerForIndex(goctx.id)
+	if !exists {
+		log.Warn("Got invalid eventContext id ", goctx.id, " when map is", eventContextToTailerMap)
+		return
+	}
+	t.outputChan <- t.toMessage(xml)
 }
 
 var (
