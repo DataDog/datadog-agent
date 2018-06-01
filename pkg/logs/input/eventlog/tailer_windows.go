@@ -97,14 +97,14 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 }
 
 var (
-	modWinEvtApi = syscall.NewLazyDLL("wevtapi.dll")
+	modWinEvtAPI = syscall.NewLazyDLL("wevtapi.dll")
 
-	procEvtSubscribe       = modWinEvtApi.NewProc("EvtSubscribe")
-	procEvtClose           = modWinEvtApi.NewProc("EvtClose")
-	procEvtRender          = modWinEvtApi.NewProc("EvtRender")
-	procEvtOpenChannelEnum = modWinEvtApi.NewProc("EvtOpenChannelEnum")
-	procEvtNextChannelPath = modWinEvtApi.NewProc("EvtNextChannelPath")
-	procEvtNext            = modWinEvtApi.NewProc("EvtNext")
+	procEvtSubscribe       = modWinEvtAPI.NewProc("EvtSubscribe")
+	procEvtClose           = modWinEvtAPI.NewProc("EvtClose")
+	procEvtRender          = modWinEvtAPI.NewProc("EvtRender")
+	procEvtOpenChannelEnum = modWinEvtAPI.NewProc("EvtOpenChannelEnum")
+	procEvtNextChannelPath = modWinEvtAPI.NewProc("EvtNextChannelPath")
+	procEvtNext            = modWinEvtAPI.NewProc("EvtNext")
 )
 
 // EvtRender takes an event handle and reders it to XML

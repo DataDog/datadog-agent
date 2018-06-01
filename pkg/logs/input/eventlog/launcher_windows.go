@@ -25,7 +25,7 @@ import (
 
 type EvtEnumHandle uintptr
 
-// EnumerateChannels() enumerates available log channels
+// EnumerateChannels enumerates available log channels
 func EnumerateChannels() (chans []string, err error) {
 	err = nil
 
