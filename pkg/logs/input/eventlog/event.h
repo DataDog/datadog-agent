@@ -171,7 +171,7 @@ ULONGLONG startEventSubscribe(char *channel, char* query, ULONGLONG  hBookmark, 
 //
 // MessageText:
 //
-// A step operation must involve either a node test or, in the case of a predicate, an algebraic expression against which to test each node in the node set identified by the preceeding node set can be evaluated.
+// A step operation must involve either a node test or, in the case of a predicate, an algebraic expression against which to test each node in the node set identified by the preceding node set can be evaluated.
 //
 #define ERROR_EVT_FILTER_INVTEST         15017L
 
