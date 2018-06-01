@@ -27,7 +27,7 @@ func TestGetTags(t *testing.T) {
 	}{
 		{
 			"manager node with swarm active",
-			&fake.FakeSystemAPIClient{
+			&fake.SystemAPIClient{
 				InfoFunc: func() (types.Info, error) {
 					return types.Info{
 						Swarm: swarm.Info{
@@ -41,7 +41,7 @@ func TestGetTags(t *testing.T) {
 		},
 		{
 			"worker node with swarm active",
-			&fake.FakeSystemAPIClient{
+			&fake.SystemAPIClient{
 				InfoFunc: func() (types.Info, error) {
 					return types.Info{
 						Swarm: swarm.Info{
@@ -55,7 +55,7 @@ func TestGetTags(t *testing.T) {
 		},
 		{
 			"swarm inactive",
-			&fake.FakeSystemAPIClient{
+			&fake.SystemAPIClient{
 				InfoFunc: func() (types.Info, error) {
 					return types.Info{
 						Swarm: swarm.Info{
