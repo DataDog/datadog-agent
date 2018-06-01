@@ -47,6 +47,7 @@ func (t *Tailer) tail() {
 		C.int(EvtSubscribeStartAtOldestRecord), // FIXME
 		C.PVOID(uintptr(unsafe.Pointer(t.context))),
 	)
+	t.source.Status.Success()
 
 	// wait for stop signal
 	<-t.stop
