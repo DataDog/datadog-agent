@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	xj "github.com/basgys/goxml2json"
 	log "github.com/cihub/seelog"
+	"github.com/clbanning/mxj"
 )
 
 // Start starts tailing the event log from a given offset.
@@ -55,15 +56,33 @@ func (t *Tailer) tail() {
 	return
 }
 
-func (t *Tailer) toMessage(event string) message.Message {
+func (t *Tailer) toMessage1(event string) message.Message {
 	log.Warn("Rendered XML: %s\n", event)
 	jsonEvent, err := xj.Convert(strings.NewReader(event))
 	if err != nil {
 		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
 	}
-	log.Warn("Sending JSON: %s\n", string(jsonEvent.Bytes()))
+	log.Warn("Sending JSON1: %s\n", string(jsonEvent.Bytes()))
 	return message.New(
 		[]byte(jsonEvent.Bytes()),
+		message.NewOrigin(t.source),
+		message.StatusInfo,
+	)
+}
+
+type Map map[string]interface{}
+
+func (t *Tailer) toMessage2(event string) message.Message {
+	log.Warn("Rendered XML: %s\n", event)
+	mxj.PrependAttrWithHyphen(false)
+	mv, err := mxj.NewMapXml([]byte(event))
+	jsonEvent, err := mv.Json(false)
+	if err != nil {
+		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
+	}
+	log.Warn("Sending JSON2: %s\n", string(jsonEvent))
+	return message.New(
+		jsonEvent,
 		message.NewOrigin(t.source),
 		message.StatusInfo,
 	)
@@ -102,7 +121,8 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 		log.Warn("Got invalid eventContext id ", goctx.id, " when map is", eventContextToTailerMap)
 		return
 	}
-	t.outputChan <- t.toMessage(xml)
+	t.outputChan <- t.toMessage1(xml)
+	t.outputChan <- t.toMessage2(xml)
 }
 
 var (

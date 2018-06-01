@@ -100,6 +100,12 @@
   version = "v2.6"
 
 [[projects]]
+  name = "github.com/clbanning/mxj"
+  packages = ["."]
+  revision = "1f00e0bf9bacd7ea9c93d27594d1d1f5a41bac36"
+  version = "v1.8"
+
+[[projects]]
   name = "github.com/coreos/etcd"
   packages = [
     "client",
@@ -831,6 +837,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a8ce3a50be1231180191066b56a069d0e800ff6b327dab0e7630194d20b340b1"
+  inputs-digest = "6eb6fdd9126b77e38c4f19d14809289c62e4c6ebd0780d21babaab4c389506c3"
   solver-name = "gps-cdcl"
   solver-version = 1
