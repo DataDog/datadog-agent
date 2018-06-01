@@ -10,6 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	log "github.com/cihub/seelog"
+	"github.com/clbanning/mxj"
 )
 
 // Config is a event log tailer configuration
@@ -52,4 +54,23 @@ func Identifier(channelPath, query string) string {
 
 func (t *Tailer) Identifier() string {
 	return Identifier(t.config.ChannelPath, t.config.Query)
+}
+
+type Map map[string]interface{}
+
+// toMessage converts an XML message into json
+func (t *Tailer) toMessage(event string) message.Message {
+	log.Debug("Rendered XML: ", event)
+	mxj.PrependAttrWithHyphen(false)
+	mv, err := mxj.NewMapXml([]byte(event))
+	jsonEvent, err := mv.Json(false)
+	if err != nil {
+		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
+	}
+	log.Debug("Sending JSON: ", string(jsonEvent))
+	return message.New(
+		jsonEvent,
+		message.NewOrigin(t.source),
+		message.StatusInfo,
+	)
 }

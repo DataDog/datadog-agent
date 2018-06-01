@@ -78,9 +78,6 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *Config {
 	if config.Query == "" {
 		config.Query = "*"
 	}
-	// if config.ChannelPath == "" {
-	// 	config.Query = `<QueryList><Query Id="0"><Select Path="*"></Select></Query></QueryList>`
-	// }
 	return config
 }
 

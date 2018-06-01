@@ -18,9 +18,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	log "github.com/cihub/seelog"
-	"github.com/clbanning/mxj"
 )
 
 // Start starts tailing the event log from a given offset.
@@ -53,24 +51,6 @@ func (t *Tailer) tail() {
 	<-t.stop
 	t.done <- struct{}{}
 	return
-}
-
-type Map map[string]interface{}
-
-func (t *Tailer) toMessage(event string) message.Message {
-	log.Debug("Rendered XML: ", event)
-	mxj.PrependAttrWithHyphen(false)
-	mv, err := mxj.NewMapXml([]byte(event))
-	jsonEvent, err := mv.Json(false)
-	if err != nil {
-		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
-	}
-	log.Debug("Sending JSON: ", string(jsonEvent))
-	return message.New(
-		jsonEvent,
-		message.NewOrigin(t.source),
-		message.StatusInfo,
-	)
 }
 
 /*
