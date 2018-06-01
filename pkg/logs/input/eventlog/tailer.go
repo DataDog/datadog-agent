@@ -65,9 +65,14 @@ func (t *Tailer) toMessage(event string) message.Message {
 	log.Debug("Rendered XML: ", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
+	if err != nil {
+		log.Warn("Couldn't create struct from xml: ", err, " for event ", event)
+		return nil
+	}
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
 		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
+		return nil
 	}
 	log.Debug("Sending JSON: ", string(jsonEvent))
 	return message.New(
