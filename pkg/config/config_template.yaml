@@ -123,12 +123,12 @@ api_key:
 # for 'group' or 'other'.
 # secret_backend_command: /path/to/command
 #
-# A list of arguments to give the command at each run
+# A list of arguments to give to the command at each run (optional)
 # secret_backend_arguments:
 #   - argument1
 #   - argument2
 #
-# The size in bytes of the buffer used to store the command answer:
+# The size in bytes of the buffer used to store the command answer
 # secret_backend_output_max_size: 1024
 #
 # The timeout to execute the command in second

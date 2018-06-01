@@ -87,7 +87,5 @@ differently from Agent version 5.
 | `gce_updated_hostname` | v6 behaves like v5 with `gce_updated_hostname` set to true. May affect reported hostname, see [doc][gce-hostname] |
 | `collect_security_groups` | feature still available with the aws integration  |
 
-
-
 [datadog-yaml]: https://raw.githubusercontent.com/DataDog/datadog-agent/master/pkg/config/config_template.yaml
 [gce-hostname]: changes.md#gce-hostname
