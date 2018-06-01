@@ -14,11 +14,13 @@ package eventlog
 import "C"
 
 import (
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	xj "github.com/basgys/goxml2json"
 	log "github.com/cihub/seelog"
 )
 
@@ -61,8 +63,12 @@ func (t *Tailer) tail() {
 
 func (t *Tailer) toMessage(event string) message.Message {
 	log.Warn("Rendered XML: %s\n", event)
+	jsonEvent, err := xj.Convert(strings.NewReader(event))
+	if err != nil {
+		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
+	}
 	return message.New(
-		[]byte(event),
+		[]byte(jsonEvent.Bytes()),
 		message.NewOrigin(t.source),
 		message.StatusInfo,
 	)
