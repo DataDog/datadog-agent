@@ -39,10 +39,7 @@ tee specification.json << EOF
 }
 EOF
 
-# This is not elegant...
-export DATADOG_AGENT_IMAGE="datadog/agent-dev:${CI_COMMIT_REF_SLUG}"
 echo "Using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
 echo "Running inside a gitlab pipeline, using DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE}"
-export DATADOG_AGENT_IMAGE
 
 exec ./02-ec2.sh
