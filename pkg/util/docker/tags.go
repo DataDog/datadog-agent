@@ -11,13 +11,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/swarm"
+	"github.com/docker/docker/client"
 )
-
-type SystemInfoClient interface {
-	Info(ctx context.Context) (types.Info, error)
-}
 
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
@@ -29,7 +25,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 	return getTags(du.cli, ctx)
 }
 
-func getTags(client SystemInfoClient, ctx context.Context) ([]string, error) {
+func getTags(client client.SystemAPIClient, ctx context.Context) ([]string, error) {
 	tags := []string{}
 	info, err := client.Info(ctx)
 	if err != nil {

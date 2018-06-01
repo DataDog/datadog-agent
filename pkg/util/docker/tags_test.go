@@ -11,55 +11,67 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/docker/fake"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/swarm"
+	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type MockSystemInfoClient struct {
-	SwarmInfo swarm.Info
-}
-
-func (c *MockSystemInfoClient) Info(ctx context.Context) (types.Info, error) {
-	return types.Info{Swarm: c.SwarmInfo}, nil
-}
-
 func TestGetTags(t *testing.T) {
 	tests := []struct {
-		desc       string
-		mockClient SystemInfoClient
-		tags       []string
+		desc   string
+		client client.SystemAPIClient
+		tags   []string
 	}{
 		{
 			"manager node with swarm active",
-			&MockSystemInfoClient{SwarmInfo: swarm.Info{
-				LocalNodeState:   swarm.LocalNodeStateActive,
-				ControlAvailable: true,
-			}},
+			&fake.FakeSystemAPIClient{
+				InfoFunc: func() (types.Info, error) {
+					return types.Info{
+						Swarm: swarm.Info{
+							LocalNodeState:   swarm.LocalNodeStateActive,
+							ControlAvailable: true,
+						},
+					}, nil
+				},
+			},
 			[]string{"docker_swarm_node_role:manager"},
 		},
 		{
 			"worker node with swarm active",
-			&MockSystemInfoClient{SwarmInfo: swarm.Info{
-				LocalNodeState:   swarm.LocalNodeStateActive,
-				ControlAvailable: false,
-			}},
+			&fake.FakeSystemAPIClient{
+				InfoFunc: func() (types.Info, error) {
+					return types.Info{
+						Swarm: swarm.Info{
+							LocalNodeState:   swarm.LocalNodeStateActive,
+							ControlAvailable: false,
+						},
+					}, nil
+				},
+			},
 			[]string{"docker_swarm_node_role:worker"},
 		},
 		{
 			"swarm inactive",
-			&MockSystemInfoClient{SwarmInfo: swarm.Info{
-				LocalNodeState:   swarm.LocalNodeStatePending,
-				ControlAvailable: true,
-			}},
+			&fake.FakeSystemAPIClient{
+				InfoFunc: func() (types.Info, error) {
+					return types.Info{
+						Swarm: swarm.Info{
+							LocalNodeState:   swarm.LocalNodeStatePending,
+							ControlAvailable: true,
+						},
+					}, nil
+				},
+			},
 			[]string{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			ctx := context.TODO()
-			tags, err := getTags(tt.mockClient, ctx)
+			tags, err := getTags(tt.client, ctx)
 			require.NoError(t, err)
 			assert.Equal(t, tt.tags, tags)
 		})
