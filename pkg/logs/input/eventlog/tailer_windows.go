@@ -67,6 +67,7 @@ func (t *Tailer) toMessage(event string) message.Message {
 	if err != nil {
 		log.Warn("Couldn't convert xml into json: ", err, " for event ", event)
 	}
+	log.Warn("Sending JSON: %s\n", string(jsonEvent.Bytes()))
 	return message.New(
 		[]byte(jsonEvent.Bytes()),
 		message.NewOrigin(t.source),
