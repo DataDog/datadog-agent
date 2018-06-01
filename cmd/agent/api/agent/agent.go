@@ -210,20 +210,26 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	response.ConfigErrors = autodiscovery.GetConfigErrors()
 	response.Unresolved = common.AC.GetUnresolvedTemplates()
 
-	json, err := json.Marshal(response)
+	jsonConfig, err := json.Marshal(response)
 	if err != nil {
 		log.Errorf("Unable to marshal config check response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
 	}
 
-	w.Write(json)
+	w.Write(jsonConfig)
 }
 
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	response := tagger.List(tagger.IsFullCardinality())
 
-	json, err := json.Marshal(response)
+	jsonTags, err := json.Marshal(response)
 	if err != nil {
 		log.Errorf("Unable to marshal tagger list response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
 	}
-	w.Write(json)
+	w.Write(jsonTags)
 }
