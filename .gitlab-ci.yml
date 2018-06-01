@@ -1092,7 +1092,7 @@ latest_dsd_push:
   tags: [ "runner:main", "size:large" ]
   before_script: [ "# noop" ] # Override top level entry
   script:
-  - inv -e e2e-tests
+  - inv -e e2e-tests --image=datadog/agent-dev:$CI_COMMIT_REF_SLUG
 
 pupernetes-dev:
   <<: *pupernetes_template
