@@ -33,13 +33,13 @@ type configuredMetric struct {
 	Value int64  `yaml:"value,omitempty"`
 }
 
-type externalMetric2 struct {
+type externalMetric struct {
 	info  provider.ExternalMetricInfo
 	value external_metrics.ExternalMetricValue
 }
 
 var (
-	testingMetrics2 = []externalMetric{
+	testingMetrics = []externalMetric{
 		{
 			info: provider.ExternalMetricInfo{
 				Metric: "nginx.conn_opened_per_s",
@@ -71,7 +71,7 @@ func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper) pr
 		client:          client,
 		mapper:          mapper,
 		values:          make(map[provider.CustomMetricInfo]int64),
-		externalMetrics: testingMetrics2,
+		externalMetrics: testingMetrics,
 	}
 }
 
@@ -133,6 +133,7 @@ func (p *datadogProvider) getMetricNames() ([]string, error) {
 }
 
 func (p *datadogProvider) metricFor(value int64, groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
+	seelog.Infof("asked metricFor metricName %s with value %s", metricName, value)
 	return &custom_metrics.MetricValue{
 		DescribedObject: custom_metrics.ObjectReference{
 			APIVersion: groupResource.Group + "/" + runtime.APIVersionInternal,
@@ -250,32 +251,48 @@ func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.Gro
 		return nil, err
 	}
 
-	seelog.Infof("in NamespacedBySelector. goupResour e is %v namespace is %v: , selctor is %v, metricName is %v", groupResource, namespace, selector, metricName)
+	seelog.Infof("in NamespacedBySelector. goupResource is %v namespace is %v: , selctor is %v, metricName is %v", groupResource, namespace, selector, metricName)
 	return p.metricsFor(value, groupResource, metricName, matchingObjectsRaw)
 }
 
 func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
 	// TODO: maybe dynamically generate this?
+	seelog.Infof("listing all metrics")
+
 	return []provider.CustomMetricInfo{
-		{
-			GroupResource: schema.GroupResource{Group: "", Resource: "pods"},
-			Metric:        "packets-per-second",
-			Namespaced:    true,
-		},
-		{
-			GroupResource: schema.GroupResource{Group: "", Resource: "services"},
-			Metric:        "connections-per-second",
-			Namespaced:    true,
-		},
-		{
-			GroupResource: schema.GroupResource{Group: "", Resource: "namespaces"},
-			Metric:        "queue-length",
-			Namespaced:    false,
-		},
+		{Metric: "custom.googleapis.com|qps-int", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
+		{Metric: "custom.googleapis.com|qps-double", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
+		{Metric: "custom.googleapis.com|qps-delta", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
+		{Metric: "custom.googleapis.com|qps-cum", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
+		{Metric: "custom.googleapis.com|q|p|s", GroupResource: schema.GroupResource{Group: "", Resource: "*"}, Namespaced: true},
 	}
+
+	////////////////////////////////////////////
+	metricNames, err := p.getMetricNames()
+	if err != nil {
+		seelog.Error("Could not get metric list, defaulting to hardcoded one: ", err)
+		return []provider.CustomMetricInfo{
+			{
+				GroupResource: schema.GroupResource{"","*"},
+				Metric:        "nginx.conn_opened_per_s",
+				Namespaced:    true,
+			},
+		}
+	}
+
+	metricInfos := []provider.CustomMetricInfo{}
+	for _, metricName := range metricNames {
+		metricInfos = append(metricInfos, provider.CustomMetricInfo{
+			GroupResource: schema.GroupResource{Group: "", Resource: "pods"},
+			Metric:        metricName,
+			Namespaced:    true,
+		})
+	}
+	return metricInfos
 }
 
 func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
+	seelog.Infof("listing all ext metrics")
 	metricNames, err := p.getMetricNames()
 	externalMetricsInfo := []provider.ExternalMetricInfo{}
 
@@ -283,6 +300,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 		for _, metric := range p.externalMetrics {
 			externalMetricsInfo = append(externalMetricsInfo, metric.info) // What is done in boilerplate.
 		}
+		seelog.Infof("err getMetricsName returning %q", externalMetricsInfo)
 		return externalMetricsInfo
 	}
 
@@ -292,11 +310,14 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 			Labels: make(map[string]string),
 		})
 	}
+	seelog.Infof("ListAllExternalMetrics returning %q", externalMetricsInfo)
 	return externalMetricsInfo
 }
 
 func (p *datadogProvider) GetExternalMetric(namespace string, metricName string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
+	seelog.Infof("getExternalMetrics returning %q", matchingMetrics)
+
 	for _, metric := range p.externalMetrics {
 		if metric.info.Metric == metricName &&
 			metricSelector.Matches(labels.Set(metric.info.Labels)) {
@@ -305,6 +326,7 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricName string,
 			matchingMetrics = append(matchingMetrics, metricValue)
 		}
 	}
+	seelog.Infof("getExternalMetrics returning %q", matchingMetrics)
 	return &external_metrics.ExternalMetricValueList{
 		Items: matchingMetrics,
 	}, nil
@@ -316,6 +338,7 @@ func (p *datadogProvider) valueFor(groupResource schema.GroupResource, metricNam
 		Metric:        metricName,
 		Namespaced:    namespaced,
 	}
+	seelog.Infof("asked valuefor metricName %s", metricName )
 
 	info, _, err := info.Normalized(p.mapper)
 	if err != nil {
@@ -325,6 +348,7 @@ func (p *datadogProvider) valueFor(groupResource schema.GroupResource, metricNam
 	value := p.values[info]
 	value += 1
 	p.values[info] = value
+	seelog.Infof("returning value %s metricName %s", value, metricName )
 
 	return value, nil
 }
