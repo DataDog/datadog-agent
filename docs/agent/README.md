@@ -28,6 +28,10 @@ way you can configure the Agent changed too, please read [this document][config]
 where all the new options are detailed. The latest Agent won't have feature parity
 with the previous one at first, you can see the list of what's missing [here][missing-features].
 
+## Encrypted secrets
+
+To use a secret management service read this [document][secrets].
+
 ## Systems
 
 We do not yet build packages for the full gamut of systems that Agent 5 targets.
@@ -47,3 +51,4 @@ Agent 6 is currently available on these platforms:
 [downgrade]: downgrade.md
 [missing-features]: missing_features.md
 [upgrade]: upgrade.md
+[secrets]: secrets.md
