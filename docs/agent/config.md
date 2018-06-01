@@ -50,6 +50,7 @@ in any way.
 | `collect_instance_metadata` | `enable_metadata_collection` | This now enabled the new metadata collection mechanism |
 | `collector_log_file` | `log_file` ||
 | `syslog_host`  | `syslog_uri`  | The Syslog configuration is now expressed as an URI |
+|| `syslog_pem`  | Syslog configuration root CA for TLS client server validation |
 
 
 ## Removed options

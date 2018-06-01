@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -35,10 +36,15 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 	}
 
 	if pem != "" {
-		if logCertPool == nil {
-			logCertPool = x509.NewCertPool()
+		if cert, err := ioutil.ReadFile(pem); err == nil {
+			if logCertPool == nil {
+				logCertPool = x509.NewCertPool()
+			}
+			logCertPool.AppendCertsFromPEM(cert)
+		} else {
+			log.Errorf("Unable to read PEM certificate")
+			return err
 		}
-		logCertPool.AppendCertsFromPEM([]byte(pem))
 	}
 
 	seelogLogLevel := strings.ToLower(logLevel)
