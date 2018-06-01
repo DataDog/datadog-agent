@@ -1,0 +1,536 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: argo-datadog-agent-
+spec:
+  entrypoint: main
+  #onExit: delete # call argo submit --entrypoint delete instead
+  arguments:
+    parameters:
+    - name: redis
+      value: |
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: redis
+          namespace: default
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                app: redis
+              annotations:
+                ad.datadoghq.com/redis.check_names: '["redisdb"]'
+                ad.datadoghq.com/redis.init_configs: '[{}]'
+                ad.datadoghq.com/redis.instances: '[{"host": "%%host%%", "port": "%%port%%"}]'
+            spec:
+              initContainers:
+              - name: useless
+                image: busybox:latest
+                command:
+                - /bin/true
+                resources:
+                  requests:
+                    memory: "32Mi"
+                    cpu: "25m"
+                  limits:
+                    memory: "64Mi"
+                    cpu: "50m"
+              containers:
+              - name: redis
+                image: redis
+                ports:
+                - containerPort: 6379
+                resources:
+                  requests:
+                    memory: "64Mi"
+                    cpu: "50m"
+                  limits:
+                    memory: "128Mi"
+                    cpu: "100m"
+
+    - name: agent-service-account
+      value: |
+        kind: ServiceAccount
+        apiVersion: v1
+        metadata:
+          name: datadog-agent
+          namespace: default
+
+    - name: agent-cluster-role
+      value: |
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: datadog-agent
+        rules:
+        - apiGroups:
+          - ""
+          resources:
+          - services
+          - events
+          - endpoints
+          - pods
+          - nodes
+          - componentstatuses
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          resourceNames:
+          - datadogtoken
+          verbs:
+          - get
+          - update
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - update
+          - create
+        - apiGroups:
+          - ""
+          resources:
+          - nodes/metrics
+          - nodes/spec
+          - nodes/proxy
+          verbs:
+          - get
+
+    - name: agent-cluster-role-binding
+      value: |
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: datadog-agent
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: datadog-agent
+        subjects:
+        - kind: ServiceAccount
+          name: datadog-agent
+          namespace: default
+
+    - name: agent-configmap
+      value: |
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: datadog
+          namespace: default
+        data:
+          datadog.yaml: |
+            api_key: "123er"
+            dd_url: "http://fake-datadog.default.svc.cluster.local"
+            listeners:
+            - name: kubelet
+            config_providers:
+            - name: kubelet
+              polling: true
+            leader_election: true
+
+          kubelet.yaml: |
+            init_config:
+            instances:
+            - {}
+
+          apiserver.yaml: |
+            init_configs:
+            instances:
+            - {}
+
+          network.yaml: |
+            init_config:
+            instances:
+            - collect_connection_state: false
+              excluded_interfaces:
+                - lo
+                - lo0
+
+          docker.yaml: |
+            init_config:
+            instances:
+            - {}
+
+
+    - name: agent-daemonset
+      value: |
+        apiVersion: extensions/v1beta1
+        kind: DaemonSet
+        metadata:
+          name: datadog-agent
+          namespace: default
+        spec:
+          updateStrategy:
+            rollingUpdate:
+              maxUnavailable: 1
+          template:
+            metadata:
+              labels:
+                app: datadog-agent
+              name: datadog-agent
+            spec:
+              serviceAccount: datadog-agent
+              containers:
+              - name: agent
+                image: datadog/agent:latest # TODO provide the ECR PR image
+                command:
+                - /opt/datadog-agent/bin/agent/agent
+                - start
+                env:
+                - name: DD_KUBERNETES_KUBELET_HOST
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: status.hostIP
+                resources:
+                  requests:
+                    memory: "128Mi"
+                    cpu: "100m"
+                  limits:
+                    memory: "256Mi"
+                    cpu: "250m"
+                livenessProbe:
+                  exec:
+                    command:
+                    - /opt/datadog-agent/bin/agent/agent
+                    - health
+                  initialDelaySeconds: 30
+                  periodSeconds: 5
+                readinessProbe:
+                  exec:
+                    command:
+                    - /opt/datadog-agent/bin/agent/agent
+                    - health
+                  failureThreshold: 5
+                  initialDelaySeconds: 20
+                volumeMounts:
+                - name: datadog-config
+                  mountPath: /etc/datadog-agent/datadog.yaml
+                  subPath: datadog.yaml
+                - name: datadog-config
+                  mountPath: /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml
+                  subPath: apiserver.yaml
+                - name: datadog-config
+                  mountPath: /etc/datadog-agent/conf.d/kubelet.d/conf.yaml
+                  subPath: kubelet.yaml
+                - name: datadog-config
+                  mountPath: /etc/datadog-agent/conf.d/network.d/conf.yaml.default
+                  subPath: network.yaml
+                - name: proc
+                  mountPath: /host/proc
+                  readOnly: true
+                - name: cgroup
+                  mountPath: /host/sys/fs/cgroup
+                  readOnly: true
+                - name: dockersocket
+                  mountPath: /var/run/docker.sock
+                  readOnly: true
+
+              volumes:
+              - name: datadog-config
+                configMap:
+                  name: datadog
+              - name: proc
+                hostPath:
+                  path: /proc
+              - name: cgroup
+                hostPath:
+                  path: /sys/fs/cgroup
+              - hostPath:
+                  path: /var/run/docker.sock
+                name: dockersocket
+
+    - name: fake-datadog-service
+      value: |
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: fake-datadog
+          namespace: default
+        spec:
+          ports:
+          - port: 80
+            protocol: TCP
+            targetPort: 80
+            name: api
+          - port: 27017
+            protocol: TCP
+            targetPort: 27017
+            name: mongo
+          selector:
+            app: fake-datadog
+          type: ClusterIP
+
+    - name: fake-datadog-deployment
+      value: |
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: fake-datadog
+          namespace: default
+        spec:
+          replicas: 1
+          strategy:
+            type: RollingUpdate
+            rollingUpdate:
+              maxSurge: 1
+              maxUnavailable: 0
+          template:
+            metadata:
+              labels:
+                app: fake-datadog
+            spec:
+              containers:
+              - name: api
+                image: datadog/fake-datadog:latest
+              - name: mongo
+                image: mongo:3.6.3
+
+  templates:
+  - name: main
+    inputs:
+      parameters:
+      - name: redis
+      - name: agent-configmap
+      - name: agent-service-account
+      - name: agent-cluster-role
+      - name: agent-cluster-role-binding
+      - name: agent-daemonset
+      - name: fake-datadog-deployment
+      - name: fake-datadog-service
+    steps:
+    - - name: fake-dd-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.fake-datadog-deployment}}"
+        - "{{inputs.parameters.fake-datadog-service}}"
+      - name: redis-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.redis}}"
+
+    - - name: fake-dd-reset
+        template: fake-dd-reset
+
+    - - name: agent-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.agent-configmap}}"
+        - "{{inputs.parameters.agent-service-account}}"
+        - "{{inputs.parameters.agent-cluster-role}}"
+        - "{{inputs.parameters.agent-cluster-role-binding}}"
+        - "{{inputs.parameters.agent-daemonset}}"
+
+    - - name: health
+        template: datadog-agent-health
+
+      - name: leader
+        template: datadog-agent-leader
+
+    - - name: find-metrics-kubernetes
+        template: find-metrics-kubernetes
+
+      - name: find-metrics-redis
+        template: find-metrics-redis
+
+    - - name: delete-redis
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "delete"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.redis}}"
+
+    - - name: no-more-redis
+        template: no-more-metrics-redis
+
+  - name: query-job
+    activeDeadlineSeconds: 120
+    inputs:
+      parameters:
+      - name: manifest
+    resource:
+      action: create
+      successCondition: status.succeeded > 0
+      failureCondition: status.failed > 10
+      manifest: "{{inputs.parameters.manifest}}"
+
+  - name: delete
+    inputs:
+      parameters:
+      - name: redis
+      - name: agent-configmap
+      - name: agent-service-account
+      - name: agent-cluster-role
+      - name: agent-cluster-role-binding
+      - name: agent-daemonset
+      - name: fake-datadog-deployment
+      - name: fake-datadog-service
+    steps:
+    - - name: delete-manifest
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "delete"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.redis}}"
+        - "{{inputs.parameters.agent-configmap}}"
+        - "{{inputs.parameters.agent-service-account}}"
+        - "{{inputs.parameters.agent-cluster-role}}"
+        - "{{inputs.parameters.agent-cluster-role-binding}}"
+        - "{{inputs.parameters.agent-daemonset}}"
+        - "{{inputs.parameters.fake-datadog-service}}"
+        - "{{inputs.parameters.fake-datadog-deployment}}"
+
+  - name: manifest
+    inputs:
+      parameters:
+      - name: action
+      - name: manifest
+    resource:
+      action: "{{inputs.parameters.action}}"
+      manifest: "{{inputs.parameters.manifest}}"
+
+  - name: datadog-agent-health
+    activeDeadlineSeconds: 200
+    script:
+      image: argoproj/argoexec:latest
+      command: [bash]
+      source: |
+        set -x
+        set -o pipefail
+
+        until kubectl get po -l app=datadog-agent -o json -n default | jq -re .items[].metadata.name
+        do
+          sleep 1
+        done
+
+        while true
+        do
+          for po in $(kubectl get po -l app=datadog-agent -o json -n default | jq -re .items[].metadata.name)
+          do
+            kubectl exec $po agent health || {
+              sleep 4
+              continue 2
+            }
+          done
+          exit 0
+        done
+
+  - name: datadog-agent-leader
+    activeDeadlineSeconds: 200
+    script:
+      image: argoproj/argoexec:latest
+      command: [bash]
+      source: |
+        set -x
+        set -o pipefail
+
+        until kubectl get cm datadog-leader-election -n default -o json |  jq '.metadata.annotations | .["control-plane.alpha.kubernetes.io/leader"]'
+        do
+          sleep 1
+        done
+
+  - name: fake-dd-reset
+    activeDeadlineSeconds: 200
+    script:
+      image: argoproj/argoexec:latest
+      command: [bash]
+      source: |
+        set -o pipefail
+        set -x
+
+        until curl -f http://fake-datadog.default.svc.cluster.local/_/reset -XPOST --connect-timeout 1
+        do
+          sleep 3
+        done
+
+  - name: find-metrics-kubernetes
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.series.find({
+            metric: {$regex: "kubernetes*"},
+            tags: {$all: ["kube_namespace:kube-system", "pod_name:kube-controller-manager"]}
+          }).count();
+
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
+        }
+
+  - name: find-metrics-redis
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.series.find({
+            metric: {$regex: "redis*"}
+          }).count();
+
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
+        }
+
+  - name: no-more-metrics-redis
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        var prevNb = -1;
+        while (1) {
+          var nb = db.series.find({
+            metric: {$regex: "redis*"}
+          }).count();
+
+          print("prev-find: " + prevNb)
+          print("find: " + nb)
+          if (nb == prevNb) {
+            break;
+          }
+          prevNb = nb;
+          sleep(30000);
+        }

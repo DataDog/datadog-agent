@@ -9,6 +9,7 @@ stages:
   - image_build
   - image_deploy
   - deploy
+  - e2e
 
 variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
@@ -838,6 +839,7 @@ dogstatsd_dev_quay_master:
     DEST_IMAGE: quay.io/datawhale/dogstatsd-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
 
+
 #
 # deploy
 #
@@ -1078,3 +1080,29 @@ latest_dsd_push:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd
+
+
+#
+# end to end
+#
+
+.pupernetes_template: &pupernetes_template
+  stage: e2e
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  tags: [ "runner:main", "size:large" ]
+  before_script: [ "# noop" ] # Override top level entry
+  script:
+  - inv -e e2e-tests
+
+pupernetes-dev:
+  <<: *pupernetes_template
+  when: manual
+  except:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+
+pupernetes:
+  <<: *pupernetes_template
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
