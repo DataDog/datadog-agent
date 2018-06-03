@@ -2,15 +2,13 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
+// +build !windows
 
-package host
+package system
 
 import (
-	"testing"
+	"github.com/shirou/gopsutil/host"
 )
 
-func TestFillOsVersion(t *testing.T) {
-	stats := &systemStats{}
-	info := getHostInfo()
-	fillOsVersion(stats, info)
-}
+// For testing purpose
+var uptime = host.Uptime

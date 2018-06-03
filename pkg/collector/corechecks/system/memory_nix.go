@@ -9,12 +9,26 @@ package system
 
 import (
 	"fmt"
+	"runtime"
 
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/mem"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
+
+// For testing purpose
+var virtualMemory = mem.VirtualMemory
+var swapMemory = mem.SwapMemory
+var runtimeOS = runtime.GOOS
+
+// MemoryCheck doesn't need additional fields
+type MemoryCheck struct {
+	core.CheckBase
+}
+
+const mbSize float64 = 1024 * 1024
 
 // Run executes the check
 func (c *MemoryCheck) Run() error {

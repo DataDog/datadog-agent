@@ -6,26 +6,11 @@
 package system
 
 import (
-	"runtime"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/shirou/gopsutil/mem"
 )
 
 const memCheckName = "memory"
-
-// For testing purpose
-var virtualMemory = mem.VirtualMemory
-var swapMemory = mem.SwapMemory
-var runtimeOS = runtime.GOOS
-
-// MemoryCheck doesn't need additional fields
-type MemoryCheck struct {
-	core.CheckBase
-}
-
-const mbSize float64 = 1024 * 1024
 
 // Configure the Python check from YAML data
 func (c *MemoryCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {

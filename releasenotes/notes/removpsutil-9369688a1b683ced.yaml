@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Removes all use of `gopsutil` from Windows builds.  Fixes the problem
+    introduced in 6.2 where on some systems, core metrics (such as 
+    system.cpu.*) were lost

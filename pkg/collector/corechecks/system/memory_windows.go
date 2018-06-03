@@ -2,18 +2,32 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
-
 // +build windows
 
 package system
 
 import (
 	"fmt"
+	"runtime"
 
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
+
+// For testing purpose
+var virtualMemory = winutil.VirtualMemory
+var swapMemory = winutil.SwapMemory
+var runtimeOS = runtime.GOOS
+
+// MemoryCheck doesn't need additional fields
+type MemoryCheck struct {
+	core.CheckBase
+}
+
+const mbSize float64 = 1024 * 1024
 
 // Run executes the check
 func (c *MemoryCheck) Run() error {

@@ -3,6 +3,7 @@ Golang related tasks go here
 """
 from __future__ import print_function
 import os
+import sys
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -201,6 +202,11 @@ def deps(ctx):
     ctx.run("go get -u github.com/gordonklaus/ineffassign")
     ctx.run("go get -u github.com/client9/misspell/cmd/misspell")
     ctx.run("dep ensure")
+    # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
+    # in because it's necessary on other platforms
+    if sys.platform == 'win32':
+        print("Removing PSUTIL on Windows")
+        ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
 
 
 @task
