@@ -414,7 +414,7 @@ func (s *DockerService) GetPorts() ([]ContainerPort, error) {
 	}
 
 	sort.Slice(ports, func(i, j int) bool {
-		return ports[i].ContainerPort < ports[j].ContainerPort
+		return ports[i].Port < ports[j].Port
 	})
 	s.Ports = ports
 	return ports, nil
