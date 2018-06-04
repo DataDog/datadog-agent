@@ -25,7 +25,7 @@ func GetTags() ([]string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	return getTags(ctx.Background(), du.cli)
+	return getTags(ctx, du.cli)
 }
 
 func getTags(ctx context.Context, client client.SystemAPIClient) ([]string, error) {
