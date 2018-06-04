@@ -72,9 +72,9 @@ DWORD WINAPI SubscriptionCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID pCon
 
 	switch (action)
 	{
-		// You should only get the evtSubscribeActionError action if your subscription flags
-		// includes evtSubscribeStrict and the channel contains missing event records.
-	case evtSubscribeActionError:
+		// You should only get the EvtSubscribeActionError action if your subscription flags
+		// includes EvtSubscribeStrict and the channel contains missing event records.
+	case EvtSubscribeActionError:
 		if ((ULONGLONG)ERROR_EVT_QUERY_RESULT_STALE == (ULONGLONG)hEvent)
 		{
 			goStaleCallback((ULONGLONG)hEvent, pContext);
@@ -85,7 +85,7 @@ DWORD WINAPI SubscriptionCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID pCon
 		}
 		break;
 
-	case evtSubscribeActionDeliver:
+	case EvtSubscribeActionDeliver:
 		goNotificationCallback((ULONGLONG) hEvent, pContext);
 		break;
 
@@ -113,7 +113,7 @@ DWORD PrintEvent(EVT_HANDLE hEvent)
 	DWORD dwPropertyCount = 0;
 	LPWSTR pRenderedContent = NULL;
 
-	if (!EvtRender(NULL, hEvent, evtRenderEventXml, dwBufferSize, pRenderedContent, &dwBufferUsed, &dwPropertyCount))
+	if (!EvtRender(NULL, hEvent, EvtRenderEventXml, dwBufferSize, pRenderedContent, &dwBufferUsed, &dwPropertyCount))
 	{
 		if (ERROR_INSUFFICIENT_BUFFER == (status = GetLastError()))
 		{
@@ -121,7 +121,7 @@ DWORD PrintEvent(EVT_HANDLE hEvent)
 			pRenderedContent = (LPWSTR)malloc(dwBufferSize);
 			if (pRenderedContent)
 			{
-				EvtRender(NULL, hEvent, evtRenderEventXml, dwBufferSize, pRenderedContent, &dwBufferUsed, &dwPropertyCount);
+				EvtRender(NULL, hEvent, EvtRenderEventXml, dwBufferSize, pRenderedContent, &dwBufferUsed, &dwPropertyCount);
 			}
 			else
 			{

@@ -115,7 +115,7 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 
 	_, _, err = procEvtRender.Call(uintptr(0), // this handle is always null for XML renders
 		uintptr(h),                 // handle of event we're rendering
-		uintptr(evtRenderEventXml), // for now, always render in xml
+		uintptr(EvtRenderEventXml), // for now, always render in xml
 		uintptr(bufSize),
 		uintptr(0),                          //no buffer for now, just getting necessary size
 		uintptr(unsafe.Pointer(&bufUsed)),   // filled in with necessary buffer size
@@ -127,7 +127,7 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 	buf := make([]uint8, bufSize)
 	ret, _, err := procEvtRender.Call(uintptr(0), // this handle is always null for XML renders
 		uintptr(h),                 // handle of event we're rendering
-		uintptr(evtRenderEventXml), // for now, always render in xml
+		uintptr(EvtRenderEventXml), // for now, always render in xml
 		uintptr(bufSize),
 		uintptr(unsafe.Pointer(&buf[0])),    //no buffer for now, just getting necessary size
 		uintptr(unsafe.Pointer(&bufUsed)),   // filled in with necessary buffer size
@@ -146,16 +146,16 @@ type evtSubscribeNotifyAction int32
 type evtSubscribeFlags int32
 
 const (
-	evtSubscribeActionError   evtSubscribeNotifyAction = 0
-	evtSubscribeActionDeliver evtSubscribeNotifyAction = 1
+	EvtSubscribeActionError   evtSubscribeNotifyAction = 0
+	EvtSubscribeActionDeliver evtSubscribeNotifyAction = 1
 
-	evtSubscribeOriginMask          evtSubscribeFlags = 0x3
-	evtSubscribeTolerateQueryErrors evtSubscribeFlags = 0x1000
-	evtSubscribeStrict              evtSubscribeFlags = 0x10000
+	EvtSubscribeOriginMask          evtSubscribeFlags = 0x3
+	EvtSubscribeTolerateQueryErrors evtSubscribeFlags = 0x1000
+	EvtSubscribeStrict              evtSubscribeFlags = 0x10000
 
-	evtRenderEventValues = 0 // Variants
-	evtRenderEventXml    = 1 // XML
-	evtRenderBookmark    = 2 // Bookmark
+	EvtRenderEventValues = 0 // Variants
+	EvtRenderEventXml    = 1 // XML
+	EvtRenderBookmark    = 2 // Bookmark
 
 	ERROR_NO_MORE_ITEMS syscall.Errno = 259
 )
