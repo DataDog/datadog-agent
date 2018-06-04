@@ -14,11 +14,10 @@ import (
 // ID is the representation of the unique ID of a Service
 type ID string
 
-// ContainerPort represents a network port in a Service. Note that not all Services support
-// named network ports.
+// ContainerPort represents a network port in a Service.
 type ContainerPort struct {
-	ContainerPort int
-	Name          string
+	Port int
+	Name string
 }
 
 // Service represents an application we can run a check against.

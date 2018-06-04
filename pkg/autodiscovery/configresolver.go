@@ -298,7 +298,7 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	}
 
 	if len(tplVar) == 0 {
-		return []byte(strconv.Itoa(ports[len(ports)-1].ContainerPort)), nil
+		return []byte(strconv.Itoa(ports[len(ports)-1].Port)), nil
 	}
 
 	idx, err := strconv.Atoi((string(tplVar)))
@@ -306,7 +306,7 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		// The template variable is not an index so try to lookup port by name.
 		for _, port := range ports {
 			if port.Name == string(tplVar) {
-				return []byte(strconv.Itoa(port.ContainerPort)), nil
+				return []byte(strconv.Itoa(port.Port)), nil
 			}
 		}
 		return nil, fmt.Errorf("port %s not found, skipping container %s", string(tplVar), svc.GetID())
@@ -314,7 +314,7 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	if len(ports) <= idx {
 		return nil, fmt.Errorf("index given for the port template var is too big, skipping container %s", svc.GetID())
 	}
-	return []byte(strconv.Itoa(ports[idx].ContainerPort)), nil
+	return []byte(strconv.Itoa(ports[idx].Port)), nil
 }
 
 // getPid returns the process identifier of the service

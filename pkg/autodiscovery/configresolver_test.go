@@ -422,9 +422,8 @@ func TestResolve(t *testing.T) {
 
 func newFakeContainerPorts() []listeners.ContainerPort {
 	return []listeners.ContainerPort{
-		{ContainerPort: 1, Name: "foo"},
-		{ContainerPort: 2, Name: "bar"},
-		{ContainerPort: 3, Name: "baz"},
-		{ContainerPort: 4, Name: ""},
+		{Port: 1, Name: "foo"},
+		{Port: 2, Name: "bar"},
+		{Port: 3, Name: "baz"},
 	}
 }
