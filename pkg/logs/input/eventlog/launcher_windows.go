@@ -23,7 +23,7 @@ import (
 	Windows related methods
 */
 
-type EvtEnumHandle uintptr
+type evtEnumHandle uintptr
 
 // EnumerateChannels enumerates available log channels
 func EnumerateChannels() (chans []string, err error) {
@@ -32,8 +32,8 @@ func EnumerateChannels() (chans []string, err error) {
 	ret, _, err := procEvtOpenChannelEnum.Call(uintptr(0), // local computer
 		uintptr(0)) // must be zero
 
-	hEnum := EvtEnumHandle(ret)
-	if hEnum == EvtEnumHandle(0) {
+	hEnum := evtEnumHandle(ret)
+	if hEnum == evtEnumHandle(0) {
 		return
 	}
 	defer procEvtClose.Call(uintptr(hEnum))
@@ -55,7 +55,7 @@ func EnumerateChannels() (chans []string, err error) {
 	return
 }
 
-func evtNextChannel(h EvtEnumHandle) (ch string, err error) {
+func evtNextChannel(h evtEnumHandle) (ch string, err error) {
 
 	var bufSize uint32
 	var bufUsed uint32
