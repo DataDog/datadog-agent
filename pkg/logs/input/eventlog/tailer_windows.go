@@ -15,7 +15,6 @@ import "C"
 
 import (
 	"syscall"
-	"time"
 	"unsafe"
 
 	log "github.com/cihub/seelog"
@@ -43,7 +42,7 @@ func (t *Tailer) tail() {
 		C.CString(t.config.ChannelPath),
 		C.CString(t.config.Query),
 		C.ULONGLONG(0),
-		C.int(EvtSubscribeStartAtOldestRecord), // FIXME
+		C.int(EvtSubscribeToFutureEvents),
 		C.PVOID(uintptr(unsafe.Pointer(t.context))),
 	)
 	t.source.Status.Success()
@@ -74,7 +73,6 @@ func goErrorCallback(errCode C.ULONGLONG, ctx C.PVOID) {
 //export goNotificationCallback
 func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 	goctx := *(*eventContext)(unsafe.Pointer(uintptr(ctx)))
-	time.Sleep(1000 * time.Millisecond) // FIXME
 	log.Debug("Callback from ", goctx.id)
 
 	xml, err := EvtRender(handle)
