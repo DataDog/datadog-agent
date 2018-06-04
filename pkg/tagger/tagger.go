@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -262,6 +263,25 @@ ITER_COLLECTORS:
 	computedTags := utils.ConcatenateTags(tagArrays)
 
 	return copyArray(computedTags), nil
+}
+
+// List the content of the tagger
+func (t *Tagger) List(highCard bool) response.TaggerListResponse {
+	r := response.TaggerListResponse{
+		Entities: make(map[string]response.TaggerListEntity),
+	}
+
+	t.tagStore.storeMutex.RLock()
+	defer t.tagStore.storeMutex.RUnlock()
+	for entityID, et := range t.tagStore.store {
+		entity := response.TaggerListEntity{}
+		tags, sources := et.get(highCard)
+		entity.Tags = copyArray(tags)
+		entity.Sources = copyArray(sources)
+		r.Entities[entityID] = entity
+	}
+
+	return r
 }
 
 // copyArray makes sure the tagger does not return internal slices
