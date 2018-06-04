@@ -212,6 +212,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 		}
 
 		if k.latestEventToken == versionToken {
+			log.Tracef("No new events collected")
 			// No new events but protobuf error was caught. Will retry at next run.
 			return nil, nil, nil
 		}

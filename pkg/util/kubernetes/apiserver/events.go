@@ -10,6 +10,7 @@ package apiserver
 //// Covered by test/integration/util/kube_apiserver/events_test.go
 
 import (
+	"reflect"
 	"strconv"
 	"time"
 
@@ -21,7 +22,10 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
-var eventReadTimeout = 100 * time.Millisecond
+var (
+	eventReadTimeout = 100 * time.Millisecond
+	expectedType     = reflect.TypeOf(v1.Event{})
+)
 
 // LatestEvents retrieves all the cluster events happening after a given token.
 // First slice is the new events, second slice the modified events.
@@ -29,74 +33,80 @@ var eventReadTimeout = 100 * time.Millisecond
 // overloading it.
 // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#watch-list-289
 func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string, error) {
-	var addedEvents, modifiedEvents []*v1.Event
+	var added, modified []*v1.Event
 
 	// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
 	// One could chose to use "" instead of 0 to not query the API Server cache.
 	// We decide to only rely on the cache as it avoids crawling everything from the API Server at once.
-
-	log.Tracef("since value is %q", since)
-
-	resVersionCached, err := strconv.Atoi(since)
+	resVersionInt, err := strconv.Atoi(since)
 	if err != nil {
-		log.Errorf("The cached event token could not be parsed: %s, pulling events from the API server's cache", err)
+		log.Errorf("The cached resourceVersion token %s, could not be parsed with: %s", since, err)
+		since = "0"
 	}
 
-	eventWatcher, errs := c.Client.Events("").Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
-	if errs != nil {
-		log.Debugf("error getting watcher")
+	log.Tracef("Starting watch of %v with resourceVersion %s", expectedType, since)
+
+	eventWatcher, err := c.Client.Events(metav1.NamespaceAll).Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
+	if err != nil {
+		log.Debugf("Failed to watch %v: %v", expectedType, err)
 	}
+	defer eventWatcher.Stop()
+
 	watcherTimeout := time.NewTimer(eventReadTimeout)
 	for {
 		select {
-		case rcvdEv := <-eventWatcher.ResultChan():
+		case rcvdEv, ok := <-eventWatcher.ResultChan():
+			if !ok {
+				log.Debugf("Unexpected watch close")
+				return added, modified, strconv.Itoa(resVersionInt), nil
+			}
 			if rcvdEv.Type == watch.Error {
-				errEvent, ok := rcvdEv.Object.(*metav1.Status)
+				status, ok := rcvdEv.Object.(*metav1.Status)
 				if !ok {
 					return nil, nil, "0", errors.New("could not parse status of error event from the API Server.") // TODO custom error
 				}
-				if errEvent.Reason == "Expired" {
+				if status.Reason == "Expired" {
 					// Known issue with ETCD https://github.com/kubernetes/kubernetes/issues/45506
 					// Once we have started the event watcher, we do not expect the resversion to be "0"
 					// Except when initializing. Forcing to 0 so we can keep on watching without hitting the cache.
-					log.Tracef("Resversion expired: %s", errEvent.Message)
-					resVersionCached = 0
+					log.Tracef("Resversion expired: %s", status.Message)
+					return added, modified, "0", nil
 				}
 				// We continue here to avoid casting into a *v1.Event.
 				// In this case, the event is of type *metav1.Status.
+				log.Debugf("Unexpected watch error: %s", status.Message)
 				continue
 			}
 
 			currEvent, ok := rcvdEv.Object.(*v1.Event)
 			if !ok {
-				log.Debugf("Unexpected format for the evaluated event. Skipping.")
+				log.Debugf("The event object cannot be safely converted to %v: %v", expectedType, rcvdEv.Object)
 				continue
 			}
 
 			evResVer, err := strconv.Atoi(currEvent.ResourceVersion)
 			if err != nil {
 				// Could not convert the Resversion. Returning.
-				return addedEvents, modifiedEvents, "0", err
+				return added, modified, "0", err
 			}
-			if evResVer > resVersionCached {
-				resVersionCached = evResVer
+			if evResVer > resVersionInt {
+				resVersionInt = evResVer
 			}
 
 			if rcvdEv.Type == watch.Added {
-				addedEvents = append(addedEvents, currEvent)
-				resVersionCached = evResVer
+				added = append(added, currEvent)
+				resVersionInt = evResVer
 			}
 			if rcvdEv.Type == watch.Modified {
-				modifiedEvents = append(modifiedEvents, currEvent)
-				resVersionCached = evResVer
+				modified = append(modified, currEvent)
+				resVersionInt = evResVer
 			}
 			watcherTimeout.Reset(eventReadTimeout)
 
 		case <-watcherTimeout.C:
-			// No more events to read or the crawl lasted more than `eventReadTimeout`.
-			// Gracefully closing the watcher returning what was processed.
-			eventWatcher.Stop()
-			return addedEvents, modifiedEvents, strconv.Itoa(resVersionCached), nil
+			// No more events to read or the watch lasted more than `eventReadTimeout`.
+			// so return what was processed.
+			return added, modified, strconv.Itoa(resVersionInt), nil
 		}
 	}
 }
