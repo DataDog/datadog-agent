@@ -26,7 +26,7 @@ type Launcher struct {
 func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
 	windowsEventSources := []*config.LogSource{}
 	for _, source := range sources {
-		if source.Config.Type == config.EventLogType {
+		if source.Config.Type == config.WindowsEventLogType {
 			windowsEventSources = append(windowsEventSources, source)
 		}
 	}

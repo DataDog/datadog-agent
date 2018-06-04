@@ -22,7 +22,7 @@ import (
 
 // Start starts tailing the event log from a given offset.
 func (t *Tailer) Start(_ string) {
-	log.Info("Starting event log tailing for channel ", t.config.ChannelPath, " query ", t.config.Query)
+	log.Infof("Starting event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	go t.tail()
 }
 
@@ -82,12 +82,12 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 	}
 	t, exists := tailerForIndex(goctx.id)
 	if !exists {
-		log.Warn("Got invalid eventContext id ", goctx.id, " when map is", eventContextToTailerMap)
+		log.Warnf("Got invalid eventContext id %s when map is %s", goctx.id, eventContextToTailerMap)
 		return
 	}
 	msg, err := t.toMessage(xml)
 	if err != nil {
-		log.Warn("Couldn't convert xml to json: ", err, " for event ", xml)
+		log.Warnf("Couldn't convert xml to json: %s for event %s", err, xml)
 		return
 	}
 

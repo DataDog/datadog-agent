@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"syscall"
 	"unsafe"
+
+	log "github.com/cihub/seelog"
 )
 
 /*
@@ -44,7 +46,6 @@ func EnumerateChannels() (chans []string, err error) {
 		if err == nil {
 			chans = append(chans, str)
 		} else if err == error(ERROR_NO_MORE_ITEMS) {
-			fmt.Printf("setting err to nil\n")
 			err = nil
 			break
 		} else {
@@ -65,7 +66,7 @@ func evtNextChannel(h evtEnumHandle) (ch string, err error) {
 		uintptr(0),                        //no buffer for now, just getting necessary size
 		uintptr(unsafe.Pointer(&bufUsed))) // filled in with necessary buffer size
 	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
-		fmt.Printf("Next: %v %v", ret, err)
+		log.Warnf("Next: %v %v", ret, err)
 		return
 	}
 	bufSize = bufUsed
@@ -75,7 +76,7 @@ func evtNextChannel(h evtEnumHandle) (ch string, err error) {
 		uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(unsafe.Pointer(&bufUsed))) // filled in with necessary buffer size
 	if ret == 0 {
-		fmt.Printf("Next: %v %v", ret, err)
+		log.Warnf("Next: %v %v", ret, err)
 		return
 	}
 	err = nil
