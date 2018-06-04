@@ -40,6 +40,16 @@ build do
             delete "#{install_dir}/bin/agent/dist/conf.d"
             delete "#{install_dir}/bin/agent/dist/*.conf*"
             delete "#{install_dir}/bin/agent/dist/*.yaml"
+
+            # fix pip
+            real_embed_dir = "c:\\Progra~1\\Datadog\\Datado~1\\embedded"
+            source_embed_dir = "#{install_dir}/embedded"
+            Dir.glob("#{windows_safe_path(source_embed_dir)}\\Scripts\\*.py") do |pyenv_file|
+              script = File.read(pyenv_file)
+              fixed_script = script.gsub(/\#\!C\:\\opt\\datadog\-agent\\embedded/, "#!#{real_embed_dir}")
+              File.open(pyenv_file, "w") {|file| file.puts fixed_script }
+            end
+
         elsif linux?
             # Move system service files
             mkdir "/etc/init"

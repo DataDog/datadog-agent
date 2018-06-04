@@ -9,6 +9,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 )
 
@@ -20,10 +21,20 @@ var (
 	relPipPath           = filepath.Join("Scripts", pip)
 	relConstraintsPath   = filepath.Join("..", constraintsFile)
 	relTufConfigFilePath = filepath.Join("..", tufConfigFile)
-	relTufPipCache       = filepath.Join("..", "repositories", "cache")
+	tufPipCachePath      = filepath.Join("c:", "ProgramData", "Datadog", "repositories", "cache")
 )
 
 func authorizedUser() bool {
 	// TODO: implement something useful
 	return true
+}
+
+func getTUFPipCachePath() (string, error) {
+	if _, err := os.Stat(tufPipCachePath); err != nil {
+		if os.IsNotExist(err) {
+			return tufPipCachePath, err
+		}
+	}
+
+	return tufPipCachePath, nil
 }

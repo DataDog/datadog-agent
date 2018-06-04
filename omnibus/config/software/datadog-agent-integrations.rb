@@ -4,6 +4,7 @@
 # Copyright 2018 Datadog, Inc.
 
 require './lib/ostools.rb'
+require 'json'
 
 name 'datadog-agent-integrations'
 
@@ -55,14 +56,31 @@ build do
 
     all_reqs_file.close
 
-    # Add TUF metadata
+    # required by TUF for meta
     if windows?
-      copy "#{windows_safe_path(project_dir)}\\.public-tuf-config.json", "#{windows_safe_path(install_dir)}\\public-tuf-config.json"
-      copy "#{windows_safe_path(project_dir)}\\.tuf-root.json", "#{windows_safe_path(install_dir)}\\root.json"
+      tuf_repo = windows_safe_path("#{install_dir}/etc/datadog-agent/repositories/")
+      tuf_repo_meta = windows_safe_path("#{tuf_repo}/public-integrations-core/metadata/")
     else
-      copy "#{project_dir}/.public-tuf-config.json", "#{install_dir}/public-tuf-config.json"
-      copy "#{project_dir}/.tuf-root.json", "#{install_dir}/root.json"
+      tuf_repo = "#{install_dir}/repositories/"
+      tuf_repo_meta = "#{tuf_repo}/public-integrations-core/metadata/"
     end
+
+    # Add TUF metadata
+    mkdir windows_safe_path("#{tuf_repo}/cache")
+    mkdir windows_safe_path("#{tuf_repo_meta}/current")
+    mkdir windows_safe_path("#{tuf_repo_meta}/previous")
+    if windows?
+      file = File.read(windows_safe_path("#{project_dir}/.public-tuf-config.json"))
+      tuf_config = JSON.parse(file)
+      tuf_config['repositories_dir'] = 'c:\\ProgramData\\Datadog\\repositories'
+      erb source: "public-tuf-config.json.erb",
+          dest: "#{install_dir}/public-tuf-config.json",
+          mode: 0640,
+          vars: { tuf_config: tuf_config }
+    else
+      copy windows_safe_path("#{project_dir}/.public-tuf-config.json"), windows_safe_path("#{install_dir}/public-tuf-config.json")
+    end
+    copy windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{tuf_repo_meta}/current/root.json")
     # File.chmod(0644, "#{install_dir}/public-tuf-config.json")
 
     # Install all the requirements

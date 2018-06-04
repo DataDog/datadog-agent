@@ -1,4 +1,3 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
@@ -31,6 +30,7 @@ var (
 	allowRoot bool
 	withTuf   bool
 	nativePkg bool
+	tufConfig string
 )
 
 func init() {
@@ -41,6 +41,7 @@ func init() {
 	tufCmd.PersistentFlags().BoolVarP(&withTuf, "tuf", "t", true, "use TUF repo")
 	tufCmd.PersistentFlags().BoolVarP(&nativePkg, "pip-package", "p", false, "providing native pip package name")
 	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
+	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "use TUF repo")
 	tufCmd.PersistentFlags().StringSlice("cmd-flags", []string{}, "command flags to pass onto pip (comma-separated or multiple flags)")
 	tufCmd.PersistentFlags().StringSlice("idx-flags", []string{}, "index flags to pass onto pip (comma-separated or multiple flags)")
 
@@ -76,6 +77,11 @@ var searchCmd = &cobra.Command{
 	RunE:  searchTuf,
 }
 
+func getTufConfigPath() string {
+	here, _ := executable.Folder()
+	return filepath.Join(here, relTufConfigFilePath)
+}
+
 func getInstrumentedPipPath() (string, error) {
 	here, _ := executable.Folder()
 	pipPath := filepath.Join(here, relPipPath)
@@ -103,29 +109,13 @@ func getConstraintsFilePath() (string, error) {
 }
 
 func getTUFConfigFilePath() (string, error) {
-	here, _ := executable.Folder()
-	tPath := filepath.Join(here, relTufConfigFilePath)
-
-	if _, err := os.Stat(tPath); err != nil {
+	if _, err := os.Stat(tufConfig); err != nil {
 		if os.IsNotExist(err) {
-			return tPath, err
+			return tufConfig, err
 		}
 	}
 
-	return tPath, nil
-}
-
-func getTUFPipCachePath() (string, error) {
-	here, _ := executable.Folder()
-	cPath := filepath.Join(here, relTufPipCache)
-
-	if _, err := os.Stat(cPath); err != nil {
-		if os.IsNotExist(err) {
-			return cPath, err
-		}
-	}
-
-	return cPath, nil
+	return tufConfig, nil
 }
 
 func tuf(args []string) error {
