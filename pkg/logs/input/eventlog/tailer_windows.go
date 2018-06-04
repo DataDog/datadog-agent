@@ -142,16 +142,16 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 
 }
 
-type EvtSubscribeNotifyAction int32
-type EvtSubscribeFlags int32
+type evtSubscribeNotifyAction int32
+type evtSubscribeFlags int32
 
 const (
-	EvtSubscribeActionError   EvtSubscribeNotifyAction = 0
-	EvtSubscribeActionDeliver EvtSubscribeNotifyAction = 1
+	EvtSubscribeActionError   evtSubscribeNotifyAction = 0
+	EvtSubscribeActionDeliver evtSubscribeNotifyAction = 1
 
-	EvtSubscribeOriginMask          EvtSubscribeFlags = 0x3
-	EvtSubscribeTolerateQueryErrors EvtSubscribeFlags = 0x1000
-	EvtSubscribeStrict              EvtSubscribeFlags = 0x10000
+	EvtSubscribeOriginMask          evtSubscribeFlags = 0x3
+	EvtSubscribeTolerateQueryErrors evtSubscribeFlags = 0x1000
+	EvtSubscribeStrict              evtSubscribeFlags = 0x10000
 
 	EvtRenderEventValues = 0 // Variants
 	EvtRenderEventXml    = 1 // XML
