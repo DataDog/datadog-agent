@@ -71,7 +71,7 @@ func TestGetTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			ctx := context.TODO()
-			tags, err := getTags(tt.client, ctx)
+			tags, err := getTags(ctx, tt.client)
 			require.NoError(t, err)
 			assert.Equal(t, tt.tags, tags)
 		})

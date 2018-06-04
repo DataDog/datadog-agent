@@ -10,6 +10,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
@@ -17,15 +18,17 @@ import (
 
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
-func GetTags(ctx context.Context) ([]string, error) {
+func GetTags() ([]string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
 		return nil, err
 	}
-	return getTags(du.cli, ctx)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	return getTags(ctx.Background(), du.cli)
 }
 
-func getTags(client client.SystemAPIClient, ctx context.Context) ([]string, error) {
+func getTags(ctx context.Context, client client.SystemAPIClient) ([]string, error) {
 	tags := []string{}
 	info, err := client.Info(ctx)
 	if err != nil {

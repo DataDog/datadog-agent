@@ -7,8 +7,6 @@
 
 package docker
 
-import "context"
-
 var (
 	// NullContainer is an empty container object that has
 	// default values for all fields including sub-fields.
@@ -34,6 +32,6 @@ func IsContainerized() bool {
 
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
-func GetTags(ctx context.Context) ([]string, error) {
+func GetTags() ([]string, error) {
 	return []string{}, nil
 }

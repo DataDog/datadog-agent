@@ -6,7 +6,6 @@
 package host
 
 import (
-	"context"
 	"os"
 	"path"
 	"runtime"
@@ -112,10 +111,7 @@ func getHostTags() *tags {
 		hostTags = append(hostTags, k8sTags...)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	dockerTags, err := docker.GetTags(ctx)
+	dockerTags, err := docker.GetTags()
 	if err != nil {
 		log.Debugf("No Docker host tags %v", err)
 	} else {
