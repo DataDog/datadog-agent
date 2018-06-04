@@ -13,11 +13,12 @@ from .utils import pkg_config_path
 
 # List of modules to ignore when running lint on Windows platform
 WIN_MODULE_WHITELIST = [
-    "iostats_wmi_windows.go",
+    "doflare.go",
     "iostats_pdh_windows.go",
+    "iostats_wmi_windows.go",
     "pdh.go",
     "pdhhelper.go",
-    "doflare.go",
+    "tailer_windows.go",
 ]
 
 # List of paths to ignore in misspell's output
