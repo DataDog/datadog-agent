@@ -139,6 +139,9 @@ In particular, the executable **MUST** (the agent will refuse to use it otherwis
 - Have **no** rights for `group` or `other`.
 - Have at least `exec` right for the owner.
 - The executable will not share any environment variables with the agent.
+- Never output sensitive information on STDERR. If the binary exit with a
+  different status code than `0` the agent will log the standard error output
+  of the executable to ease troubleshooting.
 
 ### Configuration
 
