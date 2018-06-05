@@ -1,12 +1,17 @@
-## Provides autodetected defaults, for non-kubernetes environments,
+## Provides autodetected defaults, for vanilla Docker environments,
 ## please see datadog.yaml.example for all supported options
 
-# Autodiscovery
+# Autodiscovery settings for vanilla Docker
 listeners:
   - name: docker
-
 config_providers:
-## The docker provider handles templates embedded in container labels, see
-## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
   - name: docker
     polling: true
+
+# Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
+apm_config:
+  enabled: false
+  apm_non_local_traffic: true
+
+# Use java cgroup memory awareness
+jmx_use_cgroup_memory_limit: true
