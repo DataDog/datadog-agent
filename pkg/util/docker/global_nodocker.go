@@ -29,3 +29,9 @@ func HostnameProvider(hostName string) (string, error) {
 func IsContainerized() bool {
 	return false
 }
+
+// GetTags returns tags that are automatically added to metrics and events on a
+// host that is running docker.
+func GetTags() ([]string, error) {
+	return []string{}, nil
+}
