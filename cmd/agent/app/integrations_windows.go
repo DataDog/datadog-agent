@@ -14,14 +14,14 @@ import (
 )
 
 const (
-	pip = "pip.exe"
+	pythonBin = "python.exe"
 )
 
 var (
-	relPipPath           = filepath.Join("Scripts", pip)
+	relPyPath            = pythonBin
 	relConstraintsPath   = filepath.Join("..", constraintsFile)
 	relTufConfigFilePath = filepath.Join("..", tufConfigFile)
-	tufPipCachePath      = filepath.Join("c:", "ProgramData", "Datadog", "repositories", "cache")
+	tufPipCachePath      = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
 )
 
 func authorizedUser() bool {

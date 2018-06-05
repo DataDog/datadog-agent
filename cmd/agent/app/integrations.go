@@ -82,17 +82,17 @@ func getTufConfigPath() string {
 	return filepath.Join(here, relTufConfigFilePath)
 }
 
-func getInstrumentedPipPath() (string, error) {
+func getEmbeddedPython() (string, error) {
 	here, _ := executable.Folder()
-	pipPath := filepath.Join(here, relPipPath)
+	pyPath := filepath.Join(here, relPyPath)
 
-	if _, err := os.Stat(pipPath); err != nil {
+	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
-			return pipPath, errors.New("unable to find pip executable")
+			return pyPath, errors.New("unable to find pip executable")
 		}
 	}
 
-	return pipPath, nil
+	return pyPath, nil
 }
 
 func getConstraintsFilePath() (string, error) {
@@ -123,7 +123,7 @@ func tuf(args []string) error {
 		return errors.New("Please use this tool as the agent-running user")
 	}
 
-	pipPath, err := getInstrumentedPipPath()
+	pipPath, err := getEmbeddedPython()
 	if err != nil {
 		return err
 	}
@@ -134,13 +134,15 @@ func tuf(args []string) error {
 
 	// Add pip power-user flags
 	// cmd-flags go before the actual command
+	cmd := args[0]
+	implicitFlags := args[1:]
+	args = append([]string{"-mpip"}, cmd)
+
 	cmdFlags, err := tufCmd.Flags().GetStringSlice("cmd-flags")
 	if err == nil {
-		cmd := args[0]
-		implicitFlags := args[1:]
-		args = append([]string{cmd}, cmdFlags...)
-		args = append(args, implicitFlags...)
+		args = append(args, cmdFlags...)
 	}
+	args = append(args, implicitFlags...)
 
 	// Proxy support
 	proxies, err := config.GetProxies()
