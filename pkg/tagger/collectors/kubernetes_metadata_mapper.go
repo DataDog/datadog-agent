@@ -68,6 +68,17 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 
 		low, high := tagList.Compute()
+		// Register the tags for the pod itself
+		if po.Metadata.UID != "" {
+			podInfo := &TagInfo{
+				Source:       kubeMetadataCollectorName,
+				Entity:       kubelet.PodUIDToEntityName(po.Metadata.UID),
+				HighCardTags: high,
+				LowCardTags:  low,
+			}
+			tagInfo = append(tagInfo, podInfo)
+		}
+		// Register the tags for all its containers
 		for _, container := range po.Status.Containers {
 			info := &TagInfo{
 				Source:       kubeMetadataCollectorName,
