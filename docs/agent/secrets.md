@@ -48,7 +48,7 @@ is valid. This means you could use any format you want.
 Example 1 (be careful to escape quotes so your YAML file is valid):
 
 ```
-"ENC[{\\"env\\": \\"prod\\", \\"check\\": \\"postgres\\", \\"id\\": \\"user_password\\", \\"az\\": \\"us-east-1a\\"}]"
+"ENC[{\"env\": \"prod\", \"check\": \"postgres\", \"id\": \"user_password\", \"az\": \"us-east-1a\"}]"
 ```
 
 In this example the secret's handle is the string `{"env": "prod", "check":
