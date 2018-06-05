@@ -1,5 +1,4 @@
 stages:
-  - run_test_cmd
   - source_test
   - binary_build
   - integration_test
@@ -45,8 +44,10 @@ before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
   # GOPATH to the project folder would be too complex (we'd need to replicate the `src/github/project` scheme).
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
-
-
+  - rsync -azr --delete ./ $SRC_PATH
+  - cd $SRC_PATH
+  - pip install -U pip
+  - inv -e deps
 
 
 #
@@ -978,12 +979,11 @@ deploy_puppy:
 
 # invalidate cloudfront cache
 deploy_cloudfront_invalidate:
-  stage: run_test_cmd
+  stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:v426101-b6c2713
   only:
     - master
     - tags
-    - arbll/invlidate-staging-cloudfront
   tags: [ "runner:main", "size:large" ]
   script:
     - cd /deploy_scripts/cloudfront-invalidation
