@@ -102,6 +102,13 @@ api_key:
 
 # IPC api server timeout in seconds
 # server_timeout: 15
+
+# In some environments we may have the procfs file system mounted in a
+# miscellaneous location. The procfs_path configuration paramenter allows
+# us to override the standard default location '/proc' - this setting will
+# trickle down to integrations and affect their behavior if they rely on
+# the psutil python package.
+# procfs_path: /proc
 {{ end -}}
 {{- if .Metadata }}
 # Metadata providers, add or remove from the list to enable or disable collection.
