@@ -40,12 +40,12 @@ func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, audito
 
 // Start starts new tailers.
 func (l *Launcher) Start() {
-	log.Info("Start tailing eventlog")
+	log.Info("Start tailing windows event log")
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
-		log.Debug("Could not list eventlog channels: ", err)
+		log.Debug("Could not list windows event log channels: ", err)
 	} else {
-		log.Debug("Found available eventlog channels: ", availableChannels)
+		log.Debug("Found available windows event log channels: ", availableChannels)
 	}
 
 	for _, source := range l.sources {
@@ -56,7 +56,7 @@ func (l *Launcher) Start() {
 		}
 		tailer, err := l.setupTailer(source)
 		if err != nil {
-			log.Info("Could not set up eventlog tailer: ", err)
+			log.Info("Could not set up windows event log tailer: ", err)
 		} else {
 			l.tailers[identifier] = tailer
 		}

@@ -22,13 +22,13 @@ import (
 
 // Start starts tailing the event log from a given offset.
 func (t *Tailer) Start(_ string) {
-	log.Infof("Starting event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
+	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	go t.tail()
 }
 
 // Stop stops the tailer
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing event log")
+	log.Info("Stop tailing windows event log")
 	t.stop <- struct{}{}
 	<-t.done
 }

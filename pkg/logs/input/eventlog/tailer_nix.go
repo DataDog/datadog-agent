@@ -13,7 +13,7 @@ import (
 
 // Start does not do much
 func (t *Tailer) Start(_ string) {
-	log.Warn("Event Log not supported on this system")
+	log.Warn("windows event log not supported on this system")
 	go t.tail()
 }
 
