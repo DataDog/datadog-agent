@@ -1,47 +1,51 @@
-# [BETA] Encrypted secrets
+# [BETA] Secrets Management
 
 **This feature is in beta and its options or behavior might break between
 minor or bugfix releases of the Agent.**
 
 This feature is only available on Linux at the moment.
 
-Starting with version `6.3.0`, the agent is able to collect encrypted secrets
-in the configurations from an external source. This allows users to use the
-agent alongside a secret management service (like `Vault` or other).
+Starting with version `6.3.0`, the agent is able to leverage the `secrets`
+package in order to call a customer-provided executable to handle retrieval or
+decryption of secrets, which are then loaded in memory by the agent. This
+feature allows customers to no longer store passwords and other secrets in plain
+text in configuration files. Customers have the flexibility to design their
+executable according to their preferred key management service, authentication
+method, and continuous integration workflow.
 
-This section will cover how to set up this feature.
+This section covers how to set up this feature.
 
-## Encrypting password in check configurations
+## Defining secrets in check configurations
 
-To fetch a secret from a check configuration simply use the `ENC[]` notation.
-This handle can be used as a *value* of any YAML fields in your configuration
-(not the key) in any section (`init_config`, `instances`, `logs`, ...).
+To declare a secret in a check configuration simply use the `ENC[]` notation.
+This notation can be used to denotate as a secret the *value* of any YAML field
+in your configuration (not the key), in any section (`init_config`, `instances`,
+`logs`, ...).
 
-Encrypted secrets are supported in every configuration backend: file, etcd,
-consul ...
+Secrets are supported in every configuration backend: file, etcd, consul ...
 
 Example:
 
 ```yaml
 instances:
   - server: db_prod
-    # two valid handles
-    user: ENC[db_prod_user]
+    # two valid secret handles
+    user: "ENC[db_prod_user]"
     password: "ENC[db_prod_password]"
 
-    # The `ENC[]` handle must be the entire YAML value. Which means the
-    # following handle won't be detected
-    password2: "some test ENC[db_prod_password]"
+    # The `ENC[]` handle must contain the entire YAML value, which means that
+    # the following will NOT be detected as a secret handle:
+    password2: "db-ENC[prod_password]"
 ```
 
-In the above example we have two encrypted  secrets : `db_prod_user` and
-`db_prod_password`. Those are the secrets **handles** and must uniquely identify
-a secret within your secrets management tool.
+In the above example we have two secrets : `db_prod_user` and
+`db_prod_password`. Those are the secrets **handles** and each must uniquely
+identify a secret within your secrets management backend.
 
-Between the brackets every character is allowed as long as the YAML configuration
+Between the brackets any character is allowed as long as the YAML configuration
 is valid. This means you could use any format you want.
 
-Example:
+Example 1:
 
 ```
 ENC[{"env": "prod", "check": "postgres", "id": "user_password", "az": "us-east-1a"}]
@@ -49,6 +53,14 @@ ENC[{"env": "prod", "check": "postgres", "id": "user_password", "az": "us-east-1
 
 In this example the secret handle is the string `{"env": "prod", "check":
 "postgres", "id": "user_password", "az": "us-east-1a"}`.
+
+Example 2:
+
+```
+ENC[AES256_GCM,data:v8jQ=,iv:HBE=,aad:21c=,tag:gA==]
+```
+
+In this example the secret handle is the string `AES256_GCM,data:v8jQ=,iv:HBE=,aad:21c=,tag:gA==`.
 
 **Autodiscovery**:
 
@@ -64,27 +76,67 @@ instances:
     password: ENC[db_prod_password_%%host%%]
 ```
 
-## Fetching secrets
+## Retrieving secrets from the secret backend
 
-To fetch the secrets from your configurations you have to provide an executable
-capable of fetching passwords from your secrets management tool.
+To retrieve secrets, you have to provide an executable that is able to
+authenticate to and fetch secrets from your secrets management backend.
 
-An external executable solved multiple issues:
+The agent will cache secrets internally in memory to reduce the number of calls
+(useful in a containerized environment for example). The agent calls the
+executable every time it accesses a configuration check file that contains at
+least one secret handle for which the secret is not already loaded in memory. In
+particular, secrets that have already been loaded in memory do not trigger
+additional calls to the executable. In practice, this means that the agent calls
+the customer-provided executable once per file that contains a secret handle at
+startup, and might make additional calls to the executable later if the agent or
+instance is restarted, or if the agent dynamically loads a new check containing
+a secret handle (e.g. via Autodiscovery).
 
-- Guarantees that the agent will never have more access/information than what
-  you transfer to it.
-- Maximum freedom and flexibility: allowing users to use any secrets management
-  tool (including closed sources ones) without having to rebuild the agent.
-- Solving the **initial trust** is a very complex problem as it usually changes
-  from users to users. Each setup requires more or less control and might rely on
-  private tools. This shifts the problem to where it is easier to solve, without
-  having to rebuild the agent.
+By design, the customer-provided executable needs to implement any error
+handling mechanism that a customer might require. Conversely, the agent will
+need to be restarted if a secret has to be refreshed in memory (e.g. revoked
+password).
 
-This executable will be executed by the agent once per check's instance. The
-agent will cache secrets internally to reduce the number of calls (useful in
-a containerized environment for example).
+This approach which relies on a customer-provided executable has multiple benefits:
 
-The executable **MUST** (the agent will refuse to use it otherwise):
+- Guarantees that the agent will not attempt to load in memory parameters for
+  which there isn't a secret handle.
+- Ability for the customer to limit the visibility of the agent to secrets that
+  it needs (e.g. by restraining in the key management backend the list of
+  secrets that the executable can access).
+- Maximum freedom and flexibility in allowing users to use any secrets
+  management backend (including open source solutions such as `Vault` as well as
+  closed sources ones) without having to rebuild the agent.
+- Enabling each customer to solve the **initial trust** problem from the agent
+  to their secrets management backend, in a way that leverages their preferred
+  authentication method, and fits into their continuous integration workflow.
+
+The following are sample workflows documented by customers. They are provided
+for illustrative purposes, and not as leading practices. Each customer should
+define a workflow that fits their requirements and environment.
+
+Customer A manages secrets centrally in a KMS, such as `Hashicorp Vault`. They
+store the secret’s path and name as the handle (e.g. `mysql/prod/agent-a`), then
+provide an executable that establishes trust with the KMS and makes web service
+calls to it in order to retrieve secrets needed by the agent. In this setup,
+Customer A should was careful to appropriately configure the KMS so that the
+executable only has read-only access, and only to secrets that the Datadog agent
+requires.
+
+Customer B doesn’t does not wish to provide access to a centralized KMS at
+run-time. They store an encrypted version of the secret in the configuration
+file, then provide an executable that can access an encryption key to decrypt
+it. In Customer B's setup, the continuous integration pipeline generates a new
+symmetric encryption key (e.g. in AWS KMS) for each new instance, uses it to
+encrypt secrets in the Datadog configuration files by using a templating engine
+(e.g. consul template), and ensures only the executable on this instance can
+access the encryption key.
+
+Regardless of the workflow, the customer should **take great care to secure the
+executable itself**, including setting appropriate permissions and considering
+the security implications of their executable in their environment.
+
+In particular, the executable **MUST** (the agent will refuse to use it otherwise):
 
 - Belong to the same user running the agent (usually `dd-agent`).
 - Have **no** rights for `group` or `other`.
@@ -145,8 +197,9 @@ the fetched secrets:
 }
 ```
 
-The expected payload is a JSON object, each key is one of the **handle** requested in the input payload.
-The value for each **handle** is a JSON object with 2 fields:
+The expected payload is a JSON object, each key is one of the **handle**
+requested in the input payload. The value for each **handle** is a JSON object
+with 2 fields:
 
 - `value`: a string: the actual secret value to be used in the check
   configurations (can be `null` in case of error).
@@ -156,7 +209,7 @@ The value for each **handle** is a JSON object with 2 fields:
 
 Example:
 
-Here is a dummy script prefixing every secret by `decrypted_`:
+Here is a dummy script prefixing every secret with `decrypted_`:
 
 ```py
 #!/usr/bin/python
@@ -176,7 +229,7 @@ for secret_handle in requested_secrets["secrets"]:
 print json.dumps(secrets)
 ```
 
-This will update this configuration:
+This will update this configuration (in the check file):
 
 ```yaml
 instances:
@@ -185,7 +238,7 @@ instances:
     password: ENC[db_prod_password]
 ```
 
-to this:
+to this (in the agent's memory):
 
 ```yaml
 instances:
