@@ -1,0 +1,6 @@
+---
+
+fixes:
+  - Multiple config files can now be used for the same integration
+  - Multiple configs with the same name can now be resolved by the AD
+  - JMX is not killed when an AD config is unscheduled anymore
