@@ -19,12 +19,12 @@ import (
 
 // Logs source types
 const (
-	TCPType             = "tcp"
-	UDPType             = "udp"
-	FileType            = "file"
-	DockerType          = "docker"
-	JournaldType        = "journald"
-	WindowsEventLogType = "windows_event"
+	TCPType          = "tcp"
+	UDPType          = "udp"
+	FileType         = "file"
+	DockerType       = "docker"
+	JournaldType     = "journald"
+	WindowsEventType = "windows_event"
 )
 
 // Logs rule types
@@ -195,7 +195,7 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 
 func validateConfig(config LogsConfig) error {
 	switch config.Type {
-	case FileType, DockerType, TCPType, UDPType, JournaldType, WindowsEventLogType:
+	case FileType, DockerType, TCPType, UDPType, JournaldType, WindowsEventType:
 	default:
 		return fmt.Errorf("A source must have a valid type (got %s)", config.Type)
 	}

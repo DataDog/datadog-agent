@@ -109,16 +109,16 @@ var (
 func EvtRender(h C.ULONGLONG) (xml string, err error) {
 	var bufSize uint32
 	var bufUsed uint32
-	var propCount uint32
 
 	_, _, err = procEvtRender.Call(uintptr(0), // this handle is always null for XML renders
 		uintptr(h),                 // handle of event we're rendering
 		uintptr(EvtRenderEventXml), // for now, always render in xml
 		uintptr(bufSize),
-		uintptr(0),                          //no buffer for now, just getting necessary size
-		uintptr(unsafe.Pointer(&bufUsed)),   // filled in with necessary buffer size
-		uintptr(unsafe.Pointer(&propCount))) // not used but must be provided
+		uintptr(0),                        // no buffer for now, just getting necessary size
+		uintptr(unsafe.Pointer(&bufUsed)), // filled in with necessary buffer size
+		uintptr(0))                        // not used but must be provided
 	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
+		log.Warnf("Couldn't render xml event: ", err)
 		return
 	}
 	bufSize = bufUsed
@@ -127,9 +127,9 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 		uintptr(h),                 // handle of event we're rendering
 		uintptr(EvtRenderEventXml), // for now, always render in xml
 		uintptr(bufSize),
-		uintptr(unsafe.Pointer(&buf[0])),    //no buffer for now, just getting necessary size
-		uintptr(unsafe.Pointer(&bufUsed)),   // filled in with necessary buffer size
-		uintptr(unsafe.Pointer(&propCount))) // not used but must be provided
+		uintptr(unsafe.Pointer(&buf[0])),  // actual buffer used
+		uintptr(unsafe.Pointer(&bufUsed)), // filled in with necessary buffer size
+		uintptr(0))                        // not used but must be provided
 	if ret == 0 {
 		return
 	}
