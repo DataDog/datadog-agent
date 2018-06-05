@@ -9,6 +9,7 @@ stages:
   - image_build
   - image_deploy
   - deploy
+  - deploy_invalidate
   - e2e
 
 variables:
@@ -979,7 +980,7 @@ deploy_puppy:
 
 # invalidate cloudfront cache
 deploy_cloudfront_invalidate:
-  stage: deploy
+  stage: deploy_invalidate
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:v426101-b6c2713
   only:
     - master
