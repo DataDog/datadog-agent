@@ -979,7 +979,7 @@ deploy_puppy:
 # invalidate cloudfront cache
 deploy_cloudfront_invalidate:
   stage: run_test_cmd
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:v426045-7f4e3be
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:v426101-b6c2713
   only:
     - master
     - tags
