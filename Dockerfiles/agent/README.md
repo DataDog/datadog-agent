@@ -190,7 +190,7 @@ Our default configuration targets Kubernetes 1.7.6 and later, as we rely on feat
   * `rbac.authorization.k8s.io/v1` in Kubernetes 1.8+ (and OpenShift 3.9+), the default apiVersion we target
   * `rbac.authorization.k8s.io/v1beta1` in Kubernetes 1.5 to 1.7 (and OpenShift 3.7)
   * `v1` in Openshift 1.3 to 3.6
-  
+
 You can apply our yaml manifests with the following `sed` invocations:
 ```
 sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrole.yaml | kubectl apply -f -
