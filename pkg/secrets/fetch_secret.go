@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -54,20 +56,27 @@ func execCommand(inputPayload string) ([]byte, error) {
 	// setting an empty env in case some secrets were set using the ENV (ex: API_KEY)
 	cmd.Env = []string{}
 
-	out := limitBuffer{
+	stdout := limitBuffer{
 		buf: &bytes.Buffer{},
 		max: config.Datadog.GetInt("secret_backend_output_max_size"),
 	}
-	cmd.Stdout = &out
+	stderr := limitBuffer{
+		buf: &bytes.Buffer{},
+		max: config.Datadog.GetInt("secret_backend_output_max_size"),
+	}
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	err := cmd.Run()
 	if err != nil {
+		log.Errorf("secret_backend_command stderr: %s", stderr.buf.String())
+
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, fmt.Errorf("error while running '%s': command timeout", command)
 		}
 		return nil, fmt.Errorf("error while running '%s': %s", command, err)
 	}
-	return out.buf.Bytes(), nil
+	return stdout.buf.Bytes(), nil
 }
 
 type secret struct {
@@ -89,6 +98,7 @@ func fetchSecret(secretsHandle []string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
 	}
+	log.Debugf("calling secret_backend_command with payload: '%s'", jsonPayload)
 	output, err := runCommand(string(jsonPayload))
 	if err != nil {
 		return nil, err

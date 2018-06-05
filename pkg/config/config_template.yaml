@@ -128,7 +128,8 @@ api_key:
 #   - argument1
 #   - argument2
 #
-# The size in bytes of the buffer used to store the command answer
+# The size in bytes of the buffer used to store the command answer (apply to
+# both stdout and stderr)
 # secret_backend_output_max_size: 1024
 #
 # The timeout to execute the command in second
