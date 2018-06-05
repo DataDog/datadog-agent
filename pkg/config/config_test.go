@@ -165,3 +165,90 @@ func TestEnvNestedConfig(t *testing.T) {
 	assert.Equal(t, "baz", Datadog.GetString("foo.bar.nested"))
 	os.Unsetenv("DD_FOO_BAR_NESTED")
 }
+
+func TestLoadProxyFromEnvNoValue(t *testing.T) {
+	// circleCI set some proxy setting
+	ciValue := os.Getenv("NO_PROXY")
+	os.Unsetenv("NO_PROXY")
+	defer os.Setenv("NO_PROXY", ciValue)
+
+	loadProxyFromEnv()
+	assert.Nil(t, Datadog.Get("proxy"))
+
+	proxies := GetProxies()
+	require.Nil(t, proxies)
+}
+
+func TestLoadProxyConfOnly(t *testing.T) {
+	// check value loaded before aren't overwrite when no env variables are set
+	p := &Proxy{HTTP: "test", HTTPS: "test2", NoProxy: []string{"a", "b", "c"}}
+	Datadog.Set("proxy", p)
+	defer Datadog.Set("proxy", nil)
+
+	// circleCI set some proxy setting
+	ciValue := os.Getenv("NO_PROXY")
+	os.Unsetenv("NO_PROXY")
+	defer os.Setenv("NO_PROXY", ciValue)
+
+	loadProxyFromEnv()
+	proxies := GetProxies()
+	assert.Equal(t, p, proxies)
+}
+
+func TestLoadProxyEnvOnly(t *testing.T) {
+	// uppercase
+	os.Setenv("HTTP_PROXY", "http_url")
+	os.Setenv("HTTPS_PROXY", "https_url")
+	os.Setenv("NO_PROXY", "a,b,c")
+
+	loadProxyFromEnv()
+
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "http_url",
+			HTTPS:   "https_url",
+			NoProxy: []string{"a", "b", "c"}},
+		proxies)
+
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("HTTP_PROXY")
+	Datadog.Set("proxy", nil)
+
+	// lowercase
+	os.Setenv("http_proxy", "http_url2")
+	os.Setenv("https_proxy", "https_url2")
+	os.Setenv("no_proxy", "1,2,3")
+
+	loadProxyFromEnv()
+	proxies = GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "http_url2",
+			HTTPS:   "https_url2",
+			NoProxy: []string{"1", "2", "3"}},
+		proxies)
+
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("http_proxy")
+	Datadog.Set("proxy", nil)
+}
+
+func TestLoadProxyEnvAndConf(t *testing.T) {
+	os.Setenv("HTTP", "http_env")
+	Datadog.Set("proxy.no_proxy", []string{"d", "e", "f"})
+	Datadog.Set("proxy.http", "http_conf")
+	defer os.Unsetenv("HTTP")
+	defer Datadog.Set("proxy", nil)
+
+	loadProxyFromEnv()
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "http_conf",
+			HTTPS:   "",
+			NoProxy: []string{"d", "e", "f"}},
+		proxies)
+}

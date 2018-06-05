@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -148,7 +148,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	le.m.Lock()
 	defer le.m.Unlock()
 	if le.running {
-		log.Debugf("Currently leader %s, leader identity: %q", le.IsLeader(), le.CurrentLeaderName())
+		log.Debugf("Currently leader: %t. Leader identity: %q", le.IsLeader(), le.CurrentLeaderName())
 		return nil
 	}
 

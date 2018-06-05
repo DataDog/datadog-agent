@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"

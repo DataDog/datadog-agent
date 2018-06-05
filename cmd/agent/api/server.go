@@ -41,6 +41,9 @@ func StartServer() error {
 	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
 	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
 
+	// Validate token for every request
+	r.Use(validateToken)
+
 	// get the transport we're going to use under HTTP
 	var err error
 	listener, err = getListener()
@@ -99,4 +102,13 @@ func StopServer() {
 // ServerAddress retruns the server address.
 func ServerAddress() *net.TCPAddr {
 	return listener.Addr().(*net.TCPAddr)
+}
+
+func validateToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := util.Validate(w, r); err != nil {
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

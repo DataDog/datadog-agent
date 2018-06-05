@@ -50,6 +50,7 @@ in any way.
 | `collect_instance_metadata` | `enable_metadata_collection` | This now enabled the new metadata collection mechanism |
 | `collector_log_file` | `log_file` ||
 | `syslog_host`  | `syslog_uri`  | The Syslog configuration is now expressed as an URI |
+|| `syslog_pem`  | Syslog configuration root CA for TLS client server validation |
 
 
 ## Removed options
@@ -85,8 +86,6 @@ differently from Agent version 5.
 | `use_curl_http_client` | |
 | `gce_updated_hostname` | v6 behaves like v5 with `gce_updated_hostname` set to true. May affect reported hostname, see [doc][gce-hostname] |
 | `collect_security_groups` | feature still available with the aws integration  |
-
-
 
 [datadog-yaml]: https://raw.githubusercontent.com/DataDog/datadog-agent/master/pkg/config/config_template.yaml
 [gce-hostname]: changes.md#gce-hostname

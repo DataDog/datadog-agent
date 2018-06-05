@@ -12,13 +12,14 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -192,7 +193,7 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	return checks
 }
 
-// GetAllConfigs queries all the providers and returns all the check
+// GetAllConfigs queries all the providers and returns all the integration
 // configurations found, resolving the ones it can
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	resolvedConfigs := []integration.Config{}
@@ -244,6 +245,10 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	allChecks := []check.Check{}
 	for _, config := range configs {
+		if !isCheckConfig(config) {
+			// skip non check configs.
+			continue
+		}
 		configDigest := config.Digest()
 		checks, err := ac.getChecks(config)
 		if err != nil {
@@ -261,6 +266,12 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populat
 	}
 
 	return allChecks
+}
+
+// isCheckConfig returns true if the config is a check configuration,
+// this method should be moved to pkg/collector/check while removing the check related-code from the autodiscovery package.
+func isCheckConfig(config integration.Config) bool {
+	return config.MetricConfig != nil || len(config.Instances) > 0
 }
 
 // schedule takes a slice of checks and schedule them
@@ -312,12 +323,20 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 
 		// each template can resolve to multiple configs
 		for _, config := range resolvedConfigs {
-			configs = append(configs, config)
+			if config, err := decryptConfig(config); err == nil {
+				configs = append(configs, config)
+			} else {
+				log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
+			}
 		}
 	} else {
-		configs = append(configs, config)
-		// store non template configs in the AC
-		ac.loadedConfigs = append(ac.loadedConfigs, config)
+		if config, err := decryptConfig(config); err == nil {
+			configs = append(configs, config)
+			// store non template configs in the AC
+			ac.loadedConfigs = append(ac.loadedConfigs, config)
+		} else {
+			log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
+		}
 	}
 
 	return configs
@@ -349,6 +368,38 @@ func (ac *AutoConfig) AddLoader(loader check.Loader) {
 	}
 
 	ac.loaders = append(ac.loaders, loader)
+}
+
+func decryptConfig(conf integration.Config) (integration.Config, error) {
+	var err error
+
+	// init_config
+	conf.InitConfig, err = secrets.Decrypt(conf.InitConfig)
+	if err != nil {
+		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
+	}
+
+	// instances
+	for idx := range conf.Instances {
+		conf.Instances[idx], err = secrets.Decrypt(conf.Instances[idx])
+		if err != nil {
+			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
+		}
+	}
+
+	// metrics
+	conf.MetricConfig, err = secrets.Decrypt(conf.MetricConfig)
+	if err != nil {
+		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
+	}
+
+	// logs
+	conf.LogsConfig, err = secrets.Decrypt(conf.LogsConfig)
+	if err != nil {
+		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
+	}
+
+	return conf, nil
 }
 
 // pollConfigs periodically calls Collect() on all the configuration
@@ -390,6 +441,10 @@ func (ac *AutoConfig) pollConfigs() {
 					// Process removed configs first to handle the case where a
 					// container churn would result in the same configuration hash.
 					for _, config := range removedConfigs {
+						if !isCheckConfig(config) {
+							// skip non check configs.
+							continue
+						}
 						// unschedule all the checks corresponding to this config
 						digest := config.Digest()
 						ids := ac.config2checks[digest]

@@ -9,7 +9,6 @@ package config
 
 const (
 	defaultConfdPath            = "/etc/datadog-agent/conf.d"
-	defaultDCAConfdPath         = "/etc/datadog-cluster-agent/etc/conf.d"
 	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
 	defaultRunPath              = "/opt/datadog-agent/run"
 	defaultSyslogURI            = "unixgram:///dev/log"

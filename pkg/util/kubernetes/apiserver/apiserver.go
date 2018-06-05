@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -40,7 +40,7 @@ const (
 	tokenTime                 = "tokenTimestamp"
 	tokenKey                  = "tokenKey"
 	metadataPollIntl          = 20 * time.Second
-	metadataMapExpire         = 5 * time.Minute
+	metadataMapExpire         = 2 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
 
@@ -124,12 +124,6 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	log.Debug("Could successfully collect Pods, Nodes, Services and Events")
-
-	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
-		log.Infof("The metadata mapper was configured to be disabled, not collecting metadata for the pods from the API Server")
-		return nil
-	}
-
 	return nil
 }
 
@@ -225,13 +219,28 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 	for _, node := range nodeList.Items {
 		nodeName := node.Name
 		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
+		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
+
+		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deledte key. Then compute again.
+		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
+
 		if !found {
 			metaBundle = newMetadataMapperBundle()
+			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
 		}
+
+		// We want to churn the cache every `metadataMapExpire` and if the number of entries varies between 2 runs..
+		// If a pod is killed and rescheduled during a run, we will only keep the old entry for another run, which is acceptable.
+		if found && freshnessCache != len(podList.Items) || !freshnessFound {
+			cache.Cache.Delete(nodeNameCacheKey)
+			metaBundle = newMetadataMapperBundle()
+			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
+			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
+		}
+
 		err := metaBundle.(*MetadataMapperBundle).mapServices(nodeName, *podList, *endpointList)
 		if err != nil {
-			log.Errorf("Could not map the services: %s on node %s", err.Error(), node.Name)
+			log.Errorf("Could not map the services on node %s: %s", node.Name, err.Error())
 			continue
 		}
 		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)

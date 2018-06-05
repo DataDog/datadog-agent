@@ -5,7 +5,7 @@
 
 package diagnosis
 
-import log "github.com/cihub/seelog"
+import "github.com/DataDog/datadog-agent/pkg/util/log"
 
 // Catalog holds available diagnosis for detection and usage
 type Catalog map[string]Diagnosis

@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"fmt"
 

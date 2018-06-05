@@ -8,6 +8,7 @@ package tagger
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
@@ -43,6 +44,11 @@ func Stop() error {
 // this caches the call to viper, that would lookup and parse envvars
 func IsFullCardinality() bool {
 	return fullCardinality
+}
+
+// List the content of the defaulTagger
+func List(highCard bool) response.TaggerListResponse {
+	return defaultTagger.List(highCard)
 }
 
 func init() {

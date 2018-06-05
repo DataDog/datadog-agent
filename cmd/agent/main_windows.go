@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -35,14 +36,12 @@ func setupLogger(logLevel string) error {
 </seelog>`
 	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel))
 
-	logger, err := log.LoggerFromConfigAsString(config)
+	logger, err := seelog.LoggerFromConfigAsString(config)
 	if err != nil {
 		return err
 	}
-	err = log.ReplaceLogger(logger)
-	if err != nil {
-		return err
-	}
+	log.ReplaceLogger(logger)
+
 	return nil
 }
 

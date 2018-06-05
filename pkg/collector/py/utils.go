@@ -16,7 +16,7 @@ import (
 
 	"github.com/sbinet/go-python"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // #include <Python.h>

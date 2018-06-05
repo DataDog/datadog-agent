@@ -1,7 +1,3 @@
-init_config:
-
-instances:
-
 logs:
   - type: file
     name: /foo/bar/*.log

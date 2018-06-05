@@ -10,6 +10,8 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/cihub/seelog"
 	"github.com/fatih/color"
 )
@@ -23,13 +25,12 @@ func RunAll(w io.Writer) (int, error) {
 	}
 
 	// Use temporarily a custom logger to our Writer
-	oldLogger := seelog.Current
 	customLogger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg - %Ns%n")
 	if err != nil {
 		return -1, nil
 	}
-	seelog.UseLogger(customLogger)
-	defer seelog.ReplaceLogger(oldLogger)
+	log.RegisterAdditionalLogger("diagnose", customLogger)
+	defer log.UnregisterAdditionalLogger("diagnose")
 
 	for name, f := range diagnosis.DefaultCatalog {
 		fmt.Fprintln(w, fmt.Sprintf("=== Running %s diagnosis ===", color.BlueString(name)))

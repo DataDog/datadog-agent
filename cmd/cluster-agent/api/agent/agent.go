@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"net/http"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -46,10 +46,6 @@ func SetupHandlers(r *mux.Router) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
-
 	log.Info("Got a request for the status. Making status.")
 	s, err := status.GetDCAStatus()
 	w.Header().Set("Content-Type", "application/json")
@@ -67,11 +63,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-// TODO: make sure it works for DCA
 func stopAgent(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.ValidateDCARequest(w, r); err != nil {
-		return
-	}
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
@@ -79,11 +71,8 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
-	av, err := version.New(version.AgentVersion, version.Commit)
+	av, err := version.New(version.DCAVersion, version.Commit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
@@ -97,9 +86,6 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	hname, err := util.GetHostname()
 	if err != nil {
@@ -115,10 +101,6 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
-
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("log_file")
@@ -209,9 +191,6 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 
 // getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.
 func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
 	log.Infof("Fetching metadata map on all pods of the node %s", nodeName)
@@ -252,9 +231,6 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: map[string]string
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
-	if err := apiutil.Validate(w, r); err != nil {
-		return
-	}
 	log.Info("Computing metadata map on all nodes")
 	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes()
 	// If we hit an error at this point, it is because we don't have access to the API server.

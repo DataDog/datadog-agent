@@ -45,7 +45,7 @@ DEFAULT_TEST_TARGETS = [
 
 @task()
 def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
-         timeout=60):
+         timeout=120):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -72,7 +72,7 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     lint_filenames(ctx)
     fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=tool_targets)
-    vet(ctx, targets=tool_targets)
+    vet(ctx, targets=tool_targets, use_embedded_libs=use_embedded_libs)
     misspell(ctx, targets=tool_targets)
     ineffassign(ctx, targets=tool_targets)
 
@@ -212,6 +212,7 @@ def lint_releasenote(ctx):
 
     ctx.run("reno lint")
 
+
 @task
 def lint_filenames(ctx):
     """
@@ -243,6 +244,24 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
+def e2e_tests(ctx, target="gitlab", image=""):
+    """
+    Run e2e tests in several environments.
+    """
+    choices = ["gitlab", "dev", "local"]
+    if target not in choices:
+        print('target %s not in %s' % (target, choices))
+        raise Exit(1)
+    if not os.getenv("DATADOG_AGENT_IMAGE"):
+        if not image:
+            print("define DATADOG_AGENT_IMAGE envvar or image flag")
+            raise Exit(1)
+        os.environ["DATADOG_AGENT_IMAGE"] = image
+
+    ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
+
+
+@task
 def version(ctx, url_safe=False, git_sha_length=7):
     """
     Get the agent version.
@@ -252,6 +271,7 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))
+
 
 class TestProfiler:
     times = []

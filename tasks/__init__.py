@@ -4,10 +4,10 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 from invoke import Collection
 
-from . import agent, benchmarks, docker, dogstatsd, pylauncher, cluster_agent, systray
+from . import agent, benchmarks, docker, dogstatsd, pylauncher, cluster_agent, systray, release
 
 from .go import fmt, lint, vet, cyclo, ineffassign, misspell, deps, reset
-from .test import test, integration_tests, version, lint_releasenote, lint_filenames
+from .test import test, integration_tests, version, lint_releasenote, lint_filenames, e2e_tests
 from .build_tags import audit_tag_impact
 
 # the root namespace
@@ -28,6 +28,7 @@ ns.add_task(version)
 ns.add_task(lint_releasenote)
 ns.add_task(lint_filenames)
 ns.add_task(audit_tag_impact)
+ns.add_task(e2e_tests)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -37,6 +38,7 @@ ns.add_collection(docker)
 ns.add_collection(dogstatsd)
 ns.add_collection(pylauncher)
 ns.add_collection(systray)
+ns.add_collection(release)
 
 ns.configure({
     'run': {

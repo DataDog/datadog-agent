@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -202,19 +202,8 @@ func CreateHTTPTransport() *http.Transport {
 		TLSClientConfig: tlsConfig,
 	}
 
-	if proxies := config.Datadog.Get("proxy"); proxies != nil {
-		proxies := &config.Proxy{}
-		if err := config.Datadog.UnmarshalKey("proxy", proxies); err != nil {
-			log.Errorf("Could not load the proxy configuration: %s", err)
-		} else {
-			transport.Proxy = GetProxyTransportFunc(proxies)
-		}
+	if proxies := config.GetProxies(); proxies != nil {
+		transport.Proxy = GetProxyTransportFunc(proxies)
 	}
-
-	if os.Getenv("http_proxy") != "" || os.Getenv("https_proxy") != "" ||
-		os.Getenv("HTTP_PROXY") != "" || os.Getenv("HTTPS_PROXY") != "" {
-		log.Warn("Env variables 'http_proxy' and 'https_proxy' are not enforced by the agent, please use the configuration file.")
-	}
-
 	return transport
 }

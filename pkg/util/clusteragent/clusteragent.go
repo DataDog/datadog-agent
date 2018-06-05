@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -58,8 +58,7 @@ func GetClusterAgentClient() (*DCAClient, error) {
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	err := globalClusterAgentClient.initRetry.TriggerRetry()
-	if err != nil {
+	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("Init error: %s", err)
 		return nil, err
 	}

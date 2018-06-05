@@ -7,6 +7,7 @@ import os
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
+from .utils import pkg_config_path
 
 
 # List of modules to ignore when running lint on Windows platform
@@ -87,7 +88,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets):
+def vet(ctx, targets, use_embedded_libs=False):
     """
     Run go vet on targets.
 
@@ -102,7 +103,12 @@ def vet(ctx, targets):
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
     build_tags = get_default_build_tags()
-    ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args))
+
+    env = {
+        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
+    }
+
+    ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")
@@ -174,16 +180,31 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False):
     """
     Setup Go dependencies
     """
-    ctx.run("go get -u github.com/golang/dep/cmd/dep")
-    ctx.run("go get -u github.com/golang/lint/golint")
-    ctx.run("go get -u github.com/fzipp/gocyclo")
-    ctx.run("go get -u github.com/gordonklaus/ineffassign")
-    ctx.run("go get -u github.com/client9/misspell/cmd/misspell")
-    ctx.run("dep ensure")
+    verbosity = ' -v' if verbose else ''
+    ctx.run('go get{} -u github.com/golang/dep/cmd/dep'.format(verbosity))
+    ctx.run('go get{} -u github.com/golang/lint/golint'.format(verbosity))
+    ctx.run('go get{} -u github.com/fzipp/gocyclo'.format(verbosity))
+    ctx.run('go get{} -u github.com/gordonklaus/ineffassign'.format(verbosity))
+    ctx.run('go get{} -u github.com/client9/misspell/cmd/misspell'.format(verbosity))
+    ctx.run('dep ensure{}'.format(verbosity))
+
+    if not no_checks:
+        verbosity = 'v' if verbose else 'q'
+        core_dir = core_dir or os.getenv('DD_CORE_DIR')
+
+        if core_dir:
+            checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
+            ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
+        else:
+            core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
+            checks_base = os.path.join(core_dir, 'datadog_checks_base')
+            if not os.path.isdir(core_dir):
+                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
+            ctx.run('pip install -{} {}'.format(verbosity, checks_base))
 
 
 @task

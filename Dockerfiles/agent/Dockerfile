@@ -47,13 +47,6 @@ ARG WITH_JMX
 ENV DOCKER_DD_AGENT=yes \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
     CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
-    # Disable dsd, apm and logs listening until user decides so, to avoid unknown open ports
-    DD_DOGSTATSD_NON_LOCAL_TRAFFIC=false \
-    DD_APM_ENABLED=false \
-    DD_APM_NON_LOCAL_TRAFFIC=true \
-    DD_LOGS_ENABLED=false \
-    # Use java 8u131+ cgroup memory awareness
-    DD_JMX_USE_CGROUP_MEMORY_LIMIT=true \
     # Pass envvar variables to agents
     S6_KEEP_ENV=1 \
     # Direct all agent logs to stdout

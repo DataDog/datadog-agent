@@ -15,7 +15,7 @@ import (
 	"math"
 	"sort"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EPSILON represents the accuracy of the sketch.

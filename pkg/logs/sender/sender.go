@@ -9,7 +9,7 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // A Sender sends messages from an inputChan to datadog's intake,

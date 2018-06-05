@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LoaderFactory helps to defer actual instantiation of Check Loaders,

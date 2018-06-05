@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.

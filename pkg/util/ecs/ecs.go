@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -63,7 +63,7 @@ type (
 
 var globalUtil *Util
 
-// GetUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
+// GetUtil returns a ready to use ecs Util. It is backed by a shared singleton.
 func GetUtil() (*Util, error) {
 	if globalUtil == nil {
 		globalUtil = &Util{}
@@ -75,8 +75,7 @@ func GetUtil() (*Util, error) {
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	err := globalUtil.initRetry.TriggerRetry()
-	if err != nil {
+	if err := globalUtil.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("ECS init error: %s", err)
 		return nil, err
 	}

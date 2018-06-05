@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -17,7 +18,8 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 )
 
 const logFileMaxSize = 10 * 1024 * 1024         // 10MB
@@ -34,10 +36,15 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 	}
 
 	if pem != "" {
-		if logCertPool == nil {
-			logCertPool = x509.NewCertPool()
+		if cert, err := ioutil.ReadFile(pem); err == nil {
+			if logCertPool == nil {
+				logCertPool = x509.NewCertPool()
+			}
+			logCertPool.AppendCertsFromPEM(cert)
+		} else {
+			log.Errorf("Unable to read PEM certificate")
+			return err
 		}
-		logCertPool.AppendCertsFromPEM([]byte(pem))
 	}
 
 	seelogLogLevel := strings.ToLower(logLevel)
@@ -45,13 +52,11 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		seelogLogLevel = "warn"
 	}
 
-	configTemplate := `<seelog minlevel="%s">`
+	configTemplate := fmt.Sprintf(`<seelog minlevel="%s">`, seelogLogLevel)
 
-	formatID := ""
+	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
-	} else {
-		formatID = "common"
 	}
 
 	configTemplate += fmt.Sprintf(`<outputs formatid="%s">`, formatID)
@@ -60,7 +65,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		configTemplate += `<console />`
 	}
 	if logFile != "" {
-		configTemplate += `<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />`
+		configTemplate += fmt.Sprintf(`<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />`, logFile, logFileMaxSize)
 	}
 	if syslog {
 		var syslogTemplate string
@@ -77,22 +82,22 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		configTemplate += syslogTemplate
 	}
 
-	configTemplate += `</outputs>
+	configTemplate += fmt.Sprintf(`</outputs>
 	<formats>
 		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%File&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
 		<format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n"/>
-		<format id="syslog-json" format="%%CustomSyslogHeader(20,` + strconv.FormatBool(rfc) + `){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,` + strconv.FormatBool(rfc) + `) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
+		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />
+	</formats>
+</seelog>`, logDateFormat, logDateFormat)
 
-	configTemplate += `</formats>
-	</seelog>`
-	config := fmt.Sprintf(configTemplate, seelogLogLevel, logFile, logFileMaxSize, logDateFormat, logDateFormat)
-
-	logger, err := log.LoggerFromConfigAsString(config)
+	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
 	if err != nil {
 		return err
 	}
-	log.ReplaceLogger(logger)
+	seelog.ReplaceLogger(logger)
+
+	log.SetupDatadogLogger(logger, seelogLogLevel)
 	return nil
 }
 
@@ -101,22 +106,22 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 type ErrorLogWriter struct{}
 
 func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
-	log.Error(string(p))
+	seelog.Error(string(p))
 	return len(p), nil
 }
 
-var levelToSyslogSeverity = map[log.LogLevel]int{
+var levelToSyslogSeverity = map[seelog.LogLevel]int{
 	// Mapping to RFC 5424 where possible
-	log.TraceLvl:    7,
-	log.DebugLvl:    7,
-	log.InfoLvl:     6,
-	log.WarnLvl:     4,
-	log.ErrorLvl:    3,
-	log.CriticalLvl: 2,
-	log.Off:         7,
+	seelog.TraceLvl:    7,
+	seelog.DebugLvl:    7,
+	seelog.InfoLvl:     6,
+	seelog.WarnLvl:     4,
+	seelog.ErrorLvl:    3,
+	seelog.CriticalLvl: 2,
+	seelog.Off:         7,
 }
 
-func createSyslogHeaderFormatter(params string) log.FormatterFunc {
+func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 	facility := 20
 	rfc := false
 
@@ -136,13 +141,13 @@ func createSyslogHeaderFormatter(params string) log.FormatterFunc {
 	appName := filepath.Base(os.Args[0])
 
 	if rfc { // RFC 5424
-		return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
+		return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
 		}
 	}
 
 	// otherwise old-school logging
-	return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
 	}
 }
@@ -199,7 +204,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 }
 
 // ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, level log.LogLevel, context log.LogContextInterface) error {
+func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
 	if !s.enabled {
 		return nil
 	}
@@ -228,7 +233,7 @@ func (s *SyslogReceiver) ReceiveMessage(message string, level log.LogLevel, cont
 }
 
 // AfterParse parses the receiver configuration
-func (s *SyslogReceiver) AfterParse(initArgs log.CustomReceiverInitArgs) error {
+func (s *SyslogReceiver) AfterParse(initArgs seelog.CustomReceiverInitArgs) error {
 	var conn net.Conn
 	var ok bool
 	var err error
@@ -277,6 +282,6 @@ func (s *SyslogReceiver) Close() error {
 }
 
 func init() {
-	log.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
-	log.RegisterReceiver("syslog", &SyslogReceiver{})
+	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
+	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
 }

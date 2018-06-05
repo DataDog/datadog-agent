@@ -10,12 +10,12 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func zipDockerSelfInspect(tempDir, hostname string) error {
@@ -38,30 +38,22 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	json.Indent(&out, jsonStats, "", "\t")
 	serialized := out.Bytes()
 
-	// Clean it up
-	cleaned, err := credentialsCleanerBytes(serialized)
+	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
-	imageSha := regexp.MustCompile(`\"Image\": \"sha256:\w+"`)
-	cleaned = imageSha.ReplaceAllFunc(cleaned, func(s []byte) []byte {
-		m := string(s[10 : len(s)-1])
-		shaResolvedInspect, _ := du.ResolveImageName(m)
-		return []byte(shaResolvedInspect)
+	w.RegisterReplacer(log.Replacer{
+		Regex: regexp.MustCompile(`\"Image\": \"sha256:\w+"`),
+		ReplFunc: func(s []byte) []byte {
+			m := string(s[10 : len(s)-1])
+			shaResolvedInspect, _ := du.ResolveImageName(m)
+			return []byte(shaResolvedInspect)
+		},
 	})
 
-	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
-
-	err = os.MkdirAll(filepath.Dir(f), os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
-	if err != nil {
-		return err
-	}
-
+	_, err = w.Write(serialized)
 	return err
 }

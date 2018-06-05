@@ -149,6 +149,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 
 	suite.testFile.Truncate(0)
 	suite.testFile.Seek(0, 0)
+	suite.testFile.Sync()
 	_, err = suite.testFile.WriteString("third\n")
 	suite.Nil(err)
 

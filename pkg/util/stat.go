@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Stat type includes a statted value and its timestamp.

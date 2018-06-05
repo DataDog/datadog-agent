@@ -20,7 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	yaml "gopkg.in/yaml.v2"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -169,7 +170,7 @@ func (k *KubeASCheck) runLeaderElection() error {
 		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
 		return apiserver.ErrNotLeader
 	}
-	log.Tracef("Currently Leader %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
+	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
 	return nil
 }
 func (k *KubeASCheck) eventCollectionInit() {
@@ -211,6 +212,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 		}
 
 		if k.latestEventToken == versionToken {
+			log.Tracef("No new events collected")
 			// No new events but protobuf error was caught. Will retry at next run.
 			return nil, nil, nil
 		}

@@ -7,7 +7,6 @@ package flare
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,23 +58,13 @@ func zipEnvvars(tempDir, hostname string) error {
 		b.WriteString("\n")
 	}
 
-	// Clean it up
-	cleaned, err := credentialsCleanerBytes(b.Bytes())
-	if err != nil {
-		return err
-	}
-
 	f := filepath.Join(tempDir, hostname, "envvars.log")
-
-	err = os.MkdirAll(filepath.Dir(f), os.ModePerm)
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
-	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
-	if err != nil {
-		return err
-	}
-
+	_, err = w.Write(b.Bytes())
 	return err
 }

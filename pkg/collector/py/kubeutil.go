@@ -11,7 +11,7 @@ import (
 	"time"
 	"unsafe"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -35,17 +35,19 @@ func GetKubeletConnectionInfo() *C.PyObject {
 	dict := C.PyDict_New()
 
 	if cached, hit := cache.Cache.Get(kubeletCacheKey); hit {
-		creds, ok = cached.(map[string]string)
-		if !ok {
-			log.Errorf("invalid cache format, forcing a cache miss")
+		log.Debug("cache hit for kubelet connection info")
+		if creds, ok = cached.(map[string]string); !ok {
+			log.Error("invalid cache format, forcing a cache miss")
 			creds = nil
 		}
 	}
 
 	if creds == nil { // Cache miss
+		log.Debug("cache miss for kubelet connection info")
 		kubeutil, err := kubelet.GetKubeUtil()
 		if err != nil {
 			// Connection to the kubelet fail, return empty dict
+			log.Errorf("connection to kubelet failed: %v", err)
 			return dict
 		}
 		// At this point, we have valid credentials to get

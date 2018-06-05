@@ -8,9 +8,11 @@ dd_url: https://app.datadoghq.com
 api_key:
 
 # If you need a proxy to connect to the Internet, provide it here (default:
-# disabled). You can use the 'no_proxy' list to specify hosts that should bypass the
-# proxy. These settings might impact your checks requests, please refer to the
-# specific check documentation for more details.
+# disabled). You can use the 'no_proxy' list to specify hosts that should
+# bypass the proxy. These settings might impact your checks requests, please
+# refer to the specific check documentation for more details. Environment
+# variables HTTP_PROXY, HTTPS_PROXY and NO_PROXY (coma-separated string) will
+# override the values set here. See https://docs.datadoghq.com/agent/proxy/.
 #
 # proxy:
 #   http: http(s)://user:password@proxy_for_http:port
@@ -109,6 +111,36 @@ api_key:
 # trickle down to integrations and affect their behavior if they rely on
 # the psutil python package.
 # procfs_path: /proc
+
+# BETA: Encrypted Secrets (Linux only)
+#
+# This feature is in beta and its options or behaviour might break between
+# minor or bugfix releases of the Agent.
+#
+# The agent can call an external command to fetch secrets. The command will be
+# executed maximum once per instance containing an encrypted password.
+# Secrets are cached by the agent, this will avoid executing again the
+# secret_backend_command to fetch an already known secret (useful when combine
+# with Autodiscovery). This feature is still in beta.
+#
+# For more information see: http://<some doc URL>
+#
+# Path to the script to execute. The script must belong to the same user used
+# to run the agent. Executable right must be given to the agent and no rights
+# for 'group' or 'other'.
+# secret_backend_command: /path/to/command
+#
+# A list of arguments to give to the command at each run (optional)
+# secret_backend_arguments:
+#   - argument1
+#   - argument2
+#
+# The size in bytes of the buffer used to store the command answer
+# secret_backend_output_max_size: 1024
+#
+# The timeout to execute the command in second
+# secret_backend_timeout: 5
+
 {{ end -}}
 {{- if .Metadata }}
 # Metadata providers, add or remove from the list to enable or disable collection.
@@ -271,6 +303,10 @@ api_key:
 #
 # syslog_tls: no
 #
+# If TLS enabled, you may specify a path to a PEM certificate here
+#
+# syslog_pem: /path/to/certificate.pem
+# 
 {{ end -}}
 {{- if .Autodiscovery }}
 # Autodiscovery

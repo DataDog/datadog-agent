@@ -1,12 +1,17 @@
-## Provides autodetected defaults, for kubernetes environments,
+## Provides autodetected defaults, for ECS Fargate environments,
 ## please see datadog.yaml.example for all supported options
 
-# Autodiscovery
+# Autodiscovery for ECS Fargate, use docker for classic ECS+EC2
 listeners:
   - name: ecs
-
 config_providers:
-  ## The ecs provider handles templates embedded in container labels, see
-  ## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
   - name: ecs
     polling: true
+
+# Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
+apm_config:
+  enabled: false
+  apm_non_local_traffic: true
+
+# Use java cgroup memory awareness
+jmx_use_cgroup_memory_limit: true

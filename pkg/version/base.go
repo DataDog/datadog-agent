@@ -10,13 +10,20 @@ package version
 // AgentVersion contains the version of the Agent
 var AgentVersion string
 
+// DCAVersion contains the version of the Datatog Cluster Agent
+var DCAVersion string
+
 // Commit is populated with the short commit hash from which the Agent was built
 var Commit string
 
 var agentVersionDefault = "6.0.0"
+var clusterAgentVersionDefault = "1.0.0"
 
 func init() {
 	if AgentVersion == "" {
 		AgentVersion = agentVersionDefault
+	}
+	if DCAVersion == "" {
+		DCAVersion = clusterAgentVersionDefault
 	}
 }

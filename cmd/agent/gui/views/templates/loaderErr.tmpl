@@ -9,7 +9,7 @@
             {{- if eq $kind "Python Check Loader"}}
               {{$kind}}: {{ pythonLoaderError $err -}}<br>
             {{- else}}
-              {{$kind}}: {{ stringToHTML $err -}}<br>
+              {{$kind}}: {{ $err -}}<br>
             {{end -}}
           {{end -}}
         </span>
