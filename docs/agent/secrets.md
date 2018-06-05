@@ -6,10 +6,10 @@ minor or bugfix releases of the Agent.**
 This feature is only available on Linux at the moment.
 
 Starting with version `6.3.0`, the agent is able to leverage the `secrets`
-package in order to call a customer-provided executable to handle retrieval or
+package in order to call a user-provided executable to handle retrieval or
 decryption of secrets, which are then loaded in memory by the agent. This
-feature allows customers to no longer store passwords and other secrets in plain
-text in configuration files. Customers have the flexibility to design their
+feature allows users to no longer store passwords and other secrets in plain
+text in configuration files. Users have the flexibility to design their
 executable according to their preferred key management service, authentication
 method, and continuous integration workflow.
 
@@ -69,7 +69,7 @@ can use them in a secret handle to fetch secrets specific to a container.
 
 Example:
 
-```
+```yaml
 instances:
   - server: %%host%%
     user: ENC[db_prod_user_%%host%%]
@@ -83,56 +83,53 @@ authenticate to and fetch secrets from your secrets management backend.
 
 The agent will cache secrets internally in memory to reduce the number of calls
 (useful in a containerized environment for example). The agent calls the
-executable every time it accesses a configuration check file that contains at
+executable every time it accesses a check configuration file that contains at
 least one secret handle for which the secret is not already loaded in memory. In
 particular, secrets that have already been loaded in memory do not trigger
 additional calls to the executable. In practice, this means that the agent calls
-the customer-provided executable once per file that contains a secret handle at
+the user-provided executable once per file that contains a secret handle at
 startup, and might make additional calls to the executable later if the agent or
 instance is restarted, or if the agent dynamically loads a new check containing
 a secret handle (e.g. via Autodiscovery).
 
-By design, the customer-provided executable needs to implement any error
-handling mechanism that a customer might require. Conversely, the agent will
-need to be restarted if a secret has to be refreshed in memory (e.g. revoked
-password).
+By design, the user-provided executable needs to implement any error handling
+mechanism that a user might require. Conversely, the agent will need to be
+restarted if a secret has to be refreshed in memory (e.g. revoked password).
 
-This approach which relies on a customer-provided executable has multiple benefits:
+This approach which relies on a user-provided executable has multiple benefits:
 
 - Guarantees that the agent will not attempt to load in memory parameters for
   which there isn't a secret handle.
-- Ability for the customer to limit the visibility of the agent to secrets that
+- Ability for the user to limit the visibility of the agent to secrets that
   it needs (e.g. by restraining in the key management backend the list of
   secrets that the executable can access).
 - Maximum freedom and flexibility in allowing users to use any secrets
   management backend (including open source solutions such as `Vault` as well as
   closed sources ones) without having to rebuild the agent.
-- Enabling each customer to solve the **initial trust** problem from the agent
-  to their secrets management backend, in a way that leverages their preferred
+- Enabling each user to solve the **initial trust** problem from the agent to
+  their secrets management backend, in a way that leverages their preferred
   authentication method, and fits into their continuous integration workflow.
 
-The following are sample workflows documented by customers. They are provided
-for illustrative purposes, and not as leading practices. Each customer should
+The following are sample workflows documented by users. They are provided
+for illustrative purposes, and not as leading practices. Each user should
 define a workflow that fits their requirements and environment.
 
-Customer A manages secrets centrally in a KMS, such as `Hashicorp Vault`. They
-store the secret’s path and name as the handle (e.g. `mysql/prod/agent-a`), then
+User A manages secrets centrally in a KMS, such as `Hashicorp Vault`. They store
+the secret’s path and name as the handle (e.g. `mysql/prod/agent-a`), then
 provide an executable that establishes trust with the KMS and makes web service
 calls to it in order to retrieve secrets needed by the agent. In this setup,
-Customer A should was careful to appropriately configure the KMS so that the
-executable only has read-only access, and only to secrets that the Datadog agent
-requires.
+User A was careful to appropriately configure the KMS so that the executable
+only has read-only access, and only to secrets that the Datadog agent requires.
 
-Customer B doesn’t does not wish to provide access to a centralized KMS at
-run-time. They store an encrypted version of the secret in the configuration
-file, then provide an executable that can access an encryption key to decrypt
-it. In Customer B's setup, the continuous integration pipeline generates a new
-symmetric encryption key (e.g. in AWS KMS) for each new instance, uses it to
-encrypt secrets in the Datadog configuration files by using a templating engine
-(e.g. consul template), and ensures only the executable on this instance can
-access the encryption key.
+User B does not wish to provide access to a centralized KMS at run-time. They
+store an encrypted version of the secret in the configuration file, then provide
+an executable that can access an encryption key to decrypt it. In User B's
+setup, the continuous integration pipeline generates a new symmetric encryption
+key (e.g. in AWS KMS) for each new instance, uses it to encrypt secrets in the
+Datadog configuration files by using a templating engine (e.g. consul template),
+and ensures only the executable on this instance can access the encryption key.
 
-Regardless of the workflow, the customer should **take great care to secure the
+Regardless of the workflow, the user should **take great care to secure the
 executable itself**, including setting appropriate permissions and considering
 the security implications of their executable in their environment.
 
