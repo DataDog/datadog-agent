@@ -25,24 +25,6 @@ import (
 
 var elog debug.Log
 
-func setupLogger(logLevel string) error {
-	configTemplate := `<seelog minlevel="%s">
-    <outputs formatid="common"><console/></outputs>
-    <formats>
-        <format id="common" format="%%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>
-    </formats>
-</seelog>`
-	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel))
-
-	logger, err := seelog.LoggerFromConfigAsString(config)
-	if err != nil {
-		return err
-	}
-	log.ReplaceLogger(logger)
-
-	return nil
-}
-
 func main() {
 	common.EnableLoggingToFile()
 	// if command line arguments are supplied, even in a non interactive session,
