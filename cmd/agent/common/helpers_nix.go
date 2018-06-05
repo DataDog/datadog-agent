@@ -17,9 +17,8 @@ const (
 	procfsPathEnv = "HOST_PROC"
 )
 
-// SetupConfigOSSpecifics any additional OS-specific configuration necessary
-// should be called _after_ SetupConfig()
-func SetupConfigOSSpecifics() error {
+// should be called _after_ SetupConfig() loads config
+func setupConfigOSSpecifics() error {
 	procfsPath := os.Getenv(procfsPathEnv)
 	if procfsPath != "" && config.Datadog.IsSet("procfs_path") {
 		// override with HOST_PROC if set

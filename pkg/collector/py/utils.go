@@ -463,7 +463,12 @@ func SetPythonPsutilProcPath(procPath string) error {
 	pyPsutilModule := ns[0]
 	psutilModule := python.PyImport_ImportModule(pyPsutilModule)
 	if psutilModule == nil {
-		return fmt.Errorf("Unable to import Python module: %s", pyPsutilModule)
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return fmt.Errorf("Error importing python psutil module: %v", err)
+		}
+		return errors.New(pyErr)
 	}
 	defer psutilModule.DecRef()
 

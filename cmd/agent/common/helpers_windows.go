@@ -5,8 +5,7 @@
 
 package common
 
-// SetupConfigOSSpecifics any additional OS-specific configuration necessary
-// should be called _after_ SetupConfig()
-func SetupConfigOSSpecifics() error {
+// should be called _after_ SetupConfig() reads config
+func setupConfigOSSpecifics() error {
 	return nil
 }

@@ -31,5 +31,11 @@ func SetupConfig(confFilePath string) error {
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
+
+	err = setupConfigOSSpecifics()
+	if err != nil {
+		return fmt.Errorf("unable to set up OS-specific configuration: %v", err)
+	}
+
 	return nil
 }
