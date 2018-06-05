@@ -331,7 +331,9 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 		if config, err := decryptConfig(config); err == nil {
 			configs = append(configs, config)
 			// store non template configs in the AC
+			ac.m.Lock()
 			ac.loadedConfigs[config.Digest()] = config
+			ac.m.Unlock()
 		} else {
 			log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
 		}
@@ -558,7 +560,13 @@ func (ac *AutoConfig) getChecks(config integration.Config) ([]check.Check, error
 
 // GetLoadedConfigs returns configs loaded
 func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	return ac.loadedConfigs
+	configsCopy := make(map[string]integration.Config)
+	ac.m.RLock()
+	defer ac.m.RUnlock()
+	for k, v := range ac.loadedConfigs {
+		configsCopy[k] = v
+	}
+	return configsCopy
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
