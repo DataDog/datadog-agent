@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var secretCache map[string]string
