@@ -24,6 +24,6 @@ func TestMetricSampleCopy(t *testing.T) {
 	src.Value = 0.1
 	dst := src.Copy()
 
-	assert.NotEqual(t, src, dst)
+	assert.False(t, src == dst)
 	assert.True(t, reflect.DeepEqual(&src, &dst))
 }
