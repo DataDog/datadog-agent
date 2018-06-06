@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -202,10 +203,14 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
 
 	configs := common.AC.GetLoadedConfigs()
-	sort.Slice(configs, func(i, j int) bool {
-		return configs[i].Name < configs[j].Name
+	configSlice := make([]integration.Config, 0)
+	for _, config := range configs {
+		configSlice = append(configSlice, config)
+	}
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
 	})
-	response.Configs = configs
+	response.Configs = configSlice
 	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
 	response.ConfigErrors = autodiscovery.GetConfigErrors()
 	response.Unresolved = common.AC.GetUnresolvedTemplates()
