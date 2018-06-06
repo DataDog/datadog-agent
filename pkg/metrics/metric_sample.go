@@ -65,6 +65,11 @@ type MetricSample struct {
 	Timestamp  float64
 }
 
-func (src *MetricSample) CopyTo(dst *MetricSample) {
+// Copy returns a deep copy of the src MetricSample
+func (src *MetricSample) Copy() *MetricSample {
+	dst := &MetricSample{}
 	*dst = *src
+	dst.Tags = make([]string, len(src.Tags))
+	copy(dst.Tags, src.Tags)
+	return dst
 }

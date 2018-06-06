@@ -225,8 +225,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					dogstatsdExpvar.Add("MetricPackets", 1)
 					metricOut <- sample
 					if s.histToDist && sample.MetricType == metrics.HistogramType {
-						distSample := *metrics.MetricSample{}
-						sample.CopyTo(distSample)
+						distSample := sample.Copy()
 						distSample.MetricType = metrics.DistributionType
 						metricOut <- distSample
 					}
