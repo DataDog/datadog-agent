@@ -37,6 +37,7 @@ type Server struct {
 	stopChan     chan bool
 	health       *health.Handle
 	metricPrefix string
+	histToDist   bool
 }
 
 // NewServer returns a running Dogstatsd server
@@ -83,6 +84,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		metricPrefix = metricPrefix + "."
 	}
 
+	histToDist := config.Datadog.GetBool("statsd_hist_to_dist")
 	s := &Server{
 		Started:      true,
 		Statistics:   stats,
@@ -92,6 +94,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		stopChan:     make(chan bool),
 		health:       health.Register("dogstatsd-main"),
 		metricPrefix: metricPrefix,
+		histToDist:   histToDist,
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -221,6 +224,12 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					}
 					dogstatsdExpvar.Add("MetricPackets", 1)
 					metricOut <- sample
+					if s.histToDist && sample.MetricType == metrics.HistogramType {
+						distSample := *metrics.MetricSample{}
+						sample.CopyTo(distSample)
+						distSample.MetricType = metrics.DistributionType
+						metricOut <- distSample
+					}
 				}
 			}
 			// Return the packet object back to the object pool for reuse

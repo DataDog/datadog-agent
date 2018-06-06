@@ -64,3 +64,7 @@ type MetricSample struct {
 	SampleRate float64
 	Timestamp  float64
 }
+
+func (src *MetricSample) CopyTo(dst *MetricSample) {
+	*dst = *src
+}
