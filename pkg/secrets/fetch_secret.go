@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,18 +34,11 @@ func (b *limitBuffer) Write(p []byte) (n int, err error) {
 }
 
 func execCommand(inputPayload string) ([]byte, error) {
-	command := config.Datadog.GetString("secret_backend_command")
-	args := config.Datadog.GetStringSlice("secret_backend_arguments")
-
-	if command == "" {
-		return nil, fmt.Errorf("no secret_backend_command set: could not decrypt secret")
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(config.Datadog.GetInt("secret_backend_timeout"))*time.Second)
+		time.Duration(secretBackendTimeout)*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, command, args...)
+	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
 	if err := checkRights(cmd.Path); err != nil {
 		return nil, err
 	}
@@ -57,11 +49,11 @@ func execCommand(inputPayload string) ([]byte, error) {
 
 	stdout := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: config.Datadog.GetInt("secret_backend_output_max_size"),
+		max: secretBackendOutputMaxSize,
 	}
 	stderr := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: config.Datadog.GetInt("secret_backend_output_max_size"),
+		max: secretBackendOutputMaxSize,
 	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -71,9 +63,9 @@ func execCommand(inputPayload string) ([]byte, error) {
 		log.Errorf("secret_backend_command stderr: %s", stderr.buf.String())
 
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("error while running '%s': command timeout", command)
+			return nil, fmt.Errorf("error while running '%s': command timeout", secretBackendCommand)
 		}
-		return nil, fmt.Errorf("error while running '%s': %s", command, err)
+		return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, err)
 	}
 	return stdout.buf.Bytes(), nil
 }

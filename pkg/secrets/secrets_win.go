@@ -7,6 +7,10 @@
 
 package secrets
 
+// Init encrypted secrets are not available on windows
+func Init(command string, arguments []string, timeout int, maxSize int) {
+}
+
 // Decrypt encrypted secrets are not available on windows
 func Decrypt(data []byte) ([]byte, error) {
 	return data, nil
