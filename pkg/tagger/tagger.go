@@ -213,6 +213,23 @@ func (t *Tagger) Stop() error {
 	return nil
 }
 
+// OutdatedTags returns true if an ADIdentifiers contains is not up to date
+func (t *Tagger) OutdatedTags(ADIdentifiers []string) bool {
+	log.Infof("ADIdentifiers are %s", ADIdentifiers) // REMOVE
+	for _, ad := range ADIdentifiers {
+		id := t.tagStore.store[ad]
+		if id == nil {
+			// We might be trying to evaluate a EntityID that was removed
+			continue
+		}
+		if id.outdatedTags {
+			log.Infof("Outdated tags")
+			return true
+		}
+	}
+	return false
+}
+
 // Tag returns tags for a given entity. If highCard is false, high
 // cardinality tags are left out.
 func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
