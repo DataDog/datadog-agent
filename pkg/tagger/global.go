@@ -51,6 +51,11 @@ func List(highCard bool) response.TaggerListResponse {
 	return defaultTagger.List(highCard)
 }
 
+// OutdatedTags returns a boolean based on high cards tags.
+func OutdatedTags(ADIdentifiers []string) bool {
+	return defaultTagger.OutdatedTags(ADIdentifiers)
+}
+
 func init() {
 	defaultTagger = newTagger()
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 )
 
 var (
@@ -516,11 +517,16 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []integratio
 	}
 
 	for _, c := range fetched {
+		log.Infof("c.ADIdentifiers is %s", c.ADIdentifiers) // REMOVE
 		if !pd.contains(&c) {
 			new = append(new, c)
+			continue
+		}
+		// Check the freshness of c. Reschedule if necessary.
+		if tagger.OutdatedTags(c.ADIdentifiers) {
+			ac.reschedule(c)
 		}
 	}
-
 	old := pd.configs
 	pd.configs = fetched
 
@@ -533,6 +539,19 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []integratio
 	log.Infof("%v: collected %d new configurations, removed %d", pd.provider, len(new), len(removed))
 
 	return
+}
+
+// reschedule is used when a check has started with a template that is not up to date anymore.
+func (ac *AutoConfig) reschedule(c integration.Config) {
+	log.Infof("Starting rescheduling for %s", c)
+	ac.processRemovedConfigs([]integration.Config{c})
+	log.Infof("Processed remove configs for %s", c)
+	resolvedConfigs := ac.resolve(c)
+	log.Infof("Resolved configs %s", resolvedConfigs)
+	checks := ac.getChecksFromConfigs(resolvedConfigs, true)
+	log.Infof("Preparing scheduling for %s", checks)
+	ac.schedule(checks)
+	log.Infof("Rescheduled the checks %s", checks)
 }
 
 // getChecks takes a check configuration and returns a slice of Check instances
