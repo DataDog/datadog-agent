@@ -130,12 +130,12 @@ func tuf(args []string) error {
 		return err
 	}
 
-	// Add pip power-user flags
-	// cmd-flags go before the actual command
 	cmd := args[0]
 	implicitFlags := args[1:]
 	args = append([]string{"-mpip"}, cmd)
 
+	// Add pip power-user flags
+	// cmd-flags go before the actual command
 	cmdFlags, err := tufCmd.Flags().GetStringSlice("cmd-flags")
 	if err == nil {
 		args = append(args, cmdFlags...)
@@ -220,8 +220,7 @@ func searchTuf(cmd *cobra.Command, args []string) error {
 	}
 	tufArgs = append(tufArgs, args...)
 	if withTuf {
-		tufArgs = append(tufArgs, "--index-url", tufPyPiServer)
-		tufArgs = append(tufArgs, "--extra-index-url", pyPiServer)
+		tufArgs = append(tufArgs, "--index", tufPyPiServer)
 		tufArgs = append(tufArgs, "--disable-pip-version-check")
 	}
 
