@@ -249,7 +249,8 @@ func TestHistToDist(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
-	config.Datadog.SetDefault("statsd_hist_to_dist", true)
+	config.Datadog.SetDefault("histogram_copy_to_distribution", true)
+	config.Datadog.SetDefault("histogram_copy_to_distribution", "dist.")
 
 	metricOut := make(chan *metrics.MetricSample)
 	eventOut := make(chan metrics.Event)
@@ -273,7 +274,7 @@ func TestHistToDist(t *testing.T) {
 
 	distMetric := <-metricOut
 	assert.NotNil(t, distMetric)
-	assert.Equal(t, distMetric.Name, "daemon")
+	assert.Equal(t, distMetric.Name, "dist.daemon")
 	assert.EqualValues(t, distMetric.Value, 666.0)
 	assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
 }

@@ -29,15 +29,16 @@ var (
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners    []listeners.StatsdListener
-	packetIn     chan *listeners.Packet
-	Statistics   *util.Stats
-	Started      bool
-	packetPool   *listeners.PacketPool
-	stopChan     chan bool
-	health       *health.Handle
-	metricPrefix string
-	histToDist   bool
+	listeners        []listeners.StatsdListener
+	packetIn         chan *listeners.Packet
+	Statistics       *util.Stats
+	Started          bool
+	packetPool       *listeners.PacketPool
+	stopChan         chan bool
+	health           *health.Handle
+	metricPrefix     string
+	histToDist       bool
+	histToDistPrefix string
 }
 
 // NewServer returns a running Dogstatsd server
@@ -84,17 +85,19 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		metricPrefix = metricPrefix + "."
 	}
 
-	histToDist := config.Datadog.GetBool("statsd_hist_to_dist")
+	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
+	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 	s := &Server{
-		Started:      true,
-		Statistics:   stats,
-		packetIn:     packetChannel,
-		listeners:    tmpListeners,
-		packetPool:   packetPool,
-		stopChan:     make(chan bool),
-		health:       health.Register("dogstatsd-main"),
-		metricPrefix: metricPrefix,
-		histToDist:   histToDist,
+		Started:          true,
+		Statistics:       stats,
+		packetIn:         packetChannel,
+		listeners:        tmpListeners,
+		packetPool:       packetPool,
+		stopChan:         make(chan bool),
+		health:           health.Register("dogstatsd-main"),
+		metricPrefix:     metricPrefix,
+		histToDist:       histToDist,
+		histToDistPrefix: histToDistPrefix,
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -226,6 +229,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					metricOut <- sample
 					if s.histToDist && sample.Mtype == metrics.HistogramType {
 						distSample := sample.Copy()
+						distSample.Name = s.histToDistPrefix + distSample.Name
 						distSample.Mtype = metrics.DistributionType
 						metricOut <- distSample
 					}
