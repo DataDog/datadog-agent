@@ -250,7 +250,7 @@ func TestHistToDist(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("histogram_copy_to_distribution", true)
-	config.Datadog.SetDefault("histogram_copy_to_distribution", "dist.")
+	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 
 	metricOut := make(chan *metrics.MetricSample)
 	eventOut := make(chan metrics.Event)
@@ -266,15 +266,23 @@ func TestHistToDist(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
-	histMetric := <-metricOut
-	assert.NotNil(t, histMetric)
-	assert.Equal(t, histMetric.Name, "daemon")
-	assert.EqualValues(t, histMetric.Value, 666.0)
-	assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
+	select {
+	case histMetric := <-metricOut:
+		assert.NotNil(t, histMetric)
+		assert.Equal(t, histMetric.Name, "daemon")
+		assert.EqualValues(t, histMetric.Value, 666.0)
+		assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
 
-	distMetric := <-metricOut
-	assert.NotNil(t, distMetric)
-	assert.Equal(t, distMetric.Name, "dist.daemon")
-	assert.EqualValues(t, distMetric.Value, 666.0)
-	assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
+	select {
+	case distMetric := <-metricOut:
+		assert.NotNil(t, distMetric)
+		assert.Equal(t, distMetric.Name, "dist.daemon")
+		assert.EqualValues(t, distMetric.Value, 666.0)
+		assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
 }
