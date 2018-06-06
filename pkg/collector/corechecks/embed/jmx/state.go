@@ -33,6 +33,7 @@ var state jmxState = jmxState{
 
 func (s *jmxState) scheduleCheck(c *JMXCheck) error {
 	s.lock.Lock()
+	defer s.lock.Unlock()
 	if !s.runner.started {
 		err := check.Retry(5*time.Second, 3, s.runner.startRunner, "jmxfetch")
 		if err != nil {
@@ -40,15 +41,13 @@ func (s *jmxState) scheduleCheck(c *JMXCheck) error {
 		}
 	}
 	s.configs.Add(string(c.id), c.config)
-
-	s.lock.Unlock()
 	return nil
 }
 
 func (s *jmxState) unscheduleCheck(c *JMXCheck) {
 	s.lock.Lock()
+	defer s.lock.Unlock()
 	s.configs.Remove(string(c.id))
-	s.lock.Unlock()
 }
 
 func AddScheduledConfig(c integration.Config) {
