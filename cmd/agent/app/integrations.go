@@ -29,7 +29,6 @@ const (
 var (
 	allowRoot bool
 	withTuf   bool
-	nativePkg bool
 	tufConfig string
 )
 
@@ -39,7 +38,6 @@ func init() {
 	tufCmd.AddCommand(removeCmd)
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withTuf, "tuf", "t", true, "use TUF repo")
-	tufCmd.PersistentFlags().BoolVarP(&nativePkg, "pip-package", "p", false, "providing native pip package name")
 	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "use TUF repo")
 	tufCmd.PersistentFlags().StringSlice("cmd-flags", []string{}, "command flags to pass onto pip (comma-separated or multiple flags)")
