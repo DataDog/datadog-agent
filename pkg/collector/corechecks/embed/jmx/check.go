@@ -23,6 +23,18 @@ type JMXCheck struct {
 	stop   chan struct{}
 }
 
+func newJMXCheck(config integration.Config) *JMXCheck {
+	check := &JMXCheck{
+		config: config,
+		stop:   make(chan struct{}),
+		name:   config.Name,
+		id:     check.ID(fmt.Sprintf("%v_%v", config.Name, config.Digest())),
+	}
+	check.Configure(config.InitConfig, config.MetricConfig)
+
+	return check
+}
+
 func (c *JMXCheck) Run() error {
 	err := state.scheduleCheck(c)
 	if err != nil {

@@ -9,7 +9,6 @@ package jmx
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -27,18 +26,6 @@ type JMXCheckLoader struct {
 func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 	state.runner.initRunner()
 	return &JMXCheckLoader{}, nil
-}
-
-func newJMXCheck(config integration.Config) *JMXCheck {
-	check := &JMXCheck{
-		config: config,
-		stop:   make(chan struct{}),
-		name:   config.Name,
-		id:     check.ID(fmt.Sprintf("%v_%v", config.Name, config.Digest())),
-	}
-	check.Configure(config.InitConfig, config.MetricConfig)
-
-	return check
 }
 
 func splitConfig(config integration.Config) []integration.Config {
