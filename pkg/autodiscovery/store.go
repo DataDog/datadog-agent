@@ -34,20 +34,20 @@ func (s *store) getConfigsForService(serviceID listeners.ID) []integration.Confi
 	return s.serviceToConfigs[serviceID]
 }
 
-// getConfigsForService gets config for a specified service
+// removeConfigsForService removes a config for a specified service
 func (s *store) removeConfigsForService(serviceID listeners.ID) {
 	s.m.Lock()
+	defer s.m.Unlock()
 	delete(s.serviceToConfigs, serviceID)
-	s.m.Unlock()
 }
 
 func (s *store) addConfigForService(serviceID listeners.ID, config integration.Config) {
 	s.m.Lock()
+	defer s.m.Unlock()
 	existingConfigs, found := s.serviceToConfigs[serviceID]
 	if found {
 		s.serviceToConfigs[serviceID] = append(existingConfigs, config)
 	} else {
 		s.serviceToConfigs[serviceID] = []integration.Config{config}
 	}
-	s.m.Unlock()
 }

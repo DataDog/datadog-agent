@@ -75,7 +75,7 @@ type AutoConfig struct {
 	configsPollTicker *time.Ticker
 	configToChecks    map[string][]check.ID         // cache the ID of checks we load for each config
 	checkToConfig     map[check.ID]string           // cache the config digest corresponding to a check
-	name2jmxmetrics   map[string]integration.Data   // holds the metrics to collect for JMX checks
+	nameToJMXMetrics  map[string]integration.Data   // holds the metrics to collect for JMX checks
 	loadedConfigs     map[string]integration.Config // holds the resolved configs
 	stop              chan bool
 	pollerActive      bool
@@ -87,17 +87,17 @@ type AutoConfig struct {
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
-		collector:       collector,
-		providers:       make([]*providerDescriptor, 0, 5),
-		loaders:         make([]check.Loader, 0, 5),
-		templateCache:   NewTemplateCache(),
-		configToChecks:  make(map[string][]check.ID),
-		checkToConfig:   make(map[check.ID]string),
-		name2jmxmetrics: make(map[string]integration.Data),
-		loadedConfigs:   make(map[string]integration.Config),
-		stop:            make(chan bool),
-		store:           newStore(),
-		health:          health.Register("ad-autoconfig"),
+		collector:        collector,
+		providers:        make([]*providerDescriptor, 0, 5),
+		loaders:          make([]check.Loader, 0, 5),
+		templateCache:    NewTemplateCache(),
+		configToChecks:   make(map[string][]check.ID),
+		checkToConfig:    make(map[check.ID]string),
+		nameToJMXMetrics: make(map[string]integration.Data),
+		loadedConfigs:    make(map[string]integration.Config),
+		stop:             make(chan bool),
+		store:            newStore(),
+		health:           health.Register("ad-autoconfig"),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
 	return ac
@@ -210,7 +210,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 				// instance configuration
 				// If the file provider finds any of these metric YAMLs, we store them in a map for future access
 				if cfg.MetricConfig != nil {
-					ac.name2jmxmetrics[cfg.Name] = cfg.MetricConfig
+					ac.nameToJMXMetrics[cfg.Name] = cfg.MetricConfig
 					// We don't want to save metric files, it's enough to store them in the map
 					continue
 				}
@@ -243,7 +243,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 }
 
 // getChecksFromConfigs gets all the check instances for given configurations
-// optionally can populate ac cache config2checks
+// optionally can populate ac cache configToChecks
 func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	allChecks := []check.Check{}
 	for _, config := range configs {
@@ -295,7 +295,7 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
-		metrics, ok := ac.name2jmxmetrics[config.Name]
+		metrics, ok := ac.nameToJMXMetrics[config.Name]
 		if !ok {
 			log.Infof("%s doesn't have an additional metric configuration file: not collecting default metrics", config.Name)
 		} else if err := config.AddMetrics(metrics); err != nil {
@@ -463,7 +463,7 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 			// skip non check configs.
 			continue
 		}
-		// unschedule all the checks corresponding to this config
+		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
 		ids := ac.configToChecks[digest]
 		stopped := map[check.ID]struct{}{}
@@ -479,14 +479,14 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 			}
 		}
 
-		// remove the entry from `config2checks`
+		// remove the entry from `configToChecks`
 		if len(stopped) == len(ac.configToChecks[digest]) {
 			// we managed to stop all the checks for this config
 			delete(ac.configToChecks, digest)
 			delete(ac.configResolver.configToService, digest)
 			delete(ac.loadedConfigs, digest)
 		} else {
-			// keep the checks we failed to stop in `config2checks`
+			// keep the checks we failed to stop in `configToChecks`
 			dangling := []check.ID{}
 			for _, id := range ac.configToChecks[digest] {
 				if _, found := stopped[id]; !found {
