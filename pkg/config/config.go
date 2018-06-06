@@ -129,9 +129,9 @@ func init() {
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
+		Datadog.SetDefault("procfs_path", "/host/proc")
 		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
-		Datadog.SetDefault("procfs_path", "/host/proc")
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -254,6 +254,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_port")
 	Datadog.BindEnv("bind_host")
 	Datadog.BindEnv("proc_root")
+	Datadog.BindEnv("procfs_path")
 	Datadog.BindEnv("container_proc_root")
 	Datadog.BindEnv("container_cgroup_root")
 	Datadog.BindEnv("dogstatsd_socket")
