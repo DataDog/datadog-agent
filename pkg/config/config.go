@@ -6,6 +6,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"os"
@@ -15,7 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/viper"
+	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -374,6 +377,35 @@ func loadProxyFromEnv() {
 func Load() error {
 	if err := Datadog.ReadInConfig(); err != nil {
 		return err
+	}
+
+	// We have to init the secrets package before we can use it to decrypt
+	// anything.
+	secrets.Init(
+		Datadog.GetString("secret_backend_command"),
+		Datadog.GetStringSlice("secret_backend_arguments"),
+		Datadog.GetInt("secret_backend_timeout"),
+		Datadog.GetInt("secret_backend_output_max_size"),
+	)
+
+	if Datadog.IsSet("secret_backend_command") {
+		// Viper doesn't expose the final location of the file it
+		// loads. Since we are searching for 'datadog.yaml' in multiple
+		// localtions we let viper determine the one to use before
+		// updating it.
+		conf, err := yaml.Marshal(Datadog.AllSettings())
+		if err != nil {
+			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+		}
+
+		finalConfig, err := secrets.Decrypt(conf)
+		if err != nil {
+			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+		}
+		r := bytes.NewReader(finalConfig)
+		if err = Datadog.MergeConfig(r); err != nil {
+			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
+		}
 	}
 
 	loadProxyFromEnv()

@@ -13,14 +13,30 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var secretCache map[string]string
+var (
+	secretCache map[string]string
+
+	secretBackendCommand       string
+	secretBackendArguments     []string
+	secretBackendTimeout       = 5
+	secretBackendOutputMaxSize = 1024
+)
 
 func init() {
 	secretCache = make(map[string]string)
+}
+
+// Init initializes the command and other options of the secrets package. Since
+// this package is used by the 'config' package to decrypt itself we can't
+// directly use it.
+func Init(command string, arguments []string, timeout int, maxSize int) {
+	secretBackendCommand = command
+	secretBackendArguments = arguments
+	secretBackendTimeout = timeout
+	secretBackendOutputMaxSize = maxSize
 }
 
 type walkerCallback func(string) (string, error)
@@ -102,7 +118,8 @@ var secretFetcher = fetchSecret
 // Decrypt replaces all encrypted secrets in data by executing
 // "secret_backend_command" once if all secrets aren't present in the cache.
 func Decrypt(data []byte) ([]byte, error) {
-	if data == nil || config.Datadog.GetString("secret_backend_command") == "" {
+	if data == nil || secretBackendCommand == "" {
+		log.Debugf("No data to decrypt or no secretBackendCommand set: skipping")
 		return data, nil
 	}
 

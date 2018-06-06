@@ -15,8 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestLimitBuffer(t *testing.T) {
@@ -42,65 +40,62 @@ func TestLimitBuffer(t *testing.T) {
 }
 
 func TestExecCommandError(t *testing.T) {
-	cmdBK := config.Datadog.GetString("secret_backend_command")
-	argsBK := config.Datadog.GetStringSlice("secret_backend_arguments")
-	timeoutBK := config.Datadog.GetInt("secret_backend_timeout")
 	defer func() {
-		config.Datadog.Set("secret_backend_command", cmdBK)
-		config.Datadog.Set("secret_backend_arguments", argsBK)
-		config.Datadog.Set("secret_backend_timeout", timeoutBK)
+		secretBackendCommand = ""
+		secretBackendArguments = []string{}
+		secretBackendTimeout = 0
 	}()
 
 	inputPayload := "{\"version\": \"" + payloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
-	// empty secret_backend_command
-	config.Datadog.Set("secret_backend_command", "")
+	// empty secretBackendCommand
+	secretBackendCommand = ""
 	_, err := execCommand(inputPayload)
 	require.NotNil(t, err)
 
 	// test timeout
 	os.Chmod("./test/timeout.sh", 0700)
-	config.Datadog.Set("secret_backend_command", "./test/timeout.sh")
-	config.Datadog.Set("secret_backend_timeout", 2)
+	secretBackendCommand = "./test/timeout.sh"
+	secretBackendTimeout = 2
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 	require.Equal(t, "error while running './test/timeout.sh': command timeout", err.Error())
 
 	// test simple (no error)
 	os.Chmod("./test/simple.sh", 0700)
-	config.Datadog.Set("secret_backend_command", "./test/simple.sh")
+	secretBackendCommand = "./test/simple.sh"
 	resp, err := execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
 
 	// test error
-	config.Datadog.Set("secret_backend_command", "./test/error.sh")
+	secretBackendCommand = "./test/error.sh"
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 
 	// test arguments
 	os.Chmod("./test/argument.sh", 0700)
-	config.Datadog.Set("secret_backend_arguments", []string{"arg1"})
-	config.Datadog.Set("secret_backend_command", "./test/argument.sh")
+	secretBackendCommand = "./test/argument.sh"
+	secretBackendArguments = []string{"arg1"}
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
-	config.Datadog.Set("secret_backend_arguments", []string{"arg1", "arg2"})
-	config.Datadog.Set("secret_backend_command", "./test/argument.sh")
+	secretBackendCommand = "./test/argument.sh"
+	secretBackendArguments = []string{"arg1", "arg2"}
 	resp, err = execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"arg_password\"}}"), resp)
 
 	// test input
 	os.Chmod("./test/input.sh", 0700)
-	config.Datadog.Set("secret_backend_command", "./test/input.sh")
+	secretBackendCommand = "./test/input.sh"
 	resp, err = execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"input_password\"}}"), resp)
 
 	// test buffer limit
 	os.Chmod("./test/response_too_long.sh", 0700)
-	config.Datadog.Set("secret_backend_command", "./test/response_too_long.sh")
-	config.Datadog.Set("secret_backend_output_max_size", 20)
+	secretBackendCommand = "./test/response_too_long.sh"
+	secretBackendOutputMaxSize = 20
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 	assert.Equal(t, "error while running './test/response_too_long.sh': command output was too long: exceeded 20 bytes", err.Error())

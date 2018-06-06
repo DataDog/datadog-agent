@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -161,9 +159,8 @@ func TestDecryptNoCommand(t *testing.T) {
 }
 
 func TestDecryptSecretError(t *testing.T) {
-	backup := config.Datadog.GetString("secret_backend_command")
-	config.Datadog.Set("secret_backend_command", "some_command")
-	defer config.Datadog.Set("secret_backend_command", backup)
+	secretBackendCommand = "some_command"
+	defer func() { secretBackendCommand = "" }()
 
 	secretFetcher = func(secrets []string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
@@ -174,9 +171,8 @@ func TestDecryptSecretError(t *testing.T) {
 }
 
 func TestDecryptSecretNoCache(t *testing.T) {
-	backup := config.Datadog.GetString("secret_backend_command")
-	config.Datadog.Set("secret_backend_command", "some_command")
-	defer config.Datadog.Set("secret_backend_command", backup)
+	secretBackendCommand = "some_command"
+	defer func() { secretBackendCommand = "" }()
 
 	secretFetcher = func(secrets []string) (map[string]string, error) {
 		sort.Strings(secrets)
@@ -197,9 +193,8 @@ func TestDecryptSecretNoCache(t *testing.T) {
 }
 
 func TestDecryptSecretPartialCache(t *testing.T) {
-	backup := config.Datadog.GetString("secret_backend_command")
-	config.Datadog.Set("secret_backend_command", "some_command")
-	defer config.Datadog.Set("secret_backend_command", backup)
+	secretBackendCommand = "some_command"
+	defer func() { secretBackendCommand = "" }()
 
 	secretCache["pass1"] = "password1"
 	defer func() { secretCache = map[string]string{} }()
@@ -221,9 +216,8 @@ func TestDecryptSecretPartialCache(t *testing.T) {
 }
 
 func TestDecryptSecretFullCache(t *testing.T) {
-	backup := config.Datadog.GetString("secret_backend_command")
-	config.Datadog.Set("secret_backend_command", "some_command")
-	defer config.Datadog.Set("secret_backend_command", backup)
+	secretBackendCommand = "some_command"
+	defer func() { secretBackendCommand = "" }()
 
 	secretCache["pass1"] = "password1"
 	secretCache["pass2"] = "password2"
