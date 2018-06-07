@@ -1,27 +1,5 @@
 ---
-prelude: >
-    Linux uses a colon (:) and Windows a semicolon (;). os.pathsep knows this.
-features:
-  - |
-    jmxfetch now also supports Windows with custom_jar_pathss
-issues:
-  - |
-    No known issues.
-upgrade:
-  - |
-    No upgrade notes. Fully backwards compatible.
-deprecations:
-  - |
-    None.
-critical:
-  - |
-    n.a.
-security:
-  - |
-    n.a.
 fixes:
   - |
-    When using the jmx agent on Windows in combination with a custom_jar_paths and or tools_jar_path the agent will fail because the classpath seperator is a colon. On Windows a path seperator has to be a semicolon. The python function os.pathsep return the correct seperator.
-other:
-  - |
-    n.a.
+    Fixes JMXFetch on Windows when the ``custom_jar_paths`` and/or ``tools_jar_path`` options are set,
+    by using a semicolon as the path separator on Windows.
