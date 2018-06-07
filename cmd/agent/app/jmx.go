@@ -76,10 +76,13 @@ var (
 		RunE:  doJmxListNotCollected,
 	}
 
-	checks = []string{}
+	checks      = []string{}
+	jmxLogLevel string
 )
 
 func init() {
+	jmxCmd.Flags().StringVarP(&logLevel, "log-level", "l", "debug", "set the log level (default 'debug')")
+
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
 	jmxCmd.AddCommand(jmxCollectCmd)
@@ -139,7 +142,13 @@ func setupAgent() error {
 }
 
 func runJmxCommand(command string) error {
-	err := setupAgent()
+	err := config.SetupLogger(jmxLogLevel, "", "", false, false, "", true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
+	}
+
+	err = setupAgent()
 	if err != nil {
 		return err
 	}
