@@ -7,15 +7,18 @@
 package app
 
 import (
-	"bytes"
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -27,9 +30,10 @@ const (
 )
 
 var (
-	allowRoot bool
-	withTuf   bool
-	tufConfig string
+	allowRoot    bool
+	withoutTuf   bool
+	useSysPython bool
+	tufConfig    string
 )
 
 func init() {
@@ -37,40 +41,42 @@ func init() {
 	tufCmd.AddCommand(installCmd)
 	tufCmd.AddCommand(removeCmd)
 	tufCmd.AddCommand(searchCmd)
-	tufCmd.PersistentFlags().BoolVarP(&withTuf, "tuf", "t", true, "use TUF repo")
+	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
 	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
-	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "use TUF repo")
+	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
+	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
 	tufCmd.PersistentFlags().StringSlice("cmd-flags", []string{}, "command flags to pass onto pip (comma-separated or multiple flags)")
 	tufCmd.PersistentFlags().StringSlice("idx-flags", []string{}, "index flags to pass onto pip (comma-separated or multiple flags)")
 
 	// Power user flags - mark as hidden
-	tufCmd.Flags().MarkHidden("cmd-flags")
-	tufCmd.Flags().MarkHidden("idx-flags")
+	tufCmd.PersistentFlags().MarkHidden("cmd-flags")
+	tufCmd.PersistentFlags().MarkHidden("idx-flags")
+	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
 }
 
 var tufCmd = &cobra.Command{
 	Use:   "integration [command]",
-	Short: "Datadog integration/package manager",
+	Short: "Datadog integration manager (ALPHA feature)",
 	Long:  ``,
 }
 
 var installCmd = &cobra.Command{
 	Use:   "install [package]",
-	Short: "Install Datadog integration/extra packages",
+	Short: "Install Datadog integration core/extra packages",
 	Long:  ``,
 	RunE:  installTuf,
 }
 
 var removeCmd = &cobra.Command{
 	Use:   "remove [package]",
-	Short: "Remove Datadog integration/extra packages",
+	Short: "Remove Datadog integration core/extra packages",
 	Long:  ``,
 	RunE:  removeTuf,
 }
 
 var searchCmd = &cobra.Command{
 	Use:   "search [package]",
-	Short: "Search Datadog integration/extra packages",
+	Short: "Search Datadog integration core/extra packages",
 	Long:  ``,
 	RunE:  searchTuf,
 }
@@ -80,7 +86,11 @@ func getTufConfigPath() string {
 	return filepath.Join(here, relTufConfigFilePath)
 }
 
-func getEmbeddedPython() (string, error) {
+func getCommandPython() (string, error) {
+	if useSysPython {
+		return pythonBin, nil
+	}
+
 	here, _ := executable.Folder()
 	pyPath := filepath.Join(here, relPyPath)
 
@@ -121,12 +131,22 @@ func tuf(args []string) error {
 		return errors.New("Please use this tool as the agent-running user")
 	}
 
-	pipPath, err := getEmbeddedPython()
+	if flagNoColor {
+		color.NoColor = true
+	}
+
+	err := common.SetupConfig(confFilePath)
+	if err != nil {
+		fmt.Printf("Cannot setup config, exiting: %v\n", err)
+		return err
+	}
+
+	pipPath, err := getCommandPython()
 	if err != nil {
 		return err
 	}
 	tufPath, err := getTUFConfigFilePath()
-	if err != nil && withTuf {
+	if err != nil && !withoutTuf {
 		return err
 	}
 
@@ -157,22 +177,43 @@ func tuf(args []string) error {
 
 	tufCmd := exec.Command(pipPath, args...)
 
-	var stdout, stderr bytes.Buffer
-	tufCmd.Stdout = &stdout
-	tufCmd.Stderr = &stderr
-	if withTuf {
+	if !withoutTuf {
 		tufCmd.Env = append(os.Environ(),
 			fmt.Sprintf("TUF_CONFIG_FILE=%s", tufPath),
 		)
 	}
 
-	err = tufCmd.Run()
+	// forward the standard output to the Agent logger
+	stdout, err := tufCmd.StdoutPipe()
 	if err != nil {
-		fmt.Printf("error running command: %v", stderr.String())
-	} else {
-		fmt.Printf("%v", stdout.String())
+		return err
+	}
+	go func() {
+		in := bufio.NewScanner(stdout)
+		for in.Scan() {
+			fmt.Println(in.Text())
+		}
+	}()
+
+	// forward the standard error to the Agent logger
+	stderr, err := tufCmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	go func() {
+		in := bufio.NewScanner(stderr)
+		for in.Scan() {
+			fmt.Println(color.RedString(in.Text()))
+		}
+	}()
+
+	err = tufCmd.Start()
+	if err != nil {
+		fmt.Printf("error running command: %v", err)
+		return err
 	}
 
+	err = tufCmd.Wait()
 	return err
 }
 
@@ -194,7 +235,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	tufArgs = append(tufArgs, args...)
-	if withTuf {
+	if !withoutTuf {
 		tufArgs = append(tufArgs, "--index-url", tufPyPiServer)
 		tufArgs = append(tufArgs, "--extra-index-url", pyPiServer)
 		tufArgs = append(tufArgs, "--disable-pip-version-check")
@@ -219,7 +260,7 @@ func searchTuf(cmd *cobra.Command, args []string) error {
 		"search",
 	}
 	tufArgs = append(tufArgs, args...)
-	if withTuf {
+	if !withoutTuf {
 		tufArgs = append(tufArgs, "--index", tufPyPiServer)
 		tufArgs = append(tufArgs, "--disable-pip-version-check")
 	}

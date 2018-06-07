@@ -38,7 +38,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         0)
             # We're uninstalling.
             # We don't delete the dd-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
-            rm -rf $TUF_REPO
+            rm -rf $TUF_REPO_DIR
         ;;
         1)
             # We're upgrading.

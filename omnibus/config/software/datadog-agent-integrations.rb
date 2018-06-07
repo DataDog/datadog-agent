@@ -82,7 +82,6 @@ build do
       copy windows_safe_path("#{project_dir}/.public-tuf-config.json"), windows_safe_path("#{install_dir}/public-tuf-config.json")
       copy windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{tuf_repo_meta}/current/root.json")
     end
-    # File.chmod(0644, "#{install_dir}/public-tuf-config.json")
 
     # Install all the requirements
     if windows?
