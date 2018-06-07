@@ -81,7 +81,7 @@ var (
 )
 
 func init() {
-	jmxCmd.Flags().StringVarP(&logLevel, "log-level", "l", "debug", "set the log level (default 'debug')")
+	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "debug", "set the log level")
 
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
