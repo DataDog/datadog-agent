@@ -672,16 +672,6 @@
   revision = "4e4a3210bb54bb31f6ab2cdca2edcc0b50c420c1"
 
 [[projects]]
-  branch = "master"
-  name = "golang.org/x/tools"
-  packages = [
-    "go/ast/astutil",
-    "go/buildutil",
-    "go/loader"
-  ]
-  revision = "95b47aa5df4eda9bfbc0133f77c0e320f0275eba"
-
-[[projects]]
   name = "gopkg.in/Knetic/govaluate.v3"
   packages = ["."]
   revision = "d216395917cc49052c7c7094cf57f09657ca08a8"
@@ -820,6 +810,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c768e3f32aefa661ed7922fb185da197c0452fbee71c857942c40a7516217ddd"
+  inputs-digest = "8c9425353368574af9b248347fe206dab0198dc4e821ac514ff7c8bdef40a6f3"
   solver-name = "gps-cdcl"
   solver-version = 1

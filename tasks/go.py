@@ -200,10 +200,13 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False):
     deps = get_deps()
     for tool, version in deps.iteritems():
         # download tools
-        ctx.run("go get{} -d -u {}".format(verbosity, tool))
         path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
+        if not os.path.exists(path):
+            ctx.run("go get{} -d -u {}".format(verbosity, tool))
+
         with ctx.cd(path):
             # checkout versions
+            ctx.run("git fetch")
             ctx.run("git checkout {}".format(version))
 
         # install tools
