@@ -29,7 +29,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             initctl stop $SERVICE_NAME || true
         else
             echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
-            exit 1
         fi
     fi
 

@@ -22,7 +22,6 @@ elif command -v initctl >/dev/null 2>&1; then
     :
 else
     echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
-    exit 1
 fi
 
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
@@ -35,7 +34,6 @@ if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
         initctl start $SERVICE_NAME || initctl restart $SERVICE_NAME || true
     else
         echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
-        exit 1
     fi
 else
     # No datadog.yaml file is present. This is probably a clean install made with the
