@@ -57,7 +57,7 @@ func NewCollector(paths ...string) *Collector {
 	// Prepare python environment if necessary
 	err := pyPrepareEnv()
 	if err != nil {
-		log.Errorf("Unable to perform additional configuration of the python environment.")
+		log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
 	}
 
 	log.Debug("Collector up and running!")
