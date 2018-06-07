@@ -3,6 +3,7 @@ Golang related tasks go here
 """
 from __future__ import print_function
 import os
+import json
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -24,6 +25,17 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "dist", "checks", "prometheus_check"),
     os.path.join("cmd", "agent", "gui", "views", "private"),
 ]
+
+# Bootstrap dependencies description
+BOOTSTRAP_DEPS = "bootstrap.json"
+
+
+def get_deps():
+    here = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(here, '..', BOOTSTRAP_DEPS)) as f:
+        deps = json.load(f)
+
+    return deps.get('deps', {})
 
 
 @task
@@ -185,12 +197,20 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False):
     Setup Go dependencies
     """
     verbosity = ' -v' if verbose else ''
-    ctx.run('go get{} -u github.com/golang/dep/cmd/dep'.format(verbosity))
-    ctx.run('go get{} -u github.com/golang/lint/golint'.format(verbosity))
-    ctx.run('go get{} -u github.com/fzipp/gocyclo'.format(verbosity))
-    ctx.run('go get{} -u github.com/gordonklaus/ineffassign'.format(verbosity))
-    ctx.run('go get{} -u github.com/client9/misspell/cmd/misspell'.format(verbosity))
-    ctx.run('dep ensure{}'.format(verbosity))
+    deps = get_deps()
+    for tool, version in deps.iteritems():
+        # download tools
+        ctx.run("go get{} -d -u {}".format(verbosity, tool))
+        path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
+        with ctx.cd(path):
+            # checkout versions
+            ctx.run("git checkout {}".format(version))
+
+        # install tools
+        ctx.run("go install{} {}".format(verbosity, tool))
+
+    # source level deps
+    ctx.run("dep ensure{}".format(verbosity))
 
     if not no_checks:
         verbosity = 'v' if verbose else 'q'
