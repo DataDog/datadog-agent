@@ -50,18 +50,30 @@ func (s *jmxState) unscheduleCheck(c *JMXCheck) {
 	s.configs.Remove(string(c.id))
 }
 
-func AddScheduledConfig(c integration.Config) {
-	state.configs.Add(fmt.Sprintf("%v_%v", c.Name, c.Digest()), c)
+func (s *jmxState) addScheduledConfig(c integration.Config) {
+	s.configs.Add(fmt.Sprintf("%v_%v", c.Name, c.Digest()), c)
 }
 
-func GetScheduledConfigs() map[string]integration.Config {
-	configs := make(map[string]integration.Config, len(state.configs.Items()))
-	for name, config := range state.configs.Items() {
+func (s *jmxState) getScheduledConfigs() map[string]integration.Config {
+	configs := make(map[string]integration.Config, len(s.configs.Items()))
+	for name, config := range s.configs.Items() {
 		configs[name] = config.(integration.Config)
 	}
 	return configs
 }
 
+func (s *jmxState) getScheduledConfigsModificationTimestamp() int64 {
+	return s.configs.GetModified()
+}
+
+func AddScheduledConfig(c integration.Config) {
+	state.addScheduledConfig(c)
+}
+
+func GetScheduledConfigs() map[string]integration.Config {
+	return state.getScheduledConfigs()
+}
+
 func GetScheduledConfigsModificationTimestamp() int64 {
-	return state.configs.GetModified()
+	return state.getScheduledConfigsModificationTimestamp()
 }
