@@ -66,14 +66,19 @@ func (s *jmxState) getScheduledConfigsModificationTimestamp() int64 {
 	return s.configs.GetModified()
 }
 
+// AddScheduledConfig adds a config to the list of scheduled config.
+// This list is pulled by jmxfetch periodically to update its list of configs.
 func AddScheduledConfig(c integration.Config) {
 	state.addScheduledConfig(c)
 }
 
+// GetScheduledConfigs returns the list of scheduled jmx configs.
 func GetScheduledConfigs() map[string]integration.Config {
 	return state.getScheduledConfigs()
 }
 
+// GetScheduledConfigsModificationTimestamp returns the last timestamp at which
+// the list of scheduled configuration got updated.
 func GetScheduledConfigsModificationTimestamp() int64 {
 	return state.getScheduledConfigsModificationTimestamp()
 }
