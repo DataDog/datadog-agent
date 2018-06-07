@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    Decrease percentile epsilon for improved accuracy of distribution metrics.
+    Decrease percentile epsilon and increase incoming buffer size for improved
+    accuracy of distribution metrics.

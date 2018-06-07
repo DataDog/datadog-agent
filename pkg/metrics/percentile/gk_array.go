@@ -21,6 +21,9 @@ import (
 // EPSILON represents the accuracy of the sketch.
 const EPSILON float64 = 0.005
 
+// INCOMING_BUF_SIZE sets the incoming buffer size to a power of 2 that prevents compression before submission in 99% of cases
+const INCOMING_BUF_SIZE int = 256
+
 // Entry is an element of the sketch. For the definition of g and delta, see the original paper
 // http://infolab.stanford.edu/~datar/courses/cs361a/papers/quantiles.pdf
 type Entry struct {
@@ -102,7 +105,7 @@ func (e *Entry) UnmarshalJSON(b []byte) error {
 func NewGKArray() GKArray {
 	return GKArray{
 		// preallocate the incoming array for better insert throughput (5% faster)
-		Incoming: make([]float64, 0, int(1/EPSILON)+1),
+		Incoming: make([]float64, 0, INCOMING_BUF_SIZE),
 		Min:      math.Inf(1),
 		Max:      math.Inf(-1),
 	}
