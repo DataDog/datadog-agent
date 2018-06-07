@@ -19,7 +19,7 @@ import (
 )
 
 // EPSILON represents the accuracy of the sketch.
-const EPSILON float64 = 0.01
+const EPSILON float64 = 0.005
 
 // Entry is an element of the sketch. For the definition of g and delta, see the original paper
 // http://infolab.stanford.edu/~datar/courses/cs361a/papers/quantiles.pdf
