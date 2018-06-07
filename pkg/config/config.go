@@ -146,8 +146,6 @@ func init() {
 	Datadog.SetDefault("proc_root", "/proc")
 	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	Datadog.SetDefault("histogram_percentiles", []string{"0.95"})
-	Datadog.SetDefault("histogram_copy_to_distribution", false)
-	Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 	// Serializer
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
@@ -244,6 +242,9 @@ func init() {
 	// Undocumented opt-in feature for now
 	BindEnvAndSetDefault("full_cardinality_tagging", false)
 
+	BindEnvAndSetDefault("histogram_copy_to_distribution", false)
+	BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
+
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
@@ -297,8 +298,6 @@ func init() {
 	Datadog.BindEnv("bosh_id")
 	Datadog.BindEnv("histogram_aggregates")
 	Datadog.BindEnv("histogram_percentiles")
-	Datadog.BindEnv("histogram_copy_to_distribution")
-	Datadog.BindEnv("histogram_copy_to_distribution_prefix")
 	Datadog.BindEnv("kubernetes_kubeconfig_path")
 	Datadog.BindEnv("leader_election")
 	Datadog.BindEnv("leader_lease_duration")

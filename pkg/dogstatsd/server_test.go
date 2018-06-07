@@ -248,9 +248,13 @@ func TestUDPForward(t *testing.T) {
 func TestHistToDist(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
+	defaultPort := config.Datadog.GetInt("dogstatsd_port")
 	config.Datadog.SetDefault("dogstatsd_port", port)
+	defer config.Datadog.SetDefault("dogstatsd_port", defaultPort)
 	config.Datadog.SetDefault("histogram_copy_to_distribution", true)
+	defer config.Datadog.SetDefault("histogram_copy_to_distribution", false)
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
+	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
 	metricOut := make(chan *metrics.MetricSample)
 	eventOut := make(chan metrics.Event)
