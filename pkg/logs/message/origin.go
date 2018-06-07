@@ -32,10 +32,6 @@ func NewOrigin(source *config.LogSource) *Origin {
 func (o *Origin) Tags() []string {
 	tags := o.tags
 
-	source := o.Source()
-	if source != "" {
-		tags = append(tags, "source:"+source)
-	}
 	sourceCategory := o.LogSource.Config.SourceCategory
 	if sourceCategory != "" {
 		tags = append(tags, "sourcecategory:"+sourceCategory)
