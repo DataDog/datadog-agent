@@ -16,7 +16,7 @@ DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || gre
 if [ "$DISTRIBUTION" != "Darwin" ]; then
     set -e
 
-    if [ -f "/lib/systemd/system/datadog-agent.service" ]; then
+    if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/system/$SERVICE_NAME.service" ]; then
         # Stop an already running agent
         # Only supports systemd and upstart
         if command -v systemctl >/dev/null 2>&1; then
