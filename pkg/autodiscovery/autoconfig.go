@@ -418,6 +418,7 @@ func (ac *AutoConfig) pollConfigs() {
 			case <-ac.health.C:
 			case <-ac.configsPollTicker.C:
 				ac.m.RLock()
+
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
 					// skip providers that don't want to be polled
@@ -509,6 +510,7 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []integration.Config) {
 	new = []integration.Config{}
 	removed = []integration.Config{}
+	old := pd.configs
 
 	fetched, err := pd.provider.Collect()
 	if err != nil {
@@ -520,16 +522,20 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []integratio
 		log.Infof("c.ADIdentifiers is %s", c.ADIdentifiers) // REMOVE
 		if !pd.contains(&c) {
 			new = append(new, c)
+			log.Infof("New config: %s", c)
 			continue
+		} else {
+			log.Infof("provider contains %s", c)
 		}
 		// Check the freshness of c. Reschedule if necessary.
 		if tagger.OutdatedTags(c.ADIdentifiers) {
-			ac.reschedule(c)
+			log.Infof("Starting rescheduling for %s", c)
+			removed = append(removed, c)
+			new = append(new, c)
 		}
 	}
-	old := pd.configs
-	pd.configs = fetched
 
+	pd.configs = fetched
 	for _, c := range old {
 		if !pd.contains(&c) {
 			removed = append(removed, c)
@@ -542,17 +548,17 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []integratio
 }
 
 // reschedule is used when a check has started with a template that is not up to date anymore.
-func (ac *AutoConfig) reschedule(c integration.Config) {
-	log.Infof("Starting rescheduling for %s", c)
-	ac.processRemovedConfigs([]integration.Config{c})
-	log.Infof("Processed remove configs for %s", c)
-	resolvedConfigs := ac.resolve(c)
-	log.Infof("Resolved configs %s", resolvedConfigs)
-	checks := ac.getChecksFromConfigs(resolvedConfigs, true)
-	log.Infof("Preparing scheduling for %s", checks)
-	ac.schedule(checks)
-	log.Infof("Rescheduled the checks %s", checks)
-}
+//func (ac *AutoConfig) reschedule(c integration.Config) {
+//	log.Infof("Starting rescheduling for %s", c)
+//	ac.processRemovedConfigs([]integration.Config{c})
+//	log.Infof("Processed remove configs for %s", c)
+//	resolvedConfigs := ac.resolve(c)
+//	log.Infof("Resolved configs %s", resolvedConfigs)
+//	checks := ac.getChecksFromConfigs(resolvedConfigs, true)
+//	log.Infof("Preparing scheduling for %s", checks)
+//	ac.schedule(checks)
+//	log.Infof("Rescheduled the checks %s", checks)
+//}
 
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
@@ -603,6 +609,8 @@ func (pd *providerDescriptor) contains(c *integration.Config) bool {
 	for _, config := range pd.configs {
 		if config.Equal(c) {
 			return true
+		} else {
+			log.Infof("is c: %s equal to config: %s", c, config)
 		}
 	}
 

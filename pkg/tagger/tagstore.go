@@ -11,6 +11,7 @@ import (
 	"hash/fnv"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"sort"
 )
 
 // entityTags holds the tag information for a given entity
@@ -74,7 +75,6 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
 	storedTags.highCardTags[info.Source] = info.HighCardTags
 	storedTags.cacheValid = false
-	storedTags.outdatedTags = false
 	storedTags.Unlock()
 
 	if exist == false {
@@ -82,14 +82,18 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 		s.store[info.Entity] = storedTags
 		s.storeMutex.Unlock()
 	}
-
-	digestInfo := digest(info)
-
 	storedTags.Lock()
 	defer storedTags.Unlock()
+
+	if len(info.HighCardTags) == 0 && len(info.LowCardTags) == 0 && info.Source != "kube-metadata-collector" {
+		log.Infof("No new tags to compute by %s from entity: %s - Returning", info.Source, info.Entity)
+		return nil
+	}
+
+	digestInfo := digest(info)
 	if storedTags.freshnessHash == "" || storedTags.freshnessHash != digestInfo {
-		log.Infof("freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo) // REMOVE
-		log.Infof("highcards is %s and low is %s", info.HighCardTags, info.LowCardTags)      // REMOVE
+		log.Infof("freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo)                        // REMOVE
+		log.Infof("highcards is %s analoprs d low is %s from %s", info.HighCardTags, info.LowCardTags, info.Source) // REMOVE
 		storedTags.freshnessHash = digestInfo
 		storedTags.outdatedTags = true
 		log.Infof("NEW freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo) // REMOVE
@@ -101,12 +105,27 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 func digest(info *collectors.TagInfo) string {
 	log.Infof("digesting %s containing low %s and high %s", info.Entity, info.LowCardTags, info.HighCardTags)
 	h := fnv.New64()
-	for _, i := range info.HighCardTags {
+
+	h.Write([]byte(info.Source))
+
+	highTags := info.HighCardTags
+	if len(highTags) > 1 {
+		sort.Strings(highTags)
+		log.Infof("sorting high: %s", highTags)
+	}
+	for _, i := range highTags {
 		h.Write([]byte(i))
 	}
-	for _, i := range info.LowCardTags {
+
+	lowTags := info.LowCardTags
+	if len(lowTags) > 1 {
+		sort.Strings(lowTags)
+		log.Infof("sorting low: %s", lowTags)
+	}
+	for _, i := range lowTags {
 		h.Write([]byte(i))
 	}
+
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
