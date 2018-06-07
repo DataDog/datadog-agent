@@ -163,7 +163,7 @@ api_key:
 # dogstatsd_socket: /var/run/dogstatsd/dsd.sock
 #
 # When using Unix Socket, dogstatsd can tag metrics with container metadata.
-# If running dogstatsd in a container, host PID mode is required.
+# If running dogstatsd in a container, host PID mode (e.g. with --pid=host) is required.
 # dogstatsd_origin_detection: false
 #
 # The buffer size use to receive statsd packet, in bytes
