@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Decrease percentile epsilon for improved accuracy of distribution metrics.
