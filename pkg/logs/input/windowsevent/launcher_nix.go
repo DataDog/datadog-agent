@@ -5,7 +5,7 @@
 
 // +build !windows
 
-package eventlog
+package windowsevent
 
 // EnumerateChannels does nothing
 func EnumerateChannels() ([]string, error) {

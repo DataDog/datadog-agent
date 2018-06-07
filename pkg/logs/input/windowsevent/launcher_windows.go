@@ -5,7 +5,7 @@
 
 // +build windows
 
-package eventlog
+package windowsevent
 
 /*
 #cgo LDFLAGS: -l wevtapi

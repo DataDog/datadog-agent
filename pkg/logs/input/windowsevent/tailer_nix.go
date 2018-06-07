@@ -5,7 +5,7 @@
 
 // +build !windows
 
-package eventlog
+package windowsevent
 
 import (
 	log "github.com/cihub/seelog"

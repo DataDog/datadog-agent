@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package eventlog
+package windowsevent
 
 import (
 	log "github.com/cihub/seelog"
