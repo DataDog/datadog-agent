@@ -51,6 +51,12 @@ api_key:
 # Warning: percentiles must be specified as yaml strings
 #
 # histogram_percentiles: ["0.95"]
+#
+# Copy histgram values to distributions for true global distributions (in beta)
+# histogram_copy_to_distribution: true
+#
+# A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
+# histogram_copy_to_distribution_prefix: ""
 
 # Forwarder timeout in seconds
 # forwarder_timeout: 20
