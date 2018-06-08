@@ -173,8 +173,8 @@ func tuf(args []string) error {
 	args = append(args, implicitFlags...)
 
 	// Proxy support
-	proxies, err := config.GetProxies()
-	if err == nil && proxies != nil {
+	proxies := config.GetProxies()
+	if proxies != nil {
 		proxyFlags := fmt.Sprintf("--proxy=%s", proxies.HTTPS)
 		args = append(args, proxyFlags)
 	}
