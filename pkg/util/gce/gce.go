@@ -88,6 +88,7 @@ func getResponse(url string) (string, error) {
 		return "", fmt.Errorf("GCE hostname, error reading response body: %s", err)
 	}
 
+	// Some cloud platforms will respond with an empty body, causing the agent to assume a faulty hostname
 	if len(all) <= 0 {
 		return "", fmt.Errorf("empty response body")
 	}
