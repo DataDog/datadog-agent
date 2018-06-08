@@ -73,6 +73,15 @@ func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
 	}
 }
 
+func TestFindSourceWithInvalidContainerLabelShouldReturnNil(t *testing.T) {
+	var source *config.LogSource
+	var container *Container
+
+	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}})
+	source = container.findSource(nil)
+	assert.Nil(t, source)
+}
+
 func TestIsImageMatch(t *testing.T) {
 	var container *Container
 
@@ -199,51 +208,76 @@ func TestIsNameMatch(t *testing.T) {
 	assert.False(t, container.isNameMatch("boo"))
 }
 
-func TestParseConfigWithNoValidKeyShouldFail(t *testing.T) {
+func TestFindSourceFromLabelWithWrongLabelNameShouldFail(t *testing.T) {
 	var labels map[string]string
-	var config *config.LogsConfig
+	var source *config.LogSource
 	var container *Container
 
 	container = NewContainer(types.Container{Labels: labels})
-	config = container.parseConfig()
-	assert.Nil(t, config)
+	source = container.findSource(nil)
+	assert.Nil(t, source)
 
 	labels = map[string]string{"com.datadoghq.ad.name": "any_name"}
 	container = NewContainer(types.Container{Labels: labels})
-	config = container.parseConfig()
-	assert.Nil(t, config)
+	source = container.findSource(nil)
+	assert.Nil(t, source)
 }
 
-func TestParseConfigWithWrongFormatShouldFail(t *testing.T) {
+func TestFindSourceFromLabelWithWrongFormatShouldFail(t *testing.T) {
 	var labels map[string]string
-	var config *config.LogsConfig
+	var source *config.LogSource
 	var container *Container
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{}"}
 	container = NewContainer(types.Container{Labels: labels})
-	config = container.parseConfig()
-	assert.Nil(t, config)
+	source = container.findSource(nil)
+	assert.Nil(t, source)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}
 	container = NewContainer(types.Container{Labels: labels})
-	config = container.parseConfig()
-	assert.Nil(t, config)
+	source = container.findSource(nil)
+	assert.Nil(t, source)
 }
 
-func TestParseConfigWithValidFormatShouldSucceed(t *testing.T) {
+func TestFindSourceFromLabelWithInvalidProcessingRuleShouldFail(t *testing.T) {
 	var labels map[string]string
-	var config *config.LogsConfig
+	var source *config.LogSource
 	var container *Container
 
-	labels = map[string]string{"com.datadoghq.ad.logs": "[{}]"}
+	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line"}]}]`}
 	container = NewContainer(types.Container{Labels: labels})
-	config = container.parseConfig()
-	assert.NotNil(t, config)
+	source = container.findSource(nil)
+	assert.Nil(t, source)
+}
 
-	labels = map[string]string{"com.datadoghq.ad.logs": "[{\"source\":\"any_source\",\"service\":\"any_service\"}]"}
+func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
+	var labels map[string]string
+	var source *config.LogSource
+	var container *Container
+	var rule config.LogsProcessingRule
+
+	labels = map[string]string{"com.datadoghq.ad.logs": `[{}]`}
 	container = NewContainer(types.Container{Labels: labels})
-	config = container.parseConfig()
-	assert.NotNil(t, config)
-	assert.Equal(t, "any_source", config.Source)
-	assert.Equal(t, "any_service", config.Service)
+	source = container.findSource(nil)
+	assert.NotNil(t, source)
+
+	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service"}]`}
+	container = NewContainer(types.Container{Labels: labels})
+	source = container.findSource(nil)
+	assert.NotNil(t, source)
+	assert.Equal(t, "any_source", source.Config.Source)
+	assert.Equal(t, "any_service", source.Config.Service)
+
+	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`}
+	container = NewContainer(types.Container{Labels: labels})
+	source = container.findSource(nil)
+	assert.NotNil(t, source)
+	assert.Equal(t, "any_source", source.Config.Source)
+	assert.Equal(t, "any_service", source.Config.Service)
+	assert.Equal(t, 1, len(source.Config.ProcessingRules))
+	rule = source.Config.ProcessingRules[0]
+	assert.Equal(t, "multi_line", rule.Type)
+	assert.Equal(t, "numbers", rule.Name)
+	assert.True(t, rule.Reg.MatchString("123"))
+	assert.False(t, rule.Reg.MatchString("a123"))
 }

@@ -47,7 +47,7 @@ const (
 type LogsProcessingRule struct {
 	Type               string
 	Name               string
-	ReplacePlaceholder string `mapstructure:"replace_placeholder"`
+	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
 	Pattern            string
 	// TODO: should be moved out
 	Reg                     *regexp.Regexp
@@ -62,22 +62,21 @@ type LogsConfig struct {
 	Port int    // Network
 	Path string // File, Journald
 
-	IncludeUnits         []string `mapstructure:"include_units"`         // Journald
-	ExcludeUnits         []string `mapstructure:"exclude_units"`         // Journald
-	DisableNormalization bool     `mapstructure:"disable_normalization"` // Journald
+	IncludeUnits []string `mapstructure:"include_units" json:"include_units"` // Journald
+	ExcludeUnits []string `mapstructure:"exclude_units" json:"exclude_units"` // Journald
 
 	Image string // Docker
 	Label string // Docker
 	Name  string // Docker
 
-	ChannelPath string `mapstructure:"channel_path"` // Windows Event
+	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
 
 	Service         string
 	Source          string
 	SourceCategory  string
 	Tags            []string
-	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules"`
+	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 }
 
 // IntegrationConfig represents a DataDog agent configuration file, which includes infra and logs parts.
@@ -130,13 +129,7 @@ func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 				log.Error(err)
 				continue
 			}
-			rules, err := validateProcessingRules(config.ProcessingRules)
-			if err != nil {
-				source.Status.Error(err)
-				log.Error(err)
-				continue
-			}
-			config.ProcessingRules = rules
+			CompileProcessingRules(config.ProcessingRules)
 		}
 	}
 
@@ -193,9 +186,11 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 	return integrationConfigFiles
 }
 
+// validateConfig returns an error if the config is misconfigured
 func validateConfig(config LogsConfig) error {
 	switch config.Type {
 	case FileType, DockerType, TCPType, UDPType, JournaldType, WindowsEventType:
+		break
 	default:
 		return fmt.Errorf("A source must have a valid type (got %s)", config.Type)
 	}
@@ -208,32 +203,38 @@ func validateConfig(config LogsConfig) error {
 	case config.Type == UDPType && config.Port == 0:
 		return fmt.Errorf("A udp source must have a port")
 	default:
-		return nil
+		return ValidateProcessingRules(config.ProcessingRules)
 	}
 }
 
-// validateProcessingRules checks the rules and raises errors if one is misconfigured
-func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, error) {
-	for i, rule := range rules {
+// ValidateProcessingRules checks the rules and raises errors if one is misconfigured
+func ValidateProcessingRules(rules []LogsProcessingRule) error {
+	for _, rule := range rules {
 		if rule.Name == "" {
-			return nil, fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
+			return fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
 		}
 		switch rule.Type {
-		case ExcludeAtMatch:
-			rules[i].Reg = regexp.MustCompile(rule.Pattern)
-		case IncludeAtMatch:
-			rules[i].Reg = regexp.MustCompile(rule.Pattern)
-		case MaskSequences:
+		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
+			continue
+		case "":
+			return fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
+		default:
+			return fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
+		}
+	}
+	return nil
+}
+
+// CompileProcessingRules compiles all processing rules regular expression
+func CompileProcessingRules(rules []LogsProcessingRule) {
+	for i, rule := range rules {
+		switch rule.Type {
+		case ExcludeAtMatch, IncludeAtMatch, MaskSequences:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
 			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
 		case MultiLine:
 			rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
 		default:
-			if rule.Type == "" {
-				return nil, fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
-			}
-			return nil, fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
 		}
 	}
-	return rules, nil
 }
