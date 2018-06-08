@@ -356,9 +356,11 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
-	for net, settings := range cInspect.NetworkSettings.Networks {
-		if len(settings.IPAddress) > 0 {
-			ips[net] = settings.IPAddress
+	if cInspect.NetworkSettings != nil {
+		for net, settings := range cInspect.NetworkSettings.Networks {
+			if len(settings.IPAddress) > 0 {
+				ips[net] = settings.IPAddress
+			}
 		}
 	}
 

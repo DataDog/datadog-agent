@@ -38,7 +38,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                 set -e
                 if [ ! $USER_EXISTS -eq 0 ]; then
                     echo "Creating dd-agent user"
-                    adduser --system dd-agent --disabled-login --shell /bin/sh --home ${INSTALL_DIR} --no-create-home --group --quiet
+                    adduser --system dd-agent --disabled-login --shell /usr/sbin/nologin --home ${INSTALL_DIR} --no-create-home --group --quiet
                 elif id -nG dd-agent | grep --invert-match --word-regexp --quiet 'dd-agent'; then
                     # User exists but is not part of the dd-agent group
                     echo "Adding dd-agent user to dd-agent group"

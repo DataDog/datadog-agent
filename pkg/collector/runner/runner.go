@@ -253,6 +253,7 @@ func (r *Runner) work() {
 		t0 := time.Now()
 
 		err = check.Run()
+		longRunning := check.Interval() == 0
 
 		warnings := check.GetWarnings()
 
@@ -278,7 +279,7 @@ func (r *Runner) work() {
 			serviceCheckStatus = metrics.ServiceCheckCritical
 		}
 
-		if sender != nil {
+		if sender != nil && !longRunning {
 			sender.ServiceCheck("datadog.agent.check_status", serviceCheckStatus, hostname, serviceCheckTags, "")
 			sender.Commit()
 		}
@@ -291,8 +292,14 @@ func (r *Runner) work() {
 		// publish statistics about this run
 		runnerStats.Add("RunningChecks", -1)
 		runnerStats.Add("Runs", 1)
-		mStats, _ := check.GetMetricStats()
-		addWorkStats(check, time.Since(t0), err, warnings, mStats)
+
+		// HACK: If a long-running check execute successfully we don't want it to
+		// show up in the status & GUI. This situation can happen when checks
+		// get unscheduled.
+		if !longRunning || len(warnings) != 0 || err != nil {
+			mStats, _ := check.GetMetricStats()
+			addWorkStats(check, time.Since(t0), err, warnings, mStats)
+		}
 
 		l := "Done running check %s"
 		if doLog {

@@ -45,8 +45,7 @@ func GetDockerUtil() (*DockerUtil, error) {
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	err := globalDockerUtil.initRetry.TriggerRetry()
-	if err != nil {
+	if err := globalDockerUtil.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("Docker init error: %s", err)
 		return nil, err
 	}

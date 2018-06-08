@@ -10,3 +10,7 @@ package flare
 func zipDockerSelfInspect(tempDir, hostname string) error {
 	return nil
 }
+
+func zipDockerPs(tempDir, hostname string) error {
+	return nil
+}

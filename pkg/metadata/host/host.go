@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -86,6 +88,13 @@ func getHostTags() *tags {
 		log.Debugf("No Kubernetes host tags %v", err)
 	} else {
 		hostTags = append(hostTags, k8sTags...)
+	}
+
+	dockerTags, err := docker.GetTags()
+	if err != nil {
+		log.Debugf("No Docker host tags %v", err)
+	} else {
+		hostTags = append(hostTags, dockerTags...)
 	}
 
 	gceTags, err := gce.GetTags()

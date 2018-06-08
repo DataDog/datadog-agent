@@ -56,7 +56,7 @@ You can send custom metrics via [the statsd protocol](https://docs.datadoghq.com
 - `DD_HISTOGRAM_PERCENTILES`: histogram percentiles to compute, separated by spaces. The default is "0.95"
 - `DD_HISTOGRAM_AGGREGATES`: histogram aggregates to compute, separated by spaces. The default is "max median avg count"
 - `DD_DOGSTATSD_SOCKET`: path to the unix socket to listen to. Must be in a `rw` mounted volume.
-- `DD_DOGSTATSD_ORIGIN_DETECTION`: enable container detection and tagging for unix socket metrics.
+- `DD_DOGSTATSD_ORIGIN_DETECTION`: enable container detection and tagging for unix socket metrics. Running in host PID mode (e.g. with --pid=host) is required.
 
 #### Tagging
 
@@ -190,7 +190,7 @@ Our default configuration targets Kubernetes 1.7.6 and later, as we rely on feat
   * `rbac.authorization.k8s.io/v1` in Kubernetes 1.8+ (and OpenShift 3.9+), the default apiVersion we target
   * `rbac.authorization.k8s.io/v1beta1` in Kubernetes 1.5 to 1.7 (and OpenShift 3.7)
   * `v1` in Openshift 1.3 to 3.6
-  
+
 You can apply our yaml manifests with the following `sed` invocations:
 ```
 sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrole.yaml | kubectl apply -f -

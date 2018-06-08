@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"html"
 	"html/template"
 	"io"
 	"path/filepath"
@@ -54,7 +53,7 @@ func renderStatus(rawData []byte, request string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return html.EscapeString(b.String()), nil
+	return b.String(), nil
 }
 
 func renderRunningChecks() (string, error) {
@@ -71,7 +70,7 @@ func renderRunningChecks() (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return html.EscapeString(b.String()), nil
+	return b.String(), nil
 }
 
 func renderCheck(name string, stats []*check.Stats) (string, error) {
@@ -82,7 +81,7 @@ func renderCheck(name string, stats []*check.Stats) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return html.EscapeString(b.String()), nil
+	return b.String(), nil
 }
 
 func renderError(name string) (string, error) {
@@ -96,7 +95,7 @@ func renderError(name string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return html.EscapeString(b.String()), nil
+	return b.String(), nil
 }
 
 func fillTemplate(w io.Writer, data Data, request string) error {

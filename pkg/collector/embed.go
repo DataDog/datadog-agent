@@ -9,6 +9,7 @@ package collector
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	python "github.com/sbinet/go-python"
 )
 
@@ -17,6 +18,18 @@ var pyState *python.PyThreadState
 func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 	pyState = py.Initialize(paths...)
 	return py.PythonVersion, py.PythonHome, py.PythonPath
+}
+
+func pyPrepareEnv() error {
+	if config.Datadog.IsSet("procfs_path") {
+		procfsPath := config.Datadog.GetString("procfs_path")
+		err := py.SetPythonPsutilProcPath(procfsPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func pyTeardown() {

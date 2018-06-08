@@ -9,6 +9,7 @@ stages:
   - image_build
   - image_deploy
   - deploy
+  - e2e
 
 variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
@@ -29,6 +30,7 @@ variables:
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET: $WIN_S3_BUCKET/pipelines/$CI_PIPELINE_ID
+  WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
@@ -470,7 +472,7 @@ deploy_windows_testing:
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" --include "*.msi.metadata.json" --include "*.wixpdb" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # run dd-agent-testing on windows
 kitchen_windows:
@@ -837,6 +839,7 @@ dogstatsd_dev_quay_master:
     DEST_IMAGE: quay.io/datawhale/dogstatsd-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
 
+
 #
 # deploy
 #
@@ -873,6 +876,31 @@ deploy_deb:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
 
+# deploy windows packages to a public s3 bucket when pushed on master
+deploy_windows_master:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-latest.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy windows packages to a public s3 bucket when tagged
+deploy_windows_tags:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - tags
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-latest.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
 deploy_rpm:
@@ -1052,3 +1080,29 @@ latest_dsd_push:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd
+
+
+#
+# end to end
+#
+
+.pupernetes_template: &pupernetes_template
+  stage: e2e
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  tags: [ "runner:main", "size:large" ]
+  before_script: [ "# noop" ] # Override top level entry
+  script:
+  - inv -e e2e-tests --image=datadog/agent-dev:$CI_COMMIT_REF_SLUG
+
+pupernetes-dev:
+  <<: *pupernetes_template
+  when: manual
+  except:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+
+pupernetes:
+  <<: *pupernetes_template
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397

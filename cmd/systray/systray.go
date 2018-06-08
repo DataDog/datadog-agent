@@ -16,8 +16,9 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/lxn/walk"
 
+	"github.com/cihub/seelog"
+	"github.com/lxn/walk"
 	"golang.org/x/sys/windows"
 )
 

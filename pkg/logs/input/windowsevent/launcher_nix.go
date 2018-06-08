@@ -5,6 +5,9 @@
 
 // +build !windows
 
-package embed
+package windowsevent
 
-const jmxExitFile = ""
+// EnumerateChannels does nothing
+func EnumerateChannels() ([]string, error) {
+	return nil, nil
+}

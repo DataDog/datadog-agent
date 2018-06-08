@@ -10,12 +10,16 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"text/tabwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/docker/docker/api/types"
 )
 
 func zipDockerSelfInspect(tempDir, hostname string) error {
@@ -56,4 +60,44 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 
 	_, err = w.Write(serialized)
 	return err
+}
+
+func zipDockerPs(tempDir, hostname string) error {
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		// if we can't reach docker, let's do nothing
+		log.Debugf("Couldn't reach docker for getting `docker ps`: %s", err)
+		return nil
+	}
+	options := types.ContainerListOptions{All: true, Limit: 500}
+	containerList, err := du.RawContainerList(options)
+	if err != nil {
+		return err
+	}
+
+	// Opening out file
+	f := filepath.Join(tempDir, hostname, "docker_ps.log")
+	file, err := NewRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	w := tabwriter.NewWriter(file, 20, 0, 3, ' ', tabwriter.AlignRight)
+
+	fmt.Fprintln(w, "CONTAINER ID\tIMAGE\tCOMMAND\tSTATUS\tPORTS\tNAMES\t")
+	// Removed CREATED as it only shows a timestamp in the API
+	for _, c := range containerList {
+		// Trimming command if too large
+		var command_limit = 18
+		command := c.Command
+		if len(c.Command) >= command_limit {
+			command = c.Command[:command_limit] + "…"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%q\t%s\t%v\t%v\t\n",
+			c.ID[:12], c.Image, command, c.Status, c.Ports, c.Names)
+		w.Flush()
+	}
+
+	return nil
 }

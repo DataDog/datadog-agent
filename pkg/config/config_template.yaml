@@ -51,6 +51,13 @@ api_key:
 # Warning: percentiles must be specified as yaml strings
 #
 # histogram_percentiles: ["0.95"]
+#
+# Copy histogram values to distributions for true global distributions (in beta)
+# This will increase the number of custom metrics created
+# histogram_copy_to_distribution: false
+#
+# A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
+# histogram_copy_to_distribution_prefix: ""
 
 # Forwarder timeout in seconds
 # forwarder_timeout: 20
@@ -104,6 +111,44 @@ api_key:
 
 # IPC api server timeout in seconds
 # server_timeout: 15
+
+# Some environments may have the procfs file system mounted in a miscellaneous 
+# location. The procfs_path configuration parameter provides a mechanism to 
+# override the standard default location: '/proc' - this setting will trickle 
+# down to integrations and affect their behavior if they rely on the psutil 
+# python package.
+# procfs_path: /proc
+
+# BETA: Encrypted Secrets (Linux only)
+#
+# This feature is in beta and its options or behaviour might break between
+# minor or bugfix releases of the Agent.
+#
+# The agent can call an external command to fetch secrets. The command will be
+# executed maximum once per instance containing an encrypted password.
+# Secrets are cached by the agent, this will avoid executing again the
+# secret_backend_command to fetch an already known secret (useful when combine
+# with Autodiscovery). This feature is still in beta.
+#
+# For more information see: http://<some doc URL>
+#
+# Path to the script to execute. The script must belong to the same user used
+# to run the agent. Executable right must be given to the agent and no rights
+# for 'group' or 'other'.
+# secret_backend_command: /path/to/command
+#
+# A list of arguments to give to the command at each run (optional)
+# secret_backend_arguments:
+#   - argument1
+#   - argument2
+#
+# The size in bytes of the buffer used to store the command answer (apply to
+# both stdout and stderr)
+# secret_backend_output_max_size: 1024
+#
+# The timeout to execute the command in second
+# secret_backend_timeout: 5
+
 {{ end -}}
 {{- if .Metadata }}
 # Metadata providers, add or remove from the list to enable or disable collection.
@@ -127,13 +172,12 @@ api_key:
 # 'dogstatsd_non_local_traffic' is set to true
 # bind_host: localhost
 #
-# Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only).
-# Set to a valid filesystem path to enable
-# dogstatsd_socket:
+# Dogstatsd can also listen for metrics on a Unix Socket (*nix only).
+# Set to a valid filesystem path to enable.
+# dogstatsd_socket: /var/run/dogstatsd/dsd.sock
 #
-# Whether origin detection and container tagging should be enabled for Unix
-# Socket incoming metrics. This feature is experimental for now.
-#
+# When using Unix Socket, dogstatsd can tag metrics with container metadata.
+# If running dogstatsd in a container, host PID mode (e.g. with --pid=host) is required.
 # dogstatsd_origin_detection: false
 #
 # The buffer size use to receive statsd packet, in bytes
@@ -150,6 +194,13 @@ api_key:
 #
 # The port for the go_expvar server
 # dogstatsd_stats_port: 5000
+#
+# The number of bytes allocated to dogstatsd's socket receive buffer (POSIX
+# system only). By default, this value is set by the system. If you need to
+# increase the size of this buffer but keep the OS default value the same, you
+# can set dogstatsd's receive buffer size here. The maximum accepted value
+# might change depending on the OS.
+# dogstatsd_so_rcvbuf:
 #
 # If you want to forward every packet received by the dogstatsd server
 # to another statsd server, uncomment these lines.
@@ -265,6 +316,10 @@ api_key:
 # If connecting through a TCP socket, set to 'yes' to enable TLS
 #
 # syslog_tls: no
+#
+# If TLS enabled, you may specify a path to a PEM certificate here
+#
+# syslog_pem: /path/to/certificate.pem
 #
 {{ end -}}
 {{- if .Autodiscovery }}

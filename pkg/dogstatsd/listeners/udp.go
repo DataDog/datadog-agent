@@ -45,6 +45,12 @@ func NewUDPListener(packetOut chan *Packet, packetPool *PacketPool) (*UDPListene
 
 	conn, err = net.ListenPacket("udp", url)
 
+	if rcvbuf := config.Datadog.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+		if err := conn.(*net.UDPConn).SetReadBuffer(rcvbuf); err != nil {
+			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
+		}
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}

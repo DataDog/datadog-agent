@@ -22,11 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -45,6 +47,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -200,18 +203,38 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
 
 	configs := common.AC.GetLoadedConfigs()
-	sort.Slice(configs, func(i, j int) bool {
-		return configs[i].Name < configs[j].Name
+	configSlice := make([]integration.Config, 0)
+	for _, config := range configs {
+		configSlice = append(configSlice, config)
+	}
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
 	})
-	response.Configs = configs
+	response.Configs = configSlice
 	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
 	response.ConfigErrors = autodiscovery.GetConfigErrors()
 	response.Unresolved = common.AC.GetUnresolvedTemplates()
 
-	json, err := json.Marshal(response)
+	jsonConfig, err := json.Marshal(response)
 	if err != nil {
 		log.Errorf("Unable to marshal config check response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
 	}
 
-	w.Write(json)
+	w.Write(jsonConfig)
+}
+
+func getTaggerList(w http.ResponseWriter, r *http.Request) {
+	response := tagger.List(tagger.IsFullCardinality())
+
+	jsonTags, err := json.Marshal(response)
+	if err != nil {
+		log.Errorf("Unable to marshal tagger list response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(jsonTags)
 }

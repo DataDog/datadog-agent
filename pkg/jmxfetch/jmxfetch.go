@@ -98,16 +98,16 @@ func (j *JMXFetch) Start() error {
 	here, _ := executable.Folder()
 	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {
-		classpath = fmt.Sprintf("%s:%s", j.JavaToolsJarPath, classpath)
+		classpath = fmt.Sprintf("%s%s%s", j.JavaToolsJarPath, string(os.PathListSeparator), classpath)
 	}
 
 	globalCustomJars := config.Datadog.GetStringSlice("jmx_custom_jars")
 	if len(globalCustomJars) > 0 {
-		classpath = fmt.Sprintf("%s:%s", strings.Join(globalCustomJars, ":"), classpath)
+		classpath = fmt.Sprintf("%s%s%s", strings.Join(globalCustomJars, string(os.PathListSeparator)), string(os.PathListSeparator), classpath)
 	}
 
 	if len(j.JavaCustomJarPaths) > 0 {
-		classpath = fmt.Sprintf("%s:%s", strings.Join(j.JavaCustomJarPaths, ":"), classpath)
+		classpath = fmt.Sprintf("%s%s%s", strings.Join(j.JavaCustomJarPaths, string(os.PathListSeparator)), string(os.PathListSeparator), classpath)
 	}
 	bindHost := config.Datadog.GetString("bind_host")
 	if bindHost == "" || bindHost == "0.0.0.0" {

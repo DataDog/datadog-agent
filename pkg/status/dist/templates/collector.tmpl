@@ -1,4 +1,9 @@
-=========
+{{/*
+NOTE: Changes made to this template should be reflected on the following templates, if applicable:
+* cmd/agent/gui/views/templates/collectorStatus.tmpl
+* cmd/agent/gui/views/templates/singleCheck.tmpl
+* Dockerfiles/cluster-agent/dist/templates/collector.tmpl
+*/}}=========
 Collector
 =========
 
@@ -13,9 +18,9 @@ Collector
     {{.CheckName}}
     {{printDashes .CheckName "-"}}
       Total Runs: {{.TotalRuns}}
-      Metrics: {{.Metrics}}, Total Metrics: {{humanize .TotalMetrics}}
-      Events: {{.Events}}, Total Events: {{humanize .TotalEvents}}
-      Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanize .TotalServiceChecks}}
+      Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
+      Events: {{.Events}}, Total: {{humanize .TotalEvents}}
+      Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
       Average Execution Time : {{.AverageExecutionTime}}ms
       {{if .LastError -}}
       Error: {{lastErrorMessage .LastError}}

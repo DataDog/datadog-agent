@@ -6,6 +6,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"os"
@@ -15,7 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/viper"
+	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -24,7 +27,10 @@ import (
 const DefaultForwarderRecoveryInterval = 2
 
 // Datadog is the global configuration object
-var Datadog = viper.New()
+var (
+	Datadog = viper.New()
+	proxies *Proxy
+)
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
@@ -98,9 +104,14 @@ func init() {
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(1))
-	Datadog.SetDefault("expvar_port", "5000")
 	Datadog.SetDefault("auth_token_file_path", "")
 	Datadog.SetDefault("bind_host", "localhost")
+
+	// secrets backend
+	Datadog.BindEnv("secret_backend_command")
+	Datadog.BindEnv("secret_backend_arguments")
+	BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
+	BindEnvAndSetDefault("secret_backend_timeout", 5)
 
 	// Retry settings
 	Datadog.SetDefault("forwarder_backoff_factor", 2)
@@ -121,10 +132,9 @@ func init() {
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
-		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("procfs_path", "/host/proc")
+		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
-		Datadog.BindEnv("procfs_path")
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -157,6 +167,7 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+	Datadog.SetDefault("dogstatsd_so_rcvbuf", 0)
 	Datadog.SetDefault("statsd_forward_host", "")
 	Datadog.SetDefault("statsd_forward_port", 0)
 	BindEnvAndSetDefault("statsd_metric_namespace", "")
@@ -234,6 +245,9 @@ func init() {
 	// Undocumented opt-in feature for now
 	BindEnvAndSetDefault("full_cardinality_tagging", false)
 
+	BindEnvAndSetDefault("histogram_copy_to_distribution", false)
+	BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
+
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
@@ -247,12 +261,14 @@ func init() {
 	Datadog.BindEnv("dogstatsd_port")
 	Datadog.BindEnv("bind_host")
 	Datadog.BindEnv("proc_root")
+	Datadog.BindEnv("procfs_path")
 	Datadog.BindEnv("container_proc_root")
 	Datadog.BindEnv("container_cgroup_root")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("dogstatsd_origin_detection")
+	Datadog.BindEnv("dogstatsd_so_rcvbuf")
 	Datadog.BindEnv("check_runners")
 
 	Datadog.BindEnv("log_file")
@@ -309,15 +325,8 @@ var (
 )
 
 // GetProxies returns the proxy settings from the configuration
-func GetProxies() (*Proxy, error) {
-	if proxies := Datadog.Get("proxy"); proxies != nil {
-		proxies := &Proxy{}
-		if err := Datadog.UnmarshalKey("proxy", proxies); err != nil {
-			return nil, fmt.Errorf("Could not load the proxy configuration: %s", err)
-		}
-		return proxies, nil
-	}
-	return nil, nil
+func GetProxies() *Proxy {
+	return proxies
 }
 
 // loadProxyFromEnv overrides the proxy settings with environment variables
@@ -338,9 +347,9 @@ func loadProxyFromEnv() {
 	}
 
 	var isSet bool
-	proxies := &Proxy{}
+	p := &Proxy{}
 	if isSet = Datadog.IsSet("proxy"); isSet {
-		if err := Datadog.UnmarshalKey("proxy", proxies); err != nil {
+		if err := Datadog.UnmarshalKey("proxy", p); err != nil {
 			isSet = false
 			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 		}
@@ -348,23 +357,24 @@ func loadProxyFromEnv() {
 
 	if HTTP := getEnvCaseInsensitive("HTTP_PROXY"); HTTP != "" {
 		isSet = true
-		proxies.HTTP = HTTP
+		p.HTTP = HTTP
 	}
 	if HTTPS := getEnvCaseInsensitive("HTTPS_PROXY"); HTTPS != "" {
 		isSet = true
-		proxies.HTTPS = HTTPS
+		p.HTTPS = HTTPS
 	}
 	if noProxy := getEnvCaseInsensitive("NO_PROXY"); noProxy != "" {
 		isSet = true
-		proxies.NoProxy = strings.Split(noProxy, ",")
+		p.NoProxy = strings.Split(noProxy, ",")
 	}
 
 	// We have to set each value individually so both Datadog.Get("proxy")
 	// and Datadog.Get("proxy.http") work
 	if isSet {
-		Datadog.Set("proxy.http", proxies.HTTP)
-		Datadog.Set("proxy.https", proxies.HTTPS)
-		Datadog.Set("proxy.no_proxy", proxies.NoProxy)
+		Datadog.Set("proxy.http", p.HTTP)
+		Datadog.Set("proxy.https", p.HTTPS)
+		Datadog.Set("proxy.no_proxy", p.NoProxy)
+		proxies = p
 	}
 }
 
@@ -372,6 +382,35 @@ func loadProxyFromEnv() {
 func Load() error {
 	if err := Datadog.ReadInConfig(); err != nil {
 		return err
+	}
+
+	// We have to init the secrets package before we can use it to decrypt
+	// anything.
+	secrets.Init(
+		Datadog.GetString("secret_backend_command"),
+		Datadog.GetStringSlice("secret_backend_arguments"),
+		Datadog.GetInt("secret_backend_timeout"),
+		Datadog.GetInt("secret_backend_output_max_size"),
+	)
+
+	if Datadog.IsSet("secret_backend_command") {
+		// Viper doesn't expose the final location of the file it
+		// loads. Since we are searching for 'datadog.yaml' in multiple
+		// localtions we let viper determine the one to use before
+		// updating it.
+		conf, err := yaml.Marshal(Datadog.AllSettings())
+		if err != nil {
+			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+		}
+
+		finalConfig, err := secrets.Decrypt(conf)
+		if err != nil {
+			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+		}
+		r := bytes.NewReader(finalConfig)
+		if err = Datadog.MergeConfig(r); err != nil {
+			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
+		}
 	}
 
 	loadProxyFromEnv()

@@ -5,43 +5,45 @@
 
 // +build jmx
 
-package embed
+package jmx
 
 import (
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	yaml "gopkg.in/yaml.v2"
 )
 
-// JMXConfigCache contains the last version of jmx configs that will be given
-// to jmxfetch when it calls the IPC server
-var JMXConfigCache = cache.NewBasicCache()
-
-// AddJMXCachedConfig adds a config to the jmx config cache
-func AddJMXCachedConfig(config integration.Config) {
-	mapConfig := map[string]interface{}{}
-	mapConfig["name"] = config.Name
-	mapConfig["timestamp"] = time.Now().Unix()
-	mapConfig["config"] = config
-
-	JMXConfigCache.Add(config.Name, mapConfig)
-}
-
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
-	checks []string
 }
 
 // NewJMXCheckLoader creates a loader for go checks
 func NewJMXCheckLoader() (*JMXCheckLoader, error) {
-	return &JMXCheckLoader{checks: []string{}}, nil
+	state.runner.initRunner()
+	return &JMXCheckLoader{}, nil
+}
+
+func splitConfig(config integration.Config) []integration.Config {
+	configs := []integration.Config{}
+
+	for _, instance := range config.Instances {
+		c := integration.Config{
+			ADIdentifiers: config.ADIdentifiers,
+			InitConfig:    config.InitConfig,
+			Instances:     []integration.Data{instance},
+			LogsConfig:    config.LogsConfig,
+			MetricConfig:  config.MetricConfig,
+			Name:          config.Name,
+			Provider:      config.Provider,
+		}
+		configs = append(configs, c)
+	}
+	return configs
 }
 
 // Load returns an (empty?) list of checks and nil if it all works out
@@ -61,17 +63,18 @@ func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error)
 	}
 
 	for _, instance := range config.Instances {
-		if err = jmxLauncher.Configure(instance, config.InitConfig); err != nil {
+		if err = state.runner.configureRunner(instance, config.InitConfig); err != nil {
 			log.Errorf("jmx.loader: could not configure check: %s", err)
 			return checks, err
 		}
 	}
 
-	jmxLauncher.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
-	checks = append(checks, &jmxLauncher)
+	for _, cf := range splitConfig(config) {
+		c := newJMXCheck(cf)
+		checks = append(checks, c)
+	}
 
-	AddJMXCachedConfig(config)
-	return checks, err
+	return checks, nil
 }
 
 func (jl *JMXCheckLoader) String() string {
