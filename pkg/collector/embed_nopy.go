@@ -11,4 +11,8 @@ func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 	return "", "", ""
 }
 
+func pyPrepareEnv() error {
+	return nil
+}
+
 func pyTeardown() {}
