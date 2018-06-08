@@ -42,7 +42,7 @@ func TestGetHostnameEmptyBody(t *testing.T) {
 
 	val, err := GetHostname()
 	assert.Error(t, err)
-	assert.Equal(t, "", val)
+	assert.Empty(t, val)
 	assert.Equal(t, "/instance/hostname", lastRequest.URL.Path)
 }
 
