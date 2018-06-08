@@ -8,10 +8,8 @@ package app
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -48,7 +46,8 @@ func init() {
 	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
 	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
 	tufCmd.PersistentFlags().StringSlice("cmd-flags", []string{}, "command flags to pass onto pip (comma-separated or multiple flags)")
-	tufCmd.PersistentFlags().StringSlice("idx-flags", []string{}, "index flags to pass onto pip (comma-separated or multiple flags)")
+	tufCmd.PersistentFlags().StringSlice("idx-flags", []string{}, "index flags to pass onto pip (comma-separated or multiple flags). "+
+		"Some flags may not work with TUF enabled")
 
 	// Power user flags - mark as hidden
 	tufCmd.PersistentFlags().MarkHidden("cmd-flags")
@@ -136,57 +135,6 @@ func getTUFConfigFilePath() (string, error) {
 	return tufConfig, nil
 }
 
-func readTUFConfig() (map[string]interface{}, error) {
-
-	// TODO(jaime): unmarshal into a structure once we know the final
-	//              format of the JSON.
-
-	var configMap map[string]interface{}
-
-	cPath, err := getTUFConfigFilePath()
-	if err != nil {
-		return nil, err
-	}
-
-	configText, err := ioutil.ReadFile(cPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = json.Unmarshal(configText, &configMap); err != nil {
-		return nil, err
-	}
-
-	return configMap, nil
-}
-
-func getTUFRepoURL() (string, error) {
-	cfg, err := readTUFConfig()
-	if err != nil {
-		return "", err
-	}
-
-	keyPath := []string{"repository_mirrors", "public-integrations-core"}
-	for _, k := range keyPath {
-		subMap, ok := cfg[k]
-		if !ok {
-			return "", fmt.Errorf("JSON parse issue: key unavailable in config - %s", k)
-		}
-
-		cfg, ok = subMap.(map[string]interface{})
-		if !ok {
-			return "", fmt.Errorf("Unexpected format in TUF json config")
-		}
-	}
-
-	url, ok := cfg["url_prefix"]
-	if !ok {
-		return "", fmt.Errorf("TUF URL unavailable in config")
-	}
-
-	return url.(string), nil
-}
-
 func tuf(args []string) error {
 	if !allowRoot && !authorizedUser() {
 		return errors.New("Please use this tool as the agent-running user")
@@ -213,6 +161,7 @@ func tuf(args []string) error {
 
 	cmd := args[0]
 	implicitFlags := args[1:]
+	implicitFlags = append(implicitFlags, "--disable-pip-version-check")
 	args = append([]string{"-mpip"}, cmd)
 
 	// Add pip power-user flags
@@ -295,18 +244,6 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	tufArgs = append(tufArgs, args...)
-	if !withoutTuf {
-
-		tufPyPiServer, err := getTUFRepoURL()
-		if err != nil {
-			fmt.Printf(color.RedString(
-				fmt.Sprintf("Unexpected error parsing TUF configuration: %v", err)))
-		}
-
-		tufArgs = append(tufArgs, "--index-url", tufPyPiServer)
-		tufArgs = append(tufArgs, "--extra-index-url", pyPiServer)
-		tufArgs = append(tufArgs, "--disable-pip-version-check")
-	}
 
 	return tuf(tufArgs)
 }
@@ -317,27 +254,18 @@ func removeTuf(cmd *cobra.Command, args []string) error {
 	}
 	tufArgs = append(tufArgs, args...)
 	tufArgs = append(tufArgs, "-y")
-	tufArgs = append(tufArgs, "--disable-pip-version-check")
 
 	return tuf(tufArgs)
 }
 
 func searchTuf(cmd *cobra.Command, args []string) error {
 
+	// NOTE: search will always go to pypi, Our TUF repository doesn't
+	//       support searching currently.
 	tufArgs := []string{
 		"search",
 	}
 	tufArgs = append(tufArgs, args...)
-	if !withoutTuf {
-		tufPyPiServer, err := getTUFRepoURL()
-		if err != nil {
-			fmt.Printf(color.RedString(
-				fmt.Sprintf("Unexpected error parsing TUF configuration: %v", err)))
-		}
-
-		tufArgs = append(tufArgs, "--index", tufPyPiServer)
-	}
-	tufArgs = append(tufArgs, "--disable-pip-version-check")
 
 	return tuf(tufArgs)
 }
@@ -348,7 +276,6 @@ func freeze(cmd *cobra.Command, args []string) error {
 		"freeze",
 	}
 	tufArgs = append(tufArgs, args...)
-	tufArgs = append(tufArgs, "--disable-pip-version-check")
 
 	return tuf(tufArgs)
 }
