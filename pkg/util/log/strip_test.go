@@ -57,6 +57,10 @@ func TestConfigStripApiKey(t *testing.T) {
 			"https://dog.datadoghq.com":
 			- ***************************abbbb,
 			- ***************************baaaa`)
+	// make sure we don't strip container ids
+	assertClean(t,
+		`container_id: "b32bd6f9b73ba7ccb64953a04b82b48e29dfafab65fd57ca01d3b94a0e024885"`,
+		`container_id: "b32bd6f9b73ba7ccb64953a04b82b48e29dfafab65fd57ca01d3b94a0e024885"`)
 }
 
 func TestConfigStripURLPassword(t *testing.T) {
