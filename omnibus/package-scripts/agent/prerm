@@ -24,7 +24,7 @@ stop_agent()
         initctl stop $SERVICE_NAME-trace || true
         initctl stop $SERVICE_NAME || true
     else
-        echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
     fi
 }
 
@@ -40,7 +40,7 @@ deregister_agent()
         # Nothing to do, this is defined directly in the upstart job file
         :
     else
-        echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
     fi
 }
 

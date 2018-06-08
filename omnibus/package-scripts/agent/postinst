@@ -75,8 +75,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             # Nothing to do, this is defined directly in the upstart job file
             :
         else
-            echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
-            exit 1
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
         fi
 
         # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
@@ -88,8 +87,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             elif command -v initctl >/dev/null 2>&1; then
                 initctl start $SERVICE_NAME || initctl restart $SERVICE_NAME || true
             else
-                echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
-                exit 1
+                echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
             fi
         else
             # No datadog.yaml file is present. This is probably a clean install made with the
