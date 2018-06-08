@@ -245,6 +245,9 @@ func init() {
 	// Undocumented opt-in feature for now
 	BindEnvAndSetDefault("full_cardinality_tagging", false)
 
+	BindEnvAndSetDefault("histogram_copy_to_distribution", false)
+	BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
+
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")

@@ -244,3 +244,49 @@ func TestUDPForward(t *testing.T) {
 
 	assert.Equal(t, message, buffer)
 }
+
+func TestHistToDist(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	defaultPort := config.Datadog.GetInt("dogstatsd_port")
+	config.Datadog.SetDefault("dogstatsd_port", port)
+	defer config.Datadog.SetDefault("dogstatsd_port", defaultPort)
+	config.Datadog.SetDefault("histogram_copy_to_distribution", true)
+	defer config.Datadog.SetDefault("histogram_copy_to_distribution", false)
+	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
+	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
+
+	metricOut := make(chan *metrics.MetricSample)
+	eventOut := make(chan metrics.Event)
+	serviceOut := make(chan metrics.ServiceCheck)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	conn, err := net.Dial("udp", url)
+	require.NoError(t, err, "cannot connect to DSD socket")
+	defer conn.Close()
+
+	// Test metric
+	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
+	select {
+	case histMetric := <-metricOut:
+		assert.NotNil(t, histMetric)
+		assert.Equal(t, histMetric.Name, "daemon")
+		assert.EqualValues(t, histMetric.Value, 666.0)
+		assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
+	select {
+	case distMetric := <-metricOut:
+		assert.NotNil(t, distMetric)
+		assert.Equal(t, distMetric.Name, "dist.daemon")
+		assert.EqualValues(t, distMetric.Value, 666.0)
+		assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+}
