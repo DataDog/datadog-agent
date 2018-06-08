@@ -23,7 +23,7 @@ type Replacer struct {
 	ReplFunc func(b []byte) []byte
 }
 
-var apiKeyReplacer, dockerAPIKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer Replacer
+var apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer Replacer
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 
@@ -31,7 +31,7 @@ var replacers []Replacer
 
 func init() {
 	apiKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`[a-fA-F0-9]{27}([a-fA-F0-9]{5})`),
+		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
 	}
 	uriPasswordReplacer = Replacer{
