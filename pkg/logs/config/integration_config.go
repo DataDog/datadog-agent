@@ -50,7 +50,8 @@ type LogsProcessingRule struct {
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
 	Pattern            string
 	// TODO: should be moved out
-	Reg *regexp.Regexp
+	Reg                     *regexp.Regexp
+	ReplacePlaceholderBytes []byte
 }
 
 // LogsConfig represents a log source config, which can be for instance
@@ -230,6 +231,7 @@ func CompileProcessingRules(rules []LogsProcessingRule) {
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
+			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
 		case MultiLine:
 			rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
 		default:
