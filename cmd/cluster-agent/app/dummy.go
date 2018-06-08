@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !cgo windows
+// +build !kubeapiserver
 
-package xc
+package app
 
-import "fmt"
+// this file is to allow go vet to look at something in this directory, as everything
+// else currently is excluded (on windows) by build flags
+func init() {
 
-// GetSystemFreq grabs the system clock frequency
-// NOP on cross-compiled systems
-func GetSystemFreq() (int64, error) {
-	return 0, fmt.Errorf("frequency unavailable")
 }
