@@ -37,7 +37,7 @@ type UDSListener struct {
 // NewUDSListener returns an idle UDS Statsd listener
 func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
-	originDection := config.Datadog.GetBool("dogstatsd_origin_detection")
+	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
 
 	address, addrErr := net.ResolveUnixAddr("unixgram", socketPath)
 	if addrErr != nil {
@@ -52,11 +52,11 @@ func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListene
 		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
 	}
 
-	if originDection {
+	if originDetection {
 		err = enableUDSPassCred(conn)
 		if err != nil {
 			log.Errorf("dogstatsd-uds: error enabling origin detection: %s", err)
-			originDection = false
+			originDetection = false
 		} else {
 			log.Debugf("dogstatsd-uds: enabling origin detection on %s", conn.LocalAddr())
 
@@ -70,14 +70,14 @@ func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListene
 	}
 
 	listener := &UDSListener{
-		OriginDetection: originDection,
+		OriginDetection: originDetection,
 		packetOut:       packetOut,
 		packetPool:      packetPool,
 		conn:            conn,
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
-	if originDection {
+	if originDetection {
 		listener.oobPool = &sync.Pool{
 			New: func() interface{} {
 				return make([]byte, getUDSAncillarySize())
@@ -102,11 +102,10 @@ func (l *UDSListener) Listen() {
 			oob := l.oobPool.Get().([]byte)
 			var oobn int
 			n, oobn, _, _, err = l.conn.ReadMsgUnix(packet.buffer, oob)
-
 			// Extract container id from credentials
-			container, err := processUDSOrigin(oob[:oobn])
-			if err != nil {
-				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", err)
+			container, taggingErr := processUDSOrigin(oob[:oobn])
+			if taggingErr != nil {
+				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
 				socketExpvar.Add("OriginDetectionErrors", 1)
 			} else {
 				packet.Origin = container
