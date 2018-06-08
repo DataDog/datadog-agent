@@ -229,7 +229,9 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 func CompileProcessingRules(rules []LogsProcessingRule) {
 	for i, rule := range rules {
 		switch rule.Type {
-		case ExcludeAtMatch, IncludeAtMatch, MaskSequences:
+		case ExcludeAtMatch, IncludeAtMatch:
+			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
+		case MaskSequences:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
 			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
 		case MultiLine:
