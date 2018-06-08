@@ -139,7 +139,7 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 const configPath = "com.datadoghq.ad.logs"
 
 // toSource converts a container to a source,
-// returns an error if the pasing failed
+// returns an error if the parsing failed or processing rules are invalid.
 func (c *Container) toSource() (*config.LogSource, error) {
 	cfg, err := c.parseConfig()
 	if err != nil {
@@ -148,6 +148,11 @@ func (c *Container) toSource() (*config.LogSource, error) {
 	if cfg == nil {
 		return nil, nil
 	}
+	err = config.ValidateProcessingRules(cfg.ProcessingRules)
+	if err != nil {
+		return nil, err
+	}
+	config.CompileProcessingRules(cfg.ProcessingRules)
 	return config.NewLogSource(configPath, cfg), nil
 }
 
@@ -158,17 +163,11 @@ func (c *Container) parseConfig() (*config.LogsConfig, error) {
 	if !exists {
 		return nil, nil
 	}
-	var cfgs []config.LogsConfig
-	var err error
-	err = json.Unmarshal([]byte(label), &cfgs)
-	if err != nil || len(cfgs) < 1 {
+	var configs []config.LogsConfig
+	err := json.Unmarshal([]byte(label), &configs)
+	if err != nil || len(configs) < 1 {
 		return nil, fmt.Errorf("could not parse logs config, %v is malformed", label)
 	}
-	cfg := cfgs[0]
-	err = config.ValidateProcessingRules(cfg.ProcessingRules)
-	if err != nil {
-		return nil, err
-	}
-	config.CompileProcessingRules(cfg.ProcessingRules)
-	return &cfg, nil
+	config := configs[0]
+	return &config, nil
 }
