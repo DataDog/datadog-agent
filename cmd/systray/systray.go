@@ -13,9 +13,10 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	seelog "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/cihub/seelog"
 	"github.com/lxn/walk"
 	"golang.org/x/sys/windows"
 )

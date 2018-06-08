@@ -8,7 +8,6 @@ package system
 import (
 	"regexp"
 
-	"github.com/shirou/gopsutil/disk"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -22,9 +21,6 @@ const (
 	kB               = (1 << 10)
 	iostatsCheckName = "io"
 )
-
-// For testing purpose
-var ioCounters = disk.IOCounters
 
 // Configure the IOstats check
 func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.Data) error {

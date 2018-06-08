@@ -3,6 +3,7 @@ Golang related tasks go here
 """
 from __future__ import print_function
 import os
+import sys
 import json
 
 from invoke import task
@@ -213,6 +214,12 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False):
 
     # source level deps
     ctx.run("dep ensure{}".format(verbosity))
+    # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
+    # in because it's necessary on other platforms
+    if sys.platform == 'win32':
+        print("Removing PSUTIL on Windows")
+        ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
+
 
     if not no_checks:
         verbosity = 'v' if verbose else 'q'
