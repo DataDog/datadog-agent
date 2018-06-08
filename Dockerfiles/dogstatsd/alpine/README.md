@@ -11,7 +11,7 @@ The following environment variables are supported:
   - `DD_DOGSTATSD_SOCKET`: path to the unix socket to use instead of UDP. Must be in a `rw` mounted volume.
   - `DD_ENABLE_METADATA_COLLECTION`: whether to collect metadata (default is true, set to false only if running alonside an existing dd-agent)
 
-This is a sample Kubernetes DaemonSet, using the UDS protocol, running alongside an existing agent5:
+This is a sample Kubernetes DaemonSet, using the UDP protocol, running alongside an existing agent5:
 
 ```
 apiVersion: extensions/v1beta1
@@ -35,7 +35,7 @@ spec:
           - name: DD_DOGSTATSD_SOCKET
             value: "/socket/statsd.socket"
           - name: DD_SEND_HOST_METADATA
-            # Legacy option name, keep as `false` when running alongside another Agent 
+            # Legacy option name, keep as `false` when running alongside another Agent
             value: "false"
           - name: DD_ENABLE_METADATA_COLLECTION
             value: "false"
@@ -78,7 +78,7 @@ spec:
           - name: DD_API_KEY
             value: ___value___
           - name: DD_SEND_HOST_METADATA
-            # Legacy option name, keep as `false` when running alongside another Agent 
+            # Legacy option name, keep as `false` when running alongside another Agent
             value: "false"
           - name: DD_ENABLE_METADATA_COLLECTION
             value: "false"
