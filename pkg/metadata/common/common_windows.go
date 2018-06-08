@@ -10,6 +10,8 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var getUUID = GetUUID
@@ -19,6 +21,7 @@ func GetUUID() string {
 	var h syscall.Handle
 	err := syscall.RegOpenKeyEx(syscall.HKEY_LOCAL_MACHINE, syscall.StringToUTF16Ptr(`SOFTWARE\Microsoft\Cryptography`), 0, syscall.KEY_READ|syscall.KEY_WOW64_64KEY, &h)
 	if err != nil {
+		log.Warnf("Failed to open registry key Cryptography: %v", err)
 		return ""
 	}
 	defer syscall.RegCloseKey(h)
@@ -31,12 +34,14 @@ func GetUUID() string {
 	var valType uint32
 	err = syscall.RegQueryValueEx(h, syscall.StringToUTF16Ptr(`MachineGuid`), nil, &valType, (*byte)(unsafe.Pointer(&regBuf[0])), &bufLen)
 	if err != nil {
+		log.Warnf("Could not find machineguid in the registry %v", err)
 		return ""
 	}
 
 	hostID := syscall.UTF16ToString(regBuf[:])
 	hostIDLen := len(hostID)
 	if hostIDLen != uuidLen {
+		log.Warnf("the hostid was unexpected length (%d != %d)", hostIDLen, uuidLen)
 		return ""
 	}
 
