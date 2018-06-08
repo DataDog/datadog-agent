@@ -25,6 +25,9 @@ import (
 
 var (
 	dogstatsdExpvar = expvar.NewMap("dogstatsd")
+
+	// The default hostname to enforce on metrics
+	defaultHostname = ""
 )
 
 // Server represent a Dogstatsd server
@@ -118,6 +121,11 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 	}
 
 	s.handleMessages(metricOut, eventOut, serviceCheckOut)
+
+	// We enforce the defaultHostname on metrics when none is set. This
+	// should never change while the agent is running, to avoid checking
+	// the cache on every metrics we save it here.
+	defaultHostname, _ = util.GetHostname()
 
 	return s, nil
 }
