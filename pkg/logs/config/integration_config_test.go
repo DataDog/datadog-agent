@@ -64,7 +64,6 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "mask_sequences", pRule.Type)
 	assert.Equal(t, "mocked_mask_rule", pRule.Name)
 	assert.Equal(t, "[mocked]", pRule.ReplacePlaceholder)
-	assert.Equal(t, []byte("[mocked]"), pRule.ReplacePlaceholderBytes)
 	assert.Equal(t, ".*", pRule.Pattern)
 
 	mRule := sources[1].Config.ProcessingRules[1]

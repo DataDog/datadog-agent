@@ -50,8 +50,7 @@ type LogsProcessingRule struct {
 	ReplacePlaceholder string `mapstructure:"replace_placeholder"`
 	Pattern            string
 	// TODO: should be moved out
-	Reg                     *regexp.Regexp
-	ReplacePlaceholderBytes []byte
+	Reg *regexp.Regexp
 }
 
 // LogsConfig represents a log source config, which can be for instance
@@ -62,9 +61,8 @@ type LogsConfig struct {
 	Port int    // Network
 	Path string // File, Journald
 
-	IncludeUnits         []string `mapstructure:"include_units"`         // Journald
-	ExcludeUnits         []string `mapstructure:"exclude_units"`         // Journald
-	DisableNormalization bool     `mapstructure:"disable_normalization"` // Journald
+	IncludeUnits []string `mapstructure:"include_units"` // Journald
+	ExcludeUnits []string `mapstructure:"exclude_units"` // Journald
 
 	Image string // Docker
 	Label string // Docker
@@ -225,7 +223,6 @@ func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, 
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
 		case MaskSequences:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
-			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
 		case MultiLine:
 			rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
 		default:

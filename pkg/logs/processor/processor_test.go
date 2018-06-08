@@ -16,12 +16,11 @@ import (
 
 func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
 	rule := config.LogsProcessingRule{
-		Type:                    ruleType,
-		Name:                    "test",
-		ReplacePlaceholder:      replacePlaceholder,
-		ReplacePlaceholderBytes: []byte(replacePlaceholder),
-		Pattern:                 pattern,
-		Reg:                     regexp.MustCompile(pattern),
+		Type:               ruleType,
+		Name:               "test",
+		ReplacePlaceholder: replacePlaceholder,
+		Pattern:            pattern,
+		Reg:                regexp.MustCompile(pattern),
 	}
 	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{rule}}}
 }
