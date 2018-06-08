@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// Portions of this code are taken from the gopsutil project
+// https://github.com/shirou/gopsutil .  This code is licensed under the New BSD License
+// copyright WAKAYAMA Shirou, and the gopsutil contributors
+
 package host
 
 import (
