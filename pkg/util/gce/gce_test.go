@@ -28,7 +28,7 @@ func TestGetHostname(t *testing.T) {
 	val, err := GetHostname()
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
-	assert.Equal(t, lastRequest.URL.Path, "/instance/hostname")
+	assert.Equal(t, "/instance/hostname", lastRequest.URL.Path)
 }
 
 func TestGetHostnameEmptyBody(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGetHostnameEmptyBody(t *testing.T) {
 	val, err := GetHostname()
 	assert.Error(t, err)
 	assert.Equal(t, "", val)
-	assert.Equal(t, lastRequest.URL.Path, "/instance/hostname")
+	assert.Equal(t, "/instance/hostname", lastRequest.URL.Path)
 }
 
 func TestGetHostAliases(t *testing.T) {
