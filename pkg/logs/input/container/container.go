@@ -9,6 +9,7 @@ package container
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -31,8 +32,13 @@ func NewContainer(container types.Container) *Container {
 // findSource returns the source that most closely matches the container,
 // if no source is found return nil
 func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
-	if source := c.toSource(); source != nil {
+	source, err := c.toSource()
+	if source != nil {
 		return source
+	}
+	if err != nil {
+		log.Warnf("Could not read configuration for container %v: %v", c.Container.ID, err)
+		return nil
 	}
 	var candidate *config.LogSource
 	for _, source := range sources {
@@ -132,28 +138,37 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 // this feature is commonly named 'ad' or 'autodicovery'.
 const configPath = "com.datadoghq.ad.logs"
 
-// toSource converts a container to a source
-func (c *Container) toSource() *config.LogSource {
-	cfg := c.parseConfig()
-	if cfg == nil {
-		return nil
+// toSource converts a container to a source,
+// returns an error if the pasing failed
+func (c *Container) toSource() (*config.LogSource, error) {
+	cfg, err := c.parseConfig()
+	if err != nil {
+		return nil, err
 	}
-	return config.NewLogSource(configPath, cfg)
+	if cfg == nil {
+		return nil, nil
+	}
+	return config.NewLogSource(configPath, cfg), nil
 }
 
 // parseConfig returns the config present in the container label 'com.datadoghq.ad.logs',
 // the config has to be conform with the format '[{...}]'.
-func (c *Container) parseConfig() *config.LogsConfig {
+func (c *Container) parseConfig() (*config.LogsConfig, error) {
 	label, exists := c.Labels[configPath]
 	if !exists {
-		return nil
+		return nil, nil
 	}
-	var configs []config.LogsConfig
-	err := json.Unmarshal([]byte(label), &configs)
-	if err != nil || len(configs) < 1 {
-		log.Warnf("Could not parse logs configs, %v is malformed", label)
-		return nil
+	var cfgs []config.LogsConfig
+	var err error
+	err = json.Unmarshal([]byte(label), &cfgs)
+	if err != nil || len(cfgs) < 1 {
+		return nil, fmt.Errorf("could not parse logs config, %v is malformed", label)
 	}
-	config := configs[0]
-	return &config
+	cfg := cfgs[0]
+	err = config.ValidateProcessingRules(cfg.ProcessingRules)
+	if err != nil {
+		return nil, err
+	}
+	config.CompileProcessingRules(cfg.ProcessingRules)
+	return &cfg, nil
 }
