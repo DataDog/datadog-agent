@@ -47,7 +47,7 @@ const (
 type LogsProcessingRule struct {
 	Type               string
 	Name               string
-	ReplacePlaceholder string `mapstructure:"replace_placeholder"`
+	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
 	Pattern            string
 	// TODO: should be moved out
 	Reg *regexp.Regexp
@@ -61,21 +61,21 @@ type LogsConfig struct {
 	Port int    // Network
 	Path string // File, Journald
 
-	IncludeUnits []string `mapstructure:"include_units"` // Journald
-	ExcludeUnits []string `mapstructure:"exclude_units"` // Journald
+	IncludeUnits []string `mapstructure:"include_units" json:"include_units"` // Journald
+	ExcludeUnits []string `mapstructure:"exclude_units" json:"exclude_units"` // Journald
 
 	Image string // Docker
 	Label string // Docker
 	Name  string // Docker
 
-	ChannelPath string `mapstructure:"channel_path"` // Windows Event
+	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
 
 	Service         string
 	Source          string
 	SourceCategory  string
 	Tags            []string
-	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules"`
+	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 }
 
 // IntegrationConfig represents a DataDog agent configuration file, which includes infra and logs parts.

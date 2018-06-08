@@ -263,7 +263,7 @@ func TestParseConfigWithValidFormatShouldSucceed(t *testing.T) {
 	var source *config.LogSource
 	var container *Container
 	var err error
-	// var rule config.LogsProcessingRule
+	var rule config.LogsProcessingRule
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{}]`}
 	container = NewContainer(types.Container{Labels: labels})
@@ -287,9 +287,9 @@ func TestParseConfigWithValidFormatShouldSucceed(t *testing.T) {
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
 	assert.Equal(t, 1, len(source.Config.ProcessingRules))
-	// rule = source.Config.ProcessingRules[0]
-	// assert.Equal(t, "multi_line", rule.Type)
-	// assert.Equal(t, "numbers", rule.Name)
-	// assert.True(t, rule.Reg.MatchString("123"))
-	// assert.False(t, rule.Reg.MatchString("a123"))
+	rule = source.Config.ProcessingRules[0]
+	assert.Equal(t, "multi_line", rule.Type)
+	assert.Equal(t, "numbers", rule.Name)
+	assert.True(t, rule.Reg.MatchString("123"))
+	assert.False(t, rule.Reg.MatchString("a123"))
 }
