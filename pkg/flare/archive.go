@@ -130,6 +130,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		}
 	}
 
+	err = zipDockerPs(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip docker ps: %s", err)
+	}
+
 	err = zipTypeperfData(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not write typeperf data: %s", err)
