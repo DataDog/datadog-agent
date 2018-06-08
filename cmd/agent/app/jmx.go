@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/spf13/cobra"
@@ -76,10 +76,13 @@ var (
 		RunE:  doJmxListNotCollected,
 	}
 
-	checks = []string{}
+	checks      = []string{}
+	jmxLogLevel string
 )
 
 func init() {
+	jmxCmd.PersistentFlags().StringVarP(&jmxLogLevel, "log-level", "l", "debug", "set the log level")
+
 	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
 	jmxCmd.AddCommand(jmxCollectCmd)
@@ -139,7 +142,13 @@ func setupAgent() error {
 }
 
 func runJmxCommand(command string) error {
-	err := setupAgent()
+	err := config.SetupLogger(jmxLogLevel, "", "", false, false, "", true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
+	}
+
+	err = setupAgent()
 	if err != nil {
 		return err
 	}
@@ -175,7 +184,7 @@ func loadConfigs() {
 	for _, c := range configs {
 		if check.IsJMXConfig(c.Name, c.InitConfig) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
-			embed.AddJMXCachedConfig(c)
+			jmx.AddScheduledConfig(c)
 		}
 	}
 }

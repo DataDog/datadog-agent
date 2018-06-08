@@ -47,6 +47,7 @@ func (b *BasicCache) Remove(k string) {
 	defer b.m.Unlock()
 
 	delete(b.cache, k)
+	b.modified = time.Now().Unix()
 }
 
 // Size returns the current size of the cache

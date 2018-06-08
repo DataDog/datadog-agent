@@ -112,7 +112,7 @@ func TestJSONConverter(t *testing.T) {
 		var cf integration.RawMap
 
 		// Read file contents
-		yamlFile, err := ioutil.ReadFile(fmt.Sprintf("../collector/corechecks/embed/fixtures/%s.yaml", c))
+		yamlFile, err := ioutil.ReadFile(fmt.Sprintf("../collector/corechecks/embed/jmx/fixtures/%s.yaml", c))
 		assert.Nil(t, err)
 
 		// Parse configuration

@@ -13,7 +13,6 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -21,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
@@ -35,7 +34,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		ts, _ = strconv.Atoi(timestamps[0])
 	}
 
-	if int64(ts) > embed.JMXConfigCache.GetModified() {
+	if int64(ts) > jmx.GetScheduledConfigsModificationTimestamp() {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -46,26 +45,9 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	j := map[string]interface{}{}
 	configs := map[string]integration.JSONMap{}
 
-	configItems := embed.JMXConfigCache.Items()
-	for name, config := range configItems {
-		m, ok := config.(map[string]interface{})
-		if !ok {
-			err := fmt.Errorf("wrong type in cache")
-			log.Errorf("%s", err.Error())
-			http.Error(w, err.Error(), 500)
-			return
-		}
-
-		cfg, ok := m["config"].(integration.Config)
-		if !ok {
-			err := fmt.Errorf("wrong type for config")
-			log.Errorf("%s", err.Error())
-			http.Error(w, err.Error(), 500)
-			return
-		}
-
+	for name, config := range jmx.GetScheduledConfigs() {
 		var rawInitConfig integration.RawMap
-		err := yaml.Unmarshal(cfg.InitConfig, &rawInitConfig)
+		err := yaml.Unmarshal(config.InitConfig, &rawInitConfig)
 		if err != nil {
 			log.Errorf("unable to parse JMX configuration: %s", err)
 			http.Error(w, err.Error(), 500)
@@ -75,9 +57,9 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		c := map[string]interface{}{}
 		c["init_config"] = util.GetJSONSerializableMap(rawInitConfig)
 		instances := []integration.JSONMap{}
-		for _, instance := range cfg.Instances {
+		for _, instance := range config.Instances {
 			var rawInstanceConfig integration.JSONMap
-			err = yaml.Unmarshal(instance, &rawInstanceConfig)
+			err := yaml.Unmarshal(instance, &rawInstanceConfig)
 			if err != nil {
 				log.Errorf("unable to parse JMX configuration: %s", err)
 				http.Error(w, err.Error(), 500)
