@@ -31,12 +31,9 @@ func NewContainer(container types.Container) *Container {
 // findSource returns the source that most closely matches the container,
 // if no source is found return nil
 func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
-	source, hasConfig := c.toSource()
-	if source == nil && hasConfig {
-		return nil
-	}
-	if source != nil {
-		return source
+	label := c.getLabel()
+	if label != "" {
+		return c.parseLabel(label)
 	}
 	var candidate *config.LogSource
 	for _, source := range sources {
@@ -136,35 +133,31 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 // this feature is commonly named 'ad' or 'autodicovery'.
 const configPath = "com.datadoghq.ad.logs"
 
-// toSource converts a container to a source if an autodiscovery label is attached to the container,
-// returns false otherwise.
-func (c *Container) toSource() (*config.LogSource, bool) {
+// getLabel returns the autodiscovery config label if it exists.
+func (c *Container) getLabel() string {
 	label, exists := c.Labels[configPath]
-	if !exists {
-		return nil, false
+	if exists {
+		return label
 	}
-	cfg := c.parseConfig(label)
-	if cfg == nil {
-		return nil, true
-	}
-	err := config.ValidateProcessingRules(cfg.ProcessingRules)
-	if err != nil {
-		log.Warnf("Invalid processing rules for container %v: %v", c.Container.ID, err)
-		return nil, true
-	}
-	config.CompileProcessingRules(cfg.ProcessingRules)
-	return config.NewLogSource(configPath, cfg), true
+	return ""
 }
 
-// parseConfig returns the config present in the container label 'com.datadoghq.ad.logs',
+// parseLabel returns the config present in the container label 'com.datadoghq.ad.logs',
 // the config has to be conform with the format '[{...}]'.
-func (c *Container) parseConfig(label string) *config.LogsConfig {
-	var configs []config.LogsConfig
-	err := json.Unmarshal([]byte(label), &configs)
-	if err != nil || len(configs) < 1 {
+func (c *Container) parseLabel(label string) *config.LogSource {
+	var cfgs []config.LogsConfig
+	err := json.Unmarshal([]byte(label), &cfgs)
+	if err != nil || len(cfgs) < 1 {
 		log.Warnf("Could not parse logs config for container %v, %v is malformed", c.Container.ID, label)
 		return nil
 	}
-	config := configs[0]
-	return &config
+	cfg := cfgs[0]
+	err = config.ValidateProcessingRules(cfg.ProcessingRules)
+	if err != nil {
+		log.Warnf("Invalid processing rules for container %v: %v", c.Container.ID, err)
+		return nil
+	}
+	cfg.Type = config.DockerType
+	config.CompileProcessingRules(cfg.ProcessingRules)
+	return config.NewLogSource(configPath, &cfg)
 }

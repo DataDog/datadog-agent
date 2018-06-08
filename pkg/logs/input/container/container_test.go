@@ -208,82 +208,70 @@ func TestIsNameMatch(t *testing.T) {
 	assert.False(t, container.isNameMatch("boo"))
 }
 
-func TestParseConfigWithWrongLabelNameShouldFail(t *testing.T) {
+func TestFindSourceFromLabelWithWrongLabelNameShouldFail(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
 	var container *Container
-	var hasConfig bool
 
 	container = NewContainer(types.Container{Labels: labels})
-	source, hasConfig = container.toSource()
+	source = container.findSource(nil)
 	assert.Nil(t, source)
-	assert.False(t, hasConfig)
 
 	labels = map[string]string{"com.datadoghq.ad.name": "any_name"}
 	container = NewContainer(types.Container{Labels: labels})
-	source, hasConfig = container.toSource()
+	source = container.findSource(nil)
 	assert.Nil(t, source)
-	assert.False(t, hasConfig)
 }
 
-func TestParseConfigWithWrongFormatShouldFail(t *testing.T) {
+func TestFindSourceFromLabelWithWrongFormatShouldFail(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
 	var container *Container
-	var hasConfig bool
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{}"}
 	container = NewContainer(types.Container{Labels: labels})
-	source, hasConfig = container.toSource()
+	source = container.findSource(nil)
 	assert.Nil(t, source)
-	assert.True(t, hasConfig)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}
 	container = NewContainer(types.Container{Labels: labels})
-	source, hasConfig = container.toSource()
+	source = container.findSource(nil)
 	assert.Nil(t, source)
-	assert.True(t, hasConfig)
 }
 
-func TestParseConfigWithInvalidProcessingRuleShouldFail(t *testing.T) {
+func TestFindSourceFromLabelWithInvalidProcessingRuleShouldFail(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
 	var container *Container
-	var hasConfig bool
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line"}]}]`}
 	container = NewContainer(types.Container{Labels: labels})
-	source, hasConfig = container.toSource()
+	source = container.findSource(nil)
 	assert.Nil(t, source)
-	assert.True(t, hasConfig)
 }
 
-func TestParseConfigWithValidFormatShouldSucceed(t *testing.T) {
+func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
 	var container *Container
-	var hasConfig bool
 	var rule config.LogsProcessingRule
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{}]`}
 	container = NewContainer(types.Container{Labels: labels})
-	source, hasConfig = container.toSource()
+	source = container.findSource(nil)
 	assert.NotNil(t, source)
-	assert.True(t, hasConfig)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service"}]`}
 	container = NewContainer(types.Container{Labels: labels})
-	source, hasConfig = container.toSource()
+	source = container.findSource(nil)
 	assert.NotNil(t, source)
-	assert.True(t, hasConfig)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`}
 	container = NewContainer(types.Container{Labels: labels})
-	source, hasConfig = container.toSource()
+	source = container.findSource(nil)
 	assert.NotNil(t, source)
-	assert.True(t, hasConfig)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
 	assert.Equal(t, 1, len(source.Config.ProcessingRules))
