@@ -28,7 +28,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             initctl stop $SERVICE_NAME-trace || true
             initctl stop $SERVICE_NAME || true
         else
-            echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
         fi
     fi
 
