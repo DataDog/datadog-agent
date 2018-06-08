@@ -13,6 +13,7 @@ package listeners
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -85,6 +86,9 @@ func (s *DockerKubeletService) GetPorts() ([]ContainerPort, error) {
 		}
 	}
 
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
 	s.Ports = ports
 	return ports, nil
 }

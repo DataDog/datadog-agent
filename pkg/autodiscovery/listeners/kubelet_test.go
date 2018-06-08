@@ -21,17 +21,18 @@ func getMockedPod() *kubelet.Pod {
 			Name:  "foo",
 			Image: "datadoghq.com/foo:latest",
 			Ports: []kubelet.ContainerPortSpec{
-				{
-					ContainerPort: 1337,
-					HostPort:      1338,
-					Name:          "footcpport",
-					Protocol:      "TCP",
-				},
+				// test that resolved ports are sorted in ascending order
 				{
 					ContainerPort: 1339,
 					HostPort:      1340,
 					Name:          "fooudpport",
 					Protocol:      "UDP",
+				},
+				{
+					ContainerPort: 1337,
+					HostPort:      1338,
+					Name:          "footcpport",
+					Protocol:      "TCP",
 				},
 			},
 		},

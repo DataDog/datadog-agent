@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -164,6 +165,9 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 			break
 		}
 	}
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
 	svc.Ports = ports
 	if len(svc.Ports) == 0 {
 		// Port might not be specified in pod spec
