@@ -8,8 +8,10 @@ package app
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +27,6 @@ import (
 const (
 	constraintsFile = "agent_requirements.txt"
 	tufConfigFile   = "public-tuf-config.json"
-	tufPyPiServer   = "https://integrations-core-wheels.s3.amazonaws.com/simple/"
 	pyPiServer      = "https://pypi.org/simple/"
 )
 
@@ -75,10 +76,11 @@ var removeCmd = &cobra.Command{
 }
 
 var searchCmd = &cobra.Command{
-	Use:   "search [package]",
-	Short: "Search Datadog integration core/extra packages",
-	Long:  ``,
-	RunE:  searchTuf,
+	Use:    "search [package]",
+	Short:  "Search Datadog integration core/extra packages",
+	Long:   ``,
+	RunE:   searchTuf,
+	Hidden: true,
 }
 
 func getTufConfigPath() string {
@@ -124,6 +126,57 @@ func getTUFConfigFilePath() (string, error) {
 	}
 
 	return tufConfig, nil
+}
+
+func readTUFConfig() (map[string]interface{}, error) {
+
+	// TODO(jaime): unmarshal into a structure once we know the final
+	//              format of the JSON.
+
+	var configMap map[string]interface{}
+
+	cPath, err := getTUFConfigFilePath()
+	if err != nil {
+		return nil, err
+	}
+
+	configText, err := ioutil.ReadFile(cPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = json.Unmarshal(configText, &configMap); err != nil {
+		return nil, err
+	}
+
+	return configMap, nil
+}
+
+func getTUFRepoURL() (string, error) {
+	cfg, err := readTUFConfig()
+	if err != nil {
+		return "", err
+	}
+
+	keyPath := []string{"repository_mirrors", "public-integrations-core"}
+	for _, k := range keyPath {
+		subMap, ok := cfg[k]
+		if !ok {
+			return "", fmt.Errorf("JSON parse issue: key unavailable in config - %s", k)
+		}
+
+		cfg, ok = subMap.(map[string]interface{})
+		if !ok {
+			return "", fmt.Errorf("Unexpected format in TUF json config")
+		}
+	}
+
+	url, ok := cfg["url_prefix"]
+	if !ok {
+		return "", fmt.Errorf("TUF URL unavailable in config")
+	}
+
+	return url.(string), nil
 }
 
 func tuf(args []string) error {
@@ -207,13 +260,12 @@ func tuf(args []string) error {
 		}
 	}()
 
-	err = tufCmd.Start()
+	err = tufCmd.Run()
 	if err != nil {
-		fmt.Printf("error running command: %v", err)
-		return err
+		fmt.Printf(color.RedString(
+			fmt.Sprintf("error running command: %v", err)))
 	}
 
-	err = tufCmd.Wait()
 	return err
 }
 
@@ -236,6 +288,13 @@ func installTuf(cmd *cobra.Command, args []string) error {
 
 	tufArgs = append(tufArgs, args...)
 	if !withoutTuf {
+
+		tufPyPiServer, err := getTUFRepoURL()
+		if err != nil {
+			fmt.Printf(color.RedString(
+				fmt.Sprintf("Unexpected error parsing TUF configuration: %v", err)))
+		}
+
 		tufArgs = append(tufArgs, "--index-url", tufPyPiServer)
 		tufArgs = append(tufArgs, "--extra-index-url", pyPiServer)
 		tufArgs = append(tufArgs, "--disable-pip-version-check")
@@ -250,6 +309,7 @@ func removeTuf(cmd *cobra.Command, args []string) error {
 	}
 	tufArgs = append(tufArgs, args...)
 	tufArgs = append(tufArgs, "-y")
+	tufArgs = append(tufArgs, "--disable-pip-version-check")
 
 	return tuf(tufArgs)
 }
@@ -261,9 +321,15 @@ func searchTuf(cmd *cobra.Command, args []string) error {
 	}
 	tufArgs = append(tufArgs, args...)
 	if !withoutTuf {
+		tufPyPiServer, err := getTUFRepoURL()
+		if err != nil {
+			fmt.Printf(color.RedString(
+				fmt.Sprintf("Unexpected error parsing TUF configuration: %v", err)))
+		}
+
 		tufArgs = append(tufArgs, "--index", tufPyPiServer)
-		tufArgs = append(tufArgs, "--disable-pip-version-check")
 	}
+	tufArgs = append(tufArgs, "--disable-pip-version-check")
 
 	return tuf(tufArgs)
 }
