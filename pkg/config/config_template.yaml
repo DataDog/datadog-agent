@@ -158,13 +158,12 @@ api_key:
 # 'dogstatsd_non_local_traffic' is set to true
 # bind_host: localhost
 #
-# Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only).
-# Set to a valid filesystem path to enable
-# dogstatsd_socket:
+# Dogstatsd can also listen for metrics on a Unix Socket (*nix only).
+# Set to a valid filesystem path to enable.
+# dogstatsd_socket: /var/run/dogstatsd/dsd.sock
 #
-# Whether origin detection and container tagging should be enabled for Unix
-# Socket incoming metrics. This feature is experimental for now.
-#
+# When using Unix Socket, dogstatsd can tag metrics with container metadata.
+# If running dogstatsd in a container, host PID mode (e.g. with --pid=host) is required.
 # dogstatsd_origin_detection: false
 #
 # The buffer size use to receive statsd packet, in bytes
@@ -307,7 +306,7 @@ api_key:
 # If TLS enabled, you may specify a path to a PEM certificate here
 #
 # syslog_pem: /path/to/certificate.pem
-# 
+#
 {{ end -}}
 {{- if .Autodiscovery }}
 # Autodiscovery
