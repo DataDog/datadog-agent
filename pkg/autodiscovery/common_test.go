@@ -11,7 +11,7 @@ type dummyService struct {
 	ID            listeners.ID
 	ADIdentifiers []string
 	Hosts         map[string]string
-	Ports         []int
+	Ports         []listeners.ContainerPort
 	Pid           int
 }
 
@@ -31,7 +31,7 @@ func (s *dummyService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts() ([]int, error) {
+func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
 	return s.Ports, nil
 }
 

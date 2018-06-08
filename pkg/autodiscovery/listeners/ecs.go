@@ -203,7 +203,7 @@ func (s *ECSService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns nil and an error because port is not supported in Fargate-based ECS
-func (s *ECSService) GetPorts() ([]int, error) {
+func (s *ECSService) GetPorts() ([]ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 

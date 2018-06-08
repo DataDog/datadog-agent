@@ -21,17 +21,18 @@ func getMockedPod() *kubelet.Pod {
 			Name:  "foo",
 			Image: "datadoghq.com/foo:latest",
 			Ports: []kubelet.ContainerPortSpec{
-				{
-					ContainerPort: 1337,
-					HostPort:      1338,
-					Name:          "footcpport",
-					Protocol:      "TCP",
-				},
+				// test that resolved ports are sorted in ascending order
 				{
 					ContainerPort: 1339,
 					HostPort:      1340,
 					Name:          "fooudpport",
 					Protocol:      "UDP",
+				},
+				{
+					ContainerPort: 1337,
+					HostPort:      1338,
+					Name:          "footcpport",
+					Protocol:      "TCP",
 				},
 			},
 		},
@@ -119,7 +120,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
 		ports, err := service.GetPorts()
 		assert.Nil(t, err)
-		assert.Equal(t, []int{1337, 1339}, ports)
+		assert.Equal(t, []ContainerPort{{1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 	default:
@@ -137,7 +138,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
 		ports, err := service.GetPorts()
 		assert.Nil(t, err)
-		assert.Equal(t, []int{1122}, ports)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 	default:
@@ -155,7 +156,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
 		ports, err := service.GetPorts()
 		assert.Nil(t, err)
-		assert.Equal(t, []int{1122}, ports)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 	default:
