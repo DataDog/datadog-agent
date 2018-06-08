@@ -42,6 +42,7 @@ func init() {
 	tufCmd.AddCommand(installCmd)
 	tufCmd.AddCommand(removeCmd)
 	tufCmd.AddCommand(searchCmd)
+	tufCmd.AddCommand(freezeCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
 	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
@@ -81,6 +82,13 @@ var searchCmd = &cobra.Command{
 	Long:   ``,
 	RunE:   searchTuf,
 	Hidden: true,
+}
+
+var freezeCmd = &cobra.Command{
+	Use:   "freeze",
+	Short: "Freeze list of installed python packages",
+	Long:  ``,
+	RunE:  freeze,
 }
 
 func getTufConfigPath() string {
@@ -329,6 +337,17 @@ func searchTuf(cmd *cobra.Command, args []string) error {
 
 		tufArgs = append(tufArgs, "--index", tufPyPiServer)
 	}
+	tufArgs = append(tufArgs, "--disable-pip-version-check")
+
+	return tuf(tufArgs)
+}
+
+func freeze(cmd *cobra.Command, args []string) error {
+
+	tufArgs := []string{
+		"freeze",
+	}
+	tufArgs = append(tufArgs, args...)
 	tufArgs = append(tufArgs, "--disable-pip-version-check")
 
 	return tuf(tufArgs)
