@@ -4,6 +4,7 @@
 // Copyright 2018 Datadog, Inc.
 
 // +build !cgo
+// +build windows
 
 package xc
 
