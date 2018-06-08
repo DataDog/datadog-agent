@@ -1,0 +1,3 @@
+---
+other:
+  - The datadog/agent docker image now runs two collector runners by default
