@@ -230,7 +230,7 @@ func CompileProcessingRules(rules []LogsProcessingRule) {
 	for i, rule := range rules {
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch:
-			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
+			rules[i].Reg = regexp.MustCompile(rule.Pattern)
 		case MaskSequences:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
 			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
