@@ -66,11 +66,13 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "[mocked]", pRule.ReplacePlaceholder)
 	assert.Equal(t, []byte("[mocked]"), pRule.ReplacePlaceholderBytes)
 	assert.Equal(t, ".*", pRule.Pattern)
+	re := pRule.Reg
+	assert.True(t, re.MatchString("123"))
 
 	mRule := sources[1].Config.ProcessingRules[1]
 	assert.Equal(t, "multi_line", mRule.Type)
 	assert.Equal(t, "numbers", mRule.Name)
-	re := mRule.Reg
+	re = mRule.Reg
 	assert.True(t, re.MatchString("123"))
 	assert.False(t, re.MatchString("a123"))
 
@@ -78,11 +80,17 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "exclude_at_match", eRule.Type)
 	assert.Equal(t, "exclude_bob", eRule.Name)
 	assert.Equal(t, "^bob", eRule.Pattern)
+	re = eRule.Reg
+	assert.True(t, re.MatchString("boba"))
+	assert.False(t, re.MatchString("abob"))
 
 	iRule := sources[1].Config.ProcessingRules[3]
 	assert.Equal(t, "include_at_match", iRule.Type)
 	assert.Equal(t, "include_datadoghq", iRule.Name)
 	assert.Equal(t, ".*@datadoghq.com$", iRule.Pattern)
+	re = iRule.Reg
+	assert.True(t, re.MatchString("bob@datadoghq.com"))
+	assert.False(t, re.MatchString("bob"))
 }
 
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
