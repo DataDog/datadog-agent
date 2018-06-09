@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The file with .yaml.tpl extension in /conf.d has been expanded environment variable and copied to /etc/datadog-agent/conf.d.
