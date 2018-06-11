@@ -22,5 +22,11 @@ spec:
             value: "true"
           - name: DD_LEADER_ELECTION
             value: "true"
-          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-            value: <32 characters long token>
+         - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+           value: <Thirty 2 characters long token>
+         # If using a secret, you can alternatively use:
+#          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+#            valueFrom:
+#              secretKeyRef:
+#                name: datadog-auth-token
+#                key: token
