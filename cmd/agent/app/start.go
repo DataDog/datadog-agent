@@ -47,10 +47,9 @@ import (
 
 var (
 	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "(DEPRECATED) Use \"run\" instead to start the Agent",
-		Long:  `(DEPRECATED) Use \"run\" instead to runs the agent in the foreground.  Command will be removed in 6.4`,
-		RunE:  start,
+		Use:        "start",
+		Deprecated: "Use \"run\" instead to start the Agent",
+		RunE:       start,
 	}
 )
 
@@ -64,7 +63,6 @@ func init() {
 
 // Start the main loop
 func start(cmd *cobra.Command, args []string) error {
-	fmt.Printf("The start command is being deprecated.  Use \"agent run\".\n\n")
 	return run(cmd, args)
 }
 

@@ -31,7 +31,7 @@ func init() {
 	AgentCmd.AddCommand(stopCmd)
 }
 
-func stop(cmd *cobra.Command, args []string) error {
+func stop(*cobra.Command, []string) error {
 	// Global Agent configuration
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
