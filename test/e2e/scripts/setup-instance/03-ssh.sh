@@ -38,10 +38,8 @@ _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-a
 }
 _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
 
-_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-wait.sh || {
-    # pupernetes not in ${PATH} ? Get back to the old way:
-    _ssh timeout 600 /home/core/datadog-agent/test/e2e/scripts/run-instance/11-pupernetes-ready.sh
-}
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-wait.sh
+_ssh timeout 120 /home/core/datadog-agent/test/e2e/scripts/run-instance/11-pupernetes-ready.sh
 
 # Use a logged bash
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh
