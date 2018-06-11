@@ -312,6 +312,14 @@
       </Component>
     </DirectoryRef>
 
+    <Property Id="TUFMETALOCATION">
+      <RegistrySearch Root="HKLM"
+                      Key="SOFTWARE\Datadog\Datadog Agent"
+                      Type="raw"
+                      Id="TUFMETADIRECTORY_REGSEARCH"
+                      Name="TufMetaPath" />
+    </Property>
+
     <DirectoryRef Id="APPLICATIONDATADIRECTORY">
       <Component Id="datadog.yaml.example"
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
@@ -355,6 +363,17 @@
       </Directory>
 
       <Directory Id="TUFMETALOCATION" Name="repositories">
+         <Component Id="CleanupTUFMetaFolder" Guid="2031779f-2616-4eea-ac09-42ce47e07cc2">
+           <!-- We need to use TUFMETALOCATION variable here or RemoveFolderEx
+                will not remove on "install". -->
+           <RegistryValue Root="HKLM"
+                          Key="SOFTWARE\Datadog\Datadog Agent"
+                          Name="TufMetaPath"
+                          Type="string"
+                          Value="[TUFMETALOCATION]" />
+            <util:RemoveFolderEx On="uninstall" Property="TUFMETALOCATION" />
+         </Component>
+
          <Directory Id="cache" Name="cache">
            <Component Id="cache"
                       Guid="cdcbdd55-fe32-4b68-a1a5-bb0635da0ba1"
@@ -389,28 +408,6 @@
            </Directory>
          </Directory>
       </Directory>
-    </DirectoryRef>
-
-    <Property Id="TUFMETALOCATION">
-      <RegistrySearch Key="SOFTWARE\Datadog\Datadog Agent"
-                     Root="HKLM"
-                     Type="raw"
-                     Id="TUFMETADIRECTORY_REGSEARCH"
-                     Name="InstallPath" />
-    </Property>
-
-    <DirectoryRef Id="TUFMETALOCATION">
-      <Component Id="CleanupTUFMetaFolder" Guid="*">
-        <RegistryValue Root="HKLM"
-                       Key="SOFTWARE\Datadog\Datadog Agent"
-                       Name="Path"
-                       Type="string"
-                       Value="[TUFMETALOCATION]"
-                       KeyPath="yes" />
-         <!-- We need to use TUFMETALOCATION variable here or RemoveFolderEx
-              will not remove on "install". -->
-         <util:RemoveFolderEx On="uninstall" Property="TUFMETALOCATION" />
-      </Component>
     </DirectoryRef>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
