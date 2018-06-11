@@ -106,13 +106,6 @@
                       Id="APPLICATIONROOTDIRECTORY_REGSEARCH"
                       Name="InstallPath" />
     </Property>
-    <Property Id="TUFMETALOCATION">
-      <RegistrySearch Key="SOFTWARE\Datadog\Datadog Agent"
-                      Root="HKLM"
-                      Type="raw"
-                      Id="TUFMETADIRECTORY_REGSEARCH"
-                      Name="InstallPath" />
-    </Property>
 
     <DirectoryRef Id="PROJECTLOCATION">
       <Component Id="CleanupMainApplicationFolder" Guid="096249cf-3fe7-4342-a80f-77101ceed5fe">
@@ -361,18 +354,7 @@
         </Component>
       </Directory>
 
-      <Directory Id="repositories" Name="repositories">
-         <Component Id="CleanupTUFMetaFolder" Guid="*">
-         <RegistryValue Root="HKLM"
-                        Key="SOFTWARE\Datadog\Datadog Agent"
-                        Name="Path"
-                        Type="string"
-                        Value="[TUFMETALOCATION]"
-                        KeyPath="yes" />
-           <!-- We need to use TUFMETALOCATION variable here or RemoveFolderEx
-                    will not remove on "install". -->
-           <util:RemoveFolderEx On="uninstall" Property="TUFMETALOCATION" />
-         </Component>
+      <Directory Id="TUFMETALOCATION" Name="repositories">
          <Directory Id="cache" Name="cache">
            <Component Id="cache"
                       Guid="cdcbdd55-fe32-4b68-a1a5-bb0635da0ba1"
@@ -407,7 +389,29 @@
            </Directory>
          </Directory>
       </Directory>
-   </DirectoryRef>
+    </DirectoryRef>
+
+    <Property Id="TUFMETALOCATION">
+      <RegistrySearch Key="SOFTWARE\Datadog\Datadog Agent"
+                     Root="HKLM"
+                     Type="raw"
+                     Id="TUFMETADIRECTORY_REGSEARCH"
+                     Name="InstallPath" />
+    </Property>
+
+    <DirectoryRef Id="TUFMETALOCATION">
+      <Component Id="CleanupTUFMetaFolder" Guid="*">
+        <RegistryValue Root="HKLM"
+                       Key="SOFTWARE\Datadog\Datadog Agent"
+                       Name="Path"
+                       Type="string"
+                       Value="[TUFMETALOCATION]"
+                       KeyPath="yes" />
+         <!-- We need to use TUFMETALOCATION variable here or RemoveFolderEx
+              will not remove on "install". -->
+         <util:RemoveFolderEx On="uninstall" Property="TUFMETALOCATION" />
+      </Component>
+    </DirectoryRef>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
