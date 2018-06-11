@@ -1099,10 +1099,18 @@ pupernetes-dev:
   when: manual
   except:
     - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
 
-pupernetes:
+pupernetes-master:
   <<: *pupernetes_template
   only:
     - master
+  script:
+  - inv -e e2e-tests --image=datadog/agent-dev:master
+
+pupernetes-tags:
+  <<: *pupernetes_template
+  only:
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  script:
+  - inv -e e2e-tests --image=datadog/agent-dev:$CI_COMMIT_TAG
