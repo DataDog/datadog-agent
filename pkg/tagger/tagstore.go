@@ -93,7 +93,7 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	digestInfo := digest(info)
 	if storedTags.freshnessHash == "" || storedTags.freshnessHash != digestInfo {
 		log.Infof("freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo)                        // REMOVE
-		log.Infof("highcards is %s analoprs d low is %s from %s", info.HighCardTags, info.LowCardTags, info.Source) // REMOVE
+		log.Infof("highcards is %s and low is %s from %s", info.HighCardTags, info.LowCardTags, info.Source) // REMOVE
 		storedTags.freshnessHash = digestInfo
 		storedTags.outdatedTags = true
 		log.Infof("NEW freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo) // REMOVE
