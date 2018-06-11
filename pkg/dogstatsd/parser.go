@@ -63,7 +63,6 @@ func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
 		return nil, ""
 	}
 
-	// GetHostname should be cached
 	host := defaultHostname
 	tagsList := make([]string, 0, bytes.Count(rawTags, tagSeparator)+1)
 	remainder := rawTags
