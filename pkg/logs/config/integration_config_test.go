@@ -115,6 +115,10 @@ func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
 	_, err = buildLogSources(ddconfdPath, false)
 	assert.NotNil(t, err)
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_6")
+	_, err = buildLogSources(ddconfdPath, false)
+	assert.NotNil(t, err)
 }
 
 func TestIntegrationName(t *testing.T) {
