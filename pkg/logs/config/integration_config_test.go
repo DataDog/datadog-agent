@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 const testsPath = "tests"
@@ -91,6 +93,15 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	re = iRule.Reg
 	assert.True(t, re.MatchString("bob@datadoghq.com"))
 	assert.False(t, re.MatchString("bob"))
+}
+
+func TestCompileProcessingRules(t *testing.T) {
+	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"(?=abf)"}}))
+	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"a++"}}))
+	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"(?>abf)"}}))
+	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"abf"}}))
+	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{""}}))
+	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"[[:alnum:]]{5}"}}))
 }
 
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {

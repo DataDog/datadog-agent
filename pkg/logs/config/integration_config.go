@@ -220,22 +220,13 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 			return fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
 		default:
 			return fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
-		}
-		// if rule.Pattern != "" {
-		// 	re, err := regexp.Compile(rule.Pattern)
-		// 	if err != nil {
-		// 		fmt.Errorf("LogsAgent misconfigured: pattern %s is unsupported for log processing rule: `%s`", rule.Pattern, rule.Name)
-		// 	}
-			
-		// }
-		
-		
+		}		
 	}
 	return nil
 }
 
 // CompileProcessingRules compiles all processing rules regular expression
-func CompileProcessingRules(rules []LogsProcessingRule) {
+func CompileProcessingRules(rules []LogsProcessingRule) error {
 	for i, rule := range rules {
 		if rule.Pattern != "" {
 			re, err := regexp.Compile(rule.Pattern)
@@ -256,4 +247,5 @@ func CompileProcessingRules(rules []LogsProcessingRule) {
 		}
 
 	}
+	return nil
 }
