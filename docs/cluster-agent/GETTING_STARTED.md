@@ -44,10 +44,31 @@ Or otherwise:
             value: "<32_CHARACTERS_LONG_TOKEN>"
 ```
 
-**Note**: his needs to be set in the manifest of the cluster agent **AND** the node agent.
+Setting the value without a secret will result in the token being readable in the PodSpec.
+
+**Note**: This needs to be set in the manifest of the cluster agent **AND** the node agent.
+
+**Step 3 bis** - If you do not want to rely on environment variables, you can mount the datadog.yaml file. We recommend using a ConfigMap.
+Adding the following in the manifest of the cluster agent will suffice:
+
+```yaml
+[...]
+        volumeMounts:
+        - name: "dca-yaml"
+          mountPath: "/etc/datadog-agent/datadog.yaml"
+          subPath: "datadog-cluster.yaml"
+      volumes:
+        - name: "dca-yaml"
+          configMap:
+            name: "dca-yaml"
+[...]
+```
+Then create your datadog-cluster.yaml with the variables of your choice.
+Create the ConfigMap accordingly:
+`kubectl create configmap dca-yaml --from-file datadog-cluster.yaml`
 
 **Step 4** - Once the secret is created, create the DCA along with its service.
-Don't forget to add your `<DATADOG_API_KEY>` in the manifest of the DCA. Both manifests can be found in the [manifest/cluster-agent directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
+Don't forget to add your `<DD_API_KEY>` in the manifest of the DCA. Both manifests can be found in the [manifest/cluster-agent directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
 Run: 
 
 `kubectl apply -f Dockerfiles/manifests/cluster-agent/datadog-cluster-agent_service.yaml`
@@ -67,10 +88,10 @@ datadog-cluster-agent   1         1         1            1           1d
 NAME                   TYPE                                  DATA      AGE
 datadog-auth-token     Opaque                                1         1d
 
--> kubectl get pods | grep cluster
+-> kubectl get pods -l app:datadog-cluster-agent
 datadog-cluster-agent-8568545574-x9tc9   1/1       Running   0          2h
 
--> kubectl get service
+-> kubectl get service -l app:datadog-cluster-agent
 NAME                  TYPE           CLUSTER-IP       EXTERNAL-IP        PORT(S)          AGE
 dca                   ClusterIP      10.100.202.234   <none>             5005/TCP         1d
 ```
@@ -198,7 +219,7 @@ root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent status
 Make sure the Cluster Agent service was created before the agents' pods, so that the DNS is available in the environment variables:
 
 ```
-root@datadog-agent-9d5bl:/# env | grep -i dca
+root@datadog-agent-9d5bl:/# env | grep DCA_ | sort
 DCA_SERVICE_PORT=5005
 DCA_SERVICE_HOST=10.100.202.234
 DCA_PORT_5005_TCP_PORT=5005
@@ -207,7 +228,7 @@ DCA_PORT_5005_TCP=tcp://10.100.202.234:5005
 DCA_PORT_5005_TCP_PROTO=tcp
 DCA_PORT_5005_TCP_ADDR=10.100.202.234
 
-root@datadog-agent-9d5bl:/# env | grep -i auth_token
+root@datadog-agent-9d5bl:/# echo ${DD_CLUSTER_AGENT_AUTH_TOKEN}
 DD_CLUSTER_AGENT_AUTH_TOKEN=1234****9
 ```
 

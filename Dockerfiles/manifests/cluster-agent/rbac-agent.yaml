@@ -3,12 +3,12 @@ kind: ClusterRole
 metadata:
   name: datadog-agent
 rules:
-- apiGroups:  # Kubelet connectivity
+- apiGroups:  # This is required by the agent to query the Kubelet API.
   - ""
   resources:
   - nodes/metrics
   - nodes/spec
-  - nodes/proxy
+  - nodes/proxy # Required to get /pods
   verbs:
   - get
 ---

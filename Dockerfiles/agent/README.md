@@ -91,7 +91,7 @@ Please note that the `docker.containers.running`, `.stopped`, `.running.total` a
 
 ### Datadog Cluster Agent
 
-As with Agent v6.2, you can use the [Datacong Cluster Agent](#https://github.com/DataDog/datadog-agent/blob/master/docs/cluster-agent/README.md).
+Starting with Agent v6.2, you can use the [Datacong Cluster Agent](#https://github.com/DataDog/datadog-agent/blob/master/docs/cluster-agent/README.md).
 
 Cluster level features are now handled by the cluster agent, and you will find a `[DCA]` notation next to the affected features. Please refer to the below user documentation as well as the technical documentation here for further details on the instrumentation.
 
@@ -170,22 +170,21 @@ rules:
 ### Event Collection [DCA]
 
 <a name="event-collection"></a>
-Similarly to the Agent 5, the Agent 6 collects events from the Kubernetes API server.
-First and foremost, set the `collect_kubernetes_events` variable to `true` in the `datadog.yaml` file, you can use the environment variable `DD_COLLECT_KUBERNETES_EVENTS` for this.
-You also need to give the agent some rights to activate this feature. See the [RBAC](#rbac) section.
+Similarly to Agent 5, Agent 6 collects events from the Kubernetes API server.
 
-A ConfigMap can be used to store the `event.tokenKey` and the `event.tokenTimestamp`. It has to be deployed in the `default` namespace and be named `datadogtoken`.
+1/ Set the `collect_kubernetes_events` variable to `true` in the `datadog.yaml` file, you can use the environment variable `DD_COLLECT_KUBERNETES_EVENTS` for this.
+2/ Give the agents proper RBACs to activate this feature. See the [RBAC](#rbac) section.
+3/ A ConfigMap can be used to store the `event.tokenKey` and the `event.tokenTimestamp`. It has to be deployed in the `default` namespace and be named `datadogtoken`.
+   Run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` . 
+   You can also use the example in [manifests/datadog_configmap.yaml][https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/manifests/datadog_configmap.yaml].
 
-Then Run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` . 
-You can also use the example in [manifests/datadog_configmap.yaml][https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/manifests/datadog_configmap.yaml].
-
-When the ConfigMap is used, if the agent in charge (via the [Leader election](#leader-election)) of collecting the events dies, the next leader elected will use the ConfigMap to identify the last events pulled.
+Note: When the ConfigMap is used, if the agent in charge (via the [Leader election](#leader-election)) of collecting the events dies, the next leader elected will use the ConfigMap to identify the last events pulled.
 This is in order to avoid duplicate the events collected, as well as putting less stress on the API Server.
 
 #### Leader Election [DCA]
 
 <a name="leader-election"></a>
-The Datadog Agent6 supports built in leader election option for the Kubernetes event collector and the Kubernetes cluster related checks (i.e. Controle Plane service check).
+Datadog Agent 6 supports built in leader election option for the Kubernetes event collector and the Kubernetes cluster related checks (i.e. Controle Plane service check).
 
 This feature relies on Endpoints, you can enable it by setting the `DD_LEADER_ELECTION` environment variable to `true` the Datadog Agents will need to have a set of actions allowed prior to its deployment nevertheless.
 See the [RBAC](#rbac) section for more details and keep in mind that these RBAC entities will need to be created before the option is set.

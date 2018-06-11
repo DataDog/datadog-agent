@@ -23,7 +23,7 @@ spec:
           - name: DD_LEADER_ELECTION
             value: "true"
          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-           value: <Thirty 2 characters long token>
+           value: <Thirty_2_characters_long_token>
          # If using a secret, you can alternatively use:
 #          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
 #            valueFrom:
