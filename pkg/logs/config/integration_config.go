@@ -213,10 +213,6 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 		if rule.Name == "" {
 			return fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
 		}
-		_, err := regexp.Compile(rule.Pattern)
-		if err != nil {
-			return nil, fmt.Errorf("LogsAgent misconfigured: pattern %s is unsupported for log processing rule: `%s`", rule.Pattern, rule.Name)
-		}
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
 			continue
@@ -225,6 +221,15 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 		default:
 			return fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
 		}
+		// if rule.Pattern != "" {
+		// 	re, err := regexp.Compile(rule.Pattern)
+		// 	if err != nil {
+		// 		fmt.Errorf("LogsAgent misconfigured: pattern %s is unsupported for log processing rule: `%s`", rule.Pattern, rule.Name)
+		// 	}
+			
+		// }
+		
+		
 	}
 	return nil
 }
@@ -232,15 +237,23 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 // CompileProcessingRules compiles all processing rules regular expression
 func CompileProcessingRules(rules []LogsProcessingRule) {
 	for i, rule := range rules {
-		switch rule.Type {
-		case ExcludeAtMatch, IncludeAtMatch:
-			rules[i].Reg = regexp.MustCompile(rule.Pattern)
-		case MaskSequences:
-			rules[i].Reg = regexp.MustCompile(rule.Pattern)
-			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
-		case MultiLine:
-			rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
-		default:
+		if rule.Pattern != "" {
+			re, err := regexp.Compile(rule.Pattern)
+			if err != nil {
+				fmt.Errorf("LogsAgent misconfigured: pattern %s is unsupported for log processing rule: `%s`", rule.Pattern, rule.Name)
+			}
+			switch rule.Type {
+			case ExcludeAtMatch, IncludeAtMatch:
+				rules[i].Reg = re
+			case MaskSequences:
+				rules[i].Reg = re
+				rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
+			case MultiLine:
+				rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
+			default:
+			}
+
 		}
+
 	}
 }
