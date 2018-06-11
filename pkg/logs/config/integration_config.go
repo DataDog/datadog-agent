@@ -213,6 +213,10 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 		if rule.Name == "" {
 			return fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
 		}
+		_, err := regexp.Compile(rule.Pattern)
+		if err != nil {
+			return nil, fmt.Errorf("LogsAgent misconfigured: pattern %s is unsupported for log processing rule: `%s`", rule.Pattern, rule.Name)
+		}
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
 			continue
