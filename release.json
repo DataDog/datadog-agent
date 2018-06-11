@@ -10,8 +10,8 @@
 	},
 	"6.3.0-rc.1": {
 		"INTEGRATIONS_CORE_VERSION": "master",
-		"TRACE_AGENT_VERSION": "master",
-		"PROCESS_AGENT_VERSION": "master",
+		"TRACE_AGENT_VERSION": "6.3.0",
+		"PROCESS_AGENT_VERSION": "6.3.0",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
 		"JMXFETCH_VERSION": "0.20.0",
