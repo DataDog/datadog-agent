@@ -46,5 +46,5 @@ The DCA integrates in complex distributed architectures to enhance and improve a
 Hence its mission is pretty critical and needs to have many processes in place to ensure it works seamlessly. 
 As well as provide good tooling to get a clear picture of the cluster and should something go wrong, allow for a user to easily troubleshoot and identify issues.
 As the DCA works hands in hands with the node agent, we have tried to make its usage fool proof and document the lifecycle.
-To further read about the Lifecycle, please refer to the dedicated documentation [here].
+To further read about the Lifecycle, please refer to the dedicated documentation [here](GETTING_STARTED.md).
 Should you have issues with the DCA and the Troubleshooting section don't help, reach out to our [support team](mailto:support@datadoghq.com)  

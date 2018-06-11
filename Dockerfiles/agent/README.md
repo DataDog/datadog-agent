@@ -128,10 +128,10 @@ For more information about the container's lifecycle, see [SUPERVISION.md](SUPER
 ## Kubernetes
 
 #### Without the DCA
-**This sub-section is only valid for the agent versions < 6.2 or when not using the Datadog Cluster Agent.**
+**This sub-section is only valid for the agent versions < 6.4.0 or when not using the Datadog Cluster Agent.**
 
 <a name="kubernetes"></a>
-To deploy the Agent in your Kubernetes cluster, you can use the manifest in `manifests`. Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
+To deploy the Agent in your Kubernetes cluster, you can use the manifest in [manifests](../manifests/cluster-agent/cluster-agent.yaml). Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
 `kubectl create -f manifests/rbac`
 
 Then, you can then create the agents with:
@@ -146,9 +146,9 @@ See details in [Event Collection](#event-collection).
 
 #### With the DCA
 
-**This sub-section is only valid for agent versions > 6.2 or when using the Datadog Cluster Agent.**
+**This sub-section is only valid for agent versions > 6.4.0 or when using the Datadog Cluster Agent.**
 
-Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated ClusterRoleBinding, and the Clusterrole for the agent should be as follow: 
+Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated ClusterRoleBinding, and the Clusterrole for the agent should be as follows: 
 
 ```
 apiVersion: rbac.authorization.k8s.io/v1

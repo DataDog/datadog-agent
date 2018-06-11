@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document aims to get you started upon the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent - DCA | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent in Containerized environments](../../Dockerfiles/cluster-agent/README.md) documentation.
+This document aims to get you started using the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent - DCA | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent in Containerized environments](../../Dockerfiles/cluster-agent/README.md) documentation.
 
 ## Step by step
 
@@ -12,7 +12,7 @@ This document aims to get you started upon the Datadog Cluster Agent. Refer to t
 * Cluster Role
 * Cluster Role Binding
 
-Those can be found in the [Datadog Cluster Agent Rbac](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml).
+Those can be found in the [Datadog Cluster Agent RBAC](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml).
 
 **Step 2** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-cluster-agent.yaml` from the datadog-agent directory.
 
@@ -145,6 +145,9 @@ Then, Kubernetes events should start to flow in your Datadog accounts, and relev
 
 ## Troubleshooting
 
+To execute the following commands, you will first need to be inside the pod of the Cluster Agent or the Node Agent.
+You can use `kubectl exec -it <datadog-cluster-agent pod name> bash`
+  
 #### On the DCA side
 
 To see what cluster level metadata is served by the DCA exec in the pod and run:
