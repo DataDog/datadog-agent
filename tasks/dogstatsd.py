@@ -13,7 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags, get_default_build_tags
-from .utils import get_build_flags, bin_name, get_root
+from .utils import get_build_flags, bin_name, get_root, load_release_versions
 from .utils import REPO_PATH
 
 from .go import deps
@@ -146,7 +146,7 @@ def size_test(ctx, skip_build=False):
 
 @task
 def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, omnibus_s3_cache=False):
+                  skip_deps=False, release_version="nightly", omnibus_s3_cache=False):
     """
     Build the Dogstatsd packages with Omnibus Installer.
     """
@@ -166,10 +166,11 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
+        env = load_release_versions(ctx, release_version)
         cmd = "bundle install"
         if gem_path:
             cmd += " --path {}".format(gem_path)
-        ctx.run(cmd)
+        ctx.run(cmd, env=env)
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build dogstatsd --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
@@ -180,7 +181,7 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
         }
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
-        ctx.run(cmd.format(**args))
+        ctx.run(cmd.format(**args), env=env)
 
 
 @task

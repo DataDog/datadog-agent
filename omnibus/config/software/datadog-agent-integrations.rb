@@ -4,10 +4,11 @@
 # Copyright 2018 Datadog, Inc.
 
 require './lib/ostools.rb'
+require 'json'
 
 name 'datadog-agent-integrations'
 
-dependency 'pip'
+dependency 'datadog-pip'
 dependency 'datadog-agent'
 dependency 'protobuf-py'
 
@@ -48,13 +49,39 @@ build do
   # Install the checks and generate the global requirements file
   block do
     all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
-    # Manually add "core" dependencies that are not listed in the checks requirements
     # FIX THIS these dependencies have to be grabbed from somewhere
     all_reqs_file.puts "pympler==0.5 --hash=sha256:7d16c4285f01dcc647f69fb6ed4635788abc7a7cb7caa0065d763f4ce3d21c0f"
     all_reqs_file.puts "wheel==0.30.0 --hash=sha256:e721e53864f084f956f40f96124a74da0631ac13fbbd1ba99e8e2b5e9cafdf64"\
         " --hash=sha256:9515fe0a94e823fd90b08d22de45d7bde57c90edce705b22f5e1ecf7e1b653c8"
 
     all_reqs_file.close
+
+    # required by TUF for meta
+    if windows?
+      tuf_repo = windows_safe_path("#{install_dir}/etc/datadog-agent/repositories/")
+      tuf_repo_meta = windows_safe_path("#{tuf_repo}/public-integrations-core/metadata/")
+    else
+      tuf_repo = "#{install_dir}/repositories/"
+      tuf_repo_meta = "#{tuf_repo}/public-integrations-core/metadata/"
+    end
+
+    # Add TUF metadata
+    mkdir windows_safe_path("#{tuf_repo}/cache")
+    mkdir windows_safe_path("#{tuf_repo_meta}/current")
+    mkdir windows_safe_path("#{tuf_repo_meta}/previous")
+    if windows?
+      file = File.read(windows_safe_path("#{project_dir}/.public-tuf-config.json"))
+      tuf_config = JSON.parse(file)
+      tuf_config['repositories_dir'] = 'c:\\ProgramData\\Datadog\\repositories'
+      erb source: "public-tuf-config.json.erb",
+          dest: "#{install_dir}/public-tuf-config.json",
+          mode: 0640,
+          vars: { tuf_config: tuf_config }
+      copy_file windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{install_dir}/etc/datadog-agent/root.json")
+    else
+      copy windows_safe_path("#{project_dir}/.public-tuf-config.json"), windows_safe_path("#{install_dir}/public-tuf-config.json")
+      copy windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{tuf_repo_meta}/current/root.json")
+    end
 
     # Install all the requirements
     if windows?
@@ -73,11 +100,10 @@ build do
 
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
-    python_pip = "\"import pip, glob; pip.main(['install', '-c', '#{install_dir}/agent_requirements.txt'] + glob.glob('*.whl'))\""
+    python_pip = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt #{windows_safe_path(project_dir)}"
 
     if windows?
-      pip "wheel --no-deps .", :cwd => "#{project_dir}/datadog_checks_base"
-      command("#{python_bin} -c #{python_pip}", cwd: "#{project_dir}/datadog_checks_base")
+      command("#{python_bin} -m #{python_pip}\\datadog_checks_base")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
@@ -86,6 +112,10 @@ build do
       pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
       pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
     end
+
+    # Set frozen requirements post `datadog_checks_base` - constraints file will be used by 
+    # pip to ensure all other integrations dependency sanity.
+    pip "freeze > #{install_dir}/agent_requirements.txt"
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
       check = check_dir.split('/').last
@@ -136,8 +166,7 @@ build do
 
       File.file?("#{check_dir}/setup.py") || next
       if windows?
-        pip "wheel --no-deps .", :cwd => "#{project_dir}/#{check}"
-        command("#{python_bin} -c #{python_pip}", cwd: "#{project_dir}/#{check}")
+        command("#{python_bin} -m #{python_pip}\\#{check}")
       else
         build_env = {
           "LD_RUN_PATH" => "#{install_dir}/embedded/lib",

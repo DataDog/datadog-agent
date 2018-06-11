@@ -106,6 +106,13 @@
                       Id="APPLICATIONROOTDIRECTORY_REGSEARCH"
                       Name="InstallPath" />
     </Property>
+    <Property Id="TUFMETALOCATION">
+      <RegistrySearch Key="SOFTWARE\Datadog\Datadog Agent"
+                      Root="HKLM"
+                      Type="raw"
+                      Id="TUFMETADIRECTORY_REGSEARCH"
+                      Name="InstallPath" />
+    </Property>
 
     <DirectoryRef Id="PROJECTLOCATION">
       <Component Id="CleanupMainApplicationFolder" Guid="096249cf-3fe7-4342-a80f-77101ceed5fe">
@@ -353,6 +360,53 @@
           <CreateFolder/>
         </Component>
       </Directory>
+
+      <Directory Id="repositories" Name="repositories">
+         <Component Id="CleanupTUFMetaFolder" Guid="*">
+         <RegistryValue Root="HKLM"
+                        Key="SOFTWARE\Datadog\Datadog Agent"
+                        Name="Path"
+                        Type="string"
+                        Value="[TUFMETALOCATION]"
+                        KeyPath="yes" />
+           <!-- We need to use TUFMETALOCATION variable here or RemoveFolderEx
+                    will not remove on "install". -->
+           <util:RemoveFolderEx On="uninstall" Property="TUFMETALOCATION" />
+         </Component>
+         <Directory Id="cache" Name="cache">
+           <Component Id="cache"
+                      Guid="cdcbdd55-fe32-4b68-a1a5-bb0635da0ba1"
+                      Location="either">
+             <CreateFolder/>
+           </Component>
+         </Directory>
+         <Directory Id="public_integrations_core" Name="public-integrations-core">
+           <Directory Id="metadata" Name="metadata">
+             <Directory Id="current" Name="current">
+               <Component Id="current_metadata"
+                          Guid="0ce7cd2c-5ce1-44bf-ac42-965f3f74ef78"
+                          Location="either">
+                 <CreateFolder/>
+               </Component>
+               <Component Id="root.json"
+                          Guid="f77002ee-be92-4304-ada7-e93cf011d16e"
+                          NeverOverwrite="yes"
+                          Permanent="yes">
+                 <File Id="root.json"
+                       Name="root.json"
+                       Source="$(var.EtcFiles)\root.json"/>
+               </Component>
+             </Directory>
+             <Directory Id="previous" Name="previous">
+               <Component Id="previous_metadata"
+                          Guid="4d80f73b-b84c-41b2-bbc4-b374ae4d3eba"
+                          Location="either">
+                 <CreateFolder/>
+               </Component>
+             </Directory>
+           </Directory>
+         </Directory>
+      </Directory>
    </DirectoryRef>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
@@ -363,6 +417,10 @@
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="checks.d" />
+      <ComponentRef Id="cache" />
+      <ComponentRef Id="current_metadata" />
+      <ComponentRef Id="previous_metadata" />
+      <ComponentRef Id="root.json" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
       <ComponentRef Id="DATADOGAPMSERVICE" />

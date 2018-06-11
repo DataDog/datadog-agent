@@ -678,6 +678,16 @@
   revision = "4e4a3210bb54bb31f6ab2cdca2edcc0b50c420c1"
 
 [[projects]]
+  branch = "master"
+  name = "golang.org/x/tools"
+  packages = [
+    "go/ast/astutil",
+    "go/buildutil",
+    "go/loader"
+  ]
+  revision = "95b47aa5df4eda9bfbc0133f77c0e320f0275eba"
+
+[[projects]]
   name = "gopkg.in/Knetic/govaluate.v3"
   packages = ["."]
   revision = "d216395917cc49052c7c7094cf57f09657ca08a8"
