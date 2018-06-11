@@ -439,14 +439,17 @@ func (ac *AutoConfig) pollConfigs() {
 					// retrieve the list of newly added configurations as well
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
-
+					log.Infof("evaluating provider %s, removing %s, adding %s", pd.provider.String(), removedConfigs, newConfigs)
 					ac.processRemovedConfigs(removedConfigs)
 
 					// TODO: move to check scheduler
 					for _, config := range newConfigs {
+						log.Infof("processing the new config %s", config)
 						config.Provider = pd.provider.String()
 						resolvedConfigs := ac.resolve(config)
+						log.Infof("resolved to %s", resolvedConfigs)
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
+						log.Infof("collected the checks %s", checks)
 						ac.schedule(checks)
 					}
 				}
@@ -461,6 +464,7 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 	// Process removed configs first to handle the case where a
 	// container churn would result in the same configuration hash.
 	for _, config := range removedConfigs {
+		log.Infof("Started removing %s", config)
 		if !isCheckConfig(config) {
 			// skip non check configs.
 			continue
@@ -500,8 +504,10 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 
 		// if the config is a template, remove it from the cache
 		if config.IsTemplate() {
+			log.Infof("Config %s is template, deleting", config)
 			ac.templateCache.Del(config)
 		}
+		log.Infof("Finished removing %s", config)
 	}
 }
 
