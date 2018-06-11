@@ -12,6 +12,7 @@ import (
 	"net"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -26,8 +27,10 @@ import (
 var (
 	dogstatsdExpvar = expvar.NewMap("dogstatsd")
 
-	// The default hostname to enforce on metrics
+	// The default hostname to enforce on metrics, assumed to not change in the
+	// Agent's lifetime
 	defaultHostname = ""
+	initHostname    sync.Once
 )
 
 // Server represent a Dogstatsd server
@@ -55,6 +58,12 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		}
 		stats = s
 	}
+
+	// We enforce the defaultHostname on metrics when none is set. To avoid checking
+	// the cache on every metrics, save it once and for all in a package variable.
+	initHostname.Do(func() {
+		defaultHostname, _ = util.GetHostname()
+	})
 
 	packetChannel := make(chan *listeners.Packet, 100)
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
@@ -121,11 +130,6 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 	}
 
 	s.handleMessages(metricOut, eventOut, serviceCheckOut)
-
-	// We enforce the defaultHostname on metrics when none is set. This
-	// should never change while the agent is running, to avoid checking
-	// the cache on every metrics we save it here.
-	defaultHostname, _ = util.GetHostname()
 
 	return s, nil
 }
