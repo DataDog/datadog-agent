@@ -2,32 +2,32 @@
 
 ## Introduction
 
-For more context on the Datadog Cluster agent, please refer to the [User Documentation](README.md).
-For more technical background, refer to [this documentation](../../Dockerfiles/cluster-agent/README.md).
+This document aims to get you started upon the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent - DCA | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent in Containerized environments](../../Dockerfiles/cluster-agent/README.md) documentation.
 
 ## Step by step
 
-The DCA will need a proper RBAC to be up and running, so you will first need to create the:
-- Service Account
-- Cluster Role
-- Cluster Role Binding
+**Step 1** - The Datadog Cluster Agent (DCA) needs a proper RBAC to be up and running, first create its:
 
-These can be found [here](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml).
+* Service Account
+* Cluster Role
+* Cluster Role Binding
 
-Simply run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-cluster-agent.yaml` from the datadog-agent directory.
+Those can be found in the [Datadog Cluster Agent Rbac](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml).
 
-Then, depending on whether you are relying on a secret to secure the communication between the Node Agent and the Cluster Agent, you will either:
-- Create a secret
-- Set an environment variable
+**Step 2** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-cluster-agent.yaml` from the datadog-agent directory.
 
-To create a secret, you can create a 32 characters long base64 encoded string:
-`echo -n <Thirty 2 characters long token> | base64`
-and use this string in the `dca-secret.yaml` file located in the [manifest/cluster-agent/](../../Dockerfiles/manifests/cluster-agent/dca-secret.yaml) directory.
-Or you can run a one line command: `kubectl create secret generic datadog-auth-token --from-literal=token=12345678901234567890123456789012`.
+**Step 3** - Depending on whether you are relying on a secret to secure the communication between the Node Agent and the Cluster Agent, either:
 
-Upon creation you need to refer to this secret in the manifest of the cluster agent as well as the agent!
-The environment variable `DD_CLUSTER_AGENT_AUTH_TOKEN` shall be used for this purpose.
+* Create a secret
+* Set an environment variable
+
+**Step 3.1** - To create a secret, create a 32 characters long base64 encoded string: `echo -n <32_CHARACTERS_LONG_TOKEN> | base64`
+and use this string in the `dca-secret.yaml` file located in the [manifest/cluster-agent/](../../Dockerfiles/manifests/cluster-agent/dca-secret.yaml) directory. Alternately run this one line command: `kubectl create secret generic datadog-auth-token --from-literal=token=<32_CHARACTERS_LONG_TOKEN>`.
+
+**Step 3.2** - Upon creation, refer to this secret with the environment variable `DD_CLUSTER_AGENT_AUTH_TOKEN`  in the manifest of the cluster agent as well as in the manifest of the Agent!
+
 If you are using the secret:
+
 ```yaml
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN
             valueFrom:
@@ -36,23 +36,29 @@ If you are using the secret:
                 key: token
 
 ```
- Or otherwise:
- ```yaml
+ 
+Or otherwise:
+ 
+```yaml
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-            value: "12345678901234567890123456789012"
+            value: "<32_CHARACTERS_LONG_TOKEN>"
 ```
 
-Again, this needs to be set in the manifest of the cluster agent *and* the node agent.
+**Note**: his needs to be set in the manifest of the cluster agent **AND** the node agent.
 
-Once the secret is created, create the DCA along with its service.
-Don't forget to add your API_KEY in the manifest of the DCA. 
-Both manifests can be found in the manifest/cluster-agent directory.
+**Step 4** - Once the secret is created, create the DCA along with its service.
+Don't forget to add your `<DATADOG_API_KEY>` in the manifest of the DCA. Both manifests can be found in the [manifest/cluster-agent directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
+Run: 
+
 `kubectl apply -f Dockerfiles/manifests/cluster-agent/datadog-cluster-agent_service.yaml`
+
 and
+
 `kubectl apply -f Dockerfiles/manifests/cluster-agent/cluster-agent.yaml`
 
-At this point, you should be seeing:
-```yaml
+**Step 5** - At this point, you should be seeing:
+
+```
 -> kubectl get deploy
 NAME                    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
 datadog-cluster-agent   1         1         1            1           1d
@@ -69,17 +75,19 @@ NAME                  TYPE           CLUSTER-IP       EXTERNAL-IP        PORT(S)
 dca                   ClusterIP      10.100.202.234   <none>             5005/TCP         1d
 ```
 
-The last step is to configure your agent to communicate with the DCA.
-First, you will need to create the RBAC for your agents. They limit the agents' access  to the kubelet API.
-You will need to create a dedicated:
+**Step 6** - Configure your agent to communicate with the DCA.
+First, create the RBAC for your agents. They limit the agents' access to the kubelet API. For this create a dedicated:
+
 - Service Account
 - Cluster Role
 - Cluster Role Binding
-These can be found [here](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-agent.yaml).
 
-Simply run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-agent.yaml` from the datadog-agent directory.
+Those can be found in the [Datadog Agent Rbac](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-agent.yaml).
+
+**Step 7** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-agent.yaml` from the datadog-agent directory.
 
 To do so, add the following environment variables to the agent's manifest:
+
 ```yaml
           - name: DD_CLUSTER_AGENT
             value: 'true'
@@ -88,16 +96,17 @@ To do so, add the following environment variables to the agent's manifest:
               secretKeyRef:
                 name: datadog-auth-token
                 key: token 
-#            value: "12345678901234567890123456789012" # If you are not using the secret, just set the string.                
+#            value: "<32_CHARACTERS_LONG_TOKEN>" # If you are not using the secret, just set the string.                
           - name: DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ # Optional
             value: '15'
 ```
 
-And finally, create the Daemonsets for your agents:
+**Step 8** - Create the Daemonsets for your agents:
 
 `kubectl apply -f Dockerfiles/manifests/agent.yaml` 
 
 You should be seeing:
+
 ```
 -> kubectl get pods | grep agent
 datadog-agent-4k9cd                      1/1       Running   0          2h
@@ -111,13 +120,14 @@ datadog-agent-x5wk5                      1/1       Running   0          2h
 datadog-cluster-agent-8568545574-x9tc9   1/1       Running   0          2h
 ```
 
-Then, Kubernetes events should start to flow in your accounts, and relevant metrics collected by your agents should be tagged with their corresponding cluster level metadata.
-
+Then, Kubernetes events should start to flow in your Datadog accounts, and relevant metrics collected by your agents should be tagged with their corresponding cluster level metadata.
 
 ## Troubleshooting
 
 #### On the DCA side
-If you want to see what cluster level metadata is served by the DCA you can exec in the pod and run:
+
+To see what cluster level metadata is served by the DCA exec in the pod and run:
+
 ```
 root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent metamap
 
@@ -144,22 +154,23 @@ Node detected: ip-192-168-118-166.ec2.internal
  [...]
 ```
 
-If you want to verify that the DCA is being queried, you can look for:
+To verify that the DCA is being queried, look for:
+
 ```
 root@datadog-cluster-agent-8568545574-x9tc9:/# tail -f /var/log/datadog/cluster-agent.log
 2018-06-11 09:37:20 UTC | DEBUG | (metadata.go:40 in GetPodMetadataNames) | CacheKey: agent/KubernetesMetadataMapping/ip-192-168-226-77.ec2.internal, with 1 services
 2018-06-11 09:37:20 UTC | DEBUG | (metadata.go:40 in GetPodMetadataNames) | CacheKey: agent/KubernetesMetadataMapping/ip-192-168-226-77.ec2.internal, with 1 services
 ```
 
-If you are not collecting events properly, make sure you have enabled: 
+If you are not collecting events properly, make sure to have those environment variables set to true: 
 - The leader election `DD_LEADER_ELECTION`
 - The event collection `DD_COLLECT_KUBERNETES_EVENTS`
 
-As well as the proper verbs listed in the RBAC (notably, watch events).
+As well as the proper verbs listed in the RBAC (notably, `watch events`).
 
-If you have enabled those, you can check the Leader Election status and the kube_apiserver check.
+If you have enabled those, check the Leader Election status and the kube_apiserver check:
 
-```yaml
+```
 
 root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent status
 [...]
@@ -182,11 +193,9 @@ root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent status
 [...]
 ```
 
+#### On the Node Agent side
 
-
-#### On the Node Agent side:
-
-Make sure the Cluster Agent service was created before the agents' pods, so that the DNS is available in the env vars:
+Make sure the Cluster Agent service was created before the agents' pods, so that the DNS is available in the environment variables:
 
 ```
 root@datadog-agent-9d5bl:/# env | grep -i dca
@@ -202,13 +211,15 @@ root@datadog-agent-9d5bl:/# env | grep -i auth_token
 DD_CLUSTER_AGENT_AUTH_TOKEN=1234****9
 ```
 
-You can verify that the Node Agent is using the DCA as a tag provider:
+Verify that the Node Agent is using the DCA as a tag provider:
+
 ```
 root@datadog-agent-9d5bl:/# cat /var/log/datadog/agent.log | grep "metadata-collector"
 2018-06-11 06:59:02 UTC | INFO | (tagger.go:151 in tryCollectors) | kube-metadata-collector tag collector successfully started
 ```
 
 Or look for error logs, such as:
+
 ```
 2018-06-10 08:03:02 UTC | ERROR | Could not initialise the communication with the DCA, falling back to local service mapping: [...]
 ```
