@@ -1,0 +1,5 @@
+# There's no configuration necessary for this check.
+init_config:
+
+instances:
+  - tags: []

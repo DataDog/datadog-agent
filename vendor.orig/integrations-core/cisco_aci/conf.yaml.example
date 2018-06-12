@@ -1,0 +1,20 @@
+# To capture Cisco ACI metrics you need to install the Datadog Agent on one of your hosts.
+instances:
+    - aci_url: localhost
+      # This check makes a lot of API calls
+      # it could sometimes help to add a minimum collection interval
+      # min_collection_interval: 180
+      # Add multiple urls if there are multiple controllers,
+      # the check will balance between them so it doesn't make too many requests
+      aci_urls:
+        - localhost:1234
+        - localhost:5555
+      username: datadog
+      pwd: datadog
+      timeout: 15
+      ssl_verify: True
+      tags: []
+      tenant:
+        - WebApp
+        - Database
+        - Datadog

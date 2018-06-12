@@ -1,0 +1,48 @@
+init_config:
+
+instances:
+  - apache_status_url: http://localhost/server-status?auto
+    # apache_user: example_user
+    # apache_password: example_password
+    # tags:
+    #   - optional_tag
+
+    # The (optional) disable_ssl_validation will instruct the check
+    # to skip the validation of the SSL certificate of the URL being tested.
+    # Defaults to false, set to true if you want to disable SSL certificate validation.
+    #
+    # disable_ssl_validation: false
+
+    # The (optional) connect_timeout will override the default value, and fail
+    # the check if the time to establish the (TCP) connection exceeds the
+    # connect_timeout value (in seconds)
+    # connect_timeout: 5
+    
+    # The (optional) receive_timeout will override the default value, and fail
+    # the check if the time to receive the server status from the Apache server
+    # exceeds the receive_timeout value (in seconds)
+    # receive_timeout: 15
+    
+
+## Log Section (Available for Agent >=6.0)
+
+#logs:
+
+    # - type : (mandatory) type of log input source (tcp / udp / file)
+    #   port / path : (mandatory) Set port if type is tcp or udp. Set path if type is file
+    #   service : (mandatory) name of the service owning the log
+    #   source : (mandatory) attribute that defines which integration is sending the logs
+    #   sourcecategory : (optional) Multiple value attribute. Can be used to refine the source attribtue
+    #   tags: (optional) add tags to each logs collected
+    
+    # - type: file
+    #   path: /var/log/apache2/access.log
+    #   source: apache
+    #   sourcecategory: http_web_access
+    #   service: apache
+       
+    # - type: file
+    #   path: /var/log/apache2/error.log
+    #   source: apache
+    #   sourcecategory: http_web_access
+    #   service: apache

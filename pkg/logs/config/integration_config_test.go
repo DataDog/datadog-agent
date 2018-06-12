@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 const testsPath = "tests"
@@ -96,12 +94,19 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 }
 
 func TestCompileProcessingRules(t *testing.T) {
-	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"(?=abf)"}}))
-	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"a++"}}))
-	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"(?>abf)"}}))
-	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"abf"}}))
-	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{""}}))
-	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{LogsProcessingRule{"[[:alnum:]]{5}"}}))
+	var rule LogsProcessingRule
+	rule.Pattern = "(?=abf)"
+	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	rule.Pattern = "a++"
+	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	rule.Pattern = "(?>abf)"
+	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	rule.Pattern = "[[:alnum:]]{5}"
+	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	rule.Pattern = ""
+	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	rule.Pattern = "abf"
+	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
 }
 
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {

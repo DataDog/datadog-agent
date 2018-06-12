@@ -1,0 +1,15 @@
+version: '3.5'
+
+services:
+  apache:
+    image: "httpd:${APACHE_VERSION}"
+    volumes:
+      - ${APACHE_CONFIG}:/usr/local/apache2/conf/httpd.conf
+    ports:
+      - "18180:18180"
+    networks:
+      - network1
+
+networks:
+  network1:
+    name: apache_network

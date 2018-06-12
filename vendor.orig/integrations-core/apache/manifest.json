@@ -1,0 +1,24 @@
+{
+  "manifest_version": "1.0.0",
+  "name": "Apache",
+  "display_name": "Apache",
+  "support": "core",
+  "supported_os": [
+    "linux",
+    "mac_os",
+    "windows"
+  ],
+  "maintainer": "help@datadoghq.com",
+  "short_description": "Track requests per second, bytes served, worker threads, uptime, and more.",
+  "description": "Track requests per second, bytes served, worker threads, uptime, and more.",
+  "guid": "cb2b4a06-4ede-465e-9478-a45f8b32058a",
+  "public_title": "Datadog-Apache Integration",
+  "categories": [
+    "web",
+    "log collection"
+  ],
+  "type": "check",
+  "doc_link": "https://docs.datadoghq.com/integrations/apache/",
+  "is_public": true,
+  "has_logo": true
+}

@@ -1,0 +1,7 @@
+ad_identifiers:
+  - httpd
+
+init_config:
+
+instances:
+  - apache_status_url: http://%%host%%/server-status?auto

@@ -1,0 +1,6 @@
+include README.md
+include requirements.in
+include requirements.txt
+include requirements-dev.txt
+graft datadog_checks
+graft tests

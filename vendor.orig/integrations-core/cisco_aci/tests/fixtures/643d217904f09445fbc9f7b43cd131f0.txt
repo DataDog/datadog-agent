@@ -1,0 +1,1 @@
+{"totalCount":"1","imdata":[{"fabricPod":{"attributes":{"childAction":"","dn":"topology/pod-1","id":"1","lcOwn":"local","modTs":"2016-07-20T11:27:59.187-07:00","monPolDn":"uni/fabric/monfab-default","status":""}}}]}

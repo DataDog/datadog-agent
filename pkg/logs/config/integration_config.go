@@ -232,7 +232,7 @@ func CompileProcessingRules(rules []LogsProcessingRule) error {
 		if rule.Pattern != "" {
 			re, err := regexp.Compile(rule.Pattern)
 			if err != nil {
-				fmt.Errorf("LogsAgent misconfigured: pattern %s is unsupported for log processing rule: `%s`", rule.Pattern, rule.Name)
+				return fmt.Errorf("LogsAgent misconfigured: pattern %s is unsupported for log processing rule: `%s`", rule.Pattern, rule.Name)
 			}
 			switch rule.Type {
 			case ExcludeAtMatch, IncludeAtMatch:

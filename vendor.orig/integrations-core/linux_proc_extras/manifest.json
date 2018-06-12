@@ -1,0 +1,19 @@
+{
+  "maintainer": "help@datadoghq.com",
+  "manifest_version": "1.0.0",
+  "name": "linux_proc_extras",
+  "short_description": "linux_proc_extras description.",
+  "support": "core",
+  "supported_os": [
+    "linux"
+  ],
+  "guid": "47f243d7-5df4-47b5-9f1a-923b4f7cefe7",
+  "public_title": "Datadog-Linux Proc Extras Integration",
+  "categories": [
+    "os & system"
+  ],
+  "type": "check",
+  "doc_link": "https://docs.datadoghq.com/integrations/linux_proc_extras/",
+  "is_public": true,
+  "has_logo": true
+}

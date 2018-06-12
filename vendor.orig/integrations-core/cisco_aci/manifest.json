@@ -1,0 +1,20 @@
+{
+  "maintainer": "help@datadoghq.com",
+  "manifest_version": "1.0.0",
+  "name": "cisco_aci",
+  "short_description": "Track Cisco ACI performance and usage.",
+  "support": "core",
+  "supported_os": [
+    "linux",
+    "mac_os",
+    "windows"
+  ],
+  "guid": "8a20f56b-2e25-4a0b-a252-f5187dddeeef",
+  "public_title": "Datadog-CiscoACI Integration",
+  "categories":["cisco", "networking"],
+  "type": "check",
+  "doc_link": "https://docs.datadoghq.com/integrations/redisdb/",
+  "aliases": ["/integrations/cisco_aci/"],
+  "is_public": true,
+  "has_logo": false
+}

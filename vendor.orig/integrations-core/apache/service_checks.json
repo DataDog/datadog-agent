@@ -1,0 +1,11 @@
+[
+    {
+        "agent_version": "5.1.0",
+        "integration":"apache",
+        "groups": ["host", "port"],
+        "check": "apache.can_connect",
+        "statuses": ["ok", "critical"],
+        "name": "Can Connect",
+        "description": "Returns `CRITICAL` if the Agent is unable to connect to the monitored Apache instance. Returns `OK` otherwise."
+    }
+]
