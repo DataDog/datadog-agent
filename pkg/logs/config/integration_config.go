@@ -131,6 +131,7 @@ func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 			}
 			err := CompileProcessingRules(config.ProcessingRules)
 			if err != nil {
+				source.Status.Error(err)
 				log.Errorf("invalid processing rules %s", err)
 				continue
 			}
