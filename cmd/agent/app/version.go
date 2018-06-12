@@ -35,7 +35,7 @@ var versionCmd = &cobra.Command{
 		fmt.Fprintln(
 			color.Output,
 			fmt.Sprintf("Agent %s %s- Commit: %s - Serialization version: %s",
-				color.BlueString(av.GetNumberAndPre()),
+				color.CyanString(av.GetNumberAndPre()),
 				meta,
 				color.GreenString(av.Commit),
 				color.MagentaString(serializer.AgentPayloadVersion),
