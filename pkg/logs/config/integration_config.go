@@ -131,7 +131,7 @@ func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 			}
 			err := CompileProcessingRules(config.ProcessingRules)
 			if err != nil {
-				log.Error(err)
+				log.Errorf("invalid processing rules %s", err)
 				continue
 			}
 		}
@@ -235,7 +235,7 @@ func CompileProcessingRules(rules []LogsProcessingRule) error {
 		if rule.Pattern != "" {
 			re, err := regexp.Compile(rule.Pattern)
 			if err != nil {
-				return fmt.Errorf("LogsAgent misconfigured: pattern %s is unsupported for log processing rule: `%s`", rule.Pattern, rule.Name)
+				return err
 			}
 			switch rule.Type {
 			case ExcludeAtMatch, IncludeAtMatch:
@@ -244,7 +244,10 @@ func CompileProcessingRules(rules []LogsProcessingRule) error {
 				rules[i].Reg = re
 				rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
 			case MultiLine:
-				rules[i].Reg, _ = regexp.Compile("^" + rule.Pattern)
+				rules[i].Reg, err = regexp.Compile("^" + rule.Pattern)
+				if err != nil {
+					return err
+				}
 			default:
 			}
 
