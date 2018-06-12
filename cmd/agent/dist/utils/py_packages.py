@@ -1,9 +1,10 @@
-import pip
+import pkg_resources
 
 DATADOG_CHECK_PREFIX = "datadog-"
 
 def get_installed_packages():
-    return pip.get_installed_distributions()
+    dists = [d for d in pkg_resources.working_set]
+    return dists
 
 def get_datadog_wheels():
     packages = []
