@@ -10,6 +10,7 @@ package apiserver
 //// Covered by test/integration/util/kube_apiserver/events_test.go
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"time"
@@ -48,7 +49,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 
 	eventWatcher, err := c.Client.Events(metav1.NamespaceAll).Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
 	if err != nil {
-		log.Debugf("Failed to watch %v: %v", expectedType, err)
+		return nil, nil, "0", fmt.Errorf("Failed to watch %v: %v", expectedType, err)
 	}
 	defer eventWatcher.Stop()
 
