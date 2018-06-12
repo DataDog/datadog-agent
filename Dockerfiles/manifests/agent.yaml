@@ -53,6 +53,7 @@ spec:
             - ./probe.sh
           initialDelaySeconds: 15
           periodSeconds: 5
+          timeoutSeconds: 5
       volumes:
         - hostPath:
             path: /var/run/docker.sock
