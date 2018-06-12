@@ -117,19 +117,6 @@ func TestCompileProcessingRules(t *testing.T) {
 	err = CompileProcessingRules(rules)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
-
-	// assert.NotNil(t, )
-
-	// rule.Pattern = "a++"
-	// assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	// rule.Pattern = "(?>abf)"
-	// assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	// rule.Pattern = "[[:alnum:]]{5}"
-	// assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	// rule.Pattern = ""
-	// assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	// rule.Pattern = "abf"
-	// assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
 }
 
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
