@@ -2,7 +2,7 @@
 
 # Upgrade - bump
 
-The current end to end testing pipeline rely on
+The current end to end testing pipeline relies on
 * pupernetes
 * argo
 * kinvolk flatcar
@@ -10,23 +10,23 @@ The current end to end testing pipeline rely on
 ## Bump hyperkube version
 
 
-Add the `--hyperkube-version` + a valid release like `1.10.1`: `--hyperkube-version=1.10.1`
+Add the `--hyperkube-version` + a valid release such as `1.10.1`: `--hyperkube-version=1.10.1`
 
 Read the command lines docs of [pupernetes](https://github.com/DataDog/pupernetes/tree/master/docs)
 
 
-## Bump pupernetes
+## Bump pupernetes - bump the version of p8s
 
-Have a look to [pupernetes](https://github.com/DataDog/pupernetes/tree/master/environments/container-linux).
+Have a look at [pupernetes](https://github.com/DataDog/pupernetes/tree/master/environments/container-linux).
 
 Generate the `ignition.json` with the `.py` and the `.yaml`:
 ```bash
 ${GOPATH}/src/github.com/DataDog/pupernetes/environments/container-linux/ignition.py < ${GOPATH}/src/github.com/DataDog/pupernetes/environments/container-linux/ignition.yaml | jq .
 ```
 
-Upgrade the needed parts in [the ignition script](./scripts/setup-instance/01-ignition.sh).
+Upgrade the relevant sections in [the ignition script](./scripts/setup-instance/01-ignition.sh).
 
-The ignition script must insert the *core* user with his ssh public key:
+The ignition script must insert the *core* user with their ssh public key:
 ```json
 {
 "passwd": {
