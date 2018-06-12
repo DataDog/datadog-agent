@@ -234,7 +234,7 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 func CompileProcessingRules(rules []LogsProcessingRule) error {
 	for i, rule := range rules {
 		if rule.Pattern == "" {
-			return fmt.Errorf("no pattern provided for processsing rule: %s", rule.Name)
+			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
 		}
 		re, err := regexp.Compile(rule.Pattern)
 		if err != nil {
