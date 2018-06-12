@@ -223,7 +223,7 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 		case "":
 			return fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
 		default:
-			return fmt.Errorf("logsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
+			return fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
 		}
 	}
 	return nil
@@ -232,25 +232,26 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 // CompileProcessingRules compiles all processing rules regular expression
 func CompileProcessingRules(rules []LogsProcessingRule) error {
 	for i, rule := range rules {
-		if rule.Pattern != "" {
-			re, err := regexp.Compile(rule.Pattern)
+		if rule.Pattern == "" {
+			return fmt.Errorf("no pattern provided for processsing rule: %s", rule.Name)
+		}
+		re, err := regexp.Compile(rule.Pattern)
+		if err != nil {
+			return err
+		}
+		switch rule.Type {
+		case ExcludeAtMatch, IncludeAtMatch:
+			rules[i].Reg = re
+		case MaskSequences:
+			rules[i].Reg = re
+			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
+		case MultiLine:
+			rules[i].Reg, err = regexp.Compile("^" + rule.Pattern)
 			if err != nil {
 				return err
 			}
-			switch rule.Type {
-			case ExcludeAtMatch, IncludeAtMatch:
-				rules[i].Reg = re
-			case MaskSequences:
-				rules[i].Reg = re
-				rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
-			case MultiLine:
-				rules[i].Reg, err = regexp.Compile("^" + rule.Pattern)
-				if err != nil {
-					return err
-				}
-			default:
-			}
-
+		default:
+			return fmt.Errorf("invalid type for rule %s: %s", rule.Name, rule.Type)
 		}
 
 	}

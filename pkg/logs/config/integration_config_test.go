@@ -94,19 +94,42 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 }
 
 func TestCompileProcessingRules(t *testing.T) {
-	var rule LogsProcessingRule
-	rule.Pattern = "(?=abf)"
-	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	rule.Pattern = "a++"
-	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	rule.Pattern = "(?>abf)"
-	assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	rule.Pattern = "[[:alnum:]]{5}"
-	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	rule.Pattern = ""
-	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
-	rule.Pattern = "abf"
-	assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	var rules []LogsProcessingRule
+	var err error
+
+	rules = []LogsProcessingRule{{Pattern: "(?=abf)", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
+
+	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.Nil(t, err)
+	assert.NotNil(t, rules[0].Reg)
+	assert.True(t, rules[0].Reg.MatchString("abcde"))
+
+	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}"}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
+
+	rules = []LogsProcessingRule{{Pattern: "", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
+
+	// assert.NotNil(t, )
+
+	// rule.Pattern = "a++"
+	// assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	// rule.Pattern = "(?>abf)"
+	// assert.NotNil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	// rule.Pattern = "[[:alnum:]]{5}"
+	// assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	// rule.Pattern = ""
+	// assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
+	// rule.Pattern = "abf"
+	// assert.Nil(t, CompileProcessingRules([]LogsProcessingRule{rule}))
 }
 
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
