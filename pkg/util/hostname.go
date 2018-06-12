@@ -125,6 +125,15 @@ func GetHostname() (string, error) {
 		log.Debug("Unable to get hostname from GCE: ", err)
 	}
 
+	// FQDN
+	if config.Datadog.GetBool("hostname_fqdn") {
+		name, err = getSystemFQDN()
+		if err == nil {
+			return name, nil
+		}
+		log.Debug("Unable to get FQDN from system: ", err)
+	}
+
 	isContainerized, name := getContainerHostname()
 	if isContainerized && name != "" {
 		hostName = name
