@@ -158,7 +158,7 @@ func (c *Container) parseLabel(label string) *config.LogSource {
 		return nil
 	}
 	cfg.Type = config.DockerType
-	err := config.CompileProcessingRules(cfg.ProcessingRules)
+	err = config.CompileProcessingRules(cfg.ProcessingRules)
 	if err != nil {
 		log.Errorf("%v for container %v", err, c.Container.ID)
 		return nil
