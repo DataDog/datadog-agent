@@ -1,5 +1,7 @@
 # Datadog Cluster Agent - DCA | Getting Started
 
+The DCA is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
+
 ## Introduction
 
 This document aims to get you started using the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent - DCA | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent in Containerized environments](../../Dockerfiles/cluster-agent/README.md) documentation.

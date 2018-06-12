@@ -1,5 +1,7 @@
 # Datadog Cluster Agent - DCA | User documentation
 
+The DCA is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
+
 ## Introduction
 
 In the context of monitoring Orchestrators, solely relying on insight from the node is not enough.
