@@ -66,6 +66,70 @@ func TestNoProxy(t *testing.T) {
 	assert.Equal(t, "https://user:pass@proxy_https.com:3128", proxyURL.String())
 }
 
+func TestNoProxySuffix(t *testing.T) {
+	r1, _ := http.NewRequest("GET", "http://prefix.test_no_proxy.com/api/v1?arg=21", nil)
+	r2, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
+
+	proxies := &config.Proxy{
+		HTTP:    "https://user:pass@proxy.com:3128",
+		HTTPS:   "https://user:pass@proxy_https.com:3128",
+		NoProxy: []string{"test_no_proxy.com"},
+	}
+	proxyFunc := GetProxyTransportFunc(proxies)
+
+	proxyURL, err := proxyFunc(r1)
+	assert.Nil(t, err)
+	assert.Nil(t, proxyURL)
+
+	proxyURL, err = proxyFunc(r2)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
+}
+
+func TestNoProxyPort(t *testing.T) {
+	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com:8080/api/v1?arg=21", nil)
+	r2, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
+
+	proxies := &config.Proxy{
+		HTTP:    "https://user:pass@proxy.com:3128",
+		HTTPS:   "https://user:pass@proxy_https.com:3128",
+		NoProxy: []string{"test_no_proxy.com"},
+	}
+	proxyFunc := GetProxyTransportFunc(proxies)
+
+	proxyURL, err := proxyFunc(r1)
+	assert.Nil(t, err)
+	assert.Nil(t, proxyURL)
+
+	proxyURL, err = proxyFunc(r2)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
+}
+
+func TestNoProxyLoopback(t *testing.T) {
+	r1, _ := http.NewRequest("GET", "http://localhost:8080/api/v1?arg=21", nil)
+	r2, _ := http.NewRequest("GET", "http://127.0.0.1/api/v1?arg=21", nil)
+	r3, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
+
+	proxies := &config.Proxy{
+		HTTP:  "https://user:pass@proxy.com:3128",
+		HTTPS: "https://user:pass@proxy_https.com:3128",
+	}
+	proxyFunc := GetProxyTransportFunc(proxies)
+
+	proxyURL, err := proxyFunc(r1)
+	assert.Nil(t, err)
+	assert.Nil(t, proxyURL)
+
+	proxyURL, err = proxyFunc(r2)
+	assert.Nil(t, err)
+	assert.Nil(t, proxyURL)
+
+	proxyURL, err = proxyFunc(r3)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
+}
+
 func TestErrorParse(t *testing.T) {
 	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
 

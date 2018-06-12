@@ -3,9 +3,11 @@ package util
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,11 +42,9 @@ func HTTPHeaders() map[string]string {
 func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error) {
 	return func(r *http.Request) (*url.URL, error) {
 		// check no_proxy list first
-		for _, host := range p.NoProxy {
-			if r.URL.Host == host {
-				log.Debugf("URL match no_proxy list item '%s': not using any proxy", host)
-				return nil, nil
-			}
+		if matches, matchingNoProxy := useProxy(canonicalAddr(r.URL), p.NoProxy); !matches {
+			log.Debugf("'%s' matches no_proxy list item '%s': not using any proxy", SanitizeURL(r.URL.String()), matchingNoProxy)
+			return nil, nil
 		}
 
 		// check proxy by scheme
@@ -54,7 +54,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 		} else if r.URL.Scheme == "https" {
 			confProxy = p.HTTPS
 		} else {
-			log.Warnf("Proxy configuration do not support scheme '%s'", r.URL.Scheme)
+			log.Warnf("Proxy configuration does not support scheme '%s'", r.URL.Scheme)
 		}
 
 		if confProxy != "" {
@@ -101,3 +101,85 @@ func CreateHTTPTransport() *http.Transport {
 	}
 	return transport
 }
+
+// useProxy reports whether requests to addr should use a proxy,
+// according to the noProxy entries, and if a proxy should be used it
+// returns the matching noProxy entry.
+// addr is always a canonicalAddr with a host and port.
+// Copied from `net/http/transport.go`, modified to use the passed noProxy values
+// instead of pulling directly from the no_proxy env var, and to return the
+// matched noProxy entry.
+func useProxy(addr string, noProxy []string) (matches bool, matchingNoProxy string) {
+	if len(addr) == 0 {
+		return true, ""
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false, "error splitting host port"
+	}
+	if host == "localhost" {
+		return false, "localhost"
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() {
+			return false, "loopback"
+		}
+	}
+
+	addr = strings.ToLower(strings.TrimSpace(addr))
+	if hasPort(addr) {
+		addr = addr[:strings.LastIndex(addr, ":")]
+	}
+
+	for _, p := range noProxy {
+		p = strings.ToLower(strings.TrimSpace(p))
+		matchingNoProxy := p
+		if len(p) == 0 {
+			continue
+		}
+		if p == "*" {
+			return false, matchingNoProxy
+		}
+		if hasPort(p) {
+			p = p[:strings.LastIndex(p, ":")]
+		}
+		if addr == p {
+			return false, matchingNoProxy
+		}
+		if len(p) == 0 {
+			// There is no host part, likely the entry is malformed; ignore.
+			continue
+		}
+		if p[0] == '.' && (strings.HasSuffix(addr, p) || addr == p[1:]) {
+			// no_proxy ".foo.com" matches "bar.foo.com" or "foo.com"
+			return false, matchingNoProxy
+		}
+		if p[0] != '.' && strings.HasSuffix(addr, p) && addr[len(addr)-len(p)-1] == '.' {
+			// no_proxy "foo.com" matches "bar.foo.com"
+			return false, matchingNoProxy
+		}
+	}
+	return true, ""
+}
+
+var portMap = map[string]string{
+	"http":   "80",
+	"https":  "443",
+	"socks5": "1080",
+}
+
+// canonicalAddr returns url.Host but always with a ":port" suffix.
+// Copied from `net/http/transport.go`, modified to remove the idna conversions.
+func canonicalAddr(url *url.URL) string {
+	addr := url.Hostname()
+	port := url.Port()
+	if port == "" {
+		port = portMap[url.Scheme]
+	}
+	return net.JoinHostPort(addr, port)
+}
+
+// Given a string of the form "host", "host:port", or "[ipv6::address]:port",
+// return true if the string includes a port.
+// Copied from `net/http/transport.go`, unaltered.
+func hasPort(s string) bool { return strings.LastIndex(s, ":") > strings.LastIndex(s, "]") }

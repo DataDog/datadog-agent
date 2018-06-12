@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The logic that matches the ``no_proxy`` entries with the request's host has been
+    improved to more closely match the behavior of other network utilities (``curl``
+    for example).
