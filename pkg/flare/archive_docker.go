@@ -75,18 +75,11 @@ func zipDockerPs(tempDir, hostname string) error {
 		return err
 	}
 
-	// Opening out file
-	f := filepath.Join(tempDir, hostname, "docker_ps.log")
-	file, err := NewRedactingWriter(f, os.ModePerm, true)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	w := tabwriter.NewWriter(file, 20, 0, 3, ' ', tabwriter.AlignRight)
+	// Prepare contents
+	var output bytes.Buffer
+	w := tabwriter.NewWriter(&output, 20, 0, 3, ' ', tabwriter.AlignRight)
 
 	fmt.Fprintln(w, "CONTAINER ID\tIMAGE\tCOMMAND\tSTATUS\tPORTS\tNAMES\t")
-	// Removed CREATED as it only shows a timestamp in the API
 	for _, c := range containerList {
 		// Trimming command if too large
 		var command_limit = 18
@@ -96,7 +89,22 @@ func zipDockerPs(tempDir, hostname string) error {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%q\t%s\t%v\t%v\t\n",
 			c.ID[:12], c.Image, command, c.Status, c.Ports, c.Names)
-		w.Flush()
+	}
+	err = w.Flush()
+	if err != nil {
+		return err
+	}
+
+	// Write to file
+	f := filepath.Join(tempDir, hostname, "docker_ps.log")
+	file, err := NewRedactingWriter(f, os.ModePerm, false)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.Write(output.Bytes())
+	if err != nil {
+		return err
 	}
 
 	return nil
