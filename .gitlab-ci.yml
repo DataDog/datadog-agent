@@ -1113,4 +1113,5 @@ pupernetes-tags:
   only:
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   script:
-  - inv -e e2e-tests --image=datadog/agent-dev:$CI_COMMIT_TAG
+  # note: it's not the agent-dev
+  - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
