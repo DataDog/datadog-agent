@@ -106,6 +106,7 @@ func init() {
 	Datadog.SetDefault("check_runners", int64(1))
 	Datadog.SetDefault("auth_token_file_path", "")
 	Datadog.SetDefault("bind_host", "localhost")
+	BindEnvAndSetDefault("hostname_fqdn", false)
 
 	// secrets backend
 	Datadog.BindEnv("secret_backend_command")

@@ -198,6 +198,13 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 	assert.Equal(t, expectedBoth, actualBoth)
 }
 
+func TestDefaultValues(t *testing.T) {
+	agentConfig := make(Config)
+	FromAgentConfig(agentConfig)
+
+	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
+}
+
 func TestExtractURLAPIKeys(t *testing.T) {
 	defer func() {
 		config.Datadog.Set("dd_url", "")
