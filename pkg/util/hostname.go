@@ -130,11 +130,12 @@ func GetHostname() (string, error) {
 	name, err = getSystemFQDN()
 	if err == nil {
 		if config.Datadog.GetBool("hostname_fqdn") {
-			return name, nil
-		}
-		h, err := os.Hostname()
-		if err == nil && h != name {
-			log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as %s. However starting from version 6.4, it will be resolved as %s by default. To enable the behavior of 6.4+, please enable the `hostname_fqdn` flag in the configuration.", h, name)
+			hostName = name
+		} else {
+			h, err := os.Hostname()
+			if err == nil && h != name {
+				log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However starting from version 6.4, it will be resolved as '%s' by default. To enable the behavior of 6.4+, please enable the `hostname_fqdn` flag in the configuration.", h, name)
+			}
 		}
 	} else {
 		log.Debug("Unable to get FQDN from system: ", err)
