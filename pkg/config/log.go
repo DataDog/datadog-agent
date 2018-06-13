@@ -38,7 +38,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 	if pem != "" {
 		if cert, err := ioutil.ReadFile(pem); err == nil {
 			if logCertPool == nil {
-				logCertPool = x509.NewCertPool()
+				logCertPool = x509.SystemCertPool()
 			}
 			logCertPool.AppendCertsFromPEM(cert)
 		} else {
