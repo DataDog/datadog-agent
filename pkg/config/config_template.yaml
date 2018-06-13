@@ -33,7 +33,9 @@ api_key:
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
-# Force the agent to use
+# Make the agent use "hostname -f" on unix based systems as a last resort
+# way of determining the hostname instead of Golang "os.Hostname()"
+# This will be enabled by default in version 6.4
 # hostname_fqdn: false
 
 # Set the host's tags (optional)
