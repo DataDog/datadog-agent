@@ -144,13 +144,11 @@ func StartAgent() error {
 		logFile,
 		syslogURI,
 		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("syslog_tls"),
-		config.Datadog.GetString("syslog_pem"),
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
 	)
 	if err != nil {
-		return log.Errorf("Error while setting up logging, exiting: %v", err)
+		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
 	}
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
