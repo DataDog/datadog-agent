@@ -59,22 +59,121 @@ happier!
 
 ### Reno
 
-To install reno: `pip install reno`
-
 We use `Reno` to create our CHANGELOG. Reno is a pretty simple
-[tool](https://docs.openstack.org/reno/latest/user/usage.html).
+[tool](https://docs.openstack.org/reno/latest/user/usage.html). With each PR
+should come a new releasenotes created with `reno` (unless your change doesn't
+have a single user impact and should not be mentioned in the CHANGELOG, very
+unlikely !).
+
+To install reno: `pip install reno`
 
 Ultra quick `Reno` HOWTO:
 
 ```bash
 $> reno new <topic-of-my-pr> --edit
 [...]
-# Remove unused section and fill the relevant ones
-# Reno will create a new file in releasenotes/notes
+# Remove unused sections and fill the relevant ones.
+# Reno will create a new file in releasenotes/notes.
+#
+# Each section from every releasenote are combined when the CHANGELOG.rst is
+# rendered. So the text needs to be worded so that it does not depend on any
+# information only available in another section. This may mean repeating some
+# details, but each section must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
 [...]
 ```
 
-Then just add and commit the new releasenote (located in `releasenotes/notes/`) with your PR.
+Then just add and commit the new releasenote (located in `releasenotes/notes/`)
+with your PR.
+
+#### Reno sections
+
+The main thing to keep in mind is that the CHANGELOG is written for the agent's
+users and not its developers.
+
+- `features`: describe shortly what your feature does.
+
+  example:
+  ```yaml
+  features:
+    - |
+      Introducing the Datadog Process Agent for Windows.
+  ```
+
+- `enhancements`: describe enhancements here: new behavior that are too small
+  to be considered a new feature.
+
+  example:
+  ```yaml
+  enhancements:
+    - |
+      Windows: Add PDH data to flare.
+  ```
+
+- `issues`: describe known issues or limitation of the agent.
+
+  example:
+  ```yaml
+  issues:
+    - |
+      Kubernetes 1.3 & OpenShift 3.3 are currently not fully supported: docker
+      and kubelet integrations work OK, but apiserver communication (event
+      collection, `kube_service` tagging) is not implemented
+  ```
+
+- `upgrade`: List action to take or limitation that could arise upon upgrading the agent.
+
+  example:
+  ```yaml
+  upgrade:
+    - |
+      If you run a Nomad agent older than 0.6.0, the `nomad_group`
+      tag will be absent until you upgrade your orchestrator.
+  ```
+
+- `deprecations`: List deprecation notes here.
+
+  example:
+  ```yaml
+  deprecations:
+  - |
+    Changed the attribute name to enable log collection from YAML configuration
+    file from "log_enabled" to "logs_enabled", "log_enabled" is still
+    supported.
+  ```
+
+- `security`: List security fixes, issues, warning or related topics here.
+
+  example:
+  ```yaml
+  security:
+    - |
+      The /agent/check-config endpoint has been patched to enforce
+      authentication of the caller via a bearer session token.
+  ```
+
+- `fixes`: List the fixes done in your PR here. Remember to be clear and give a
+  minimum of context so people reading the CHANGELOG understand what the fix is
+  about.
+
+  example:
+  ```yaml
+  fixes:
+    - |
+      Fix EC2 tags collection when multiple marketplaces are set.
+  ```
+
+- `other`: Add here every other information you want in the CHANGELOG that
+  don't feat in any other section. This section should rarely be used.
+
+  example:
+  ```yaml
+  other:
+    - |
+      Only enable the ``resources`` metadata collector on Linux by default, to match
+      Agent 5's behavior.
+  ```
 
 ## Integrations
 
