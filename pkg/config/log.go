@@ -28,10 +28,16 @@ var syslogTLSConfig *tls.Config
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 	var syslogTLSKeyPair *tls.Certificate
 	if Datadog.IsSet("syslog_pem") && Datadog.IsSet("syslog_key") {
-		keypair, err := tls.LoadX509KeyPair(
-			Datadog.GetString("syslog_pem"),
-			Datadog.GetString("syslog_key"),
-		)
+		cert := Datadog.GetString("syslog_pem")
+		key := Datadog.GetString("syslog_key")
+
+		if cert == "" && key == "" {
+			return nil, nil
+		} else if cert == "" || key == "" {
+			return nil, fmt.Errorf("Both a PEM certificate and key must be specified to enable TLS")
+		}
+
+		keypair, err := tls.LoadX509KeyPair(cert, key)
 		if err != nil {
 			return nil, err
 		}
@@ -43,19 +49,25 @@ func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 }
 
 // SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile, uri string, rfc, useTLS, logToConsole, jsonFormat bool) error {
+func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bool) error {
 	var syslog bool
+	var useTLS bool
 
 	if uri != "" { // non-blank uri enables syslog
 		syslog = true
-	}
 
-	if useTLS {
 		syslogTLSKeyPair, err := getSyslogTLSKeyPair()
 		if err != nil {
 			return err
 		}
-		syslogTLSConfig = &tls.Config{Certificates: []tls.Certificate{*syslogTLSKeyPair}, InsecureSkipVerify: true}
+
+		if syslogTLSKeyPair != nil {
+			useTLS = true
+			syslogTLSConfig = &tls.Config{
+				Certificates:       []tls.Certificate{*syslogTLSKeyPair},
+				InsecureSkipVerify: Datadog.GetBool("syslog_tls_verify"),
+			}
+		}
 	}
 
 	seelogLogLevel := strings.ToLower(logLevel)

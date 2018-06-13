@@ -144,7 +144,6 @@ func StartAgent() error {
 		logFile,
 		syslogURI,
 		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("syslog_tls"),
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
 	)
