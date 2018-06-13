@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
 
 printf '=%.0s' {0..79} ; echo
-set -ex
+set -x
+
+BASE64_FLAGS="-w 0"
+# OSX with 2 types of base64 binary in PATH ...
+if [[ $(uname) == "Darwin" ]]
+then
+    echo "Currently running over Darwin"
+    echo "osx base64" | base64 ${BASE64_FLAGS} || {
+        echo "current base64 binary does not support ${BASE64_FLAGS}"
+        BASE64_FLAGS=""
+    }
+fi
+
+set -e
 
 cd "$(dirname $0)"
 
@@ -9,11 +22,6 @@ git clean -fdx .
 
 # Generate ssh-key and ignition files
 ./01-ignition.sh
-
-if [[ $(uname) == "Linux" ]]
-then
-    BASE64_FLAGS="-w 0"
-fi
 
 IGNITION_BASE64=$(cat ignition.json | base64 ${BASE64_FLAGS})
 
