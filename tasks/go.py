@@ -197,18 +197,6 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False):
     Setup Go dependencies
     """
     verbosity = ' -v' if verbose else ''
-    predeps = get_deps('pre-deps')
-    for tool, version in predeps.iteritems():
-        # download tools
-        path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
-        if not os.path.exists(path):
-            ctx.run("go get{} -d -u {}".format(verbosity, tool))
-
-        with ctx.cd(path):
-            # checkout versions
-            ctx.run("git fetch")
-            ctx.run("git checkout {}".format(version))
-
     deps = get_deps('deps')
     for tool, version in deps.iteritems():
         # download tools
@@ -221,6 +209,19 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False):
             ctx.run("git fetch")
             ctx.run("git checkout {}".format(version))
 
+    postdeps = get_deps('post-deps')
+    for tool, version in postdeps.iteritems():
+        # download tools
+        path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
+        if not os.path.exists(path):
+            ctx.run("go get{} -d -u {}".format(verbosity, tool))
+
+        with ctx.cd(path):
+            # checkout versions
+            ctx.run("git fetch")
+            ctx.run("git checkout {}".format(version))
+
+    for tool, version in deps.iteritems():
         # install tools
         ctx.run("go install{} {}".format(verbosity, tool))
 
