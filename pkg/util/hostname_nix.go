@@ -10,6 +10,7 @@ package util
 import (
 	"context"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -20,5 +21,5 @@ func getSystemFQDN() (string, error) {
 	cmd := exec.CommandContext(ctx, "/bin/hostname", "-f")
 
 	out, err := cmd.Output()
-	return string(out), err
+	return strings.TrimSpace(string(out)), err
 }
