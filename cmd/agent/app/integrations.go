@@ -139,6 +139,8 @@ func getTUFConfigFilePath() (string, error) {
 func validateTufArgs(args []string) error {
 	if len(args) > 1 {
 		return fmt.Errorf("Too many arguments")
+	} else if len(args) == 0 {
+		return fmt.Errorf("Missing package argument")
 	}
 
 	exp, err := regexp.Compile(tufPkgPattern)
