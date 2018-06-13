@@ -71,7 +71,7 @@ func TestConfigStripURLPassword(t *testing.T) {
 		`random_url_key: http://user:p@ssw0r)@host:port`,
 		`random_url_key: http://user:********@host:port`)
 	assertClean(t,
-		`random_url_key: http://user:🔑 🔒 🔐 🔓@host:port`,
+		`random_url_key: http://user:🔑🔒🔐🔓@host:port`,
 		`random_url_key: http://user:********@host:port`)
 	assertClean(t,
 		`random_url_key: http://user:password@host`,
@@ -85,6 +85,9 @@ func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`random_url_key: 'http://user:password@host:port'`,
 		`random_url_key: 'http://user:********@host:port'`)
+	assertClean(t,
+		`random_domain_key: 'user:password@host:port'`,
+		`random_domain_key: 'user:********@host:port'`)
 	assertClean(t,
 		`random_url_key: |
 			http://user:password@host:port`,
