@@ -164,6 +164,8 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("apm_config.ignore_resources", strings.Split(agentConfig["resource"], ","))
 	}
 
+	config.Datadog.Set("hostname_fqdn", true)
+
 	return nil
 }
 
