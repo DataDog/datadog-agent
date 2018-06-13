@@ -5,8 +5,10 @@
 
 package util
 
-import "os"
+import (
+	"fmt"
+)
 
 func getSystemFQDN() (string, error) {
-	return os.Hostname()
+	return "", fmt.Errorf("getSystemFQDN is not implemented on windows")
 }
