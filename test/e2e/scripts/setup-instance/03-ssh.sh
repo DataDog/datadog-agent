@@ -15,7 +15,7 @@ test ${COMMIT_ID} || {
     COMMIT_ID=$(git rev-parse --verify HEAD)
 }
 
-SSH_OPTS="-o ServerAliveInterval=20 -o ConnectTimeout=6 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i id_rsa "
+SSH_OPTS="-o ServerAliveInterval=20 -o ConnectTimeout=6 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${PWD}/id_rsa "
 SEND_ENV="-o SendEnv DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE:-datadog/agent-dev:master}"
 
 function _ssh() {
@@ -38,7 +38,8 @@ _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-a
 }
 _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
 
-_ssh timeout 600 /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-ready.sh
+_ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/10-pupernetes-wait.sh
+_ssh timeout 120 /home/core/datadog-agent/test/e2e/scripts/run-instance/11-pupernetes-ready.sh
 
 # Use a logged bash
 _ssh_logged /home/core/datadog-agent/test/e2e/scripts/run-instance/20-argo-download.sh

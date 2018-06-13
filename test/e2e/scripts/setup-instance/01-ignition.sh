@@ -46,7 +46,7 @@ tee ignition.json << EOF
       {
         "enabled": true,
         "name": "pupernetes.service",
-        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes run /opt/sandbox --kubectl-link /opt/bin/kubectl -v 5 --timeout 6h\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes daemon run /opt/sandbox --hyperkube-version 1.10.1 --kubectl-link /opt/bin/kubectl -v 5 --timeout 48h\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
       },
       {
         "name": "terminate.service",
@@ -73,7 +73,7 @@ tee ignition.json << EOF
         "path": "/opt/bin/setup-pupernetes",
         "mode": 320,
         "contents": {
-          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0Acurl%20-Lf%20https%3A%2F%2Fgithub.com%2FDataDog%2Fpupernetes%2Freleases%2Fdownload%2Fv0.2.1%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
+          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0Acurl%20-Lf%20https%3A%2F%2Fgithub.com%2FDataDog%2Fpupernetes%2Freleases%2Fdownload%2Fv0.4.0%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
         },
         "filesystem": "root"
       },
@@ -81,7 +81,7 @@ tee ignition.json << EOF
         "path": "/opt/bin/pupernetes.sha512sum",
         "mode": 256,
         "contents": {
-          "source": "data:,3919551265c2a7ebfb9bfe06008162a747b8117bb27ada998779eec4b6e498a159644a74034152b60c5c8768def999e38a504f5152a6fb5d85978977943ab039%20%2Fopt%2Fbin%2Fpupernetes%0A"
+          "source": "data:,124be05169baaf0d4a3c5de43650aece1eeba6c9e21245afece06af3968ad80833e1d570931f5e4290205428932fa20934b1f5789e58f1328156eefa8da7490c%20%2Fopt%2Fbin%2Fpupernetes%0A"
         },
         "filesystem": "root"
       },
