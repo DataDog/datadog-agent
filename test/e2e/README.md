@@ -9,10 +9,43 @@ The current end to end testing pipeline relies on
 
 ## Bump hyperkube version
 
-
-Add the `--hyperkube-version` + a valid release such as `1.10.1`: `--hyperkube-version=1.10.1`
-
 Read the command lines docs of [pupernetes](https://github.com/DataDog/pupernetes/tree/master/docs)
+
+In the Ignition *systemd.units* list, find the `pupernetes.service` one.
+
+In its content, the systemd unit has a `[service]` directive where there is a single `ExecStart=` field: you need to add / edit the `--hyperkube-version` flag in the command line.
+
+The value of this flag must be a valid release such as `1.10.1`: `--hyperkube-version=1.10.1`
+
+Concrete example, I want to bump the hyperkube version from 1.9.3 to 1.10.1:
+```json
+{
+  "systemd": {
+    "units": [
+      {
+        "enabled": true,
+        "name": "pupernetes.service",
+        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes daemon run /opt/sandbox --hyperkube-version 1.9.3 --kubectl-link /opt/bin/kubectl -v 5 --timeout 48h\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+      }
+    ]
+  }
+}
+```
+
+Become:
+```json
+{
+  "systemd": {
+    "units": [
+      {
+        "enabled": true,
+        "name": "pupernetes.service",
+        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes daemon run /opt/sandbox --hyperkube-version 1.10.1 --kubectl-link /opt/bin/kubectl -v 5 --timeout 48h\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+      }
+    ]
+  }
+}
+```
 
 
 ## Bump pupernetes - bump the version of p8s
