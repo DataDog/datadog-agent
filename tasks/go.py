@@ -32,12 +32,12 @@ MISSPELL_IGNORED_TARGETS = [
 BOOTSTRAP_DEPS = "bootstrap.json"
 
 
-def get_deps():
+def get_deps(key):
     here = os.path.abspath(os.path.dirname(__file__))
     with open(os.path.join(here, '..', BOOTSTRAP_DEPS)) as f:
         deps = json.load(f)
 
-    return deps.get('deps', {})
+    return deps.get(key, {})
 
 
 @task
@@ -197,7 +197,19 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False):
     Setup Go dependencies
     """
     verbosity = ' -v' if verbose else ''
-    deps = get_deps()
+    predeps = get_deps('pre-deps')
+    for tool, version in predeps.iteritems():
+        # download tools
+        path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
+        if not os.path.exists(path):
+            ctx.run("go get{} -d -u {}".format(verbosity, tool))
+
+        with ctx.cd(path):
+            # checkout versions
+            ctx.run("git fetch")
+            ctx.run("git checkout {}".format(version))
+
+    deps = get_deps('deps')
     for tool, version in deps.iteritems():
         # download tools
         path = os.path.join(os.environ.get('GOPATH'), 'src', tool)

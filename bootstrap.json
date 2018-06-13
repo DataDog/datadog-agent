@@ -1,4 +1,7 @@
 {
+    "pre-deps": {
+        "golang.org/x/tools": "02fcd6aaf1349bf6a3f24ef1b62ca07ff618ff59"
+    },
     "deps": {
         "github.com/golang/dep/cmd/dep": "v0.4.1",
         "github.com/golang/lint/golint": "master",
