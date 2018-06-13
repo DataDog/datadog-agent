@@ -97,6 +97,7 @@ func init() {
 	Datadog.SetDefault("syslog_rfc", false)
 	Datadog.SetDefault("syslog_tls", false)
 	Datadog.SetDefault("syslog_pem", "")
+	Datadog.SetDefault("syslog_key", "")
 	Datadog.SetDefault("cmd_host", "localhost")
 	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("cluster_agent_cmd_port", 5005)

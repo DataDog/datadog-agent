@@ -7,10 +7,8 @@ package config
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -25,27 +23,38 @@ import (
 const logFileMaxSize = 10 * 1024 * 1024         // 10MB
 const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
 
-var logCertPool *x509.CertPool
+var syslogTLSConfig *tls.Config
+
+func getSyslogTLSKeyPair() (*tls.Certificate, error) {
+	var syslogTLSKeyPair *tls.Certificate
+	if Datadog.IsSet("syslog_pem") && Datadog.IsSet("syslog_key") {
+		keypair, err := tls.LoadX509KeyPair(
+			Datadog.GetString("syslog_pem"),
+			Datadog.GetString("syslog_key"),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		syslogTLSKeyPair = &keypair
+	}
+
+	return syslogTLSKeyPair, nil
+}
 
 // SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logToConsole bool, jsonFormat bool) error {
+func SetupLogger(logLevel, logFile, uri string, rfc, useTLS, logToConsole, jsonFormat bool) error {
 	var syslog bool
 
 	if uri != "" { // non-blank uri enables syslog
 		syslog = true
 	}
 
-	if pem != "" {
-		if cert, err := ioutil.ReadFile(pem); err == nil {
-			if logCertPool == nil {
-				logCertPool = x509.SystemCertPool()
-			}
-			logCertPool.AppendCertsFromPEM(cert)
-		} else {
-			log.Errorf("Unable to read PEM certificate")
-			return err
-		}
+	syslogTLSKeyPair, err := getSyslogTLSKeyPair()
+	if err != nil {
+		return err
 	}
+	syslogTLSConfig = &tls.Config{Certificates: []tls.Certificate{*syslogTLSKeyPair}, InsecureSkipVerify: true}
 
 	seelogLogLevel := strings.ToLower(logLevel)
 	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
@@ -74,7 +83,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 				`<custom name="syslog" formatid="syslog-%s" data-uri="%s" data-tls="%v" />`,
 				formatID,
 				uri,
-				tls,
+				useTLS,
 			)
 		} else {
 			syslogTemplate = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" />`, formatID)
@@ -190,7 +199,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 			conn, err = net.Dial(uri.Scheme, uri.Host)
 		case "tcp":
 			if secure {
-				conn, err = tls.Dial("tcp", uri.Host, &tls.Config{RootCAs: logCertPool})
+				conn, err = tls.Dial("tcp", uri.Host, syslogTLSConfig)
 			} else {
 				conn, err = net.Dial("tcp", uri.Host)
 			}

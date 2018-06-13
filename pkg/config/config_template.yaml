@@ -326,6 +326,10 @@ api_key:
 #
 # syslog_pem: /path/to/certificate.pem
 #
+# If TLS enabled, you may specify a path to a private key here
+#
+# syslog_key: /path/to/key.pem
+#
 {{ end -}}
 {{- if .Autodiscovery }}
 # Autodiscovery
