@@ -50,11 +50,13 @@ func SetupLogger(logLevel, logFile, uri string, rfc, useTLS, logToConsole, jsonF
 		syslog = true
 	}
 
-	syslogTLSKeyPair, err := getSyslogTLSKeyPair()
-	if err != nil {
-		return err
+	if useTLS {
+		syslogTLSKeyPair, err := getSyslogTLSKeyPair()
+		if err != nil {
+			return err
+		}
+		syslogTLSConfig = &tls.Config{Certificates: []tls.Certificate{*syslogTLSKeyPair}, InsecureSkipVerify: true}
 	}
-	syslogTLSConfig = &tls.Config{Certificates: []tls.Certificate{*syslogTLSKeyPair}, InsecureSkipVerify: true}
 
 	seelogLogLevel := strings.ToLower(logLevel)
 	if seelogLogLevel == "warning" { // Common gotcha when used to agent5

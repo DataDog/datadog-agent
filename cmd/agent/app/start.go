@@ -149,7 +149,7 @@ func StartAgent() error {
 		config.Datadog.GetBool("log_format_json"),
 	)
 	if err != nil {
-		return log.Errorf("Error while setting up logging, exiting: %v", err)
+		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
 	}
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
