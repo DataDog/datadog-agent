@@ -318,17 +318,17 @@ api_key:
 #
 # syslog_rfc: no
 #
-# If connecting through a TCP socket, set to 'yes' to enable TLS
-#
-# syslog_tls: no
-#
-# If TLS enabled, you may specify a path to a PEM certificate here
+# If TLS enabled, you must specify a path to a PEM certificate here
 #
 # syslog_pem: /path/to/certificate.pem
 #
-# If TLS enabled, you may specify a path to a private key here
+# If TLS enabled, you must specify a path to a private key here
 #
 # syslog_key: /path/to/key.pem
+# 
+# If TLS enabled, you may enforce TLS verification here (defaults to true) 
+#
+# syslog_tls_verify: yes 
 #
 {{ end -}}
 {{- if .Autodiscovery }}
