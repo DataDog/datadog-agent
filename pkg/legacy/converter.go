@@ -197,6 +197,9 @@ func extractURLAPIKeys(agentConfig Config) error {
 
 	additionalEndpoints := map[string][]string{}
 	for idx, url := range urls {
+		if url == "" || keys[idx] == "" {
+			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
+		}
 		if _, ok := additionalEndpoints[url]; ok {
 			additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
 		} else {
