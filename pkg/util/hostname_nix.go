@@ -17,7 +17,7 @@ func getSystemFQDN() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "hostname", "-f")
+	cmd := exec.CommandContext(ctx, "/bin/hostname", "-f")
 
 	out, err := cmd.Output()
 	return string(out), err
