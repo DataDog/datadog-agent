@@ -298,7 +298,7 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	var configs []integration.Config
 
-	log.Infof("Resolving %s", config.Name)
+	log.Debugf("Resolving %s", config.Name)
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics, ok := ac.nameToJMXMetrics[config.Name]
@@ -310,22 +310,22 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	}
 
 	if config.IsTemplate() {
-		log.Infof("Resolving %s as template", config.Name)
+		log.Debugf("Resolving %s as template", config.Name)
 		// store the template in the cache in any case
 		if err := ac.templateCache.Set(config); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
 		// try to resolve the template
-		log.Infof("Try to resolve template %s", config.Name)
+		log.Debugf("Try to resolve template %s", config.Name)
 		resolvedConfigs := ac.configResolver.ResolveTemplate(config)
 		if len(resolvedConfigs) == 0 {
 			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
 			errorStats.setResolveWarning(config.Name, e)
-			log.Infof(e)
+			log.Debug(e)
 			return configs
 		}
-		log.Infof("Resolved template %s: %d", config.Name, len(resolvedConfigs))
+		log.Debugf("Resolved template %s: %d", config.Name, len(resolvedConfigs))
 		errorStats.removeResolveWarnings(config.Name)
 
 		// each template can resolve to multiple configs
@@ -337,10 +337,10 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 			}
 			configs = append(configs, config)
 		}
-		log.Infof("Returning %d configs", len(configs))
+		log.Debugf("Returning %d configs", len(configs))
 		return configs
 	}
-	log.Infof("Resolving %s NOT as template", config.String())
+	log.Debugf("Resolving %s NOT as template", config.String())
 	config, err := decryptConfig(config)
 	if err != nil {
 		log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
@@ -451,17 +451,14 @@ func (ac *AutoConfig) pollConfigs() {
 					// retrieve the list of newly added configurations as well
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
-					log.Infof("evaluating provider %s, removing %s, adding %s", pd.provider.String(), removedConfigs, newConfigs)
+					log.Debugf("evaluating provider %s, removing %s, adding %s", pd.provider.String(), removedConfigs, newConfigs)
 					ac.processRemovedConfigs(removedConfigs)
 
 					// TODO: move to check scheduler
 					for _, config := range newConfigs {
-						log.Infof("processing the new config %s", config)
 						config.Provider = pd.provider.String()
 						resolvedConfigs := ac.resolve(config)
-						log.Infof("resolved to %s", resolvedConfigs)
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
-						log.Infof("collected the checks %s", checks)
 						ac.schedule(checks)
 					}
 				}
@@ -536,21 +533,18 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) ([]integration.Config, []i
 	}
 
 	for _, c := range fetched {
-		log.Infof("c.ADIdentifiers is %s", c.ADIdentifiers) // REMOVE
 		if !pd.contains(&c) {
 			newConf = append(newConf, c)
 			log.Infof("New config: %s", c)
 			continue
 		}
-		log.Infof("provider contains %s", c)
 		// Check the freshness of c. Reschedule if necessary.
 		if tagger.OutdatedTags(c.ADIdentifiers) {
-			log.Infof("Starting rescheduling for %s", c)
+			log.Infof("Tagger reported outdated tags for %s: rescheduling", c)
 			removedConf = append(removedConf, c)
 			newConf = append(newConf, c)
 			continue
 		}
-		log.Infof("No need to reschedule %s", c)
 	}
 
 	pd.configs = fetched

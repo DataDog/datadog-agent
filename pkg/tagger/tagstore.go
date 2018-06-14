@@ -18,14 +18,14 @@ import (
 // entityTags holds the tag information for a given entity
 type entityTags struct {
 	sync.RWMutex
-	lowCardTags   map[string][]string
-	highCardTags  map[string][]string
-	cacheValid    bool
-	cachedSource  []string
-	cachedAll     []string // Low + high
-	cachedLow     []string // Sub-slice of cachedAll
-	freshnessHash string
-	outdatedTags  bool
+	lowCardTags  map[string][]string
+	highCardTags map[string][]string
+	cacheValid   bool
+	cachedSource []string
+	cachedAll    []string // Low + high
+	cachedLow    []string // Sub-slice of cachedAll
+	tagsHash     string
+	outdatedTags bool
 }
 
 // tagStore stores entity tags in memory and handles search and collation.
@@ -73,39 +73,28 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	}
 
 	storedTags.Lock()
+	defer storedTags.Unlock()
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
 	storedTags.highCardTags[info.Source] = info.HighCardTags
 	storedTags.cacheValid = false
-	storedTags.Unlock()
 
 	if exist == false {
 		s.storeMutex.Lock()
 		s.store[info.Entity] = storedTags
 		s.storeMutex.Unlock()
 	}
-	storedTags.Lock()
-	defer storedTags.Unlock()
 
-	if len(info.HighCardTags) == 0 && len(info.LowCardTags) == 0 && info.Source != "kube-metadata-collector" {
-		//log.Infof("No new tags to compute by %s from entity: %s - Returning", info.Source, info.Entity)
-		return nil
-	}
-
-	digestInfo := digest(info)
-	if storedTags.freshnessHash == "" || storedTags.freshnessHash != digestInfo {
-		//log.Infof("freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo)                 // REMOVE
-		//log.Infof("highcards is %s and low is %s from %s", info.HighCardTags, info.LowCardTags, info.Source) // REMOVE
-		storedTags.freshnessHash = digestInfo
+	tagsHash := computeTagsHash(info)
+	if storedTags.tagsHash != tagsHash {
+		storedTags.tagsHash = tagsHash
 		storedTags.outdatedTags = true
-		//log.Infof("NEW freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo) // REMOVE
 	}
-
 	return nil
 }
 
-func digest(info *collectors.TagInfo) string {
+func computeTagsHash(info *collectors.TagInfo) string {
 	h := fnv.New64()
-	h.Write([]byte(info.Source))
+	h.Write([]byte(info.Source)) // TODO do we need this ?
 	highTags := info.HighCardTags
 	sort.Strings(highTags)
 	for _, i := range highTags {
@@ -135,7 +124,7 @@ func (s *tagStore) prune() error {
 		delete(s.store, entity)
 	}
 
-	log.Debugf("pruned %d removed entites, %d remaining", len(s.toDelete), len(s.store))
+	log.Debugf("pruned %d removed entities, %d remaining", len(s.toDelete), len(s.store))
 
 	// Start fresh
 	s.toDelete = make(map[string]struct{})

@@ -22,7 +22,7 @@ import (
 
 // Tagger is the entry class for entity tagging. It holds collectors, memory store
 // and handles the query logic. One can use the package methods to use the default
-// tagger instead of instanciating one.
+// tagger instead of instantiating one.
 type Tagger struct {
 	sync.RWMutex
 	tagStore    *tagStore
@@ -217,29 +217,26 @@ func (t *Tagger) Stop() error {
 func (t *Tagger) OutdatedTags(ADIdentifiers []string) bool {
 	t.tagStore.storeMutex.Lock()
 	defer t.tagStore.storeMutex.Unlock()
-	for _, ad := range ADIdentifiers {
-		log.Infof("Lookup for outdated tags for %s", ad)
-		entityTags, ok := t.tagStore.store[ad]
+	for _, entity := range ADIdentifiers {
+		log.Debugf("Lookup for outdated tags for entity %q", entity)
+		entityTags, ok := t.tagStore.store[entity]
 		if !ok || entityTags == nil {
 			// We might be trying to evaluate a EntityID that was removed
-			log.Infof("No entityTags found for %s", ad)
+			log.Debugf("Entity %q does not have any tags", entity)
 			continue
 		}
 		if !entityTags.outdatedTags {
-			log.Infof("EntityTags for %s are up to date", ad)
+			log.Debugf("Entity %q has are up to date tags", entity)
 			continue
 		}
-		if entityTags.freshnessHash == "" {
-			log.Infof("EntityTags for %s got an empty freshnessHash", ad)
+		if entityTags.tagsHash == "" {
+			log.Infof("Entity %q has an empty tagsHash", entity)
 			continue
 		}
-		if entityTags.freshnessHash != "" {
-			log.Infof("EntityTags %s got outdated tags with freshnessHash %q, %d highCard tags %d lowCard tags", ad, entityTags.freshnessHash, len(entityTags.highCardTags), len(entityTags.lowCardTags))
-			entityTags.outdatedTags = false
-			t.tagStore.store[ad] = entityTags
-			return true
-		}
-		log.Infof("EntityTags %s is marked as outdated but its freshnessHash is %q", ad, entityTags.freshnessHash)
+		log.Infof("Entity %q has outdated tags with tagsHash %q", entity, entityTags.tagsHash)
+		entityTags.outdatedTags = false
+		t.tagStore.store[entity] = entityTags
+		return true
 	}
 	return false
 }

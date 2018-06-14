@@ -275,10 +275,10 @@ func TestDigest(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			for i := 0; i < 100; i++ {
-				beforeShuffle := digest(tc.tagInfo)
+				beforeShuffle := computeTagsHash(tc.tagInfo)
 				shuffleTags(tc.tagInfo.LowCardTags)
 				shuffleTags(tc.tagInfo.HighCardTags)
-				assert.Equal(t, beforeShuffle, digest(tc.tagInfo))
+				assert.Equal(t, beforeShuffle, computeTagsHash(tc.tagInfo))
 			}
 		})
 	}
