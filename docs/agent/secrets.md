@@ -285,4 +285,4 @@ passowrd: <decrypted_password2>
 ===
 ```
 
-Note that the agent needs to be restarted to pick up new configuration changes.
+Note that the agent needs to be restarted to pick up changes on configuration files.
