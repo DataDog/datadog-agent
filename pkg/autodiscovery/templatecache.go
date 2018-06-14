@@ -7,7 +7,6 @@ package autodiscovery
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strings"
 	"sync"
 
@@ -90,8 +89,6 @@ func (cache *TemplateCache) GetUnresolvedTemplates() map[string]integration.Conf
 func (cache *TemplateCache) Del(tpl integration.Config) error {
 	// compute the digest once
 	d := tpl.Digest()
-	log.Infof("Digest is %s", d)
-	log.Infof("Fake rerun of the Digest is %s", tpl.Digest())
 	cache.m.Lock()
 	defer cache.m.Unlock()
 
@@ -100,22 +97,17 @@ func (cache *TemplateCache) Del(tpl integration.Config) error {
 		return fmt.Errorf("template not found in cache")
 	}
 
-	log.Infof("Current digest in the cache %s", cache.digest2ids)
 	// remove the template
 	delete(cache.digest2ids, d)
 	delete(cache.digest2template, d)
-	log.Infof("Post removal of the id %s in the cache %s", d, cache.digest2ids)
 
 	// iterate through the AD identifiers for this config
 	for _, id := range tpl.ADIdentifiers {
-		log.Infof("Evaluating %s for ADID tpl %s", id, tpl.ADIdentifiers)
 		digests := cache.id2digests[id]
 		// remove the template from id2templates
 		for i, digest := range digests {
 			if digest == d {
-				log.Infof("i is %s, digest is %s and id2digests %s", i, digest, cache.id2digests[id])
 				cache.id2digests[id] = append(digests[:i], digests[i+1:]...)
-				log.Infof("cache is now %s", cache.id2digests[id])
 				break
 			}
 		}

@@ -10,8 +10,9 @@ import (
 
 	"hash/fnv"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
 // entityTags holds the tag information for a given entity
@@ -86,46 +87,35 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	defer storedTags.Unlock()
 
 	if len(info.HighCardTags) == 0 && len(info.LowCardTags) == 0 && info.Source != "kube-metadata-collector" {
-		log.Infof("No new tags to compute by %s from entity: %s - Returning", info.Source, info.Entity)
+		//log.Infof("No new tags to compute by %s from entity: %s - Returning", info.Source, info.Entity)
 		return nil
 	}
 
 	digestInfo := digest(info)
 	if storedTags.freshnessHash == "" || storedTags.freshnessHash != digestInfo {
-		log.Infof("freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo)                        // REMOVE
-		log.Infof("highcards is %s and low is %s from %s", info.HighCardTags, info.LowCardTags, info.Source) // REMOVE
+		//log.Infof("freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo)                 // REMOVE
+		//log.Infof("highcards is %s and low is %s from %s", info.HighCardTags, info.LowCardTags, info.Source) // REMOVE
 		storedTags.freshnessHash = digestInfo
 		storedTags.outdatedTags = true
-		log.Infof("NEW freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo) // REMOVE
+		//log.Infof("NEW freshHash is %s and digestInfo %s", storedTags.freshnessHash, digestInfo) // REMOVE
 	}
 
 	return nil
 }
 
 func digest(info *collectors.TagInfo) string {
-	log.Infof("digesting %s containing low %s and high %s", info.Entity, info.LowCardTags, info.HighCardTags)
 	h := fnv.New64()
-
 	h.Write([]byte(info.Source))
-
 	highTags := info.HighCardTags
-	if len(highTags) > 1 {
-		sort.Strings(highTags)
-		log.Infof("sorting high: %s", highTags)
-	}
+	sort.Strings(highTags)
 	for _, i := range highTags {
 		h.Write([]byte(i))
 	}
-
 	lowTags := info.LowCardTags
-	if len(lowTags) > 1 {
-		sort.Strings(lowTags)
-		log.Infof("sorting low: %s", lowTags)
-	}
+	sort.Strings(lowTags)
 	for _, i := range lowTags {
 		h.Write([]byte(i))
 	}
-
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
@@ -140,10 +130,10 @@ func (s *tagStore) prune() error {
 	}
 
 	s.storeMutex.Lock()
+	defer s.storeMutex.Unlock()
 	for entity := range s.toDelete {
 		delete(s.store, entity)
 	}
-	s.storeMutex.Unlock()
 
 	log.Debugf("pruned %d removed entites, %d remaining", len(s.toDelete), len(s.store))
 
@@ -158,8 +148,8 @@ func (s *tagStore) prune() error {
 // client to trigger manual lookups on missing sources.
 func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
 	s.storeMutex.RLock()
+	defer s.storeMutex.RUnlock()
 	storedTags, present := s.store[entity]
-	s.storeMutex.RUnlock()
 
 	if present == false {
 		return nil, nil
@@ -174,11 +164,11 @@ type tagPriority struct {
 }
 
 func (e *entityTags) get(highCard bool) ([]string, []string) {
-	e.RLock()
+	e.Lock()
+	defer e.Unlock()
 
 	// Cache hit
 	if e.cacheValid {
-		defer e.RUnlock()
 		if highCard {
 			return e.cachedAll, e.cachedSource
 		}
@@ -223,13 +213,10 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	tags := append(lowCardTags, highCardTags...)
 
 	// Write cache
-	e.RUnlock()
-	e.Lock()
 	e.cacheValid = true
 	e.cachedSource = sources
 	e.cachedAll = tags
 	e.cachedLow = e.cachedAll[:len(lowCardTags)]
-	e.Unlock()
 
 	if highCard {
 		return tags, sources

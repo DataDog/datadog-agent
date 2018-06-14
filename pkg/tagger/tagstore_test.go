@@ -6,6 +6,7 @@
 package tagger
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -232,4 +233,53 @@ func TestDuplicateSourceTags(t *testing.T) {
 	assert.Len(t, sources, 3)
 	assert.Len(t, tags, 5)
 	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"})
+}
+
+func shuffleTags(tags []string) {
+	for i := range tags {
+		j := rand.Intn(i + 1)
+		tags[i], tags[j] = tags[j], tags[i]
+	}
+}
+
+func TestDigest(t *testing.T) {
+	for _, tc := range []struct {
+		tagInfo *collectors.TagInfo
+	}{
+		{
+			tagInfo: &collectors.TagInfo{
+				Source: "source-a",
+				Entity: "docker://4bf586f5309008b9822d3a7aa819cb123b23959f6ce63446dd2a97523b531dfe",
+				HighCardTags: []string{
+					"high2:b",
+					"high1:a",
+					"high3:c",
+				},
+				LowCardTags: []string{
+					"low2:b",
+					"low1:a",
+					"low3:c",
+				},
+			},
+		},
+		{
+			tagInfo: &collectors.TagInfo{
+				Source:       "source-b",
+				Entity:       "docker://4bf586f5309008b9822d3a7aa819cb123b23959f6ce63446dd2a97523b531dfe",
+				HighCardTags: []string{},
+				LowCardTags: []string{
+					"low3:c",
+				},
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			for i := 0; i < 100; i++ {
+				beforeShuffle := digest(tc.tagInfo)
+				shuffleTags(tc.tagInfo.LowCardTags)
+				shuffleTags(tc.tagInfo.HighCardTags)
+				assert.Equal(t, beforeShuffle, digest(tc.tagInfo))
+			}
+		})
+	}
 }

@@ -215,18 +215,31 @@ func (t *Tagger) Stop() error {
 
 // OutdatedTags returns true if an ADIdentifiers contains is not up to date
 func (t *Tagger) OutdatedTags(ADIdentifiers []string) bool {
-	log.Infof("ADIdentifiers are %s", ADIdentifiers) // REMOVE
+	t.tagStore.storeMutex.Lock()
+	defer t.tagStore.storeMutex.Unlock()
 	for _, ad := range ADIdentifiers {
-		id := t.tagStore.store[ad]
-		if id == nil {
+		log.Infof("Lookup for outdated tags for %s", ad)
+		entityTags, ok := t.tagStore.store[ad]
+		if !ok || entityTags == nil {
 			// We might be trying to evaluate a EntityID that was removed
+			log.Infof("No entityTags found for %s", ad)
 			continue
 		}
-		if id.outdatedTags && t.tagStore.store[ad].freshnessHash != "" {
-			log.Infof("Outdated tags %s", t.tagStore.store[ad].freshnessHash)
-			t.tagStore.store[ad].outdatedTags = false
+		if !entityTags.outdatedTags {
+			log.Infof("EntityTags for %s are up to date", ad)
+			continue
+		}
+		if entityTags.freshnessHash == "" {
+			log.Infof("EntityTags for %s got an empty freshnessHash", ad)
+			continue
+		}
+		if entityTags.freshnessHash != "" {
+			log.Infof("EntityTags %s got outdated tags with freshnessHash %q, %d highCard tags %d lowCard tags", ad, entityTags.freshnessHash, len(entityTags.highCardTags), len(entityTags.lowCardTags))
+			entityTags.outdatedTags = false
+			t.tagStore.store[ad] = entityTags
 			return true
 		}
+		log.Infof("EntityTags %s is marked as outdated but its freshnessHash is %q", ad, entityTags.freshnessHash)
 	}
 	return false
 }
@@ -248,11 +261,11 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	tagArrays := [][]string{cachedTags}
 
 	t.RLock()
-ITER_COLLECTORS:
+IterCollectors:
 	for name, collector := range t.fetchers {
 		for _, s := range sources {
 			if s == name {
-				continue ITER_COLLECTORS // source was in cache, don't lookup again
+				continue IterCollectors // source was in cache, don't lookup again
 			}
 		}
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)

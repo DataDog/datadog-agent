@@ -26,7 +26,6 @@ import (
 
 var (
 	configsPollIntl = 10 * time.Second
-	configPipeBuf   = 100
 	acErrors        *expvar.Map
 	errorStats      = newAcErrorStats()
 )
@@ -158,7 +157,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 			// this is formatted inline since logging is done on a background thread,
 			// so you can only pass it things to act on if they're thread safe
 			// this is not inherently thread safe
-			log.Warn(fmt.Sprintf("Provider %s was already added, skipping...", provider))
+			log.Warnf("Provider %s was already added, skipping...", provider)
 			return
 		}
 	}
@@ -185,11 +184,11 @@ func (ac *AutoConfig) LoadAndRun() {
 func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	// try to also match `FooCheck` if `foo` was passed
 	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
-	checks := []check.Check{}
+	var checks []check.Check
 
-	for _, check := range ac.getChecksFromConfigs(ac.GetAllConfigs(), false) {
-		if checkName == check.String() || titleCheck == check.String() {
-			checks = append(checks, check)
+	for _, c := range ac.getChecksFromConfigs(ac.GetAllConfigs(), false) {
+		if checkName == c.String() || titleCheck == c.String() {
+			checks = append(checks, c)
 		}
 	}
 
@@ -199,10 +198,15 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 // GetAllConfigs queries all the providers and returns all the integration
 // configurations found, resolving the ones it can
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
-	resolvedConfigs := []integration.Config{}
+	var resolvedConfigs []integration.Config
 
+	ac.m.Lock()
+	defer ac.m.Unlock()
 	for _, pd := range ac.providers {
-		cfgs, _ := pd.provider.Collect()
+		cfgs, err := pd.provider.Collect()
+		if err != nil {
+			log.Debugf("Unexpected error returned when collecting provider %s: %v", pd.provider.String(), err)
+		}
 
 		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
 			var goodConfs []integration.Config
@@ -246,24 +250,24 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 // getChecksFromConfigs gets all the check instances for given configurations
 // optionally can populate ac cache configToChecks
 func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
-	allChecks := []check.Check{}
+	var allChecks []check.Check
 	for _, config := range configs {
 		if !isCheckConfig(config) {
-			// skip non check configs.
+			// skip non c configs.
 			continue
 		}
 		configDigest := config.Digest()
 		checks, err := ac.getChecks(config)
 		if err != nil {
-			log.Errorf("Unable to load the check: %v", err)
+			log.Errorf("Unable to load the c: %v", err)
 			continue
 		}
-		for _, check := range checks {
-			allChecks = append(allChecks, check)
+		for _, c := range checks {
+			allChecks = append(allChecks, c)
 			if populateCache {
 				// store the checks we schedule for this config locally
-				ac.configToChecks[configDigest] = append(ac.configToChecks[configDigest], check.ID())
-				ac.checkToConfig[check.ID()] = configDigest
+				ac.configToChecks[configDigest] = append(ac.configToChecks[configDigest], c.ID())
+				ac.checkToConfig[c.ID()] = configDigest
 			}
 		}
 	}
@@ -279,12 +283,12 @@ func isCheckConfig(config integration.Config) bool {
 
 // schedule takes a slice of checks and schedule them
 func (ac *AutoConfig) schedule(checks []check.Check) {
-	for _, check := range checks {
-		log.Infof("Scheduling check %s", check)
-		_, err := ac.collector.RunCheck(check)
+	for _, c := range checks {
+		log.Infof("Scheduling check %s", c)
+		_, err := ac.collector.RunCheck(c)
 		if err != nil {
-			log.Errorf("Unable to run Check %s: %v", check, err)
-			errorStats.setRunError(check.ID(), err.Error())
+			log.Errorf("Unable to run Check %s: %v", c, err)
+			errorStats.setRunError(c.ID(), err.Error())
 			continue
 		}
 	}
@@ -292,8 +296,9 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 
 // resolve loads and resolves a given config into a slice of resolved configs
 func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
-	configs := []integration.Config{}
+	var configs []integration.Config
 
+	log.Infof("Resolving %s", config.Name)
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics, ok := ac.nameToJMXMetrics[config.Name]
@@ -305,41 +310,48 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	}
 
 	if config.IsTemplate() {
+		log.Infof("Resolving %s as template", config.Name)
 		// store the template in the cache in any case
 		if err := ac.templateCache.Set(config); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
 		// try to resolve the template
+		log.Infof("Try to resolve template %s", config.Name)
 		resolvedConfigs := ac.configResolver.ResolveTemplate(config)
 		if len(resolvedConfigs) == 0 {
 			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
 			errorStats.setResolveWarning(config.Name, e)
-			log.Debugf(e)
+			log.Infof(e)
 			return configs
 		}
+		log.Infof("Resolved template %s: %d", config.Name, len(resolvedConfigs))
 		errorStats.removeResolveWarnings(config.Name)
 
 		// each template can resolve to multiple configs
 		for _, config := range resolvedConfigs {
-			if config, err := decryptConfig(config); err == nil {
-				configs = append(configs, config)
-			} else {
+			config, err := decryptConfig(config)
+			if err != nil {
 				log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
+				continue
 			}
-		}
-	} else {
-		if config, err := decryptConfig(config); err == nil {
 			configs = append(configs, config)
-			// store non template configs in the AC
-			ac.m.Lock()
-			ac.loadedConfigs[config.Digest()] = config
-			ac.m.Unlock()
-		} else {
-			log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
 		}
+		log.Infof("Returning %d configs", len(configs))
+		return configs
 	}
+	log.Infof("Resolving %s NOT as template", config.String())
+	config, err := decryptConfig(config)
+	if err != nil {
+		log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
+		return configs
+	}
+	configs = append(configs, config)
 
+	// store non template configs in the AC
+	//ac.m.Lock()
+	ac.loadedConfigs[config.Digest()] = config
+	//ac.m.Unlock()
 	return configs
 }
 
@@ -367,7 +379,6 @@ func (ac *AutoConfig) AddLoader(loader check.Loader) {
 			return
 		}
 	}
-
 	ac.loaders = append(ac.loaders, loader)
 }
 
@@ -417,7 +428,7 @@ func (ac *AutoConfig) pollConfigs() {
 				return
 			case <-ac.health.C:
 			case <-ac.configsPollTicker.C:
-				ac.m.RLock()
+				ac.m.Lock()
 
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
@@ -426,7 +437,8 @@ func (ac *AutoConfig) pollConfigs() {
 						continue
 					}
 
-					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outadated.
+					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outdated.
+					log.Infof("Processing %q", pd.provider)
 					upToDate, err := pd.provider.IsUpToDate()
 					if err != nil {
 						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
@@ -453,7 +465,7 @@ func (ac *AutoConfig) pollConfigs() {
 						ac.schedule(checks)
 					}
 				}
-				ac.m.RUnlock()
+				ac.m.Unlock()
 			}
 		}
 	}()
@@ -466,23 +478,22 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 	for _, config := range removedConfigs {
 		log.Infof("Started removing %s", config)
 		if !isCheckConfig(config) {
-			// skip non check configs.
+			// skip non elt configs.
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
-		ids := ac.configToChecks[digest]
 		stopped := map[check.ID]struct{}{}
-		for _, id := range ids {
+		for _, elt := range ac.configToChecks[digest] {
 			// `StopCheck` might time out so we don't risk to block
 			// the polling loop forever
-			err := ac.collector.StopCheck(id)
+			err := ac.collector.StopCheck(elt)
 			if err != nil {
-				log.Errorf("Error stopping check %s: %s", id, err)
-				errorStats.setRunError(id, err.Error())
-			} else {
-				stopped[id] = struct{}{}
+				log.Errorf("Error stopping check %s: %s", elt, err)
+				errorStats.setRunError(elt, err.Error())
+				continue
 			}
+			stopped[elt] = struct{}{}
 		}
 
 		// remove the entry from `configToChecks`
@@ -493,10 +504,10 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 			delete(ac.loadedConfigs, digest)
 		} else {
 			// keep the checks we failed to stop in `configToChecks`
-			dangling := []check.ID{}
-			for _, id := range ac.configToChecks[digest] {
-				if _, found := stopped[id]; !found {
-					dangling = append(dangling, id)
+			var dangling []check.ID
+			for _, elt := range ac.configToChecks[digest] {
+				if _, found := stopped[elt]; !found {
+					dangling = append(dangling, elt)
 				}
 			}
 			ac.configToChecks[digest] = dangling
@@ -513,58 +524,44 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
 // see what changed from the last time we called Collect().
-func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []integration.Config) {
-	new = []integration.Config{}
-	removed = []integration.Config{}
+func (ac *AutoConfig) collect(pd *providerDescriptor) ([]integration.Config, []integration.Config) {
+	var newConf []integration.Config
+	var removedConf []integration.Config
 	old := pd.configs
 
 	fetched, err := pd.provider.Collect()
 	if err != nil {
 		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
-		return
+		return nil, nil
 	}
 
 	for _, c := range fetched {
 		log.Infof("c.ADIdentifiers is %s", c.ADIdentifiers) // REMOVE
 		if !pd.contains(&c) {
-			new = append(new, c)
+			newConf = append(newConf, c)
 			log.Infof("New config: %s", c)
 			continue
-		} else {
-			log.Infof("provider contains %s", c)
 		}
+		log.Infof("provider contains %s", c)
 		// Check the freshness of c. Reschedule if necessary.
 		if tagger.OutdatedTags(c.ADIdentifiers) {
 			log.Infof("Starting rescheduling for %s", c)
-			removed = append(removed, c)
-			new = append(new, c)
+			removedConf = append(removedConf, c)
+			newConf = append(newConf, c)
+			continue
 		}
+		log.Infof("No need to reschedule %s", c)
 	}
 
 	pd.configs = fetched
 	for _, c := range old {
 		if !pd.contains(&c) {
-			removed = append(removed, c)
+			removedConf = append(removedConf, c)
 		}
 	}
-
-	log.Infof("%v: collected %d new configurations, removed %d", pd.provider, len(new), len(removed))
-
-	return
+	log.Infof("%v: collected %d new configurations, removed %d", pd.provider, len(newConf), len(removedConf))
+	return newConf, removedConf
 }
-
-// reschedule is used when a check has started with a template that is not up to date anymore.
-//func (ac *AutoConfig) reschedule(c integration.Config) {
-//	log.Infof("Starting rescheduling for %s", c)
-//	ac.processRemovedConfigs([]integration.Config{c})
-//	log.Infof("Processed remove configs for %s", c)
-//	resolvedConfigs := ac.resolve(c)
-//	log.Infof("Resolved configs %s", resolvedConfigs)
-//	checks := ac.getChecksFromConfigs(resolvedConfigs, true)
-//	log.Infof("Preparing scheduling for %s", checks)
-//	ac.schedule(checks)
-//	log.Infof("Rescheduled the checks %s", checks)
-//}
 
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
@@ -613,13 +610,12 @@ func (ac *AutoConfig) unschedule(id check.ID) {
 // check if the descriptor contains the Config passed
 func (pd *providerDescriptor) contains(c *integration.Config) bool {
 	for _, config := range pd.configs {
-		if config.Equal(c) {
-			return true
-		} else {
+		if !config.Equal(c) {
 			log.Infof("is c: %s equal to config: %s", c, config)
+			continue
 		}
+		return true
 	}
-
 	return false
 }
 

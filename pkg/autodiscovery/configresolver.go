@@ -126,17 +126,16 @@ func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.
 			config, err := cr.resolve(tpl, cr.services[serviceID])
 			if err == nil {
 				resolvedSet[config.Digest()] = config
-			} else {
-				err := fmt.Errorf("Error resolving template %s for service %s: %v",
-					tpl.Name, serviceID, err)
-				errorStats.setResolveWarning(tpl.Name, err.Error())
-				log.Warn(err)
+				continue
 			}
+			err = fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, serviceID, err)
+			errorStats.setResolveWarning(tpl.Name, err.Error())
+			log.Warn(err)
 		}
 	}
 
 	// build the slice of configs to return
-	resolved := []integration.Config{}
+	var resolved []integration.Config
 	for _, v := range resolvedSet {
 		resolved = append(resolved, v)
 	}
@@ -146,6 +145,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.
 
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
+// method is not thread safe and needs a lock realized by the caller
 func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
@@ -184,13 +184,10 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 		}
 	}
 
-	// store resolved configs in the AC
-	cr.ac.m.Lock()
-	defer cr.ac.m.Unlock()
+	// store resolved configs in the AC, this method is NOT thread safe at this point
 	cr.ac.loadedConfigs[resolvedConfig.Digest()] = resolvedConfig
 	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
 	cr.configToService[resolvedConfig.Digest()] = svc.GetID()
-
 	return resolvedConfig, nil
 }
 
@@ -204,7 +201,7 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	cr.services[svc.GetID()] = svc
 
 	// get all the templates matching service identifiers
-	templates := []integration.Config{}
+	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers()
 	if err != nil {
 		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetID(), err)
@@ -302,7 +299,7 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return []byte(strconv.Itoa(ports[len(ports)-1].Port)), nil
 	}
 
-	idx, err := strconv.Atoi((string(tplVar)))
+	idx, err := strconv.Atoi(string(tplVar))
 	if err != nil {
 		// The template variable is not an index so try to lookup port by name.
 		for _, port := range ports {
@@ -319,7 +316,7 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 }
 
 // getPid returns the process identifier of the service
-func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
+func getPid(_ []byte, svc listeners.Service) ([]byte, error) {
 	pid, err := svc.GetPid()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
@@ -358,12 +355,10 @@ func parseTemplateVar(v []byte) (name, key []byte) {
 		}
 		return r
 	}, v)
-	split := bytes.SplitN(stripped, []byte("_"), 2)
-	name = split[0]
-	if len(split) == 2 {
-		key = split[1]
-	} else {
-		key = []byte("")
+	parts := bytes.SplitN(stripped, []byte("_"), 2)
+	name = parts[0]
+	if len(parts) == 2 {
+		return name, parts[1]
 	}
-	return name, key
+	return name, []byte("")
 }
