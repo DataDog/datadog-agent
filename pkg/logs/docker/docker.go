@@ -16,6 +16,9 @@ import (
 // See https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs:
 // [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 const messageHeaderLength = 8
+
+// Docker splits logs that are larger than 16Kb
+// https://github.com/moby/moby/blob/master/daemon/logger/copier.go#L19-L22
 const maxDockerBufferSize = 16 * 1024
 
 // ParseMessage extracts the date and the status from the raw docker message
@@ -29,7 +32,9 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 		return "", "", nil, errors.New("Can't parse docker message: expected a 8 bytes header")
 	}
 
-	msg = removePartialHeaders(msg)
+	if len(msg) > maxDockerBufferSize {
+		msg = removePartialHeaders(msg)
+	}
 
 	// First byte is 1 for stdout and 2 for stderr
 	status := message.StatusInfo
@@ -70,17 +75,21 @@ func min(a, b int) int {
 // that occurs between each 16Kb section of a log greater than 16 Kb in length.
 // If a docker log is greater than 16Kb, each 16Kb section "PartialMessage" will
 // have a header, timestamp, and space in front of it.  For illustration,
-// let's call this "HeadTs ".  For example, a message that is 35kb will be of the form:
-// `HeadTs PartialMessageHeadTs PartialMessageHeadTs PartialMessage`
-// This function removes the "HeadTs " between two PartialMessage sections while
-// leaving the very first "HeadTs "
+// let's call this "H ".  For example, a message that is 35kb will be of the form:
+// `H PartialMessageH PartialMessageH PartialMessage`
+// This function removes the "H " between two PartialMessage sections while
+// leaving the very first "H "
+// Input:
+//   H M1H M2H M3
+// Output:
+//   H M1M2M3
 func removePartialHeaders(msg []byte) []byte {
 	preMessageLength := getPreMessageLength(msg)
 	if len(msg[preMessageLength:]) < maxDockerBufferSize {
 		return msg
 	}
 
-	removed := msg[:preMessageLength+maxDockerBufferSize]
+	msgWithoutExtraHeaders := msg[:preMessageLength+maxDockerBufferSize]
 	msg = msg[preMessageLength+maxDockerBufferSize:]
 	preMessageLength = getPreMessageLength(msg)
 	nextPartialMessageSize := min(len(msg), maxDockerBufferSize+preMessageLength)
@@ -89,11 +98,11 @@ func removePartialHeaders(msg []byte) []byte {
 	// and build the message while removing the header, timestamp, and space that
 	// separates each 16Kb of log
 	for nextPartialMessageSize > 0 {
-		removed = append(removed, msg[preMessageLength:nextPartialMessageSize]...)
+		msgWithoutExtraHeaders = append(msgWithoutExtraHeaders, msg[preMessageLength:nextPartialMessageSize]...)
 		msg = msg[nextPartialMessageSize:]
 		preMessageLength = getPreMessageLength(msg)
 		nextPartialMessageSize = min(len(msg), maxDockerBufferSize+preMessageLength)
 	}
 
-	return removed
+	return msgWithoutExtraHeaders
 }
