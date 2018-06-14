@@ -271,7 +271,7 @@ Source: File Configuration Provider
 Instance 1:
 host: <decrypted_host>
 port: <decrypted_port>
-passowrd: <decrypted_password>
+password: <decrypted_password>
 ~
 ===
 
@@ -280,7 +280,7 @@ Source: File Configuration Provider
 Instance 1:
 host: <decrypted_host2>
 port: <decrypted_port2>
-passowrd: <decrypted_password2>
+password: <decrypted_password2>
 ~
 ===
 ```
