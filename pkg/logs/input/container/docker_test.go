@@ -8,7 +8,6 @@
 package container
 
 import (
-	"errors"
 	"testing"
 
 	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
@@ -67,22 +66,6 @@ func (suite *DockerTailerTestSuite) TestDockerTailerNextLogSinceDate() {
 func (suite *DockerTailerTestSuite) TestDockerTailerIdentifier() {
 	suite.tailer.ContainerID = "test"
 	suite.Equal("docker:test", suite.tailer.Identifier())
-}
-
-func (suite *DockerTailerTestSuite) TestParseMessage() {
-
-	msg := []byte{}
-	msg = append(msg, []byte{1, 0, 0, 0, 0}...)
-	_, _, _, err := parser.ParseMessage(msg)
-	suite.Equal(errors.New("Can't parse docker message: expected a 8 bytes header"), err)
-
-	msg = []byte{}
-	msg = append(msg, []byte{1, 0, 0, 0, 0, 62, 49, 103}...)
-	msg = append(msg, []byte("INFO_10:26:31_Loading_settings_from_file:/etc/cassandra/cassandra.yaml")...)
-
-	_, _, _, err = parser.ParseMessage(msg)
-	suite.Equal(errors.New("Can't parse docker message: expected a whitespace after header"), err)
-
 }
 
 func TestDockerTailerTestSuite(t *testing.T) {
