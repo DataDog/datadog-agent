@@ -25,7 +25,8 @@ when submitting your PR:
   * preferably make sure that all tests pass locally.
   * summarize your PR with an explanatory title and a message describing your
     changes, cross-referencing any related bugs/PRs.
-  * Use [Reno](#reno) to create a releasenote.
+  * use [Reno](#reno) to create a releasenote.
+  * open your PR against the `master` branch.
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
