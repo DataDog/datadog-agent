@@ -62,6 +62,18 @@ ENC[AES256_GCM,data:v8jQ=,iv:HBE=,aad:21c=,tag:gA==]
 
 In this example the secret handle is the string `AES256_GCM,data:v8jQ=,iv:HBE=,aad:21c=,tag:gA==`.
 
+Example 3:
+
+There is no need to escape inner `[` and `]`. The agent will select everything between the first `ENC[` and the last `]`.
+
+```yaml
+instances:
+  - server: db_prod
+    user: "ENC[user_array[1337]]"
+```
+
+In this example the secret handle is the string `user_array[1337]`.
+
 **Autodiscovery**:
 
 Secrets are resolved **after** Autodiscovery template variables. This means you
@@ -247,3 +259,30 @@ instances:
     password: decrypted_db_prod_password
 ```
 
+### Troubleshooting
+
+To quickly see how the configurations are resolved you can use the `configcheck` command :
+
+```shell
+sudo -u dd-agent -- datadog-agent configcheck
+
+=== a check ===
+Source: File Configuration Provider
+Instance 1:
+host: <decrypted_host>
+port: <decrypted_port>
+passowrd: <decrypted_password>
+~
+===
+
+=== another check ===
+Source: File Configuration Provider
+Instance 1:
+host: <decrypted_host2>
+port: <decrypted_port2>
+passowrd: <decrypted_password2>
+~
+===
+```
+
+Note that the agent needs to be restarted to pick up new configuration changes.
