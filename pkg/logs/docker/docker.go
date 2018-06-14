@@ -10,14 +10,13 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Length of the docker message header.
 // See https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs:
 // [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 const messageHeaderLength = 8
-const maxDockerBuffer = 16 * 1024
+const maxDockerBufferSize = 16 * 1024
 
 // ParseMessage extracts the date and the status from the raw docker message
 // see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
@@ -31,25 +30,20 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 	}
 
 	preMessageLength := getPreMessageLength(msg)
-	if len(msg[preMessageLength:]) > maxDockerBuffer {
-		msg = removePartialHeaders(msg, preMessageLength)
+	if len(msg) < preMessageLength {
+		return "", "", nil, errors.New("can't parse docker message: expected 8 byte header, timestamp, then a space before message")
 	}
+	// if len(msg[preMessageLength:]) > maxDockerBufferSize {
+	// 	msg = removePartialHeaders(msg, preMessageLength)
+	// }
+
+	msg = removePartialHeaders(msg)
 
 	// First byte is 1 for stdout and 2 for stderr
 	status := message.StatusInfo
 	if msg[0] == 2 {
 		status = message.StatusError
 	}
-
-	// log.Errorf("msg[0] is %s or %c or %x or %U", msg[0], msg[0], msg[0], msg[0])
-	// log.Errorf("msg[1] is %s or %c or %x or %U", msg[1], msg[1], msg[1], msg[1])
-	// log.Errorf("msg[2] is %s or %c or %x or %U", msg[2], msg[2], msg[2], msg[2])
-	// log.Errorf("msg[3] is %s or %c or %x or %U", msg[3], msg[3], msg[3], msg[3])
-	// log.Errorf("msg[4] is %s or %c or %x or %U", msg[4], msg[4], msg[4], msg[4])
-	// log.Errorf("msg[5] is %s or %c or %x or %U", msg[5], msg[5], msg[5], msg[5])
-	// log.Errorf("msg[6] is %s or %c or %x or %U", msg[6], msg[6], msg[6], msg[6])
-	// log.Errorf("msg[7] is %s or %c or %x or %U", msg[7], msg[7], msg[7], msg[7])
-	// log.Errorf("msg[8] is %s or %c or %x or %U", msg[8], msg[8], msg[8], msg[8])
 
 	// timestamp goes from byte 8 till first space
 	to := bytes.Index(msg[messageHeaderLength:], []byte{' '})
@@ -59,14 +53,12 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 	to += messageHeaderLength
 	ts := string(msg[messageHeaderLength:to])
 
-	// log.Errorf("msg[to+1:] is %s", msg[to+1:])
-	// log.Errorf("new length of message is %d", len(msg[to+1:]))
-
 	return ts, status, msg[to+1:], nil
 
 }
 
-// get length of the 8 byte header, timestamp, and space
+// getPreMessageLength finds length of the 8 byte header, timestamp, and space
+// the is in front of each 16Kb chunk of message
 func getPreMessageLength(msg []byte) int {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 {
@@ -82,24 +74,33 @@ func min(a, b int) int {
 	return b
 }
 
-// function only used if message is longer than 16kb
-func removePartialHeaders(msg []byte, size int) []byte {
-
-	removed := msg[:size+maxDockerBuffer]
-	msg = msg[size+maxDockerBuffer:]
+// removePartialHeaders removes the 8 byte header, timestamp, and space
+// that occurs between each 16Kb section of a log greater than 16 Kb in length.
+// If a docker log is greater than 16Kb, each 16Kb section "PartialMessage" will
+// have a header, timestamp, and space in front of it.  For illustration,
+// let's call this "HeadTs ".  For example, a message that is 35kb will be of the form:
+// `HeadTs PartialMessageHeadTs PartialMessageHeadTs PartialMessage`
+// This function removes the "HeadTs " between two PartialMessage sections while
+// leaving the very first "HeadTs "
+func removePartialHeaders(msg []byte) []byte {
 
 	preMessageLength := getPreMessageLength(msg)
+	if len(msg[preMessageLength:]) < maxDockerBufferSize {
+		return msg[:preMessageLength+len(msg[preMessageLength:])]
+	}
+	removed := msg[:preMessageLength+maxDockerBufferSize]
+	msg = msg[preMessageLength+maxDockerBufferSize:]
 
-	M := min(len(msg), maxDockerBuffer+preMessageLength)
+	preMessageLength = getPreMessageLength(msg)
 
-	for M > 0 {
-		removed = append(removed, msg[preMessageLength:M]...)
-		msg = msg[M:]
+	nextPartialMessageSize := min(len(msg), maxDockerBufferSize+preMessageLength)
+
+	for nextPartialMessageSize > 0 {
+		removed = append(removed, msg[preMessageLength:nextPartialMessageSize]...)
+		msg = msg[nextPartialMessageSize:]
 		preMessageLength = getPreMessageLength(msg)
-		M = min(len(msg), maxDockerBuffer+preMessageLength)
+		nextPartialMessageSize = min(len(msg), maxDockerBufferSize+preMessageLength)
 
 	}
-	log.Errorf("removed is %s", removed)
 	return removed
-
 }
