@@ -281,6 +281,7 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
+  allow_failure: true
   before_script:
     - if exist .omnibus rd /s/q .omnibus
     - if exist \omnibus-ruby rd /s/q \omnibus-ruby
