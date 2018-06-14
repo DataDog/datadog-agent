@@ -349,9 +349,7 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	configs = append(configs, config)
 
 	// store non template configs in the AC
-	ac.m.Lock()
 	ac.loadedConfigs[config.Digest()] = config
-	ac.m.Unlock()
 	return configs
 }
 

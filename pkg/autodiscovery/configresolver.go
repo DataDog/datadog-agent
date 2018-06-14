@@ -184,7 +184,7 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 		}
 	}
 
-	// store resolved configs in the AC, this method is NOT thread safe at this point
+	// store resolved configs in the AC
 	cr.ac.loadedConfigs[resolvedConfig.Digest()] = resolvedConfig
 	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
 	cr.configToService[resolvedConfig.Digest()] = svc.GetID()

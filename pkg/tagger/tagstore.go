@@ -63,11 +63,12 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	s.storeMutex.Lock()
 	defer s.storeMutex.Unlock()
 	storedTags, exist := s.store[info.Entity]
-	if exist == false {
+	if !exist {
 		storedTags = &entityTags{
 			lowCardTags:  make(map[string][]string),
 			highCardTags: make(map[string][]string),
 		}
+		s.store[info.Entity] = storedTags
 	}
 
 	storedTags.Lock()
@@ -75,10 +76,6 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
 	storedTags.highCardTags[info.Source] = info.HighCardTags
 	storedTags.cacheValid = false
-
-	if exist == false {
-		s.store[info.Entity] = storedTags
-	}
 
 	tagsHash := computeTagsHash(info)
 	if storedTags.tagsHash != tagsHash {
