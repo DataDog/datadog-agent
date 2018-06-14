@@ -7,11 +7,11 @@
 
 package secrets
 
-// Init encrypted secrets are not available on windows
-func Init(command string, arguments []string, timeout int, maxSize int) {
-}
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
-// Decrypt encrypted secrets are not available on windows
-func Decrypt(data []byte) ([]byte, error) {
-	return data, nil
+func checkRights(path string) error {
+	log.Warn("The secrets feature is not yet safe to use on Windows. This beta build is for testing only. Use at your own risk.")
+	return nil
 }
