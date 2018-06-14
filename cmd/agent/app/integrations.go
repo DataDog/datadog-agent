@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,7 +26,7 @@ import (
 const (
 	constraintsFile = "agent_requirements.txt"
 	tufConfigFile   = "public-tuf-config.json"
-	pyPiServer      = "https://pypi.org/simple/"
+	tufPkgPattern   = "datadog-.*"
 )
 
 var (
@@ -135,6 +136,25 @@ func getTUFConfigFilePath() (string, error) {
 	return tufConfig, nil
 }
 
+func validateTufArgs(args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("Too many arguments")
+	} else if len(args) == 0 {
+		return fmt.Errorf("Missing package argument")
+	}
+
+	exp, err := regexp.Compile(tufPkgPattern)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+
+	if !exp.MatchString(args[0]) {
+		return fmt.Errorf("invalid package name - this manager only handles datadog packages")
+	}
+
+	return nil
+}
+
 func tuf(args []string) error {
 	if !allowRoot && !authorizedUser() {
 		return errors.New("Please use this tool as the agent-running user")
@@ -227,6 +247,10 @@ func tuf(args []string) error {
 }
 
 func installTuf(cmd *cobra.Command, args []string) error {
+	if err := validateTufArgs(args); err != nil {
+		return err
+	}
+
 	constraintsPath, err := getConstraintsFilePath()
 	if err != nil {
 		return err
@@ -249,6 +273,10 @@ func installTuf(cmd *cobra.Command, args []string) error {
 }
 
 func removeTuf(cmd *cobra.Command, args []string) error {
+	if err := validateTufArgs(args); err != nil {
+		return err
+	}
+
 	tufArgs := []string{
 		"uninstall",
 	}
@@ -275,7 +303,6 @@ func freeze(cmd *cobra.Command, args []string) error {
 	tufArgs := []string{
 		"freeze",
 	}
-	tufArgs = append(tufArgs, args...)
 
 	return tuf(tufArgs)
 }
