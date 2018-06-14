@@ -145,7 +145,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.
 
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-// method is not thread safe and needs a lock realized by the caller
+// this method is not thread safe and needs a lock managed by the caller
 func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
@@ -257,7 +257,7 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	if ip, ok := hosts[tplVarStr]; ok {
 		return []byte(ip), nil
 	}
-	log.Warnf("network %q not found, trying bridge IP instead", tplVarStr)
+	log.Warnf("Network %q not found, trying bridge IP instead", tplVarStr)
 
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)

@@ -2,15 +2,13 @@ package tagger
 
 import (
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"hash/fnv"
-
-	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
@@ -177,8 +175,8 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 		insertWithPriority(tagPrioMapper, tags, source, true)
 	}
 
-	lowCardTags := []string{}
-	highCardTags := []string{}
+	var lowCardTags []string
+	var highCardTags []string
 	for _, tags := range tagPrioMapper {
 		for i := 0; i < len(tags); i++ {
 			insert := true
@@ -189,13 +187,14 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 					break
 				}
 			}
-			if insert {
-				if tags[i].isHighCard {
-					highCardTags = append(highCardTags, tags[i].tag)
-				} else {
-					lowCardTags = append(lowCardTags, tags[i].tag)
-				}
+			if !insert {
+				continue
 			}
+			if tags[i].isHighCard {
+				highCardTags = append(highCardTags, tags[i].tag)
+				continue
+			}
+			lowCardTags = append(lowCardTags, tags[i].tag)
 		}
 	}
 

@@ -253,13 +253,13 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populat
 	var allChecks []check.Check
 	for _, config := range configs {
 		if !isCheckConfig(config) {
-			// skip non c configs.
+			// skip non check configs.
 			continue
 		}
 		configDigest := config.Digest()
 		checks, err := ac.getChecks(config)
 		if err != nil {
-			log.Errorf("Unable to load the c: %v", err)
+			log.Errorf("Unable to load the check: %v", err)
 			continue
 		}
 		for _, c := range checks {
@@ -332,7 +332,7 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 		for _, config := range resolvedConfigs {
 			config, err := decryptConfig(config)
 			if err != nil {
-				log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
+				log.Errorf("Dropping conf for %q: %s", config.Name, err.Error())
 				continue
 			}
 			configs = append(configs, config)
@@ -349,9 +349,9 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	configs = append(configs, config)
 
 	// store non template configs in the AC
-	//ac.m.Lock()
+	ac.m.Lock()
 	ac.loadedConfigs[config.Digest()] = config
-	//ac.m.Unlock()
+	ac.m.Unlock()
 	return configs
 }
 
@@ -429,7 +429,6 @@ func (ac *AutoConfig) pollConfigs() {
 			case <-ac.health.C:
 			case <-ac.configsPollTicker.C:
 				ac.m.Lock()
-
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
 					// skip providers that don't want to be polled
@@ -451,7 +450,7 @@ func (ac *AutoConfig) pollConfigs() {
 					// retrieve the list of newly added configurations as well
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
-					log.Debugf("evaluating provider %s, removing %s, adding %s", pd.provider.String(), removedConfigs, newConfigs)
+					log.Debugf("%s: removing %s, adding %s", pd.provider.String(), removedConfigs, newConfigs)
 					ac.processRemovedConfigs(removedConfigs)
 
 					// TODO: move to check scheduler
@@ -475,7 +474,7 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 	for _, config := range removedConfigs {
 		log.Infof("Started removing %s", config)
 		if !isCheckConfig(config) {
-			// skip non elt configs.
+			// skip non check configs.
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
@@ -515,7 +514,7 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 			log.Infof("Config %s is template, deleting", config)
 			ac.templateCache.Del(config)
 		}
-		log.Infof("Finished removing %s", config)
+		log.Infof("Removed %q", config.Name)
 	}
 }
 
@@ -604,11 +603,9 @@ func (ac *AutoConfig) unschedule(id check.ID) {
 // check if the descriptor contains the Config passed
 func (pd *providerDescriptor) contains(c *integration.Config) bool {
 	for _, config := range pd.configs {
-		if !config.Equal(c) {
-			log.Infof("is c: %s equal to config: %s", c, config)
-			continue
+		if config.Equal(c) {
+			return true
 		}
-		return true
 	}
 	return false
 }
