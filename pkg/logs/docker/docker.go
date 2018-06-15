@@ -62,7 +62,7 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 // Output:
 //   H M1M2M3
 func removePartialHeaders(msgToClean []byte) []byte {
-	msg := []byte("")
+	msg := []byte{}
 	headerLen := GetHeaderLength(msgToClean)
 	start := 0
 	end := min(len(msgToClean), maxDockerBufferSize+headerLen)
