@@ -8,11 +8,10 @@ package autodiscovery
 import (
 	"expvar"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -73,10 +73,11 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	configToChecks    map[string][]check.ID         // cache the ID of checks we load for each config
-	checkToConfig     map[check.ID]string           // cache the config digest corresponding to a check
-	nameToJMXMetrics  map[string]integration.Data   // holds the metrics to collect for JMX checks
-	loadedConfigs     map[string]integration.Config // holds the resolved configs
+	templateToConfig  map[string][]integration.Config // TODO
+	configToChecks    map[string][]check.ID           // cache the ID of checks we load for each config
+	checkToConfig     map[check.ID]string             // cache the config digest corresponding to a check
+	nameToJMXMetrics  map[string]integration.Data     // holds the metrics to collect for JMX checks
+	loadedConfigs     map[string]integration.Config   // holds the resolved configs
 	stop              chan bool
 	pollerActive      bool
 	health            *health.Handle
@@ -91,6 +92,7 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		providers:        make([]*providerDescriptor, 0, 5),
 		loaders:          make([]check.Loader, 0, 5),
 		templateCache:    NewTemplateCache(),
+		templateToConfig: make(map[string][]integration.Config),
 		configToChecks:   make(map[string][]check.ID),
 		checkToConfig:    make(map[check.ID]string),
 		nameToJMXMetrics: make(map[string]integration.Data),
@@ -455,8 +457,22 @@ func (ac *AutoConfig) pollConfigs() {
 					for _, config := range newConfigs {
 						config.Provider = pd.provider.String()
 						resolvedConfigs := ac.resolve(config)
+						if len(resolvedConfigs) == 0 && config.IsTemplate() {
+							log.Errorf("It's empty !!! %s", config.Name)
+							continue
+						}
+
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 						ac.schedule(checks)
+
+						digest := config.Digest()
+						log.Infof("Scheduling done with digest %s: %d", digest, len(resolvedConfigs))
+						copiedResolvedConfig := make([]integration.Config, len(resolvedConfigs))
+						copy(copiedResolvedConfig, resolvedConfigs)
+						ac.templateToConfig[digest] = copiedResolvedConfig
+						if len(copiedResolvedConfig) == 0 {
+							log.Errorf("Empty copiedResolvedConfig !!")
+						}
 					}
 				}
 				ac.m.Unlock()
@@ -469,16 +485,58 @@ func (ac *AutoConfig) pollConfigs() {
 func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config) {
 	// Process removed configs first to handle the case where a
 	// container churn would result in the same configuration hash.
+
+	log.Infof("")
+	log.Infof("templateToConfig:")
+	for k, v := range ac.templateToConfig {
+		var d []string
+		for _, elt := range v {
+			d = append(d, elt.Digest())
+		}
+		sort.Strings(d)
+		log.Infof("%s -> %s", k, d)
+	}
+	log.Infof("")
+	log.Infof("\nconfigToChecks:")
+	for k, v := range ac.configToChecks {
+		log.Infof("%s -> %s", k, v)
+	}
+	log.Infof("")
+	log.Infof("\ncheckToConfig:")
+	for k, v := range ac.checkToConfig {
+		log.Infof("%s -> %s", k, v)
+	}
+
+	var configToRemove []integration.Config
 	for _, config := range removedConfigs {
-		log.Infof("Started removing %s", config)
+		if !config.IsTemplate() {
+			configToRemove = append(configToRemove, config)
+			continue
+		}
+		digest := config.Digest()
+		resolved, ok := ac.templateToConfig[digest]
+		if !ok {
+			log.Infof("No resolved configuration are associated to %s: %q", config, digest)
+			continue
+		}
+		//delete(ac.templateToConfig, digest)
+		log.Infof("%d resolved configuration are associated to %s: %q", len(resolved), config, digest)
+		configToRemove = append(configToRemove, resolved...)
+	}
+
+	for _, config := range configToRemove {
+		stopped := make(map[check.ID]struct{})
+		log.Infof("Start removing %s, %q", config.Name, config.Digest())
 		if !isCheckConfig(config) {
+			log.Infof("Skip removing %s", config)
 			// skip non check configs.
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
-		stopped := map[check.ID]struct{}{}
-		for _, elt := range ac.configToChecks[digest] {
+		checksToStop := ac.configToChecks[digest]
+		log.Infof("Checks to stop associated with %q: %d", digest, len(checksToStop))
+		for _, elt := range checksToStop {
 			// `StopCheck` might time out so we don't risk to block
 			// the polling loop forever
 			err := ac.collector.StopCheck(elt)
@@ -487,6 +545,7 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 				errorStats.setRunError(elt, err.Error())
 				continue
 			}
+			ac.unschedule(elt)
 			stopped[elt] = struct{}{}
 		}
 
@@ -509,7 +568,6 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 
 		// if the config is a template, remove it from the cache
 		if config.IsTemplate() {
-			log.Infof("Config %s is template, deleting", config)
 			ac.templateCache.Del(config)
 		}
 		log.Infof("Removed %q", config.Name)
@@ -530,16 +588,23 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) ([]integration.Config, []i
 	}
 
 	for _, c := range fetched {
+		log.Infof("Fetched %s", c)
 		if !pd.contains(&c) {
-			newConf = append(newConf, c)
 			log.Infof("New config: %s", c)
+			newConf = append(newConf, c)
 			continue
 		}
 		// Check the freshness of c. Reschedule if necessary.
 		if tagger.OutdatedTags(c.ADIdentifiers) {
-			log.Infof("Tagger reported outdated tags for %s: rescheduling", c)
+			digest := c.Digest()
+			_, ok := ac.templateToConfig[digest]
+			if !ok {
+				log.Infof("Check %s not resolved yet, first schedule with %q", c.Name, digest)
+				continue
+			}
+			newConf = append(newConf, c) // TODO move up / down
+			log.Infof("Tagger reported outdated tags for %s with %q: rescheduling", c.Name, digest)
 			removedConf = append(removedConf, c)
-			newConf = append(newConf, c)
 			continue
 		}
 	}

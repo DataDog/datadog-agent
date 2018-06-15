@@ -7,6 +7,7 @@ package tagger
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -218,15 +219,15 @@ func (t *Tagger) OutdatedTags(ADIdentifiers []string) bool {
 	t.tagStore.storeMutex.Lock()
 	defer t.tagStore.storeMutex.Unlock()
 	for _, entity := range ADIdentifiers {
-		log.Debugf("Lookup for outdated tags for entity %q", entity)
+		log.Infof("Lookup for outdated tags for entity %q", entity)
 		entityTags, ok := t.tagStore.store[entity]
 		if !ok || entityTags == nil {
 			// We might be trying to evaluate a EntityID that was removed
-			log.Debugf("Entity %q does not have any tags", entity)
+			log.Infof("Entity %q does not have any tags", entity)
 			continue
 		}
 		if !entityTags.outdatedTags {
-			log.Debugf("Entity %q has are up to date tags", entity)
+			log.Infof("Entity %q has are up to date tags", entity)
 			continue
 		}
 		if entityTags.tagsHash == "" {
@@ -317,6 +318,7 @@ func (t *Tagger) List(highCard bool) response.TaggerListResponse {
 // contents to a new slice. As strings are references, the size of
 // the new array is small enough.
 func copyArray(source []string) []string {
+	sort.Strings(source) // TODO I'm not sure
 	copied := make([]string, len(source))
 	copy(copied, source)
 	return copied

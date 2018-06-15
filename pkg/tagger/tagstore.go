@@ -87,7 +87,6 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 
 func computeTagsHash(info *collectors.TagInfo) string {
 	h := fnv.New64()
-	h.Write([]byte(info.Source)) // TODO do we need this ?
 	highTags := info.HighCardTags
 	sort.Strings(highTags)
 	for _, i := range highTags {

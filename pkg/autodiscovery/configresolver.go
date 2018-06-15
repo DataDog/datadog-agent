@@ -227,6 +227,9 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 			continue
 		}
 		errorStats.removeResolveWarnings(config.Name)
+		digest := template.Digest()
+		log.Infof("Scheduling done with digest %s: 1", digest)
+		cr.ac.templateToConfig[digest] = []integration.Config{config}
 
 		// load the checks for this config using Autoconfig
 		checks := cr.ac.getChecksFromConfigs([]integration.Config{config}, true)
