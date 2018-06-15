@@ -221,6 +221,21 @@ func TestParseGaugeWithNoHostTag(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
+func TestParseGaugeWithNoTags(t *testing.T) {
+	defaultHostname = "test-hostname"
+	defer func() { defaultHostname = "" }()
+
+	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	assert.Empty(t, parsed.Tags)
+	assert.Equal(t, "test-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
 func TestParseGaugeWithSampleRate(t *testing.T) {
 	parsed, err := parseMetricMessage([]byte("daemon:666|g|@0.21"), "")
 
