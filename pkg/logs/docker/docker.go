@@ -82,17 +82,17 @@ func min(a, b int) int {
 //   H M1H M2H M3
 // Output:
 //   H M1M2M3
-func removePartialHeaders(partials []byte) []byte {
+func removePartialHeaders(msgToClean []byte) []byte {
 	msg := []byte("")
-	headerLen := getHeaderLength(partials)
+	headerLen := getHeaderLength(msgToClean)
 	start := 0
-	end := min(len(partials), maxDockerBufferSize+headerLen)
+	end := min(len(msgToClean), maxDockerBufferSize+headerLen)
 	for end > 0 {
-		msg = append(msg, partials[start:end]...)
-		partials = partials[end:]
-		headerLen = getHeaderLength(partials)
+		msg = append(msg, msgToClean[start:end]...)
+		msgToClean = msgToClean[end:]
+		headerLen = getHeaderLength(msgToClean)
 		start = headerLen
-		end = min(len(partials), maxDockerBufferSize+headerLen)
+		end = min(len(msgToClean), maxDockerBufferSize+headerLen)
 	}
 	return msg
 }
