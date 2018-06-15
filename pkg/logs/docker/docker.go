@@ -54,9 +54,9 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 
 }
 
-// getPreMessageLength finds length of the 8 byte header, timestamp, and space
+// getHeaderLength finds length of the 8 byte header, timestamp, and space
 // that is in front of each 16Kb chunk of message
-func getPreMessageLength(msg []byte) int {
+func getHeaderLength(msg []byte) int {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 {
 		return 0
@@ -73,37 +73,26 @@ func min(a, b int) int {
 
 // removePartialHeaders removes the 8 byte header, timestamp, and space
 // that occurs between 16Kb section of a log that is greater than 16 Kb in length.
-// If a docker log is greater than 16Kb, each 16Kb section "M" will
+// If a docker log is greater than 16Kb, each 16Kb partial section will
 // have a header, timestamp, and space in front of it.  For example, a message
-// that is 35kb will be of the form:  `H MH MH M` where "H" is what pre-pends
-// each 16 Kb section. This function removes the "H " between two PartialMessage
+// that is 35kb will be of the form:  `H M1H M2H M3` where "H" is what pre-pends
+// each 16 Kb section. This function removes the "H " between two partial messages
 // sections while leaving the very first "H "
 // Input:
 //   H M1H M2H M3
 // Output:
 //   H M1M2M3
-func removePartialHeaders(msg []byte) []byte {
-	preMessageLength := getPreMessageLength(msg)
-	if len(msg[preMessageLength:]) < maxDockerBufferSize {
-		return msg
+func removePartialHeaders(partials []byte) []byte {
+	msg := []byte("")
+	headerLen := getHeaderLength(partials)
+	start := 0
+	end := min(len(partials), maxDockerBufferSize+headerLen)
+	for end > 0 {
+		msg = append(msg, partials[start:end]...)
+		partials = partials[end:]
+		headerLen = getHeaderLength(partials)
+		start = headerLen
+		end = min(len(partials), maxDockerBufferSize+headerLen)
 	}
-
-	// captures initial pre-message and
-	result := msg[:preMessageLength+maxDockerBufferSize]
-	msg = msg[preMessageLength+maxDockerBufferSize:]
-	preMessageLength = getPreMessageLength(msg)
-
-	chunckSize := min(len(msg), maxDockerBufferSize+preMessageLength)
-
-	// When there is more log message left to handle, loop through what remains,
-	// and build the message while removing the header, timestamp, and space that
-	// separates each 16Kb of log
-	for chunckSize > 0 {
-		result = append(result, msg[preMessageLength:chunckSize]...)
-		msg = msg[chunckSize:]
-		preMessageLength = getPreMessageLength(msg)
-		chunckSize = min(len(msg), maxDockerBufferSize+preMessageLength)
-	}
-
-	return result
+	return msg
 }
