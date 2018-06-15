@@ -44,37 +44,33 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 	}
 
 	// timestamp goes from byte 8 till first space
-	to := bytes.Index(msg[messageHeaderLength:], []byte{' '})
+	to := GetHeaderLength(msg) - 1
 	if to == -1 {
 		return "", "", nil, errors.New("Can't parse docker message: expected a whitespace after header")
 	}
-	to += messageHeaderLength
 	ts := string(msg[messageHeaderLength:to])
 
 	return ts, status, msg[to+1:], nil
 }
 
-// removePartialHeaders removes the 8 byte header, timestamp, and space
-// that occurs between 16Kb section of a log that is greater than 16 Kb in length.
-// If a docker log is greater than 16Kb, each 16Kb partial section will
-// have a header, timestamp, and space in front of it.  For example, a message
-// that is 35kb will be of the form:  `H M1H M2H M3` where "H" is what pre-pends
-// each 16 Kb section. This function removes the "H " between two partial messages
-// sections while leaving the very first "H "
+// removePartialHeaders removes the 8 byte header, timestamp, and space that occurs between 16Kb section of a log.
+// If a docker log is greater than 16Kb, each 16Kb partial section will have a header, timestamp, and space in front of it.
+// For example, a message that is 35kb will be of the form: `H M1H M2H M3` where "H" is what pre-pends each 16 Kb section.
+// This function removes the "H " between two partial messages sections while leaving the very first "H ".
 // Input:
 //   H M1H M2H M3
 // Output:
 //   H M1M2M3
 func removePartialHeaders(msgToClean []byte) []byte {
 	msg := []byte("")
-	headerLen := getHeaderLength(msgToClean)
+	headerLen := GetHeaderLength(msgToClean)
 	start := 0
 	end := min(len(msgToClean), maxDockerBufferSize+headerLen)
 
 	for end > 0 {
 		msg = append(msg, msgToClean[start:end]...)
 		msgToClean = msgToClean[end:]
-		headerLen = getHeaderLength(msgToClean)
+		headerLen = GetHeaderLength(msgToClean)
 		start = headerLen
 		end = min(len(msgToClean), maxDockerBufferSize+headerLen)
 	}
@@ -82,14 +78,17 @@ func removePartialHeaders(msgToClean []byte) []byte {
 	return msg
 }
 
-// getHeaderLength finds length of the 8 byte header, timestamp, and space
-// that is in front of each 16Kb chunk of message
-func getHeaderLength(msg []byte) int {
-	idx := bytes.Index(msg, []byte{' '})
+// GetHeaderLength returns the length of the 8 bytes header, timestamp, and space
+// that is in front of each message.
+func GetHeaderLength(msg []byte) int {
+	if len(msg) < messageHeaderLength {
+		return 0
+	}
+	idx := bytes.Index(msg[messageHeaderLength:], []byte{' '})
 	if idx == -1 {
 		return 0
 	}
-	return idx + 1
+	return messageHeaderLength + idx + 1
 }
 
 // min returns the minimum value between a and b.
