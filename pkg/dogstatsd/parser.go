@@ -255,7 +255,7 @@ func parseMetricMessage(message []byte, namespace string) (*metrics.MetricSample
 
 	// Metadata
 	var metricTags []string
-	var host string
+	host := defaultHostname
 	var rawMetadataField []byte
 	sampleRate := 1.0
 
