@@ -225,6 +225,11 @@ api_key:
 #
 # Logs agent is disabled by default
 # logs_enabled: false
+#
+# Enable logs collection for all containers, disabled by default
+# logs_config:
+#   container_collect_all: false
+#
 {{ end -}}
 {{- if .JMX }}
 # JMX
