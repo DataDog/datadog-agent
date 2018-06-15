@@ -55,7 +55,7 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 }
 
 // getPreMessageLength finds length of the 8 byte header, timestamp, and space
-// the is in front of each 16Kb chunk of message
+// that is in front of each 16Kb chunk of message
 func getPreMessageLength(msg []byte) int {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 {
@@ -72,13 +72,12 @@ func min(a, b int) int {
 }
 
 // removePartialHeaders removes the 8 byte header, timestamp, and space
-// that occurs between each 16Kb section of a log greater than 16 Kb in length.
-// If a docker log is greater than 16Kb, each 16Kb section "PartialMessage" will
-// have a header, timestamp, and space in front of it.  For illustration,
-// let's call this "H ".  For example, a message that is 35kb will be of the form:
-// `H PartialMessageH PartialMessageH PartialMessage`
-// This function removes the "H " between two PartialMessage sections while
-// leaving the very first "H "
+// that occurs between 16Kb section of a log that is greater than 16 Kb in length.
+// If a docker log is greater than 16Kb, each 16Kb section "M" will
+// have a header, timestamp, and space in front of it.  For example, a message
+// that is 35kb will be of the form:  `H MH MH M` where "H" is what pre-pends
+// each 16 Kb section. This function removes the "H " between two PartialMessage
+// sections while leaving the very first "H "
 // Input:
 //   H M1H M2H M3
 // Output:
@@ -89,20 +88,22 @@ func removePartialHeaders(msg []byte) []byte {
 		return msg
 	}
 
-	msgWithoutExtraHeaders := msg[:preMessageLength+maxDockerBufferSize]
+	// captures initial pre-message and
+	result := msg[:preMessageLength+maxDockerBufferSize]
 	msg = msg[preMessageLength+maxDockerBufferSize:]
 	preMessageLength = getPreMessageLength(msg)
-	nextPartialMessageSize := min(len(msg), maxDockerBufferSize+preMessageLength)
+
+	chunckSize := min(len(msg), maxDockerBufferSize+preMessageLength)
 
 	// When there is more log message left to handle, loop through what remains,
 	// and build the message while removing the header, timestamp, and space that
 	// separates each 16Kb of log
-	for nextPartialMessageSize > 0 {
-		msgWithoutExtraHeaders = append(msgWithoutExtraHeaders, msg[preMessageLength:nextPartialMessageSize]...)
-		msg = msg[nextPartialMessageSize:]
+	for chunckSize > 0 {
+		result = append(result, msg[preMessageLength:chunckSize]...)
+		msg = msg[chunckSize:]
 		preMessageLength = getPreMessageLength(msg)
-		nextPartialMessageSize = min(len(msg), maxDockerBufferSize+preMessageLength)
+		chunckSize = min(len(msg), maxDockerBufferSize+preMessageLength)
 	}
 
-	return msgWithoutExtraHeaders
+	return result
 }

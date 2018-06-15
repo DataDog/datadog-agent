@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseMessage(t *testing.T) {
+func TestParseMessageShouldRemovePartialHeaders(t *testing.T) {
 	preMessage := "100000002018-06-14T18:27:03.246999277Z "
 	longLog := []byte(preMessage + strings.Repeat("a", 16*1024) + preMessage + strings.Repeat("b", 50))
 	msgLength := len(strings.Repeat("a", 16*1024) + strings.Repeat("b", 50))
@@ -29,6 +29,7 @@ func TestParseMessageShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := "100000002018-06-14T18:27:03.246999277Z anything"
 	_, _, msg, _ := ParseMessage([]byte(validMessage))
 	assert.NotNil(t, msg)
+	assert.Equal(t, msg, []byte("anything"))
 }
 
 func TestParseMessageShouldFailWithInvalidInput(t *testing.T) {
