@@ -51,11 +51,16 @@ func TestParseMessageShouldSucceedWithValidInput(t *testing.T) {
 }
 
 func TestParseMessageShouldFailWithInvalidInput(t *testing.T) {
-	msg := []byte{}
+	var msg []byte
+	var err error
+
+	// missing header separator
+	msg = []byte{}
 	msg = append(msg, []byte{1, 0, 0, 0, 0}...)
-	_, _, _, err := ParseMessage(msg)
+	_, _, _, err = ParseMessage(msg)
 	assert.NotNil(t, err)
 
+	// invalid header size
 	msg = []byte{}
 	msg = append(msg, []byte{1, 0, 0, 0, 0, 62, 49, 103}...)
 	msg = append(msg, []byte("INFO_10:26:31_Loading_settings_from_file:/etc/cassandra/cassandra.yaml")...)

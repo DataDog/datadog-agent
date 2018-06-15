@@ -32,6 +32,7 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 		return "", "", nil, errors.New("Can't parse docker message: expected a 8 bytes header")
 	}
 
+	// remove partial headers that are added by docker when the message gets too long.
 	if len(msg) > maxDockerBufferSize {
 		msg = removePartialHeaders(msg)
 	}
@@ -51,24 +52,6 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 	ts := string(msg[messageHeaderLength:to])
 
 	return ts, status, msg[to+1:], nil
-
-}
-
-// getHeaderLength finds length of the 8 byte header, timestamp, and space
-// that is in front of each 16Kb chunk of message
-func getHeaderLength(msg []byte) int {
-	idx := bytes.Index(msg, []byte{' '})
-	if idx == -1 {
-		return 0
-	}
-	return idx + 1
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // removePartialHeaders removes the 8 byte header, timestamp, and space
@@ -87,6 +70,7 @@ func removePartialHeaders(msgToClean []byte) []byte {
 	headerLen := getHeaderLength(msgToClean)
 	start := 0
 	end := min(len(msgToClean), maxDockerBufferSize+headerLen)
+
 	for end > 0 {
 		msg = append(msg, msgToClean[start:end]...)
 		msgToClean = msgToClean[end:]
@@ -94,5 +78,24 @@ func removePartialHeaders(msgToClean []byte) []byte {
 		start = headerLen
 		end = min(len(msgToClean), maxDockerBufferSize+headerLen)
 	}
+
 	return msg
+}
+
+// getHeaderLength finds length of the 8 byte header, timestamp, and space
+// that is in front of each 16Kb chunk of message
+func getHeaderLength(msg []byte) int {
+	idx := bytes.Index(msg, []byte{' '})
+	if idx == -1 {
+		return 0
+	}
+	return idx + 1
+}
+
+// min returns the minimum value between a and b.
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
