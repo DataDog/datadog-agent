@@ -50,6 +50,15 @@ func TestParseMessageShouldRemovePartialHeaders(t *testing.T) {
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
 	assert.Equal(t, message.StatusInfo, status)
 	assert.Equal(t, expectedMsg, msg)
+
+	// with multibyte characters
+	msgToClean = []byte(header + strings.Repeat("語", 16*1024) + header + strings.Repeat("語", 16*1024) + header + strings.Repeat("語", 16*1024) + strings.Repeat("言", 50))
+	expectedMsg = []byte(strings.Repeat("語", 16*1024) + strings.Repeat("語", 16*1024) + strings.Repeat("語", 16*1024) + strings.Repeat("言", 50))
+	ts, status, msg, err = ParseMessage(msgToClean)
+	assert.Nil(t, err)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
+	assert.Equal(t, message.StatusInfo, status)
+	assert.Equal(t, expectedMsg, msg)
 }
 
 func TestParseMessageShouldSucceedWithValidInput(t *testing.T) {
