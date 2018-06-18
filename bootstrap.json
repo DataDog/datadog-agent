@@ -1,6 +1,5 @@
 {
     "post-deps": {
-
     },
     "deps": {
         "github.com/golang/dep/cmd/dep": "v0.4.1",
