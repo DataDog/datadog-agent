@@ -46,7 +46,7 @@ tee ignition.json << EOF
       {
         "enabled": true,
         "name": "pupernetes.service",
-        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes daemon run /opt/sandbox --hyperkube-version 1.10.1 --kubectl-link /opt/bin/kubectl -v 5 --timeout 48h\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes daemon run /opt/sandbox --hyperkube-version 1.10.1 --kubectl-link /opt/bin/kubectl -v 5 --timeout 48h\nRestart=on-failure\nRestartSec=5\nType=notify\n\n[Install]\nWantedBy=multi-user.target\n"
       },
       {
         "name": "terminate.service",
