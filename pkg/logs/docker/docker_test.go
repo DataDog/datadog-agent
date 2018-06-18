@@ -16,51 +16,6 @@ import (
 
 const header = "100000002018-06-14T18:27:03.246999277Z "
 
-func TestParseMessageShouldRemovePartialHeaders(t *testing.T) {
-	var msgToClean []byte
-	var msg []byte
-	var ts string
-	var status string
-	var expectedMsg []byte
-	var err error
-
-	// 16kb log
-	msgToClean = []byte(header + strings.Repeat("a", 16*1024))
-	expectedMsg = []byte(strings.Repeat("a", 16*1024))
-	ts, status, msg, err = ParseMessage(msgToClean)
-	assert.Nil(t, err)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
-	assert.Equal(t, message.StatusInfo, status)
-	assert.Equal(t, expectedMsg, msg)
-
-	// over 16kb
-	msgToClean = []byte(header + strings.Repeat("a", 16*1024) + header + strings.Repeat("b", 50))
-	expectedMsg = []byte(strings.Repeat("a", 16*1024) + strings.Repeat("b", 50))
-	ts, status, msg, err = ParseMessage(msgToClean)
-	assert.Nil(t, err)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
-	assert.Equal(t, message.StatusInfo, status)
-	assert.Equal(t, expectedMsg, msg)
-
-	// three times over 16kb
-	msgToClean = []byte(header + strings.Repeat("a", 16*1024) + header + strings.Repeat("a", 16*1024) + header + strings.Repeat("a", 16*1024) + strings.Repeat("b", 50))
-	expectedMsg = []byte(strings.Repeat("a", 16*1024) + strings.Repeat("a", 16*1024) + strings.Repeat("a", 16*1024) + strings.Repeat("b", 50))
-	ts, status, msg, err = ParseMessage(msgToClean)
-	assert.Nil(t, err)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
-	assert.Equal(t, message.StatusInfo, status)
-	assert.Equal(t, expectedMsg, msg)
-
-	// with multibyte characters
-	msgToClean = []byte(header + strings.Repeat("語", 16*1024) + header + strings.Repeat("語", 16*1024) + header + strings.Repeat("語", 16*1024) + strings.Repeat("言", 50))
-	expectedMsg = []byte(strings.Repeat("語", 16*1024) + strings.Repeat("語", 16*1024) + strings.Repeat("語", 16*1024) + strings.Repeat("言", 50))
-	ts, status, msg, err = ParseMessage(msgToClean)
-	assert.Nil(t, err)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
-	assert.Equal(t, message.StatusInfo, status)
-	assert.Equal(t, expectedMsg, msg)
-}
-
 func TestParseMessageShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := header + "anything"
 	ts, status, msg, err := ParseMessage([]byte(validMessage))
@@ -86,4 +41,48 @@ func TestParseMessageShouldFailWithInvalidInput(t *testing.T) {
 	msg = append(msg, []byte("INFO_10:26:31_Loading_settings_from_file:/etc/cassandra/cassandra.yaml")...)
 	_, _, _, err = ParseMessage(msg)
 	assert.NotNil(t, err)
+}
+
+func TestParseMessageShouldRemovePartialHeaders(t *testing.T) {
+	var msgToClean []byte
+	var msg []byte
+	var ts string
+	var status string
+	var expectedMsg []byte
+	var err error
+
+	// 16kb log
+	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize))
+	expectedMsg = []byte(buildMessage('a', dockerBufferSize))
+	ts, status, msg, err = ParseMessage(msgToClean)
+	assert.Nil(t, err)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
+	assert.Equal(t, message.StatusInfo, status)
+	assert.Equal(t, expectedMsg, msg)
+
+	// over 16kb
+	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50))
+	expectedMsg = []byte(buildMessage('a', dockerBufferSize) + buildMessage('b', 50))
+	ts, status, msg, err = ParseMessage(msgToClean)
+	assert.Nil(t, err)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
+	assert.Equal(t, message.StatusInfo, status)
+	assert.Equal(t, expectedMsg, msg)
+
+	// three times over 16kb
+	msgToClean = []byte(buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('a', dockerBufferSize) + buildPartialMessage('b', 50))
+	expectedMsg = []byte(buildMessage('a', 3*dockerBufferSize) + buildMessage('b', 50))
+	ts, status, msg, err = ParseMessage(msgToClean)
+	assert.Nil(t, err)
+	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", ts)
+	assert.Equal(t, message.StatusInfo, status)
+	assert.Equal(t, expectedMsg, msg)
+}
+
+func buildPartialMessage(c rune, count int) string {
+	return header + strings.Repeat(string(c), count)
+}
+
+func buildMessage(c rune, count int) string {
+	return strings.Repeat(string(c), count)
 }

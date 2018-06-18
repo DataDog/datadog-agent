@@ -19,7 +19,7 @@ const messageHeaderLength = 8
 
 // Docker splits logs that are larger than 16Kb
 // https://github.com/moby/moby/blob/master/daemon/logger/copier.go#L19-L22
-const maxDockerBufferSize = 16 * 1024
+const dockerBufferSize = 16 * 1024
 
 // ParseMessage extracts the date and the status from the raw docker message
 // see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
@@ -33,7 +33,7 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 	}
 
 	// remove partial headers that are added by docker when the message gets too long.
-	if len(msg) > maxDockerBufferSize {
+	if len(msg) > dockerBufferSize {
 		msg = removePartialHeaders(msg)
 	}
 
@@ -65,14 +65,14 @@ func removePartialHeaders(msgToClean []byte) []byte {
 	msg := []byte{}
 	headerLen := GetHeaderLength(msgToClean)
 	start := 0
-	end := min(len(msgToClean), maxDockerBufferSize+headerLen)
+	end := min(len(msgToClean), dockerBufferSize+headerLen)
 
 	for end > 0 {
 		msg = append(msg, msgToClean[start:end]...)
 		msgToClean = msgToClean[end:]
 		headerLen = GetHeaderLength(msgToClean)
 		start = headerLen
-		end = min(len(msgToClean), maxDockerBufferSize+headerLen)
+		end = min(len(msgToClean), dockerBufferSize+headerLen)
 	}
 
 	return msg
