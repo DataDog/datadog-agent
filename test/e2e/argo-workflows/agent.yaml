@@ -605,7 +605,8 @@ spec:
           if (point) {
             value = point.points[0][1] / 10e6
             print("cpu value: " + value)
-            if (value > 39 && value < 41) {
+            // Sampling is less accurate than cgroups, widening the acceptable range
+            if (value > 35 && value < 45) {
               print("cpu value in target range")
               break;
             }
