@@ -79,6 +79,12 @@ func (c *CheckBase) String() string {
 	return c.checkName
 }
 
+// Version returns an empty string as Go check can't be updated independently
+// from the agent
+func (c *CheckBase) Version() string {
+	return ""
+}
+
 // ID returns a unique ID for that check instance
 //
 // For checks that only support one instance, the default value is

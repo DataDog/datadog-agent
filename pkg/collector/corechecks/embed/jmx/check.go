@@ -60,6 +60,10 @@ func (c *JMXCheck) String() string {
 	return c.name
 }
 
+func (c *JMXCheck) Version() string {
+	return ""
+}
+
 func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data) error {
 	return nil
 }
