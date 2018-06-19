@@ -213,17 +213,9 @@ func (t *Tagger) Stop() error {
 	return nil
 }
 
-// GetEntityHash returns the hash of an entity
+// GetEntityHash returns the tags hash of an entity
 func (t *Tagger) GetEntityHash(entity string) string {
-	t.tagStore.storeMutex.Lock()
-	defer t.tagStore.storeMutex.Unlock()
-	var tagsHash string
-	log.Infof("HASH GET entity %s", entity)
-	entityTags, ok := t.tagStore.store[entity]
-	if ok {
-		tagsHash = entityTags.tagsHash
-	}
-	return tagsHash
+	return t.tagStore.getEntityHash(entity)
 }
 
 // Tag returns tags for a given entity. If highCard is false, high
@@ -232,7 +224,7 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	if entity == "" {
 		return nil, fmt.Errorf("empty entity ID")
 	}
-	cachedTags, sources := t.tagStore.lookup(entity, highCard)
+	cachedTags, sources, _ := t.tagStore.lookup(entity, highCard)
 
 	if len(sources) == len(t.fetchers) {
 		// All sources sent data to cache
@@ -288,7 +280,7 @@ func (t *Tagger) List(highCard bool) response.TaggerListResponse {
 	defer t.tagStore.storeMutex.RUnlock()
 	for entityID, et := range t.tagStore.store {
 		entity := response.TaggerListEntity{}
-		tags, sources := et.get(highCard)
+		tags, sources, _ := et.get(highCard)
 		entity.Tags = copyArray(tags)
 		entity.Sources = copyArray(sources)
 		r.Entities[entityID] = entity

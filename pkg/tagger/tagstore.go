@@ -76,26 +76,22 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	storedTags.highCardTags[info.Source] = info.HighCardTags
 	storedTags.cacheValid = false
 
-	tagsHash := computeTagsHash(info)
-	if storedTags.tagsHash != tagsHash {
-		storedTags.tagsHash = tagsHash
-	}
 	return nil
 }
 
-func computeTagsHash(info *collectors.TagInfo) string {
-	h := fnv.New64()
-	highTags := info.HighCardTags
-	sort.Strings(highTags)
-	for _, i := range highTags {
-		h.Write([]byte(i))
+func computeTagsHash(tags []string) string {
+	hash := ""
+	// do not sort original slice
+	tags = copyArray(tags)
+	if len(tags) > 0 {
+		h := fnv.New64()
+		sort.Strings(tags)
+		for _, i := range tags {
+			h.Write([]byte(i))
+		}
+		hash = strconv.FormatUint(h.Sum64(), 16)
 	}
-	lowTags := info.LowCardTags
-	sort.Strings(lowTags)
-	for _, i := range lowTags {
-		h.Write([]byte(i))
-	}
-	return strconv.FormatUint(h.Sum64(), 16)
+	return hash
 }
 
 // prune will lock the store and delete tags for the entity previously
@@ -125,15 +121,21 @@ func (s *tagStore) prune() error {
 // lookup gets tags from the store and returns them concatenated in a []string
 // array. It returns the source names in the second []string to allow the
 // client to trigger manual lookups on missing sources.
-func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
+func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string, string) {
 	s.storeMutex.RLock()
 	defer s.storeMutex.RUnlock()
 	storedTags, present := s.store[entity]
 
 	if present == false {
-		return nil, nil
+		return nil, nil, ""
 	}
 	return storedTags.get(highCard)
+}
+
+func (s *tagStore) getEntityHash(entity string) string {
+	// the hash is always computed for high card
+	_, _, tagsHash := s.lookup(entity, true)
+	return tagsHash
 }
 
 type tagPriority struct {
@@ -142,16 +144,16 @@ type tagPriority struct {
 	isHighCard bool                         // is the tag high cardinality
 }
 
-func (e *entityTags) get(highCard bool) ([]string, []string) {
+func (e *entityTags) get(highCard bool) ([]string, []string, string) {
 	e.Lock()
 	defer e.Unlock()
 
 	// Cache hit
 	if e.cacheValid {
 		if highCard {
-			return e.cachedAll, e.cachedSource
+			return e.cachedAll, e.cachedSource, e.tagsHash
 		}
-		return e.cachedLow, e.cachedSource
+		return e.cachedLow, e.cachedSource, e.tagsHash
 	}
 
 	// Cache miss
@@ -197,11 +199,12 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	e.cachedSource = sources
 	e.cachedAll = tags
 	e.cachedLow = e.cachedAll[:len(lowCardTags)]
+	e.tagsHash = computeTagsHash(e.cachedAll)
 
 	if highCard {
-		return tags, sources
+		return tags, sources, e.tagsHash
 	}
-	return lowCardTags, sources
+	return lowCardTags, sources, e.tagsHash
 }
 
 func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, isHighCard bool) {

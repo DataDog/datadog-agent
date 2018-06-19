@@ -428,15 +428,8 @@ func (ac *AutoConfig) pollConfigs() {
 						entityName = docker.ContainerIDToEntityName(entityName)
 					}
 					currentHash := tagger.GetEntityHash(entityName)
-					if previousHash == "" {
-						// hash init
-						ac.store.setTagsHashForService(
-							service.GetID(),
-							currentHash,
-						)
-					} else if currentHash != previousHash {
-						log.Infof("%s != %s", previousHash, currentHash)
-						log.Infof("Tags changed for service %s, rescheduling associated checks", string(service.GetID()))
+					if currentHash != previousHash {
+						log.Debugf("Tags changed for service %s, rescheduling associated checks", string(service.GetID()))
 						ac.configResolver.processDelService(service)
 						ac.configResolver.processNewService(service)
 						ac.store.setTagsHashForService(service.GetID(), currentHash)
