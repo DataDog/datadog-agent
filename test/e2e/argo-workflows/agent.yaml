@@ -168,7 +168,7 @@ spec:
           kubelet.yaml: |
             init_config:
             instances:
-            - cadvisor_port: 4194
+            - {}
 
           apiserver.yaml: |
             init_configs:
