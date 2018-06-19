@@ -984,8 +984,7 @@ tag_push_agent:
   stage: deploy
   when: manual
   only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   variables:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
@@ -997,8 +996,7 @@ tag_jmx_push_agent:
   stage: deploy
   when: manual
   only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   variables:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
@@ -1011,8 +1009,7 @@ latest_push_agent:
   stage: deploy
   when: manual
   only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   variables:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
@@ -1023,8 +1020,7 @@ latest_jmx_push_agent:
   stage: deploy
   when: manual
   only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   variables:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
@@ -1036,8 +1032,7 @@ tag_push_cluster_agent:
   stage: deploy
   when: manual
   only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   variables:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *cluster-agent_ecr
@@ -1049,8 +1044,7 @@ latest_push_cluster_agent:
   stage: deploy
   when: manual
   only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   variables:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *cluster-agent_ecr
@@ -1061,8 +1055,7 @@ tag_dsd_push:
   stage: deploy
   when: manual
   only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   variables:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
@@ -1074,8 +1067,7 @@ latest_dsd_push:
   stage: deploy
   when: manual
   only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   variables:
     <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
@@ -1111,7 +1103,7 @@ pupernetes-master:
 pupernetes-tags:
   <<: *pupernetes_template
   only:
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+    - tags
   script:
   # note: it's not the agent-dev
   - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
