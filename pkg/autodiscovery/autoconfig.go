@@ -8,10 +8,11 @@ package autodiscovery
 import (
 	"expvar"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
@@ -20,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,11 +74,9 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	templateToConfig  map[string][]integration.Config // TODO
-	configToChecks    map[string][]check.ID           // cache the ID of checks we load for each config
-	checkToConfig     map[check.ID]string             // cache the config digest corresponding to a check
-	nameToJMXMetrics  map[string]integration.Data     // holds the metrics to collect for JMX checks
-	loadedConfigs     map[string]integration.Config   // holds the resolved configs
+	configToChecks    map[string][]check.ID         // cache the ID of checks we load for each config
+	nameToJMXMetrics  map[string]integration.Data   // holds the metrics to collect for JMX checks
+	loadedConfigs     map[string]integration.Config // holds the resolved configs
 	stop              chan bool
 	pollerActive      bool
 	health            *health.Handle
@@ -92,9 +91,7 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		providers:        make([]*providerDescriptor, 0, 5),
 		loaders:          make([]check.Loader, 0, 5),
 		templateCache:    NewTemplateCache(),
-		templateToConfig: make(map[string][]integration.Config),
 		configToChecks:   make(map[string][]check.ID),
-		checkToConfig:    make(map[check.ID]string),
 		nameToJMXMetrics: make(map[string]integration.Data),
 		loadedConfigs:    make(map[string]integration.Config),
 		stop:             make(chan bool),
@@ -269,7 +266,6 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populat
 			if populateCache {
 				// store the checks we schedule for this config locally
 				ac.configToChecks[configDigest] = append(ac.configToChecks[configDigest], c.ID())
-				ac.checkToConfig[c.ID()] = configDigest
 			}
 		}
 	}
@@ -300,7 +296,6 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	var configs []integration.Config
 
-	log.Debugf("Resolving %s", config.Name)
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
 		metrics, ok := ac.nameToJMXMetrics[config.Name]
@@ -312,14 +307,12 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	}
 
 	if config.IsTemplate() {
-		log.Debugf("Resolving %s as template", config.Name)
 		// store the template in the cache in any case
 		if err := ac.templateCache.Set(config); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
 		// try to resolve the template
-		log.Debugf("Try to resolve template %s", config.Name)
 		resolvedConfigs := ac.configResolver.ResolveTemplate(config)
 		if len(resolvedConfigs) == 0 {
 			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
@@ -327,7 +320,6 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 			log.Debug(e)
 			return configs
 		}
-		log.Debugf("Resolved template %s: %d", config.Name, len(resolvedConfigs))
 		errorStats.removeResolveWarnings(config.Name)
 
 		// each template can resolve to multiple configs
@@ -339,10 +331,8 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 			}
 			configs = append(configs, config)
 		}
-		log.Debugf("Returning %d configs", len(configs))
 		return configs
 	}
-	log.Debugf("Resolving %s NOT as template", config.String())
 	config, err := decryptConfig(config)
 	if err != nil {
 		log.Errorf("Dropping conf for '%s': %s", config.Name, err.Error())
@@ -429,6 +419,29 @@ func (ac *AutoConfig) pollConfigs() {
 			case <-ac.health.C:
 			case <-ac.configsPollTicker.C:
 				ac.m.Lock()
+				// check if services tags are up to date
+				for _, service := range ac.configResolver.services {
+					previousHash := ac.store.getTagsHashForService(service.GetID())
+					// TODO: harmonize service & entities ID
+					entityName := string(service.GetID())
+					if !strings.Contains(entityName, "://") {
+						entityName = docker.ContainerIDToEntityName(entityName)
+					}
+					currentHash := tagger.GetEntityHash(entityName)
+					if previousHash == "" {
+						// hash init
+						ac.store.setTagsHashForService(
+							service.GetID(),
+							currentHash,
+						)
+					} else if currentHash != previousHash {
+						log.Infof("%s != %s", previousHash, currentHash)
+						log.Infof("Tags changed for service %s, rescheduling associated checks", string(service.GetID()))
+						ac.configResolver.processDelService(service)
+						ac.configResolver.processNewService(service)
+						ac.store.setTagsHashForService(service.GetID(), currentHash)
+					}
+				}
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
 					// skip providers that don't want to be polled
@@ -437,7 +450,6 @@ func (ac *AutoConfig) pollConfigs() {
 					}
 
 					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outdated.
-					log.Infof("Processing %q", pd.provider)
 					upToDate, err := pd.provider.IsUpToDate()
 					if err != nil {
 						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
@@ -450,29 +462,14 @@ func (ac *AutoConfig) pollConfigs() {
 					// retrieve the list of newly added configurations as well
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
-					log.Debugf("%s: removing %s, adding %s", pd.provider.String(), removedConfigs, newConfigs)
 					ac.processRemovedConfigs(removedConfigs)
 
 					// TODO: move to check scheduler
 					for _, config := range newConfigs {
 						config.Provider = pd.provider.String()
 						resolvedConfigs := ac.resolve(config)
-						if len(resolvedConfigs) == 0 && config.IsTemplate() {
-							log.Errorf("It's empty !!! %s", config.Name)
-							continue
-						}
-
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 						ac.schedule(checks)
-
-						digest := config.Digest()
-						log.Infof("Scheduling done with digest %s: %d", digest, len(resolvedConfigs))
-						copiedResolvedConfig := make([]integration.Config, len(resolvedConfigs))
-						copy(copiedResolvedConfig, resolvedConfigs)
-						ac.templateToConfig[digest] = copiedResolvedConfig
-						if len(copiedResolvedConfig) == 0 {
-							log.Errorf("Empty copiedResolvedConfig !!")
-						}
 					}
 				}
 				ac.m.Unlock()
@@ -485,68 +482,25 @@ func (ac *AutoConfig) pollConfigs() {
 func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config) {
 	// Process removed configs first to handle the case where a
 	// container churn would result in the same configuration hash.
-
-	log.Infof("")
-	log.Infof("templateToConfig:")
-	for k, v := range ac.templateToConfig {
-		var d []string
-		for _, elt := range v {
-			d = append(d, elt.Digest())
-		}
-		sort.Strings(d)
-		log.Infof("%s -> %s", k, d)
-	}
-	log.Infof("")
-	log.Infof("\nconfigToChecks:")
-	for k, v := range ac.configToChecks {
-		log.Infof("%s -> %s", k, v)
-	}
-	log.Infof("")
-	log.Infof("\ncheckToConfig:")
-	for k, v := range ac.checkToConfig {
-		log.Infof("%s -> %s", k, v)
-	}
-
-	var configToRemove []integration.Config
 	for _, config := range removedConfigs {
-		if !config.IsTemplate() {
-			configToRemove = append(configToRemove, config)
-			continue
-		}
-		digest := config.Digest()
-		resolved, ok := ac.templateToConfig[digest]
-		if !ok {
-			log.Infof("No resolved configuration are associated to %s: %q", config, digest)
-			continue
-		}
-		//delete(ac.templateToConfig, digest)
-		log.Infof("%d resolved configuration are associated to %s: %q", len(resolved), config, digest)
-		configToRemove = append(configToRemove, resolved...)
-	}
-
-	for _, config := range configToRemove {
-		stopped := make(map[check.ID]struct{})
-		log.Infof("Start removing %s, %q", config.Name, config.Digest())
 		if !isCheckConfig(config) {
-			log.Infof("Skip removing %s", config)
 			// skip non check configs.
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
-		checksToStop := ac.configToChecks[digest]
-		log.Infof("Checks to stop associated with %q: %d", digest, len(checksToStop))
-		for _, elt := range checksToStop {
+		ids := ac.configToChecks[digest]
+		stopped := map[check.ID]struct{}{}
+		for _, id := range ids {
 			// `StopCheck` might time out so we don't risk to block
 			// the polling loop forever
-			err := ac.collector.StopCheck(elt)
+			err := ac.collector.StopCheck(id)
 			if err != nil {
-				log.Errorf("Error stopping check %s: %s", elt, err)
-				errorStats.setRunError(elt, err.Error())
-				continue
+				log.Errorf("Error stopping check %s: %s", id, err)
+				errorStats.setRunError(id, err.Error())
+			} else {
+				stopped[id] = struct{}{}
 			}
-			ac.unschedule(elt)
-			stopped[elt] = struct{}{}
 		}
 
 		// remove the entry from `configToChecks`
@@ -557,10 +511,10 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 			delete(ac.loadedConfigs, digest)
 		} else {
 			// keep the checks we failed to stop in `configToChecks`
-			var dangling []check.ID
-			for _, elt := range ac.configToChecks[digest] {
-				if _, found := stopped[elt]; !found {
-					dangling = append(dangling, elt)
+			dangling := []check.ID{}
+			for _, id := range ac.configToChecks[digest] {
+				if _, found := stopped[id]; !found {
+					dangling = append(dangling, id)
 				}
 			}
 			ac.configToChecks[digest] = dangling
@@ -570,7 +524,6 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 		if config.IsTemplate() {
 			ac.templateCache.Del(config)
 		}
-		log.Infof("Removed %q", config.Name)
 	}
 }
 
@@ -588,24 +541,8 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) ([]integration.Config, []i
 	}
 
 	for _, c := range fetched {
-		log.Infof("Fetched %s", c)
 		if !pd.contains(&c) {
-			log.Infof("New config: %s", c)
 			newConf = append(newConf, c)
-			continue
-		}
-		// Check the freshness of c. Reschedule if necessary.
-		if tagger.OutdatedTags(c.ADIdentifiers) {
-			digest := c.Digest()
-			_, ok := ac.templateToConfig[digest]
-			if !ok {
-				log.Infof("Check %s not resolved yet, first schedule with %q", c.Name, digest)
-				continue
-			}
-			newConf = append(newConf, c) // TODO move up / down
-			log.Infof("Tagger reported outdated tags for %s with %q: rescheduling", c.Name, digest)
-			removedConf = append(removedConf, c)
-			continue
 		}
 	}
 
@@ -656,11 +593,6 @@ func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string]integration.Config {
 	return ac.templateCache.GetUnresolvedTemplates()
-}
-
-// unschedule removes the check to config cache mapping
-func (ac *AutoConfig) unschedule(id check.ID) {
-	delete(ac.checkToConfig, id)
 }
 
 // check if the descriptor contains the Config passed

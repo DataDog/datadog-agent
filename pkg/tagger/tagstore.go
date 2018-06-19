@@ -23,7 +23,6 @@ type entityTags struct {
 	cachedAll    []string // Low + high
 	cachedLow    []string // Sub-slice of cachedAll
 	tagsHash     string
-	outdatedTags bool
 }
 
 // tagStore stores entity tags in memory and handles search and collation.
@@ -80,7 +79,6 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	tagsHash := computeTagsHash(info)
 	if storedTags.tagsHash != tagsHash {
 		storedTags.tagsHash = tagsHash
-		storedTags.outdatedTags = true
 	}
 	return nil
 }

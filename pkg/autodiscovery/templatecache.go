@@ -15,18 +15,18 @@ import (
 
 // TemplateCache is a data structure to store configuration templates
 type TemplateCache struct {
-	id2digests      map[string][]string           // map an AD identifier to all the configs that have it
-	digest2ids      map[string][]string           // map a config digest to the list of AD identifiers it has
-	digest2template map[string]integration.Config // map a digest to the corresponding config object
-	m               sync.RWMutex
+	adIDToDigests    map[string][]string           // map an AD identifier to all the configs that have it
+	digestToADId     map[string][]string           // map a config digest to the list of AD identifiers it has
+	digestToTemplate map[string]integration.Config // map a digest to the corresponding config object
+	m                sync.RWMutex
 }
 
 // NewTemplateCache creates a new cache
 func NewTemplateCache() *TemplateCache {
 	return &TemplateCache{
-		id2digests:      map[string][]string{},
-		digest2ids:      map[string][]string{},
-		digest2template: map[string]integration.Config{},
+		adIDToDigests:    map[string][]string{},
+		digestToADId:     map[string][]string{},
+		digestToTemplate: map[string]integration.Config{},
 	}
 }
 
@@ -44,15 +44,15 @@ func (cache *TemplateCache) Set(tpl integration.Config) error {
 	d := tpl.Digest()
 
 	// do nothing if the template is already in cache
-	if _, found := cache.digest2ids[d]; found {
+	if _, found := cache.digestToADId[d]; found {
 		return nil
 	}
 
 	// store the template
-	cache.digest2template[d] = tpl
-	cache.digest2ids[d] = tpl.ADIdentifiers
+	cache.digestToTemplate[d] = tpl
+	cache.digestToADId[d] = tpl.ADIdentifiers
 	for _, id := range tpl.ADIdentifiers {
-		cache.id2digests[id] = append(cache.id2digests[id], d)
+		cache.adIDToDigests[id] = append(cache.adIDToDigests[id], d)
 	}
 
 	return nil
@@ -64,10 +64,10 @@ func (cache *TemplateCache) Get(adID string) ([]integration.Config, error) {
 	defer cache.m.RUnlock()
 
 	// do we know the identifier?
-	if digests, found := cache.id2digests[adID]; found {
+	if digests, found := cache.adIDToDigests[adID]; found {
 		templates := []integration.Config{}
 		for _, digest := range digests {
-			templates = append(templates, cache.digest2template[digest])
+			templates = append(templates, cache.digestToTemplate[digest])
 		}
 		return templates, nil
 	}
@@ -78,8 +78,8 @@ func (cache *TemplateCache) Get(adID string) ([]integration.Config, error) {
 // GetUnresolvedTemplates returns templates yet to be resolved
 func (cache *TemplateCache) GetUnresolvedTemplates() map[string]integration.Config {
 	tpls := make(map[string]integration.Config)
-	for d, config := range cache.digest2template {
-		ids := strings.Join(cache.digest2ids[d][:], ",")
+	for d, config := range cache.digestToTemplate {
+		ids := strings.Join(cache.digestToADId[d][:], ",")
 		tpls[ids] = config
 	}
 	return tpls
@@ -93,21 +93,21 @@ func (cache *TemplateCache) Del(tpl integration.Config) error {
 	defer cache.m.Unlock()
 
 	// returns an error in case the template isn't there
-	if _, found := cache.digest2ids[d]; !found {
+	if _, found := cache.digestToADId[d]; !found {
 		return fmt.Errorf("template not found in cache")
 	}
 
 	// remove the template
-	delete(cache.digest2ids, d)
-	delete(cache.digest2template, d)
+	delete(cache.digestToADId, d)
+	delete(cache.digestToTemplate, d)
 
 	// iterate through the AD identifiers for this config
 	for _, id := range tpl.ADIdentifiers {
-		digests := cache.id2digests[id]
+		digests := cache.adIDToDigests[id]
 		// remove the template from id2templates
 		for i, digest := range digests {
 			if digest == d {
-				cache.id2digests[id] = append(digests[:i], digests[i+1:]...)
+				cache.adIDToDigests[id] = append(digests[:i], digests[i+1:]...)
 				break
 			}
 		}

@@ -7,7 +7,6 @@ package tagger
 
 import (
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -214,32 +213,17 @@ func (t *Tagger) Stop() error {
 	return nil
 }
 
-// OutdatedTags returns true if an ADIdentifiers contains is not up to date
-func (t *Tagger) OutdatedTags(ADIdentifiers []string) bool {
+// GetEntityHash returns the hash of an entity
+func (t *Tagger) GetEntityHash(entity string) string {
 	t.tagStore.storeMutex.Lock()
 	defer t.tagStore.storeMutex.Unlock()
-	for _, entity := range ADIdentifiers {
-		log.Infof("Lookup for outdated tags for entity %q", entity)
-		entityTags, ok := t.tagStore.store[entity]
-		if !ok || entityTags == nil {
-			// We might be trying to evaluate a EntityID that was removed
-			log.Infof("Entity %q does not have any tags", entity)
-			continue
-		}
-		if !entityTags.outdatedTags {
-			log.Infof("Entity %q has are up to date tags", entity)
-			continue
-		}
-		if entityTags.tagsHash == "" {
-			log.Infof("Entity %q has an empty tagsHash", entity)
-			continue
-		}
-		log.Infof("Entity %q has outdated tags with tagsHash %q", entity, entityTags.tagsHash)
-		entityTags.outdatedTags = false
-		t.tagStore.store[entity] = entityTags
-		return true
+	var tagsHash string
+	log.Infof("HASH GET entity %s", entity)
+	entityTags, ok := t.tagStore.store[entity]
+	if ok {
+		tagsHash = entityTags.tagsHash
 	}
-	return false
+	return tagsHash
 }
 
 // Tag returns tags for a given entity. If highCard is false, high
@@ -318,7 +302,6 @@ func (t *Tagger) List(highCard bool) response.TaggerListResponse {
 // contents to a new slice. As strings are references, the size of
 // the new array is small enough.
 func copyArray(source []string) []string {
-	sort.Strings(source) // TODO I'm not sure
 	copied := make([]string, len(source))
 	copy(copied, source)
 	return copied

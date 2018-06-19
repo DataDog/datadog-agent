@@ -14,14 +14,16 @@ import (
 
 // store holds useful mappings for the AD
 type store struct {
-	serviceToConfigs map[listeners.ID][]integration.Config
-	m                sync.RWMutex
+	serviceToConfigs  map[listeners.ID][]integration.Config
+	serviceToTagsHash map[listeners.ID]string
+	m                 sync.RWMutex
 }
 
 // newStore creates a store
 func newStore() *store {
 	s := store{
-		serviceToConfigs: make(map[listeners.ID][]integration.Config),
+		serviceToConfigs:  make(map[listeners.ID][]integration.Config),
+		serviceToTagsHash: make(map[listeners.ID]string),
 	}
 
 	return &s
@@ -50,4 +52,22 @@ func (s *store) addConfigForService(serviceID listeners.ID, config integration.C
 	} else {
 		s.serviceToConfigs[serviceID] = []integration.Config{config}
 	}
+}
+
+func (s *store) getTagsHashForService(serviceID listeners.ID) string {
+	s.m.Lock()
+	defer s.m.Unlock()
+	return s.serviceToTagsHash[serviceID]
+}
+
+func (s *store) removeTagsHashForService(serviceID listeners.ID) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	delete(s.serviceToTagsHash, serviceID)
+}
+
+func (s *store) setTagsHashForService(serviceID listeners.ID, hash string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.serviceToTagsHash[serviceID] = hash
 }

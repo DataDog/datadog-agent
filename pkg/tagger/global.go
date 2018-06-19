@@ -51,9 +51,9 @@ func List(highCard bool) response.TaggerListResponse {
 	return defaultTagger.List(highCard)
 }
 
-// OutdatedTags returns a boolean based on high cards tags.
-func OutdatedTags(ADIdentifiers []string) bool {
-	return defaultTagger.OutdatedTags(ADIdentifiers)
+// GetEntityHash returns the hash of an entity
+func GetEntityHash(entity string) string {
+	return defaultTagger.GetEntityHash(entity)
 }
 
 func init() {
