@@ -650,7 +650,7 @@ spec:
 
           // Get the user CPU usage, make sure it's above 39% non-normalized
           var point = db.series.find({
-            metric: "system.cpu.usage",
+            metric: "system.cpu.user",
             host: hostname
           }).limit(1).sort({$natural:-1})[0];
           if (!point) {
