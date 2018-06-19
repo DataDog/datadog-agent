@@ -1,11 +1,43 @@
 # End to End testing
 
+# How it works
+
+There are 2 main stages:
+* setup-instance
+* run-instance
+
+## setup-instance
+
+<img src="docs/run-instance.svg" width="350">
+
+## run-instance
+
+<img src="docs/setup-instance.svg" width="350">
+
+### AWS development
+
+```bash
+${GOPATH}/src/github.com/DataDog/datadog-agent $ aws-vault exec ${DEV} -- inv -e e2e-tests -t dev --image datadog/agent-dev:master
+$ echo $?
+```
+
+### Locally
+
+```bash
+$ sudo pupernetes daemon run /opt/sandbox --job-type systemd 
+${GOPATH}/src/github.com/DataDog/datadog-agent $ inv -e e2e-tests -t local --image datadog/agent-dev:master
+$ echo $?
+```
+
+
 # Upgrade - bump
 
+This section helps you to upgrade any part of the end to end testing.
+
 The current end to end testing pipeline relies on
-* pupernetes
-* argo
-* kinvolk flatcar
+* [pupernetes](https://github.com/DataDog/pupernetes)
+* [argo](https://github.com/argoproj/argo)
+* [kinvolk flatcar](https://www.flatcar-linux.org)
 
 ## Bump hyperkube version
 
