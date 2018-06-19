@@ -95,11 +95,7 @@ func FormatUnixTime(unixTime float64) string {
 }
 
 func printDashes(s string, dash string) string {
-	var dashes string
-	for i := 0; i < stringLength(s); i++ {
-		dashes += dash
-	}
-	return dashes
+	return strings.Repeat(dash, stringLength(s))
 }
 
 // MkHuman makes large numbers more readable
