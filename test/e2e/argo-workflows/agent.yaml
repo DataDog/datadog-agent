@@ -322,6 +322,181 @@ spec:
               - name: mongo
                 image: mongo:3.6.3
 
+    - name: kube-state-metrics-rbac
+      value: |
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: kube-state-metrics
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: kube-state-metrics
+        subjects:
+        - kind: ServiceAccount
+          name: kube-state-metrics
+          namespace: kube-system
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: kube-state-metrics
+        rules:
+        - apiGroups: [""]
+          resources:
+          - configmaps
+          - secrets
+          - nodes
+          - pods
+          - services
+          - resourcequotas
+          - replicationcontrollers
+          - limitranges
+          - persistentvolumeclaims
+          - persistentvolumes
+          - namespaces
+          - endpoints
+          verbs: ["list", "watch"]
+        - apiGroups: ["extensions"]
+          resources:
+          - daemonsets
+          - deployments
+          - replicasets
+          verbs: ["list", "watch"]
+        - apiGroups: ["apps"]
+          resources:
+          - statefulsets
+          verbs: ["list", "watch"]
+        - apiGroups: ["batch"]
+          resources:
+          - cronjobs
+          - jobs
+          verbs: ["list", "watch"]
+        - apiGroups: ["autoscaling"]
+          resources:
+          - horizontalpodautoscalers
+          verbs: ["list", "watch"]
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: kube-state-metrics
+          namespace: kube-system
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: Role
+          name: kube-state-metrics-resizer
+        subjects:
+        - kind: ServiceAccount
+          name: kube-state-metrics
+          namespace: kube-system
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: Role
+        metadata:
+          namespace: kube-system
+          name: kube-state-metrics-resizer
+        rules:
+        - apiGroups: [""]
+          resources:
+          - pods
+          verbs: ["get"]
+        - apiGroups: ["extensions"]
+          resources:
+          - deployments
+          resourceNames: ["kube-state-metrics"]
+          verbs: ["get", "update"]
+        ---
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: kube-state-metrics
+          namespace: kube-system
+
+    - name: kube-state-metrics-deployment
+      value: |
+        apiVersion: apps/v1beta2
+        kind: Deployment
+        metadata:
+          name: kube-state-metrics
+          namespace: kube-system
+        spec:
+          selector:
+            matchLabels:
+              k8s-app: kube-state-metrics
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                k8s-app: kube-state-metrics
+            spec:
+              serviceAccountName: kube-state-metrics
+              containers:
+              - name: kube-state-metrics
+                image: quay.io/coreos/kube-state-metrics:v1.3.1
+                ports:
+                - name: http-metrics
+                  containerPort: 8080
+                - name: telemetry
+                  containerPort: 8081
+                readinessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  initialDelaySeconds: 5
+                  timeoutSeconds: 5
+              - name: addon-resizer
+                image: k8s.gcr.io/addon-resizer:1.7
+                resources:
+                  limits:
+                    cpu: 100m
+                    memory: 30Mi
+                  requests:
+                    cpu: 100m
+                    memory: 30Mi
+                env:
+                  - name: MY_POD_NAME
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.name
+                  - name: MY_POD_NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                command:
+                  - /pod_nanny
+                  - --container=kube-state-metrics
+                  - --cpu=100m
+                  - --extra-cpu=1m
+                  - --memory=100Mi
+                  - --extra-memory=2Mi
+                  - --threshold=5
+                  - --deployment=kube-state-metrics
+
+    - name: kube-state-metrics-service
+      value: |
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: kube-state-metrics
+          namespace: kube-system
+          labels:
+            k8s-app: kube-state-metrics
+          annotations:
+            prometheus.io/scrape: 'true'
+        spec:
+          ports:
+          - name: http-metrics
+            port: 8080
+            targetPort: http-metrics
+            protocol: TCP
+          - name: telemetry
+            port: 8081
+            targetPort: telemetry
+            protocol: TCP
+          selector:
+            k8s-app: kube-state-metrics
+
   templates:
   - name: main
     inputs:
@@ -335,6 +510,9 @@ spec:
       - name: agent-daemonset
       - name: fake-datadog-deployment
       - name: fake-datadog-service
+      - name: kube-state-metrics-rbac
+      - name: kube-state-metrics-deployment
+      - name: kube-state-metrics-service
     steps:
     - - name: fake-dd-setup
         template: manifest
@@ -388,6 +566,19 @@ spec:
         - "{{inputs.parameters.agent-cluster-role-binding}}"
         - "{{inputs.parameters.agent-daemonset}}"
 
+    - - name: kube-state-metrics-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.kube-state-metrics-rbac}}"
+        - "{{inputs.parameters.kube-state-metrics-deployment}}"
+        - "{{inputs.parameters.kube-state-metrics-service}}"
+
     - - name: health
         template: datadog-agent-health
 
@@ -396,6 +587,9 @@ spec:
 
     - - name: find-metrics-kubernetes
         template: find-metrics-kubernetes
+
+      - name: find-kube-state-metrics
+        template: find-kube-state-metrics
 
       - name: find-metrics-redis
         template: find-metrics-redis
@@ -438,6 +632,7 @@ spec:
     inputs:
       parameters:
       - name: redis
+      - name: cpu-stress
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -445,6 +640,9 @@ spec:
       - name: agent-daemonset
       - name: fake-datadog-deployment
       - name: fake-datadog-service
+      - name: kube-state-metrics-rbac
+      - name: kube-state-metrics-deployment
+      - name: kube-state-metrics-service
     steps:
     - - name: delete-manifest
         template: manifest
@@ -456,13 +654,16 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.redis}}"
+        - "{{inputs.parameters.cpu-stress}}"
         - "{{inputs.parameters.agent-configmap}}"
         - "{{inputs.parameters.agent-service-account}}"
         - "{{inputs.parameters.agent-cluster-role}}"
         - "{{inputs.parameters.agent-cluster-role-binding}}"
         - "{{inputs.parameters.agent-daemonset}}"
         - "{{inputs.parameters.fake-datadog-service}}"
-        - "{{inputs.parameters.fake-datadog-deployment}}"
+        - "{{inputs.parameters.kube-state-metrics-rbac}}"
+        - "{{inputs.parameters.kube-state-metrics-deployment}}"
+        - "{{inputs.parameters.kube-state-metrics-service}}"
 
   - name: manifest
     inputs:
@@ -537,6 +738,25 @@ spec:
           var nb = db.series.find({
             metric: {$regex: "kubernetes*"},
             tags: {$all: ["kube_namespace:kube-system", "pod_name:kube-controller-manager"]}
+          }).count();
+
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
+        }
+
+  - name: find-kube-state-metrics
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.series.find({
+            metric: {$regex: "kubernetes_state.*"},
+            tags: {$all: ["kube_namespace:kube-system"]}
           }).count();
 
           print("find: " + nb)
