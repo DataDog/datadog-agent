@@ -661,6 +661,7 @@ spec:
         - "{{inputs.parameters.agent-cluster-role-binding}}"
         - "{{inputs.parameters.agent-daemonset}}"
         - "{{inputs.parameters.fake-datadog-service}}"
+        - "{{inputs.parameters.fake-datadog-deployment}}"
         - "{{inputs.parameters.kube-state-metrics-rbac}}"
         - "{{inputs.parameters.kube-state-metrics-deployment}}"
         - "{{inputs.parameters.kube-state-metrics-service}}"
@@ -753,15 +754,28 @@ spec:
       image: mongo:3.6.3
       command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
       source: |
+        // Assert the number of ready datadog-agent pods
         while (1) {
-          var nb = db.series.find({
-            metric: {$regex: "kubernetes_state.*"},
-            tags: {$all: ["kube_namespace:kube-system"]}
-          }).count();
+          var point = db.series.find({
+            metric: "kubernetes_state.daemonset.ready",
+            tags: {$all: ["namespace:default", "daemonset:datadog-agent"]}
+          }).limit(1).sort({$natural:-1})[0];
 
-          print("find: " + nb)
-          if (nb != 0) {
-            break;
+          if (point && point.points[0][1] == 1) {
+              break;
+          }
+          sleep(2000);
+        }
+
+        // Assert the number of available fake-datadog pods
+        while (1) {
+          var point = db.series.find({
+            metric: "kubernetes_state.deployment.replicas_available",
+            tags: {$all: ["namespace:default", "deployment:fake-datadog"]}
+          }).limit(1).sort({$natural:-1})[0];
+
+          if (point && point.points[0][1] == 1) {
+              break;
           }
           sleep(2000);
         }
