@@ -16,6 +16,8 @@ import (
 type store struct {
 	serviceToConfigs  map[listeners.ID][]integration.Config
 	serviceToTagsHash map[listeners.ID]string
+	loadedConfigs     map[string]integration.Config
+	nameToJMXMetrics  map[string]integration.Data
 	m                 sync.RWMutex
 }
 
@@ -24,6 +26,8 @@ func newStore() *store {
 	s := store{
 		serviceToConfigs:  make(map[listeners.ID][]integration.Config),
 		serviceToTagsHash: make(map[listeners.ID]string),
+		loadedConfigs:     make(map[string]integration.Config),
+		nameToJMXMetrics:  make(map[string]integration.Data),
 	}
 
 	return &s
@@ -74,4 +78,39 @@ func (s *store) setTagsHashForService(serviceID listeners.ID, hash string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.serviceToTagsHash[serviceID] = hash
+}
+
+// setLoadedConfig stores a resolved config by its digest
+func (s *store) setLoadedConfig(config integration.Config) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.loadedConfigs[config.Digest()] = config
+}
+
+// removeLoadedConfig removes a loaded config by its digest
+func (s *store) removeLoadedConfig(config integration.Config) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	delete(s.loadedConfigs, config.Digest())
+}
+
+// getLoadedConfigs returns all loaded and resolved configs
+func (s *store) getLoadedConfigs() map[string]integration.Config {
+	s.m.RLock()
+	defer s.m.RUnlock()
+	return s.loadedConfigs
+}
+
+// setJMXMetricsForConfigName stores the jmx metrics config for a config name
+func (s *store) setJMXMetricsForConfigName(config string, metrics integration.Data) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.nameToJMXMetrics[config] = metrics
+}
+
+// getJMXMetricsForConfigName returns the stored JMX metrics for a config name
+func (s *store) getJMXMetricsForConfigName(config string) integration.Data {
+	s.m.RLock()
+	defer s.m.RUnlock()
+	return s.nameToJMXMetrics[config]
 }

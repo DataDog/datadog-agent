@@ -186,9 +186,7 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 	}
 
 	// store resolved configs in the AC
-	cr.ac.m.Lock()
-	defer cr.ac.m.Unlock()
-	cr.ac.loadedConfigs[resolvedConfig.Digest()] = resolvedConfig
+	cr.ac.store.setLoadedConfig(resolvedConfig)
 	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
 	cr.configToService[resolvedConfig.Digest()] = svc.GetID()
 	cr.ac.store.setTagsHashForService(

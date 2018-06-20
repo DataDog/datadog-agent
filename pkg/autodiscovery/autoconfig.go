@@ -74,9 +74,7 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	configToChecks    map[string][]check.ID         // cache the ID of checks we load for each config
-	nameToJMXMetrics  map[string]integration.Data   // holds the metrics to collect for JMX checks
-	loadedConfigs     map[string]integration.Config // holds the resolved configs
+	configToChecks    map[string][]check.ID // cache the ID of checks we load for each config
 	stop              chan bool
 	pollerActive      bool
 	health            *health.Handle
@@ -87,16 +85,14 @@ type AutoConfig struct {
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
-		collector:        collector,
-		providers:        make([]*providerDescriptor, 0, 5),
-		loaders:          make([]check.Loader, 0, 5),
-		templateCache:    NewTemplateCache(),
-		configToChecks:   make(map[string][]check.ID),
-		nameToJMXMetrics: make(map[string]integration.Data),
-		loadedConfigs:    make(map[string]integration.Config),
-		stop:             make(chan bool),
-		store:            newStore(),
-		health:           health.Register("ad-autoconfig"),
+		collector:      collector,
+		providers:      make([]*providerDescriptor, 0, 5),
+		loaders:        make([]check.Loader, 0, 5),
+		templateCache:  NewTemplateCache(),
+		configToChecks: make(map[string][]check.ID),
+		stop:           make(chan bool),
+		store:          newStore(),
+		health:         health.Register("ad-autoconfig"),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
 	return ac
@@ -199,8 +195,6 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	var resolvedConfigs []integration.Config
 
-	ac.m.Lock()
-	defer ac.m.Unlock()
 	for _, pd := range ac.providers {
 		cfgs, err := pd.provider.Collect()
 		if err != nil {
@@ -214,8 +208,8 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 				// instance configuration
 				// If the file provider finds any of these metric YAMLs, we store them in a map for future access
 				if cfg.MetricConfig != nil {
-					ac.nameToJMXMetrics[cfg.Name] = cfg.MetricConfig
 					// We don't want to save metric files, it's enough to store them in the map
+					ac.store.setJMXMetricsForConfigName(cfg.Name, cfg.MetricConfig)
 					continue
 				}
 
@@ -249,6 +243,9 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 // getChecksFromConfigs gets all the check instances for given configurations
 // optionally can populate ac cache configToChecks
 func (ac *AutoConfig) getChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
 	var allChecks []check.Check
 	for _, config := range configs {
 		if !isCheckConfig(config) {
@@ -298,8 +295,8 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 
 	// add default metrics to collect to JMX checks
 	if check.CollectDefaultMetrics(config) {
-		metrics, ok := ac.nameToJMXMetrics[config.Name]
-		if !ok {
+		metrics := ac.store.getJMXMetricsForConfigName(config.Name)
+		if len(metrics) == 0 {
 			log.Infof("%s doesn't have an additional metric configuration file: not collecting default metrics", config.Name)
 		} else if err := config.AddMetrics(metrics); err != nil {
 			log.Infof("Unable to add default metrics to collect to %s check: %s", config.Name, err)
@@ -341,7 +338,7 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	configs = append(configs, config)
 
 	// store non template configs in the AC
-	ac.loadedConfigs[config.Digest()] = config
+	ac.store.setLoadedConfig(config)
 	return configs
 }
 
@@ -418,7 +415,6 @@ func (ac *AutoConfig) pollConfigs() {
 				return
 			case <-ac.health.C:
 			case <-ac.configsPollTicker.C:
-				ac.m.Lock()
 				// check if services tags are up to date
 				for _, service := range ac.configResolver.services {
 					previousHash := ac.store.getTagsHashForService(service.GetID())
@@ -465,7 +461,6 @@ func (ac *AutoConfig) pollConfigs() {
 						ac.schedule(checks)
 					}
 				}
-				ac.m.Unlock()
 			}
 		}
 	}()
@@ -473,6 +468,9 @@ func (ac *AutoConfig) pollConfigs() {
 
 // TODO: move to check scheduler
 func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config) {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
 	// Process removed configs first to handle the case where a
 	// container churn would result in the same configuration hash.
 	for _, config := range removedConfigs {
@@ -501,7 +499,7 @@ func (ac *AutoConfig) processRemovedConfigs(removedConfigs []integration.Config)
 			// we managed to stop all the checks for this config
 			delete(ac.configToChecks, digest)
 			delete(ac.configResolver.configToService, digest)
-			delete(ac.loadedConfigs, digest)
+			ac.store.removeLoadedConfig(config)
 		} else {
 			// keep the checks we failed to stop in `configToChecks`
 			dangling := []check.ID{}
@@ -574,13 +572,7 @@ func (ac *AutoConfig) getChecks(config integration.Config) ([]check.Check, error
 
 // GetLoadedConfigs returns configs loaded
 func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	configsCopy := make(map[string]integration.Config)
-	ac.m.RLock()
-	defer ac.m.RUnlock()
-	for k, v := range ac.loadedConfigs {
-		configsCopy[k] = v
-	}
-	return configsCopy
+	return ac.store.getLoadedConfigs()
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
