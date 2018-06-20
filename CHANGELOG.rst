@@ -2,6 +2,111 @@
 Release Notes
 =============
 
+6.3.0
+=====
+
+New Features
+------------
+
+- The import command now support multiple dd_url and API keys.
+
+- Add an option to set the read buffer size for dogstatsd socker on POSIX
+  system (SO_RCVBUF).
+
+- Add support for port names in template vars for autodiscovery.
+
+- Add flag `histogram_copy_to_distribution` to send histogram metric values
+  as distributions automatically. Note that the distributions feature is in
+  beta. An additional flag `histogram_copy_to_distribution_prefix` modifies
+  the existing histogram metric name by adding a prefix, e.g. `dist.`, to
+  better distinguish between these values.
+
+- Add `docker ps -a` output to the flare.
+
+- Adds support for windows event logs collection
+
+- Allow overriding procfs path. Should allow to collect relevant host metrics
+  in containerized environments. The override will affect python checks and
+  will result in psutil using the overriding path.
+
+- ALPHA - Adding new tooling to securely upgrade integration packages/wheels
+  from our private TUF repository. Please note any third party dependencies will
+  still be downloaded from PyPI with no additional security validation.
+
+
+Bug Fixes
+---------
+
+- Default config `agent_stats.yaml` used to collect go_expvar metrics from the
+  Agent has been updated.
+
+- Take into account empty hosts on metrics coming from dogstatsd, instead of
+  ignoring them and applying the Agent's hostname.
+
+- Decrease epsilon and increase incoming buffer size for improved accuracy of
+  distribution metrics.
+
+- Configurations of unscheduled checks are now properly removed from the configcheck command display.
+
+- The agent would send the source twice when protobuf enabled (default),
+  once in the source field and once in tags. As a result, we would see the
+  source twice in the app. This PR fixes it, by sending it only in the source
+  field.
+
+- Fix a bug on windows where the io check was reporting metrics for the ``C:``
+  drive only.
+
+- Multiple config files can now be used for the same JMX based integration
+
+- The auto-discovery mechanism can now properly discover multiple configs for one JMX based integration
+
+- The JMXFetch process is now managed properly when JMXFetch configs are unscheduled through auto-discovery
+
+- Fix a possible panic in the kubernetes event watcher.
+
+- On RHEL/SUSE, stop the Agent properly in the pre-install RPM script on systems where
+  ``/lib`` is not a symlink to ``/usr/lib``.
+
+- To match the behavior of Agent 5, a flag has been introduced to make the
+  agent use ``hostname -f`` on unix-based systems before trying ``os.Hostname()``.
+  This flag is turned off by default for 6.3 and will be enabled by default in 6.4.
+  The import command used to upgrade from the Agent5 to the Agent6 will enable
+  this flag in the config.
+
+- Align docker agent's kubernetes liveness probe timeout with docker healthcheck (5s) to avoid too many container restarts.
+
+- Fix kube_service tagging of kubernetes network metrics
+
+- Fixed parsing issue with logs processing rules in autodiscovery.
+
+- Fixes JMXFetch on Windows when the ``custom_jar_paths`` and/or ``tools_jar_path`` options are set,
+  by using a semicolon as the path separator on Windows.
+
+- Prevent an empty response body from being marked as a "successfull call to the GCE metadata api".
+  Fixes a bug where hostnames became an empty string when using docker swarm and a non GCE environment.
+
+- Removes use of gopsutil on Windows.  Gopsutil relies heavily on WMI;
+  because the go runtime doesn't lock goroutines to system threads, the
+  COM layer can have difficulties initializing.
+  Solves the problem where metadata and various system checks can't
+  initialize properly
+
+
+Other Notes
+-----------
+
+- The agent is now compiled with Go 1.10.2
+
+- The datadog/agent docker image now runs two collector runners by default
+
+- The DEB and RPM packages now create the ``dd-agent`` user with no login shell (``/sbin/nologin``
+  or ``/usr/sbin/nologin``). The packages do not modify the login shell of the ``dd-agent`` user
+  if it already exists.
+
+- The scripts of the Linux packages now don't exit with errors when no supported init system is detected,
+  and only print warnings instead
+
+
 6.2.1
 =====
 2018-05-23
