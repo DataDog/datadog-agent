@@ -50,6 +50,34 @@ spec:
                     memory: "128Mi"
                     cpu: "100m"
 
+    - name: cpu-stress
+      value: |
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: cpu-stress
+          namespace: default
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                app: cpu-stress
+            spec:
+              containers:
+              - name: cpu-stress
+                image: datadog/docker-library:progrium_stress
+                args:
+                - "--cpu"
+                - "2"
+                resources:
+                  requests:
+                    memory: "64Mi"
+                    cpu: "400m"
+                  limits:
+                    memory: "64Mi"
+                    cpu: "400m"
+
     - name: agent-service-account
       value: |
         kind: ServiceAccount
@@ -299,6 +327,7 @@ spec:
     inputs:
       parameters:
       - name: redis
+      - name: cpu-stress
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -318,6 +347,7 @@ spec:
         withItems:
         - "{{inputs.parameters.fake-datadog-deployment}}"
         - "{{inputs.parameters.fake-datadog-service}}"
+
       - name: redis-setup
         template: manifest
         arguments:
@@ -328,6 +358,17 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.redis}}"
+
+      - name: cpu-stress-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.cpu-stress}}"
 
     - - name: fake-dd-reset
         template: fake-dd-reset
@@ -358,6 +399,15 @@ spec:
 
       - name: find-metrics-redis
         template: find-metrics-redis
+
+      - name: find-metrics-cpu-docker
+        template: find-metrics-cpu-docker
+
+      - name: find-metrics-cpu-kubelet
+        template: find-metrics-cpu-kubelet
+
+      - name: find-metrics-cpu-system
+        template: find-metrics-cpu-system
 
     - - name: delete-redis
         template: manifest
@@ -512,6 +562,107 @@ spec:
             break;
           }
           sleep(2000);
+        }
+
+  - name: find-metrics-cpu-docker
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var point = db.series.find({
+            metric: "docker.cpu.usage",
+            tags: {$all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"]}
+          }).limit(1).sort({$natural:-1})[0];
+
+          if (point) {
+            value = point.points[0][1]
+            print("cpu value: " + value)
+            if (value > 39 && value < 41) {
+              print("cpu value in target range")
+              break;
+            }
+          } else {
+              print("no docker.cpu.usage metric reported")
+          }
+
+          sleep(2000);
+        }
+
+  - name: find-metrics-cpu-kubelet
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var point = db.series.find({
+            metric: "kubernetes.cpu.usage.total",
+            tags: {$all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"]}
+          }).limit(1).sort({$natural:-1})[0];
+
+          if (point) {
+            value = point.points[0][1] / 10e6
+            print("cpu value: " + value)
+            // Sampling is less accurate than cgroups, widening the acceptable range
+            if (value > 35 && value < 45) {
+              print("cpu value in target range")
+              break;
+            }
+          } else {
+              print("no kubernetes.cpu.usage.total metric reported")
+          }
+
+          sleep(2000);
+        }
+
+  - name: find-metrics-cpu-system
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          sleep(2000);
+
+          // Determine the hostname the cpu-stress pod is running on
+          var point = db.series.find({
+            metric: "kubernetes.cpu.usage.total",
+            tags: {$all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"]}
+          }).limit(1).sort({$natural:-1})[0];
+          if (!point) {
+            print("cannot get hostname for pod");
+            continue;
+          }
+          hostname = point.host;
+
+          // Get the number of CPUs on that host
+          var point = db.series.find({
+            metric: "kubernetes.cpu.capacity",
+            host: hostname
+          }).limit(1).sort({$natural:-1})[0];
+          if (!point) {
+            print("cannot get cpu capacity for host " + hostname);
+            continue;
+          }
+          cpucount = point.points[0][1];
+
+          // Get the user CPU usage, make sure it's above 39% non-normalized
+          var point = db.series.find({
+            metric: "system.cpu.user",
+            host: hostname
+          }).limit(1).sort({$natural:-1})[0];
+          if (!point) {
+            print("no system.cpu.usage metric reported for host " + hostname)
+            continue;
+          }
+          value = point.points[0][1] * cpucount;
+          print("cpu value: " + value)
+          if (value > 39) {
+            print("cpu value in target range");
+            break;
+          }
         }
 
   - name: no-more-metrics-redis
