@@ -4,6 +4,7 @@ Release Notes
 
 6.3.0
 =====
+2018-06-20
 
 New Features
 ------------
