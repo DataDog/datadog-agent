@@ -147,7 +147,6 @@ func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.
 
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-// this method is not thread safe and needs a lock managed by the caller
 func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
@@ -187,6 +186,8 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 	}
 
 	// store resolved configs in the AC
+	cr.ac.m.Lock()
+	defer cr.ac.m.Unlock()
 	cr.ac.loadedConfigs[resolvedConfig.Digest()] = resolvedConfig
 	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
 	cr.configToService[resolvedConfig.Digest()] = svc.GetID()

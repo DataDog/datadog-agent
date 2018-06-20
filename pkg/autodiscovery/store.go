@@ -43,6 +43,7 @@ func (s *store) removeConfigsForService(serviceID listeners.ID) {
 	delete(s.serviceToConfigs, serviceID)
 }
 
+// addConfigForService adds a config for a specified service
 func (s *store) addConfigForService(serviceID listeners.ID, config integration.Config) {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -54,18 +55,21 @@ func (s *store) addConfigForService(serviceID listeners.ID, config integration.C
 	}
 }
 
+// getTagsHashForService return the tags hash for a specified service
 func (s *store) getTagsHashForService(serviceID listeners.ID) string {
-	s.m.Lock()
-	defer s.m.Unlock()
+	s.m.RLock()
+	defer s.m.RUnlock()
 	return s.serviceToTagsHash[serviceID]
 }
 
+// removeTagsHashForService removes the tags hash for a specified service
 func (s *store) removeTagsHashForService(serviceID listeners.ID) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	delete(s.serviceToTagsHash, serviceID)
 }
 
+// setTagsHashForService set the tags hash for a specified service
 func (s *store) setTagsHashForService(serviceID listeners.ID, hash string) {
 	s.m.Lock()
 	defer s.m.Unlock()

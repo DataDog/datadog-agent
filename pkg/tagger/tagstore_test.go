@@ -261,6 +261,8 @@ func TestDigest(t *testing.T) {
 	tags := []string{
 		"high2:b",
 		"high1:a",
+		"high1:b",
+		"high1:aa",
 		"high3:c",
 		"low2:b",
 		"low1:a",
