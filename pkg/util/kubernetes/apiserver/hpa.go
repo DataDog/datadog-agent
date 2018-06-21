@@ -25,6 +25,7 @@ import (
 var (
 	hpaReadTimeout  = 100 * time.Millisecond
 	hpaPollItl      = 10 * time.Second
+	hpaRefreshItl   = 20 * time.Second
 	expectedHPAType = reflect.TypeOf(v2beta1.HorizontalPodAutoscaler{})
 )
 
@@ -100,6 +101,8 @@ func (c *APIClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodAutoscal
 func (c *APIClient) HPAWatcher() {
 	log.Info("Starting HPA Process ...") // REMOVE
 	tickerHPAWatchProcess := time.NewTicker(hpaPollItl)
+	tickerHPARefreshProcess := time.NewTicker(hpaRefreshItl)
+
 	var resversion string
 	err := c.createConfigMapHPA()
 	if err != nil {
@@ -124,10 +127,48 @@ func (c *APIClient) HPAWatcher() {
 						c.removeEntryFromConfigMap(deleted)
 					}
 				}
+			case <-tickerHPARefreshProcess.C:
 				// Update values in configmap
+				c.updateCustomMetrics()
 			}
 		}
 	}()
+}
+
+func (c *APIClient) updateCustomMetrics() error {
+	log.Infof("updating CM in the datadog-hpa")
+	namespace := GetResourcesNamespace()
+	configMap, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	if err == nil {
+		log.Infof("Retrieving the Config Map %s", datadogHPAConfigMap)
+		return nil
+	}
+	data := configMap.Data
+	log.Infof("we got: %#v", data)
+	for name, d := range data {
+		cm := &CustomExternalMetric{}
+		json.Unmarshal([]byte(d), &cm)
+		if cm.Timestamp-metav1.Now().Unix() > 60 { // Configurable expire ?
+			log.Infof("name: %#v and data %#v has expired", name, d) //REMOVE
+			cm.Timestamp = metav1.Now().Unix()
+			cm.Value, _ = QueryDatadogExtra(name, cm.Labels) // check err && can we use cm.Name
+			data[name] = fmt.Sprintf(`{
+			"name": %s, 
+			"labels": %s, 
+			"origin": %s, 
+			"value": %d, 
+			"ts": %d}`,
+				cm.Name, cm.Labels, cm.HpaOrigin, cm.Value, cm.Timestamp)
+			log.Infof("updated cm is: %#v", cm)
+		}
+
+	}
+	_, err = c.Client.ConfigMaps(namespace).Update(configMap)
+	if err != nil {
+		log.Infof("Could not update because: %s", err)
+		return err
+	}
+	return nil
 }
 
 func (c *APIClient) createConfigMapHPA() error {
@@ -242,6 +283,10 @@ func (c *APIClient) removeEntryFromConfigMap(deleted []*v2beta1.HorizontalPodAut
 			delete(cm.Data, cm.Data[d.Name]) // FIXME
 		}
 	}
+	_, err = c.Client.ConfigMaps(namespace).Update(cm)
+	if err != nil {
+		log.Infof("Could not update because: %s", err) // FIXME
+	}
 	return nil
 	// Remove entry from ConfigMap
 }
@@ -268,4 +313,3 @@ func (c *APIClient) ReadConfigMap() []CustomExternalMetric {
 // That the metrics in the CM are validated in Datadog (so we can query DD and put the value directly).
 
 // Distinguish the custom metrics and external metrics.
-// Hit Datadog to refresh configmap
