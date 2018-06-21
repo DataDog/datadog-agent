@@ -214,6 +214,7 @@ func init() {
 	Datadog.SetDefault("cluster_agent.auth_token", "")
 	Datadog.SetDefault("cluster_agent.url", "")
 	Datadog.SetDefault("cluster_agent.kubernetes_service_name", "dca")
+	Datadog.BindEnv("enable_hpa")
 
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected

@@ -169,6 +169,11 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
+	// HPA Process
+	if config.Datadog.GetBool("enable_hpa") {
+		asc.HPAWatcher()
+	}
+
 	// Start the k8s custom metrics server This is a blocking call - We don;t go beyond, therefore the stop channel is never listening.
 	err = custommetrics.ValidateArgs(args)
 	if err != nil {
@@ -179,6 +184,7 @@ func start(cmd *cobra.Command, args []string) error {
 			log.Errorf("Could not start the custom metrics API server: %s", err.Error())
 		}
 	}
+
 	// Block here until we receive the interrupt signal
 	<-signalCh
 

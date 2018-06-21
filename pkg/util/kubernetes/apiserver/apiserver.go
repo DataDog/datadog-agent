@@ -15,16 +15,16 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8s "k8s.io/client-go/kubernetes"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var (
@@ -50,8 +50,9 @@ type APIClient struct {
 	// used to setup the APIClient
 	initRetry retry.Retrier
 
-	Client  *corev1.CoreV1Client
-	timeout time.Duration
+	ClientSet *k8s.Clientset
+	Client    *corev1.CoreV1Client
+	timeout   time.Duration
 }
 
 // GetAPIClient returns the shared ApiClient instance.
@@ -77,8 +78,22 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
-// getClient returns an official Kubernetes core v1 client
-func getClient() (*corev1.CoreV1Client, error) {
+// getClientSet returns the generic kubernetes client set
+func getClientSet() (*k8s.Clientset, error) {
+	k8sConfig, err := getK8sConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	clientSet, err := k8s.NewForConfig(k8sConfig)
+	if err != nil {
+		log.Debugf("Could not create the ClientSet: %s", err)
+		return nil, err
+	}
+	return clientSet, nil
+}
+
+func getK8sConfig() (*rest.Config, error) {
 	var k8sConfig *rest.Config
 	var err error
 
@@ -98,7 +113,18 @@ func getClient() (*corev1.CoreV1Client, error) {
 		}
 	}
 	k8sConfig.Timeout = 2 * time.Second
+
+	return k8sConfig, nil
+}
+
+// getClient returns an official Kubernetes core v1 client
+func getClient() (*corev1.CoreV1Client, error) {
+	k8sConfig, err := getK8sConfig()
+	if err != nil {
+		return nil, err
+	}
 	coreClient, err := corev1.NewForConfig(k8sConfig)
+
 	return coreClient, err
 }
 
@@ -111,7 +137,6 @@ func (c *APIClient) connect() error {
 			return err
 		}
 	}
-
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.Client.RESTClient().APIVersion()
 	if APIversion.Empty() {
@@ -124,6 +149,15 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	log.Debug("Could successfully collect Pods, Nodes, Services and Events")
+
+	hpaEnabled := config.Datadog.GetBool("enable_hpa")
+	if c.ClientSet == nil && hpaEnabled {
+		c.ClientSet, err = getClientSet()
+		if err != nil {
+			// We do not return an error as the HPA is an option that should not prevent the DCA to work.
+			log.Errorf("Not able to set up a client for horizontal pod autoscaling: %s", err)
+		}
+	}
 	return nil
 }
 
