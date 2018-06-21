@@ -978,19 +978,6 @@ deploy_puppy:
     - export VERSION=$(inv version --url-safe)
     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# invalidate cloudfront cache
-deploy_cloudfront_invalidate:
-  stage: deploy_invalidate
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:v426101-b6c2713
-  only:
-    - master
-    - tags
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - cd /deploy_scripts/cloudfront-invalidation
-    - "REPO=apt ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
-    - "REPO=yum ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
-
 tag_push_agent:
   <<: *docker_tag_job_definition
   stage: deploy
@@ -1093,6 +1080,19 @@ latest_dsd_push:
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd
 
+
+# invalidate cloudfront cache
+deploy_cloudfront_invalidate:
+  stage: deploy_invalidate
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  only:
+    - master
+    - tags
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd /deploy_scripts/cloudfront-invalidation
+    - "REPO=apt PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=yum PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 
 #
 # end to end
