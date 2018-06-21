@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"encoding/json"
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -113,15 +112,18 @@ func (c *APIClient) HPAWatcher() {
 		for {
 			select {
 			case <-tickerHPAWatchProcess.C:
-				new, modified, deleted, res, err := c.hpaWatcher(resversion)
+				newHPA, modified, deleted, res, err := c.hpaWatcher(resversion)
 				if err != nil {
 					return
 				}
 				if res != resversion && res != "" {
-					log.Infof("res is now %s and resversion is %s", res, resversion)
+					log.Infof("res is now %s and resversion is %s", res, resversion) // Investigate this
 					resversion = res
-					if len(new) > 0 || len(modified) > 0 {
-						c.storeHPA(new, modified)
+					if len(newHPA) > 0 {
+						c.storeHPA(newHPA)
+					}
+					if len(modified) > 0 {
+						c.storeHPA(modified)
 					}
 					if len(deleted) > 0 {
 						c.removeEntryFromConfigMap(deleted)
@@ -139,26 +141,37 @@ func (c *APIClient) updateCustomMetrics() error {
 	log.Infof("updating CM in the datadog-hpa")
 	namespace := GetResourcesNamespace()
 	configMap, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
-	if err == nil {
-		log.Infof("Retrieving the Config Map %s", datadogHPAConfigMap)
+	if err != nil {
+		log.Infof("Error while retrieving the Config Map %s", datadogHPAConfigMap)
 		return nil
 	}
+	log.Infof("Retrieving the Config Map %s", datadogHPAConfigMap)
 	data := configMap.Data
 	log.Infof("we got: %#v", data)
+	log.Infof("metanow is %#v", metav1.Now().Unix())
 	for name, d := range data {
 		cm := &CustomExternalMetric{}
+
 		json.Unmarshal([]byte(d), &cm)
-		if cm.Timestamp-metav1.Now().Unix() > 60 { // Configurable expire ?
+		log.Infof("cm is %#v", cm)
+		log.Infof("ts is %#v", cm.Timestamp)
+
+		if metav1.Now().Unix()-cm.Timestamp > 60 { // Configurable expire ?
 			log.Infof("name: %#v and data %#v has expired", name, d) //REMOVE
 			cm.Timestamp = metav1.Now().Unix()
-			cm.Value, _ = QueryDatadogExtra(name, cm.Labels) // check err && can we use cm.Name
-			data[name] = fmt.Sprintf(`{
-			"name": %s, 
-			"labels": %s, 
-			"origin": %s, 
-			"value": %d, 
-			"ts": %d}`,
-				cm.Name, cm.Labels, cm.HpaOrigin, cm.Value, cm.Timestamp)
+			cm.Value, err = QueryDatadogExtra(cm.Name, cm.Labels) // check err && can we use cm.Name
+			log.Infof("cm after update is %#v", cm)
+
+			if err != nil {
+				log.Infof("err querying DD %s", err)
+				continue
+			}
+			c, err := json.Marshal(cm)
+			if err != nil {
+				log.Infof("err marshalling %s", err)
+			}
+			data[cm.Name] = string(c)
+
 			log.Infof("updated cm is: %#v", cm)
 		}
 
@@ -174,11 +187,12 @@ func (c *APIClient) updateCustomMetrics() error {
 func (c *APIClient) createConfigMapHPA() error {
 	namespace := GetResourcesNamespace()
 	_, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	// There is an error if it does not exist so we attempt to create it. FIXME distinguish RBAC error
 	if err == nil {
 		log.Infof("Retrieving the Config Map %s", datadogHPAConfigMap)
 		return nil
 	}
-	log.Infof("Could not get the Config Map to run the HPA, creating it: %s", err.Error())
+	log.Infof("Could not get the Config Map to run the HPA, trying to create it: %s", err.Error())
 	_, err = c.Client.ConfigMaps(namespace).Create(&v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "ConfigMap",
@@ -187,7 +201,7 @@ func (c *APIClient) createConfigMapHPA() error {
 			Name:      datadogHPAConfigMap,
 			Namespace: namespace,
 		},
-		Data: map[string]string{},
+		Data: make(map[string]string), // Confirm this works
 	})
 	return err
 
@@ -202,17 +216,18 @@ func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric 
 			cm.Timestamp = metav1.Now().Unix()
 			cm.Labels = m.External.MetricSelector.MatchLabels
 			cm.HpaOrigin = e.Name
-			err := validateMetric(cm)
+			err := cm.validateMetric()
 			if err != nil {
 				continue
 			}
+			log.Infof("Finished processing %#v", cm)
 			cmList = append(cmList, cm)
 		}
 	}
 	return cmList
 }
 
-func validateMetric(cm CustomExternalMetric) error {
+func (cm *CustomExternalMetric) validateMetric() error {
 	var err error
 	cm.Value, err = QueryDatadogExtra(cm.Name, cm.Labels)
 	if err != nil {
@@ -222,9 +237,8 @@ func validateMetric(cm CustomExternalMetric) error {
 	return nil
 }
 
-func (c *APIClient) storeHPA(new []*v2beta1.HorizontalPodAutoscaler, modified []*v2beta1.HorizontalPodAutoscaler) error {
-	newCustomMetrics := processHPA(new)
-	modifiedCustomMetrics := processHPA(modified)
+func (c *APIClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) error {
+	listCustomMetrics := processHPA(hpaList)
 
 	namespace := GetResourcesNamespace()
 	cm, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
@@ -232,37 +246,20 @@ func (c *APIClient) storeHPA(new []*v2beta1.HorizontalPodAutoscaler, modified []
 		log.Errorf("Could not store the custom metrics data in the ConfiogMap %s: %s", datadogHPAConfigMap, err.Error())
 		return err
 	}
-	// Reduce to 1 loop agnotic of the metrics
-	for _, n := range newCustomMetrics {
-		customMetricData := fmt.Sprintf(`{
-		"name": %s, 
-		"labels": %s, 
-		"origin": %s, 
-		"value": %d, 
-		"ts": %d}`,
-			n.Name, n.Labels, n.HpaOrigin, n.Value, n.Timestamp)
-		log.Infof("adding %#v", n)
-		cm.Data[n.Name] = customMetricData
-		//cm.Data = append(cm.Data,customMetricData)
-		//_, err = c.Client.ConfigMaps(namespace).Update(cm)
-		//if err != nil {
-		//	log.Infof("err: %s", err)
-		//}
+	for _, n := range listCustomMetrics {
+		newMetric := &CustomExternalMetric{
+			Name:      n.Name,
+			Labels:    n.Labels,
+			HpaOrigin: n.HpaOrigin,
+			Value:     n.Value,
+			Timestamp: n.Timestamp,
+		}
+		toStore, _ := json.Marshal(newMetric)
+
+		log.Infof("adding %#v, storing %#v", n, toStore)
+		cm.Data[n.Name] = string(toStore)
 	}
-	for _, m := range modifiedCustomMetrics {
-		customMetricData := fmt.Sprintf(`{
-		"name": %s,
-		"labels": %s, 
-		"origin": %s, 
-		"value": %d, 
-		"ts": %d}`,
-			m.Name, m.Labels, m.HpaOrigin, m.Timestamp)
-		cm.Data[m.Name] = customMetricData
-		//_, err = c.Client.ConfigMaps(namespace).Update(cm)
-		//if err != nil {
-		//	log.Infof("err: %s", err)
-		//}
-	}
+
 	_, err = c.Client.ConfigMaps(namespace).Update(cm)
 	if err != nil {
 		log.Infof("Could not update because: %s", err)
@@ -304,6 +301,7 @@ func (c *APIClient) ReadConfigMap() []CustomExternalMetric {
 	for _, d := range data {
 		cm := &CustomExternalMetric{}
 		json.Unmarshal([]byte(d), &cm)
+		log.Infof("Appending cm %#v, *cm %#v to list %#v", cm, *cm, list)
 		list = append(list, *cm)
 	}
 	return list

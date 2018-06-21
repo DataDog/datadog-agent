@@ -1,6 +1,7 @@
 package apiserver
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,9 @@ import (
 )
 
 func QueryDatadogExtra(metricName string, tags map[string]string) (int64, error) {
+	if metricName == "" || len(tags) == 0 {
+		return 0, errors.New("invalid metric to query")
+	}
 	client := datadog.NewClient(agentconfig.Datadog.GetString("api_key"), agentconfig.Datadog.GetString("app_key"))
 	datadogTags := []string{}
 	log.Infof("tags are %#v", tags)
@@ -30,7 +34,6 @@ func QueryDatadogExtra(metricName string, tags map[string]string) (int64, error)
 		return 0, fmt.Errorf("Error while executing metric query %s: %s", query, err)
 	}
 	log.Infof("evaluating %s", query)
-	log.Infof("collected %s", seriesSlice)
 
 	if len(seriesSlice) < 1 {
 		return 0, fmt.Errorf("Returned series slice empty")
@@ -40,7 +43,7 @@ func QueryDatadogExtra(metricName string, tags map[string]string) (int64, error)
 	if len(seriesSlice[0].Points) < 1 {
 		return 0, fmt.Errorf("No points in series")
 	}
-
+	log.Infof("About to return %#v converted to int64 %#v", points[len(points)-1][1], int64(points[len(points)-1][1]))
 	lastValue := int64(points[len(points)-1][1])
 	return lastValue, nil
 }

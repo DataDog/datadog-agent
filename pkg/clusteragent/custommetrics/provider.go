@@ -363,9 +363,9 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 
 func (p *datadogProvider) GetExternalMetric(namespace string, metricName string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
-
+	log.Infof("Asked to provide %#v with the selectors %#v", metricName, metricSelector)
 	for _, metric := range p.externalMetrics {
-		//value, _ := p.getDatadogMetric(metricName, metric.info.Labels)
+
 		metricFromDatadog := external_metrics.ExternalMetricValue{
 			MetricName:   metricName,
 			MetricLabels: metric.info.Labels,
