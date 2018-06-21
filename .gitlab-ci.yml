@@ -1082,6 +1082,7 @@ deploy_cloudfront_invalidate:
   only:
     - master
     - tags
+    - arbll/overwrite-cf-invalidation-before-script
   tags: [ "runner:main", "size:large" ]
   script:
     - cd /deploy_scripts/cloudfront-invalidation
