@@ -136,7 +136,7 @@ api_key:
 # secret_backend_command to fetch an already known secret (useful when combine
 # with Autodiscovery). This feature is still in beta.
 #
-# For more information see: http://<some doc URL>
+# For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
 #
 # Path to the script to execute. The script must belong to the same user used
 # to run the agent. Executable right must be given to the agent and no rights
