@@ -41,10 +41,14 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION: nightly
 
+
+# Default before_script for all the jobs. If you create a new job and don't want this to execute
+# you NEED to overwrite it.
 before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
   # GOPATH to the project folder would be too complex (we'd need to replicate the `src/github/project` scheme).
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
+  - echo running default before_script
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
   - pip install -U pip
@@ -1077,6 +1081,8 @@ latest_dsd_push:
 deploy_cloudfront_invalidate:
   stage: deploy_invalidate
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
     - tags
