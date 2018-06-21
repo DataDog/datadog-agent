@@ -129,7 +129,12 @@ func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 				log.Error(err)
 				continue
 			}
-			CompileProcessingRules(config.ProcessingRules)
+			err := CompileProcessingRules(config.ProcessingRules)
+			if err != nil {
+				source.Status.Error(err)
+				log.Errorf("invalid processing rules %s", err)
+				continue
+			}
 		}
 	}
 
@@ -226,17 +231,30 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 }
 
 // CompileProcessingRules compiles all processing rules regular expression
-func CompileProcessingRules(rules []LogsProcessingRule) {
+func CompileProcessingRules(rules []LogsProcessingRule) error {
 	for i, rule := range rules {
+		if rule.Pattern == "" {
+			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+		}
+		re, err := regexp.Compile(rule.Pattern)
+		if err != nil {
+			return err
+		}
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch:
-			rules[i].Reg = regexp.MustCompile(rule.Pattern)
+			rules[i].Reg = re
 		case MaskSequences:
-			rules[i].Reg = regexp.MustCompile(rule.Pattern)
+			rules[i].Reg = re
 			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
 		case MultiLine:
-			rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
+			rules[i].Reg, err = regexp.Compile("^" + rule.Pattern)
+			if err != nil {
+				return err
+			}
 		default:
+			return fmt.Errorf("invalid type for rule %s: %s", rule.Name, rule.Type)
 		}
+
 	}
+	return nil
 }
