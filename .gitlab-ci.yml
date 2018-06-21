@@ -1077,6 +1077,8 @@ latest_dsd_push:
 deploy_cloudfront_invalidate:
   stage: deploy_invalidate
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
     - tags
