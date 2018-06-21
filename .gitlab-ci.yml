@@ -9,6 +9,7 @@ stages:
   - image_build
   - image_deploy
   - deploy
+  - deploy_invalidate
   - e2e
 
 variables:
@@ -50,11 +51,9 @@ before_script:
   - inv -e deps
 
 
-
 #
 # source_test
 #
-
 
 # run tests for deb-x64
 run_tests_deb-x64:
@@ -1073,6 +1072,19 @@ latest_dsd_push:
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd
 
+
+# invalidate cloudfront cache
+deploy_cloudfront_invalidate:
+  stage: deploy_invalidate
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  only:
+    - master
+    - tags
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd /deploy_scripts/cloudfront-invalidation
+    - "REPO=apt PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=yum PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 
 #
 # end to end
