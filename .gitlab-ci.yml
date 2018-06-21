@@ -922,8 +922,8 @@ tag_release:
   <<: *docker_tag_job_definition
   stage: deploy
   when: manual
-  only:
-    - tags
+  #only:
+  #  - tags
   variables:
     <<: *docker_hub_variables
   script:
@@ -935,8 +935,8 @@ latest_release:
   <<: *docker_tag_job_definition
   stage: deploy
   when: manual
-  only:
-    - tags
+  #only:
+  #  - tags
   variables:
     <<: *docker_hub_variables
   script:
