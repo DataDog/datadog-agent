@@ -642,7 +642,7 @@ testkitchen_cleanup_azure:
 # image_build
 #
 
-.docker_job_definition: &docker_job_definition
+.docker_build_job_definition: &docker_build_job_definition
   stage: image_build
   tags: [ "runner:main", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
@@ -661,14 +661,14 @@ testkitchen_cleanup_azure:
 
 # build the agent6 image
 build_agent6:
-  <<: *docker_job_definition
+  <<: *docker_build_job_definition
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
 
 # build the agent6 jmx image
 build_agent6_jmx:
-  <<: *docker_job_definition
+  <<: *docker_build_job_definition
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -677,20 +677,20 @@ build_agent6_jmx:
 
 # build the cluster-agent image
 build_cluster_agent:
-  <<: *docker_job_definition
+  <<: *docker_build_job_definition
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
 
 # build the dogstatsd image
 build_dogstatsd:
-  <<: *docker_job_definition
+  <<: *docker_build_job_definition
   variables:
     IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
 
 #
-# image_deploy
+# Docker dev image deployments
 #
 
 .docker_tag_job_definition: &docker_tag_job_definition
@@ -699,149 +699,84 @@ build_dogstatsd:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
   services:
     - 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
-  before_script: [ "# noop" ] # Override top level entry
-  dependencies: [] # Don't download Gitlab artefacts
-  script:
+  before_script:
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - TAG_SUFFIX=${TAG_SUFFIX:-}
-    - LATEST_TAG=${LATEST_TAG:-latest}
-    - docker pull $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
-    - docker tag $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $DEST_IMAGE:$LATEST_TAG$TAG_SUFFIX
-    - docker push $DEST_IMAGE:$LATEST_TAG$TAG_SUFFIX
+    - pip install invoke
+  dependencies: [] # Don't download Gitlab artefacts
 
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
+  SRC_AGENT: *agent_ecr
+  SRC_DSD: *dogstatsd_ecr
+  SRC_DCA: *cluster-agent_ecr
 
 .quay_variables: &quay_variables
+  <<: *docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: quay_login
   DOCKER_REGISTRY_PWD_SSM_KEY: quay_pwd
   DOCKER_REGISTRY_URL: quay.io
 
-agent6_dev_docker_hub:
+dev_branch_docker_hub:
   <<: *docker_tag_job_definition
   when: manual
   except:
     - master
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
-agent6_jmx_dev_docker_hub:
+dev_master_docker_hub:
+  <<: *docker_tag_job_definition
+  only:
+    - master
+  variables:
+    <<: *docker_hub_variables
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
+
+dca_dev_branch_docker_hub:
   <<: *docker_tag_job_definition
   when: manual
   except:
     - master
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-    TAG_SUFFIX: -jmx
+  script:
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
-agent6_dev_docker_hub_master:
+dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
   only:
     - master
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-agent6_jmx_dev_docker_hub_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-    TAG_SUFFIX: -jmx
-
-cluster_agent_dev_docker_hub:
-  <<: *docker_tag_job_definition
-  when: manual
-  except:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *cluster-agent_ecr
-    DEST_IMAGE: datadog/cluster-agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-cluster_agent_dev_docker_hub_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *cluster-agent_ecr
-    DEST_IMAGE: datadog/cluster-agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-dogstatsd_dev_docker_hub:
-  <<: *docker_tag_job_definition
-  when: manual
-  except:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: datadog/dogstatsd-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-dogstatsd_dev_docker_hub_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: datadog/dogstatsd-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
+  script:
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
 
 # deploys to quay
 # docker images are mirrored on quay.io
 # to run security scans on them
-agent6_dev_quay_master:
+dev_master_quay:
   <<: *docker_tag_job_definition
   only:
     - master
   variables:
     <<: *quay_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: quay.io/datawhale/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-agent6_jmx_dev_quay_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *quay_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: quay.io/datawhale/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-    TAG_SUFFIX: -jmx
-
-dogstatsd_dev_quay_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *quay_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: quay.io/datawhale/dogstatsd-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} quay.io/datawhale/agent-dev:master
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx quay.io/datawhale/agent-dev:master-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
 
 #
 # deploy
@@ -982,7 +917,11 @@ deploy_puppy:
     - export VERSION=$(inv version --url-safe)
     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-tag_push_agent:
+#
+# Docker releases
+#
+
+tag_release:
   <<: *docker_tag_job_definition
   stage: deploy
   when: manual
@@ -990,11 +929,12 @@ tag_push_agent:
     - tags
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent
-    LATEST_TAG: $CI_COMMIT_TAG
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_TAG}
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_TAG}-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_TAG}
 
-tag_jmx_push_agent:
+latest_release:
   <<: *docker_tag_job_definition
   stage: deploy
   when: manual
@@ -1002,12 +942,12 @@ tag_jmx_push_agent:
     - tags
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent
-    LATEST_TAG: $CI_COMMIT_TAG
-    TAG_SUFFIX: -jmx
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:latest
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:latest-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:latest
 
-latest_push_agent:
+dca_tag_release:
   <<: *docker_tag_job_definition
   stage: deploy
   when: manual
@@ -1015,10 +955,11 @@ latest_push_agent:
     - tags
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent
+  script:
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_TAG}
 
-latest_jmx_push_agent:
+
+dca_latest_release:
   <<: *docker_tag_job_definition
   stage: deploy
   when: manual
@@ -1026,56 +967,8 @@ latest_jmx_push_agent:
     - tags
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent
-    TAG_SUFFIX: -jmx
-
-tag_push_cluster_agent:
-  <<: *docker_tag_job_definition
-  stage: deploy
-  when: manual
-  only:
-    - tags
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *cluster-agent_ecr
-    DEST_IMAGE: datadog/cluster-agent
-    LATEST_TAG: $CI_COMMIT_TAG
-
-latest_push_cluster_agent:
-  <<: *docker_tag_job_definition
-  stage: deploy
-  when: manual
-  only:
-    - tags
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *cluster-agent_ecr
-    DEST_IMAGE: datadog/cluster-agent
-
-tag_dsd_push:
-  <<: *docker_tag_job_definition
-  stage: deploy
-  when: manual
-  only:
-    - tags
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: datadog/dogstatsd
-    LATEST_TAG: $CI_COMMIT_TAG
-
-latest_dsd_push:
-  <<: *docker_tag_job_definition
-  stage: deploy
-  when: manual
-  only:
-    - tags
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: datadog/dogstatsd
-
+  script:
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:latest
 
 # invalidate cloudfront cache
 deploy_cloudfront_invalidate:
