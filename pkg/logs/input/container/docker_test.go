@@ -38,11 +38,11 @@ func (suite *DockerTailerTestSuite) TestDockerTailerRemovesDate() {
 		msg = append(msg, msgMeta[i])
 	}
 	msg = append(msg, []byte("2007-01-12T01:01:01.000000000Z my message")...)
-	ts, status, msg, err := parser.ParseMessage(msg)
+	dockerMsg, err := parser.ParseMessage(msg)
 	suite.Nil(err)
-	suite.Equal("my message", string(msg))
-	suite.Equal(message.StatusInfo, status)
-	suite.Equal("2007-01-12T01:01:01.000000000Z", ts)
+	suite.Equal("my message", string(dockerMsg.Content))
+	suite.Equal(message.StatusInfo, dockerMsg.Status)
+	suite.Equal("2007-01-12T01:01:01.000000000Z", dockerMsg.Timestamp)
 
 	msgMeta[0] = 2
 	msg = []byte{}
@@ -50,11 +50,11 @@ func (suite *DockerTailerTestSuite) TestDockerTailerRemovesDate() {
 		msg = append(msg, msgMeta[i])
 	}
 	msg = append(msg, []byte("2008-01-12T01:01:01.000000000Z my error")...)
-	ts, status, msg, err = parser.ParseMessage(msg)
+	dockerMsg, err = parser.ParseMessage(msg)
 	suite.Nil(err)
-	suite.Equal("my error", string(msg))
-	suite.Equal(message.StatusError, status)
-	suite.Equal("2008-01-12T01:01:01.000000000Z", ts)
+	suite.Equal("my error", string(dockerMsg.Content))
+	suite.Equal(message.StatusError, dockerMsg.Status)
+	suite.Equal("2008-01-12T01:01:01.000000000Z", dockerMsg.Timestamp)
 }
 
 func (suite *DockerTailerTestSuite) TestDockerTailerNextLogSinceDate() {

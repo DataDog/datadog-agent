@@ -12,10 +12,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+// Message represents a docker message
+type Message struct {
+	Content   []byte
+	Status    string
+	Timestamp string
+}
+
 // Length of the docker message header.
 // See https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs:
 // [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
-const messageHeaderLength = 8
+const dockerHeaderLength = 8
 
 // Docker splits logs that are larger than 16Kb
 // https://github.com/moby/moby/blob/master/daemon/logger/copier.go#L19-L22
@@ -23,13 +30,13 @@ const dockerBufferSize = 16 * 1024
 
 // ParseMessage extracts the date and the status from the raw docker message
 // see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func ParseMessage(msg []byte) (string, string, []byte, error) {
+func ParseMessage(msg []byte) (Message, error) {
 
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
-	if len(msg) < messageHeaderLength {
-		return "", "", nil, errors.New("Can't parse docker message: expected a 8 bytes header")
+	if len(msg) < dockerHeaderLength {
+		return Message{}, errors.New("Can't parse docker message: expected a 8 bytes header")
 	}
 
 	// remove partial headers that are added by docker when the message gets too long.
@@ -44,13 +51,17 @@ func ParseMessage(msg []byte) (string, string, []byte, error) {
 	}
 
 	// timestamp goes from byte 8 till first space
-	to := GetHeaderLength(msg) - 1
-	if to == -1 {
-		return "", "", nil, errors.New("Can't parse docker message: expected a whitespace after header")
+	headerLen := GetHeaderLength(msg)
+	if headerLen == 0 {
+		return Message{}, errors.New("Can't parse docker message: expected a whitespace after header")
 	}
-	ts := string(msg[messageHeaderLength:to])
+	timestamp := string(msg[dockerHeaderLength : headerLen-1])
 
-	return ts, status, msg[to+1:], nil
+	return Message{
+		Content:   msg[headerLen:],
+		Status:    status,
+		Timestamp: timestamp,
+	}, nil
 }
 
 // removePartialHeaders removes the 8 byte header, timestamp, and space that occurs between 16Kb section of a log.
@@ -67,7 +78,7 @@ func removePartialHeaders(msgToClean []byte) []byte {
 	start := 0
 	end := min(len(msgToClean), dockerBufferSize+headerLen)
 
-	for end > 0 {
+	for end > 0 && headerLen > 0 {
 		msg = append(msg, msgToClean[start:end]...)
 		msgToClean = msgToClean[end:]
 		headerLen = GetHeaderLength(msgToClean)
@@ -81,14 +92,14 @@ func removePartialHeaders(msgToClean []byte) []byte {
 // GetHeaderLength returns the length of the 8 bytes header, timestamp, and space
 // that is in front of each message.
 func GetHeaderLength(msg []byte) int {
-	if len(msg) < messageHeaderLength {
+	if len(msg) < dockerHeaderLength {
 		return 0
 	}
-	idx := bytes.Index(msg[messageHeaderLength:], []byte{' '})
+	idx := bytes.Index(msg[dockerHeaderLength:], []byte{' '})
 	if idx == -1 {
 		return 0
 	}
-	return messageHeaderLength + idx + 1
+	return dockerHeaderLength + idx + 1
 }
 
 // min returns the minimum value between a and b.
