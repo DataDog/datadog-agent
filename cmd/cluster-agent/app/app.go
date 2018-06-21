@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
 )
@@ -171,7 +172,8 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// HPA Process
 	if config.Datadog.GetBool("enable_hpa") {
-		asc.HPAWatcher()
+		hpaClient := hpa.GetHPAWatcherClient()
+		hpaClient.HPAWatcher()
 	}
 
 	// Start the k8s custom metrics server This is a blocking call - We don;t go beyond, therefore the stop channel is never listening.

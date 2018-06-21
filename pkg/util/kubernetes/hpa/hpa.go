@@ -5,13 +5,15 @@
 
 // +build kubeapiserver
 
-package apiserver
+package hpa
 
 import (
 	"k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"encoding/json"
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -22,9 +24,6 @@ import (
 //// Covered by test/integration/util/kube_apiserver/hpa_test.go
 
 var (
-	hpaReadTimeout  = 100 * time.Millisecond
-	hpaPollItl      = 10 * time.Second
-	hpaRefreshItl   = 20 * time.Second
 	expectedHPAType = reflect.TypeOf(v2beta1.HorizontalPodAutoscaler{})
 )
 
@@ -40,11 +39,18 @@ type CustomExternalMetric struct {
 	Value     int64             `json:"value"`
 }
 
-func (c *APIClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodAutoscaler, modified []*v2beta1.HorizontalPodAutoscaler, deleted []*v2beta1.HorizontalPodAutoscaler, resVer string, err error) {
+type HPAWatcherClient struct {
+	apiClient      *as.APIClient
+	hpaReadTimeout time.Duration
+	hpaRefreshItl  time.Duration
+	hpaPollItl     time.Duration
+}
 
-	apiclient, err := GetAPIClient()
+func (c *HPAWatcherClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodAutoscaler, modified []*v2beta1.HorizontalPodAutoscaler, deleted []*v2beta1.HorizontalPodAutoscaler, resVer string, err error) {
+
+	apiclient, err := as.GetAPIClient()
 	if err != nil {
-		log.Errorf("Error creating Client for the HPA: %s", err.Error())
+
 		return nil, nil, nil, "0", err
 	}
 
@@ -57,7 +63,7 @@ func (c *APIClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodAutoscal
 	}
 	defer hpaWatcher.Stop()
 
-	watcherTimeout := time.NewTimer(hpaReadTimeout)
+	watcherTimeout := time.NewTimer(c.hpaReadTimeout)
 	for {
 		select {
 		case rcvdHPA, ok := <-hpaWatcher.ResultChan():
@@ -89,18 +95,35 @@ func (c *APIClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodAutoscal
 				deleted = append(deleted, currHPA)
 			}
 
-			watcherTimeout.Reset(hpaReadTimeout)
+			watcherTimeout.Reset(c.hpaReadTimeout)
 		case <-watcherTimeout.C:
 			return new, modified, deleted, resVer, nil
 		}
 	}
 }
 
+func newHPAWatcher() *HPAWatcherClient {
+	clientAPI, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("Error creating Client for the HPA: %s", err.Error())
+		return nil
+	}
+	return &HPAWatcherClient{
+		apiClient:      clientAPI,
+		hpaReadTimeout: 100 * time.Millisecond,
+		hpaPollItl:     10 * time.Second,
+		hpaRefreshItl:  20 * time.Second,
+	}
+}
+func GetHPAWatcherClient() *HPAWatcherClient {
+	return newHPAWatcher()
+}
+
 // HPAWatcher is ...
-func (c *APIClient) HPAWatcher() {
+func (c *HPAWatcherClient) HPAWatcher() {
 	log.Info("Starting HPA Process ...") // REMOVE
-	tickerHPAWatchProcess := time.NewTicker(hpaPollItl)
-	tickerHPARefreshProcess := time.NewTicker(hpaRefreshItl)
+	tickerHPAWatchProcess := time.NewTicker(c.hpaPollItl)
+	tickerHPARefreshProcess := time.NewTicker(c.hpaRefreshItl)
 
 	var resversion string
 	err := c.createConfigMapHPA()
@@ -108,10 +131,18 @@ func (c *APIClient) HPAWatcher() {
 		log.Errorf("Could not create the ConfigMap %s to run the HPA process, stopping it: %s", err.Error())
 		return
 	}
+
+	lengine, _ := leaderelection.GetLeaderEngine()
+	lengine.EnsureLeaderElectionRuns()
+
 	go func() {
 		for {
 			select {
+			//case <- // tick until leader.
 			case <-tickerHPAWatchProcess.C:
+				if !lengine.IsLeader() {
+					continue
+				}
 				newHPA, modified, deleted, res, err := c.hpaWatcher(resversion)
 				if err != nil {
 					return
@@ -131,16 +162,19 @@ func (c *APIClient) HPAWatcher() {
 				}
 			case <-tickerHPARefreshProcess.C:
 				// Update values in configmap
+				if !lengine.IsLeader() {
+					continue
+				}
 				c.updateCustomMetrics()
 			}
 		}
 	}()
 }
 
-func (c *APIClient) updateCustomMetrics() error {
+func (c *HPAWatcherClient) updateCustomMetrics() error {
 	log.Infof("updating CM in the datadog-hpa")
-	namespace := GetResourcesNamespace()
-	configMap, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	namespace := as.GetResourcesNamespace()
+	configMap, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Infof("Error while retrieving the Config Map %s", datadogHPAConfigMap)
 		return nil
@@ -176,7 +210,7 @@ func (c *APIClient) updateCustomMetrics() error {
 		}
 
 	}
-	_, err = c.Client.ConfigMaps(namespace).Update(configMap)
+	_, err = c.apiClient.Client.ConfigMaps(namespace).Update(configMap)
 	if err != nil {
 		log.Infof("Could not update because: %s", err)
 		return err
@@ -184,16 +218,16 @@ func (c *APIClient) updateCustomMetrics() error {
 	return nil
 }
 
-func (c *APIClient) createConfigMapHPA() error {
-	namespace := GetResourcesNamespace()
-	_, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+func (c *HPAWatcherClient) createConfigMapHPA() error {
+	namespace := as.GetResourcesNamespace()
+	_, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	// There is an error if it does not exist so we attempt to create it. FIXME distinguish RBAC error
 	if err == nil {
 		log.Infof("Retrieving the Config Map %s", datadogHPAConfigMap)
 		return nil
 	}
 	log.Infof("Could not get the Config Map to run the HPA, trying to create it: %s", err.Error())
-	_, err = c.Client.ConfigMaps(namespace).Create(&v1.ConfigMap{
+	_, err = c.apiClient.Client.ConfigMaps(namespace).Create(&v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "ConfigMap",
 		},
@@ -237,11 +271,11 @@ func (cm *CustomExternalMetric) validateMetric() error {
 	return nil
 }
 
-func (c *APIClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) error {
+func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) error {
 	listCustomMetrics := processHPA(hpaList)
 
-	namespace := GetResourcesNamespace()
-	cm, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	namespace := as.GetResourcesNamespace()
+	cm, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not store the custom metrics data in the ConfiogMap %s: %s", datadogHPAConfigMap, err.Error())
 		return err
@@ -260,39 +294,40 @@ func (c *APIClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) error {
 		cm.Data[n.Name] = string(toStore)
 	}
 
-	_, err = c.Client.ConfigMaps(namespace).Update(cm)
+	_, err = c.apiClient.Client.ConfigMaps(namespace).Update(cm)
 	if err != nil {
 		log.Infof("Could not update because: %s", err)
 	}
 	return nil
 }
 
-func (c *APIClient) removeEntryFromConfigMap(deleted []*v2beta1.HorizontalPodAutoscaler) error {
-	namespace := GetResourcesNamespace()
-	deletedCustomMetrics := processHPA(deleted)
-	cm, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+func (c *HPAWatcherClient) removeEntryFromConfigMap(deleted []*v2beta1.HorizontalPodAutoscaler) error {
+	// Remove entry from ConfigMap
+	namespace := as.GetResourcesNamespace()
+	cm, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not store the custom metrics data in the ConfiogMap %s: %s", datadogHPAConfigMap, err.Error())
 		return err
 	}
-	for _, d := range deletedCustomMetrics {
+
+	for _, d := range deleted {
 		if cm.Data[d.Name] != "" {
-			delete(cm.Data, cm.Data[d.Name]) // FIXME
+			delete(cm.Data, d.Name)
+			log.Debugf("Removed entry %#v from the Config Map %s", d.Name, datadogHPAConfigMap)
 		}
 	}
-	_, err = c.Client.ConfigMaps(namespace).Update(cm)
+	_, err = c.apiClient.Client.ConfigMaps(namespace).Update(cm)
 	if err != nil {
 		log.Infof("Could not update because: %s", err) // FIXME
 	}
 	return nil
-	// Remove entry from ConfigMap
 }
 
-func (c *APIClient) ReadConfigMap() []CustomExternalMetric {
+func (c *HPAWatcherClient) ReadConfigMap() []CustomExternalMetric {
 	// Call in provider, just read the metric keys
-	namespace := GetResourcesNamespace()
+	namespace := as.GetResourcesNamespace()
 	var list []CustomExternalMetric
-	cm, err := c.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	cm, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not store the custom metrics data in the ConfiogMap %s: %s", datadogHPAConfigMap, err.Error())
 		return nil
@@ -311,3 +346,5 @@ func (c *APIClient) ReadConfigMap() []CustomExternalMetric {
 // That the metrics in the CM are validated in Datadog (so we can query DD and put the value directly).
 
 // Distinguish the custom metrics and external metrics.
+
+// Verify logging if metric is incorrect.

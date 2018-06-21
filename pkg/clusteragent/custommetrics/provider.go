@@ -22,7 +22,7 @@ import (
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
 	datadogConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 )
 
 type metricsConfig struct {
@@ -318,25 +318,15 @@ func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
 	return nil
 }
 
+// ListAllExternalMetrics is called every 30 seconds, although this is configurable on the API Server's end.
 func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
-	log.Infof("listing all ext metrics")
-	//metrics, err := p.getMetrics()
-	cl, _ := apiserver.GetAPIClient()
+	cl := hpa.GetHPAWatcherClient()
 	rawMetrics := cl.ReadConfigMap()
 
 	externalMetricsInfo := []provider.ExternalMetricInfo{}
 	em := []externalMetric{}
 
-	//if err != nil {
-	//	for _, metric := range p.externalMetrics {
-	//		externalMetricsInfo = append(externalMetricsInfo, metric.info) // What is done in boilerplate.
-	//	}
-	//	log.Infof("err getMetricsName returning %q", externalMetricsInfo)
-	//	return externalMetricsInfo
-	//}
-
 	for _, metric := range rawMetrics {
-		//str := strings.Split(metric.Labels, ":")
 		var e externalMetric
 		e.info = provider.ExternalMetricInfo{
 			Metric: metric.Name,
@@ -351,7 +341,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 
 		externalMetricsInfo = append(externalMetricsInfo, provider.ExternalMetricInfo{
 			Metric: metric.Name,
-			Labels: metric.Labels, //map[string]string{str[0]:str[1]},
+			Labels: metric.Labels,
 		})
 
 	}
@@ -361,9 +351,12 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	return externalMetricsInfo
 }
 
+// GetExternalMetric is called every 30 seconds as a result of:
+// - The registering of the External Metrics Provider
+// - The creation of a HPA manifest with an External metrics type.
+// - The
 func (p *datadogProvider) GetExternalMetric(namespace string, metricName string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
-	log.Infof("Asked to provide %#v with the selectors %#v", metricName, metricSelector)
 	for _, metric := range p.externalMetrics {
 
 		metricFromDatadog := external_metrics.ExternalMetricValue{
@@ -377,9 +370,7 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricName string,
 			metricValue.Timestamp = metav1.Now()
 			matchingMetrics = append(matchingMetrics, metricValue)
 		}
-		log.Infof("getExternalMetrics currently evaluating %q", metric)
 	}
-	log.Infof("getExternalMetrics returning %q", matchingMetrics)
 	return &external_metrics.ExternalMetricValueList{
 		Items: matchingMetrics,
 	}, nil

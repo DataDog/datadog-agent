@@ -1,4 +1,4 @@
-package apiserver
+package hpa
 
 import (
 	"errors"
