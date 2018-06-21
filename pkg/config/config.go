@@ -302,6 +302,9 @@ func init() {
 	Datadog.BindEnv("cluster_agent.url")
 	Datadog.BindEnv("cluster_agent.auth_token")
 	Datadog.BindEnv("cluster_agent_cmd_port")
+	BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
+	BindEnvAndSetDefault("hpa_external_metrics_polling_freq", 30)
+
 
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")

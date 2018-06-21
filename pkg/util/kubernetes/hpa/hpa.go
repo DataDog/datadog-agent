@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"reflect"
 	"time"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 //// Covered by test/integration/util/kube_apiserver/hpa_test.go
@@ -108,39 +109,47 @@ func newHPAWatcher() *HPAWatcherClient {
 		log.Errorf("Error creating Client for the HPA: %s", err.Error())
 		return nil
 	}
+	hpaPollItl := config.Datadog.GetInt("hpa_watcher_polling_freq")
+	hpaRefreshItl := config.Datadog.GetInt("hpa_external_metrics_polling_freq")
 	return &HPAWatcherClient{
 		apiClient:      clientAPI,
 		hpaReadTimeout: 100 * time.Millisecond,
-		hpaPollItl:     10 * time.Second,
-		hpaRefreshItl:  20 * time.Second,
+		hpaPollItl:     time.Duration(hpaPollItl) * time.Second,
+		hpaRefreshItl:  time.Duration(hpaRefreshItl) * time.Second,
 	}
 }
+
 func GetHPAWatcherClient() *HPAWatcherClient {
 	return newHPAWatcher()
 }
 
-// HPAWatcher is ...
+// HPAWatcher runs a watch process of the various HPA objects' activities to process and store the relevant info.
+// Refreshes the custom metrics stored as well.
 func (c *HPAWatcherClient) HPAWatcher() {
-	log.Info("Starting HPA Process ...") // REMOVE
+	log.Info("Starting HPA Process ...")
 	tickerHPAWatchProcess := time.NewTicker(c.hpaPollItl)
 	tickerHPARefreshProcess := time.NewTicker(c.hpaRefreshItl)
 
 	var resversion string
 	err := c.createConfigMapHPA()
 	if err != nil {
-		log.Errorf("Could not create the ConfigMap %s to run the HPA process, stopping it: %s", err.Error())
+		log.Errorf("Could not create the ConfigMap %s to run the HPA process, stopping it: %s", datadogHPAConfigMap, err.Error())
 		return
 	}
 
-	lengine, _ := leaderelection.GetLeaderEngine()
-	lengine.EnsureLeaderElectionRuns()
+	leaderEngine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		log.Errorf("Could not ensure the leader election is running properly: %s", err)
+		return
+	}
+	leaderEngine.EnsureLeaderElectionRuns()
 
 	go func() {
 		for {
 			select {
-			//case <- // tick until leader.
+			// Ticker for the HPA Object watcher
 			case <-tickerHPAWatchProcess.C:
-				if !lengine.IsLeader() {
+				if !leaderEngine.IsLeader() {
 					continue
 				}
 				newHPA, modified, deleted, res, err := c.hpaWatcher(resversion)
@@ -148,7 +157,6 @@ func (c *HPAWatcherClient) HPAWatcher() {
 					return
 				}
 				if res != resversion && res != "" {
-					log.Infof("res is now %s and resversion is %s", res, resversion) // Investigate this
 					resversion = res
 					if len(newHPA) > 0 {
 						c.storeHPA(newHPA)
@@ -160,9 +168,9 @@ func (c *HPAWatcherClient) HPAWatcher() {
 						c.removeEntryFromConfigMap(deleted)
 					}
 				}
+			// Ticker to run the refresh process for the stored external metrics
 			case <-tickerHPARefreshProcess.C:
-				// Update values in configmap
-				if !lengine.IsLeader() {
+				if !leaderEngine.IsLeader() {
 					continue
 				}
 				c.updateCustomMetrics()
@@ -227,7 +235,8 @@ func (c *HPAWatcherClient) createConfigMapHPA() error {
 		return nil
 	}
 	log.Infof("Could not get the Config Map to run the HPA, trying to create it: %s", err.Error())
-	_, err = c.apiClient.Client.ConfigMaps(namespace).Create(&v1.ConfigMap{
+
+	cm := &v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "ConfigMap",
 		},
@@ -235,8 +244,11 @@ func (c *HPAWatcherClient) createConfigMapHPA() error {
 			Name:      datadogHPAConfigMap,
 			Namespace: namespace,
 		},
-		Data: make(map[string]string), // Confirm this works
-	})
+	}
+	cm.Data = make(map[string]string)
+
+	_, err = c.apiClient.Client.ConfigMaps(namespace).Create(cm)
+
 	return err
 
 }
@@ -289,8 +301,10 @@ func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) 
 			Timestamp: n.Timestamp,
 		}
 		toStore, _ := json.Marshal(newMetric)
-
-		log.Infof("adding %#v, storing %#v", n, toStore)
+		// Don't panic at init
+		if cm.Data == nil {
+			cm.Data = make(map[string]string)
+		}
 		cm.Data[n.Name] = string(toStore)
 	}
 
