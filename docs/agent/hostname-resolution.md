@@ -29,4 +29,3 @@ You are not affected if any of the following is true :
 
 - Upgrading from Agent v6 < 6.4 to Agent >= v6.4: If you wish to keep the behavior of Agent6, set `hostname_fqdn` to false.
 
-https://github.com/DataDog/datadog-agent/pull/1869
