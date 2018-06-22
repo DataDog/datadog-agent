@@ -192,7 +192,7 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     """
     Setup Go dependencies
     """
@@ -229,7 +229,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False):
     ctx.run("dep ensure{}".format(verbosity))
     # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
     # in because it's necessary on other platforms
-    if sys.platform == 'win32':
+    if not android and sys.platform == 'win32':
         print("Removing PSUTIL on Windows")
         ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
 
