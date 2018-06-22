@@ -11,8 +11,8 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 )
 
-// containerIDKey represents the key of the short identifier of a container in a journal entry.
-const containerIDKey = "CONTAINER_ID"
+// containerIDKey represents the key of the container identifier in a journal entry.
+const containerIDKey = "CONTAINER_ID_FULL"
 
 // isContainerEntry returns true if the entry comes from a docker container.
 func isContainerEntry(entry *sdjournal.JournalEntry) bool {
