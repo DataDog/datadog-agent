@@ -1,0 +1,25 @@
+/* Copyright 2015 The Go Authors. All rights reserved.
+ * Use of this source code is governed by a BSD-style
+ * license that can be found in the LICENSE file.
+ */
+
+plugins {
+    id "org.datadog.agent" version "0.2.11"
+}
+
+gobind {
+    /* The Go package path; must be under one of the GOPATH elements or
+     a relative to the current directory (e.g. ../../hello) */
+    //pkg = "golang.org/x/mobile/example/bind/hello"
+    pkg = "../app"
+
+    /* GOPATH where the Go package is; check `go env` */
+    GOPATH = "c:\\dev\\go"
+
+    /* Absolute path to the go binary */
+    GO = "c:\\devtools\\go\\bin"
+
+    /* Optionally, set the absolute path to the gomobile binary if the
+    /* gomobile binary is not located in the GOPATH's bin directory. */
+    // GOMOBILE = "/PATH/TO/GOMOBILE"
+}
