@@ -7,7 +7,7 @@
   * [Command line](#command-line)
     * [AWS development](#aws-development)
     * [Locally](#locally)
-- [Argo workflow](#argo)
+- [Argo workflow](#argo-workflow)
   * [argo assertion](#argo-assertion)
   * [argo container](#argo-container)
 - [Upgrade](#upgrade---bump)
@@ -18,9 +18,18 @@
 
 # How it works
 
-There are 2 main stages:
-* setup-instance
-* run-instance
+There are 3 main directories:
+- [argo-workflows](./argo-workflows)
+    Specification of the end to end testing
+
+- [containers](./containers) 
+    Custom container images needed within the workflows
+
+- [scripts](./scripts)
+    * setup-instance
+        Entrypoint and scripts dedicated for environments (locally, AWS dev, AWS gitlab)
+    * run-instance
+        Scripts executed in the argo-machine (locally, AWS instance)
 
 ## setup-instance
 
