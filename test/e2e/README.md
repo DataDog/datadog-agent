@@ -21,11 +21,11 @@ There are 2 main stages:
 
 ## setup-instance
 
-<img src="docs/run-instance.svg" width="350">
+<img src="docs/setup-instance.svg" width="350">
 
 ## run-instance
 
-<img src="docs/setup-instance.svg" width="350">
+<img src="docs/run-instance.svg" width="100">
 
 ## Command line
 
