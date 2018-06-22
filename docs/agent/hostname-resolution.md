@@ -21,11 +21,13 @@ You are not affected if any of the following is true :
 
 ## Recommended action
 
+If you're affected by this change, we recommend that you take the following action when you upgrade your Agent:
+
 - Upgrading from Agent v5 to Agent v < 6.3: Hardcode your hostname in the agent configuration.
 
 - Upgrading from Agent v5 to Agent v6.3: enable the `hostname_fqdn` option in the Agent v6 configuration to ensure that you will keep the same hostname.
 
 - Upgrading from Agent v5 to Agent v >= 6.4 (future): you don’t need to take any action.
 
-- Upgrading from Agent v6 < 6.4 to Agent >= v6.4: If you wish to keep the behavior of Agent6, set `hostname_fqdn` to false.
+- Upgrading from Agent v6 < 6.4 to Agent >= v6.4: If you wish to keep the behavior of Agent v6 (<6.4) for now, set hostname_fqdn to false. We recommend you switch hostname_fqdn to true whenever possible.
 
