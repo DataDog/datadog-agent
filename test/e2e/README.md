@@ -7,6 +7,9 @@
   * [Command line](#command-line)
     * [AWS development](#aws-development)
     * [Locally](#locally)
+- [Argo workflow](#argo)
+  * [argo assertion](#argo-assertion)
+  * [argo container](#argo-container)
 - [Upgrade](#upgrade---bump)
   * [Hyperkube](#bump-hyperkube-version)
   * [Pupernetes](#bump-pupernetes---bump-the-version-of-p8s)
@@ -45,6 +48,59 @@ $ cd ${GOPATH}/src/github.com/DataDog/datadog-agent
 $ inv -e e2e-tests -t local --image datadog/agent-dev:master
 $ echo $?
 ```
+
+# Argo workflow
+
+The argo documentation is available [here](https://applatix.com/open-source/argo/docs/examples.html), there are a lot of example [here](https://github.com/argoproj/argo/tree/master/examples) too.
+
+## Argo assertion
+
+To assert something in an argo workflow, you need to create a mongodb query:
+```yaml
+name: find-kubernetes-state-deployments
+activeDeadlineSeconds: 200
+script:
+  image: mongo:3.6.3
+  command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+  source: |
+    while (1) {
+      var nb = db.series.find({
+      metric: "kubernetes_state.deployment.replicas_available", 
+      tags: {$all: ["namespace:default", "deployment:fake-datadog"] }, 
+      "points.0.1": { $eq: 1} });      
+      print("find: " + nb)
+      if (nb != 0) {
+        break;
+      }
+      prevNb = nb;
+      sleep(30000);
+    }    
+```
+
+This is an infinite loop with a timeout set by `activeDeadlineSeconds: 200`.
+The source is EOF to the command, equivalent to:
+```bash
+mongo "fake-datadog.default.svc.cluster.local/datadog" << EOF
+while (1)
+[...]
+EOF
+```
+
+Try to maximise the usage of MongoDB query system without rewriting too much logic in JavaScript.
+
+See some examples [here](./containers/fake_datadog/README.md#find)
+
+To discover more MongoDB capabilities:
+- [find](https://docs.mongodb.com/manual/tutorial/query-documents/)
+- [aggregation](https://docs.mongodb.com/manual/aggregation/)
+
+## Argo container
+
+If you need to add a non existing public container in the workflow, create it in the [container directory](./containers).
+
+But, keep in mind this become an additional piece of software to maintain.
+
+
 
 # Upgrade - bump
 
