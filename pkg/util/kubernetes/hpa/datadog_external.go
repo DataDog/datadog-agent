@@ -7,41 +7,42 @@ import (
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
-	agentconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// QueryDatadogExtra converts the metric name and labels from the HPA format into a Datadog metric.
+// It returns the last value for a bucket of 5 minutes,
 func QueryDatadogExtra(metricName string, tags map[string]string) (int64, error) {
 	if metricName == "" || len(tags) == 0 {
 		return 0, errors.New("invalid metric to query")
 	}
-	client := datadog.NewClient(agentconfig.Datadog.GetString("api_key"), agentconfig.Datadog.GetString("app_key"))
+	bucketSize := config.Datadog.GetInt64("hpa_external_metric_bucket_size")
+	client := datadog.NewClient(config.Datadog.GetString("api_key"), config.Datadog.GetString("app_key"))
 	datadogTags := []string{}
-	log.Infof("tags are %#v", tags)
+
 	for key, val := range tags {
-		log.Infof("tag evaluated is %#v, and %#v", key, val)
 		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
 	}
 	tagEnd := strings.Join(datadogTags, ",")
-	log.Infof("tagend is %#v", tagEnd)
 
+	// TODO: offer other aggregations than avg.
 	query := fmt.Sprintf("avg:%s{%s}", metricName, tagEnd)
 
-	seriesSlice, err := client.QueryMetrics(time.Now().Unix()-5*60, time.Now().Unix(), query)
+	seriesSlice, err := client.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 
 	if err != nil {
-		return 0, fmt.Errorf("Error while executing metric query %s: %s", query, err)
+		return 0, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
-	log.Infof("evaluating %s", query)
-
 	if len(seriesSlice) < 1 {
-		return 0, fmt.Errorf("Returned series slice empty")
+		return 0, log.Errorf("Returned series slice empty")
 	}
-
 	points := seriesSlice[0].Points
-	if len(seriesSlice[0].Points) < 1 {
-		return 0, fmt.Errorf("No points in series")
+
+	if len(points) < 1 {
+		return 0, log.Errorf("No points in series")
 	}
 	log.Infof("About to return %#v converted to int64 %#v", points[len(points)-1][1], int64(points[len(points)-1][1]))
 	lastValue := int64(points[len(points)-1][1])

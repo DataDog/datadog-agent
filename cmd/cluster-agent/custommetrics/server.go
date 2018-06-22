@@ -1,10 +1,10 @@
 package custommetrics
 
 import (
-	"fmt"
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
 	"github.com/spf13/pflag"
@@ -20,10 +20,11 @@ var options *server.CustomMetricsAdapterServerOptions
 var stopCh chan struct{}
 
 func init() {
-	options = server.NewCustomMetricsAdapterServerOptions(os.Stdout, os.Stdout) // FIXME: log to seelog
-
+	// FIXME: log to seelog
+	options = server.NewCustomMetricsAdapterServerOptions(os.Stdout, os.Stdout)
 }
 
+// AddFlags ensures the required flags exist
 func AddFlags(fs *pflag.FlagSet) {
 	options.SecureServing.AddFlags(fs)
 	options.Authentication.AddFlags(fs)
@@ -31,6 +32,7 @@ func AddFlags(fs *pflag.FlagSet) {
 	options.Features.AddFlags(fs)
 }
 
+// ValidateArgs validates the custom metrics arguments passed
 func ValidateArgs(args []string) error {
 	return options.Validate(args)
 }
@@ -41,27 +43,26 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-
 	var clientConfig *rest.Config
 	clientConfig, err = rest.InClusterConfig()
 
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(clientConfig)
 	if err != nil {
-		return fmt.Errorf("unable to construct discovery client for dynamic client: %v", err)
+		return log.Errorf("Unable to construct discovery client for dynamic client: %v", err)
 	}
 
 	dynamicMapper, err := dynamicmapper.NewRESTMapper(discoveryClient, apimeta.InterfacesForUnstructured, time.Second*5)
 	if err != nil {
-		return fmt.Errorf("unable to construct dynamic discovery mapper: %v", err)
+		return log.Errorf("Unable to construct dynamic discovery mapper: %v", err)
 	}
 
 	clientPool := dynamic.NewClientPool(clientConfig, dynamicMapper, dynamic.LegacyAPIPathResolverFunc)
 	if err != nil {
-		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
+		return log.Errorf("Unable to construct lister client to initialize provider: %v", err)
 	}
 
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper)
-
+	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.
 	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)
 	if err != nil {
 		return err
