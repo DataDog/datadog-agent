@@ -131,17 +131,8 @@
         <span class="stat_subdata">
           {{- range .sources }}
             Type: {{ .type }}</br>
-            {{- if .path }}
-            Path: {{ .path }}</br>
-            {{- end }}
-            {{- if .port }}
-            Port: {{ .port }}</br>
-            {{- end }}
-            {{- if .image }}
-            Image: {{ .image }}</br>
-            {{- end }}
-            {{- if .label }}
-            Label: {{ .label }}</br>
+            {{- range $key, $value := .configuration }}
+            {{$key}}: {{$value}}</br>
             {{- end }}
             {{- if .status }}
             Status: {{ .status }}</br>
