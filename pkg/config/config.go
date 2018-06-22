@@ -272,6 +272,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_origin_detection")
 	Datadog.BindEnv("dogstatsd_so_rcvbuf")
 	Datadog.BindEnv("check_runners")
+	Datadog.BindEnv("expvar_port")
 
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
