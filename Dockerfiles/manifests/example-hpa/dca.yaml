@@ -1,0 +1,42 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: datadog-cluster-agent
+spec:
+  template:
+    metadata:
+      labels:
+        app: datadog-cluster-agent
+      name: dca-apiserver
+      namespace: default
+    spec:
+      serviceAccountName: dca
+      containers:
+      - image: charlyyfon/dca:alpha
+        imagePullPolicy: Always
+        name: datadog-cluster-agent
+        env:
+          - name: DD_API_KEY
+            value: '***'
+          - name: DD_APP_KEY
+            value: '***'
+          - name: DD_LEADER_ELECTION
+            value: 'true'
+          - name: DD_LOG_LEVEL
+            value: "debug"
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: 'true'
+          - name: DD_ENABLE_HPA
+            value: 'true'
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: datadog-cluster-hpa
+spec:
+  selector:
+    app: datadog-cluster-agent
+  ports:
+  - protocol: TCP
+    port: 443
+    targetPort: 443

@@ -1,0 +1,27 @@
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nginxext
+spec:
+  minReplicas: 1
+  maxReplicas: 5
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx
+  metrics:
+  - type: External
+    external:
+      metricName: docker.mem.limit 
+      metricSelector:
+        matchLabels:
+                dcos_version: 1.9.4
+      targetAverageValue: "256000000"
+  - type: External
+    external:
+     metricName: fastly.tls
+     metricSelector:
+       matchLabels:
+                service: datadog_staging
+     targetAverageValue: "5"
+    

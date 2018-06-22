@@ -176,7 +176,7 @@ func start(cmd *cobra.Command, args []string) error {
 		hpaClient.HPAWatcher()
 	}
 
-	// Start the k8s custom metrics server This is a blocking call - We don;t go beyond, therefore the stop channel is never listening.
+	// Start the k8s custom metrics server This is a blocking call
 	err = custommetrics.ValidateArgs(args)
 	if err != nil {
 		log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
