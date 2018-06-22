@@ -12,9 +12,14 @@ import (
 
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 func TestIsContainerEntry(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil)
+
 	var entry *sdjournal.JournalEntry
 
 	entry = &sdjournal.JournalEntry{
@@ -22,8 +27,8 @@ func TestIsContainerEntry(t *testing.T) {
 			containerIDKey: "0123456789",
 		},
 	}
-	assert.True(t, isContainerEntry(entry))
+	assert.True(t, tailer.isContainerEntry(entry))
 
 	entry = &sdjournal.JournalEntry{}
-	assert.False(t, isContainerEntry(entry))
+	assert.False(t, tailer.isContainerEntry(entry))
 }

@@ -15,7 +15,7 @@ import (
 const containerIDKey = "CONTAINER_ID_FULL"
 
 // isContainerEntry returns true if the entry comes from a docker container.
-func isContainerEntry(entry *sdjournal.JournalEntry) bool {
+func (t *Tailer) isContainerEntry(entry *sdjournal.JournalEntry) bool {
 	_, exists := entry.Fields[containerIDKey]
 	return exists
 }

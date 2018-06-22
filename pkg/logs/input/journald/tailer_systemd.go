@@ -203,7 +203,7 @@ var applicationKeys = []string{
 
 // getApplicationName returns the name of the application from where the entry is from.
 func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry) string {
-	if isContainerEntry(entry) {
+	if t.isContainerEntry(entry) {
 		return "docker"
 	}
 	for _, key := range applicationKeys {
