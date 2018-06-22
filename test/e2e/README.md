@@ -1,5 +1,18 @@
 # End to End testing
 
+# ToC
+- [How it works](#how-it-works)
+  * [Setup instance](#setup-instance)
+  * [Run instance](#run-instance)
+  * [Command line](#command-line)
+    * [AWS development](#aws-development)
+    * [Locally](#locally)
+- [Upgrade](#upgrade---bump)
+  * [Hyperkube](#bump-hyperkube-version)
+  * [Pupernetes](#bump-pupernetes---bump-the-version-of-p8s)
+  * [Argo](#bump-argo)
+  * [Flatcar - Container Linux](#bump-coreos-container-linux---kinvolk-flatcar)
+
 # How it works
 
 There are 2 main stages:
@@ -14,10 +27,13 @@ There are 2 main stages:
 
 <img src="docs/setup-instance.svg" width="350">
 
+## Command line
+
 ### AWS development
 
 ```bash
-${GOPATH}/src/github.com/DataDog/datadog-agent $ aws-vault exec ${DEV} -- inv -e e2e-tests -t dev --image datadog/agent-dev:master
+$ cd ${GOPATH}/src/github.com/DataDog/datadog-agent 
+$ aws-vault exec ${DEV} -- inv -e e2e-tests -t dev --image datadog/agent-dev:master
 $ echo $?
 ```
 
@@ -25,10 +41,10 @@ $ echo $?
 
 ```bash
 $ sudo pupernetes daemon run /opt/sandbox --job-type systemd 
-${GOPATH}/src/github.com/DataDog/datadog-agent $ inv -e e2e-tests -t local --image datadog/agent-dev:master
+$ cd ${GOPATH}/src/github.com/DataDog/datadog-agent 
+$ inv -e e2e-tests -t local --image datadog/agent-dev:master
 $ echo $?
 ```
-
 
 # Upgrade - bump
 
