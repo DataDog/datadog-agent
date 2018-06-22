@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build !windows,!android
 
 //go:generate go run ../../pkg/config/render_config.go agent ../../pkg/config/config_template.yaml ./dist/datadog.yaml
 
@@ -13,7 +13,6 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
-	_ "golang.org/x/mobile/app"
 )
 
 func main() {

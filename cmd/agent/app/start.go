@@ -127,9 +127,9 @@ func StartAgent() error {
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
+	///if err = api.StartServer(); err != nil {
+	///	return log.Errorf("Error while starting api server, exiting: %v", err)
+	///}
 
 	// start the GUI server
 	guiPort := config.Datadog.GetString("GUI_port")
