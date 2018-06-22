@@ -1,0 +1,27 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+      annotations:
+        ad.datadoghq.com/nginx.check_names: '["nginx"]'
+        ad.datadoghq.com/nginx.init_configs: '[{}]'
+        ad.datadoghq.com/nginx.instances: '[{"nginx_status_url": "http://%%host%%/nginx_status", "tags": "%%tags%%"}]'
+        ad.datadoghq.com/nginx.logs: '[{"type": "docker","image": "nginx","service": "nginx","source": "nginx"}]'
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - name: http
+          containerPort: 80
