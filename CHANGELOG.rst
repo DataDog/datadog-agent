@@ -11,7 +11,7 @@ New Features
 
 - The import command now support multiple dd_url and API keys.
 
-- Add an option to set the read buffer size for dogstatsd socker on POSIX
+- Add an option to set the read buffer size for dogstatsd socket on POSIX
   system (SO_RCVBUF).
 
 - Add support for port names in template vars for autodiscovery.
