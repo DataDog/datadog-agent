@@ -922,27 +922,27 @@ tag_release:
   <<: *docker_tag_job_definition
   stage: deploy
   when: manual
-  #only:
-  #  - tags
+  only:
+    - tags
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_TAG}
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_TAG}-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_TAG}
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent:${CI_COMMIT_TAG}
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
 
 latest_release:
   <<: *docker_tag_job_definition
   stage: deploy
   when: manual
-  #only:
-  #  - tags
+  only:
+    - tags
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:latest
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:latest-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:latest
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent:latest
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
 
 dca_tag_release:
   <<: *docker_tag_job_definition
