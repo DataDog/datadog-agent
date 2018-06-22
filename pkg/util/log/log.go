@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -383,6 +384,16 @@ func Warnf(format string, params ...interface{}) error {
 func Errorf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		return logger.errorf(format, params...)
+	} else if logger == nil || logger.inner == nil {
+		// We're currently trying to log an error before initializing
+		// the log module. This meant a early error while starting the
+		// agent. We should not silence such error.
+		msg := fmt.Sprintf(format, params...)
+		msgScrubbed, err := CredentialsCleanerBytes([]byte(msg))
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", msgScrubbed)
+			return fmt.Errorf(string(msgScrubbed))
+		}
 	}
 	return nil
 }
@@ -391,6 +402,16 @@ func Errorf(format string, params ...interface{}) error {
 func Criticalf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		return logger.criticalf(format, params...)
+	} else if logger == nil || logger.inner == nil {
+		// We're currently trying to log an error before initializing
+		// the log module. This meant a early error while starting the
+		// agent. We should not silence such error.
+		msg := fmt.Sprintf(format, params...)
+		msgScrubbed, err := CredentialsCleanerBytes([]byte(msg))
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "Critical: %s\n", msgScrubbed)
+			return fmt.Errorf(string(msgScrubbed))
+		}
 	}
 	return nil
 }
