@@ -32,3 +32,15 @@ func TestIsContainerEntry(t *testing.T) {
 	entry = &sdjournal.JournalEntry{}
 	assert.False(t, tailer.isContainerEntry(entry))
 }
+
+func TestGetContainerID(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil)
+
+	entry := &sdjournal.JournalEntry{
+		Fields: map[string]string{
+			containerIDKey: "0123456789",
+		},
+	}
+	assert.Equal(t, "0123456789", tailer.getContainerID(entry))
+}

@@ -9,6 +9,10 @@ package journald
 
 import (
 	"github.com/coreos/go-systemd/sdjournal"
+
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // containerIDKey represents the key of the container identifier in a journal entry.
@@ -18,4 +22,27 @@ const containerIDKey = "CONTAINER_ID_FULL"
 func (t *Tailer) isContainerEntry(entry *sdjournal.JournalEntry) bool {
 	_, exists := entry.Fields[containerIDKey]
 	return exists
+}
+
+// getContainerID returns the container identifier of the journal entry.
+func (t *Tailer) getContainerID(entry *sdjournal.JournalEntry) string {
+	containerID, _ := entry.Fields[containerIDKey]
+	return containerID
+}
+
+// getContainerTags returns all the tags of a given container.
+func (t *Tailer) getContainerTags(containerID string) []string {
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(containerID), true)
+	if err != nil {
+		log.Warn(err)
+	}
+	return tags
+}
+
+// initializeTagger initializes the tag collector.
+func (t *Tailer) initializeTagger() {
+	err := tagger.Init()
+	if err != nil {
+		log.Warn(err)
+	}
 }
