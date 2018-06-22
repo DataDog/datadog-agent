@@ -6,6 +6,18 @@ Release Notes
 =====
 2018-06-20
 
+Prelude
+-------
+
+- Please refer to the `6.3.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.0>`_
+  for the list of changes on the Core Checks.
+
+- Please refer to the `6.3.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.0>`_
+  for the list of changes on the Trace Agent.
+
+- Please refer to the `6.3.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.3.0>`_
+  for the list of changes on the Process Agent.
+  
 New Features
 ------------
 
