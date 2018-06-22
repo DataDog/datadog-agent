@@ -21,7 +21,7 @@ from .go import deps
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 15 * 1024
+MAX_BINARY_SIZE = 20 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 DEFAULT_BUILD_TAGS = [
     "zlib",
@@ -45,6 +45,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     if static:
         bin_path = STATIC_BIN_PATH
 
+    # NOTE: consider stripping symbols to reduce binary size 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd/"
     args = {
@@ -57,14 +58,6 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
-
-    # Manually strip the binary as go 1.10 does not pass the ldflag correctly
-    if static:
-        cmd = "strip {bin_name} "
-        args = {
-            "bin_name": os.path.join(bin_path, bin_name("dogstatsd")),
-        }
-        ctx.run(cmd.format(**args), env=env)
 
     # Render the configuration file template
     #
