@@ -82,7 +82,7 @@ func getContainerForPID(pid int32) (string, error) {
 		// cache the `NoOrigin` result for future packets
 		value = NoOrigin
 	} else {
-		value = fmt.Sprintf("docker://%s", id)
+		value = fmt.Sprintf("containerd://%s", id)
 	}
 
 	cache.Cache.Set(key, value, 0)
