@@ -65,8 +65,6 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("unexpected len 10 != %d", len(s))
 		return
 	}
-	fmt.Println(s, len(s))
-
 	nodeName, ns, podName := s[5], s[7], s[9]
 	key := fmt.Sprintf("%s/%s/%s", nodeName, ns, podName)
 
