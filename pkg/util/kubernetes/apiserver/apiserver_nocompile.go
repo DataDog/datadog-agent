@@ -25,12 +25,12 @@ type APIClient struct{}
 
 // MetadataMapperBundle maps the podNames to the metadata they are associated with.
 type MetadataMapperBundle struct {
-	PodNameToService map[string][]string
-	m                sync.RWMutex
+	Services map[string]map[string][]string
+	m        sync.RWMutex
 }
 
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodMetadataNames(nodeName string, podName string) ([]string, error) {
+func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
