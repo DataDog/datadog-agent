@@ -41,7 +41,7 @@ func ParseMessage(msg []byte) (Message, error) {
 
 	// remove partial headers that are added by docker when the message gets too long.
 	if len(msg) > dockerBufferSize {
-		msg = removePartialHeaders(msg)
+		msg = removePartialDockerMetadata(msg)
 	}
 
 	// First byte is 1 for stdout and 2 for stderr
@@ -51,20 +51,20 @@ func ParseMessage(msg []byte) (Message, error) {
 	}
 
 	// timestamp goes from byte 8 till first space
-	headerLen := GetHeaderLength(msg)
-	if headerLen == 0 {
+	metadataLen := GetDockerMetadataLength(msg)
+	if metadataLen == 0 {
 		return Message{}, errors.New("Can't parse docker message: expected a whitespace after header")
 	}
-	timestamp := string(msg[dockerHeaderLength : headerLen-1])
+	timestamp := string(msg[dockerHeaderLength : metadataLen-1])
 
 	return Message{
-		Content:   msg[headerLen:],
+		Content:   msg[metadataLen:],
 		Status:    status,
 		Timestamp: timestamp,
 	}, nil
 }
 
-// removePartialHeaders removes the 8 byte header, timestamp, and space that occurs between 16Kb section of a log.
+// removePartialDockerMetadata removes the 8 byte header, timestamp, and space that occurs between 16Kb section of a log.
 // If a docker log is greater than 16Kb, each 16Kb partial section will have a header, timestamp, and space in front of it.
 // For example, a message that is 35kb will be of the form: `H M1H M2H M3` where "H" is what pre-pends each 16 Kb section.
 // This function removes the "H " between two partial messages sections while leaving the very first "H ".
@@ -72,26 +72,26 @@ func ParseMessage(msg []byte) (Message, error) {
 //   H M1H M2H M3
 // Output:
 //   H M1M2M3
-func removePartialHeaders(msgToClean []byte) []byte {
+func removePartialDockerMetadata(msgToClean []byte) []byte {
 	msg := []byte{}
-	headerLen := GetHeaderLength(msgToClean)
+	metadataLen := GetDockerMetadataLength(msgToClean)
 	start := 0
-	end := min(len(msgToClean), dockerBufferSize+headerLen)
+	end := min(len(msgToClean), dockerBufferSize+metadataLen)
 
-	for end > 0 && headerLen > 0 {
+	for end > 0 && metadataLen > 0 {
 		msg = append(msg, msgToClean[start:end]...)
 		msgToClean = msgToClean[end:]
-		headerLen = GetHeaderLength(msgToClean)
-		start = headerLen
-		end = min(len(msgToClean), dockerBufferSize+headerLen)
+		metadataLen = GetDockerMetadataLength(msgToClean)
+		start = metadataLen
+		end = min(len(msgToClean), dockerBufferSize+metadataLen)
 	}
 
 	return msg
 }
 
-// GetHeaderLength returns the length of the 8 bytes header, timestamp, and space
+// GetDockerMetadataLength returns the length of the 8 bytes header, timestamp, and space
 // that is in front of each message.
-func GetHeaderLength(msg []byte) int {
+func GetDockerMetadataLength(msg []byte) int {
 	if len(msg) < dockerHeaderLength {
 		return 0
 	}

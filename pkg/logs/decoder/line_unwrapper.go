@@ -37,6 +37,6 @@ func NewDockerUnwrapper() *DockerUnwrapper {
 
 // Unwrap removes the message header of docker logs
 func (u DockerUnwrapper) Unwrap(line []byte) []byte {
-	headerLen := parser.GetHeaderLength(line)
+	headerLen := parser.GetDockerMetadataLength(line)
 	return line[headerLen:]
 }
