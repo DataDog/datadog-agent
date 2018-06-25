@@ -14,15 +14,6 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-/*
-Service mapper for a node
-{
-	"foo": [
-		"name": [ "svc1" "svc2" "svc3" ]
-	]
-}
-*/
-
 // mapServices maps each pod (endpoint) to the metadata associated with it.
 // It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
 func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
