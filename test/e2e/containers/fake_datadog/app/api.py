@@ -20,7 +20,7 @@ record_dir = path.join(path.dirname(path.dirname(path.abspath(__file__))), "reco
 
 
 def get_collection(name: str):
-    c = pymongo.MongoClient("127.0.0.1", 27017, connectTimeoutMS=5000)
+    c = pymongo.MongoClient("192.168.254.241", 27017, connectTimeoutMS=5000)
     db = c.get_database("datadog")
     return db.get_collection(name)
 
