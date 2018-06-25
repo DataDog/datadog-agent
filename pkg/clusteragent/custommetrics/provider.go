@@ -43,19 +43,19 @@ func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper) pr
 }
 
 func (p *datadogProvider) GetRootScopedMetricByName(groupResource schema.GroupResource, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	return nil, fmt.Errorf("Not Implemented - RootScopedByName")
+	return nil, fmt.Errorf("Not Implemented - GetRootScopedMetricByName")
 }
 
 func (p *datadogProvider) GetRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
-	return nil, fmt.Errorf("Not Implemented - RootScopedBySelector")
+	return nil, fmt.Errorf("Not Implemented - GetRootScopedMetricBySelector")
 }
 
 func (p *datadogProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	return nil, fmt.Errorf("Not Implemented - NamespacedMetricByName")
+	return nil, fmt.Errorf("Not Implemented - GetNamespacedMetricByName")
 }
 
 func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
-	return nil, fmt.Errorf("Not Implemented - NamespacedMetricBySelector")
+	return nil, fmt.Errorf("Not Implemented - GetNamespacedMetricBySelector")
 }
 
 func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {

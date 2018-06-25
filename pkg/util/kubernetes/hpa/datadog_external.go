@@ -13,9 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// QueryDatadogExtra converts the metric name and labels from the HPA format into a Datadog metric.
+// QueryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func QueryDatadogExtra(metricName string, tags map[string]string) (int64, error) {
+func QueryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
 	if metricName == "" || len(tags) == 0 {
 		return 0, errors.New("invalid metric to query")
 	}

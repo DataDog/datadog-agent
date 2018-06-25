@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 )
 
 var options *server.CustomMetricsAdapterServerOptions
@@ -60,6 +61,10 @@ func StartServer() error {
 	if err != nil {
 		return log.Errorf("Unable to construct lister client to initialize provider: %v", err)
 	}
+
+	// HPA watcher
+	hpaClient := hpa.GetHPAWatcherClient() // Return err
+	hpaClient.Start()
 
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.

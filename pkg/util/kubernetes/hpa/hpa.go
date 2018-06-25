@@ -21,9 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 )
 
-//// Covered by test/integration/util/kube_apiserver/hpa_test.go
+//// Covered by test/integration/util/kubernetes/hpa/hpa_test.go
 
 var (
 	expectedHPAType = reflect.TypeOf(v2beta1.HorizontalPodAutoscaler{})
@@ -37,21 +38,23 @@ type CustomExternalMetric struct {
 	Name      string            `json:"name"`
 	Labels    map[string]string `json:"labels"`
 	Timestamp int64             `json:"ts"`
-	HpaOrigin string            `json:"origin"`
+	HpaName   string            `json:"origin"`
 	Value     int64             `json:"value"`
 }
 
 // HPAWatcherClient embeds the API Server client and the configuration to refresh metrics from Datadog and watch the HPA Objects' activities
 type HPAWatcherClient struct {
-	apiClient         *as.APIClient
-	hpaReadTimeout    time.Duration
-	hpaRefreshItl     time.Duration
-	hpaPollItl        time.Duration
-	hpaExternalMaxAge time.Duration
+	clientSet      kubernetes.Interface
+	readTimeout    time.Duration
+	refreshItl     *time.Ticker
+	pollItl        *time.Ticker
+	externalMaxAge time.Duration
+	ns             string
 }
 
 func (c *HPAWatcherClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodAutoscaler, modified []*v2beta1.HorizontalPodAutoscaler, deleted []*v2beta1.HorizontalPodAutoscaler, resVer string, err error) {
-	hpaInterface := c.apiClient.ClientSet.AutoscalingV2beta1()
+	hpaInterface := c.clientSet.AutoscalingV2beta1()
+
 	metaOptions := metav1.ListOptions{Watch: true, ResourceVersion: res}
 
 	hpaWatcher, err := hpaInterface.HorizontalPodAutoscalers(metav1.NamespaceAll).Watch(metaOptions)
@@ -60,7 +63,7 @@ func (c *HPAWatcherClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodA
 	}
 	defer hpaWatcher.Stop()
 
-	watcherTimeout := time.NewTimer(c.hpaReadTimeout)
+	watcherTimeout := time.NewTimer(c.readTimeout)
 	for {
 		select {
 		case rcvdHPA, ok := <-hpaWatcher.ResultChan():
@@ -92,7 +95,7 @@ func (c *HPAWatcherClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodA
 				deleted = append(deleted, currHPA)
 			}
 
-			watcherTimeout.Reset(c.hpaReadTimeout)
+			watcherTimeout.Reset(c.readTimeout)
 		case <-watcherTimeout.C:
 			return new, modified, deleted, resVer, nil
 		}
@@ -100,6 +103,7 @@ func (c *HPAWatcherClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodA
 }
 
 func newHPAWatcher() *HPAWatcherClient {
+	namespace := as.GetResourcesNamespace()
 	clientAPI, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Error creating Client for the HPA: %s", err.Error())
@@ -109,11 +113,12 @@ func newHPAWatcher() *HPAWatcherClient {
 	hpaRefreshItl := config.Datadog.GetInt("hpa_external_metrics_polling_freq")
 	hpaExternalMaxAge := config.Datadog.GetInt("hpa_external_metrics_max_age")
 	return &HPAWatcherClient{
-		apiClient:         clientAPI,
-		hpaReadTimeout:    100 * time.Millisecond,
-		hpaPollItl:        time.Duration(hpaPollItl) * time.Second,
-		hpaRefreshItl:     time.Duration(hpaRefreshItl) * time.Second,
-		hpaExternalMaxAge: time.Duration(hpaExternalMaxAge) * time.Second,
+		clientSet:      clientAPI.Cl,
+		readTimeout:    100 * time.Millisecond,
+		pollItl:        time.NewTicker(time.Duration(hpaPollItl) * time.Second),
+		refreshItl:     time.NewTicker(time.Duration(hpaRefreshItl) * time.Second),
+		externalMaxAge: time.Duration(hpaExternalMaxAge) * time.Second,
+		ns:             namespace,
 	}
 }
 
@@ -122,12 +127,12 @@ func GetHPAWatcherClient() *HPAWatcherClient {
 	return newHPAWatcher()
 }
 
-// HPAWatcher runs a watch process of the various HPA objects' activities to process and store the relevant info.
+// Start runs a watch process of the various HPA objects' activities to process and store the relevant info.
 // Refreshes the custom metrics stored as well.
-func (c *HPAWatcherClient) HPAWatcher() {
+func (c *HPAWatcherClient) Start() {
 	log.Info("Starting HPA Process ...")
-	tickerHPAWatchProcess := time.NewTicker(c.hpaPollItl)
-	tickerHPARefreshProcess := time.NewTicker(c.hpaRefreshItl)
+	tickerHPAWatchProcess := c.pollItl
+	tickerHPARefreshProcess := c.refreshItl
 
 	var resversion string
 	err := c.createConfigMapHPA()
@@ -182,9 +187,8 @@ func (c *HPAWatcherClient) HPAWatcher() {
 }
 
 func (c *HPAWatcherClient) updateCustomMetrics() error {
-	namespace := as.GetResourcesNamespace()
-	maxAge := int64(c.hpaExternalMaxAge.Seconds())
-	configMap, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	maxAge := int64(c.externalMaxAge.Seconds())
+	configMap, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Infof("Error while retrieving the Config Map %s", datadogHPAConfigMap)
 		return nil
@@ -202,7 +206,7 @@ func (c *HPAWatcherClient) updateCustomMetrics() error {
 		if metav1.Now().Unix()-cm.Timestamp > maxAge {
 
 			cm.Timestamp = metav1.Now().Unix()
-			cm.Value, err = QueryDatadogExtra(cm.Name, cm.Labels)
+			cm.Value, err = QueryDatadogExternal(cm.Name, cm.Labels)
 			if err != nil {
 				log.Infof("err querying DD %s", err)
 				continue
@@ -217,7 +221,7 @@ func (c *HPAWatcherClient) updateCustomMetrics() error {
 		}
 
 	}
-	_, err = c.apiClient.Client.ConfigMaps(namespace).Update(configMap)
+	_, err = c.clientSet.CoreV1().ConfigMaps(c.ns).Update(configMap)
 	if err != nil {
 		log.Infof("Could not update because: %s", err)
 		return err
@@ -226,8 +230,7 @@ func (c *HPAWatcherClient) updateCustomMetrics() error {
 }
 
 func (c *HPAWatcherClient) createConfigMapHPA() error {
-	namespace := as.GetResourcesNamespace()
-	_, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	_, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	// There is an error if the ConfigMap does not exist so we attempt to create it.
 	if err == nil {
 		log.Infof("Retrieving the Config Map %s", datadogHPAConfigMap)
@@ -241,14 +244,12 @@ func (c *HPAWatcherClient) createConfigMapHPA() error {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      datadogHPAConfigMap,
-			Namespace: namespace,
+			Namespace: c.ns,
 		},
 	}
 	// FIXME: distinguish RBAC error
-	_, err = c.apiClient.Client.ConfigMaps(namespace).Create(cm)
-
+	_, err = c.clientSet.CoreV1().ConfigMaps(c.ns).Create(cm)
 	return err
-
 }
 
 // processHPA transforms HPA data into structures to be stored upon validation that they are available in Datadog
@@ -261,7 +262,7 @@ func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric 
 			cm.Name = m.External.MetricName
 			cm.Timestamp = metav1.Now().Unix()
 			cm.Labels = m.External.MetricSelector.MatchLabels
-			cm.HpaOrigin = e.Name
+			cm.HpaName = e.Name
 			err := cm.validateMetric()
 			if err != nil {
 				continue
@@ -276,9 +277,9 @@ func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric 
 // validateMetric queries Datadog to validate the availability of a metric
 func (cm *CustomExternalMetric) validateMetric() error {
 	var err error
-	cm.Value, err = QueryDatadogExtra(cm.Name, cm.Labels)
+	cm.Value, err = QueryDatadogExternal(cm.Name, cm.Labels)
 	if err != nil {
-		log.Errorf("Not able to validate %s: %s", cm, err.Error())
+		log.Errorf("Not able to validate %#v: %s", cm, err.Error())
 		return err
 	}
 	return nil
@@ -287,8 +288,7 @@ func (cm *CustomExternalMetric) validateMetric() error {
 // storeHPA processes the data collected from the HPA object watch to be validated and stored in the datadogHPAConfigMap ConfigMap.
 func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) error {
 	listCustomMetrics := processHPA(hpaList)
-	namespace := as.GetResourcesNamespace()
-	cm, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	cm, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not store the custom metrics data in the ConfigMap %s: %s", datadogHPAConfigMap, err.Error())
 		return err
@@ -297,7 +297,7 @@ func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) 
 		newMetric := &CustomExternalMetric{
 			Name:      n.Name,
 			Labels:    n.Labels,
-			HpaOrigin: n.HpaOrigin,
+			HpaName:   n.HpaName,
 			Value:     n.Value,
 			Timestamp: n.Timestamp,
 		}
@@ -309,7 +309,7 @@ func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) 
 		cm.Data[n.Name] = string(toStore)
 	}
 
-	_, err = c.apiClient.Client.ConfigMaps(namespace).Update(cm)
+	_, err = c.clientSet.CoreV1().ConfigMaps(c.ns).Update(cm)
 	if err != nil {
 		log.Infof("Could not update the ConfigMap: %s", err)
 	}
@@ -318,10 +318,9 @@ func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) 
 
 // removeEntryFromConfigMap will remove an External Custom Metric from removeEntryFromConfigMap if the corresponding HPA manifest is deleted.
 func (c *HPAWatcherClient) removeEntryFromConfigMap(deleted []*v2beta1.HorizontalPodAutoscaler) error {
-	namespace := as.GetResourcesNamespace()
-	cm, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	cm, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("Could not store the custom metrics data in the ConfiogMap %s: %s", datadogHPAConfigMap, err.Error())
+		log.Errorf("Could not remove the custom metrics data in the ConfigMap %s: %s", datadogHPAConfigMap, err.Error())
 		return err
 	}
 	for _, d := range deleted {
@@ -333,7 +332,7 @@ func (c *HPAWatcherClient) removeEntryFromConfigMap(deleted []*v2beta1.Horizonta
 			}
 		}
 	}
-	_, err = c.apiClient.Client.ConfigMaps(namespace).Update(cm)
+	_, err = c.clientSet.CoreV1().ConfigMaps(c.ns).Update(cm)
 	if err != nil {
 		log.Infof("Could not update because: %s", err)
 	}
@@ -344,11 +343,10 @@ func (c *HPAWatcherClient) removeEntryFromConfigMap(deleted []*v2beta1.Horizonta
 // Called every 30 seconds (configurable on Kubernetes's end) by default.
 // Just list the content of the ConfigMap `datadogHPAConfigMap`.
 func (c *HPAWatcherClient) ReadConfigMap() []CustomExternalMetric {
-	namespace := as.GetResourcesNamespace()
 	var list []CustomExternalMetric
-	cm, err := c.apiClient.Client.ConfigMaps(namespace).Get(datadogHPAConfigMap, metav1.GetOptions{})
+	cm, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("Could not store the custom metrics data in the ConfiogMap %s: %s", datadogHPAConfigMap, err.Error())
+		log.Errorf("Could not store the custom metrics data in the ConfigMap %s: %s", datadogHPAConfigMap, err.Error())
 		return nil
 	}
 	data := cm.Data
@@ -358,4 +356,11 @@ func (c *HPAWatcherClient) ReadConfigMap() []CustomExternalMetric {
 		list = append(list, *cm)
 	}
 	return list
+}
+
+// Stop sends a signal to the HPAWatcher to stop it.
+// Used for the tests to avoid leaking go-routines.
+func (c *HPAWatcherClient) Stop() {
+	c.pollItl.Stop()
+	c.refreshItl.Stop()
 }
