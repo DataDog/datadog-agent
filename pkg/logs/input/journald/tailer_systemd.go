@@ -38,9 +38,7 @@ func (t *Tailer) setup() error {
 	config := t.source.Config
 	var err error
 
-	if config.CollectContainerTags {
-		t.initializeTagger()
-	}
+	t.initializeTagger()
 
 	if config.Path == "" {
 		// open the default journal
@@ -222,7 +220,7 @@ func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry) string {
 // getTags returns a list of tags matching with the journal entry.
 func (t *Tailer) getTags(entry *sdjournal.JournalEntry) []string {
 	var tags []string
-	if t.source.Config.CollectContainerTags && t.isContainerEntry(entry) {
+	if t.isContainerEntry(entry) {
 		tags = append(tags, t.getContainerTags(t.getContainerID(entry))...)
 	}
 	return tags

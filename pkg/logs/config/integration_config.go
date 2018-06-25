@@ -62,9 +62,8 @@ type LogsConfig struct {
 	Port int    // Network
 	Path string // File, Journald
 
-	IncludeUnits         []string `mapstructure:"include_units" json:"include_units"`                   // Journald
-	ExcludeUnits         []string `mapstructure:"exclude_units" json:"exclude_units"`                   // Journald
-	CollectContainerTags bool     `mapstructure:"collect_container_tags" json:"collect_container_tags"` // Journald
+	IncludeUnits []string `mapstructure:"include_units" json:"include_units"` // Journald
+	ExcludeUnits []string `mapstructure:"exclude_units" json:"exclude_units"` // Journald
 
 	Image string // Docker
 	Label string // Docker
