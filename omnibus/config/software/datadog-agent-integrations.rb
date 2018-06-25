@@ -113,7 +113,7 @@ build do
       pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
     end
 
-    # Set frozen requirements post `datadog_checks_base` - constraints file will be used by 
+    # Set frozen requirements post `datadog_checks_base` - constraints file will be used by
     # pip to ensure all other integrations dependency sanity.
     pip "freeze > #{install_dir}/agent_requirements.txt"
 
@@ -140,27 +140,31 @@ build do
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
 
       # Copy the check config to the conf directories
-      if File.exist? "#{check_dir}/conf.yaml.example"
-        copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
+      conf_file_example = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.example"
+      if File.exist? conf_file_example
+        copy conf_file_example, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
       end
 
       # Copy the default config, if it exists
-      if File.exist? "#{check_dir}/conf.yaml.default"
+      conf_file_default = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.default"
+      if File.exist? conf_file_default
         mkdir check_conf_dir
-        copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
+        copy conf_file_default, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
       end
 
       # Copy the metric file, if it exists
-      if File.exist? "#{check_dir}/metrics.yaml"
+      metrics_yaml = "#{check_dir}/datadog_checks/#{check}/data/metrics.yaml"
+      if File.exist? metrics_yaml
         mkdir check_conf_dir
-        copy "#{check_dir}/metrics.yaml", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
+        copy metrics_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
       end
 
       # We don't have auto_conf on windows yet
       if os != 'windows'
-        if File.exist? "#{check_dir}/auto_conf.yaml"
+        auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
+        if File.exist? auto_conf_yaml
           mkdir check_conf_dir
-          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
+          copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
         end
       end
 
