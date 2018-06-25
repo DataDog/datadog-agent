@@ -69,8 +69,9 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		c["instances"] = instances
-		configs[name] = c
+		c["check_name"] = config.Name
 
+		configs[name] = c
 	}
 	j["configs"] = configs
 	j["timestamp"] = time.Now().Unix()
