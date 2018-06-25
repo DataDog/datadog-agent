@@ -37,6 +37,12 @@ There are 3 main directories:
 
 ## run-instance
 
+You need [pupernetes](https://github.com/DataDog/pupernetes):
+```bash
+$ curl -LO https://github.com/DataDog/pupernetes/releases/download/v${VERSION}/pupernetes
+$ chmod +x ./pupernetes  
+```
+
 <img src="docs/run-instance.svg" width="100">
 
 ## Command line
@@ -52,7 +58,7 @@ $ echo $?
 ### Locally
 
 ```bash
-$ sudo pupernetes daemon run /opt/sandbox --job-type systemd 
+$ sudo ./pupernetes daemon run /opt/sandbox --job-type systemd 
 $ cd ${GOPATH}/src/github.com/DataDog/datadog-agent 
 $ inv -e e2e-tests -t local --image datadog/agent-dev:master
 $ echo $?
@@ -60,7 +66,7 @@ $ echo $?
 
 # Argo workflow
 
-The argo documentation is available [here](https://applatix.com/open-source/argo/docs/examples.html), there are a lot of example [here](https://github.com/argoproj/argo/tree/master/examples) too.
+The argo documentation is available [here](https://applatix.com/open-source/argo/docs/examples.html), there are a lot of examples [here](https://github.com/argoproj/argo/tree/master/examples) too.
 
 ## Argo assertion
 
@@ -82,7 +88,7 @@ script:
         break;
       }
       prevNb = nb;
-      sleep(30000);
+      sleep(2000);
     }    
 ```
 
