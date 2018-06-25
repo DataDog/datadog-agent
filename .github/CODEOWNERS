@@ -9,28 +9,28 @@
 # Rules are matched bottom-to-top, so one team can own subdirectories
 # and another the rest of the directory.
 
-/cmd/                                   @DataDog/croissant
-/omnibus/                               @DataDog/croissant
-/pkg/                                   @DataDog/croissant
-/pkg/aggregator/                        @DataDog/croissant
-/pkg/collector/                         @DataDog/croissant
-/pkg/forwarder/                         @DataDog/croissant
-/pkg/metadata/                          @DataDog/croissant
-/pkg/metrics/                           @DataDog/croissant
-/pkg/serializer/                        @DataDog/croissant
-/pkg/status/                            @DataDog/croissant
-/pkg/version/                           @DataDog/croissant
+/cmd/                                   @DataDog/agent-core
+/omnibus/                               @DataDog/agent-core
+/pkg/                                   @DataDog/agent-core
+/pkg/aggregator/                        @DataDog/agent-core
+/pkg/collector/                         @DataDog/agent-core
+/pkg/forwarder/                         @DataDog/agent-core
+/pkg/metadata/                          @DataDog/agent-core
+/pkg/metrics/                           @DataDog/agent-core
+/pkg/serializer/                        @DataDog/agent-core
+/pkg/status/                            @DataDog/agent-core
+/pkg/version/                           @DataDog/agent-core
 
-/Dockerfiles/                           @DataDog/kenafeh
-/pkg/autodiscovery/                     @DataDog/kenafeh @DataDog/croissant
-/pkg/autodiscovery/listeners/           @DataDog/kenafeh
-/pkg/collector/corechecks/containers/   @DataDog/kenafeh
-/pkg/collector/corechecks/cluster/      @DataDog/kenafeh
-/pkg/tagger/                            @DataDog/kenafeh
-/pkg/util/docker/                       @DataDog/kenafeh @DataDog/burrito
-/pkg/util/ecs/                          @DataDog/kenafeh @DataDog/burrito
-/pkg/util/kubernetes/                   @DataDog/kenafeh @DataDog/burrito
-/pkg/util/retry/                        @DataDog/kenafeh
+/Dockerfiles/                           @DataDog/container-integrations
+/pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-core
+/pkg/autodiscovery/listeners/           @DataDog/container-integrations
+/pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/cluster/      @DataDog/container-integrations
+/pkg/tagger/                            @DataDog/container-integrations
+/pkg/util/docker/                       @DataDog/container-integrations @DataDog/burrito
+/pkg/util/ecs/                          @DataDog/container-integrations @DataDog/burrito
+/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/burrito
+/pkg/util/retry/                        @DataDog/container-integrations
 
 /pkg/logs/                              @DataDog/ramen-intake
 
