@@ -20,9 +20,17 @@ commit through the CI so the following requirements must be met:
 
 ## E2E tests
 
+### Kitchen
+
 For tests that require a fully configured Agent up and running in specific and
 repeatable environments there are E2E (End to End) tests that are executed using
 Test Kitchen from Chef on the supported platforms.
+
+### Kubernetes
+
+There are some end to end tests executed on top of Kubernetes.
+
+See the dedicated docs about it [here](../../test/e2e/README.md).
 
 
 ## System tests
