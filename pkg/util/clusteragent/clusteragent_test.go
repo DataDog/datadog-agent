@@ -303,7 +303,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	for _, testCase := range testSuite {
 		suite.T().Run("", func(t *testing.T) {
 			svc, err := ca.GetKubernetesMetadataNames(testCase.nodeName, testCase.namespace, testCase.podName)
-			fmt.Println("svc: ", svc)
+			t.Logf("svc: %s", svc)
 			require.Nil(t, err, fmt.Sprintf("%v", err))
 			require.Equal(t, len(testCase.expectedSvc), len(svc))
 			for _, elt := range testCase.expectedSvc {
