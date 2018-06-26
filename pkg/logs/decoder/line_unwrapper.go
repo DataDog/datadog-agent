@@ -27,10 +27,6 @@ func NewUnwrapper() LineUnwrapper {
 	return &identityUnwrapper{}
 }
 
-// headerLen represents the length of the header of docker logs
-// see here for more information: https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-const headerLen = 8
-
 // DockerUnwrapper removes all the information added by docker to logs coming from containers
 type DockerUnwrapper struct{}
 
@@ -39,12 +35,8 @@ func NewDockerUnwrapper() *DockerUnwrapper {
 	return &DockerUnwrapper{}
 }
 
-// Unwrap removes the header and the timestamp from container logs
+// Unwrap removes the message header of docker logs
 func (u DockerUnwrapper) Unwrap(line []byte) []byte {
-	_, _, unwrappedLine, err := parser.ParseMessage(line)
-	if err != nil {
-		// something went wrong, we'd rather process the line rather than drop it
-		return line
-	}
-	return unwrappedLine
+	headerLen := parser.GetDockerMetadataLength(line)
+	return line[headerLen:]
 }
