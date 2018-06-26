@@ -44,7 +44,7 @@ type ConfigResolver struct {
 	collector       *collector.Collector
 	templates       *TemplateCache
 	services        map[listeners.ID]listeners.Service // Service.ID --> Service
-	adIDToServices  map[string][]listeners.ID          // AD id --> services that have it
+	adIDToServices  map[string]map[listeners.ID]bool   // AD id --> services that have it
 	configToService map[string]listeners.ID            // config digest --> service ID
 	newService      chan listeners.Service
 	delService      chan listeners.Service
@@ -60,7 +60,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		collector:       coll,
 		templates:       tc,
 		services:        make(map[listeners.ID]listeners.Service),
-		adIDToServices:  make(map[string][]listeners.ID),
+		adIDToServices:  make(map[string]map[listeners.ID]bool),
 		configToService: make(map[string]listeners.ID),
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
@@ -111,6 +111,7 @@ func (cr *ConfigResolver) Stop() {
 // resolver at this moment.
 func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.Config {
 	// use a map to dedupe configurations
+	// FIXME: the config digest as the key is currently not reliable
 	resolvedSet := map[string]integration.Config{}
 
 	// go through the AD identifiers provided by the template
@@ -124,7 +125,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.
 			continue
 		}
 
-		for _, serviceID := range serviceIds {
+		for serviceID := range serviceIds {
 			config, err := cr.resolve(tpl, cr.services[serviceID])
 			if err == nil {
 				resolvedSet[config.Digest()] = config
@@ -215,7 +216,10 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	}
 	for _, adID := range ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
-		cr.adIDToServices[adID] = append(cr.adIDToServices[adID], svc.GetID())
+		if cr.adIDToServices[adID] == nil {
+			cr.adIDToServices[adID] = make(map[listeners.ID]bool)
+		}
+		cr.adIDToServices[adID][svc.GetID()] = true
 		tpls, err := cr.templates.Get(adID)
 		if err != nil {
 			log.Debugf("Unable to fetch templates from the cache: %v", err)
@@ -244,6 +248,10 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (cr *ConfigResolver) processDelService(svc listeners.Service) {
+	cr.m.Lock()
+	defer cr.m.Unlock()
+
+	delete(cr.services, svc.GetID())
 	configs := cr.ac.store.getConfigsForService(svc.GetID())
 	cr.ac.store.removeConfigsForService(svc.GetID())
 	cr.ac.processRemovedConfigs(configs)
