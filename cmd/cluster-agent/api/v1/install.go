@@ -16,7 +16,6 @@ func Install(r *mux.Router) {
 	r.HandleFunc("{check}/events", getCheckLatestEvents).Methods("GET")
 }
 
-// TODO: complete it
 func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	check := vars["check"]
@@ -28,7 +27,6 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if supportedCheck {
-		// TODO
 		w.Write([]byte("[OK] TODO"))
 	} else {
 		err := fmt.Errorf("[FAIL] TODO")
@@ -42,7 +40,7 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
-			localhost:5001/api/v1/metadata/localhost/my-nginx-5d69
+			localhost:5001/api/v1/metadata/nodes/localhost/namespaces/default/pods/my-nginx-5d69
 		Outputs
 			Status: 200
 			Returns: []string

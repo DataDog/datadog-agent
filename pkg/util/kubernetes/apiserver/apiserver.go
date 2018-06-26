@@ -127,25 +127,17 @@ func (c *APIClient) connect() error {
 	return nil
 }
 
-// MetadataMapperBundle maps Pod names to associated metadata like the names of
-// the Services targeting the Pod.
-//
-// The data is stored in the following schema:
-// {
-// 	"namespace": [
-// 		"pod": [ "svc1", "svc2", "svc3" ]
-// 	]
-// }
+// MetadataMapperBundle maps pod names to associated metadata.
 //
 // It is updated by mapServices in services.go.
 type MetadataMapperBundle struct {
-	Services map[string]map[string][]string `json:"services,omitempty"`
+	Services ServicesMapper `json:"services,omitempty"`
 	m        sync.RWMutex
 }
 
 func newMetadataMapperBundle() *MetadataMapperBundle {
 	return &MetadataMapperBundle{
-		Services: make(map[string]map[string][]string),
+		Services: make(ServicesMapper),
 	}
 }
 

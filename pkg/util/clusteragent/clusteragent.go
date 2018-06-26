@@ -166,7 +166,7 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 	req := &http.Request{
 		Header: *c.clusterAgentAPIRequestHeaders,
 	}
-	// https://host:port/api/v1/metadata/nodes/{nodeName}/pods/{pod-[0-9a-z]+}
+	// https://host:port/api/v1/metadata/nodes/{nodeName}/namespaces/{ns}/pods/{pod-[0-9a-z]+}
 	rawURL := fmt.Sprintf("%s/%s/nodes/%s/namespaces/%s/pods/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
 	req.URL, err = url.Parse(rawURL)
 	if err != nil {

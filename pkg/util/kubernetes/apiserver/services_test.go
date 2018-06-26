@@ -75,7 +75,7 @@ func TestMapServices(t *testing.T) {
 		node            v1.Node
 		pods            []podTest
 		services        []serviceTest
-		expectedMapping map[string]map[string][]string
+		expectedMapping ServicesMapper
 	}{
 		{
 			caseName: "1 node, 1 pod, 1 service",
@@ -93,7 +93,7 @@ func TestMapServices(t *testing.T) {
 					podIps:  []string{"1.1.1.1"},
 				},
 			},
-			expectedMapping: map[string]map[string][]string{
+			expectedMapping: ServicesMapper{
 				"foo": {"pod1_name": {"svc1"}},
 			},
 		},
@@ -122,7 +122,7 @@ func TestMapServices(t *testing.T) {
 					podIps:  []string{"2.2.2.2"},
 				},
 			},
-			expectedMapping: map[string]map[string][]string{
+			expectedMapping: ServicesMapper{
 				"foo": {"pod_name": {"svc1"}},
 				"bar": {"pod_name": {"svc2"}},
 			},
@@ -173,7 +173,7 @@ func TestMapServices(t *testing.T) {
 					},
 				},
 			},
-			expectedMapping: map[string]map[string][]string{
+			expectedMapping: ServicesMapper{
 				"foo": {
 					"pod2_name": {"svc2", "svc3", "svc4"},
 					"pod3_name": {"svc4"},
@@ -182,7 +182,7 @@ func TestMapServices(t *testing.T) {
 			},
 		},
 	}
-	expectedAllPodNameToService := map[string]map[string][]string{
+	expectedAllPodNameToService := ServicesMapper{
 		"foo": {
 			"pod_name":  {"svc1"},
 			"pod1_name": {"svc1"},
