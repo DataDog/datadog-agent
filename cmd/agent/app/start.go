@@ -165,7 +165,7 @@ func StartAgent() error {
 	log.Debugf("Forwarder started")
 
 	// setup the aggregator
-	s := &serializer.Serializer{Forwarder: common.Forwarder}
+	s := serializer.NewSerializer(common.Forwarder)
 	agg := aggregator.InitAggregator(s, hostname)
 	agg.AddAgentStartupEvent(version.AgentVersion)
 

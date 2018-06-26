@@ -73,6 +73,30 @@ func initExtraHeaders() {
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
 	Forwarder forwarder.Forwarder
+
+	// Those variables allow users to blacklist any kind of payload
+	// from being sent by the agent. This was introduced for
+	// environment where, for example, events or serviceChecks
+	// might collect data considered too sensitive (database IP and
+	// such). By default every kind of payload is enabled since
+	// almost every user won't fall into this use case.
+	enableEvents         bool
+	enableSeries         bool
+	enableServiceChecks  bool
+	enableSketches       bool
+	enableJSONToV1Intake bool
+}
+
+// NewSerializer returns a new Serializer initialized
+func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
+	return &Serializer{
+		Forwarder:            forwarder,
+		enableEvents:         config.Datadog.GetBool("enable_payloads.events"),
+		enableSeries:         config.Datadog.GetBool("enable_payloads.series"),
+		enableServiceChecks:  config.Datadog.GetBool("enable_payloads.service_checks"),
+		enableSketches:       config.Datadog.GetBool("enable_payloads.sketches"),
+		enableJSONToV1Intake: config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
+	}
 }
 
 func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
@@ -106,6 +130,10 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
+	if !s.enableEvents {
+		return nil
+	}
+
 	useV1API := !config.Datadog.GetBool("use_v2_api.events")
 
 	compress := true
@@ -122,6 +150,10 @@ func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
+	if !s.enableServiceChecks {
+		return nil
+	}
+
 	useV1API := !config.Datadog.GetBool("use_v2_api.service_checks")
 
 	compress := true
@@ -138,6 +170,10 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
+	if !s.enableSeries {
+		return nil
+	}
+
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	compress := true
@@ -154,6 +190,10 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
+	if !s.enableSketches {
+		return nil
+	}
+
 	compress := false // TODO: enable compression once the backend supports it on this endpoint
 	useV1API := false // Sketches only have a v2 endpoint
 	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
@@ -185,6 +225,10 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 // SendJSONToV1Intake serializes a payload and sends it to the forwarder. Some code sends
 // arbitrary payload the v1 API.
 func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
+	if !s.enableJSONToV1Intake {
+		return nil
+	}
+
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("could not serialize v1 payload: %s", err)

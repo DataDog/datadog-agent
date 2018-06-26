@@ -155,6 +155,13 @@ func init() {
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
 	Datadog.SetDefault("use_v2_api.service_checks", false)
+	// Serializer: allow user to blacklist any kind of payload to be sent
+	BindEnvAndSetDefault("enable_payloads.events", true)
+	BindEnvAndSetDefault("enable_payloads.series", true)
+	BindEnvAndSetDefault("enable_payloads.service_checks", true)
+	BindEnvAndSetDefault("enable_payloads.sketches", true)
+	BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
+
 	// Forwarder
 	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
