@@ -377,36 +377,6 @@ spec:
           - horizontalpodautoscalers
           verbs: ["list", "watch"]
         ---
-        apiVersion: rbac.authorization.k8s.io/v1
-        kind: RoleBinding
-        metadata:
-          name: kube-state-metrics
-          namespace: kube-system
-        roleRef:
-          apiGroup: rbac.authorization.k8s.io
-          kind: Role
-          name: kube-state-metrics-resizer
-        subjects:
-        - kind: ServiceAccount
-          name: kube-state-metrics
-          namespace: kube-system
-        ---
-        apiVersion: rbac.authorization.k8s.io/v1
-        kind: Role
-        metadata:
-          namespace: kube-system
-          name: kube-state-metrics-resizer
-        rules:
-        - apiGroups: [""]
-          resources:
-          - pods
-          verbs: ["get"]
-        - apiGroups: ["extensions"]
-          resources:
-          - deployments
-          resourceNames: ["kube-state-metrics"]
-          verbs: ["get", "update"]
-        ---
         apiVersion: v1
         kind: ServiceAccount
         metadata:
@@ -445,33 +415,6 @@ spec:
                     port: 8080
                   initialDelaySeconds: 5
                   timeoutSeconds: 5
-              - name: addon-resizer
-                image: k8s.gcr.io/addon-resizer:1.7
-                resources:
-                  limits:
-                    cpu: 100m
-                    memory: 30Mi
-                  requests:
-                    cpu: 100m
-                    memory: 30Mi
-                env:
-                  - name: MY_POD_NAME
-                    valueFrom:
-                      fieldRef:
-                        fieldPath: metadata.name
-                  - name: MY_POD_NAMESPACE
-                    valueFrom:
-                      fieldRef:
-                        fieldPath: metadata.namespace
-                command:
-                  - /pod_nanny
-                  - --container=kube-state-metrics
-                  - --cpu=100m
-                  - --extra-cpu=1m
-                  - --memory=100Mi
-                  - --extra-memory=2Mi
-                  - --threshold=5
-                  - --deployment=kube-state-metrics
 
     - name: kube-state-metrics-service
       value: |
@@ -761,7 +704,7 @@ spec:
         while (1) {
           var nb = db.series.find({
           metric: "kubernetes_state.daemonset.ready",
-          tags: { $all: ["namespace:default", "deployment:fake-datadog"] },
+          tags: { $all: ["namespace:default", "daemonset:datadog-agent"] },
           "points.0.1": { $eq: 1 } }).count();
           print("find: " + nb)
           if (nb != 0) {
@@ -773,7 +716,7 @@ spec:
         while (1) {
           var nb = db.series.find({
           metric: "kubernetes_state.deployment.replicas_available",
-          tags: { $all: ["namespace:default", "deployment:fake-datadog"] },
+          tags: { $all: ["namespace:default", "deployment:redis"] },
           "points.0.1": { $eq: 1 } }).count();
           print("find: " + nb)
           if (nb != 0) {
