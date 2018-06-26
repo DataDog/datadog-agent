@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 func TestNewScheduler(t *testing.T) {
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
-	s := &serializer.Serializer{Forwarder: fwd}
+	s := serializer.NewSerializer(fwd)
 	c := NewScheduler(s, "hostname")
 	assert.Equal(t, fwd, c.srl.Forwarder)
 	assert.Equal(t, "hostname", c.hostname)

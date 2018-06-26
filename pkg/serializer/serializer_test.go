@@ -129,7 +129,7 @@ func TestSendV1Events(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	payload := &testPayload{}
 	err := s.SendEvents(payload)
@@ -147,7 +147,7 @@ func TestSendEvents(t *testing.T) {
 	config.Datadog.Set("use_v2_api.events", true)
 	defer config.Datadog.Set("use_v2_api.events", nil)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	payload := &testPayload{}
 	err := s.SendEvents(payload)
@@ -163,7 +163,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1CheckRuns", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	payload := &testPayload{}
 	err := s.SendServiceChecks(payload)
@@ -181,7 +181,7 @@ func TestSendServiceChecks(t *testing.T) {
 	config.Datadog.Set("use_v2_api.service_checks", true)
 	defer config.Datadog.Set("use_v2_api.service_checks", nil)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	payload := &testPayload{}
 	err := s.SendServiceChecks(payload)
@@ -197,7 +197,7 @@ func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	payload := &testPayload{}
 	err := s.SendSeries(payload)
@@ -215,7 +215,7 @@ func TestSendSeries(t *testing.T) {
 	config.Datadog.Set("use_v2_api.series", true)
 	defer config.Datadog.Set("use_v2_api.series", nil)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	payload := &testPayload{}
 	err := s.SendSeries(payload)
@@ -232,7 +232,7 @@ func TestSendSketch(t *testing.T) {
 	payloads, _ := mkPayloads(protobufString, false)
 	f.On("SubmitSketchSeries", payloads, protobufExtraHeaders).Return(nil).Times(1)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	payload := &testPayload{}
 	err := s.SendSketch(payload)
@@ -249,7 +249,7 @@ func TestSendMetadata(t *testing.T) {
 	payloads, _ := mkPayloads(jsonString, false)
 	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(nil).Times(1)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	payload := &testPayload{}
 	err := s.SendMetadata(payload)
@@ -272,7 +272,7 @@ func TestSendJSONToV1Intake(t *testing.T) {
 	payloads, _ := mkPayloads(payload, false)
 	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(nil).Times(1)
 
-	s := Serializer{Forwarder: f}
+	s := NewSerializer(f)
 
 	err := s.SendJSONToV1Intake("test")
 	require.Nil(t, err)
@@ -286,4 +286,46 @@ func TestSendJSONToV1Intake(t *testing.T) {
 	errPayload := &testErrorPayload{}
 	err = s.SendJSONToV1Intake(errPayload)
 	require.NotNil(t, err)
+}
+
+func TestSendWithDisabledKind(t *testing.T) {
+	config.Datadog.Set("enable_payloads.events", false)
+	config.Datadog.Set("enable_payloads.series", false)
+	config.Datadog.Set("enable_payloads.service_checks", false)
+	config.Datadog.Set("enable_payloads.sketches", false)
+	config.Datadog.Set("enable_payloads.json_to_v1_intake", false)
+
+	//restore default values
+	defer func() {
+		config.Datadog.Set("enable_payloads.events", true)
+		config.Datadog.Set("enable_payloads.series", true)
+		config.Datadog.Set("enable_payloads.service_checks", true)
+		config.Datadog.Set("enable_payloads.sketches", true)
+		config.Datadog.Set("enable_payloads.json_to_v1_intake", true)
+	}()
+
+	f := &forwarder.MockedForwarder{}
+	s := NewSerializer(f)
+
+	payload := &testPayload{}
+	payloads, _ := mkPayloads(jsonString, false)
+
+	s.SendEvents(payload)
+	s.SendSeries(payload)
+	s.SendSketch(payload)
+	s.SendServiceChecks(payload)
+	s.SendJSONToV1Intake("test")
+
+	f.AssertNotCalled(t, "SubmitV1Intake")
+	f.AssertNotCalled(t, "SubmitEvents")
+	f.AssertNotCalled(t, "SubmitV1CheckRuns")
+	f.AssertNotCalled(t, "SubmitServiceChecks")
+	f.AssertNotCalled(t, "SubmitV1Series")
+	f.AssertNotCalled(t, "SubmitSeries")
+	f.AssertNotCalled(t, "SubmitSketchSeries")
+
+	// We never disable metadata
+	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(nil).Times(1)
+	s.SendMetadata(payload)
+	f.AssertNumberOfCalls(t, "SubmitV1Intake", 1) // called once for the metadata
 }
