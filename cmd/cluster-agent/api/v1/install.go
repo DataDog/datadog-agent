@@ -10,8 +10,8 @@ import (
 )
 
 func Install(r *mux.Router) {
-	r.HandleFunc("metadata/nodes/{nodeName}/namespaces/{ns}/pods/{podName}", getPodMetadata).Methods("GET")
-	r.HandleFunc("metadata/nodes/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
+	r.HandleFunc("metadata/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("metadata", getAllMetadata).Methods("GET")
 	r.HandleFunc("{check}/events", getCheckLatestEvents).Methods("GET")
 }
@@ -35,7 +35,7 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
-			localhost:5001/api/v1/metadata/nodes/localhost/namespaces/default/pods/my-nginx-5d69
+			localhost:5001/api/v1/metadata/localhost/default/my-nginx-5d69
 		Outputs
 			Status: 200
 			Returns: []string

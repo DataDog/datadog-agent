@@ -58,14 +58,14 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// path should be like: /api/v1/metadata/nodes/{nodeName}/namespaces/{ns}/pods/{pod-[0-9a-z]+}
+	// path should be like: /api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
 	s := strings.Split(r.URL.Path, "/")
-	if len(s) != 10 {
+	if len(s) != 7 {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Errorf("unexpected len 10 != %d", len(s))
+		log.Errorf("unexpected len 7 != %d", len(s))
 		return
 	}
-	nodeName, ns, podName := s[5], s[7], s[9]
+	nodeName, ns, podName := s[4], s[5], s[6]
 	key := fmt.Sprintf("%s/%s/%s", nodeName, ns, podName)
 
 	d.RLock()
