@@ -31,14 +31,21 @@ type datadogProvider struct {
 	values          map[provider.CustomMetricInfo]int64
 	externalMetrics []externalMetric
 	resVersion      string
+	hpaClient       *hpa.HPAWatcherClient
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
 func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper) provider.MetricsProvider {
+	hpaCl, err := hpa.NewHPAWatcherClient()
+	if err != nil {
+		log.Errorf("Not able to instanciate the External Metrics provider: %s", err.Error())
+		return nil
+	}
 	return &datadogProvider{
-		client: client,
-		mapper: mapper,
-		values: make(map[provider.CustomMetricInfo]int64),
+		client:    client,
+		mapper:    mapper,
+		values:    make(map[provider.CustomMetricInfo]int64),
+		hpaClient: hpaCl,
 	}
 }
 
@@ -65,15 +72,10 @@ func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
 
 // ListAllExternalMetrics is called every 30 seconds, although this is configurable on the API Server's end.
 func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
-	cl, err := hpa.NewHPAWatcherClient()
-	if err != nil {
-		log.Errorf("Could not get the HPA Client: %s", err.Error())
-		return nil
-	}
-	rawMetrics := cl.ReadConfigMap()
+	var externalMetricsInfoList []provider.ExternalMetricInfo
+	var externalMetricsList []externalMetric
 
-	externalMetricsInfoList := []provider.ExternalMetricInfo{}
-	externalMetricsList := []externalMetric{}
+	rawMetrics := p.hpaClient.ReadConfigMap()
 
 	for _, metric := range rawMetrics {
 		var extMetric externalMetric
