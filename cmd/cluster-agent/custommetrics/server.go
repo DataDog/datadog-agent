@@ -66,7 +66,7 @@ func StartServer() error {
 	}
 
 	// HPA watcher
-	hpaClient, err := hpa.GetHPAWatcherClient()
+	hpaClient, err := hpa.NewHPAWatcherClient()
 	if err != nil {
 		return err
 	}

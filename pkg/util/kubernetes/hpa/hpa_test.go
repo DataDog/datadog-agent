@@ -15,10 +15,7 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-// removeEntryFromConfigMap
-// ReadConfigMap
-
-func mockConfigMap(metricName string, labels map[string]string) *v1.ConfigMap {
+func newMockConfigMap(metricName string, labels map[string]string) *v1.ConfigMap {
 	cm := &v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "ConfigMap",
@@ -45,7 +42,7 @@ func mockConfigMap(metricName string, labels map[string]string) *v1.ConfigMap {
 	return cm
 }
 
-func mockHPAExternalManifest(metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
+func newMockHPAExternalManifest(metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
 	return &v2beta1.HorizontalPodAutoscaler{
 		Spec: v2beta1.HorizontalPodAutoscalerSpec{
 			Metrics: []v2beta1.MetricSpec{
@@ -79,14 +76,14 @@ func TestRemoveEntryFromConfigMap(t *testing.T) {
 	}{
 		{
 			caseName:          "Metric exists, deleting",
-			configmap:         mockConfigMap("foo", map[string]string{"bar": "baz"}),
-			hpa:               mockHPAExternalManifest("foo", map[string]string{"bar": "baz"}),
+			configmap:         newMockConfigMap("foo", map[string]string{"bar": "baz"}),
+			hpa:               newMockHPAExternalManifest("foo", map[string]string{"bar": "baz"}),
 			expectedConfigMap: map[string]string{},
 		},
 		{
 			caseName:          "Metric is not listed, no-op",
-			configmap:         mockConfigMap("foobar", map[string]string{"bar": "baz"}),
-			hpa:               mockHPAExternalManifest("foo", map[string]string{"bar": "baz"}),
+			configmap:         newMockConfigMap("foobar", map[string]string{"bar": "baz"}),
+			hpa:               newMockHPAExternalManifest("foo", map[string]string{"bar": "baz"}),
 			expectedConfigMap: map[string]string{"foobar": "{\"name\":\"foobar\",\"labels\":{\"bar\":\"baz\"},\"ts\":12,\"origin\":\"foo\",\"value\":1}"},
 		},
 	}
@@ -106,7 +103,7 @@ func TestRemoveEntryFromConfigMap(t *testing.T) {
 
 }
 
-func mockCustomExternalMetric(name string, labels map[string]string) CustomExternalMetric {
+func newMockCustomExternalMetric(name string, labels map[string]string) CustomExternalMetric {
 	return CustomExternalMetric{
 		Name:      name,
 		Labels:    labels,
@@ -131,13 +128,13 @@ func TestReadConfigMap(t *testing.T) {
 	}{
 		{
 			caseName:       "No correct metrics",
-			configmap:      mockConfigMap("foo", map[string]string{}),
+			configmap:      newMockConfigMap("foo", map[string]string{}),
 			expectedResult: nil,
 		},
 		{
 			caseName:       "Metric has the expected format",
-			configmap:      mockConfigMap("foo", map[string]string{"bar": "baz"}),
-			expectedResult: []CustomExternalMetric{mockCustomExternalMetric("foo", map[string]string{"bar": "baz"})},
+			configmap:      newMockConfigMap("foo", map[string]string{"bar": "baz"}),
+			expectedResult: []CustomExternalMetric{newMockCustomExternalMetric("foo", map[string]string{"bar": "baz"})},
 		},
 	}
 

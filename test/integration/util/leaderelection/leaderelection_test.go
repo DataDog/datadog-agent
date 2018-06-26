@@ -166,7 +166,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	}
 
 	c, err := apiserver.GetAPIClient()
-	client := c.Client
+	client := c.Cl.CoreV1()
 
 	require.Nil(suite.T(), err)
 	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})

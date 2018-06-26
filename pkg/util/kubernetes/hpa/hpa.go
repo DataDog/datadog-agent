@@ -52,7 +52,7 @@ type HPAWatcherClient struct {
 	ns             string
 }
 
-func (c *HPAWatcherClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodAutoscaler, modified []*v2beta1.HorizontalPodAutoscaler, deleted []*v2beta1.HorizontalPodAutoscaler, resVer string, err error) {
+func (c *HPAWatcherClient) run(res string) (new []*v2beta1.HorizontalPodAutoscaler, modified []*v2beta1.HorizontalPodAutoscaler, deleted []*v2beta1.HorizontalPodAutoscaler, resVer string, err error) {
 	hpaInterface := c.clientSet.AutoscalingV2beta1()
 
 	metaOptions := metav1.ListOptions{Watch: true, ResourceVersion: res}
@@ -102,29 +102,25 @@ func (c *HPAWatcherClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodA
 	}
 }
 
-func newHPAWatcher() (*HPAWatcherClient, error) {
+// NewHPAWatcherClient returns the HPAWatcherClient
+func NewHPAWatcherClient() (*HPAWatcherClient, error) {
 	namespace := as.GetResourcesNamespace()
 	clientAPI, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Error creating Client for the HPA: %s", err.Error())
 		return nil, err
 	}
-	hpaPollItl := config.Datadog.GetInt("hpa_watcher_polling_freq")
-	hpaRefreshItl := config.Datadog.GetInt("hpa_external_metrics_polling_freq")
-	hpaExternalMaxAge := config.Datadog.GetInt("hpa_external_metrics_max_age")
+	pollInterval := config.Datadog.GetInt("hpa_watcher_polling_freq")
+	refreshInterval := config.Datadog.GetInt("hpa_external_metrics_polling_freq")
+	externalMaxAge := config.Datadog.GetInt("hpa_external_metrics_max_age")
 	return &HPAWatcherClient{
 		clientSet:      clientAPI.Cl,
 		readTimeout:    100 * time.Millisecond,
-		pollItl:        time.NewTicker(time.Duration(hpaPollItl) * time.Second),
-		refreshItl:     time.NewTicker(time.Duration(hpaRefreshItl) * time.Second),
-		externalMaxAge: time.Duration(hpaExternalMaxAge) * time.Second,
+		pollItl:        time.NewTicker(time.Duration(pollInterval) * time.Second),
+		refreshItl:     time.NewTicker(time.Duration(refreshInterval) * time.Second),
+		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		ns:             namespace,
 	}, nil
-}
-
-// GetHPAWatcherClient returns the HPAWatcherClient
-func GetHPAWatcherClient() (*HPAWatcherClient, error) {
-	return newHPAWatcher()
 }
 
 // Start runs a watch process of the various HPA objects' activities to process and store the relevant info.
@@ -157,7 +153,7 @@ func (c *HPAWatcherClient) Start() {
 				if !leaderEngine.IsLeader() {
 					continue
 				}
-				newHPA, modified, deleted, res, err := c.hpaWatcher(resversion)
+				newHPA, modified, deleted, res, err := c.run(resversion)
 				if err != nil {
 					log.Errorf("Error while watching HPA Objects' activities: %s", err)
 					return

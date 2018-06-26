@@ -171,12 +171,12 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// HPA Process
 	if config.Datadog.GetBool("enable_hpa") {
-		// Start the k8s custom metrics server. This is a blocking call
 		err = custommetrics.ValidateArgs(args)
 		if err != nil {
 			log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
 
 		} else {
+			// Start the k8s custom metrics server. This is a blocking call
 			err = custommetrics.StartServer()
 			if err != nil {
 				log.Errorf("Could not start the custom metrics API server: %s", err.Error())
