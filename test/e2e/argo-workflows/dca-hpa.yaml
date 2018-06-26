@@ -672,12 +672,12 @@ spec:
         arguments:
           parameters:
           - name: action
-          value: "apply"
+            value: "apply"
           - name: manifest
-          value: "{{item}}"
+            value: "{{item}}"
         withItems:
-        - "{{input.parameters.hpa-rbac}}"
-        - "{{input.parameters.hpa-manifest}}"
+        - "{{inputs.parameters.hpa-rbac}}"
+        - "{{inputs.parameters.hpa-manifest}}"
 
       - name: validate-hpa
         template: validate-hpa
@@ -776,7 +776,7 @@ spec:
         done
 
         # Verify DCA processed the HPA
-        dca = $(kubectl get po -l app=datadog-cluster-agent -o json -n default | jq -re .items[].metadata.name
+        dca = $(kubectl get po -l app=datadog-cluster-agent -o json -n default | jq -re .items[].metadata.name)
         while true
         do
           kubectl logs $dca | grep "Finished processing hpa.CustomExternalMetric" || {

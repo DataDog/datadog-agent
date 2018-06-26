@@ -92,7 +92,7 @@ func (suite *testSuite) TestKubeEvents() {
 
 	require.Nil(suite.T(), err)
 
-	core := c.Client
+	core := c.Cl.CoreV1()
 	require.NotNil(suite.T(), core)
 
 	// Ignore potential startup events
@@ -166,7 +166,7 @@ func (suite *testSuite) TestServiceMapper() {
 	client, err := apiserver.GetAPIClient()
 	require.Nil(suite.T(), err)
 
-	c := client.Client
+	c := client.Cl.CoreV1()
 	require.NotNil(suite.T(), c)
 
 	// Create a Ready Schedulable node

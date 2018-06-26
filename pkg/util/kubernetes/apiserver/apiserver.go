@@ -119,10 +119,11 @@ func (c *APIClient) connect() error {
 	c.Cl, err = getClientSet()
 	if err != nil {
 		// We do not return an error as the HPA is an option that should not prevent the DCA to work.
-		log.Errorf("Not able to set up a client for horizontal pod autoscaling: %s", err)
+		log.Errorf("Not able to set up a client for the API Server: %s", err)
+		return err
 	}
 	// Try to get apiserver version to confim connectivity
-	APIversion := c.Cl.CoreV1().RESTClient().APIVersion()
+	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
 	if APIversion.Empty() {
 		return fmt.Errorf("cannot retrieve the version of the API server at the moment")
 	}
