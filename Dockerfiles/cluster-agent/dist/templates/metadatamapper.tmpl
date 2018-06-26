@@ -15,10 +15,13 @@ Warnings:
 {{- range $index, $meta_type := .Nodes }}
 Node detected: {{ $index -}}
 {{- range $m := $meta_type }}
-   {{ range $pod, $svc := $m }}
- -  Pod name: {{ $pod }}
-    Services list: {{ $svc -}}
-   {{ end -}}
+  {{ range $ns, $pods := $m }}
+  -  Namespace: {{ $ns }}
+    {{ range $pod, $svc := $pods }}
+      - Pod name: {{ $pod }}
+        Services list: {{ $svc -}}
+    {{ end -}}
+  {{ end -}}
 {{- end -}}
 {{- end }}
 {{- end -}}
