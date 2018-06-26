@@ -63,7 +63,7 @@ func (m ServicesMapper) Map(nodeName string, pods v1.PodList, endpointList v1.En
 			}
 			podToIp[pod.Namespace][pod.Name] = pod.Status.PodIP
 		} else {
-			log.Debugf("PodIP is empty, ignoring pod %s in namespace", pod.Name, pod.Namespace)
+			log.Debugf("PodIP is empty, ignoring pod %s in namespace %s", pod.Name, pod.Namespace)
 		}
 	}
 	for _, svc := range endpointList.Items {
