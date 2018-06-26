@@ -4,14 +4,14 @@
  */
 
 plugins {
-    id "org.datadog.agent" version "0.2.11"
+    id "org.golang.mobile.bind" version "0.2.11"
 }
 
 gobind {
     /* The Go package path; must be under one of the GOPATH elements or
      a relative to the current directory (e.g. ../../hello) */
     //pkg = "golang.org/x/mobile/example/bind/hello"
-    pkg = "../app"
+    pkg = ".."
 
     /* GOPATH where the Go package is; check `go env` */
     GOPATH = "c:\\dev\\go"
@@ -22,4 +22,7 @@ gobind {
     /* Optionally, set the absolute path to the gomobile binary if the
     /* gomobile binary is not located in the GOPATH's bin directory. */
     // GOMOBILE = "/PATH/TO/GOMOBILE"
+
+    // build tags can be set with GOMOBILEFLAGS as below
+    // GOMOBILEFLAGS="-tags \"foo\""
 }
