@@ -11,8 +11,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// EventChecks are checks that send events and are supported by the DCA
-var EventChecks = []string{
+// eventChecks are checks that send events and are supported by the DCA
+var eventChecks = []string{
 	"kubernetes",
 }
 
@@ -20,13 +20,13 @@ func Install(r *mux.Router) {
 	r.HandleFunc("metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("metadata/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("metadata", getAllMetadata).Methods("GET")
-	r.HandleFunc("{check}/events", getCheckLatestEvents).Methods("GET")
+	r.HandleFunc("events/{check}", getCheckLatestEvents).Methods("GET")
 }
 
 func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	check := vars["check"]
-	for _, c := range EventChecks {
+	for _, c := range eventChecks {
 		if c == check {
 			w.Write([]byte("[OK] TODO"))
 			return
