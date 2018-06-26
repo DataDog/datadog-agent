@@ -65,7 +65,11 @@ func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
 
 // ListAllExternalMetrics is called every 30 seconds, although this is configurable on the API Server's end.
 func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
-	cl := hpa.GetHPAWatcherClient()
+	cl, err := hpa.GetHPAWatcherClient()
+	if err != nil {
+		log.Errorf("Could not get the HPA Client: %s", err.Error())
+		return nil
+	}
 	rawMetrics := cl.ReadConfigMap()
 
 	externalMetricsInfoList := []provider.ExternalMetricInfo{}

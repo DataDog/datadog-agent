@@ -46,6 +46,9 @@ func StartServer() error {
 	}
 	var clientConfig *rest.Config
 	clientConfig, err = rest.InClusterConfig()
+	if err != nil {
+		return err
+	}
 
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(clientConfig)
 	if err != nil {
@@ -63,7 +66,10 @@ func StartServer() error {
 	}
 
 	// HPA watcher
-	hpaClient := hpa.GetHPAWatcherClient() // Return err
+	hpaClient, err := hpa.GetHPAWatcherClient()
+	if err != nil {
+		return err
+	}
 	hpaClient.Start()
 
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper)

@@ -1,13 +1,15 @@
 package hpa
 
 import (
-	"k8s.io/client-go/kubernetes/fake"
 	"testing"
+
+	"k8s.io/client-go/kubernetes/fake"
 	//fake2 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"encoding/json"
 	"fmt"
+
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/api/core/v1"
@@ -148,5 +150,4 @@ func TestReadConfigMap(t *testing.T) {
 			hpaCl.clientSet.CoreV1().ConfigMaps("default").Delete(datadogHPAConfigMap, &metav1.DeleteOptions{})
 		})
 	}
-
 }

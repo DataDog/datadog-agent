@@ -102,12 +102,12 @@ func (c *HPAWatcherClient) hpaWatcher(res string) (new []*v2beta1.HorizontalPodA
 	}
 }
 
-func newHPAWatcher() *HPAWatcherClient {
+func newHPAWatcher() (*HPAWatcherClient, error) {
 	namespace := as.GetResourcesNamespace()
 	clientAPI, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Error creating Client for the HPA: %s", err.Error())
-		return nil
+		return nil, err
 	}
 	hpaPollItl := config.Datadog.GetInt("hpa_watcher_polling_freq")
 	hpaRefreshItl := config.Datadog.GetInt("hpa_external_metrics_polling_freq")
@@ -119,11 +119,11 @@ func newHPAWatcher() *HPAWatcherClient {
 		refreshItl:     time.NewTicker(time.Duration(hpaRefreshItl) * time.Second),
 		externalMaxAge: time.Duration(hpaExternalMaxAge) * time.Second,
 		ns:             namespace,
-	}
+	}, nil
 }
 
 // GetHPAWatcherClient returns the HPAWatcherClient
-func GetHPAWatcherClient() *HPAWatcherClient {
+func GetHPAWatcherClient() (*HPAWatcherClient, error) {
 	return newHPAWatcher()
 }
 

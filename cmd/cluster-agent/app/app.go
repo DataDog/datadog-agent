@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
 )
@@ -172,13 +171,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// HPA Process
 	if config.Datadog.GetBool("enable_hpa") {
-		hpaClient := hpa.GetHPAWatcherClient()
-		hpaClient.Start()
-	}
-
-	// HPA Process
-	if config.Datadog.GetBool("enable_hpa") {
-		// Start the k8s custom metrics server This is a blocking call
+		// Start the k8s custom metrics server. This is a blocking call
 		err = custommetrics.ValidateArgs(args)
 		if err != nil {
 			log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
