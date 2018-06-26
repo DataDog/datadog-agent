@@ -103,16 +103,22 @@ build do
     python_pip = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt #{windows_safe_path(project_dir)}"
     python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt -r #{windows_safe_path(project_dir)}"
 
+    pinned_requirements = "#{project_dir}/datadog_checks_base/requirements.in"
     if windows?
       command("#{python_bin} -m #{python_pip}\\datadog_checks_base")
-      command("#{python_bin} -m #{python_pip_req}\\datadog_checks_base\\requirements.in")
+      if File.exist? pinned_requirements
+        command("#{python_bin} -m #{python_pip_req}\\datadog_checks_base\\requirements.in")
+      end
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
       pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      pip "install -c #{install_dir}/agent_requirements.txt *.whl -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      if File.exist? pinned_requirements
+        pip "install -c #{install_dir}/agent_requirements.txt -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      end
     end
 
     # Set frozen requirements post `datadog_checks_base` - constraints file will be used by
@@ -171,16 +177,21 @@ build do
       end
 
       File.file?("#{check_dir}/setup.py") || next
+      pinned_requirements = "#{check_dir}/requirements.in"
       if windows?
         command("#{python_bin} -m #{python_pip}\\#{check}")
-        command("#{python_bin} -m #{python_pip_req}\\#{check}\\requirements.in")
+        if File.exist? pinned_requirements
+          command("#{python_bin} -m #{python_pip_req}\\#{check}\\requirements.in")
+        end
       else
         build_env = {
           "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
           "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
         }
         pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/#{check}"
-        pip "install -c #{install_dir}/agent_requirements.txt *.whl -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        if File.exist? pinned_requirements
+          pip "install -c #{install_dir}/agent_requirements.txt *.whl -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        end
       end
     end
   end
