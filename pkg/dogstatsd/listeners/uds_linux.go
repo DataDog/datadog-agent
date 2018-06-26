@@ -56,6 +56,12 @@ func processUDSOrigin(ancillary []byte) (string, error) {
 	if err != nil {
 		return NoOrigin, err
 	}
+
+	if cred.Pid == 0 {
+		return NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
+			"probably to another namespace. Is the agent in host PID mode?")
+	}
+
 	container, err := getContainerForPID(cred.Pid)
 	if err != nil {
 		return NoOrigin, err
