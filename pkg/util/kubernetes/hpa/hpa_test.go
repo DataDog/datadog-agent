@@ -3,9 +3,8 @@ package hpa
 import (
 	"testing"
 
-	"k8s.io/client-go/kubernetes/fake"
-	//fake2 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"encoding/json"
 	"fmt"
@@ -35,6 +34,7 @@ func newMockConfigMap(metricName string, labels map[string]string) *v1.ConfigMap
 		Timestamp: 12,
 		HpaName:   "foo",
 		Value:     1,
+		Valid:     false,
 	}
 	cm.Data = make(map[string]string)
 	marsh, _ := json.Marshal(custMetric)
@@ -84,7 +84,7 @@ func TestRemoveEntryFromConfigMap(t *testing.T) {
 			caseName:          "Metric is not listed, no-op",
 			configmap:         newMockConfigMap("foobar", map[string]string{"bar": "baz"}),
 			hpa:               newMockHPAExternalManifest("foo", map[string]string{"bar": "baz"}),
-			expectedConfigMap: map[string]string{"foobar": "{\"name\":\"foobar\",\"labels\":{\"bar\":\"baz\"},\"ts\":12,\"origin\":\"foo\",\"value\":1}"},
+			expectedConfigMap: map[string]string{"foobar": "{\"name\":\"foobar\",\"labels\":{\"bar\":\"baz\"},\"ts\":12,\"hpa_name\":\"foo\",\"value\":1,\"valid\":false}"},
 		},
 	}
 

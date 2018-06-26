@@ -44,7 +44,6 @@ func QueryDatadogExternal(metricName string, tags map[string]string) (int64, err
 	if len(points) < 1 {
 		return 0, log.Errorf("No points in series")
 	}
-	log.Infof("About to return %#v converted to int64 %#v", points[len(points)-1][1], int64(points[len(points)-1][1]))
 	lastValue := int64(points[len(points)-1][1])
 	return lastValue, nil
 }

@@ -73,6 +73,10 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	rawMetrics := p.hpaClient.ReadConfigMap()
 
 	for _, metric := range rawMetrics {
+		// Only metrics that exist in Datadog and available are eligible to be evaluated in the HPA process.
+		if !metric.Valid {
+			continue
+		}
 		var extMetric externalMetric
 		extMetric.info = provider.ExternalMetricInfo{
 			Metric: metric.Name,
@@ -102,7 +106,6 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 func (p *datadogProvider) GetExternalMetric(namespace string, metricName string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
 	for _, metric := range p.externalMetrics {
-
 		metricFromDatadog := external_metrics.ExternalMetricValue{
 			MetricName:   metricName,
 			MetricLabels: metric.info.Labels,

@@ -15,6 +15,10 @@
   version = "~v0.4.7"
 
 [[constraint]]
+  name = "github.com/hashicorp/consul"
+  version = "~1.0.0"
+
+[[constraint]]
   name = "github.com/beevik/ntp"
   revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
 

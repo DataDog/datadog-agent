@@ -38,8 +38,9 @@ type CustomExternalMetric struct {
 	Name      string            `json:"name"`
 	Labels    map[string]string `json:"labels"`
 	Timestamp int64             `json:"ts"`
-	HpaName   string            `json:"origin"`
+	HpaName   string            `json:"hpa_name"`
 	Value     int64             `json:"value"`
+	Valid     bool              `json:"valid"`
 }
 
 // HPAWatcherClient embeds the API Server client and the configuration to refresh metrics from Datadog and watch the HPA Objects' activities
@@ -176,53 +177,60 @@ func (c *HPAWatcherClient) Start() {
 				if !leaderEngine.IsLeader() {
 					continue
 				}
+				// Updating the metrics against Datadog should not affect the HPA pipeline.
+				// If metrics are temporarily unavailable for too long, they will become `Valid=false` and won't be evaluated.
 				c.updateCustomMetrics()
 			}
 		}
 	}()
 }
 
-func (c *HPAWatcherClient) updateCustomMetrics() error {
+func (c *HPAWatcherClient) updateCustomMetrics() {
 	maxAge := int64(c.externalMaxAge.Seconds())
+
 	configMap, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Infof("Error while retrieving the Config Map %s", datadogHPAConfigMap)
-		return nil
+		return
 	}
+
 	data := configMap.Data
 	if len(data) == 0 {
 		log.Debugf("No External Metrics to evaluate at the moment")
-		return nil
+		return
 	}
+
 	for _, d := range data {
 		cm := &CustomExternalMetric{}
-
 		json.Unmarshal([]byte(d), &cm)
 
-		if metav1.Now().Unix()-cm.Timestamp > maxAge {
-
+		if metav1.Now().Unix()-cm.Timestamp > maxAge || !cm.Valid {
+			cm.Valid = false
 			cm.Timestamp = metav1.Now().Unix()
 			cm.Value, err = QueryDatadogExternal(cm.Name, cm.Labels)
+
 			if err != nil {
-				log.Infof("err querying DD %s", err)
+				log.Debugf("Could not update the metric %s from Datadog: %s", cm.Name, err.Error())
 				continue
 			}
+
 			c, err := json.Marshal(cm)
 			if err != nil {
-				log.Infof("err marshalling %s", err)
+				log.Errorf("Error while marshalling the custom metric %s: %s", cm.Name, err.Error())
+				return
 			}
-			data[cm.Name] = string(c)
 
-			log.Infof("updated cm is: %#v", cm)
+			data[cm.Name] = string(c)
+			cm.Valid = true // The Custom metric is ready to be consumed in the HPA pipeline
+			log.Debugf("Updated the custom metric %#v", cm)
 		}
 
 	}
 	_, err = c.clientSet.CoreV1().ConfigMaps(c.ns).Update(configMap)
 	if err != nil {
-		log.Infof("Could not update because: %s", err)
-		return err
+		log.Errorf("Could not update because: %s", err)
 	}
-	return nil
+	return
 }
 
 func (c *HPAWatcherClient) createConfigMapHPA() error {
@@ -261,9 +269,8 @@ func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric 
 			cm.HpaName = e.Name
 			err := cm.validateMetric()
 			if err != nil {
-				continue
+				log.Debugf("Not able to process %#v: %s", cm, err)
 			}
-			log.Infof("Finished processing %#v", cm)
 			cmList = append(cmList, cm)
 		}
 	}
@@ -276,8 +283,10 @@ func (cm *CustomExternalMetric) validateMetric() error {
 	cm.Value, err = QueryDatadogExternal(cm.Name, cm.Labels)
 	if err != nil {
 		log.Errorf("Not able to validate %#v: %s", cm, err.Error())
+		cm.Valid = false
 		return err
 	}
+	cm.Valid = true
 	return nil
 }
 
@@ -296,6 +305,7 @@ func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) 
 			HpaName:   n.HpaName,
 			Value:     n.Value,
 			Timestamp: n.Timestamp,
+			Valid:     n.Valid,
 		}
 		toStore, _ := json.Marshal(newMetric)
 		if cm.Data == nil {
