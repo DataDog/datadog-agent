@@ -101,16 +101,18 @@ build do
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
     python_pip = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt #{windows_safe_path(project_dir)}"
+    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt -r #{windows_safe_path(project_dir)}"
 
     if windows?
       command("#{python_bin} -m #{python_pip}\\datadog_checks_base")
+      command("#{python_bin} -m #{python_pip_req}\\datadog_checks_base\\requirements.in")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
       pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      pip "install -c #{install_dir}/agent_requirements.txt *.whl -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
     end
 
     # Set frozen requirements post `datadog_checks_base` - constraints file will be used by
@@ -171,13 +173,14 @@ build do
       File.file?("#{check_dir}/setup.py") || next
       if windows?
         command("#{python_bin} -m #{python_pip}\\#{check}")
+        command("#{python_bin} -m #{python_pip_req}\\#{check}\\requirements.in")
       else
         build_env = {
           "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
           "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
         }
         pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/#{check}"
-        pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        pip "install -c #{install_dir}/agent_requirements.txt *.whl -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
   end
