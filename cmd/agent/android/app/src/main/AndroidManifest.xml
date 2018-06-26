@@ -3,11 +3,19 @@
      Use of this source code is governed by a BSD-style
      license that can be found in the LICENSE file.  -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.datadog.agent" >
+    package="org.datadog.agent" 
+    android:versionCode="1"
+	android:versionName="1.0"
+    coreApp="true"
+    android:sharedUserId="android.uid.system"
+    >
 
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="true"
-        android:label="GoBindExample">
+        android:label="DataDog Agent">
+        <service
+            android:name=".DDService" />
         <activity
             android:name=".MainActivity"
             android:label="DatadogAgent" >
