@@ -72,7 +72,7 @@ func StartServer() error {
 	}
 	hpaClient.Start()
 
-	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper)
+	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, hpaClient)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.
 	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)
 	if err != nil {

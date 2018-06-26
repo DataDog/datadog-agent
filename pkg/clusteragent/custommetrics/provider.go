@@ -35,12 +35,7 @@ type datadogProvider struct {
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
-func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper) provider.MetricsProvider {
-	hpaCl, err := hpa.NewHPAWatcherClient()
-	if err != nil {
-		log.Errorf("Not able to instanciate the External Metrics provider: %s", err.Error())
-		return nil
-	}
+func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper, hpaCl *hpa.HPAWatcherClient) provider.MetricsProvider {
 	return &datadogProvider{
 		client:    client,
 		mapper:    mapper,
