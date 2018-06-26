@@ -5,9 +5,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/dd-go/log"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 )
+
+// EventChecks are checks that send events and are supported by the DCA
+var EventChecks = []string{
+	"kubernetes",
+}
 
 func Install(r *mux.Router) {
 	r.HandleFunc("metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")

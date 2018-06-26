@@ -26,11 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// EventChecks are checks that send events and are supported by the DCA
-var EventChecks = []string{
-	"kubernetes",
-}
-
 // SetupHandlers adds the specific handlers for cluster agent endpoints
 func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
