@@ -20,7 +20,7 @@ Follow these instructions to install the Datadog agent from the command line.
 
 ### Commands
 
-Set environment variables:
+Set environment variables (update when necessary):
 ```
 export namespace=default
 export name=datadog-agent
@@ -31,19 +31,14 @@ export image_datadog_agent=datadog/agent:latest
 export name_cluster_role=datadog-cr
 ```
 
-Expand manifest template:
-```
-cat manifest/* | envsubst > expanded.yaml
-```
-
 One-time install the `Application` CRD:
 ```
 make crd/install
 ```
 
-Run kubectl:
+Install the Datadog agent:
 ```
-kubectl apply -f expanded.yaml
+make app/install
 ```
 
 # Upgrades
