@@ -357,6 +357,25 @@ func TestResolve(t *testing.T) {
 			},
 			errorString: "envvar name is missing, skipping service a5901276aed1",
 		},
+		//// hostname
+		{
+			testName: "simple %%hostname%%",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hostname:      "i.m.here",
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%hostname%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: i.m.here")},
+			},
+		},
 		//// other tags testing
 		{
 			testName: "simple %%pid%%",

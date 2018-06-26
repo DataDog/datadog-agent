@@ -217,3 +217,8 @@ func (s *ECSService) GetTags() ([]string, error) {
 func (s *ECSService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
+
+// GetHostname returns nil and an error because port is not supported in Fargate-based ECS
+func (s *ECSService) GetHostname() (string, error) {
+	return "", ErrNotSupported
+}

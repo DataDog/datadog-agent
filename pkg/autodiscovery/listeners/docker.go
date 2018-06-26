@@ -45,6 +45,7 @@ type DockerService struct {
 	Hosts         map[string]string
 	Ports         []ContainerPort
 	Pid           int
+	Hostname      string
 }
 
 func init() {
@@ -469,6 +470,36 @@ func (s *DockerService) GetPid() (int, error) {
 	}
 
 	return s.Pid, nil
+}
+
+// GetHostname returns hostname.domainname for the container
+func (s *DockerService) GetHostname() (string, error) {
+	if s.Hostname != "" {
+		return s.Hostname, nil
+	}
+
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		return "", err
+	}
+	cInspect, err := du.Inspect(string(s.ID), false)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+	}
+	if cInspect.Config == nil {
+		return "", fmt.Errorf("invalid inspect for container %s", string(s.ID)[:12])
+	}
+	if cInspect.Config.Hostname == "" {
+		return "", fmt.Errorf("empty hostname for container %s", string(s.ID)[:12])
+	}
+
+	if cInspect.Config.Domainname == "" {
+		s.Hostname = cInspect.Config.Hostname
+	} else {
+		s.Hostname = fmt.Sprintf("%s.%s", cInspect.Config.Hostname, cInspect.Config.Domainname)
+	}
+
+	return s.Hostname, nil
 }
 
 // findKubernetesInLabels traverses a map of container labels and
