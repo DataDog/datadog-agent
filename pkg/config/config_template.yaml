@@ -547,6 +547,10 @@ api_key:
 #   dd_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   dd_agent_env:
+#   Hide sensitive data on the Live Processes page, default value: true  
+#   scrub_args: true
+#   Define your own list of sensitive data to be merged with the default one 
+#   custom_sensitive_words: ['personal_key', '*token', 'sql*', *pass*d*']
 {{ end -}}
 
 {{- if .TraceAgent }}
