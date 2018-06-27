@@ -202,13 +202,16 @@ func (c *HPAWatcherClient) updateCustomMetrics() {
 
 	for _, d := range data {
 		cm := &CustomExternalMetric{}
-		json.Unmarshal([]byte(d), &cm)
-
+		err := json.Unmarshal([]byte(d), &cm)
+		if err != nil {
+			log.Errorf("Could not unmarshal %#v", d)
+			continue
+		}
 		if metav1.Now().Unix()-cm.Timestamp > maxAge || !cm.Valid {
 			cm.Valid = false
 			cm.Timestamp = metav1.Now().Unix()
-			cm.Value, err = QueryDatadogExternal(cm.Name, cm.Labels)
 
+			err := cm.validate()
 			if err != nil {
 				log.Debugf("Could not update the metric %s from Datadog: %s", cm.Name, err.Error())
 				continue
@@ -217,7 +220,7 @@ func (c *HPAWatcherClient) updateCustomMetrics() {
 			c, err := json.Marshal(cm)
 			if err != nil {
 				log.Errorf("Error while marshalling the custom metric %s: %s", cm.Name, err.Error())
-				return
+				continue
 			}
 
 			data[cm.Name] = string(c)
@@ -267,7 +270,7 @@ func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric 
 			cm.Timestamp = metav1.Now().Unix()
 			cm.Labels = m.External.MetricSelector.MatchLabels
 			cm.HpaName = e.Name
-			err := cm.validateMetric()
+			err := cm.validate()
 			if err != nil {
 				log.Debugf("Not able to process %#v: %s", cm, err)
 			}
@@ -277,8 +280,8 @@ func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric 
 	return cmList
 }
 
-// validateMetric queries Datadog to validate the availability of a metric
-func (cm *CustomExternalMetric) validateMetric() error {
+// validate queries Datadog to validate the availability of a metric
+func (cm *CustomExternalMetric) validate() error {
 	var err error
 	cm.Value, err = QueryDatadogExternal(cm.Name, cm.Labels)
 	if err != nil {

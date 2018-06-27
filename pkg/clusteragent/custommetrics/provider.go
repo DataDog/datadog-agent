@@ -124,6 +124,7 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricName string,
 			matchingMetrics = append(matchingMetrics, metricValue)
 		}
 	}
+	log.Debugf("External metrics returned: %#v", matchingMetrics)
 	return &external_metrics.ExternalMetricValueList{
 		Items: matchingMetrics,
 	}, nil
