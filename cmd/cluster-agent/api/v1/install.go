@@ -18,10 +18,10 @@ var eventChecks = []string{
 
 // Install registers v1 API endpoints
 func Install(r *mux.Router) {
-	r.HandleFunc("metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
-	r.HandleFunc("metadata/{nodeName}", getNodeMetadata).Methods("GET")
-	r.HandleFunc("metadata", getAllMetadata).Methods("GET")
-	r.HandleFunc("events/{check}", getCheckLatestEvents).Methods("GET")
+	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
+	r.HandleFunc("/metadata/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")
+	r.HandleFunc("/events/{check}", getCheckLatestEvents).Methods("GET")
 }
 
 func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
