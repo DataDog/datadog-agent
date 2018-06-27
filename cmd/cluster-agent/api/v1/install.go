@@ -16,6 +16,7 @@ var eventChecks = []string{
 	"kubernetes",
 }
 
+// Install registers v1 API endpoints
 func Install(r *mux.Router) {
 	r.HandleFunc("metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("metadata/{nodeName}", getNodeMetadata).Methods("GET")
