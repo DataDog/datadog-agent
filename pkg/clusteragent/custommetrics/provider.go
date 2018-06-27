@@ -10,19 +10,18 @@ package custommetrics
 import (
 	"fmt"
 
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type externalMetric struct {
@@ -50,24 +49,28 @@ func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper, hp
 	}
 }
 
+// GetRootScopedMetricByName - Not implemented
 func (p *datadogProvider) GetRootScopedMetricByName(groupResource schema.GroupResource, name string, metricName string) (*custom_metrics.MetricValue, error) {
 	return nil, fmt.Errorf("Not Implemented - GetRootScopedMetricByName")
 }
 
+// GetRootScopedMetricBySelector - Not implemented
 func (p *datadogProvider) GetRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
 	return nil, fmt.Errorf("Not Implemented - GetRootScopedMetricBySelector")
 }
 
+// GetNamespacedMetricByName - Not implemented
 func (p *datadogProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
 	return nil, fmt.Errorf("Not Implemented - GetNamespacedMetricByName")
 }
 
+// GetNamespacedMetricBySelector - Not implemented
 func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
 	return nil, fmt.Errorf("Not Implemented - GetNamespacedMetricBySelector")
 }
 
+// ListAllMetrics reads from a ConfigMap, similarly to ListExternalMetrics
 func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
-	//// ListAllMetrics Will read from a ConfigMap, similarly to ListExternalMetrics
 	return nil
 }
 
@@ -101,7 +104,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 		})
 	}
 	p.externalMetrics = externalMetricsList
-	log.Tracef("ListAllExternalMetrics returns: %#v", externalMetricsInfoList)
+	log.Debugf("ListAllExternalMetrics returns %d metrics", len(externalMetricsInfoList))
 	return externalMetricsInfoList
 }
 
@@ -124,7 +127,7 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricName string,
 			matchingMetrics = append(matchingMetrics, metricValue)
 		}
 	}
-	log.Debugf("External metrics returned: %#v", matchingMetrics)
+	log.Tracef("External metrics returned: %#v", matchingMetrics)
 	return &external_metrics.ExternalMetricValueList{
 		Items: matchingMetrics,
 	}, nil

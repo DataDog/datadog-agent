@@ -1,10 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
+// +build kubeapiserver
+
 package custommetrics
 
 import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
 	"github.com/spf13/pflag"
@@ -15,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var options *server.CustomMetricsAdapterServerOptions

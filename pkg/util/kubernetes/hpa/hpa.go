@@ -8,23 +8,23 @@
 package hpa
 
 import (
-	"k8s.io/api/autoscaling/v2beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"encoding/json"
 	"reflect"
 	"time"
+
+	"github.com/pkg/errors"
+	"gopkg.in/zorkian/go-datadog-api.v2"
+	"k8s.io/api/autoscaling/v2beta1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
 )
-
-//// Covered by test/integration/util/kubernetes/hpa/hpa_test.go
 
 var (
 	expectedHPAType = reflect.TypeOf(v2beta1.HorizontalPodAutoscaler{})
@@ -51,6 +51,7 @@ type HPAWatcherClient struct {
 	pollItl        *time.Ticker
 	externalMaxAge time.Duration
 	ns             string
+	datadogClient  *datadog.Client
 }
 
 func (c *HPAWatcherClient) run(res string) (new []*v2beta1.HorizontalPodAutoscaler, modified []*v2beta1.HorizontalPodAutoscaler, deleted []*v2beta1.HorizontalPodAutoscaler, resVer string, err error) {
@@ -81,15 +82,19 @@ func (c *HPAWatcherClient) run(res string) (new []*v2beta1.HorizontalPodAutoscal
 				resVer = currHPA.ResourceVersion
 			}
 			if rcvdHPA.Type == watch.Error {
-				log.Infof("Error in the watcher, evaluating: %s", currHPA)
-				//status, ok := rcvdHPA.Object.()
+				status, ok := rcvdHPA.Object.(*metav1.Status)
+				if !ok {
+					return nil, nil, nil, "0", errors.Errorf("error in the watcher, evaluating: %s", currHPA)
+				}
+				log.Infof("Error while processing the HPA watch: %#v", status)
+				continue
 			}
 			if rcvdHPA.Type == watch.Added {
-				log.Infof("Adding this manifest: %s", currHPA)
+				log.Debugf("Adding this manifest: %s", currHPA)
 				new = append(new, currHPA)
 			}
 			if rcvdHPA.Type == watch.Modified {
-				log.Infof("Modifying this manifest: %s", currHPA)
+				log.Debugf("Modifying this manifest: %s", currHPA)
 				modified = append(modified, currHPA)
 			}
 			if rcvdHPA.Type == watch.Deleted {
@@ -107,6 +112,10 @@ func (c *HPAWatcherClient) run(res string) (new []*v2beta1.HorizontalPodAutoscal
 func NewHPAWatcherClient() (*HPAWatcherClient, error) {
 	namespace := as.GetResourcesNamespace()
 	clientAPI, err := as.GetAPIClient()
+	datadogCl, err := NewDatadogClient()
+	if err != nil {
+		return nil, err
+	}
 	if err != nil {
 		log.Errorf("Error creating Client for the HPA: %s", err.Error())
 		return nil, err
@@ -121,6 +130,7 @@ func NewHPAWatcherClient() (*HPAWatcherClient, error) {
 		refreshItl:     time.NewTicker(time.Duration(refreshInterval) * time.Second),
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		ns:             namespace,
+		datadogClient:  datadogCl,
 	}, nil
 }
 
@@ -201,7 +211,7 @@ func (c *HPAWatcherClient) updateCustomMetrics() {
 	}
 
 	for _, d := range data {
-		cm := &CustomExternalMetric{}
+		cm := CustomExternalMetric{}
 		err := json.Unmarshal([]byte(d), &cm)
 		if err != nil {
 			log.Errorf("Could not unmarshal %#v", d)
@@ -211,7 +221,7 @@ func (c *HPAWatcherClient) updateCustomMetrics() {
 			cm.Valid = false
 			cm.Timestamp = metav1.Now().Unix()
 
-			err := cm.validate()
+			cm.Value, cm.Valid, err = c.validate(cm)
 			if err != nil {
 				log.Debugf("Could not update the metric %s from Datadog: %s", cm.Name, err.Error())
 				continue
@@ -261,8 +271,9 @@ func (c *HPAWatcherClient) createConfigMapHPA() error {
 
 // processHPA transforms HPA data into structures to be stored upon validation that they are available in Datadog
 // TODO Distinguish custom and external
-func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric {
+func (hpa *HPAWatcherClient) processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric {
 	var cmList []CustomExternalMetric
+	var err error
 	for _, e := range list {
 		for _, m := range e.Spec.Metrics {
 			var cm CustomExternalMetric
@@ -270,7 +281,7 @@ func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric 
 			cm.Timestamp = metav1.Now().Unix()
 			cm.Labels = m.External.MetricSelector.MatchLabels
 			cm.HpaName = e.Name
-			err := cm.validate()
+			cm.Value, cm.Valid, err = hpa.validate(cm)
 			if err != nil {
 				log.Debugf("Not able to process %#v: %s", cm, err)
 			}
@@ -281,21 +292,18 @@ func processHPA(list []*v2beta1.HorizontalPodAutoscaler) []CustomExternalMetric 
 }
 
 // validate queries Datadog to validate the availability of a metric
-func (cm *CustomExternalMetric) validate() error {
-	var err error
-	cm.Value, err = QueryDatadogExternal(cm.Name, cm.Labels)
+func (hpa *HPAWatcherClient) validate(cm CustomExternalMetric) (value int64, valid bool, err error) {
+	val, err := hpa.QueryDatadogExternal(cm.Name, cm.Labels)
 	if err != nil {
-		log.Errorf("Not able to validate %#v: %s", cm, err.Error())
-		cm.Valid = false
-		return err
+		return cm.Value, false, err
 	}
 	cm.Valid = true
-	return nil
+	return val, true, nil
 }
 
 // storeHPA processes the data collected from the HPA object watch to be validated and stored in the datadogHPAConfigMap ConfigMap.
 func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) error {
-	listCustomMetrics := processHPA(hpaList)
+	listCustomMetrics := c.processHPA(hpaList)
 	cm, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not store the custom metrics data in the ConfigMap %s: %s", datadogHPAConfigMap, err.Error())

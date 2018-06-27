@@ -185,9 +185,10 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	// Block here until we receive the interrupt signal
 	<-signalCh
-
+	if config.Datadog.GetBool("enable_hpa") {
+		custommetrics.StopServer()
+	}
 	clusterAgent.Stop()
-	custommetrics.StopServer()
 	log.Info("See ya!")
 	log.Flush()
 	return nil

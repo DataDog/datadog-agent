@@ -3,11 +3,10 @@ package hpa
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
-
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -15,35 +14,47 @@ import (
 
 // QueryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func QueryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
+func (hpa *HPAWatcherClient) QueryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
 	if metricName == "" || len(tags) == 0 {
 		return 0, errors.New("invalid metric to query")
 	}
 	bucketSize := config.Datadog.GetInt64("hpa_external_metric_bucket_size")
-	client := datadog.NewClient(config.Datadog.GetString("api_key"), config.Datadog.GetString("app_key"))
 	datadogTags := []string{}
 
 	for key, val := range tags {
 		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
 	}
-	tagEnd := strings.Join(datadogTags, ",")
+	tagString := strings.Join(datadogTags, ",")
 
 	// TODO: offer other aggregations than avg.
-	query := fmt.Sprintf("avg:%s{%s}", metricName, tagEnd)
+	query := fmt.Sprintf("avg:%s{%s}", metricName, tagString)
 
-	seriesSlice, err := client.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
+	seriesSlice, err := hpa.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 
 	if err != nil {
 		return 0, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
-	if len(seriesSlice) < 1 {
+	if len(seriesSlice) == 0 {
 		return 0, log.Errorf("Returned series slice empty")
 	}
 	points := seriesSlice[0].Points
 
-	if len(points) < 1 {
+	if len(points) == 0 {
 		return 0, log.Errorf("No points in series")
 	}
 	lastValue := int64(points[len(points)-1][1])
 	return lastValue, nil
+}
+
+// NewDatadogClient generates a new client to query metrics from Datadog
+func NewDatadogClient() (*datadog.Client, error) {
+	apiKey := config.Datadog.GetString("api_key")
+	app_key := config.Datadog.GetString("app_key")
+
+	if app_key == "" || apiKey == "" {
+		return nil, errors.New("could not use the api/app key pair to query Datadog")
+	}
+	log.Infof("Successfully initialized the Datadog Client for HPA")
+	return datadog.NewClient(config.Datadog.GetString("api_key"), config.Datadog.GetString("app_key")), nil
+
 }
