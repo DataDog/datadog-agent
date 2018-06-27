@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
+// +build kubeapiserver
+
 package custommetrics
 
 import (
@@ -10,10 +17,9 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	//"github.com/golang/glog"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"

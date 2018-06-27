@@ -17,7 +17,7 @@ logs:
     service: nginx
     source: nginx
     sourcecategory: http_access
-    tags: env:prod,foo:bar
+    tags: env:prod, foo:bar
 
   # test for tags as array
   - type: file
