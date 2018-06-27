@@ -1,7 +1,6 @@
-
-==============
-Service Mapper
-==============
+===============
+Metadata Mapper
+===============
 {{- if .Errors -}}
 Could not run the service mapper: {{.Errors}}
 {{else}}
@@ -11,18 +10,18 @@ Warnings:
    - {{.}}
 {{ end -}}
 {{- end -}}
-{{- if .Nodes}}
+{{- if .Nodes }}
 {{- range $index, $meta_type := .Nodes }}
 Node detected: {{ $index -}}
 {{- range $m := $meta_type }}
   {{ range $ns, $pods := $m }}
-  -  Namespace: {{ $ns }}
-    {{ range $pod, $svc := $pods }}
-      - Pod name: {{ $pod }}
-        Services list: {{ $svc -}}
-    {{ end -}}
+  - Namespace: {{ $ns -}}
+    {{- range $pod, $svc := $pods }}
+      - Pod: {{ $pod }}
+        Services: {{ $svc -}}
+    {{ end }}
   {{ end -}}
 {{- end -}}
-{{- end }}
 {{- end -}}
-{{- end }}
+{{- end -}}
+{{- end -}}
