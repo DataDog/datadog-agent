@@ -2,6 +2,42 @@
 Release Notes
 =============
 
+6.3.1
+=====
+
+Prelude
+-------
+
+Release on: 2018-06-27
+
+- Please refer to the `6.3.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.1>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.3.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.1>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.3.1 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.3.1>`_ for the list of changes on the Process Agent.
+
+
+Upgrade Notes
+-------------
+
+- JMXFetch upgraded to 0.20.1; ships tagging bugfixes.
+
+
+Bug Fixes
+---------
+
+- Fixes panic when the agent receives an unsupported pattern in a log processing rule 
+
+- Fixes problem in 6.3.0 in which agent wouldn't start on Windows
+  Server 2008r2.
+
+- Provide the actual JMX check name as `check_name` in configurations 
+  provided to JMXFetch via the agent API. This addresses a regression
+  in 6.3.0 that broke the `instance:` tag.
+  Due to the nature of the regression, and the fix, this will cause
+  churn on the tag potentially affecting dashboards and monitors.
+
+
 6.2.1
 =====
 2018-05-23
