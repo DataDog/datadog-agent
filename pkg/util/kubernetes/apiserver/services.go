@@ -57,14 +57,14 @@ func (m ServicesMapper) Map(nodeName string, pods v1.PodList, endpointList v1.En
 	}
 
 	for _, pod := range pods.Items {
-		if pod.Status.PodIP != "" {
-			if _, ok := podToIp[pod.Namespace]; !ok {
-				podToIp[pod.Namespace] = make(map[string]string)
-			}
-			podToIp[pod.Namespace][pod.Name] = pod.Status.PodIP
-		} else {
+		if pod.Status.PodIP == "" {
 			log.Debugf("PodIP is empty, ignoring pod %s in namespace %s", pod.Name, pod.Namespace)
+			continue
 		}
+		if _, ok := podToIp[pod.Namespace]; !ok {
+			podToIp[pod.Namespace] = make(map[string]string)
+		}
+		podToIp[pod.Namespace][pod.Name] = pod.Status.PodIP
 	}
 	for _, svc := range endpointList.Items {
 		for _, endpointsSubsets := range svc.Subsets {
