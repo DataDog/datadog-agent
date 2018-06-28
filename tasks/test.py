@@ -13,7 +13,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags, get_version, pkg_config_path
+from .utils import get_build_flags, get_version, is_nightly, pkg_config_path
 from .go import fmt, lint, vet, misspell, ineffassign
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
@@ -268,7 +268,7 @@ def e2e_tests(ctx, target="gitlab", image=""):
 
 
 @task
-def version(ctx, url_safe=False, git_sha_length=8, nightly_build=True):
+def version(ctx, url_safe=False, git_sha_length=8):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -276,6 +276,7 @@ def version(ctx, url_safe=False, git_sha_length=8, nightly_build=True):
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
+    nightly_build = is_nightly(ctx)
     print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, nightly_build=nightly_build))
 
 
