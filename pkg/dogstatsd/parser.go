@@ -59,11 +59,12 @@ func nextField(slice, sep []byte) ([]byte, []byte) {
 
 // parseTags parses `rawTags` and returns a slice of tags and the value of the `host:` tag if found
 func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
+	host := defaultHostname
+
 	if len(rawTags) == 0 {
-		return nil, ""
+		return nil, host
 	}
 
-	host := defaultHostname
 	tagsList := make([]string, 0, bytes.Count(rawTags, tagSeparator)+1)
 	remainder := rawTags
 
