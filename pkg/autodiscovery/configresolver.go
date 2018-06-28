@@ -322,7 +322,7 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	pid, err := svc.GetPid()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
 	}
 	return []byte(strconv.Itoa(pid)), nil
 }
@@ -332,7 +332,7 @@ func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
 func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	name, err := svc.GetHostname()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get hostname for service %s, skipping config - %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetID(), err)
 	}
 	return []byte(name), nil
 }
