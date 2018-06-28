@@ -108,7 +108,10 @@ type proto struct{}
 
 func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 	if !utf8.Valid(redactedMsg) {
-		return nil, errors.New("invalid UTF-8 string: " + string(redactedMsg))
+		// prevent from logging redactedMsg as the agent could collect its own log which
+		// would result in logging / encode-failing indefinitely.
+		// TODO: strip the message to remove all invalid characters.
+		return nil, errors.New("invalid UTF-8 string, dropping the message.")
 	}
 	return (&pb.Log{
 		Message:   string(redactedMsg),
