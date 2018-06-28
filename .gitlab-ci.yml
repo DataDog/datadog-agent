@@ -60,6 +60,23 @@ before_script:
 #
 
 # run tests for deb-x64
+test-maxime-push:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - git describe --tags
+
+test-maxime-tag:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  only:
+    - tag
+  script:
+    - git describe --tags
+
+# run tests for deb-x64
 run_tests_deb-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
