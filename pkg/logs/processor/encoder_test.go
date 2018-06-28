@@ -181,8 +181,18 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 }
 
-func TestProtoEncoderInvalidUTF8(t *testing.T) {
-	msg, err := protoEncoder.encode(nil, []byte("\xde\xea\xca\xfe"))
-	assert.Nil(t, msg)
-	assert.Error(t, err)
+func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
+	cfg := &config.LogsConfig{}
+	src := config.NewLogSource("", cfg)
+	msg := newMessage([]byte(""), src, "")
+	encoded, err := protoEncoder.encode(msg, []byte("a\xfez"))
+	assert.NotNil(t, encoded)
+	assert.Nil(t, err)
+}
+
+func TestProtoEncoderToValidUTF8(t *testing.T) {
+	assert.Equal(t, "a�z", protoEncoder.toValidUtf8([]byte("a\xfez")))
+	assert.Equal(t, "a��z", protoEncoder.toValidUtf8([]byte("a\xc0\xafz")))
+	assert.Equal(t, "a���z", protoEncoder.toValidUtf8([]byte("a\xed\xa0\x80z")))
+	assert.Equal(t, "a����z", protoEncoder.toValidUtf8([]byte("a\xf0\x8f\xbf\xbfz")))
 }
