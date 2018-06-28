@@ -49,12 +49,11 @@ func (hpa *HPAWatcherClient) QueryDatadogExternal(metricName string, tags map[st
 // NewDatadogClient generates a new client to query metrics from Datadog
 func NewDatadogClient() (*datadog.Client, error) {
 	apiKey := config.Datadog.GetString("api_key")
-	app_key := config.Datadog.GetString("app_key")
+	appKey := config.Datadog.GetString("app_key")
 
-	if app_key == "" || apiKey == "" {
+	if appKey == "" || apiKey == "" {
 		return nil, errors.New("could not use the api/app key pair to query Datadog")
 	}
-	log.Infof("Successfully initialized the Datadog Client for HPA")
-	return datadog.NewClient(config.Datadog.GetString("api_key"), config.Datadog.GetString("app_key")), nil
-
+	log.Infof("Initialized the Datadog Client for HPA")
+	return datadog.NewClient(apiKey, appKey), nil
 }
