@@ -5,7 +5,7 @@
 
 package container
 
-import log "github.com/cihub/seelog"
+import "github.com/DataDog/datadog-agent/pkg/util/log"
 
 // Catalog holds available metadata providers
 type Catalog map[string]MetadataProvider

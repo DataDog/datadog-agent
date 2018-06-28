@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 type etcdBackend interface {

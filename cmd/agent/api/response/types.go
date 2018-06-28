@@ -6,7 +6,7 @@
 package response
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 // ConfigCheckResponse holds the config check response
@@ -15,4 +15,15 @@ type ConfigCheckResponse struct {
 	ResolveWarnings map[string][]string           `json:"resolve_warnings"`
 	ConfigErrors    map[string]string             `json:"config_errors"`
 	Unresolved      map[string]integration.Config `json:"unresolved"`
+}
+
+// TaggerListResponse holds the tagger list response
+type TaggerListResponse struct {
+	Entities map[string]TaggerListEntity `json:"entities"`
+}
+
+// TaggerListEntity holds the tagging info about an entity
+type TaggerListEntity struct {
+	Sources []string `json:"sources"`
+	Tags    []string `json:"tags"`
 }

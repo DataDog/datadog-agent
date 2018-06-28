@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -31,8 +31,9 @@ func NewContainer(container types.Container) *Container {
 // findSource returns the source that most closely matches the container,
 // if no source is found return nil
 func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
-	if source := c.toSource(); source != nil {
-		return source
+	label := c.getLabel()
+	if label != "" {
+		return c.parseLabel(label)
 	}
 	var candidate *config.LogSource
 	for _, source := range sources {
@@ -132,28 +133,35 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 // this feature is commonly named 'ad' or 'autodicovery'.
 const configPath = "com.datadoghq.ad.logs"
 
-// toSource converts a container to a source
-func (c *Container) toSource() *config.LogSource {
-	cfg := c.parseConfig()
-	if cfg == nil {
-		return nil
+// getLabel returns the autodiscovery config label if it exists.
+func (c *Container) getLabel() string {
+	label, exists := c.Labels[configPath]
+	if exists {
+		return label
 	}
-	return config.NewLogSource(configPath, cfg)
+	return ""
 }
 
-// parseConfig returns the config present in the container label 'com.datadoghq.ad.logs',
+// parseLabel returns the config present in the container label 'com.datadoghq.ad.logs',
 // the config has to be conform with the format '[{...}]'.
-func (c *Container) parseConfig() *config.LogsConfig {
-	label, exists := c.Labels[configPath]
-	if !exists {
+func (c *Container) parseLabel(label string) *config.LogSource {
+	var cfgs []config.LogsConfig
+	err := json.Unmarshal([]byte(label), &cfgs)
+	if err != nil || len(cfgs) < 1 {
+		log.Warnf("Could not parse logs config for container %v, %v is malformed", c.Container.ID, label)
 		return nil
 	}
-	var configs []config.LogsConfig
-	err := json.Unmarshal([]byte(label), &configs)
-	if err != nil || len(configs) < 1 {
-		log.Warnf("Could not parse logs configs, %v is malformed", label)
+	cfg := cfgs[0]
+	err = config.ValidateProcessingRules(cfg.ProcessingRules)
+	if err != nil {
+		log.Warnf("Invalid processing rules for container %v: %v", c.Container.ID, err)
 		return nil
 	}
-	config := configs[0]
-	return &config
+	cfg.Type = config.DockerType
+	err = config.CompileProcessingRules(cfg.ProcessingRules)
+	if err != nil {
+		log.Errorf("invalid processing rule for container %v: %v", c.Container.ID, err)
+		return nil
+	}
+	return config.NewLogSource(configPath, &cfg)
 }

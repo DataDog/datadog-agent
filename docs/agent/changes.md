@@ -60,6 +60,13 @@ a configuration for the `http_check` might look like this:
 └── frontend.yaml
 ```
 
+The agent won't load configuration files from any sub-directories within a
+`<check_name>.d` folder. This means this configuration will **NOT** be loaded:
+```
+/etc/datadog-agent/conf.d/http_check.d/prod.d/
+├── backend.yaml
+```
+
 Autodiscovery template files will be stored in the configuration folder as well,
 for example this is how the `redisdb` check configuration folder looks like:
 ```
@@ -67,6 +74,10 @@ for example this is how the `redisdb` check configuration folder looks like:
 ├── auto_conf.yaml
 └── conf.yaml.example
 ```
+
+The yaml files within a `<check_name.d>` folder can have any name, as long as
+they have a `.yaml` or `.yml` extension. Only their content and the folder name
+matter.
 
 To keep backwards compatibility, the Agent will still pick up configuration files
 in the form `/etc/datadog-agent/conf.d/<check_name>.yaml` but migrating to the
@@ -78,6 +89,30 @@ When running the agent in a container, it is also possible to set some of the co
 **The environment variables used in the agent 6 are different from those available in agent 5.**
 
 To not miss some specific configuration details, if you are currently using environment variables to setup your agent's v5 configuration, [consult the new list of environment variables for Agent v6](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent#environment-variables).
+
+#### Proxies
+
+The agent proxy settings can be overridden with the standard `*_PROXY`
+environment variables:
+
+- `HTTP_PROXY`: an http URL to use as a proxy for `http` requests.
+- `HTTPS_PROXY`: an http URL to use as a proxy for `https` requests.
+- `NO_PROXY`: a comma-separated list of URLs for which no proxy should be used.
+
+Notice: these variables don't use the `DD_` prefix.
+
+**The behaviour of the Agent 6 is different from Agent 5**:
+
+The Agent 6 will first use the environment variables and the configuration file
+(as for every other setting available through environment variables). This is
+the opposite of Agent 5, which would always use the proxy from the configuration
+file if set.
+
+For proxies, the Agent 6 will override the values from the configuration file
+with the ones in the environment. This means that if both a `HTTP` and `HTTPS`
+proxy are set in the configuration file but only the `HTTPS_PROXY` is set in
+the environment, the agent will use the `HTTPS` value from the environment and
+the `HTTP` value from the configuration file.
 
 ## GUI
 
@@ -349,6 +384,9 @@ name is still supported for Agent6 but support will be removed in Agent7.
 
 ## Python Modules
 
+All check-related Python code should now be imported from the `datadog_checks`
+[namespace](https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base).
+
 While we are continuing to ship the python libraries that ship with Agent 5,
 some of the embedded libraries have been removed. `util.py` and its associated
 functions have been removed from the agent. `util.headers(...)` is still included
@@ -375,8 +413,8 @@ Agent as they are not currently implemented:
 
 ### Check API
 
-The base class for python checks remains `AgentCheck`, and you will import it in
-the same way. However, there are a number of things that have been removed or
+The base class for python checks remains `AgentCheck`, though now you will import it from
+`datadog_checks.checks`. However, there are a number of things that have been removed or
 changed in the class API. In addition, each check instance is now its own instance
 of the class. So you cannot share state between them.
 

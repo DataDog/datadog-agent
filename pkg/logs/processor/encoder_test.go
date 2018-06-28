@@ -143,7 +143,7 @@ func TestProtoEncoder(t *testing.T) {
 
 	assert.Equal(t, logsConfig.Service, log.Service)
 	assert.Equal(t, logsConfig.Source, log.Source)
-	assert.Equal(t, []string{"a", "b:c", "source:" + logsConfig.Source, "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
+	assert.Equal(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
 
 	assert.Equal(t, redactedMessage, log.Message)
 	assert.Equal(t, message.StatusError, log.Status)
@@ -179,4 +179,10 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	assert.Equal(t, log.Status, message.StatusInfo)
 	assert.NotEmpty(t, log.Timestamp)
 
+}
+
+func TestProtoEncoderInvalidUTF8(t *testing.T) {
+	msg, err := protoEncoder.encode(nil, []byte("\xde\xea\xca\xfe"))
+	assert.Nil(t, msg)
+	assert.Error(t, err)
 }

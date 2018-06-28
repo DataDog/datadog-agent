@@ -8,37 +8,37 @@ package providers
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetCheckConfig(t *testing.T) {
+func TestGetIntegrationConfig(t *testing.T) {
 	// file does not exist
-	config, err := GetCheckConfigFromFile("foo", "")
+	config, err := GetIntegrationConfigFromFile("foo", "")
 	assert.NotNil(t, err)
 
 	// file contains invalid Yaml
-	config, err = GetCheckConfigFromFile("foo", "tests/invalid.yaml")
+	config, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
 	assert.NotNil(t, err)
 
 	// valid yaml, invalid configuration file
-	config, err = GetCheckConfigFromFile("foo", "tests/notaconfig.yaml")
+	config, err = GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
 	// valid metric file
-	config, err = GetCheckConfigFromFile("foo", "tests/metrics.yaml")
+	config, err = GetIntegrationConfigFromFile("foo", "tests/metrics.yaml")
 	assert.Nil(t, err)
 	assert.NotNil(t, config.MetricConfig)
 
 	// valid logs-agent file
-	config, err = GetCheckConfigFromFile("foo", "tests/logs-agent_only.yaml")
+	config, err = GetIntegrationConfigFromFile("foo", "tests/logs-agent_only.yaml")
 	assert.Nil(t, err)
 	assert.NotNil(t, config.LogsConfig)
 
 	// valid configuration file
-	config, err = GetCheckConfigFromFile("foo", "tests/testcheck.yaml")
+	config, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.Name, "foo")
 	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
@@ -46,14 +46,15 @@ func TestGetCheckConfig(t *testing.T) {
 	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
 	assert.Len(t, config.ADIdentifiers, 0)
 	assert.Nil(t, config.MetricConfig)
+	assert.Nil(t, config.LogsConfig)
 
 	// autodiscovery
-	config, err = GetCheckConfigFromFile("foo", "tests/ad.yaml")
+	config, err = GetIntegrationConfigFromFile("foo", "tests/ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
 
 	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
-	config, err = GetCheckConfigFromFile("foo", "tests/ad_deprecated.yaml")
+	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
 	assert.NotNil(t, err)
 }
 
@@ -109,11 +110,17 @@ func TestCollect(t *testing.T) {
 	// metric files don't override default files
 	assert.Equal(t, 2, len(get("qux")))
 
+	// logs files don't override default files
+	assert.Equal(t, 2, len(get("corge")))
+
 	// metric files not collected in root directory
 	assert.Equal(t, 0, len(get("metrics")))
 
+	// logs files collected in root directory
+	assert.Equal(t, 1, len(get("logs-agent_only")))
+
 	// total number of configurations found
-	assert.Equal(t, 11, len(configs))
+	assert.Equal(t, 14, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml)
 	assert.Equal(t, 3, len(provider.Errors))

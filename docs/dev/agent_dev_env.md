@@ -27,6 +27,20 @@ You must install [go](https://golang.org/doc/install) version 1.9.2 or above. Ma
 sure that `$GOPATH/bin` is in your `$PATH` otherwise Invoke cannot use any
 additional tool it might need.
 
+## Installing dependencies
+
+From the root of `datadog-agent`, run `invoke deps`. This will:
+
+- Use `go` to install the necessary dependencies
+- Use `git` to clone [integrations-core](integrations-core)
+- Use `pip` to install [datadog_checks_base](datadog_checks_base)
+
+If you already installed [datadog_checks_base](datadog_checks_base) in your desired
+Python, you can do `invoke deps --no-checks` to prevent cloning and pip install. If
+you are already doing development on [integrations-core](integrations-core), you
+can specify a path to [integrations-core](integrations-core) using the `--core-dir`
+option or `DD_CORE_DIR` environment variable to omit just the cloning step.
+
 ## System or Embedded?
 
 When working on the Agent codebase you can choose among two different ways to
@@ -80,7 +94,7 @@ files to be available in the dev env.
 If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
 bring along all the development files needed:
 ```
-brew install python
+brew install python@2
 ```
 
 On Windows, the [official installer](https://www.python.org/downloads/) will
@@ -134,3 +148,5 @@ dev environment.
 [testing]: agent_tests.md
 [building]: agent_build.md
 [agent-omnibus]: agent_omnibus.md
+[integrations-core]: https://github.com/DataDog/integrations-core
+[datadog_checks_base]: https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base

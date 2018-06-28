@@ -18,7 +18,7 @@ const testsPath = "tests"
 
 func TestAvailableIntegrationConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	assert.Equal(t, []string{"integration.yaml", "integration2.yml", "integration5.yml", "misconfigured_integration.yaml", "integration.d/integration3.yaml", "integration.d/integration4.yaml"}, availableIntegrationConfigs(ddconfdPath))
+	assert.Equal(t, []string{"integration.yaml", "integration2.yml", "integration5.yml", "integration6.yml", "misconfigured_integration.yaml", "integration.d/integration3.yaml", "integration.d/integration4.yaml"}, availableIntegrationConfigs(ddconfdPath))
 }
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
@@ -26,8 +26,8 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	allSources, err := buildLogSources(ddconfdPath, false)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 6, len(allSources.GetValidSources()))
-	assert.Equal(t, 7, len(allSources.GetSources()))
+	assert.Equal(t, 7, len(allSources.GetValidSources()))
+	assert.Equal(t, 8, len(allSources.GetSources()))
 
 	sources := allSources.GetValidSources()
 
@@ -46,11 +46,15 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 
 	assert.Equal(t, "journald", sources[2].Config.Type)
 
-	assert.Equal(t, "docker", sources[3].Config.Type)
-	assert.Equal(t, "test", sources[3].Config.Image)
+	assert.Equal(t, "windows_event", sources[3].Config.Type)
+	assert.Equal(t, "System", sources[3].Config.ChannelPath)
+	assert.Equal(t, "*", sources[3].Config.Query)
 
-	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[4].Config.Tags)
+	assert.Equal(t, "docker", sources[4].Config.Type)
+	assert.Equal(t, "test", sources[4].Config.Image)
+
 	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[5].Config.Tags)
+	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[6].Config.Tags)
 
 	// processing
 	assert.Equal(t, 0, len(sources[0].Config.ProcessingRules))
@@ -62,11 +66,13 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "[mocked]", pRule.ReplacePlaceholder)
 	assert.Equal(t, []byte("[mocked]"), pRule.ReplacePlaceholderBytes)
 	assert.Equal(t, ".*", pRule.Pattern)
+	re := pRule.Reg
+	assert.True(t, re.MatchString("123"))
 
 	mRule := sources[1].Config.ProcessingRules[1]
 	assert.Equal(t, "multi_line", mRule.Type)
 	assert.Equal(t, "numbers", mRule.Name)
-	re := mRule.Reg
+	re = mRule.Reg
 	assert.True(t, re.MatchString("123"))
 	assert.False(t, re.MatchString("a123"))
 
@@ -74,11 +80,43 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "exclude_at_match", eRule.Type)
 	assert.Equal(t, "exclude_bob", eRule.Name)
 	assert.Equal(t, "^bob", eRule.Pattern)
+	re = eRule.Reg
+	assert.True(t, re.MatchString("boba"))
+	assert.False(t, re.MatchString("abob"))
 
 	iRule := sources[1].Config.ProcessingRules[3]
 	assert.Equal(t, "include_at_match", iRule.Type)
 	assert.Equal(t, "include_datadoghq", iRule.Name)
 	assert.Equal(t, ".*@datadoghq.com$", iRule.Pattern)
+	re = iRule.Reg
+	assert.True(t, re.MatchString("bob@datadoghq.com"))
+	assert.False(t, re.MatchString("bob"))
+}
+
+func TestCompileProcessingRules(t *testing.T) {
+	var rules []LogsProcessingRule
+	var err error
+
+	rules = []LogsProcessingRule{{Pattern: "(?=abf)", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
+
+	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.Nil(t, err)
+	assert.NotNil(t, rules[0].Reg)
+	assert.True(t, rules[0].Reg.MatchString("abcde"))
+
+	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}"}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
+
+	rules = []LogsProcessingRule{{Pattern: "", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
 }
 
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {

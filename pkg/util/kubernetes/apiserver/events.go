@@ -10,19 +10,23 @@ package apiserver
 //// Covered by test/integration/util/kube_apiserver/events_test.go
 
 import (
-	"context"
-	"io"
+	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
-	"strings"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	log "github.com/cihub/seelog"
-	"github.com/ericchiang/k8s"
-	"github.com/ericchiang/k8s/api/v1"
+	"github.com/pkg/errors"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
-var eventReadTimeout = 100 * time.Millisecond
+var (
+	eventReadTimeout = 100 * time.Millisecond
+	expectedType     = reflect.TypeOf(v1.Event{})
+)
 
 // LatestEvents retrieves all the cluster events happening after a given token.
 // First slice is the new events, second slice the modified events.
@@ -30,83 +34,80 @@ var eventReadTimeout = 100 * time.Millisecond
 // overloading it.
 // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#watch-list-289
 func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string, error) {
-	var addedEvents, modifiedEvents []*v1.Event
-	latestResVersion := &since
+	var added, modified []*v1.Event
 
 	// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
 	// One could chose to use "" instead of 0 to not query the API Server cache.
 	// We decide to only rely on the cache as it avoids crawling everything from the API Server at once.
-	log.Tracef("since value is %q", since)
-	resVersionCached, err := strconv.Atoi(since)
+	resVersionInt, err := strconv.Atoi(since)
 	if err != nil {
-		log.Errorf("The cached event token could not be parsed: %s, pulling events from the API server's cache", err)
-	}
-	var sinceOption k8s.Option
-
-	if len(since) > 0 {
-		sinceOption = k8s.ResourceVersion(since)
-	} else {
-		// Only retrieve what is in the apiserver cache.
-		// Else we'll get one hour worth of events.
-		sinceOption = k8s.ResourceVersion("0")
+		log.Errorf("The cached resourceVersion token %s, could not be parsed with: %s", since, err)
+		since = "0"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
+	log.Tracef("Starting watch of %v with resourceVersion %s", expectedType, since)
 
-	watcher, err := c.client.CoreV1().WatchEvents(ctx, "", sinceOption)
+	eventWatcher, err := c.Client.Events(metav1.NamespaceAll).Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
 	if err != nil {
-		return addedEvents, modifiedEvents, since, err
+		return nil, nil, "0", fmt.Errorf("Failed to watch %v: %v", expectedType, err)
 	}
+	defer eventWatcher.Stop()
 
-	// Start a timer that will cancel the connection when the watcher is idle.
-	// That allows `watcher.Next()` to return context.Canceled and break the reading loop.
-	timeout := time.AfterFunc(eventReadTimeout, func() { cancel() })
-
+	watcherTimeout := time.NewTimer(eventReadTimeout)
 	for {
-		meta, event, err := watcher.Next()
-		if err != nil {
-			// We sometimes face a protobuf unmarshal issue, it will happen if there is no recent events to collect.
-			// Or if the resVersion is not available in the API Server's cache.
-			// We need to reset the resVersion to seamlessly continue watching.
-			if strings.Contains(err.Error(), "illegal wireType") {
-				log.Tracef("Protobuf error, no recent events to collect: %s", err)
-				*latestResVersion = "0"
+		select {
+		case rcvdEv, ok := <-eventWatcher.ResultChan():
+			if !ok {
+				log.Debugf("Unexpected watch close")
+				return added, modified, strconv.Itoa(resVersionInt), nil
+			}
+			if rcvdEv.Type == watch.Error {
+				status, ok := rcvdEv.Object.(*metav1.Status)
+				if !ok {
+					return nil, nil, "0", errors.New("could not parse status of error event from the API Server.") // TODO custom error
+				}
+				if status.Reason == "Expired" {
+					// Known issue with ETCD https://github.com/kubernetes/kubernetes/issues/45506
+					// Once we have started the event watcher, we do not expect the resversion to be "0"
+					// Except when initializing. Forcing to 0 so we can keep on watching without hitting the cache.
+					log.Tracef("Resversion expired: %s", status.Message)
+					return added, modified, "0", nil
+				}
+				// We continue here to avoid casting into a *v1.Event.
+				// In this case, the event is of type *metav1.Status.
+				log.Debugf("Unexpected watch error: %s", status.Message)
 				continue
 			}
-			if err != context.Canceled && err != io.EOF && !strings.Contains(err.Error(), "illegal wireType") {
-				log.Debugf("Stopping event collection, got error: %s", err)
-			} // else silently stop
-			break
-		}
-		timeout.Reset(eventReadTimeout)
-		if event == nil || event.Metadata == nil || event.Metadata.ResourceVersion == nil || event.Metadata.Uid == nil {
-			log.Tracef("Skipping invalid event: %v", event)
-			continue
-		}
 
-		resVersionMetadata, kubeEventErr := strconv.Atoi(*event.Metadata.ResourceVersion)
-		if kubeEventErr != nil {
-			log.Errorf("The Resource version associated with the event %s is not supported: %s", *event.Metadata.Uid, err.Error())
-			continue
-		}
+			currEvent, ok := rcvdEv.Object.(*v1.Event)
+			if !ok {
+				log.Debugf("The event object cannot be safely converted to %v: %v", expectedType, rcvdEv.Object)
+				continue
+			}
 
-		if resVersionMetadata > resVersionCached {
-			latestResVersion = event.Metadata.ResourceVersion
-			resVersionCached = resVersionMetadata
-		}
+			evResVer, err := strconv.Atoi(currEvent.ResourceVersion)
+			if err != nil {
+				// Could not convert the Resversion. Returning.
+				return added, modified, "0", err
+			}
+			if evResVer > resVersionInt {
+				resVersionInt = evResVer
+			}
 
-		if meta == nil || meta.Type == nil {
-			log.Debugf("skipping invalid event: %v", meta)
-			continue
-		}
-		switch *meta.Type {
-		case k8s.EventAdded:
-			addedEvents = append(addedEvents, event)
-		case k8s.EventModified:
-			modifiedEvents = append(modifiedEvents, event)
+			if rcvdEv.Type == watch.Added {
+				added = append(added, currEvent)
+				resVersionInt = evResVer
+			}
+			if rcvdEv.Type == watch.Modified {
+				modified = append(modified, currEvent)
+				resVersionInt = evResVer
+			}
+			watcherTimeout.Reset(eventReadTimeout)
+
+		case <-watcherTimeout.C:
+			// No more events to read or the watch lasted more than `eventReadTimeout`.
+			// so return what was processed.
+			return added, modified, strconv.Itoa(resVersionInt), nil
 		}
 	}
-	watcher.Close()
-	return addedEvents, modifiedEvents, *latestResVersion, nil
 }

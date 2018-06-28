@@ -10,7 +10,7 @@ package kubelet
 import (
 	"crypto/tls"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -31,12 +31,13 @@ func isConfiguredTLSVerify() bool {
 func buildTLSConfig(verifyTLS bool, caPath string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{}
 	if verifyTLS == false {
+		log.Info("Skipping TLS verification")
 		tlsConfig.InsecureSkipVerify = true
 		return tlsConfig, nil
 	}
 
 	if caPath == "" {
-		log.Debugf("kubelet_client_ca isn't configured: certificate authority must be trusted")
+		log.Debug("kubelet_client_ca isn't configured: certificate authority must be trusted")
 		return nil, nil
 	}
 

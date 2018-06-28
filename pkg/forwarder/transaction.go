@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -119,7 +119,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	}
 	if successfulTransactions.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
-		log.Debugf("Payload: %s", logURL, string(body))
+		log.Debugf("Url: %q payload: %s", logURL, string(body))
 		return nil
 	}
 	log.Debugf("Successfully posted payload to %q: %s", logURL, string(body))

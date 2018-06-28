@@ -10,7 +10,7 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ContextMetrics stores all the metrics by context key

@@ -6,10 +6,9 @@
 package journald
 
 import (
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewTailer returns a new tailer.

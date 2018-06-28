@@ -14,12 +14,11 @@ import (
 	"sync"
 	"unicode"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -42,9 +41,8 @@ type ConfigResolver struct {
 	collector       *collector.Collector
 	templates       *TemplateCache
 	services        map[listeners.ID]listeners.Service // Service.ID --> []Service
-	serviceToChecks map[listeners.ID][]check.ID        // Service.ID --> []CheckID
 	adIDToServices  map[string][]listeners.ID          // AD id --> services that have it
-	config2Service  map[string]listeners.ID            // config digest --> service ID
+	configToService map[string]listeners.ID            // config digest --> service ID
 	newService      chan listeners.Service
 	delService      chan listeners.Service
 	stop            chan bool
@@ -59,9 +57,8 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		collector:       coll,
 		templates:       tc,
 		services:        make(map[listeners.ID]listeners.Service),
-		serviceToChecks: make(map[listeners.ID][]check.ID, 0),
 		adIDToServices:  make(map[string][]listeners.ID),
-		config2Service:  make(map[string]listeners.ID),
+		configToService: make(map[string]listeners.ID),
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
 		stop:            make(chan bool),
@@ -187,8 +184,11 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 	}
 
 	// store resolved configs in the AC
-	cr.ac.loadedConfigs = append(cr.ac.loadedConfigs, resolvedConfig)
-	cr.config2Service[resolvedConfig.Digest()] = svc.GetID()
+	cr.ac.m.Lock()
+	defer cr.ac.m.Unlock()
+	cr.ac.loadedConfigs[resolvedConfig.Digest()] = resolvedConfig
+	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
+	cr.configToService[resolvedConfig.Digest()] = svc.GetID()
 
 	return resolvedConfig, nil
 }
@@ -201,7 +201,6 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 
 	// in any case, register the service
 	cr.services[svc.GetID()] = svc
-	cr.serviceToChecks[svc.GetID()] = make([]check.ID, 0)
 
 	// get all the templates matching service identifiers
 	templates := []integration.Config{}
@@ -241,36 +240,9 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (cr *ConfigResolver) processDelService(svc listeners.Service) {
-	cr.m.Lock()
-	defer cr.m.Unlock()
-
-	if checks, ok := cr.serviceToChecks[svc.GetID()]; ok {
-		stopped := map[check.ID]struct{}{}
-		for _, id := range checks {
-			err := cr.collector.StopCheck(id)
-			if err != nil {
-				log.Errorf("Failed to stop check '%s': %s", id, err)
-			}
-			// cleaning up the cache map
-			cr.ac.unschedule(id)
-			stopped[id] = struct{}{}
-		}
-
-		// remove the entry from `serviceToChecks`
-		if len(stopped) == len(cr.serviceToChecks[svc.GetID()]) {
-			// we managed to stop all the checks for this config
-			delete(cr.serviceToChecks, svc.GetID())
-		} else {
-			// keep the checks we failed to stop in `serviceToChecks[svc.ID]`
-			dangling := []check.ID{}
-			for _, id := range cr.serviceToChecks[svc.GetID()] {
-				if _, found := stopped[id]; !found {
-					dangling = append(dangling, id)
-				}
-			}
-			cr.serviceToChecks[svc.GetID()] = dangling
-		}
-	}
+	configs := cr.ac.store.getConfigsForService(svc.GetID())
+	cr.ac.store.removeConfigsForService(svc.GetID())
+	cr.ac.processRemovedConfigs(configs)
 }
 
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
@@ -326,17 +298,23 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	}
 
 	if len(tplVar) == 0 {
-		return []byte(strconv.Itoa(ports[len(ports)-1])), nil
+		return []byte(strconv.Itoa(ports[len(ports)-1].Port)), nil
 	}
 
 	idx, err := strconv.Atoi((string(tplVar)))
 	if err != nil {
-		return nil, fmt.Errorf("index given for the port template var is not an int, skipping container %s", svc.GetID())
+		// The template variable is not an index so try to lookup port by name.
+		for _, port := range ports {
+			if port.Name == string(tplVar) {
+				return []byte(strconv.Itoa(port.Port)), nil
+			}
+		}
+		return nil, fmt.Errorf("port %s not found, skipping container %s", string(tplVar), svc.GetID())
 	}
 	if len(ports) <= idx {
 		return nil, fmt.Errorf("index given for the port template var is too big, skipping container %s", svc.GetID())
 	}
-	return []byte(strconv.Itoa(ports[idx])), nil
+	return []byte(strconv.Itoa(ports[idx].Port)), nil
 }
 
 // getPid returns the process identifier of the service

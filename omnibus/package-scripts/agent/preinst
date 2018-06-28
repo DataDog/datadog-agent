@@ -16,7 +16,7 @@ DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || gre
 if [ "$DISTRIBUTION" != "Darwin" ]; then
     set -e
 
-    if [ -f "/lib/systemd/system/datadog-agent.service" ]; then
+    if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/system/$SERVICE_NAME.service" ]; then
         # Stop an already running agent
         # Only supports systemd and upstart
         if command -v systemctl >/dev/null 2>&1; then
@@ -28,8 +28,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             initctl stop $SERVICE_NAME-trace || true
             initctl stop $SERVICE_NAME || true
         else
-            echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
-            exit 1
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
         fi
     fi
 
@@ -47,7 +46,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Set up `dd-agent` user and group
         getent group dd-agent >/dev/null || groupadd -r dd-agent
         getent passwd dd-agent >/dev/null || \
-            useradd -r -M -g dd-agent -d $INSTALL_DIR -s /bin/sh \
+            useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin \
                 -c "Datadog Agent" dd-agent && \
             usermod -L dd-agent
 

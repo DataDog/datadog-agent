@@ -19,7 +19,7 @@
     "processes",
     "processes/gops"
   ]
-  revision = "d80d0f562a71fa2380fbeccc93ba5a2e325606e4"
+  revision = "60e13eaed98afa238ad6dfc98224c04fbb7b19b1"
 
 [[projects]]
   branch = "master"
@@ -92,6 +92,12 @@
   packages = ["."]
   revision = "d2c6e5aa9fbfdd1c624e140287063c7730654115"
   version = "v2.6"
+
+[[projects]]
+  name = "github.com/clbanning/mxj"
+  packages = ["."]
+  revision = "1f00e0bf9bacd7ea9c93d27594d1d1f5a41bac36"
+  version = "v1.8"
 
 [[projects]]
   name = "github.com/coreos/etcd"
@@ -181,43 +187,6 @@
     "internal/prefix"
   ]
   revision = "cc9eb1d7ad760af14e8f918698f745e80377af4f"
-
-[[projects]]
-  name = "github.com/ericchiang/k8s"
-  packages = [
-    ".",
-    "api/resource",
-    "api/unversioned",
-    "api/v1",
-    "apis/apps/v1alpha1",
-    "apis/apps/v1beta1",
-    "apis/authentication/v1",
-    "apis/authentication/v1beta1",
-    "apis/authorization/v1",
-    "apis/authorization/v1beta1",
-    "apis/autoscaling/v1",
-    "apis/autoscaling/v2alpha1",
-    "apis/batch/v1",
-    "apis/batch/v2alpha1",
-    "apis/certificates/v1alpha1",
-    "apis/certificates/v1beta1",
-    "apis/extensions/v1beta1",
-    "apis/imagepolicy/v1alpha1",
-    "apis/meta/v1",
-    "apis/policy/v1alpha1",
-    "apis/policy/v1beta1",
-    "apis/rbac/v1alpha1",
-    "apis/rbac/v1beta1",
-    "apis/settings/v1alpha1",
-    "apis/storage/v1",
-    "apis/storage/v1beta1",
-    "runtime",
-    "runtime/schema",
-    "util/intstr",
-    "watch/versioned"
-  ]
-  revision = "68b0248f880c5967d1ba7166486cb216af849b15"
-  version = "v0.4.0"
 
 [[projects]]
   name = "github.com/fatih/color"
@@ -709,16 +678,6 @@
   revision = "4e4a3210bb54bb31f6ab2cdca2edcc0b50c420c1"
 
 [[projects]]
-  branch = "master"
-  name = "golang.org/x/tools"
-  packages = [
-    "go/ast/astutil",
-    "go/buildutil",
-    "go/loader"
-  ]
-  revision = "95b47aa5df4eda9bfbc0133f77c0e320f0275eba"
-
-[[projects]]
   name = "gopkg.in/Knetic/govaluate.v3"
   packages = ["."]
   revision = "d216395917cc49052c7c7094cf57f09657ca08a8"
@@ -857,6 +816,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c768e3f32aefa661ed7922fb185da197c0452fbee71c857942c40a7516217ddd"
+  inputs-digest = "a073b6e2360cb042ec37d7aafb94ee3ff307f0abb5892b85d939f2123f09c377"
   solver-name = "gps-cdcl"
   solver-version = 1

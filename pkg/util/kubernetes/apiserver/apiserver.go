@@ -8,8 +8,6 @@
 package apiserver
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -17,22 +15,24 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
-	"github.com/ericchiang/k8s"
-	"github.com/ericchiang/k8s/api/v1"
-	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 var (
-	globalAPIClient *APIClient
-
-	ErrNotFound  = errors.New("entity not found")
-	ErrOutdated  = errors.New("entity is outdated")
-	ErrNotLeader = errors.New("not Leader")
+	globalAPIClient      *APIClient
+	globalTimeoutSeconds = int64(5)
+	ErrNotFound          = errors.New("entity not found")
+	ErrOutdated          = errors.New("entity is outdated")
+	ErrNotLeader         = errors.New("not Leader")
 )
 
 const (
@@ -40,7 +40,7 @@ const (
 	tokenTime                 = "tokenTimestamp"
 	tokenKey                  = "tokenKey"
 	metadataPollIntl          = 20 * time.Second
-	metadataMapExpire         = 5 * time.Minute
+	metadataMapExpire         = 2 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
 
@@ -50,7 +50,7 @@ type APIClient struct {
 	// used to setup the APIClient
 	initRetry retry.Retrier
 
-	client  *k8s.Client
+	Client  *corev1.CoreV1Client
 	timeout time.Duration
 }
 
@@ -77,51 +77,53 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
-func (c *APIClient) connect() error {
-	if c.client == nil {
-		var err error
-		cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
-		if cfgPath == "" {
-			// Autoconfiguration
-			log.Debugf("using autoconfiguration")
-			c.client, err = k8s.NewInClusterClient()
-		} else {
-			// Kubeconfig provided by conf
-			log.Debugf("using credentials from %s", cfgPath)
-			var k8sConfig *k8s.Config
-			k8sConfig, err = ParseKubeConfig(cfgPath)
-			if err != nil {
-				return err
-			}
-			c.client, err = k8s.NewClient(k8sConfig)
-		}
+// getClient returns an official Kubernetes core v1 client
+func getClient() (*corev1.CoreV1Client, error) {
+	var k8sConfig *rest.Config
+	var err error
+
+	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
+	if cfgPath == "" {
+		k8sConfig, err = rest.InClusterConfig()
 		if err != nil {
+			log.Debug("Can't create a config for the official client from the service account's token: %s", err)
+			return nil, err
+		}
+	} else {
+		// use the current context in kubeconfig
+		k8sConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
+		if err != nil {
+			log.Debug("Can't create a config for the official client from the configured path to the kubeconfig: %s, ", cfgPath, err)
+			return nil, err
+		}
+	}
+	k8sConfig.Timeout = 2 * time.Second
+	coreClient, err := corev1.NewForConfig(k8sConfig)
+	return coreClient, err
+}
+
+func (c *APIClient) connect() error {
+	var err error
+	if c.Client == nil {
+		c.Client, err = getClient()
+		if err != nil {
+			log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
 			return err
 		}
 	}
 
 	// Try to get apiserver version to confim connectivity
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
-	version, err := c.client.Discovery().Version(ctx)
-	if err != nil {
-		log.Debugf("Cannot get the version: %s ", err)
-		return err
+	APIversion := c.Client.RESTClient().APIVersion()
+	if APIversion.Empty() {
+		return fmt.Errorf("cannot retrieve the version of the API server at the moment")
 	}
-
-	log.Debugf("Connected to kubernetes apiserver, version %s", version.GitVersion)
+	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
 
 	err = c.checkResourcesAuth()
 	if err != nil {
 		return err
 	}
-	log.Debug("Could successfully collect Pods, Nodes, Services and Events.")
-
-	useMetadataMapper := config.Datadog.GetBool("use_metadata_mapper")
-	if !useMetadataMapper {
-		return nil
-	}
-
+	log.Debug("Could successfully collect Pods, Nodes, Services and Events")
 	return nil
 }
 
@@ -144,10 +146,7 @@ func newMetadataMapperBundle() *MetadataMapperBundle {
 // node to the cache
 // Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
 func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) error {
-	ctx, cancel := context.WithTimeout(context.Background(), metadataPollIntl)
-	defer cancel()
-
-	endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
+	endpointList, err := c.Client.Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
 		return err
@@ -158,13 +157,13 @@ func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) er
 	}
 	log.Debugf("Successfully collected endpoints")
 
-	node := &v1.Node{Metadata: &metav1.ObjectMeta{Name: &nodeName}}
-	nodeList := &v1.NodeList{
-		Items: []*v1.Node{
-			node,
-		},
-	}
-	processKubeServices(nodeList, podList, endpointList)
+	var node v1.Node
+	var nodeList v1.NodeList
+	node.Name = nodeName
+
+	nodeList.Items = append(nodeList.Items, node)
+
+	processKubeServices(&nodeList, podList, endpointList)
 	return nil
 }
 
@@ -174,15 +173,10 @@ func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) er
 // - all pods of all namespaces
 // Then it stores in cache the MetadataMapperBundle of each node.
 func (c *APIClient) ClusterMetadataMapping() error {
-	// The timeout for the context is the same as the poll frequency.
-	// We use a new context at each run, to recover if we can't access the API server temporarily.
 	// A poll run should take less than the poll frequency.
-	ctx, cancel := context.WithTimeout(context.Background(), metadataPollIntl)
-	defer cancel()
-
 	// We fetch nodes to reliably use nodename as key in the cache.
 	// Avoiding to retrieve them from the endpoints/podList.
-	nodeList, err := c.client.CoreV1().ListNodes(ctx)
+	nodeList, err := c.Client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect nodes from the kube-apiserver: %q", err.Error())
 		return err
@@ -192,7 +186,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 		return nil
 	}
 
-	endpointList, err := c.client.CoreV1().ListEndpoints(ctx, k8s.AllNamespaces)
+	endpointList, err := c.Client.Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the kube-apiserver: %q", err.Error())
 		return err
@@ -202,7 +196,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 		return nil
 	}
 
-	podList, err := c.client.CoreV1().ListPods(ctx, k8s.AllNamespaces)
+	podList, err := c.Client.Pods("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect pods from the kube-apiserver: %q", err.Error())
 		return err
@@ -223,15 +217,30 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 	}
 	log.Debugf("Identified: %d node, %d pod, %d endpoints", len(nodeList.Items), len(podList.Items), len(endpointList.Items))
 	for _, node := range nodeList.Items {
-		nodeName := *node.Metadata.Name
+		nodeName := node.Name
 		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
+		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
+
+		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deledte key. Then compute again.
+		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
+
 		if !found {
 			metaBundle = newMetadataMapperBundle()
+			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
 		}
+
+		// We want to churn the cache every `metadataMapExpire` and if the number of entries varies between 2 runs..
+		// If a pod is killed and rescheduled during a run, we will only keep the old entry for another run, which is acceptable.
+		if found && freshnessCache != len(podList.Items) || !freshnessFound {
+			cache.Cache.Delete(nodeNameCacheKey)
+			metaBundle = newMetadataMapperBundle()
+			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
+			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
+		}
+
 		err := metaBundle.(*MetadataMapperBundle).mapServices(nodeName, *podList, *endpointList)
 		if err != nil {
-			log.Errorf("Could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
+			log.Errorf("Could not map the services on node %s: %s", node.Name, err.Error())
 			continue
 		}
 		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)
@@ -264,65 +273,43 @@ func aggregateCheckResourcesErrors(errorMessages []string) error {
 // The Event check requires getting Events data.
 // The MetadataMapper case, requires access to Services, Nodes and Pods.
 func (c *APIClient) checkResourcesAuth() error {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
 	var errorMessages []string
 
+	resourceTimeoutSeconds := int64(2)
+
 	// We always want to collect events
-	_, err := c.client.CoreV1().ListEvents(ctx, "")
+	_, err := c.Client.Events("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
 	}
 
-	if config.Datadog.GetBool("use_metadata_mapper") == false {
+	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
-	_, err = c.client.CoreV1().ListServices(ctx, "")
+	_, err = c.Client.Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
 	}
-	_, err = c.client.CoreV1().ListPods(ctx, "")
+	_, err = c.Client.Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
 	}
-	_, err = c.client.CoreV1().ListNodes(ctx)
+	_, err = c.Client.Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
-	}
-	_, err = c.client.CoreV1().ListEndpoints(ctx, "")
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("endpoints collection: %q", err.Error()))
 	}
 	return aggregateCheckResourcesErrors(errorMessages)
 }
 
-// ParseKubeConfig reads and unmarshal a kubeconfig file
-// in an object ready to use. Exported for integration testing.
-func ParseKubeConfig(fpath string) (*k8s.Config, error) {
-	// TODO: support yaml too
-	jsonFile, err := ioutil.ReadFile(fpath)
-	if err != nil {
-		return nil, err
-	}
-
-	k8sConf := &k8s.Config{}
-	err = json.Unmarshal(jsonFile, k8sConf)
-	return k8sConf, err
-}
-
 // ComponentStatuses returns the component status list from the APIServer
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
-	return c.client.CoreV1().ListComponentStatuses(ctx)
+	return c.Client.ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 }
 
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
 	namespace := GetResourcesNamespace()
-	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, namespace)
+	tokenConfigMap, err := c.Client.ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
 		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
 		return "", false, ErrNotFound
@@ -363,10 +350,8 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 // UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
 	namespace := GetResourcesNamespace()
-	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, namespace)
+	tokenConfigMap, err := c.Client.ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -378,7 +363,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
 	tokenConfigMap.Data[eventTokenTS] = now.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
 
-	_, err = c.client.CoreV1().UpdateConfigMap(ctx, tokenConfigMap)
+	_, err = c.Client.ConfigMaps(namespace).Update(tokenConfigMap)
 	if err != nil {
 		return err
 	}
@@ -388,13 +373,11 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 
 // NodeLabels is used to fetch the labels attached to a given node.
 func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
-	node, err := c.client.CoreV1().GetNode(ctx, nodeName)
+	node, err := c.Client.Nodes().Get(nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-	return node.GetMetadata().GetLabels(), nil
+	return node.Labels, nil
 }
 
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.
@@ -412,13 +395,13 @@ func GetMetadataMapBundleOnAllNodes() (map[string]interface{}, error) {
 	}
 
 	for _, node := range nodes {
-		if node.Metadata == nil || node.Metadata.Name == nil {
+		if node.GetObjectMeta() == nil {
 			log.Error("Incorrect payload when evaluating a node for the service mapper") // This will be removed as we move to the client-go
 			continue
 		}
-		nodePodMetadataMap[*node.Metadata.Name], err = getMetadataMapBundle(*node.Metadata.Name)
+		nodePodMetadataMap[node.Name], err = getMetadataMapBundle(node.Name)
 		if err != nil {
-			warn = fmt.Sprintf("Node %s could not be added to the service map bundle: %s", *node.Metadata.Name, err.Error())
+			warn = fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
 			warnlist = append(warnlist, warn)
 		}
 	}
@@ -451,15 +434,14 @@ func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
 	return metaBundle.(*MetadataMapperBundle), nil
 }
 
-func getNodeList() ([]*v1.Node, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5) // In case there are thousands of nodes.
-	defer cancel()
+func getNodeList() ([]v1.Node, error) {
 	cl, err := GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %s", err.Error())
 		return nil, err
 	}
-	nodes, err := cl.client.CoreV1().ListNodes(ctx)
+	nodes, err := cl.Client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+
 	if err != nil {
 		log.Errorf("Can't list nodes from the API server: %s", err.Error())
 		return nil, err

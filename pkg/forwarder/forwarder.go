@@ -13,7 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -139,8 +139,8 @@ func (f *DefaultForwarder) Start() error {
 		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))",
 			domain, len(apiKeys)))
 	}
-	log.Infof("Forwarder started, sending to %v endpoint(s) with %v workers each: %s",
-		f.NumberOfWorkers, len(endpointLogs), strings.Join(endpointLogs, " ; "))
+	log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
+		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
 	f.healthChecker.Start(f.keysPerDomains)
 	f.internalState = Started

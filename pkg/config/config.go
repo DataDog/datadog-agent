@@ -6,6 +6,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"os"
@@ -13,9 +14,11 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/viper"
+	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -24,7 +27,10 @@ import (
 const DefaultForwarderRecoveryInterval = 2
 
 // Datadog is the global configuration object
-var Datadog = viper.New()
+var (
+	Datadog = viper.New()
+	proxies *Proxy
+)
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
@@ -80,8 +86,6 @@ func init() {
 	Datadog.SetDefault("tags", []string{})
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
-	Datadog.SetDefault("confd_dca_path", defaultDCAConfdPath)
-	Datadog.SetDefault("use_metadata_mapper", true)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_payloads", false)
 	Datadog.SetDefault("log_level", "info")
@@ -91,8 +95,9 @@ func init() {
 	Datadog.SetDefault("disable_file_logging", false)
 	Datadog.SetDefault("syslog_uri", "")
 	Datadog.SetDefault("syslog_rfc", false)
-	Datadog.SetDefault("syslog_tls", false)
 	Datadog.SetDefault("syslog_pem", "")
+	Datadog.SetDefault("syslog_key", "")
+	Datadog.SetDefault("syslog_tls_verify", true)
 	Datadog.SetDefault("cmd_host", "localhost")
 	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("cluster_agent_cmd_port", 5005)
@@ -100,9 +105,15 @@ func init() {
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(1))
-	Datadog.SetDefault("expvar_port", "5000")
 	Datadog.SetDefault("auth_token_file_path", "")
 	Datadog.SetDefault("bind_host", "localhost")
+	BindEnvAndSetDefault("hostname_fqdn", false)
+
+	// secrets backend
+	Datadog.BindEnv("secret_backend_command")
+	Datadog.BindEnv("secret_backend_arguments")
+	BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
+	BindEnvAndSetDefault("secret_backend_timeout", 5)
 
 	// Retry settings
 	Datadog.SetDefault("forwarder_backoff_factor", 2)
@@ -123,10 +134,9 @@ func init() {
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
-		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("procfs_path", "/host/proc")
+		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
-		Datadog.BindEnv("procfs_path")
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -159,6 +169,7 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+	Datadog.SetDefault("dogstatsd_so_rcvbuf", 0)
 	Datadog.SetDefault("statsd_forward_host", "")
 	Datadog.SetDefault("statsd_forward_port", 0)
 	BindEnvAndSetDefault("statsd_metric_namespace", "")
@@ -236,6 +247,9 @@ func init() {
 	// Undocumented opt-in feature for now
 	BindEnvAndSetDefault("full_cardinality_tagging", false)
 
+	BindEnvAndSetDefault("histogram_copy_to_distribution", false)
+	BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
+
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
@@ -249,12 +263,14 @@ func init() {
 	Datadog.BindEnv("dogstatsd_port")
 	Datadog.BindEnv("bind_host")
 	Datadog.BindEnv("proc_root")
+	Datadog.BindEnv("procfs_path")
 	Datadog.BindEnv("container_proc_root")
 	Datadog.BindEnv("container_cgroup_root")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("dogstatsd_origin_detection")
+	Datadog.BindEnv("dogstatsd_so_rcvbuf")
 	Datadog.BindEnv("check_runners")
 
 	Datadog.BindEnv("log_file")
@@ -309,6 +325,99 @@ var (
 		"app.datad0g.com":   nil,
 	}
 )
+
+// GetProxies returns the proxy settings from the configuration
+func GetProxies() *Proxy {
+	return proxies
+}
+
+// loadProxyFromEnv overrides the proxy settings with environment variables
+func loadProxyFromEnv() {
+	// Viper doesn't handle mixing nested variables from files and set
+	// manually.  If we manually set one of the sub value for "proxy" all
+	// other values from the conf file will be shadowed when using
+	// 'Datadog.Get("proxy")'. For that reason we first get the value from
+	// the conf files, overwrite them with the env variables and reset
+	// everything.
+
+	getEnvCaseInsensitive := func(key string) string {
+		value, found := os.LookupEnv(key)
+		if found {
+			return value
+		}
+		return os.Getenv(strings.ToLower(key))
+	}
+
+	var isSet bool
+	p := &Proxy{}
+	if isSet = Datadog.IsSet("proxy"); isSet {
+		if err := Datadog.UnmarshalKey("proxy", p); err != nil {
+			isSet = false
+			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
+		}
+	}
+
+	if HTTP := getEnvCaseInsensitive("HTTP_PROXY"); HTTP != "" {
+		isSet = true
+		p.HTTP = HTTP
+	}
+	if HTTPS := getEnvCaseInsensitive("HTTPS_PROXY"); HTTPS != "" {
+		isSet = true
+		p.HTTPS = HTTPS
+	}
+	if noProxy := getEnvCaseInsensitive("NO_PROXY"); noProxy != "" {
+		isSet = true
+		p.NoProxy = strings.Split(noProxy, ",")
+	}
+
+	// We have to set each value individually so both Datadog.Get("proxy")
+	// and Datadog.Get("proxy.http") work
+	if isSet {
+		Datadog.Set("proxy.http", p.HTTP)
+		Datadog.Set("proxy.https", p.HTTPS)
+		Datadog.Set("proxy.no_proxy", p.NoProxy)
+		proxies = p
+	}
+}
+
+// Load reads configs files and initializes the config module
+func Load() error {
+	if err := Datadog.ReadInConfig(); err != nil {
+		return err
+	}
+
+	// We have to init the secrets package before we can use it to decrypt
+	// anything.
+	secrets.Init(
+		Datadog.GetString("secret_backend_command"),
+		Datadog.GetStringSlice("secret_backend_arguments"),
+		Datadog.GetInt("secret_backend_timeout"),
+		Datadog.GetInt("secret_backend_output_max_size"),
+	)
+
+	if Datadog.IsSet("secret_backend_command") {
+		// Viper doesn't expose the final location of the file it
+		// loads. Since we are searching for 'datadog.yaml' in multiple
+		// localtions we let viper determine the one to use before
+		// updating it.
+		conf, err := yaml.Marshal(Datadog.AllSettings())
+		if err != nil {
+			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+		}
+
+		finalConfig, err := secrets.Decrypt(conf)
+		if err != nil {
+			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+		}
+		r := bytes.NewReader(finalConfig)
+		if err = Datadog.MergeConfig(r); err != nil {
+			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
+		}
+	}
+
+	loadProxyFromEnv()
+	return nil
+}
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {

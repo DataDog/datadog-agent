@@ -16,13 +16,13 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -143,6 +143,9 @@ func (d *DockerUtil) CountVolumes() (int, int, error) {
 // Docker API. This requires the running user to be in the "docker" user group
 // or have access to /tmp/docker.sock.
 func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, error) {
+	if cfg == nil {
+		return nil, errors.New("configuration is nil")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	defer cancel()
 	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{All: cfg.IncludeExited})
@@ -155,15 +158,10 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			// FIXME: We might need to invalidate this cache if a containers networks are changed live.
 			d.Lock()
 			if _, ok := d.networkMappings[c.ID]; !ok {
-				// FIXME: Use du.Inspect instead
-				i, err := d.cli.ContainerInspect(ctx, c.ID)
-				if err != nil && client.IsErrContainerNotFound(err) {
+				i, err := d.Inspect(c.ID, false)
+				if err != nil {
 					d.Unlock()
 					log.Debugf("Error inspecting container %s: %s", c.ID, err)
-					continue
-				}
-				if i.ContainerJSONBase == nil {
-					log.Debugf("Invalid inspect data for container %s", c.ID)
 					continue
 				}
 				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c)
@@ -256,7 +254,11 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 			}
 			container.MemLimit, err = cgroup.MemLimit()
 			if err != nil {
-				log.Debugf("Cgroup cpu limit: %s", err)
+				log.Debugf("Cgroup mem limit: %s", err)
+			}
+			container.SoftMemLimit, err = cgroup.SoftMemLimit()
+			if err != nil {
+				log.Debugf("Cgroup soft mem limit: %s", err)
 			}
 		}
 		cache.Cache.Set(cacheKey, containers, d.cfg.CacheDuration)

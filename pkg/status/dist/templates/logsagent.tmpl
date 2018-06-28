@@ -1,4 +1,7 @@
-==========
+{{/*
+NOTE: Changes made to this template should be reflected on the following templates, if applicable:
+* cmd/agent/gui/views/templates/generalStatus.tmpl
+*/}}==========
 Logs Agent
 ==========
 {{ if (not .is_running) }}
@@ -9,21 +12,10 @@ Logs Agent
   {{printDashes .name "-"}}
   {{- range .sources }}
     Type: {{ .type }}
-    {{- if .path }}
-    Path: {{ .path }}
+    {{- range $key, $value := .configuration }}
+    {{$key}}: {{$value}}
     {{- end }}
-    {{- if .port }}
-    Port: {{ .port }}
-    {{- end }}
-    {{- if .image }}
-    Image: {{ .image }}
-    {{- end }}
-    {{- if .label }}
-    Label: {{ .label }}
-    {{- end }}
-    {{- if .status }}
     Status: {{ .status }}
-    {{- end }}
     {{- if .inputs }}
     Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
     {{- end }}

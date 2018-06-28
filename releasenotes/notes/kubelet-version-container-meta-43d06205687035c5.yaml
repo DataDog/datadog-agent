@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add kubelet version to container metadata.

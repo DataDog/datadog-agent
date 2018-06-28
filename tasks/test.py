@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version, pkg_config_path
 from .go import fmt, lint, vet, misspell, ineffassign
-from .build_tags import get_default_build_tags
+from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
@@ -44,8 +44,8 @@ DEFAULT_TEST_TARGETS = [
 
 
 @task()
-def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
-         timeout=60):
+def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
+    race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False, timeout=120):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -63,7 +63,10 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     else:
         tool_targets = test_targets = targets
 
-    build_tags = get_default_build_tags()
+    build_include = get_default_build_tags() if build_include is None else build_include.split(",")
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
+    build_tags = get_build_tags(build_include, build_exclude)
+
     timeout = int(timeout)
 
     # explicitly run these tasks instead of using pre-tasks so we can
@@ -72,8 +75,11 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     lint_filenames(ctx)
     fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=tool_targets)
-    vet(ctx, targets=tool_targets)
+    print("--- Vetting:")
+    vet(ctx, targets=tool_targets, use_embedded_libs=use_embedded_libs)
+    print("--- Misspelling:")
     misspell(ctx, targets=tool_targets)
+    print("--- ineffassigning:")
     ineffassign(ctx, targets=tool_targets)
 
     with open(PROFILE_COV, "w") as f_cov:
@@ -212,6 +218,7 @@ def lint_releasenote(ctx):
 
     ctx.run("reno lint")
 
+
 @task
 def lint_filenames(ctx):
     """
@@ -243,6 +250,24 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
+def e2e_tests(ctx, target="gitlab", image=""):
+    """
+    Run e2e tests in several environments.
+    """
+    choices = ["gitlab", "dev", "local"]
+    if target not in choices:
+        print('target %s not in %s' % (target, choices))
+        raise Exit(1)
+    if not os.getenv("DATADOG_AGENT_IMAGE"):
+        if not image:
+            print("define DATADOG_AGENT_IMAGE envvar or image flag")
+            raise Exit(1)
+        os.environ["DATADOG_AGENT_IMAGE"] = image
+
+    ctx.run("./test/e2e/scripts/setup-instance/00-entrypoint-%s.sh" % target)
+
+
+@task
 def version(ctx, url_safe=False, git_sha_length=7):
     """
     Get the agent version.
@@ -252,6 +277,7 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))
+
 
 class TestProfiler:
     times = []

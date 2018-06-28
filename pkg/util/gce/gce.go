@@ -20,12 +20,21 @@ var (
 )
 
 type gceMetadata struct {
-	ID               int64
-	Tags             []string
-	Zone             string
-	MachineType      string
-	Hostname         string
-	ProjectID        int64
+	Instance gceInstanceMetadata
+	Project  gceProjectMetadata
+}
+
+type gceInstanceMetadata struct {
+	ID          int64
+	Tags        []string
+	Zone        string
+	MachineType string
+	Hostname    string
+	Attributes  map[string]string
+}
+
+type gceProjectMetadata struct {
+	ProjectID        string
 	NumericProjectID int64
 }
 
@@ -77,6 +86,11 @@ func getResponse(url string) (string, error) {
 	all, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return "", fmt.Errorf("GCE hostname, error reading response body: %s", err)
+	}
+
+	// Some cloud platforms will respond with an empty body, causing the agent to assume a faulty hostname
+	if len(all) <= 0 {
+		return "", fmt.Errorf("empty response body")
 	}
 
 	return string(all), nil

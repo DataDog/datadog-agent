@@ -3,6 +3,7 @@ package gui
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -12,11 +13,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/integration"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -132,7 +133,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 
 // Reloads a running check
 func reloadCheck(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
+	name := html.EscapeString(mux.Vars(r)["name"])
 	instances := common.AC.GetChecksByName(name)
 	if len(instances) == 0 {
 		log.Errorf("Can't reload " + name + ": check has no new instances.")

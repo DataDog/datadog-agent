@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strconv"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -62,7 +62,8 @@ func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
 	if len(rawTags) == 0 {
 		return nil, ""
 	}
-	var host string
+
+	host := defaultHostname
 	tagsList := make([]string, 0, bytes.Count(rawTags, tagSeparator)+1)
 	remainder := rawTags
 
@@ -254,7 +255,7 @@ func parseMetricMessage(message []byte, namespace string) (*metrics.MetricSample
 
 	// Metadata
 	var metricTags []string
-	var host string
+	host := defaultHostname
 	var rawMetadataField []byte
 	sampleRate := 1.0
 

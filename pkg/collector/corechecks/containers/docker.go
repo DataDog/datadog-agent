@@ -14,15 +14,16 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -203,6 +204,10 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
+		if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
+			sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
+		}
+
 		sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
 		sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
 
@@ -319,7 +324,10 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data) error {
 	}
 
 	var err error
-	d.dockerHostname, err = docker.HostnameProvider("")
+	// Use the same hostname as the agent so that host tags (like `availability-zone:us-east-1b`)
+	// are attached to Docker events from this host. The hostname from the docker api may be
+	// different than the agent hostname depending on the environment (like EC2 or GCE).
+	d.dockerHostname, err = util.GetHostname()
 	if err != nil {
 		log.Warnf("Can't get hostname from docker, events will not have it: %s", err)
 	}

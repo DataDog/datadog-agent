@@ -17,7 +17,7 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -87,7 +87,7 @@ func start(cmd *cobra.Command, args []string) error {
 		// we'll search for a config file named `dogstastd.yaml`
 		config.Datadog.SetConfigName("dogstatsd")
 		config.Datadog.AddConfigPath(confPath)
-		confErr := config.Datadog.ReadInConfig()
+		confErr := config.Load()
 		if confErr != nil {
 			log.Error(confErr)
 		} else {
@@ -116,8 +116,6 @@ func start(cmd *cobra.Command, args []string) error {
 		logFile,
 		syslogURI,
 		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("syslog_tls"),
-		config.Datadog.GetString("syslog_pem"),
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
 	)

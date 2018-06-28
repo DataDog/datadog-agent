@@ -12,11 +12,12 @@ import (
 	"os/exec"
 	"syscall"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	seelog "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/lxn/walk"
 
+	"github.com/lxn/walk"
 	"golang.org/x/sys/windows"
 )
 
@@ -161,7 +162,7 @@ func enableLoggingToFile() {
 		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\ddtray.log" maxsize="1000000" maxrolls="2" />
 	</outputs>
 	</seelog>`
-	logger, _ := log.LoggerFromConfigAsBytes([]byte(seeConfig))
+	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
 	log.ReplaceLogger(logger)
 }
 
@@ -172,6 +173,6 @@ func enableLoggingToConsole() {
 		<console />
 	</outputs>
 	</seelog>`
-	logger, _ := log.LoggerFromConfigAsBytes([]byte(seeConfig))
+	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
 	log.ReplaceLogger(logger)
 }

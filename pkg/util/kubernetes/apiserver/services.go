@@ -10,9 +10,8 @@ package apiserver
 import (
 	"fmt"
 
-	log "github.com/cihub/seelog"
-
-	"github.com/ericchiang/k8s/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"k8s.io/api/core/v1"
 )
 
 // mapServices maps each pod (endpoint) to the metadata associated with it.
@@ -31,23 +30,19 @@ func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.Pod
 	}
 
 	for _, pod := range pods.Items {
-		if *pod.Status.PodIP != "" {
-			podToIp[*pod.Metadata.Name] = *pod.Status.PodIP
+		if pod.Status.PodIP != "" {
+			podToIp[pod.Name] = pod.Status.PodIP
 		}
 	}
 	for _, svc := range endpointList.Items {
 		for _, endpointsSubsets := range svc.Subsets {
 			if endpointsSubsets.Addresses == nil {
-				log.Tracef("A subset of endpoints from %s could not be evaluated", *svc.Metadata.Name)
+				log.Tracef("A subset of endpoints from %s could not be evaluated", svc.Name)
 				continue
 			}
 			for _, edpt := range endpointsSubsets.Addresses {
-				if edpt == nil {
-					log.Tracef("An endpoint from %s could not be evaluated", *svc.Metadata.Name)
-					continue
-				}
 				if edpt.NodeName != nil && *edpt.NodeName == nodeName {
-					ipToEndpoints[*edpt.Ip] = append(ipToEndpoints[*edpt.Ip], *svc.Metadata.Name)
+					ipToEndpoints[edpt.IP] = append(ipToEndpoints[edpt.IP], svc.Name)
 				}
 			}
 		}

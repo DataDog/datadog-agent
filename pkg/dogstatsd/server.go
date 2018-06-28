@@ -12,8 +12,9 @@ import (
 	"net"
 	"runtime"
 	"strings"
+	"sync"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
@@ -25,18 +26,25 @@ import (
 
 var (
 	dogstatsdExpvar = expvar.NewMap("dogstatsd")
+
+	// The default hostname to enforce on metrics, assumed to not change in the
+	// Agent's lifetime
+	defaultHostname = ""
+	initHostname    sync.Once
 )
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners    []listeners.StatsdListener
-	packetIn     chan *listeners.Packet
-	Statistics   *util.Stats
-	Started      bool
-	packetPool   *listeners.PacketPool
-	stopChan     chan bool
-	health       *health.Handle
-	metricPrefix string
+	listeners        []listeners.StatsdListener
+	packetIn         chan *listeners.Packet
+	Statistics       *util.Stats
+	Started          bool
+	packetPool       *listeners.PacketPool
+	stopChan         chan bool
+	health           *health.Handle
+	metricPrefix     string
+	histToDist       bool
+	histToDistPrefix string
 }
 
 // NewServer returns a running Dogstatsd server
@@ -50,6 +58,12 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		}
 		stats = s
 	}
+
+	// We enforce the defaultHostname on metrics when none is set. To avoid checking
+	// the cache on every metrics, save it once and for all in a package variable.
+	initHostname.Do(func() {
+		defaultHostname, _ = util.GetHostname()
+	})
 
 	packetChannel := make(chan *listeners.Packet, 100)
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
@@ -83,15 +97,19 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		metricPrefix = metricPrefix + "."
 	}
 
+	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
+	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 	s := &Server{
-		Started:      true,
-		Statistics:   stats,
-		packetIn:     packetChannel,
-		listeners:    tmpListeners,
-		packetPool:   packetPool,
-		stopChan:     make(chan bool),
-		health:       health.Register("dogstatsd-main"),
-		metricPrefix: metricPrefix,
+		Started:          true,
+		Statistics:       stats,
+		packetIn:         packetChannel,
+		listeners:        tmpListeners,
+		packetPool:       packetPool,
+		stopChan:         make(chan bool),
+		health:           health.Register("dogstatsd-main"),
+		metricPrefix:     metricPrefix,
+		histToDist:       histToDist,
+		histToDistPrefix: histToDistPrefix,
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -221,6 +239,12 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					}
 					dogstatsdExpvar.Add("MetricPackets", 1)
 					metricOut <- sample
+					if s.histToDist && sample.Mtype == metrics.HistogramType {
+						distSample := sample.Copy()
+						distSample.Name = s.histToDistPrefix + distSample.Name
+						distSample.Mtype = metrics.DistributionType
+						metricOut <- distSample
+					}
 				}
 			}
 			// Return the packet object back to the object pool for reuse

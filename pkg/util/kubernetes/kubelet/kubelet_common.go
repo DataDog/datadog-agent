@@ -6,8 +6,11 @@
 package kubelet
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -25,4 +28,20 @@ func PodUIDToEntityName(uid string) string {
 		return ""
 	}
 	return fmt.Sprintf("%s%s", KubePodPrefix, uid)
+}
+
+// ParseMetricFromRaw parses a metric from raw prometheus text
+func ParseMetricFromRaw(raw []byte, metric string) (string, error) {
+	bytesReader := bytes.NewReader(raw)
+	scanner := bufio.NewScanner(bytesReader)
+	for scanner.Scan() {
+		// skipping comments
+		if string(scanner.Text()[0]) == "#" {
+			continue
+		}
+		if strings.Contains(scanner.Text(), metric) {
+			return scanner.Text(), nil
+		}
+	}
+	return "", fmt.Errorf("%s metric not found in payload", metric)
 }

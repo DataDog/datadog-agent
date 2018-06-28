@@ -22,11 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.20.0-jar-with-dependencies.jar"
+	jmxJarName                        = "jmxfetch-0.20.1-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	defaultJmxCommand                 = "collect"
 	defaultJvmMaxMemoryAllocation     = " -Xmx200m"
@@ -73,33 +73,41 @@ type JMXFetch struct {
 	exitFilePath       string
 }
 
-// New returns a new instance of JMXFetch with default values.
-func New() *JMXFetch {
-	return &JMXFetch{
-		JavaBinPath:        defaultJavaBinPath,
-		JavaCustomJarPaths: []string{},
-		LogLevel:           defaultLogLevel,
-		Command:            defaultJmxCommand,
-		ReportOnConsole:    false,
-		Checks:             []string{},
+func (j *JMXFetch) setDefaults() {
+	if j.JavaBinPath == "" {
+		j.JavaBinPath = defaultJavaBinPath
+	}
+	if j.JavaCustomJarPaths == nil {
+		j.JavaCustomJarPaths = []string{}
+	}
+	if j.LogLevel == "" {
+		j.LogLevel = defaultLogLevel
+	}
+	if j.Command == "" {
+		j.Command = defaultJmxCommand
+	}
+	if j.Checks == nil {
+		j.Checks = []string{}
 	}
 }
 
 // Start starts the JMXFetch process
 func (j *JMXFetch) Start() error {
+	j.setDefaults()
+
 	here, _ := executable.Folder()
 	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {
-		classpath = fmt.Sprintf("%s:%s", j.JavaToolsJarPath, classpath)
+		classpath = fmt.Sprintf("%s%s%s", j.JavaToolsJarPath, string(os.PathListSeparator), classpath)
 	}
 
 	globalCustomJars := config.Datadog.GetStringSlice("jmx_custom_jars")
 	if len(globalCustomJars) > 0 {
-		classpath = fmt.Sprintf("%s:%s", strings.Join(globalCustomJars, ":"), classpath)
+		classpath = fmt.Sprintf("%s%s%s", strings.Join(globalCustomJars, string(os.PathListSeparator)), string(os.PathListSeparator), classpath)
 	}
 
 	if len(j.JavaCustomJarPaths) > 0 {
-		classpath = fmt.Sprintf("%s:%s", strings.Join(j.JavaCustomJarPaths, ":"), classpath)
+		classpath = fmt.Sprintf("%s%s%s", strings.Join(j.JavaCustomJarPaths, string(os.PathListSeparator)), string(os.PathListSeparator), classpath)
 	}
 	bindHost := config.Datadog.GetString("bind_host")
 	if bindHost == "" || bindHost == "0.0.0.0" {

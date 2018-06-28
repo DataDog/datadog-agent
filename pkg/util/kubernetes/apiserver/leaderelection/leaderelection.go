@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -118,11 +118,13 @@ func (le *LeaderEngine) init() error {
 	}
 	log.Debugf("LeaderLeaseDuration: %s", le.LeaseDuration.String())
 
-	le.coreClient, err = apiserver.GetCoreV1Client()
+	apiClient, err := apiserver.GetAPIClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
 		return err
 	}
+
+	le.coreClient = apiClient.Client
 
 	// check if we can get ConfigMap.
 	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
@@ -146,7 +148,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	le.m.Lock()
 	defer le.m.Unlock()
 	if le.running {
-		log.Debugf("Currently leader %s, leader identity: %q", le.IsLeader(), le.CurrentLeaderName())
+		log.Debugf("Currently leader: %t. Leader identity: %q", le.IsLeader(), le.CurrentLeaderName())
 		return nil
 	}
 
@@ -195,10 +197,13 @@ func (le *LeaderEngine) IsLeader() bool {
 // GetLeaderDetails is used in for the Flare and for the Status commands.
 func GetLeaderDetails() (leaderDetails rl.LeaderElectionRecord, err error) {
 	var led rl.LeaderElectionRecord
-	c, err := apiserver.GetCoreV1Client()
+	client, err := apiserver.GetAPIClient()
 	if err != nil {
 		return led, err
 	}
+
+	c := client.Client
+
 	leaderNamespace := apiserver.GetResourcesNamespace()
 	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
 	if err != nil {

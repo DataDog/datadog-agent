@@ -8,20 +8,18 @@ package host
 import (
 	"os"
 	"path"
-	"runtime"
-	"strings"
+	"sync"
 	"time"
-
-	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
+	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
@@ -29,19 +27,6 @@ import (
 )
 
 const packageCachePrefix = "host"
-
-// Collect at init time
-var cpuInfo []cpu.InfoStat
-
-// InitHostMetadata initializes necessary CPU info
-func InitHostMetadata() error {
-	// Collect before even loading any python check to avoid
-	// COM model mayhem on windows
-	var err error
-	cpuInfo, err = cpu.Info()
-
-	return err
-}
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
@@ -55,7 +40,7 @@ func GetPayload(hostname string) *Payload {
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
-		ContainerMeta: getContainerMeta(),
+		ContainerMeta: getContainerMeta(1 * time.Second),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -73,11 +58,6 @@ func GetPayloadFromCache(hostname string) *Payload {
 		return x.(*Payload)
 	}
 	return GetPayload(hostname)
-}
-
-// GetStatusInformation just returns an InfoStat object, we need some additional information that's not
-func GetStatusInformation() *host.InfoStat {
-	return getHostInfo()
 }
 
 // GetMeta grabs the metadata from the cache and returns it,
@@ -109,6 +89,13 @@ func getHostTags() *tags {
 		hostTags = append(hostTags, k8sTags...)
 	}
 
+	dockerTags, err := docker.GetTags()
+	if err != nil {
+		log.Debugf("No Docker host tags %v", err)
+	} else {
+		hostTags = append(hostTags, dockerTags...)
+	}
+
 	gceTags, err := gce.GetTags()
 	if err != nil {
 		log.Debugf("No GCE host tags %v", err)
@@ -118,31 +105,6 @@ func getHostTags() *tags {
 		System:              hostTags,
 		GoogleCloudPlatform: gceTags,
 	}
-}
-
-func getSystemStats() *systemStats {
-	var stats *systemStats
-	key := buildKey("systemStats")
-	if x, found := cache.Cache.Get(key); found {
-		stats = x.(*systemStats)
-	} else {
-		cpuInfo := getCPUInfo()
-		hostInfo := getHostInfo()
-
-		stats = &systemStats{
-			Machine:   runtime.GOARCH,
-			Platform:  osName,
-			Processor: cpuInfo.ModelName,
-			CPUCores:  cpuInfo.Cores,
-			Pythonv:   strings.Split(getPythonVersion(), " ")[0],
-		}
-
-		// fill the platform dependent bits of info
-		fillOsVersion(stats, hostInfo)
-		cache.Cache.Set(key, stats, cache.NoExpiration)
-	}
-
-	return stats
 }
 
 // getPythonVersion returns the version string as provided by the embedded Python
@@ -156,39 +118,6 @@ func getPythonVersion() string {
 	}
 
 	return "n/a"
-}
-
-// getCPUInfo returns InfoStat for the first CPU gopsutil found
-func getCPUInfo() *cpu.InfoStat {
-	key := buildKey("cpuInfo")
-	if x, found := cache.Cache.Get(key); found {
-		return x.(*cpu.InfoStat)
-	}
-
-	if cpuInfo == nil {
-		// don't cache and return zero value
-		log.Errorf("failed to retrieve cpu info at init time")
-		return &cpu.InfoStat{}
-	}
-	info := &cpuInfo[0]
-	cache.Cache.Set(key, info, cache.NoExpiration)
-	return info
-}
-
-func getHostInfo() *host.InfoStat {
-	key := buildKey("hostInfo")
-	if x, found := cache.Cache.Get(key); found {
-		return x.(*host.InfoStat)
-	}
-
-	info, err := host.Info()
-	if err != nil {
-		// don't cache and return zero value
-		log.Errorf("failed to retrieve host info: %s", err)
-		return &host.InfoStat{}
-	}
-	cache.Cache.Set(key, info, cache.NoExpiration)
-	return info
 }
 
 // getHostAliases returns the hostname aliases from different provider
@@ -249,21 +178,47 @@ func getMeta() *Meta {
 	return m
 }
 
-func getContainerMeta() map[string]string {
+func getContainerMeta(timeout time.Duration) map[string]string {
+	wg := sync.WaitGroup{}
 	containerMeta := make(map[string]string)
+	// protecting the above map from concurrent access
+	mutex := &sync.Mutex{}
 
 	for provider, getMeta := range container.DefaultCatalog {
-		meta, err := getMeta()
-		if err != nil {
-			log.Debugf("Unable to get %s metadata: %s", provider, err)
-			continue
-		}
-		for k, v := range meta {
-			containerMeta[k] = v
-		}
+		wg.Add(1)
+		go func(provider string, getMeta container.MetadataProvider) {
+			defer wg.Done()
+			meta, err := getMeta()
+			if err != nil {
+				log.Debugf("Unable to get %s metadata: %s", provider, err)
+				return
+			}
+			mutex.Lock()
+			for k, v := range meta {
+				containerMeta[k] = v
+			}
+			mutex.Unlock()
+		}(provider, getMeta)
 	}
-
-	return containerMeta
+	// we want to timeout even if the wait group is not done yet
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return containerMeta
+	case <-time.After(timeout):
+		// in this case the map might be incomplete so return a copy to avoid race
+		incompleteMeta := make(map[string]string)
+		mutex.Lock()
+		for k, v := range containerMeta {
+			incompleteMeta[k] = v
+		}
+		mutex.Unlock()
+		return incompleteMeta
+	}
 }
 
 func buildKey(key string) string {

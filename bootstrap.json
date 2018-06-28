@@ -1,0 +1,11 @@
+{
+    "post-deps": {
+    },
+    "deps": {
+        "github.com/golang/dep/cmd/dep": "v0.4.1",
+        "golang.org/x/lint/golint": "master",
+        "github.com/fzipp/gocyclo": "master",
+        "github.com/gordonklaus/ineffassign": "master",
+        "github.com/client9/misspell/cmd/misspell": "master"
+    }
+}

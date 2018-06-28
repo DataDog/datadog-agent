@@ -3,19 +3,23 @@ Golang related tasks go here
 """
 from __future__ import print_function
 import os
+import sys
+import json
 
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
+from .utils import pkg_config_path, get_build_flags
 
 
 # List of modules to ignore when running lint on Windows platform
 WIN_MODULE_WHITELIST = [
-    "iostats_wmi_windows.go",
+    "doflare.go",
     "iostats_pdh_windows.go",
+    "iostats_wmi_windows.go",
     "pdh.go",
     "pdhhelper.go",
-    "doflare.go",
+    "tailer_windows.go",
 ]
 
 # List of paths to ignore in misspell's output
@@ -23,6 +27,17 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "dist", "checks", "prometheus_check"),
     os.path.join("cmd", "agent", "gui", "views", "private"),
 ]
+
+# Bootstrap dependencies description
+BOOTSTRAP_DEPS = "bootstrap.json"
+
+
+def get_deps(key):
+    here = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(here, '..', BOOTSTRAP_DEPS)) as f:
+        deps = json.load(f)
+
+    return deps.get(key, {})
 
 
 @task
@@ -87,7 +102,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets):
+def vet(ctx, targets, use_embedded_libs=False):
     """
     Run go vet on targets.
 
@@ -102,7 +117,10 @@ def vet(ctx, targets):
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
     build_tags = get_default_build_tags()
-    ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args))
+
+    _, _, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+
+    ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")
@@ -174,16 +192,63 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False):
     """
     Setup Go dependencies
     """
-    ctx.run("go get -u github.com/golang/dep/cmd/dep")
-    ctx.run("go get -u github.com/golang/lint/golint")
-    ctx.run("go get -u github.com/fzipp/gocyclo")
-    ctx.run("go get -u github.com/gordonklaus/ineffassign")
-    ctx.run("go get -u github.com/client9/misspell/cmd/misspell")
-    ctx.run("dep ensure")
+    verbosity = ' -v' if verbose else ''
+    deps = get_deps('deps')
+    for tool, version in deps.iteritems():
+        # download tools
+        path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
+        if not os.path.exists(path):
+            ctx.run("go get{} -d -u {}".format(verbosity, tool))
+
+        with ctx.cd(path):
+            # checkout versions
+            ctx.run("git fetch")
+            ctx.run("git checkout {}".format(version))
+
+    postdeps = get_deps('post-deps')
+    for tool, version in postdeps.iteritems():
+        # download tools
+        path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
+        if not os.path.exists(path):
+            ctx.run("go get{} -d -u {}".format(verbosity, tool))
+
+        with ctx.cd(path):
+            # checkout versions
+            ctx.run("git fetch")
+            ctx.run("git checkout {}".format(version))
+
+    for tool, version in deps.iteritems():
+        # install tools
+        ctx.run("go install{} {}".format(verbosity, tool))
+
+    # source level deps
+    ctx.run("dep ensure{}".format(verbosity))
+    # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
+    # in because it's necessary on other platforms
+    if sys.platform == 'win32':
+        print("Removing PSUTIL on Windows")
+        ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
+
+
+    if not no_checks:
+        verbosity = 'v' if verbose else 'q'
+        core_dir = core_dir or os.getenv('DD_CORE_DIR')
+
+        if core_dir:
+            checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
+            ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
+            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+        else:
+            core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
+            checks_base = os.path.join(core_dir, 'datadog_checks_base')
+            if not os.path.isdir(core_dir):
+                ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
+            ctx.run('pip install -{} {}'.format(verbosity, checks_base))
+            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
 
 
 @task

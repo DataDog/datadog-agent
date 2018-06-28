@@ -27,7 +27,7 @@ var getHostnameCommand = &cobra.Command{
 
 // query for the version
 func doGetHostname(cmd *cobra.Command, args []string) error {
-	config.SetupLogger("off", "", "", false, false, "", true, false)
+	config.SetupLogger("off", "", "", false, true, false)
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)

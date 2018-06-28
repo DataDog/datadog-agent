@@ -51,7 +51,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 
 	// setup the configuration system
 	config.Datadog.AddConfigPath(newConfigDir)
-	err = config.Datadog.ReadInConfig()
+	err = config.Load()
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
@@ -79,14 +79,14 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// marshal the config object to YAML
 	b, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
-		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
+		return fmt.Errorf("unable to marshal config to YAML: %v", err)
 	}
 
 	// dump the current configuration to datadog.yaml
 	// file permissions will be used only to create the file if doesn't exist,
 	// please note on Windows such permissions have no effect.
 	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
-		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
+		return fmt.Errorf("unable to write config to %s: %v", datadogYamlPath, err)
 	}
 
 	fmt.Fprintln(

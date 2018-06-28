@@ -11,7 +11,7 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -44,6 +44,12 @@ func NewUDPListener(packetOut chan *Packet, packetPool *PacketPool) (*UDPListene
 	}
 
 	conn, err = net.ListenPacket("udp", url)
+
+	if rcvbuf := config.Datadog.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+		if err := conn.(*net.UDPConn).SetReadBuffer(rcvbuf); err != nil {
+			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
+		}
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("can't listen: %s", err)

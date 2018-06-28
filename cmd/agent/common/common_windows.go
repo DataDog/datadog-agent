@@ -16,7 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -51,7 +52,7 @@ func EnableLoggingToFile() {
 		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\agent.log" maxsize="1000000" maxrolls="2" />
 	</outputs>
 </seelog>`
-	logger, _ := log.LoggerFromConfigAsBytes([]byte(seeConfig))
+	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
 	log.ReplaceLogger(logger)
 }
 
@@ -111,7 +112,7 @@ func CheckAndUpgradeConfig() error {
 		return nil
 	}
 	config.Datadog.AddConfigPath(DefaultConfPath)
-	err := config.Datadog.ReadInConfig()
+	err := config.Load()
 	if err == nil {
 		// was able to read config, check for api key
 		if config.Datadog.GetString("api_key") != "" {

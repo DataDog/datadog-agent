@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build kubeapiserver
+
 package app
 
 import (
@@ -11,9 +13,9 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -31,20 +33,9 @@ One can easily identify which pods are running on which nodes,
 as well as which services are serving the pods. Or the deployment name for the pod`,
 	Example: "datadog-cluster-agent metamap ip-10-0-115-123",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configFound := false
-		// a path to the folder containing the config file was passed
-		if len(confPath) != 0 {
-			// we'll search for a config file named `datadog-cluster.yaml`
-			config.Datadog.AddConfigPath(confPath)
-			confErr := config.Datadog.ReadInConfig()
-			if confErr != nil {
-				log.Error(confErr)
-			} else {
-				configFound = true
-			}
-		}
-		if !configFound {
-			log.Debugf("Config read from env variables")
+		err := common.SetupConfig(confPath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
 		}
 		nodeName := ""
 		if len(args) > 0 {

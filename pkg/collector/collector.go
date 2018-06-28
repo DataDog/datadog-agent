@@ -10,11 +10,11 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/integration"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -52,6 +52,12 @@ func NewCollector(paths ...string) *Collector {
 		log.Infof("Embedding Python %s", pyVer)
 		log.Debugf("Python Home: %s", pyHome)
 		log.Debugf("Python path: %s", pyPath)
+	}
+
+	// Prepare python environment if necessary
+	err := pyPrepareEnv()
+	if err != nil {
+		log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
 	}
 
 	log.Debug("Collector up and running!")

@@ -23,6 +23,7 @@ build do
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
+            move "#{install_dir}/etc/datadog-agent/root.json", conf_dir_root, :force=>true
             delete "#{install_dir}/etc/datadog-agent/trace-agent.conf.example"
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
@@ -46,10 +47,15 @@ build do
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
             move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
             move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
-            mkdir "/lib/systemd/system"
-            move "#{install_dir}/scripts/datadog-agent.service", "/lib/systemd/system"
-            move "#{install_dir}/scripts/datadog-agent-trace.service", "/lib/systemd/system"
-            move "#{install_dir}/scripts/datadog-agent-process.service", "/lib/systemd/system"
+            systemd_directory = "/usr/lib/systemd/system"
+            if debian?
+                # debian recommends using a different directory for systemd unit files
+                systemd_directory = "/lib/systemd/system"
+            end
+            mkdir systemd_directory
+            move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
+            move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
+            move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
 
             # Move checks and configuration files
             mkdir "/etc/datadog-agent"

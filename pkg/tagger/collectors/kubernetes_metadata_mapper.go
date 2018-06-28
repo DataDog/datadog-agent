@@ -10,14 +10,14 @@ package collectors
 import (
 	"strings"
 
-	log "github.com/cihub/seelog"
-	"github.com/ericchiang/k8s/api/v1"
-	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
@@ -59,7 +59,6 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 			}
 		}
 		for _, tagDCA := range metadataNames {
-			// for service in metadataName.[services]
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)
 			tag = strings.Split(tagDCA, ":")
 			if len(tag) != 2 {
@@ -69,6 +68,17 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 
 		low, high := tagList.Compute()
+		// Register the tags for the pod itself
+		if po.Metadata.UID != "" {
+			podInfo := &TagInfo{
+				Source:       kubeMetadataCollectorName,
+				Entity:       kubelet.PodUIDToEntityName(po.Metadata.UID),
+				HighCardTags: high,
+				LowCardTags:  low,
+			}
+			tagInfo = append(tagInfo, podInfo)
+		}
+		// Register the tags for all its containers
 		for _, container := range po.Status.Containers {
 			info := &TagInfo{
 				Source:       kubeMetadataCollectorName,
@@ -98,16 +108,17 @@ func (c *KubeMetadataCollector) addToCacheMetadataMapping(kubeletPodList []*kube
 		if nodeName == "" && p.Spec.NodeName != "" {
 			nodeName = p.Spec.NodeName
 		}
+
 		pod := &v1.Pod{
-			Metadata: &metav1.ObjectMeta{
-				Name:      &p.Metadata.Name,
-				Namespace: &p.Metadata.Namespace,
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      p.Metadata.Name,
+				Namespace: p.Metadata.Namespace,
 			},
-			Status: &v1.PodStatus{
-				PodIP: &p.Status.PodIP,
+			Status: v1.PodStatus{
+				PodIP: p.Status.PodIP,
 			},
 		}
-		podList.Items = append(podList.Items, pod)
+		podList.Items = append(podList.Items, *pod)
 	}
 	return c.apiClient.NodeMetadataMapping(nodeName, podList)
 }

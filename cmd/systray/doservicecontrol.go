@@ -8,7 +8,7 @@ package main
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func onRestart() {

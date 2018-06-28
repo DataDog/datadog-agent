@@ -25,6 +25,11 @@ const (
 	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/)pause(.*)`
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerKubernetes = "image:kubernetes/pause"
+	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
+	// pauseContainerAzure regex matches:
+	// - k8s-gcrio.azureedge.net/pause-amd64
+	// - gcrio.azureedge.net/google_containers/pause-amd64
+	pauseContainerAzure = `image:(.*)azureedge\.net(/google_containers/|/)pause(.*)`
 )
 
 // Filter holds the state for the container filtering logic
@@ -88,7 +93,13 @@ func NewFilterFromConfig() (*Filter, error) {
 	blacklist := config.Datadog.GetStringSlice("ac_exclude")
 
 	if config.Datadog.GetBool("exclude_pause_container") {
-		blacklist = append(blacklist, pauseContainerGCR, pauseContainerOpenshift, pauseContainerKubernetes)
+		blacklist = append(blacklist,
+			pauseContainerGCR,
+			pauseContainerOpenshift,
+			pauseContainerKubernetes,
+			pauseContainerAzure,
+			pauseContainerECS,
+		)
 	}
 	return NewFilter(whitelist, blacklist)
 }

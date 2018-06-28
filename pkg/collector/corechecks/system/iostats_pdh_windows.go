@@ -13,20 +13,20 @@ import (
 	"syscall"
 	"unsafe"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
 var (
-	modkernel32 = syscall.NewLazyDLL("kernel32.dll")
-
 	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
 	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
+
+	drivePattern = regexp.MustCompile(`[A-Za-z]:`)
 )
 
 const (
@@ -62,10 +62,10 @@ func init() {
 
 func isDrive(instance string) bool {
 	found := false
-	instance += "\\"
-	if instance != "C:\\" {
+	if !drivePattern.MatchString(instance) {
 		return false
 	}
+	instance += "\\"
 	for _, driveletter := range drivelist {
 		if instance == driveletter {
 			found = true

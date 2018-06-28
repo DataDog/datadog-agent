@@ -14,11 +14,11 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	consul "github.com/hashicorp/consul/api"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/integration"
 )
 
 // Abstractions for testing

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -37,6 +37,7 @@ type KubeMetadataCollector struct {
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
 func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
+		log.Infof("The metadata mapper was configured to be disabled, not collecting metadata for the pods from the API Server")
 		return NoCollection, fmt.Errorf("collection disabled by the configuration")
 	}
 

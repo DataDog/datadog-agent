@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-connections/nat"
 
@@ -43,7 +43,7 @@ type DockerService struct {
 	ID            ID
 	ADIdentifiers []string
 	Hosts         map[string]string
-	Ports         []int
+	Ports         []ContainerPort
 	Pid           int
 }
 
@@ -294,13 +294,13 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 }
 
 // getPortsFromPs gets the service ports of a container.
-func (l *DockerListener) getPortsFromPs(co types.Container) []int {
+func (l *DockerListener) getPortsFromPs(co types.Container) []ContainerPort {
 	// Nil array by default, we'll need to inspect the container
 	// later if we don't find any port in the PS
-	var ports []int
+	var ports []ContainerPort
 
 	for _, p := range co.Ports {
-		ports = append(ports, int(p.PrivatePort))
+		ports = append(ports, ContainerPort{int(p.PrivatePort), ""})
 	}
 	return ports
 }
@@ -356,9 +356,11 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
-	for net, settings := range cInspect.NetworkSettings.Networks {
-		if len(settings.IPAddress) > 0 {
-			ips[net] = settings.IPAddress
+	if cInspect.NetworkSettings != nil {
+		for net, settings := range cInspect.NetworkSettings.Networks {
+			if len(settings.IPAddress) > 0 {
+				ips[net] = settings.IPAddress
+			}
 		}
 	}
 
@@ -372,13 +374,13 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *DockerService) GetPorts() ([]int, error) {
+func (s *DockerService) GetPorts() ([]ContainerPort, error) {
 	if s.Ports != nil {
 		return s.Ports, nil
 	}
 
 	// Make a non-nil array to avoid re-running if we find zero port
-	ports := []int{}
+	ports := []ContainerPort{}
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
@@ -411,19 +413,21 @@ func (s *DockerService) GetPorts() ([]int, error) {
 		}
 	}
 
-	sort.Ints(ports)
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
 	s.Ports = ports
 	return ports, nil
 }
 
-func parseDockerPort(port nat.Port) ([]int, error) {
-	var output []int
+func parseDockerPort(port nat.Port) ([]ContainerPort, error) {
+	var output []ContainerPort
 
 	// Try to parse a port range, eg. 22-25
 	first, last, err := port.Range()
 	if err == nil && last > first {
 		for p := first; p <= last; p++ {
-			output = append(output, p)
+			output = append(output, ContainerPort{p, ""})
 		}
 		return output, nil
 	}
@@ -431,7 +435,7 @@ func parseDockerPort(port nat.Port) ([]int, error) {
 	// Try to parse a single port (most common case)
 	p := port.Int()
 	if p > 0 {
-		output = append(output, p)
+		output = append(output, ContainerPort{p, ""})
 		return output, nil
 	}
 

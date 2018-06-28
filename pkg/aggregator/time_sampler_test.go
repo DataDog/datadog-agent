@@ -114,7 +114,7 @@ func TestContextSampling(t *testing.T) {
 		Name:     "my.metric.name1",
 		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
 		Tags:     []string{"bar", "foo"},
-		Host:     "default-hostname",
+		Host:     "",
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
 	}
@@ -130,7 +130,7 @@ func TestContextSampling(t *testing.T) {
 		Name:     "my.metric.name2",
 		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
 		Tags:     []string{"bar", "foo"},
-		Host:     "default-hostname",
+		Host:     "",
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
 	}
@@ -186,7 +186,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 		Name:     "my.counter1",
 		Points:   []metrics.Point{{Ts: 1000.0, Value: .1}},
 		Tags:     []string{"bar", "foo"},
-		Host:     "default-hostname",
+		Host:     "",
 		MType:    metrics.APIRateType,
 		Interval: 10,
 	}
@@ -195,7 +195,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 		Name:     "my.counter2",
 		Points:   []metrics.Point{{Ts: 1000.0, Value: .2}},
 		Tags:     []string{"bar", "foo"},
-		Host:     "default-hostname",
+		Host:     "",
 		MType:    metrics.APIRateType,
 		Interval: 10,
 	}
@@ -228,7 +228,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 		Name:     "my.counter1",
 		Points:   []metrics.Point{{Ts: 1010.0, Value: .1}, {Ts: 1020.0, Value: 0.0}, {Ts: 1030.0, Value: 0.0}},
 		Tags:     []string{"bar", "foo"},
-		Host:     "default-hostname",
+		Host:     "",
 		MType:    metrics.APIRateType,
 		Interval: 10,
 	}
@@ -237,7 +237,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 		Name:     "my.counter2",
 		Points:   []metrics.Point{{Ts: 1010, Value: 0}, {Ts: 1020.0, Value: .2}, {Ts: 1030.0, Value: .2}},
 		Tags:     []string{"bar", "foo"},
-		Host:     "default-hostname",
+		Host:     "",
 		MType:    metrics.APIRateType,
 		Interval: 10,
 	}

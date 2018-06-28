@@ -13,6 +13,7 @@ package listeners
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -25,7 +26,7 @@ type DockerKubeletService struct {
 	DockerService
 	kubeUtil *kubelet.KubeUtil
 	Hosts    map[string]string
-	Ports    []int
+	Ports    []ContainerPort
 }
 
 // getPod wraps KubeUtil init and pod lookup for both public methods.
@@ -57,7 +58,7 @@ func (s *DockerKubeletService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *DockerKubeletService) GetPorts() ([]int, error) {
+func (s *DockerKubeletService) GetPorts() ([]ContainerPort, error) {
 	if s.Ports != nil {
 		return s.Ports, nil
 	}
@@ -76,15 +77,18 @@ func (s *DockerKubeletService) GetPorts() ([]int, error) {
 	if searchedContainerName == "" {
 		return nil, fmt.Errorf("can't find container %s in pod %s", searchedId, pod.Metadata.Name)
 	}
-	var ports []int
+	ports := []ContainerPort{}
 	for _, container := range pod.Spec.Containers {
 		if container.Name == searchedContainerName {
 			for _, port := range container.Ports {
-				ports = append(ports, port.ContainerPort)
+				ports = append(ports, ContainerPort{port.ContainerPort, port.Name})
 			}
 		}
 	}
 
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
 	s.Ports = ports
 	return ports, nil
 }

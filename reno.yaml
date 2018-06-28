@@ -1,3 +1,0 @@
----
-release_tag_re: '^([\d.-]|rc)+$'
-pre_release_tag_re: '(?P<pre_release>-rc\.\d+)$'

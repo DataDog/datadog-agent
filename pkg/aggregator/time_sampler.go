@@ -6,7 +6,7 @@
 package aggregator
 
 import (
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -128,11 +128,7 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 			}
 			serie.Name = context.Name + serie.NameSuffix
 			serie.Tags = context.Tags
-			if context.Host != "" {
-				serie.Host = context.Host
-			} else {
-				serie.Host = s.defaultHostname
-			}
+			serie.Host = context.Host
 			serie.Interval = s.interval
 
 			serieBySignature[serieSignature] = serie

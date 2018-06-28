@@ -11,9 +11,8 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const secondsFloat = float64(time.Second)

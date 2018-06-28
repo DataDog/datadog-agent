@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -125,6 +125,15 @@ func GetHostname() (string, error) {
 		log.Debug("Unable to get hostname from GCE: ", err)
 	}
 
+	// FQDN
+	log.Debug("GetHostname trying FQDN/`hostname -f`...")
+	fqdn, err := getSystemFQDN()
+	if config.Datadog.GetBool("hostname_fqdn") && err == nil {
+		hostName = fqdn
+	} else {
+		log.Debug("Unable to get FQDN from system: ", err)
+	}
+
 	isContainerized, name := getContainerHostname()
 	if isContainerized && name != "" {
 		hostName = name
@@ -158,6 +167,12 @@ func GetHostname() (string, error) {
 		} else {
 			log.Debug("Unable to determine hostname from EC2: ", err)
 		}
+	}
+
+	// REMOVEME: This should be removed in 6.4
+	h, err := os.Hostname()
+	if err == nil && !config.Datadog.GetBool("hostname_fqdn") && hostName == h && h != fqdn {
+		log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However starting from version 6.4, it will be resolved as '%s' by default. To enable the behavior of 6.4+, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
 	}
 
 	// If at this point we don't have a name, bail out

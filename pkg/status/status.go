@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -111,8 +111,8 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		log.Errorf("Error Getting ExpVar Stats: %v", err)
 	}
 	stats["config"] = getDCAPartialConfig()
-
-	stats["version"] = version.AgentVersion
+	stats["conf_file"] = config.Datadog.ConfigFileUsed()
+	stats["version"] = version.DCAVersion
 	stats["pid"] = os.Getpid()
 	hostname, err := util.GetHostname()
 	if err != nil {
@@ -153,7 +153,7 @@ func getDCAPartialConfig() map[string]string {
 	conf := make(map[string]string)
 	conf["log_file"] = config.Datadog.GetString("log_file")
 	conf["log_level"] = config.Datadog.GetString("log_level")
-	conf["confd_dca_path"] = config.Datadog.GetString("confd_dca_path")
+	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	return conf
 }
 

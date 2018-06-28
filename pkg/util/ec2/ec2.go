@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing

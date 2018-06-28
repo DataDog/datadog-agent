@@ -217,7 +217,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 @task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, skip_sign=False, release_version="nightly"):
+                  skip_deps=False, skip_sign=False, release_version="nightly", omnibus_s3_cache=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -244,13 +244,16 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         ctx.run(cmd, env=env)
 
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
-        cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
+        cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
             "project_name": "puppy" if puppy else "agent",
             "log_level": log_level,
-            "overrides": overrides_cmd
+            "overrides": overrides_cmd,
+            "populate_s3_cache": ""
         }
+        if omnibus_s3_cache:
+            args['populate_s3_cache'] = " --populate-s3-cache "
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
         ctx.run(cmd.format(**args), env=env)
