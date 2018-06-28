@@ -16,7 +16,7 @@ ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
 
 echo "Enabling service $SERVICE_NAME"
 if command -v systemctl >/dev/null 2>&1; then
-    systemctl enable $SERVICE_NAME
+    systemctl enable $SERVICE_NAME || true
 elif command -v initctl >/dev/null 2>&1; then
     # start/stop policy is already defined in the upstart job file
     :
