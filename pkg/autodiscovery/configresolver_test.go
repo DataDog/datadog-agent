@@ -363,7 +363,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				Hostname:      "i.m.here",
+				Hostname:      "imhere",
 			},
 			tpl: integration.Config{
 				Name:          "cpu",
@@ -373,7 +373,7 @@ func TestResolve(t *testing.T) {
 			out: integration.Config{
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("test: i.m.here")},
+				Instances:     []integration.Data{integration.Data("test: imhere")},
 			},
 		},
 		//// other tags testing
