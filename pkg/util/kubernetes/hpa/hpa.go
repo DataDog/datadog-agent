@@ -293,7 +293,7 @@ func (hpa *HPAWatcherClient) processHPA(list []*v2beta1.HorizontalPodAutoscaler)
 
 // validate queries Datadog to validate the availability of a metric
 func (hpa *HPAWatcherClient) validate(cm CustomExternalMetric) (value int64, valid bool, err error) {
-	val, err := hpa.QueryDatadogExternal(cm.Name, cm.Labels)
+	val, err := hpa.queryDatadogExternal(cm.Name, cm.Labels)
 	if err != nil {
 		return cm.Value, false, err
 	}

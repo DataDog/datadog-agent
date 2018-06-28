@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
+// +build kubeapiserver
+
 package hpa
 
 import (
@@ -12,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// QueryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
+// queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (hpa *HPAWatcherClient) QueryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
+func (hpa *HPAWatcherClient) queryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
 	if metricName == "" || len(tags) == 0 {
 		return 0, errors.New("invalid metric to query")
 	}
