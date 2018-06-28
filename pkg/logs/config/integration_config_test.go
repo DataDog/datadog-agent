@@ -26,8 +26,8 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	allSources, err := buildLogSources(ddconfdPath, false)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 7, len(allSources.GetValidSources()))
-	assert.Equal(t, 8, len(allSources.GetSources()))
+	assert.Equal(t, 8, len(allSources.GetValidSources()))
+	assert.Equal(t, 9, len(allSources.GetSources()))
 
 	sources := allSources.GetValidSources()
 
@@ -55,6 +55,7 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 
 	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[5].Config.Tags)
 	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[6].Config.Tags)
+	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[7].Config.Tags)
 
 	// processing
 	assert.Equal(t, 0, len(sources[0].Config.ProcessingRules))
