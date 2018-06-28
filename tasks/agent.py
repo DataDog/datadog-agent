@@ -237,7 +237,8 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
-        env = load_release_versions(ctx, release_version)
+        if release_version:
+            _, env = load_release_versions(ctx, release_version)
         cmd = "bundle install"
         if gem_path:
             cmd += " --path {}".format(gem_path)

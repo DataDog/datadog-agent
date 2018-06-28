@@ -21,9 +21,16 @@ else
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
-build_version do
-  source :git
-  output_format :dd_agent_format
+
+# If the build was trigger by invoke, the AGENT_VERSION is set, if not we
+# fallback on git
+if ENV["AGENT_VERSION"] != nil
+  build_version do
+    source :git
+    output_format :dd_agent_format
+  end
+else
+  build_version ENV["AGENT_VERSION"]
 end
 
 build_iteration 1

@@ -206,11 +206,20 @@ def get_version_numeric_only(ctx):
     version, _, _, _ = query_version(ctx)
     return version
 
-def load_release_versions(ctx, target_version):
+def load_release_versions(ctx, target_version=None):
+    git_version = ctx.run("git describe --tags")
+
     with open("release.json", "r") as f:
         versions = json.load(f)
+
+        if not target_version:
+            if git_version in versions:
+                target_version = git_version
+            else:
+                target_version = "nightly"
+
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.
-            return {str(k):str(v) for k, v in versions[target_version].iteritems()}
-    raise Exception("Could not find '{}' version in release.json".format(target_version))
+            return targets, {str(k):str(v) for k, v in versions[target_version].iteritems()}
+    raise None, Exception("Could not find '{}' version in release.json".format(target_version))
