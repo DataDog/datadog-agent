@@ -72,7 +72,7 @@ test-maxime-tag:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   only:
-    - tag
+    - tags
   script:
     - git describe --tags
 
