@@ -118,7 +118,7 @@ def get_payload_version():
 
     return ""
 
-def get_version_ldflags(ctx):
+def get_version_ldflags(ctx, nightly_build=True):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -127,7 +127,7 @@ def get_version_ldflags(ctx):
     commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
 
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
-    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
+    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, nightly_build=nightly_build))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     return ldflags
 
@@ -189,26 +189,50 @@ def query_version(ctx, git_sha_length=7):
     return version, pre, commits_since_version, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=8, nightly_build=True):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version = ""
     version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
-        if url_safe:
-            version = "{0}.git.{1}.{2}".format(version, commits_since_version,git_sha)
-        else:
-            version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
+        version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
+
+    # if this is a nightly build on commit with a tag we still force the
+    # '+.git.0' to show that it's a nightly.
+    elif nightly_build:
+        version = "{0}+git.0".format(version, git_sha)
+
+    if url_safe:
+        version.replace("+", ".")
     return version
 
 def get_version_numeric_only(ctx):
     version, _, _, _ = query_version(ctx)
     return version
 
-def load_release_versions(ctx, target_version):
+def is_nightly(ctx):
+    """
+    If the build was trigger by a tag being pushed and that tag exists in the
+    release.json: this means we're not building a nightly.
+    """
+
+    # CI_COMMIT_TAG contains the new tag being pushed
+    tagged_version = os.environ.get("CI_COMMIT_TAG")
+    if not tagged_version:
+        return True
+
     with open("release.json", "r") as f:
         versions = json.load(f)
+        return not tagged_version in versions
+
+def load_release_versions(ctx, target_version, nightly_build=True):
+    if nightly_build:
+        target_version = "nightly"
+
+    with open("release.json", "r") as f:
+        versions = json.load(f)
+
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.

@@ -214,10 +214,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     for prefix in prefixes:
         ctx.run("{} {}".format(go_cmd, prefix))
 
-
 @task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, skip_sign=False, release_version="nightly", omnibus_s3_cache=False):
+                  skip_deps=False, skip_sign=False, release_target=None omnibus_s3_cache=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -236,8 +235,13 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
     if overrides:
         overrides_cmd = "--override=" + " ".join(overrides)
 
+    nightly_build = is_nightly(ctx)
+    agent_version = get_version(ctx, include_git=True, nightly_build=nightly_build)
     with ctx.cd("omnibus"):
-        env = load_release_versions(ctx, release_version)
+        env = load_release_versions(ctx, release_target or agent_version, nightly_build=nightly_build)
+        # We set the "build_version" for omnibus.
+        env["AGENT_VERSION"] = agent_version
+
         cmd = "bundle install"
         if gem_path:
             cmd += " --path {}".format(gem_path)

@@ -23,10 +23,7 @@ else
   install_dir '/opt/datadog-agent6'
 end
 
-build_version do
-  source :git, from_dependency: 'datadog-puppy'
-  output_format :dd_agent_format
-end
+build_version ENV["AGENT_VERSION"]
 
 build_iteration 1
 
