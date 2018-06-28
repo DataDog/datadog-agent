@@ -18,7 +18,7 @@ and development, is located under [the docs directory](docs) of the present repo
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.9.4 or later.
+ * [Go](https://golang.org/doc/install) 1.10.2 or later.
  * Python 2.7 along with development libraries.
  * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
    `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with
