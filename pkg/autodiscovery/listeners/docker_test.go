@@ -503,7 +503,7 @@ func TestGetHostname(t *testing.T) {
 		{
 			hostname:      "host",
 			domainname:    "domain",
-			expected:      "host.domain",
+			expected:      "host",
 			expectedError: nil,
 		},
 		{

@@ -493,12 +493,7 @@ func (s *DockerService) GetHostname() (string, error) {
 		return "", fmt.Errorf("empty hostname for container %s", string(s.ID)[:12])
 	}
 
-	if cInspect.Config.Domainname == "" {
-		s.Hostname = cInspect.Config.Hostname
-	} else {
-		s.Hostname = fmt.Sprintf("%s.%s", cInspect.Config.Hostname, cInspect.Config.Domainname)
-	}
-
+	s.Hostname = cInspect.Config.Hostname
 	return s.Hostname, nil
 }
 
