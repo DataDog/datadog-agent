@@ -9,7 +9,7 @@ properties:
       type: NAMESPACE
   datadogAgentImage:
     type: string
-    default: datadog/agent:latest
+    default: $REGISTRY:$TAG
     x-google-marketplace:
       type: IMAGE
   apiKey:

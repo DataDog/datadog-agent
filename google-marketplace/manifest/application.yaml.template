@@ -40,6 +40,12 @@ spec:
     kind: DaemonSet
   - group: v1
     kind: Secret
+  - group: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+  - group: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+  - group: v1
+    kind: ServiceAccount
   notes: |-
     # TODO: document how to:
     
