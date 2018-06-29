@@ -127,18 +127,17 @@ func (c *APIClient) connect() error {
 	return nil
 }
 
-// MetadataMapperBundle maps the podNames to the metadata they are associated with.
-// ex: services.
-// It is updated by mapServices in services.go
-// example: [ "pod" : ["svc1","svc2"]]
+// MetadataMapperBundle maps pod names to associated metadata.
+//
+// It is updated by mapServices in services.go.
 type MetadataMapperBundle struct {
-	PodNameToService map[string][]string `json:"services,omitempty"`
-	m                sync.RWMutex
+	Services ServicesMapper `json:"services,omitempty"`
+	m        sync.RWMutex
 }
 
 func newMetadataMapperBundle() *MetadataMapperBundle {
 	return &MetadataMapperBundle{
-		PodNameToService: make(map[string][]string),
+		Services: make(ServicesMapper),
 	}
 }
 

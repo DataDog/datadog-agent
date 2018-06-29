@@ -18,8 +18,9 @@ import (
 )
 
 type podTest struct {
-	ip   string
-	name string
+	ip        string
+	name      string
+	namespace string
 }
 
 type serviceTest struct {
@@ -52,7 +53,7 @@ func createPodList(listPodStructs []podTest) v1.PodList {
 	for _, ps := range listPodStructs {
 		var pod v1.Pod
 		pod.Status = v1.PodStatus{}
-		pod.ObjectMeta = metav1.ObjectMeta{}
+		pod.ObjectMeta = metav1.ObjectMeta{Namespace: ps.namespace}
 		pod.Status.PodIP = ps.ip
 		pod.Name = ps.name
 		podlist.Items = append(podlist.Items, pod)
@@ -74,15 +75,16 @@ func TestMapServices(t *testing.T) {
 		node            v1.Node
 		pods            []podTest
 		services        []serviceTest
-		expectedMapping map[string][]string
+		expectedMapping ServicesMapper
 	}{
 		{
 			caseName: "1 node, 1 pod, 1 service",
 			node:     createNode("firstNode"),
 			pods: []podTest{
 				{
-					ip:   "1.1.1.1",
-					name: "pod1_name",
+					ip:        "1.1.1.1",
+					name:      "pod1_name",
+					namespace: "foo",
 				},
 			},
 			services: []serviceTest{
@@ -91,8 +93,38 @@ func TestMapServices(t *testing.T) {
 					podIps:  []string{"1.1.1.1"},
 				},
 			},
-			expectedMapping: map[string][]string{
-				"pod1_name": {"svc1"},
+			expectedMapping: ServicesMapper{
+				"foo": {"pod1_name": {"svc1"}},
+			},
+		},
+		{
+			caseName: "1 node, 2 pods with same name, 2 services",
+			node:     createNode("firstNode"),
+			pods: []podTest{
+				{
+					ip:        "1.1.1.1",
+					name:      "pod_name",
+					namespace: "foo",
+				},
+				{
+					ip:        "2.2.2.2",
+					name:      "pod_name",
+					namespace: "bar",
+				},
+			},
+			services: []serviceTest{
+				{
+					svcName: "svc1",
+					podIps:  []string{"1.1.1.1"},
+				},
+				{
+					svcName: "svc2",
+					podIps:  []string{"2.2.2.2"},
+				},
+			},
+			expectedMapping: ServicesMapper{
+				"foo": {"pod_name": {"svc1"}},
+				"bar": {"pod_name": {"svc2"}},
 			},
 		},
 		{
@@ -100,20 +132,24 @@ func TestMapServices(t *testing.T) {
 			node:     createNode("firstNode"),
 			pods: []podTest{
 				{
-					ip:   "2.2.2.2",
-					name: "pod2_name",
+					ip:        "2.2.2.2",
+					name:      "pod2_name",
+					namespace: "foo",
 				},
 				{
-					ip:   "3.3.3.3",
-					name: "pod3_name",
+					ip:        "3.3.3.3",
+					name:      "pod3_name",
+					namespace: "foo",
 				},
 				{
-					ip:   "4.4.4.4",
-					name: "pod4_name",
+					ip:        "4.4.4.4",
+					name:      "pod4_name",
+					namespace: "foo",
 				},
 				{
-					ip:   "5.5.5.5",
-					name: "pod5_name",
+					ip:        "5.5.5.5",
+					name:      "pod5_name",
+					namespace: "foo",
 				},
 			},
 			services: []serviceTest{
@@ -137,18 +173,26 @@ func TestMapServices(t *testing.T) {
 					},
 				},
 			},
-			expectedMapping: map[string][]string{
-				"pod2_name": {"svc2", "svc3", "svc4"},
-				"pod3_name": {"svc4"},
-				"pod5_name": {"svc3"},
+			expectedMapping: ServicesMapper{
+				"foo": {
+					"pod2_name": {"svc2", "svc3", "svc4"},
+					"pod3_name": {"svc4"},
+					"pod5_name": {"svc3"},
+				},
 			},
 		},
 	}
-	expectedAllPodNameToService := map[string][]string{
-		"pod1_name": {"svc1"},
-		"pod2_name": {"svc2", "svc3", "svc4"},
-		"pod3_name": {"svc4"},
-		"pod5_name": {"svc3"},
+	expectedAllPodNameToService := ServicesMapper{
+		"foo": {
+			"pod_name":  {"svc1"},
+			"pod1_name": {"svc1"},
+			"pod2_name": {"svc2", "svc3", "svc4"},
+			"pod3_name": {"svc4"},
+			"pod5_name": {"svc3"},
+		},
+		"bar": {
+			"pod_name": {"svc2"},
+		},
 	}
 	allCasesBundle := newMetadataMapperBundle()
 	allBundleMu := &sync.RWMutex{}
@@ -159,7 +203,7 @@ func TestMapServices(t *testing.T) {
 			nodeName := testCase.node.Name
 			epList := createSvcList(nodeName, testCase.services)
 			testCaseBundle.mapServices(nodeName, podList, epList)
-			assert.Equal(t, testCase.expectedMapping, testCaseBundle.PodNameToService)
+			assert.Equal(t, testCase.expectedMapping, testCaseBundle.Services)
 			allBundleMu.Lock()
 			allCasesBundle.mapServices(nodeName, podList, epList)
 			allBundleMu.Unlock()
@@ -167,5 +211,5 @@ func TestMapServices(t *testing.T) {
 	}
 	allBundleMu.RLock()
 	defer allBundleMu.RUnlock()
-	assert.Equal(t, expectedAllPodNameToService, allCasesBundle.PodNameToService)
+	assert.Equal(t, expectedAllPodNameToService, allCasesBundle.Services)
 }
