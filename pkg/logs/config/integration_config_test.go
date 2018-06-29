@@ -26,8 +26,7 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	allSources, err := buildLogSources(ddconfdPath, false)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 8, len(allSources.GetValidSources()))
-	assert.Equal(t, 9, len(allSources.GetSources()))
+	assert.Equal(t, 1, len(allSources.GetSources())-len(allSources.GetValidSources()))
 
 	sources := allSources.GetValidSources()
 

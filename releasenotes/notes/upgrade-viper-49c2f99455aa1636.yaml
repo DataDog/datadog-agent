@@ -1,0 +1,6 @@
+upgrade:
+  - |
+    Upgrade the version of spf13/viper from v1.0.0 to v1.0.2
+fixes:
+  - |
+    Change the tag parsing logic of the log agent's configuration reader as a result of upgrading viper
