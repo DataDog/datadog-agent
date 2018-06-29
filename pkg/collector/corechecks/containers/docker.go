@@ -34,16 +34,17 @@ const (
 )
 
 type DockerConfig struct {
-	CollectContainerSize bool               `yaml:"collect_container_size"`
-	CollectExitCodes     bool               `yaml:"collect_exit_codes"`
-	CollectImagesStats   bool               `yaml:"collect_images_stats"`
-	CollectImageSize     bool               `yaml:"collect_image_size"`
-	CollectDiskStats     bool               `yaml:"collect_disk_stats"`
-	CollectVolumeCount   bool               `yaml:"collect_volume_count"`
-	Tags                 []string           `yaml:"tags"`
-	CollectEvent         bool               `yaml:"collect_events"`
-	FilteredEventType    []string           `yaml:"filtered_event_types"`
-	CappedMetrics        map[string]float64 `yaml:"capped_metrics"`
+	CollectContainerSize     bool               `yaml:"collect_container_size"`
+	CollectContainerSizeFreq uint64             `yaml:"collect_container_size_frequency"`
+	CollectExitCodes         bool               `yaml:"collect_exit_codes"`
+	CollectImagesStats       bool               `yaml:"collect_images_stats"`
+	CollectImageSize         bool               `yaml:"collect_image_size"`
+	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
+	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
+	Tags                     []string           `yaml:"tags"`
+	CollectEvent             bool               `yaml:"collect_events"`
+	FilteredEventType        []string           `yaml:"filtered_event_types"`
+	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
 }
 
 type containerPerImage struct {
@@ -55,6 +56,7 @@ type containerPerImage struct {
 func (c *DockerConfig) Parse(data []byte) error {
 	// default values
 	c.CollectEvent = true
+	c.CollectContainerSizeFreq = 5
 
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
@@ -65,10 +67,11 @@ func (c *DockerConfig) Parse(data []byte) error {
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
 	core.CheckBase
-	instance       *DockerConfig
-	lastEventTime  time.Time
-	dockerHostname string
-	cappedSender   *cappedSender
+	instance                    *DockerConfig
+	lastEventTime               time.Time
+	dockerHostname              string
+	cappedSender                *cappedSender
+	collectContainerSizeCounter uint64
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
@@ -223,7 +226,7 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
-		if d.instance.CollectContainerSize {
+		if d.instance.CollectContainerSize && d.collectContainerSizeCounter == 0 {
 			info, err := du.Inspect(c.ID, true)
 			if err != nil {
 				log.Errorf("Failed to inspect container %s - %s", c.ID[:12], err)
@@ -235,6 +238,10 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 	}
+
+	// Update the container size counter, used to collect them less often as they are costly
+	d.collectContainerSizeCounter =
+		(d.collectContainerSizeCounter + 1) % d.instance.CollectContainerSizeFreq
 
 	var totalRunning, totalStopped int64
 	for _, image := range images {
