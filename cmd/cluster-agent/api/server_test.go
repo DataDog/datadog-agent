@@ -22,16 +22,23 @@ func TestValidateTokenMiddleware(t *testing.T) {
 	util.SetDCAAuthToken()
 
 	tests := []struct {
-		path               string
+		path, authToken    string
 		expectedStatusCode int
 	}{
 		{
 			"/api/v1/metadata",
+			"abc123",
 			http.StatusForbidden,
 		},
 		{
 			"/api/v1/metadata/node/namespace/pod",
+			"abc123",
 			http.StatusOK,
+		},
+		{
+			"/api/v1/metadata/node/namespace/pod",
+			"imposter",
+			http.StatusForbidden,
 		},
 	}
 
@@ -40,7 +47,7 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			req, err := http.NewRequest("GET", tt.path, nil)
 			require.NoError(t, err)
 
-			req.Header.Add("Authorization", "Bearer abc123")
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tt.authToken))
 
 			rr := httptest.NewRecorder()
 

@@ -88,7 +88,6 @@ func StartServer() error {
 
 	go srv.Serve(tlsListener)
 	return nil
-
 }
 
 // StopServer closes the connection and the server
