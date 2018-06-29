@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
@@ -62,9 +61,6 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: string
 			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
 	*/
-	if err := apiutil.ValidateDCARequest(w, r); err != nil {
-		return
-	}
 	vars := mux.Vars(r)
 	var metaBytes []byte
 	nodeName := vars["nodeName"]
