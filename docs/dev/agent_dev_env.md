@@ -23,7 +23,7 @@ variables (see Invoke docs for more details).
 
 ## Golang
 
-You must install [go](https://golang.org/doc/install) version 1.9.2 or above. Make
+You must install [go](https://golang.org/doc/install) version 1.10.2 or above. Make
 sure that `$GOPATH/bin` is in your `$PATH` otherwise Invoke cannot use any
 additional tool it might need.
 
