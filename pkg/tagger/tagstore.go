@@ -81,9 +81,9 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 
 func computeTagsHash(tags []string) string {
 	hash := ""
-	// do not sort original slice
-	tags = copyArray(tags)
 	if len(tags) > 0 {
+		// do not sort original slice
+		tags = copyArray(tags)
 		h := fnv.New64()
 		sort.Strings(tags)
 		for _, i := range tags {
@@ -118,9 +118,10 @@ func (s *tagStore) prune() error {
 	return nil
 }
 
-// lookup gets tags from the store and returns them concatenated in a []string
-// array. It returns the source names in the second []string to allow the
-// client to trigger manual lookups on missing sources.
+// lookup gets tags from the store and returns them concatenated in a string
+// slice. It returns the source names in the second slice to allow the
+// client to trigger manual lookups on missing sources, the last string
+// is the tags hash to have a snapshot digest of all the tags.
 func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string, string) {
 	s.storeMutex.RLock()
 	defer s.storeMutex.RUnlock()
@@ -130,12 +131,6 @@ func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string, str
 		return nil, nil, ""
 	}
 	return storedTags.get(highCard)
-}
-
-func (s *tagStore) getEntityHash(entity string) string {
-	// the hash is always computed for high card
-	_, _, tagsHash := s.lookup(entity, true)
-	return tagsHash
 }
 
 type tagPriority struct {

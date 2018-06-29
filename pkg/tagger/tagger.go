@@ -215,7 +215,8 @@ func (t *Tagger) Stop() error {
 
 // GetEntityHash returns the tags hash of an entity
 func (t *Tagger) GetEntityHash(entity string) string {
-	return t.tagStore.getEntityHash(entity)
+	_, _, tagsHash := t.tagStore.lookup(entity, true)
+	return tagsHash
 }
 
 // Tag returns tags for a given entity. If highCard is false, high

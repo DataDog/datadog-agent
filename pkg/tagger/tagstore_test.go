@@ -193,7 +193,7 @@ func TestGetEntityTags(t *testing.T) {
 	assert.Len(t, sources, 1)
 	assert.True(t, etags.cacheValid)
 	assert.Equal(t, "27554d1171230c5b", hash)
-	tags, sources, _ = etags.get(false)
+	tags, sources, hash = etags.get(false)
 	assert.Len(t, tags, 2)
 	assert.ElementsMatch(t, tags, []string{"low1", "low2"})
 	assert.Len(t, sources, 1)
