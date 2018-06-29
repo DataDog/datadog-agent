@@ -250,6 +250,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
+	config.BindEnvAndSetDefault("kubernetes_kubelet_host_autodetect", true)
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")

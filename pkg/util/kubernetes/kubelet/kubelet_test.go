@@ -189,6 +189,7 @@ func (suite *KubeletTestSuite) SetupTest() {
 	mockConfig.Set("kubernetes_kubelet_host", "")
 	mockConfig.Set("kubernetes_http_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
+	mockConfig.Set("kubernetes_kubelet_host_autodetect", false)
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
@@ -267,7 +268,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubelet_auth_token_path", "")
@@ -300,7 +301,7 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubelet_auth_token_path", "")
@@ -345,7 +346,7 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubelet_auth_token_path", "")
@@ -364,7 +365,7 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 
 	kubeutil, err := GetKubeUtil()
@@ -404,7 +405,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 
 	kubeutil, err := GetKubeUtil()
