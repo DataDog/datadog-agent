@@ -37,12 +37,12 @@ type dummyClusterAgent struct {
 func newDummyClusterAgent() (*dummyClusterAgent, error) {
 	dca := &dummyClusterAgent{
 		responses: map[string][]string{
-			"node1/pod-00001": {"kube_service:svc1"},
-			"node1/pod-00002": {"kube_service:svc1", "kube_service:svc2"},
-			"node1/pod-00003": {"kube_service:svc1"},
-			"node2/pod-00004": {"kube_service:svc2"},
-			"node2/pod-00005": {"kube_service:svc3"},
-			"node2/pod-00006": {},
+			"node1/foo/pod-00001": {"kube_service:svc1"},
+			"node1/foo/pod-00002": {"kube_service:svc1", "kube_service:svc2"},
+			"node1/foo/pod-00003": {"kube_service:svc1"},
+			"node2/bar/pod-00004": {"kube_service:svc2"},
+			"node2/bar/pod-00005": {"kube_service:svc3"},
+			"node2/bar/pod-00006": {},
 		},
 		token: config.Datadog.GetString("cluster_agent.auth_token"),
 	}
@@ -54,18 +54,19 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 	if token != fmt.Sprintf("Bearer %s", d.token) {
 		log.Errorf("wrong token %s", token)
-		w.WriteHeader(403)
+		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	// path should be like: /api/v1/metadata/{nodeName}/{pod-[0-9a-z]+}
+
+	// path should be like: /api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
 	s := strings.Split(r.URL.Path, "/")
-	if len(s) != 6 {
+	if len(s) != 7 {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Errorf("unexpected len 6 != %d", len(s))
+		log.Errorf("unexpected len 7 != %d", len(s))
 		return
 	}
-	nodeName, podName := s[4], s[5]
-	key := fmt.Sprintf("%s/%s", nodeName, podName)
+	nodeName, ns, podName := s[4], s[5], s[6]
+	key := fmt.Sprintf("%s/%s/%s", nodeName, ns, podName)
 
 	d.RLock()
 	defer d.RUnlock()
@@ -259,43 +260,50 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	testSuite := []struct {
 		nodeName    string
 		podName     string
+		namespace   string
 		expectedSvc []string
 	}{
 		{
 			nodeName:    "node1",
 			podName:     "pod-00001",
+			namespace:   "foo",
 			expectedSvc: []string{"kube_service:svc1"},
 		},
 		{
 			nodeName:    "node1",
 			podName:     "pod-00002",
+			namespace:   "foo",
 			expectedSvc: []string{"kube_service:svc1", "kube_service:svc2"},
 		},
 		{
 			nodeName:    "node1",
 			podName:     "pod-00003",
+			namespace:   "foo",
 			expectedSvc: []string{"kube_service:svc1"},
 		},
 		{
 			nodeName:    "node2",
 			podName:     "pod-00004",
+			namespace:   "bar",
 			expectedSvc: []string{"kube_service:svc2"},
 		},
 		{
 			nodeName:    "node2",
 			podName:     "pod-00005",
+			namespace:   "bar",
 			expectedSvc: []string{"kube_service:svc3"},
 		},
 		{
 			nodeName:    "node2",
 			podName:     "pod-00006",
+			namespace:   "bar",
 			expectedSvc: []string{},
 		},
 	}
 	for _, testCase := range testSuite {
 		suite.T().Run("", func(t *testing.T) {
-			svc, err := ca.GetKubernetesMetadataNames(testCase.nodeName, testCase.podName)
-			fmt.Println("svc: ", svc)
+			svc, err := ca.GetKubernetesMetadataNames(testCase.nodeName, testCase.namespace, testCase.podName)
+			t.Logf("svc: %s", svc)
 			require.Nil(t, err, fmt.Sprintf("%v", err))
 			require.Equal(t, len(testCase.expectedSvc), len(svc))
 			for _, elt := range testCase.expectedSvc {

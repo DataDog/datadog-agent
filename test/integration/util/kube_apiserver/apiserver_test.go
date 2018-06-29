@@ -206,6 +206,9 @@ func (suite *testSuite) TestServiceMapper() {
 	require.Nil(suite.T(), err)
 
 	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: metav1.NamespaceDefault,
+		},
 		Spec: v1.PodSpec{
 			NodeName: node.Name,
 			Containers: []v1.Container{
@@ -284,7 +287,7 @@ func (suite *testSuite) TestServiceMapper() {
 	err = apiClient.ClusterMetadataMapping()
 	require.Nil(suite.T(), err)
 
-	metadataNames, err := apiserver.GetPodMetadataNames(node.Name, pod.Name)
+	metadataNames, err := apiserver.GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), metadataNames, 1)
 	assert.Contains(suite.T(), metadataNames, "kube_service:nginx-1")
@@ -301,7 +304,7 @@ func (suite *testSuite) TestServiceMapper() {
 	err = apiClient.ClusterMetadataMapping()
 	require.Nil(suite.T(), err)
 
-	metadataNames, err = apiserver.GetPodMetadataNames(node.Name, pod.Name)
+	metadataNames, err = apiserver.GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), metadataNames, 2)
 	assert.Contains(suite.T(), metadataNames, "kube_service:nginx-1")
@@ -312,7 +315,7 @@ func (suite *testSuite) TestServiceMapper() {
 	list := fullmapper["Nodes"]
 	assert.Contains(suite.T(), list, "ip-172-31-119-125")
 	fullMap := list.(map[string]*apiserver.MetadataMapperBundle)
-	services, found := fullMap["ip-172-31-119-125"].ServicesForPod("nginx")
+	services, found := fullMap["ip-172-31-119-125"].ServicesForPod(metav1.NamespaceDefault, "nginx")
 	assert.True(suite.T(), found)
 	assert.Contains(suite.T(), services, "nginx-1")
 }
