@@ -12,7 +12,7 @@ import (
 
 	"unicode/utf8"
 
-	"errors"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -107,11 +107,8 @@ func (r *raw) isRFC5424Formatted(content []byte) bool {
 type proto struct{}
 
 func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
-	if !utf8.Valid(redactedMsg) {
-		return nil, errors.New("invalid UTF-8 string: " + string(redactedMsg))
-	}
 	return (&pb.Log{
-		Message:   string(redactedMsg),
+		Message:   p.toValidUtf8(redactedMsg),
 		Status:    msg.GetStatus(),
 		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
@@ -119,6 +116,22 @@ func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) 
 		Source:    msg.GetOrigin().Source(),
 		Tags:      msg.GetOrigin().Tags(),
 	}).Marshal()
+}
+
+func (p *proto) toValidUtf8(msg []byte) string {
+	if utf8.Valid(msg) {
+		return string(msg)
+	}
+	str := make([]rune, 0, len(msg))
+	for i := range msg {
+		r, size := utf8.DecodeRune(msg[i:])
+		if r == utf8.RuneError && size == 1 {
+			str = append(str, unicode.ReplacementChar)
+		} else {
+			str = append(str, r)
+		}
+	}
+	return string(str)
 }
 
 // getHostname returns the hostname for the agent.
