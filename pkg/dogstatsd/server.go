@@ -88,7 +88,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 
 	defaultHostname, err := util.GetHostname()
 	if err != nil {
-		log.Error(err.Error())
+		log.Errorf("Dogstatsd: unable to determine default hostname: %s", err.Error())
 	}
 
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
