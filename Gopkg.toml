@@ -96,7 +96,7 @@
 
 [[constraint]]
   name = "github.com/spf13/viper"
-  version = "~v1.0.2"
+  version = "=v1.0.2"
 
 [[constraint]]
   name = "github.com/coreos/go-systemd"
