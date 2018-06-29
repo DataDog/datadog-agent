@@ -218,7 +218,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	if err != nil {
 		return led, err
 	}
-	log.Infof("LeaderElection cm is %q", leaderElectionCM)
+	log.Debugf("LeaderElection cm is %#v", leaderElectionCM)
 	annotation, found := leaderElectionCM.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
 		return led, apiserver.ErrNotFound
