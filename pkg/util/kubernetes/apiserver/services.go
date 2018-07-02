@@ -93,7 +93,7 @@ func (m ServicesMapper) mapOnIp(nodeName string, pods v1.PodList, endpointList v
 }
 
 // mapOnRef matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.3+
-func (m ServicesMapper) mapOnRef(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
+func (m ServicesMapper) mapOnRef(nodeName string, endpointList v1.EndpointsList) error {
 	uidToPod := make(map[types.UID]v1.ObjectReference)
 	uidToServices := make(map[types.UID][]string)
 
@@ -135,7 +135,7 @@ func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.Pod
 
 	var err error
 	if metaBundle.mapOnRef {
-		err = metaBundle.Services.mapOnRef(nodeName, pods, endpointList)
+		err = metaBundle.Services.mapOnRef(nodeName, endpointList)
 	} else {
 		err = metaBundle.Services.mapOnIp(nodeName, pods, endpointList)
 	}
