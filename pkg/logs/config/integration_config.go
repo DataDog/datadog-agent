@@ -112,9 +112,9 @@ func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 			config := logSourceConfigIterator
 
 			// Users can specify tags as comma separated string, or as YAML array. Handle the first case here
-			if len(config.Tags) == 1 {
+			if len(config.Tags) > 1 {
 				newSlice := []string{}
-				for _, splitted := range strings.Split(config.Tags[0], ",") {
+				for _, splitted := range config.Tags {
 					newSlice = append(newSlice, strings.TrimSpace(splitted))
 				}
 				config.Tags = newSlice
