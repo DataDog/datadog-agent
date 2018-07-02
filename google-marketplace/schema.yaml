@@ -18,9 +18,26 @@ properties:
     type: string
     maxLength: 32
     pattern: '[a-z0-9]+'
+  serviceAccount:
+    title: Datadog Service Account
+    description: >-
+      Name of a service account in the target namespace that
+      has all permissions required by the Datadog Agent. Please create a ClusterRole
+      with the required permissions first.
+      See the full list at https://docs.datadoghq.com/integrations/faq/using-rbac-permission-with-your-kubernetes-integration/
+    type: string
+    x-google-marketplace:
+      type: SERVICE_ACCOUNT
+      serviceAccount:
+        roles:
+        - type: ClusterRole
+          rulesType: PREDEFINED
+          rulesFromRoleName: datadog
+
 
 required:
 - name
 - namespace
 - datadogAgentImage
 - apiKey
+- serviceAccount
