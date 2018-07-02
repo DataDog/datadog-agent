@@ -239,9 +239,11 @@ func (d *DockerCheck) Run() error {
 		}
 	}
 
-	// Update the container size counter, used to collect them less often as they are costly
-	d.collectContainerSizeCounter =
-		(d.collectContainerSizeCounter + 1) % d.instance.CollectContainerSizeFreq
+	if d.instance.CollectContainerSize {
+		// Update the container size counter, used to collect them less often as they are costly
+		d.collectContainerSizeCounter =
+			(d.collectContainerSizeCounter + 1) % d.instance.CollectContainerSizeFreq
+	}
 
 	var totalRunning, totalStopped int64
 	for _, image := range images {
