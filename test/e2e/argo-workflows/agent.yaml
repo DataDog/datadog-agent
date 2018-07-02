@@ -7,7 +7,24 @@ spec:
   #onExit: delete # call argo submit --entrypoint delete instead
   arguments:
     parameters:
-    - name: redis
+    - name: redis-service
+      value: |
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: redis
+          namespace: default
+        spec:
+          ports:
+          - port: 6379
+            protocol: TCP
+            targetPort: 6379
+            name: redis
+          selector:
+            app: redis
+          type: ClusterIP
+
+    - name: redis-deployment
       value: |
         apiVersion: extensions/v1beta1
         kind: Deployment
@@ -41,7 +58,8 @@ spec:
               - name: redis
                 image: redis
                 ports:
-                - containerPort: 6379
+                - name: redis
+                  containerPort: 6379
                 resources:
                   requests:
                     memory: "64Mi"
@@ -164,6 +182,7 @@ spec:
             - name: kubelet
               polling: true
             leader_election: true
+            kubernetes_metadata_tag_update_freq: 20
 
           kubelet.yaml: |
             init_config:
@@ -209,7 +228,7 @@ spec:
               serviceAccount: datadog-agent
               containers:
               - name: agent
-                image: datadog/agent:latest # TODO provide the ECR PR image
+                image: datadog/agent-dev:master
                 command:
                 - /opt/datadog-agent/bin/agent/agent
                 - start
@@ -444,8 +463,9 @@ spec:
   - name: main
     inputs:
       parameters:
-      - name: redis
       - name: cpu-stress
+      - name: redis-service
+      - name: redis-deployment
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -469,7 +489,7 @@ spec:
         - "{{inputs.parameters.fake-datadog-deployment}}"
         - "{{inputs.parameters.fake-datadog-service}}"
 
-      - name: redis-setup
+      - name: redis-deployment-setup
         template: manifest
         arguments:
           parameters:
@@ -478,7 +498,7 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
-        - "{{inputs.parameters.redis}}"
+        - "{{inputs.parameters.redis-deployment}}"
 
       - name: cpu-stress-setup
         template: manifest
@@ -546,6 +566,20 @@ spec:
       - name: find-metrics-cpu-system
         template: find-metrics-cpu-system
 
+    - - name: redis-service-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.redis-service}}"
+
+    - - name: find-metrics-redis-tagged
+        template: find-metrics-redis-tagged
+
     - - name: delete-redis
         template: manifest
         arguments:
@@ -555,7 +589,8 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
-        - "{{inputs.parameters.redis}}"
+        - "{{inputs.parameters.redis-deployment}}"
+        - "{{inputs.parameters.redis-service}}"
 
     - - name: no-more-redis
         template: no-more-metrics-redis
@@ -574,7 +609,8 @@ spec:
   - name: delete
     inputs:
       parameters:
-      - name: redis
+      - name: redis-service
+      - name: redis-deployment
       - name: cpu-stress
       - name: agent-configmap
       - name: agent-service-account
@@ -596,7 +632,8 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
-        - "{{inputs.parameters.redis}}"
+        - "{{inputs.parameters.redis-service}}"
+        - "{{inputs.parameters.redis-deployment}}"
         - "{{inputs.parameters.cpu-stress}}"
         - "{{inputs.parameters.agent-configmap}}"
         - "{{inputs.parameters.agent-service-account}}"
@@ -762,6 +799,24 @@ spec:
           sleep(2000);
         }
 
+  - name: find-metrics-redis-tagged
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.series.find({
+            metric: {$regex: "redis*"},
+            tags: "kube_service:redis"
+          }).count();
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
+        }
+
   - name: find-metrics-cpu-kubelet
     activeDeadlineSeconds: 200
     script:
@@ -838,7 +893,7 @@ spec:
         }
 
   - name: no-more-metrics-redis
-    activeDeadlineSeconds: 200
+    activeDeadlineSeconds: 300
     script:
       image: mongo:3.6.3
       command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
@@ -848,6 +903,20 @@ spec:
           var nb = db.series.find({
             metric: {$regex: "redis*"}
           }).count();
+
+          print("prev-find: " + prevNb)
+          print("find: " + nb)
+          if (nb == prevNb) {
+            break;
+          }
+          prevNb = nb;
+          sleep(30000);
+        }
+        var prevNb = -1
+        while (1) {
+          var nb = db.check_run.find({check: "datadog.agent.check_status",
+          tags: "check:redisdb",
+          status: {$ne: 0}}).count();
 
           print("prev-find: " + prevNb)
           print("find: " + nb)
