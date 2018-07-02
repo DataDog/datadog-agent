@@ -10,8 +10,10 @@ package apiserver
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ServicesMapper maps pod names to the names of the services targeting the pod
@@ -45,7 +47,8 @@ func (m ServicesMapper) Set(ns, podName string, svcs []string) {
 	m[ns][podName] = svcs
 }
 
-func (m ServicesMapper) Map(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
+// mapOnIp matches pods to services via IP. It supports Kubernetes 1.4+
+func (m ServicesMapper) mapOnIp(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
 	ipToEndpoints := make(map[string][]string)    // maps the IP address from an endpoint (pod) to associated services ex: "10.10.1.1" : ["service1","service2"]
 	podToIp := make(map[string]map[string]string) // maps pod names to its IP address keyed by the namespace a pod belongs to
 
@@ -56,6 +59,23 @@ func (m ServicesMapper) Map(nodeName string, pods v1.PodList, endpointList v1.En
 		log.Debugf("Service mapper was given an empty node name. Mapping might be incorrect.")
 	}
 
+	for _, svc := range endpointList.Items {
+		for _, endpointsSubsets := range svc.Subsets {
+			if endpointsSubsets.Addresses == nil {
+				log.Tracef("A subset of endpoints from %s could not be evaluated", svc.Name)
+				continue
+			}
+			for _, edpt := range endpointsSubsets.Addresses {
+				if edpt.NodeName == nil {
+					// Kubernetes 1.3+ payload, fallback to mapOnRef
+					return m.mapOnRef(nodeName, pods, endpointList)
+				}
+				if *edpt.NodeName == nodeName {
+					ipToEndpoints[edpt.IP] = append(ipToEndpoints[edpt.IP], svc.Name)
+				}
+			}
+		}
+	}
 	for _, pod := range pods.Items {
 		if pod.Status.PodIP == "" {
 			log.Debugf("PodIP is empty, ignoring pod %s in namespace %s", pod.Name, pod.Namespace)
@@ -65,19 +85,6 @@ func (m ServicesMapper) Map(nodeName string, pods v1.PodList, endpointList v1.En
 			podToIp[pod.Namespace] = make(map[string]string)
 		}
 		podToIp[pod.Namespace][pod.Name] = pod.Status.PodIP
-	}
-	for _, svc := range endpointList.Items {
-		for _, endpointsSubsets := range svc.Subsets {
-			if endpointsSubsets.Addresses == nil {
-				log.Tracef("A subset of endpoints from %s could not be evaluated", svc.Name)
-				continue
-			}
-			for _, edpt := range endpointsSubsets.Addresses {
-				if edpt.NodeName != nil && *edpt.NodeName == nodeName {
-					ipToEndpoints[edpt.IP] = append(ipToEndpoints[edpt.IP], svc.Name)
-				}
-			}
-		}
 	}
 	for ns, pods := range podToIp {
 		for name, ip := range pods {
@@ -89,13 +96,48 @@ func (m ServicesMapper) Map(nodeName string, pods v1.PodList, endpointList v1.En
 	return nil
 }
 
+// mapOnRef matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.3+
+func (m ServicesMapper) mapOnRef(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
+	uidToPod := make(map[types.UID]v1.ObjectReference)
+	uidToServices := make(map[types.UID][]string)
+
+	for _, svc := range endpointList.Items {
+		for _, endpointsSubsets := range svc.Subsets {
+			for _, edpt := range endpointsSubsets.Addresses {
+				if edpt.TargetRef == nil {
+					log.Debug("Empty TargetRef on endpoint %s of service %s, skipping", edpt.IP, svc.Name)
+					continue
+				}
+				ref := *edpt.TargetRef
+				if ref.Kind != "Pod" {
+					continue
+				}
+				if ref.Name == "" || ref.Namespace == "" {
+					log.Debug("Incomplete reference for object %s on service %s, skipping", ref.UID, svc.Name)
+					continue
+				}
+				uidToPod[ref.UID] = ref
+				uidToServices[ref.UID] = append(uidToServices[ref.UID], svc.Name)
+			}
+		}
+	}
+	for uid, svcs := range uidToServices {
+		pod, ok := uidToPod[uid]
+		if !ok {
+			continue
+		}
+		m.Set(pod.Namespace, pod.Name, svcs)
+	}
+	return nil
+}
+
 // mapServices maps each pod (endpoint) to the metadata associated with it.
 // It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
 func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
 	metaBundle.m.Lock()
 	defer metaBundle.m.Unlock()
 
-	if err := metaBundle.Services.Map(nodeName, pods, endpointList); err != nil {
+	if err := metaBundle.Services.mapOnIp(nodeName, pods, endpointList); err != nil {
 		return err
 	}
 	log.Tracef("The services matched %q", fmt.Sprintf("%s", metaBundle.Services))
