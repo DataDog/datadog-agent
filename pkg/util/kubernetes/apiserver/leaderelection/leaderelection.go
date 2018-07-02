@@ -157,7 +157,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 
 	le.once.Do(
 		func() {
-			go le.startLeaderElection()
+			go le.runLeaderElection()
 		},
 	)
 
@@ -175,18 +175,17 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 				le.running = true
 				return nil
 			}
-
 		case <-timeout:
 			return fmt.Errorf("leader election still not running, timeout after %s", timeoutDuration)
 		}
 	}
 }
 
-func (le *LeaderEngine) startLeaderElection() {
+func (le *LeaderEngine) runLeaderElection() {
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
 		le.leaderElector.Run()
-		log.Info("Leading election lost")
+		log.Info("Leader election lost")
 	}
 }
 
