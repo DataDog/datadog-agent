@@ -16,6 +16,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	"k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/api/core/v1"
+	apiMachineryErr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -144,7 +145,7 @@ func (c *HPAWatcherClient) Start() {
 	var resversion string
 	err := c.createConfigMapHPA()
 	if err != nil {
-		log.Errorf("Could not create the ConfigMap %s to run the HPA process, stopping: %s", datadogHPAConfigMap, err.Error())
+		log.Errorf("Could not retrieve the ConfigMap %s to run the HPA process, stopping: %s", datadogHPAConfigMap, err.Error())
 		return
 	}
 
@@ -253,8 +254,13 @@ func (c *HPAWatcherClient) createConfigMapHPA() error {
 		log.Infof("Retrieving the Config Map %s", datadogHPAConfigMap)
 		return nil
 	}
-	log.Infof("Could not get the Config Map to run the HPA, trying to create it: %s", err.Error())
+	// We do not need to attempt to create the Config Map if we face an error when trying to get it that is different from "not found"
+	if !apiMachineryErr.IsNotFound(err) {
+		log.Infof("Error while attempting to fetch the Config Map %s: %s", datadogHPAConfigMap, err.Error())
+		return err
+	}
 
+	log.Infof("Could not get the Config Map to run the HPA, trying to create it: %s", err.Error())
 	cm := &v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "ConfigMap",

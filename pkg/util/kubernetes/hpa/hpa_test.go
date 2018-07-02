@@ -8,24 +8,20 @@
 package hpa
 
 import (
-	"testing"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
-
 	"encoding/json"
 	"fmt"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func newMockConfigMap(metricName string, labels map[string]string) *v1.ConfigMap {
 	cm := &v1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind: "ConfigMap",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      datadogHPAConfigMap,
 			Namespace: "default",
@@ -73,7 +69,7 @@ func TestRemoveEntryFromConfigMap(t *testing.T) {
 	}
 	_, err := hpaCl.clientSet.CoreV1().ConfigMaps("default").Get(datadogHPAConfigMap, metav1.GetOptions{})
 	fmt.Printf("err is %s \n", err)
-	assert.Contains(t, err.Error(), "configmaps \"datadog-hpa\" not found")
+	assert.True(t, errors.IsNotFound(err))
 
 	testCases := []struct {
 		caseName          string

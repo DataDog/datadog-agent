@@ -146,10 +146,6 @@
   revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
 
 [[override]]
-  name = "github.com/json-iterator/go"
-  revision = "f2b4162afba35581b6d4a50d3b8f34e33c144682"
-
-[[override]]
   name = "github.com/jhoonb/archivex"
   revision = "be4efa7ec0c38ab76d56037014c90d48d6b13037"
 

@@ -75,7 +75,7 @@ spec:
             name: dca
             namespace: default
 
-    - name: hpa-rbac
+    - name: external-custom-metric-rbac
       value: |
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRoleBinding
@@ -383,27 +383,8 @@ spec:
             config_providers:
             - name: kubelet
               polling: true
-            leader_election: true
 
           kubelet.yaml: |
-            init_config:
-            instances:
-            - {}
-
-          apiserver.yaml: |
-            init_configs:
-            instances:
-            - {}
-
-          network.yaml: |
-            init_config:
-            instances:
-            - collect_connection_state: false
-              excluded_interfaces:
-                - lo
-                - lo0
-
-          docker.yaml: |
             init_config:
             instances:
             - {}
@@ -463,14 +444,8 @@ spec:
                   mountPath: /etc/datadog-agent/datadog.yaml
                   subPath: datadog.yaml
                 - name: datadog-config
-                  mountPath: /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml
-                  subPath: apiserver.yaml
-                - name: datadog-config
                   mountPath: /etc/datadog-agent/conf.d/kubelet.d/conf.yaml
                   subPath: kubelet.yaml
-                - name: datadog-config
-                  mountPath: /etc/datadog-agent/conf.d/network.d/conf.yaml.default
-                  subPath: network.yaml
                 - name: proc
                   mountPath: /host/proc
                   readOnly: true
@@ -551,7 +526,7 @@ spec:
       - name: agent-cluster-role
       - name: agent-cluster-role-binding
       - name: agent-daemonset
-      - name: hpa-rbac
+      - name: external-custom-metric-rbac
       - name: cluster-agent-rbac-cluster-role
       - name: cluster-agent-rbac-sa
       - name: cluster-agent-rbac-cluster-role-binding
@@ -628,7 +603,7 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
-        - "{{inputs.parameters.hpa-rbac}}"
+        - "{{inputs.parameters.external-custom-metric-rbac}}"
         - "{{inputs.parameters.hpa-manifest}}"
 
     - - name: find-metrics-nginx
@@ -679,7 +654,7 @@ spec:
       - name: agent-daemonset
       - name: fake-datadog-deployment
       - name: fake-datadog-service
-      - name: hpa-rbac
+      - name: external-custom-metric-rbac
       - name: cluster-agent-rbac-cluster-role
       - name: cluster-agent-rbac-sa
       - name: cluster-agent-rbac-cluster-role-binding
