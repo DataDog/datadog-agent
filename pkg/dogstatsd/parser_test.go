@@ -65,7 +65,7 @@ func TestGaugePacketCounter(t *testing.T) {
 }
 
 func TestParseGauge(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -74,11 +74,12 @@ func TestParseGauge(t *testing.T) {
 	assert.Equal(t, "666", parsed.RawValue)
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseCounter(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|c"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:21|c"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -86,11 +87,12 @@ func TestParseCounter(t *testing.T) {
 	assert.Equal(t, 21.0, parsed.Value)
 	assert.Equal(t, metrics.CounterType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseCounterWithTags(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("custom_counter:1|c|#protocol:http,bench"), "")
+	parsed, err := parseMetricMessage([]byte("custom_counter:1|c|#protocol:http,bench"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -100,11 +102,12 @@ func TestParseCounterWithTags(t *testing.T) {
 	assert.Equal(t, 2, len(parsed.Tags))
 	assert.Equal(t, "protocol:http", parsed.Tags[0])
 	assert.Equal(t, "bench", parsed.Tags[1])
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseHistogram(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|h"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:21|h"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -112,11 +115,12 @@ func TestParseHistogram(t *testing.T) {
 	assert.Equal(t, 21.0, parsed.Value)
 	assert.Equal(t, metrics.HistogramType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseTimer(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -125,10 +129,11 @@ func TestParseTimer(t *testing.T) {
 	assert.Equal(t, metrics.HistogramType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+	assert.Equal(t, "default-hostname", parsed.Host)
 }
 
 func TestParseSet(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:abc|s"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:abc|s"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -136,22 +141,24 @@ func TestParseSet(t *testing.T) {
 	assert.Equal(t, "abc", parsed.RawValue)
 	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseDistribution(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:3.5|d"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:3.5|d"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 3.5, parsed.Value)
 	assert.Equal(t, metrics.DistributionType, parsed.Mtype)
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.Equal(t, 0, len(parsed.Tags))
 }
 
 func TestParseSetUnicode(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -159,11 +166,12 @@ func TestParseSetUnicode(t *testing.T) {
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.RawValue)
 	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseGaugeWithTags(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -173,11 +181,12 @@ func TestParseGaugeWithTags(t *testing.T) {
 	require.Equal(t, 2, len(parsed.Tags))
 	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
 	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseGaugeWithHostTag(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -191,7 +200,7 @@ func TestParseGaugeWithHostTag(t *testing.T) {
 }
 
 func TestParseGaugeWithEmptyHostTag(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:,sometag2:somevalue2"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -204,40 +213,20 @@ func TestParseGaugeWithEmptyHostTag(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
-func TestParseGaugeWithNoHostTag(t *testing.T) {
-	defaultHostname = "test-hostname"
-	defer func() { defaultHostname = "" }()
-
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), "")
-	assert.NoError(t, err)
-
-	assert.Equal(t, "daemon", parsed.Name)
-	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
-	require.Equal(t, 2, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
-	assert.Equal(t, "test-hostname", parsed.Host)
-	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
-}
-
 func TestParseGaugeWithNoTags(t *testing.T) {
-	defaultHostname = "test-hostname"
-	defer func() { defaultHostname = "" }()
-
-	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Empty(t, parsed.Tags)
-	assert.Equal(t, "test-hostname", parsed.Host)
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseGaugeWithSampleRate(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|@0.21"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|@0.21"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -245,11 +234,12 @@ func TestParseGaugeWithSampleRate(t *testing.T) {
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 0.21, parsed.SampleRate, epsilon)
 }
 
 func TestParseGaugeWithPoundOnly(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#"), "")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -257,11 +247,12 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseGaugeWithUnicode(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "")
+	parsed, err := parseMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "", "default-hostname")
 
 	assert.NoError(t, err)
 
@@ -270,48 +261,48 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	require.Equal(t, 1, len(parsed.Tags))
 	assert.Equal(t, "intitulé:T0µ", parsed.Tags[0])
+	assert.Equal(t, "default-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseMetricError(t *testing.T) {
 	// not enough information
-	_, err := parseMetricMessage([]byte("daemon:666"), "")
+	_, err := parseMetricMessage([]byte("daemon:666"), "", "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte("daemon:666|"), "")
+	_, err = parseMetricMessage([]byte("daemon:666|"), "", "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte("daemon:|g"), "")
+	_, err = parseMetricMessage([]byte("daemon:|g"), "", "default-hostname")
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte(":666|g"), "")
+	_, err = parseMetricMessage([]byte(":666|g"), "", "default-hostname")
 	assert.Error(t, err)
 
 	// too many value
-	_, err = parseMetricMessage([]byte("daemon:666:777|g"), "")
+	_, err = parseMetricMessage([]byte("daemon:666:777|g"), "", "default-hostname")
 	assert.Error(t, err)
 
 	// unknown metadata prefix
-	_, err = parseMetricMessage([]byte("daemon:666|g|m:test"), "")
+	_, err = parseMetricMessage([]byte("daemon:666|g|m:test"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	// invalid value
-	_, err = parseMetricMessage([]byte("daemon:abc|g"), "")
+	_, err = parseMetricMessage([]byte("daemon:abc|g"), "", "default-hostname")
 	assert.Error(t, err)
 
 	// invalid metric type
-	_, err = parseMetricMessage([]byte("daemon:666|unknown"), "")
+	_, err = parseMetricMessage([]byte("daemon:666|unknown"), "", "default-hostname")
 	assert.Error(t, err)
 
 	// invalid sample rate
-	_, err = parseMetricMessage([]byte("daemon:666|g|@abc"), "")
+	_, err = parseMetricMessage([]byte("daemon:666|g|@abc"), "", "default-hostname")
 	assert.Error(t, err)
 }
 
 func TestParseMonokeyBatching(t *testing.T) {
-	// parsed, err := parseMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"))
-
-	// TODO: implement test
+	// TODO: not implemented
+	// parsed, err := parseMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
 }
 
 func TestEnsureUTF8(t *testing.T) {
@@ -679,9 +670,10 @@ func TestEventMetadataMultiple(t *testing.T) {
 }
 
 func TestNamespace(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "testNamespace.")
+	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "testNamespace.", "default-hostname")
 
 	assert.NoError(t, err)
 
 	assert.Equal(t, "testNamespace.daemon", parsed.Name)
+	assert.Equal(t, "default-hostname", parsed.Host)
 }
