@@ -12,7 +12,6 @@ import (
 	"net"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -26,11 +25,6 @@ import (
 
 var (
 	dogstatsdExpvar = expvar.NewMap("dogstatsd")
-
-	// The default hostname to enforce on metrics, assumed to not change in the
-	// Agent's lifetime
-	defaultHostname = ""
-	initHostname    sync.Once
 )
 
 // Server represent a Dogstatsd server
@@ -43,6 +37,7 @@ type Server struct {
 	stopChan         chan bool
 	health           *health.Handle
 	metricPrefix     string
+	defaultHostname  string
 	histToDist       bool
 	histToDistPrefix string
 }
@@ -58,12 +53,6 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		}
 		stats = s
 	}
-
-	// We enforce the defaultHostname on metrics when none is set. To avoid checking
-	// the cache on every metrics, save it once and for all in a package variable.
-	initHostname.Do(func() {
-		defaultHostname, _ = util.GetHostname()
-	})
 
 	packetChannel := make(chan *listeners.Packet, 100)
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
@@ -97,6 +86,11 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		metricPrefix = metricPrefix + "."
 	}
 
+	defaultHostname, err := util.GetHostname()
+	if err != nil {
+		log.Errorf("Dogstatsd: unable to determine default hostname: %s", err.Error())
+	}
+
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 	s := &Server{
@@ -108,6 +102,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		stopChan:         make(chan bool),
 		health:           health.Register("dogstatsd-main"),
 		metricPrefix:     metricPrefix,
+		defaultHostname:  defaultHostname,
 		histToDist:       histToDist,
 		histToDistPrefix: histToDistPrefix,
 	}
@@ -228,7 +223,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					dogstatsdExpvar.Add("EventPackets", 1)
 					eventOut <- *event
 				} else {
-					sample, err := parseMetricMessage(message, s.metricPrefix)
+					sample, err := parseMetricMessage(message, s.metricPrefix, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 						dogstatsdExpvar.Add("MetricParseErrors", 1)
