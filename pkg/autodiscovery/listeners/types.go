@@ -30,6 +30,7 @@ type Service interface {
 	GetPorts() ([]ContainerPort, error)   // network ports
 	GetTags() ([]string, error)           // tags
 	GetPid() (int, error)                 // process identifier
+	GetHostname() (string, error)         // hostname.domainname for the entity
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling
