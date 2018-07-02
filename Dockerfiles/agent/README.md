@@ -92,7 +92,7 @@ Please note that the `docker.containers.running`, `.stopped`, `.running.total` a
 ### Datadog Cluster Agent
 
 The DCA is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
-Starting with Agent v6.2, you can use the [Datacong Cluster Agent](#https://github.com/DataDog/datadog-agent/blob/master/docs/cluster-agent/README.md).
+Starting with Agent v6.3.2, you can use the [Datacong Cluster Agent](#https://github.com/DataDog/datadog-agent/blob/master/docs/cluster-agent/README.md).
 
 Cluster level features are now handled by the cluster agent, and you will find a `[DCA]` notation next to the affected features. Please refer to the below user documentation as well as the technical documentation here for further details on the instrumentation.
 
@@ -102,7 +102,7 @@ Please refer to the dedicated section about the [Kubernetes integration](#kubern
 
 - `DD_KUBERNETES_COLLECT_METADATA_TAGS`: configures the agent to collect Kubernetes metadata (service names) as tags.
 - `DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ`: set the collection frequency in seconds for the Kubernetes metadata (service names).
-- `DD_COLLECT_KUBERNETES_EVENTS` [DCA]: configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
+- `DD_COLLECT_KUBERNETES_EVENTS` [DCA]: configures the cluster agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
 - `DD_LEADER_ELECTION` [DCA]: activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to `true`. The expected value is a bool: true/false.
 - `DD_LEADER_LEASE_DURATION` [DCA]: only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 - `DD_KUBE_RESOURCES_NAMESPACE` [DCA]: can be used to configure the namespace where the configmaps of the Leader Election and the Event Collection live.
@@ -129,16 +129,20 @@ For more information about the container's lifecycle, see [SUPERVISION.md](SUPER
 ## Kubernetes
 
 #### Without the DCA
-**This sub-section is only valid for the agent versions < 6.4.0 or when not using the Datadog Cluster Agent.**
+**This sub-section is only valid for the agent versions < 6.3.2 or when not using the Datadog Cluster Agent.**
 
 <a name="kubernetes"></a>
 To deploy the Agent in your Kubernetes cluster, you can use the manifest in [manifests](../manifests/cluster-agent/cluster-agent.yaml). Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
 `kubectl create -f manifests/rbac`
 
-Then, you can then create the agents with:
+Please note that with the above RBAC, every agent will have access to the API Server, to list the pods, services ...  
+These accesses vanish when using the Datadog Cluster Agent.
+Indeed, the agents will only have access to the local kubelet and only the Cluster Agent will be able to access cluster level insight (nodes, services...).
+
+Once the RBAC is in place, you can then create the agents with:
 `kubectl create -f manifests/agent.yaml`
 
-The manifest for the agent has the `KUBERNETES` environment variable enabled, which will enable the event collection and the API server check described here.
+The manifest for the agent has the `KUBERNETES` environment variable enabled, which will enable the collection of local kubernetes metrics via the kubelet's API. For the event collection and the API server check please read below.
 If you want the event collection to be resilient, you can create a ConfigMap `datadogtoken` that agents will use to save and share a state reflecting which events where pulled last.
 
 To create such a ConfigMap, you can use the following command:
@@ -147,9 +151,9 @@ See details in [Event Collection](#event-collection).
 
 #### With the DCA
 
-**This sub-section is only valid for agent versions > 6.4.0 or when using the Datadog Cluster Agent.**
+**This sub-section is only valid for agent versions > 6.3.2 and when using the Datadog Cluster Agent.**
 
-Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated ClusterRoleBinding, and the Clusterrole for the agent should be as follows: 
+Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated Clusterrole for the agent which should be as follows: 
 
 ```
 apiVersion: rbac.authorization.k8s.io/v1
@@ -167,6 +171,8 @@ rules:
   - get
 
 ```
+
+It goes along the ClusterRoleBinding and the Service Account, dedicated to the datadog-agents.
 
 ### Event Collection [DCA]
 

@@ -105,7 +105,7 @@ First, create the RBAC for your agents. They limit the agents' access to the kub
 - Cluster Role
 - Cluster Role Binding
 
-Those can be found in the [Datadog Agent Rbac](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-agent.yaml).
+Those can be found in the [Datadog Agent RBAC](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-agent.yaml).
 
 **Step 7** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-agent.yaml` from the datadog-agent directory.
 
@@ -157,27 +157,35 @@ To see what cluster level metadata is served by the DCA exec in the pod and run:
 ```
 root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent metamap
 
-==============
-Service Mapper
-==============
+===============
+Metadata Mapper
+===============
 
-Node detected: ip-192-168-114-181.ec2.internal
-
- -  Pod name: kube-state-metrics-5ffc474d8-225lc
-    Services list: [kube-state-metrics]
- -  Pod name: redis-slave-8wdc5
-    Services list: [redis-slave]
-Node detected: ip-192-168-118-166.ec2.internal
-
- -  Pod name: guestbook-6gk2f
-    Services list: [guestbook]
- -  Pod name: nginx-6757dd8769-kmg4l
-    Services list: [nginx]
- -  Pod name: nginx-deployment-5bd546754d-5bg7z
-    Services list: [nginx]
- -  Pod name: nginx-deployment-5bd546754d-brcwr
- 
- [...]
+Node detected: gke-test-default-pool-068cb9c0-sf1w
+  
+  - Namespace: kube-system
+      - Pod: kube-dns-788979dc8f-hzbj5
+        Services: [kube-dns]
+      - Pod: kube-state-metrics-5587867c9f-xllnm
+        Services: [kube-state-metrics]
+      - Pod: kubernetes-dashboard-598d75cb96-5khmj
+        Services: [kubernetes-dashboard]
+  
+Node detected: gke-test-default-pool-068cb9c0-wntj
+  
+  - Namespace: default
+      - Pod: datadog-cluster-agent-8568545574-x9tc9
+        Services: [datadog-cluster-hpa dca]
+  
+  - Namespace: kube-system
+      - Pod: heapster-v1.5.2-6d59ff54cf-g7q4h
+        Services: [heapster]
+      - Pod: kube-dns-788979dc8f-q9qkt
+        Services: [kube-dns]
+      - Pod: l7-default-backend-5d5b9874d5-b2lts
+        Services: [default-http-backend]
+      - Pod: metrics-server-v0.2.1-7486f5bd67-v827f
+        Services: [metrics-server]
 ```
 
 To verify that the DCA is being queried, look for:
