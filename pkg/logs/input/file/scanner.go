@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package tailer
+package file
 
 import (
 	"strconv"
@@ -26,7 +26,7 @@ const scanPeriod = 10 * time.Second
 type Scanner struct {
 	pp                  pipeline.Provider
 	tailingLimit        int
-	fileProvider        *FileProvider
+	fileProvider        *Provider
 	tailers             map[string]*Tailer
 	auditor             *auditor.Auditor
 	tailerSleepDuration time.Duration
@@ -46,7 +46,7 @@ func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, au
 	return &Scanner{
 		pp:                  pp,
 		tailingLimit:        tailingLimit,
-		fileProvider:        NewFileProvider(tailSources, tailingLimit),
+		fileProvider:        NewProvider(tailSources, tailingLimit),
 		tailers:             make(map[string]*Tailer),
 		auditor:             auditor,
 		tailerSleepDuration: tailerSleepDuration,
