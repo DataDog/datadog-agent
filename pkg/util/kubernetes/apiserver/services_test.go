@@ -297,12 +297,22 @@ func TestMapServices(t *testing.T) {
 	allBundleMu := &sync.RWMutex{}
 
 	runCase := func(t *testing.T, tc serviceMapTestCase, legacyKube bool) {
-		testCaseBundle := newMetadataMapperBundle()
 		podList := createPodList(tc.pods)
 		nodeName := tc.node.Name
 		epList := createEndpointList(nodeName, tc.endpoints, tc.pods, legacyKube)
-		testCaseBundle.mapServices(nodeName, podList, epList)
-		assert.Equal(t, tc.expectedMapping, testCaseBundle.Services)
+
+		if !legacyKube {
+			byIPBundle := newMetadataMapperBundle()
+			byIPBundle.mapOnRef = false
+			byIPBundle.mapServices(nodeName, podList, epList)
+			assert.Equal(t, tc.expectedMapping, byIPBundle.Services)
+		}
+
+		byRefBundle := newMetadataMapperBundle()
+		byRefBundle.mapOnRef = true
+		byRefBundle.mapServices(nodeName, podList, epList)
+		assert.Equal(t, tc.expectedMapping, byRefBundle.Services)
+
 		allBundleMu.Lock()
 		allCasesBundle.mapServices(nodeName, podList, epList)
 		allBundleMu.Unlock()

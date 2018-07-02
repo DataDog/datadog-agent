@@ -59,23 +59,6 @@ func (m ServicesMapper) mapOnIp(nodeName string, pods v1.PodList, endpointList v
 		log.Debugf("Service mapper was given an empty node name. Mapping might be incorrect.")
 	}
 
-	for _, svc := range endpointList.Items {
-		for _, endpointsSubsets := range svc.Subsets {
-			if endpointsSubsets.Addresses == nil {
-				log.Tracef("A subset of endpoints from %s could not be evaluated", svc.Name)
-				continue
-			}
-			for _, edpt := range endpointsSubsets.Addresses {
-				if edpt.NodeName == nil {
-					// Kubernetes 1.3+ payload, fallback to mapOnRef
-					return m.mapOnRef(nodeName, pods, endpointList)
-				}
-				if *edpt.NodeName == nodeName {
-					ipToEndpoints[edpt.IP] = append(ipToEndpoints[edpt.IP], svc.Name)
-				}
-			}
-		}
-	}
 	for _, pod := range pods.Items {
 		if pod.Status.PodIP == "" {
 			log.Debugf("PodIP is empty, ignoring pod %s in namespace %s", pod.Name, pod.Namespace)
@@ -85,6 +68,19 @@ func (m ServicesMapper) mapOnIp(nodeName string, pods v1.PodList, endpointList v
 			podToIp[pod.Namespace] = make(map[string]string)
 		}
 		podToIp[pod.Namespace][pod.Name] = pod.Status.PodIP
+	}
+	for _, svc := range endpointList.Items {
+		for _, endpointsSubsets := range svc.Subsets {
+			if endpointsSubsets.Addresses == nil {
+				log.Tracef("A subset of endpoints from %s could not be evaluated", svc.Name)
+				continue
+			}
+			for _, edpt := range endpointsSubsets.Addresses {
+				if edpt.NodeName != nil && *edpt.NodeName == nodeName {
+					ipToEndpoints[edpt.IP] = append(ipToEndpoints[edpt.IP], svc.Name)
+				}
+			}
+		}
 	}
 	for ns, pods := range podToIp {
 		for name, ip := range pods {
@@ -137,7 +133,13 @@ func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.Pod
 	metaBundle.m.Lock()
 	defer metaBundle.m.Unlock()
 
-	if err := metaBundle.Services.mapOnIp(nodeName, pods, endpointList); err != nil {
+	var err error
+	if metaBundle.mapOnRef {
+		err = metaBundle.Services.mapOnRef(nodeName, pods, endpointList)
+	} else {
+		err = metaBundle.Services.mapOnIp(nodeName, pods, endpointList)
+	}
+	if err != nil {
 		return err
 	}
 	log.Tracef("The services matched %q", fmt.Sprintf("%s", metaBundle.Services))

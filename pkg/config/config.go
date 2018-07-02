@@ -14,9 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -199,7 +200,8 @@ func init() {
 	Datadog.SetDefault("kubelet_client_key", "")
 
 	Datadog.SetDefault("kubernetes_collect_metadata_tags", true)
-	Datadog.SetDefault("kubernetes_metadata_tag_update_freq", 60*5) // 5 min
+	Datadog.SetDefault("kubernetes_metadata_tag_update_freq", 60*5)    // 5 min
+	BindEnvAndSetDefault("kubernetes_map_services_on_reference", true) // temporary opt-out of the new mapping logic
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
