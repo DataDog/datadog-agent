@@ -5,14 +5,13 @@
 
 package message
 
-// Status values,
-// for more information check https://en.wikipedia.org/wiki/Syslog#Severity_level.
+// Status values
 const (
-	StatusEmergency = "emerg"
+	StatusEmergency = "emergency"
 	StatusAlert     = "alert"
 	StatusCritical  = "critical"
 	StatusError     = "error"
-	StatusWarning   = "warning"
+	StatusWarning   = "warn"
 	StatusNotice    = "notice"
 	StatusInfo      = "info"
 	StatusDebug     = "debug"
