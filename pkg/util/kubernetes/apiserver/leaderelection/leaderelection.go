@@ -1,3 +1,5 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
@@ -49,17 +51,17 @@ type LeaderEngine struct {
 	LeaseName       string
 	LeaderNamespace string
 	coreClient      *corev1.CoreV1Client
-	leaderElector   *leaderelection.LeaderElector
+
+	currentHolderMutex sync.RWMutex
+	leaderElector      *leaderelection.LeaderElector
 
 	currentHolderIdentity string
-	currentHolderMutex    sync.RWMutex
 }
 
 func newLeaderEngine() *LeaderEngine {
-	leaderNamespace := apiserver.GetResourcesNamespace()
 	return &LeaderEngine{
 		LeaseName:       defaultLeaseName,
-		LeaderNamespace: leaderNamespace,
+		LeaderNamespace: apiserver.GetResourcesNamespace(),
 	}
 }
 
@@ -147,15 +149,15 @@ func (le *LeaderEngine) init() error {
 func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	le.m.Lock()
 	defer le.m.Unlock()
+
 	if le.running {
-		log.Debugf("Currently leader: %t. Leader identity: %q", le.IsLeader(), le.CurrentLeaderName())
+		log.Debugf("Currently Leader: %t. Leader identity: %q", le.IsLeader(), le.GetLeader())
 		return nil
 	}
 
 	le.once.Do(
 		func() {
-			log.Infof("Starting Leader Election process for %q ...", le.HolderIdentity)
-			go le.leaderElector.Run()
+			go le.startLeaderElection()
 		},
 	)
 
@@ -163,39 +165,47 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	timeout := time.After(timeoutDuration)
 	tick := time.NewTicker(time.Millisecond * 500)
 	defer tick.Stop()
-	var leaderIdentity string
 	for {
+		log.Tracef("Waiting for new leader identity...")
 		select {
 		case <-tick.C:
-			leaderIdentity = le.CurrentLeaderName()
+			leaderIdentity := le.GetLeader()
 			if leaderIdentity != "" {
-				log.Infof("Leader Election run, current leader is %q", leaderIdentity)
+				log.Infof("Leader election running, current leader is %q", leaderIdentity)
 				le.running = true
 				return nil
 			}
-			log.Tracef("Leader identity is unset")
 
 		case <-timeout:
-			return fmt.Errorf("leader election still not running, timeout after %s", timeoutDuration.String())
+			return fmt.Errorf("leader election still not running, timeout after %s", timeoutDuration)
 		}
 	}
 }
 
-// CurrentLeaderName is the main interface that can be called to fetch the name of the current leader.
-func (le *LeaderEngine) CurrentLeaderName() string {
+func (le *LeaderEngine) startLeaderElection() {
+	for {
+		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
+		le.leaderElector.Run()
+		log.Info("Leading election lost")
+	}
+}
+
+// GetLeader returns the identity of the last observed leader or returns the empty string if
+// no leader has yet been observed.
+func (le *LeaderEngine) GetLeader() string {
 	le.currentHolderMutex.RLock()
 	defer le.currentHolderMutex.RUnlock()
 
 	return le.currentHolderIdentity
 }
 
-// IsLeader return bool if the current LeaderEngine is the leader
+// IsLeader returns true if the last observed leader was this client else returns false.
 func (le *LeaderEngine) IsLeader() bool {
-	return le.CurrentLeaderName() == le.HolderIdentity
+	return le.GetLeader() == le.HolderIdentity
 }
 
-// GetLeaderDetails is used in for the Flare and for the Status commands.
-func GetLeaderDetails() (leaderDetails rl.LeaderElectionRecord, err error) {
+// GetLeaderElectionRecord is used in for the Flare and for the Status commands.
+func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error) {
 	var led rl.LeaderElectionRecord
 	client, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -227,5 +237,4 @@ func init() {
 	//Convinces goflags that we have called Parse() to avoid noisy logs.
 	//OSS Issue: kubernetes/kubernetes#17162.
 	flag.CommandLine.Parse([]string{})
-
 }

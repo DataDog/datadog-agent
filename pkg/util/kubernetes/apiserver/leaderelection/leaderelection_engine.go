@@ -1,3 +1,5 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
@@ -73,17 +75,17 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 			le.currentHolderMutex.Lock()
 			le.currentHolderIdentity = identity
 			le.currentHolderMutex.Unlock()
-			log.Infof("Currently new leader %q", identity)
+			log.Infof("New leader %q", identity)
 		},
 		OnStartedLeading: func(stop <-chan struct{}) {
-			log.Infof("Leading as %q ...", le.HolderIdentity)
+			log.Infof("Started leading as %q ...", le.HolderIdentity)
 		},
 		// OnStoppedLeading shouldn't be called unless the election is lost
 		OnStoppedLeading: func() {
 			le.currentHolderMutex.Lock()
 			le.currentHolderIdentity = ""
 			le.currentHolderMutex.Unlock()
-			log.Warnf("Stop leading %q", le.HolderIdentity)
+			log.Infof("Stopped leading %q", le.HolderIdentity)
 		},
 	}
 
