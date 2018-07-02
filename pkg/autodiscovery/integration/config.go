@@ -8,10 +8,10 @@ package integration
 import (
 	"fmt"
 	"hash/fnv"
-	"log"
 	"regexp"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -64,7 +64,7 @@ func (c *Config) String() string {
 
 	buffer, err := yaml.Marshal(&rawConfig)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 
 	return string(buffer)

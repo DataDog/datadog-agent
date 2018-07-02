@@ -392,8 +392,7 @@ func TestResolve(t *testing.T) {
 		},
 	}
 	ac := &AutoConfig{
-		loadedConfigs: make(map[string]integration.Config),
-		store:         newStore(),
+		store: newStore(),
 	}
 	cr := newConfigResolver(nil, ac, NewTemplateCache())
 	validTemplates := 0
@@ -415,7 +414,7 @@ func TestResolve(t *testing.T) {
 		})
 
 		// Assert the valid configs are stored in the AC and the store
-		assert.Equal(t, validTemplates, len(ac.loadedConfigs))
+		assert.Equal(t, validTemplates, len(ac.GetLoadedConfigs()))
 		assert.Equal(t, len(ac.store.getConfigsForService(tc.svc.GetID())), validTemplates)
 	}
 }
