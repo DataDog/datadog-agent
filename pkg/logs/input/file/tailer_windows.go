@@ -5,7 +5,7 @@
 
 // +build windows
 
-package tailer
+package file
 
 import (
 	"fmt"

@@ -9,9 +9,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/tailer"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -30,7 +30,7 @@ type Agent struct {
 	auditor              *auditor.Auditor
 	containersScanner    *container.Scanner
 	windowsEventLauncher *windowsevent.Launcher
-	filesScanner         *tailer.Scanner
+	filesScanner         *file.Scanner
 	networkListener      *listener.Listener
 	journaldLauncher     *journald.Launcher
 	pipelineProvider     pipeline.Provider
@@ -54,7 +54,7 @@ func NewAgent(sources *config.LogSources) *Agent {
 	validSources := sources.GetValidSources()
 	containersScanner := container.New(validSources, pipelineProvider, auditor)
 	networkListeners := listener.New(validSources, pipelineProvider)
-	filesScanner := tailer.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, tailer.DefaultSleepDuration)
+	filesScanner := file.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration)
 	journaldLauncher := journald.New(validSources, pipelineProvider, auditor)
 	windowsEventLauncher := windowsevent.New(validSources, pipelineProvider, auditor)
 

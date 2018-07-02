@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package tailer
+package file
 
 import (
 	"fmt"
@@ -30,16 +30,16 @@ func NewFile(path string, source *config.LogSource) *File {
 	}
 }
 
-// FileProvider implements the logic to retrieve at most filesLimit Files defined in sources
-type FileProvider struct {
+// Provider implements the logic to retrieve at most filesLimit Files defined in sources
+type Provider struct {
 	sources         []*config.LogSource
 	filesLimit      int
 	shouldLogErrors bool
 }
 
-// NewFileProvider returns a new FileProvider
-func NewFileProvider(sources []*config.LogSource, filesLimit int) *FileProvider {
-	return &FileProvider{
+// NewProvider returns a new Provider
+func NewProvider(sources []*config.LogSource, filesLimit int) *Provider {
+	return &Provider{
 		sources:         sources,
 		filesLimit:      filesLimit,
 		shouldLogErrors: true,
@@ -50,7 +50,7 @@ func NewFileProvider(sources []*config.LogSource, filesLimit int) *FileProvider 
 // it cannot return more than filesLimit Files.
 // For now, there is no way to prioritize specific Files over others,
 // they are just returned in alphabetical order
-func (p *FileProvider) FilesToTail() []*File {
+func (p *Provider) FilesToTail() []*File {
 	filesToTail := []*File{}
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -109,7 +109,7 @@ func (p *FileProvider) FilesToTail() []*File {
 // exists returns true if the file at path filePath exists
 // Note: we can't rely on os.IsNotExist for windows, so we check error nullity.
 // As we're tailing with *, the error is related to the path being malformed.
-func (p *FileProvider) exists(filePath string) bool {
+func (p *Provider) exists(filePath string) bool {
 	if _, err := os.Stat(filePath); err != nil {
 		return false
 	}
@@ -117,6 +117,6 @@ func (p *FileProvider) exists(filePath string) bool {
 }
 
 // containsWildcard returns true if the path contains any wildcard character
-func (p *FileProvider) containsWildcard(path string) bool {
+func (p *Provider) containsWildcard(path string) bool {
 	return strings.ContainsAny(path, "*?[")
 }
