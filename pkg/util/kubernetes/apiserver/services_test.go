@@ -44,7 +44,7 @@ func mapPodTestDef(defs []podTestDef) map[string]podTestDef {
 	return mapped
 }
 
-func createEndpointList(nodeName string, defs []endPointTestDef, pods []podTestDef, legacyKube bool) v1.EndpointsList {
+func createEndpointList(nodeName string, defs []endPointTestDef, pods []podTestDef, noNodeName bool) v1.EndpointsList {
 	var list v1.EndpointsList
 	podsMap := mapPodTestDef(pods)
 
@@ -56,7 +56,7 @@ func createEndpointList(nodeName string, defs []endPointTestDef, pods []podTestD
 			for _, addrDef := range subsetDef {
 				a := v1.EndpointAddress{}
 				a.IP = addrDef.ip
-				if !legacyKube {
+				if !noNodeName { // Kubernetes 1.3.x does not list the nodeName
 					a.NodeName = &addrDef.nodeName
 				}
 				pod, found := podsMap[addrDef.targetPodId]
@@ -296,20 +296,20 @@ func TestMapServices(t *testing.T) {
 	allCasesBundle := newMetadataMapperBundle()
 	allBundleMu := &sync.RWMutex{}
 
-	runCase := func(t *testing.T, tc serviceMapTestCase, legacyKube bool) {
+	runCase := func(t *testing.T, tc serviceMapTestCase, noNodeName bool) {
 		podList := createPodList(tc.pods)
 		nodeName := tc.node.Name
-		epList := createEndpointList(nodeName, tc.endpoints, tc.pods, legacyKube)
+		epList := createEndpointList(nodeName, tc.endpoints, tc.pods, noNodeName)
 
-		if !legacyKube {
+		if !noNodeName { // byIP would fail without the nodeName field, skipping
 			byIPBundle := newMetadataMapperBundle()
-			byIPBundle.mapOnRef = false
+			byIPBundle.mapOnIP = true
 			byIPBundle.mapServices(nodeName, podList, epList)
 			assert.Equal(t, tc.expectedMapping, byIPBundle.Services)
 		}
 
 		byRefBundle := newMetadataMapperBundle()
-		byRefBundle.mapOnRef = true
+		byRefBundle.mapOnIP = false
 		byRefBundle.mapServices(nodeName, podList, epList)
 		assert.Equal(t, tc.expectedMapping, byRefBundle.Services)
 

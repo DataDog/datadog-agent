@@ -132,14 +132,14 @@ func (c *APIClient) connect() error {
 // It is updated by mapServices in services.go.
 type MetadataMapperBundle struct {
 	Services ServicesMapper `json:"services,omitempty"`
-	mapOnRef bool           // temporary opt-out of the new mapping logic
+	mapOnIP  bool           // temporary opt-out of the new mapping logic
 	m        sync.RWMutex
 }
 
 func newMetadataMapperBundle() *MetadataMapperBundle {
 	return &MetadataMapperBundle{
 		Services: make(ServicesMapper),
-		mapOnRef: config.Datadog.GetBool("kubernetes_map_services_on_reference"),
+		mapOnIP:  config.Datadog.GetBool("kubernetes_map_services_on_ip"),
 	}
 }
 

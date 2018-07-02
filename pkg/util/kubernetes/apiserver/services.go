@@ -134,10 +134,10 @@ func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.Pod
 	defer metaBundle.m.Unlock()
 
 	var err error
-	if metaBundle.mapOnRef {
-		err = metaBundle.Services.mapOnRef(nodeName, endpointList)
-	} else {
+	if metaBundle.mapOnIP {
 		err = metaBundle.Services.mapOnIp(nodeName, pods, endpointList)
+	} else { // Default behaviour
+		err = metaBundle.Services.mapOnRef(nodeName, endpointList)
 	}
 	if err != nil {
 		return err
