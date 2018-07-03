@@ -73,9 +73,24 @@ var (
 	aggregatorInstance *BufferedAggregator
 	aggregatorInit     sync.Once
 
-	aggregatorExpvar = expvar.NewMap("aggregator")
-	flushTimeStats   = make(map[string]*Stats)
-	flushCountStats  = make(map[string]*Stats)
+	aggregatorExpvars = expvar.NewMap("aggregator")
+	flushTimeStats    = make(map[string]*Stats)
+	flushCountStats   = make(map[string]*Stats)
+
+	aggregatorSeriesFlushed           = expvar.Int{}
+	aggregatorSeriesFlushErrors       = expvar.Int{}
+	aggregatorServiceCheckFlushErrors = expvar.Int{}
+	aggregatorServiceCheckFlushed     = expvar.Int{}
+	aggregatorSketchesFlushErrors     = expvar.Int{}
+	aggregatorSketchesFlushed         = expvar.Int{}
+	aggregatorEventsFlushErrors       = expvar.Int{}
+	aggregatorEventsFlushed           = expvar.Int{}
+	aggregatorNumberOfFlush           = expvar.Int{}
+	aggregatorDogstatsdMetricSample   = expvar.Int{}
+	aggregatorChecksMetricSample      = expvar.Int{}
+	aggregatorServiceCheck            = expvar.Int{}
+	aggregatorEvent                   = expvar.Int{}
+	aggregatorHostnameUpdate          = expvar.Int{}
 )
 
 func init() {
@@ -84,13 +99,28 @@ func init() {
 	newFlushTimeStats("EventFlushTime")
 	newFlushTimeStats("MainFlushTime")
 	newFlushTimeStats("MetricSketchFlushTime")
-	aggregatorExpvar.Set("Flush", expvar.Func(expStatsMap(flushTimeStats)))
+	aggregatorExpvars.Set("Flush", expvar.Func(expStatsMap(flushTimeStats)))
 
 	newFlushCountStats("ServiceChecks")
 	newFlushCountStats("Series")
 	newFlushCountStats("Events")
 	newFlushCountStats("Sketches")
-	aggregatorExpvar.Set("FlushCount", expvar.Func(expStatsMap(flushCountStats)))
+	aggregatorExpvars.Set("FlushCount", expvar.Func(expStatsMap(flushCountStats)))
+
+	aggregatorExpvars.Set("SeriesFlushed", &aggregatorSeriesFlushed)
+	aggregatorExpvars.Set("SeriesFlushErrors", &aggregatorSeriesFlushErrors)
+	aggregatorExpvars.Set("ServiceCheckFlushErrors", &aggregatorServiceCheckFlushErrors)
+	aggregatorExpvars.Set("ServiceCheckFlushed)", &aggregatorServiceCheckFlushed)
+	aggregatorExpvars.Set("SketchesFlushErrors", &aggregatorSketchesFlushErrors)
+	aggregatorExpvars.Set("SketchesFlushed", &aggregatorSketchesFlushed)
+	aggregatorExpvars.Set("EventsFlushErrors", &aggregatorEventsFlushErrors)
+	aggregatorExpvars.Set("EventsFlushed", &aggregatorEventsFlushed)
+	aggregatorExpvars.Set("NumberOfFlush", &aggregatorNumberOfFlush)
+	aggregatorExpvars.Set("DogstatsdMetricSample", &aggregatorDogstatsdMetricSample)
+	aggregatorExpvars.Set("ChecksMetricSample", &aggregatorChecksMetricSample)
+	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
+	aggregatorExpvars.Set("Event", &aggregatorEvent)
+	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 }
 
 // InitAggregator returns the Singleton instance
@@ -311,10 +341,10 @@ func (agg *BufferedAggregator) flushSeries() {
 		err := agg.serializer.SendSeries(series)
 		if err != nil {
 			log.Warnf("Error flushing series: %v", err)
-			aggregatorExpvar.Add("SeriesFlushErrors", 1)
+			aggregatorSeriesFlushErrors.Add(1)
 		}
 		addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
-		aggregatorExpvar.Add("SeriesFlushed", int64(len(series)))
+		aggregatorSeriesFlushed.Add(int64(len(series)))
 	}()
 }
 
@@ -353,10 +383,10 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 		err := agg.serializer.SendServiceChecks(serviceChecks)
 		if err != nil {
 			log.Warnf("Error flushing service checks: %v", err)
-			aggregatorExpvar.Add("ServiceCheckFlushErrors", 1)
+			aggregatorServiceCheckFlushErrors.Add(1)
 		}
 		addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
-		aggregatorExpvar.Add("ServiceCheckFlushed", int64(len(serviceChecks)))
+		aggregatorServiceCheckFlushed.Add(int64(len(serviceChecks)))
 	}()
 }
 
@@ -381,10 +411,10 @@ func (agg *BufferedAggregator) flushSketches() {
 		err := agg.serializer.SendSketch(sketchSeries)
 		if err != nil {
 			log.Warnf("Error flushing sketch: %v", err)
-			aggregatorExpvar.Add("SketchesFlushErrors", 1)
+			aggregatorSketchesFlushErrors.Add(1)
 		}
 		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
-		aggregatorExpvar.Add("SketchesFlushed", int64(len(sketchSeries)))
+		aggregatorSketchesFlushed.Add(int64(len(sketchSeries)))
 	}()
 }
 
@@ -420,10 +450,10 @@ func (agg *BufferedAggregator) flushEvents() {
 		err := agg.serializer.SendEvents(events)
 		if err != nil {
 			log.Warnf("Error flushing events: %v", err)
-			aggregatorExpvar.Add("EventsFlushErrors", 1)
+			aggregatorEventsFlushErrors.Add(1)
 		}
 		addFlushTime("EventFlushTime", int64(time.Since(start)))
-		aggregatorExpvar.Add("EventsFlushed", int64(len(events)))
+		aggregatorEventsFlushed.Add(int64(len(events)))
 	}()
 }
 
@@ -446,21 +476,21 @@ func (agg *BufferedAggregator) run() {
 			start := time.Now()
 			agg.flush()
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
-			aggregatorExpvar.Add("NumberOfFlush", 1)
+			aggregatorNumberOfFlush.Add(1)
 		case sample := <-agg.dogstatsdIn:
-			aggregatorExpvar.Add("DogstatsdMetricSample", 1)
+			aggregatorDogstatsdMetricSample.Add(1)
 			agg.addSample(sample, timeNowNano())
 		case ss := <-agg.checkMetricIn:
-			aggregatorExpvar.Add("ChecksMetricSample", 1)
+			aggregatorChecksMetricSample.Add(1)
 			agg.handleSenderSample(ss)
 		case sc := <-agg.serviceCheckIn:
-			aggregatorExpvar.Add("ServiceCheck", 1)
+			aggregatorServiceCheck.Add(1)
 			agg.addServiceCheck(sc)
 		case e := <-agg.eventIn:
-			aggregatorExpvar.Add("Event", 1)
+			aggregatorEvent.Add(1)
 			agg.addEvent(e)
 		case h := <-agg.hostnameUpdate:
-			aggregatorExpvar.Add("HostnameUpdate", 1)
+			aggregatorHostnameUpdate.Add(1)
 			agg.hostname = h
 			agg.mu.Lock()
 			for _, checkSampler := range agg.checkSamplers {
