@@ -70,7 +70,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
-		transactionsExpvar.Add("Errors", 1)
+		transactionsErrors.Add(1)
 		return nil
 	}
 	req = req.WithContext(ctx)
@@ -83,7 +83,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 			return nil
 		}
 		t.ErrorCount++
-		transactionsExpvar.Add("Errors", 1)
+		transactionsErrors.Add(1)
 		return fmt.Errorf("error while sending transaction, rescheduling it: %s", util.SanitizeURL(err.Error()))
 	}
 	defer resp.Body.Close()
@@ -96,28 +96,28 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
-		transactionsExpvar.Add("Dropped", 1)
+		transactionsDropped.Add(1)
 		return nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
-		transactionsExpvar.Add("Dropped", 1)
+		transactionsDropped.Add(1)
 		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
-		transactionsExpvar.Add("Errors", 1)
+		transactionsErrors.Add(1)
 		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
-	successfulTransactions.Add(1)
+	transactionsSuccessful.Add(1)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
-	if successfulTransactions.Value() == 1 {
+	if transactionsSuccessful.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
 		log.Debugf("Url: %q payload: %s", logURL, string(body))
 		return nil
 	}
-	if successfulTransactions.Value()%loggingFrequency == 0 {
+	if transactionsSuccessful.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
 		log.Debugf("Url: %q payload: %s", logURL, string(body))
 		return nil

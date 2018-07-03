@@ -74,22 +74,22 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 		if !f.blockedList.isBlock(t.GetTarget()) {
 			select {
 			case f.lowPrio <- t:
-				transactionsExpvar.Add("Retried", 1)
+				transactionsRetried.Add(1)
 			default:
 				droppedWorkerBusy++
-				transactionsExpvar.Add("Dropped", 1)
+				transactionsDropped.Add(1)
 			}
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
-			transactionsExpvar.Add("Requeued", 1)
+			transactionsRequeued.Add(1)
 		} else {
 			droppedRetryQueueFull++
-			transactionsExpvar.Add("Dropped", 1)
+			transactionsDropped.Add(1)
 		}
 	}
 
 	f.retryQueue = newQueue
-	retryQueueSize.Set(int64(len(f.retryQueue)))
+	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
 		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
@@ -99,8 +99,8 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 
 func (f *domainForwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
-	transactionsExpvar.Add("Requeued", 1)
-	retryQueueSize.Set(int64(len(f.retryQueue)))
+	transactionsRequeued.Add(1)
+	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
 }
 
 func (f *domainForwarder) handleFailedTransactions() {
@@ -188,7 +188,7 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	select {
 	case f.highPrio <- transaction:
 	default:
-		transactionsExpvar.Add("DroppedOnInput", 1)
+		transactionsDroppedOnInput.Add(1)
 		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
 	}
 	return nil
