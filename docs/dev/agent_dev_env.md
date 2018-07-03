@@ -32,13 +32,13 @@ additional tool it might need.
 From the root of `datadog-agent`, run `invoke deps`. This will:
 
 - Use `go` to install the necessary dependencies
-- Use `git` to clone [integrations-core](integrations-core)
-- Use `pip` to install [datadog_checks_base](datadog_checks_base)
+- Use `git` to clone [integrations-core][integrations-core]
+- Use `pip` to install [datadog_checks_base][datadog_checks_base]
 
-If you already installed [datadog_checks_base](datadog_checks_base) in your desired
+If you already installed [datadog_checks_base][datadog_checks_base] in your desired
 Python, you can do `invoke deps --no-checks` to prevent cloning and pip install. If
-you are already doing development on [integrations-core](integrations-core), you
-can specify a path to [integrations-core](integrations-core) using the `--core-dir`
+you are already doing development on [integrations-core][integrations-core], you
+can specify a path to [integrations-core][integrations-core] using the `--core-dir`
 option or `DD_CORE_DIR` environment variable to omit just the cloning step.
 
 ## System or Embedded?
