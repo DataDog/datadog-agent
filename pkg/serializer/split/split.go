@@ -27,7 +27,19 @@ const (
 	Marshal
 )
 
-var splitterExpvar = expvar.NewMap("splitter")
+var (
+	splitterExpvars    = expvar.NewMap("splitter")
+	splitterNotTooBig  = expvar.Int{}
+	splitterTooBig     = expvar.Int{}
+	splitterTotalLoops = expvar.Int{}
+)
+
+func init() {
+	splitterExpvars.Set("NotTooBig", &splitterNotTooBig)
+	splitterExpvars.Set("TooBig", &splitterTooBig)
+	splitterExpvars.Set("TotalLoops", &splitterTotalLoops)
+
+}
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
@@ -50,17 +62,17 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 	// If the payload's size is fine, just return it
 	if nottoobig {
 		log.Debug("The payload was not too big, returning the full payload")
-		splitterExpvar.Add("NotTooBig", 1)
+		splitterNotTooBig.Add(1)
 		smallEnoughPayloads = append(smallEnoughPayloads, &payload)
 		return smallEnoughPayloads, nil
 	}
-	splitterExpvar.Add("TooBig", 1)
+	splitterTooBig.Add(1)
 	toobig := !nottoobig
 	loops := 0
 	// Do not attempt to split payloads forever, if a payload cannot be split then abandon the task
 	// the function will return all the payloads that were able to be split
 	for toobig && loops < 3 {
-		splitterExpvar.Add("TotalLoops", 1)
+		splitterTotalLoops.Add(1)
 		// create a temporary slice, the other array will be reused to keep track of the payloads that have yet to be split
 		tempSlice := make([]marshaler.Marshaler, len(marshallers))
 		copy(tempSlice, marshallers)
