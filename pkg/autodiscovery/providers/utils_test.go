@@ -198,7 +198,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			prefix:       "prefix.",
 			output: []integration.Config{
 				{
-					LogsConfig:    integration.Data("{\"service\":\"any_service\",\"source\":\"any_source\"}"),
+					LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 					ADIdentifiers: []string{"id"},
 				},
 			},
@@ -221,7 +221,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 					ADIdentifiers: []string{"id"},
 				},
 				{
-					LogsConfig:    integration.Data("{\"service\":\"any_service\",\"source\":\"any_source\"}"),
+					LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 					ADIdentifiers: []string{"id"},
 				},
 			},

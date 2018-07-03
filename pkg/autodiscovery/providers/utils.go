@@ -151,16 +151,18 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	return buildTemplates(key, checkNames, initConfigs, instances), nil
 }
 
-// extractLogsTemplatesFromMap returns the first logs configuration from a given map
+// extractLogsTemplatesFromMap returns the logs configuration from a given map,
 // if none are found return an empty list.
 func extractLogsTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
 	value, found := input[prefix+logsConfigPath]
 	if !found {
 		return []integration.Config{}, nil
 	}
-	logsConfigs, err := parseJSONValue(value)
-	if err != nil || len(logsConfigs) < 1 {
+	var data interface{}
+	err := json.Unmarshal([]byte(value), &data)
+	if err != nil {
 		return []integration.Config{}, fmt.Errorf("in %s: %s", logsConfigPath, err)
 	}
-	return []integration.Config{{LogsConfig: logsConfigs[0], ADIdentifiers: []string{key}}}, nil
+	logsConfig, _ := json.Marshal(data)
+	return []integration.Config{{LogsConfig: logsConfig, ADIdentifiers: []string{key}}}, nil
 }
