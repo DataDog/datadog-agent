@@ -24,7 +24,7 @@ type TestCheck struct {
 }
 
 func (c *TestCheck) Stop()                                     { c.stop <- true }
-func (c *TestCheck) Configure(a, b check.ConfigData) error     { return nil }
+func (c *TestCheck) Configure(a, b integration.Data) error     { return nil }
 func (c *TestCheck) Interval() time.Duration                   { return 5 * time.Second }
 func (c *TestCheck) Run() error                                { <-c.stop; return nil }
 func (c *TestCheck) GetWarnings() []error                      { return []error{} }
