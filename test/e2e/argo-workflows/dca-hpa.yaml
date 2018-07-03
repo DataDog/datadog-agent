@@ -163,7 +163,7 @@ spec:
               serviceAccount: dca
               containers:
               - name: datadog-cluster-agent
-                image: charlyyfon/dca:alpha #datadog/cluster-agent-dev:dca-cmapi
+                image: datadog/cluster-agent-dev:dca-cmapi
                 imagePullPolicy: IfNotPresent
                 env:
                 - name: DD_API_KEY

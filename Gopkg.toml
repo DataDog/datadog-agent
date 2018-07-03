@@ -156,3 +156,8 @@
 [[constraint]]
   name = "github.com/clbanning/mxj"
   version = "1.8.0"
+
+[[override]]
+  # Vanity domain lookup flaky on appveyor
+  name = "k8s.io/kube-openapi"
+source = "https://github.com/kubernetes/kube-openapi.git"
