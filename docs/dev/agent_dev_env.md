@@ -13,7 +13,7 @@ pip install invoke
 
 OSX users can install it via [Homebrew](https://brew.sh) with:
 ```
-brew install invoke
+brew install pyinvoke
 ```
 
 Tasks are usually parameterized and Invoke comes with some default values that
