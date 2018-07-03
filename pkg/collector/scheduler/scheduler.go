@@ -18,12 +18,16 @@ import (
 )
 
 var (
-	minAllowedInterval = 1 * time.Second
-	schedulerStats     *expvar.Map
+	minAllowedInterval     = 1 * time.Second
+	schedulerExpvars       *expvar.Map
+	schedulerQueuesCount   = expvar.Int{}
+	schedulerChecksEntered = expvar.Int{}
 )
 
 func init() {
-	schedulerStats = expvar.NewMap("scheduler")
+	schedulerExpvars = expvar.NewMap("scheduler")
+	schedulerExpvars.Set("QueuesCount", &schedulerQueuesCount)
+	schedulerExpvars.Set("ChecksEntered", &schedulerChecksEntered)
 }
 
 // Scheduler keeps things rolling.
@@ -78,14 +82,14 @@ func (s *Scheduler) Enter(check check.Check) error {
 	if _, ok := s.jobQueues[check.Interval()]; !ok {
 		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
 		s.startQueue(s.jobQueues[check.Interval()])
-		schedulerStats.Add("QueuesCount", 1)
+		schedulerQueuesCount.Add(1)
 	}
 	s.jobQueues[check.Interval()].addJob(check)
 	// map each check to the Job Queue it was assigned to
 	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
 
-	schedulerStats.Add("ChecksEntered", 1)
-	schedulerStats.Set("Queues", expvar.Func(expQueues(s)))
+	schedulerChecksEntered.Add(1)
+	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }
 
@@ -107,8 +111,8 @@ func (s *Scheduler) Cancel(id check.ID) error {
 		return fmt.Errorf("unable to remove the Job from the queue: %s", err)
 	}
 
-	schedulerStats.Add("ChecksEntered", -1)
-	schedulerStats.Set("Queues", expvar.Func(expQueues(s)))
+	schedulerChecksEntered.Add(-1)
+	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }
 
@@ -225,7 +229,7 @@ func (s *Scheduler) enqueueOnce(check check.Check) {
 		}
 	}(s.cancelOneTime)
 
-	schedulerStats.Add("ChecksEntered", 1)
+	schedulerChecksEntered.Add(1)
 }
 
 // expQueues return a function to get the stats for the queues
