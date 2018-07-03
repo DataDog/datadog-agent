@@ -267,7 +267,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			adIdentifier: "id",
 			prefix:       "prefix.",
 			output:       []integration.Config{},
-			err:          errors.New("in logs: Failed to unmarshal JSON"),
+			err:          errors.New("invalid format, expected an array, got: "),
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {

@@ -163,6 +163,11 @@ func extractLogsTemplatesFromMap(key string, input map[string]string, prefix str
 	if err != nil {
 		return []integration.Config{}, fmt.Errorf("in %s: %s", logsConfigPath, err)
 	}
-	logsConfig, _ := json.Marshal(data)
-	return []integration.Config{{LogsConfig: logsConfig, ADIdentifiers: []string{key}}}, nil
+	switch data.(type) {
+	case []interface{}:
+		logsConfig, _ := json.Marshal(data)
+		return []integration.Config{{LogsConfig: logsConfig, ADIdentifiers: []string{key}}}, nil
+	default:
+		return []integration.Config{}, fmt.Errorf("invalid format, expected an array, got: '%v'", data)
+	}
 }
