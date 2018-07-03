@@ -163,7 +163,7 @@ spec:
               serviceAccount: dca
               containers:
               - name: datadog-cluster-agent
-                image: datadog/cluster-agent-dev:dca-cmapi
+                image: charlyyfon/dca:alpha #datadog/cluster-agent-dev:dca-cmapi
                 imagePullPolicy: IfNotPresent
                 env:
                 - name: DD_API_KEY
@@ -179,6 +179,8 @@ spec:
                 - name: DD_CLUSTER_AGENT_AUTH_TOKEN
                   value: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
                 - name: DD_ENABLE_HPA
+                  value: "true"
+                - name: DD_LEADER_ELECTION
                   value: "true"
                 livenessProbe:
                   exec:
@@ -629,9 +631,6 @@ spec:
     - - name: no-more-nginx
         template: no-more-metrics-nginx
 
-    - - name: delete-cm-datadog-hpa
-        template: delete-cm-datadog-hpa
-
   - name: query-job
     activeDeadlineSeconds: 120
     inputs:
@@ -662,6 +661,7 @@ spec:
       - name: cluster-agent-hpa-svc
       - name: cluster-agent-svc
       - name: hpa-manifest
+
     steps:
     - - name: delete-manifest
         template: manifest
@@ -687,6 +687,9 @@ spec:
         - "{{inputs.parameters.cluster-agent-svc}}"
         - "{{inputs.parameters.cluster-agent-hpa-svc}}"
         - "{{inputs.parameters.hpa-manifest}}"
+
+    - - name: remove-maps
+        template: delete-cm-datadog-hpa
 
   - name: manifest
     inputs:

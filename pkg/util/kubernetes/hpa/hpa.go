@@ -9,6 +9,7 @@ package hpa
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -36,12 +37,13 @@ const (
 )
 
 type CustomExternalMetric struct {
-	Name      string            `json:"name"`
-	Labels    map[string]string `json:"labels"`
-	Timestamp int64             `json:"ts"`
-	HpaName   string            `json:"hpa_name"`
-	Value     int64             `json:"value"`
-	Valid     bool              `json:"valid"`
+	Name         string            `json:"name"`
+	Labels       map[string]string `json:"labels"`
+	Timestamp    int64             `json:"ts"`
+	HPAName      string            `json:"hpa_name"`
+	HPANamespace string            `json:"hpa_namespace"`
+	Value        int64             `json:"value"`
+	Valid        bool              `json:"valid"`
 }
 
 // HPAWatcherClient embeds the API Server client and the configuration to refresh metrics from Datadog and watch the HPA Objects' activities
@@ -198,7 +200,7 @@ func (c *HPAWatcherClient) Start() {
 
 func (c *HPAWatcherClient) updateCustomMetrics() {
 	maxAge := int64(c.externalMaxAge.Seconds())
-
+	var key string
 	configMap, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Infof("Error while retrieving the Config Map %s", datadogHPAConfigMap)
@@ -233,9 +235,8 @@ func (c *HPAWatcherClient) updateCustomMetrics() {
 				log.Errorf("Error while marshalling the custom metric %s: %s", cm.Name, err.Error())
 				continue
 			}
-
-			data[cm.Name] = string(c)
-			cm.Valid = true // The Custom metric is ready to be consumed in the HPA pipeline
+			key = fmt.Sprintf("external.metrics.%s.%s-%s", cm.HPANamespace, cm.HPAName, cm.Name)
+			data[key] = string(c)
 			log.Debugf("Updated the custom metric %#v", cm)
 		}
 
@@ -286,7 +287,8 @@ func (hpa *HPAWatcherClient) processHPA(list []*v2beta1.HorizontalPodAutoscaler)
 			cm.Name = m.External.MetricName
 			cm.Timestamp = metav1.Now().Unix()
 			cm.Labels = m.External.MetricSelector.MatchLabels
-			cm.HpaName = e.Name
+			cm.HPAName = e.Name
+			cm.HPANamespace = e.Namespace
 			cm.Value, cm.Valid, err = hpa.validate(cm)
 			if err != nil {
 				log.Debugf("Not able to process %#v: %s", cm, err)
@@ -303,33 +305,27 @@ func (hpa *HPAWatcherClient) validate(cm CustomExternalMetric) (value int64, val
 	if err != nil {
 		return cm.Value, false, err
 	}
-	cm.Valid = true
 	return val, true, nil
 }
 
 // storeHPA processes the data collected from the HPA object watch to be validated and stored in the datadogHPAConfigMap ConfigMap.
 func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) error {
 	listCustomMetrics := c.processHPA(hpaList)
+	var key string
 	cm, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not store the custom metrics data in the ConfigMap %s: %s", datadogHPAConfigMap, err.Error())
 		return err
 	}
 	for _, n := range listCustomMetrics {
-		newMetric := &CustomExternalMetric{
-			Name:      n.Name,
-			Labels:    n.Labels,
-			HpaName:   n.HpaName,
-			Value:     n.Value,
-			Timestamp: n.Timestamp,
-			Valid:     n.Valid,
-		}
-		toStore, _ := json.Marshal(newMetric)
+		toStore, _ := json.Marshal(n)
 		if cm.Data == nil {
 			// Don't panic "assignment to entry in nil map" at init
 			cm.Data = make(map[string]string)
 		}
-		cm.Data[n.Name] = string(toStore)
+		// We use a specific key to avoid conflicting when processing several HPA manifests with the same name but in different namespaces.
+		key = fmt.Sprintf("external.metrics.%s.%s-%s", n.HPANamespace, n.HPAName, n.Name)
+		cm.Data[key] = string(toStore)
 	}
 
 	_, err = c.clientSet.CoreV1().ConfigMaps(c.ns).Update(cm)
@@ -341,6 +337,7 @@ func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) 
 
 // removeEntryFromConfigMap will remove an External Custom Metric from removeEntryFromConfigMap if the corresponding HPA manifest is deleted.
 func (c *HPAWatcherClient) removeEntryFromConfigMap(deleted []*v2beta1.HorizontalPodAutoscaler) error {
+	var key string
 	cm, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not remove the custom metrics data in the ConfigMap %s: %s", datadogHPAConfigMap, err.Error())
@@ -349,9 +346,10 @@ func (c *HPAWatcherClient) removeEntryFromConfigMap(deleted []*v2beta1.Horizonta
 	for _, d := range deleted {
 		for _, m := range d.Spec.Metrics {
 			metricName := m.External.MetricName
-			if cm.Data[metricName] != "" {
-				delete(cm.Data, metricName)
-				log.Debugf("Removed entry %#v from the ConfigMap %s", metricName, datadogHPAConfigMap)
+			key = fmt.Sprintf("external.metrics.%s.%s-%s", d.Namespace, d.Name, metricName)
+			if cm.Data[key] != "" {
+				delete(cm.Data, key)
+				log.Debugf("Removed entry %#v from the ConfigMap %s", key, datadogHPAConfigMap)
 			}
 		}
 	}
