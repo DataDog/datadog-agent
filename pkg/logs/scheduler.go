@@ -60,7 +60,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			log.Warnf("Invalid configuration: %v", err)
 			continue
 		}
-		input.Collect(source)
+		input.Add(source)
 	}
 }
 
@@ -81,7 +81,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			// parsing failed.
 			continue
 		}
-		input.Purge(source)
+		input.Remove(source)
 	}
 }
 

@@ -10,6 +10,6 @@ import (
 )
 
 type Input interface {
-	Collect(source *config.LogSource)
-	Purge(source *config.LogSource)
+	Add(source *config.LogSource)
+	Remove(source *config.LogSource)
 }
