@@ -4,11 +4,13 @@ Release Notes
 
 6.3.2
 =====
+2018-07-05
+=======
 
 Prelude
 -------
 
-Released on: 2018-07-04
+Released on: 2018-07-05
 
 - Please refer to the `6.3.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.2>`_ for the list of changes on the Core Checks.
 
