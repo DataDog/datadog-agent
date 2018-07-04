@@ -12,15 +12,15 @@ import (
 )
 
 // Scanner is not supported on windows environment
-type Scanner struct{}
+type DockerScanner struct{}
 
 // New returns a new Scanner
-func New(sources []*config.LogSource, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
-	return &Scanner{}
+func NewDockerScanner(sources []*config.LogSource, pp pipeline.Provider, auditor *auditor.Auditor) *DockerScanner {
+	return &DockerScanner{}
 }
 
 // Start does nothing
-func (s *Scanner) Start() {}
+func (s *DockerScanner) Start() {}
 
 // Stop does nothing
-func (s *Scanner) Stop() {}
+func (s *DockerScanner) Stop() {}
