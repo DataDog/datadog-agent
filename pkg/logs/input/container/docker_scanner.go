@@ -27,7 +27,7 @@ import (
 const scanPeriod = 10 * time.Second
 
 // A Scanner listens for stdout and stderr of containers
-type Scanner struct {
+type DockerScanner struct {
 	pp        pipeline.Provider
 	sources   []*config.LogSource
 	tailers   map[string]*DockerTailer
@@ -38,7 +38,7 @@ type Scanner struct {
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
+func NewDockerScanner(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *DockerScanner {
 	containerSources := []*config.LogSource{}
 	for _, source := range sources {
 		switch source.Config.Type {
@@ -47,7 +47,7 @@ func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) 
 		default:
 		}
 	}
-	return &Scanner{
+	return &DockerScanner{
 		pp:      pp,
 		sources: containerSources,
 		tailers: make(map[string]*DockerTailer),
@@ -57,7 +57,7 @@ func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) 
 }
 
 // Start starts the Scanner
-func (s *Scanner) Start() {
+func (s *DockerScanner) Start() {
 	err := s.setup()
 	if err != nil {
 		s.reportErrorToAllSources(err)
@@ -69,7 +69,7 @@ func (s *Scanner) Start() {
 
 // Stop stops the Scanner and its tailers in parallel,
 // this call returns only when all the tailers are stopped
-func (s *Scanner) Stop() {
+func (s *DockerScanner) Stop() {
 	if !s.isRunning {
 		// the scanner was not start, no need to stop anything
 		return
@@ -84,7 +84,7 @@ func (s *Scanner) Stop() {
 }
 
 // run checks periodically which docker containers are running until stop
-func (s *Scanner) run() {
+func (s *DockerScanner) run() {
 	scanTicker := time.NewTicker(scanPeriod)
 	defer scanTicker.Stop()
 	for {
@@ -102,13 +102,13 @@ func (s *Scanner) run() {
 // scan checks for new containers we're expected to
 // tail, as well as stopped containers or containers that
 // restarted
-func (s *Scanner) scan(tailFromBeginning bool) {
+func (s *DockerScanner) scan(tailFromBeginning bool) {
 	runningContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
 	// monitor new containers, and restart tailers if needed
 	for _, container := range runningContainers {
-		source := NewContainer(container).findSource(s.sources)
+		source := NewDockerContainer(container).findSource(s.sources)
 		if source == nil {
 			continue
 		}
@@ -137,7 +137,7 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 }
 
 // Start starts the Scanner
-func (s *Scanner) setup() error {
+func (s *DockerScanner) setup() error {
 	if len(s.sources) == 0 {
 		return fmt.Errorf("No container source defined")
 	}
@@ -162,7 +162,7 @@ func (s *Scanner) setup() error {
 
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
+func (s *DockerScanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
 	t := NewDockerTailer(cli, container.ID, source, outputChan)
 	var err error
@@ -180,13 +180,13 @@ func (s *Scanner) setupTailer(cli *client.Client, container types.Container, sou
 }
 
 // dismissTailer stops the tailer and removes it from the list of active tailers
-func (s *Scanner) dismissTailer(tailer *DockerTailer) {
+func (s *DockerScanner) dismissTailer(tailer *DockerTailer) {
 	// stop the tailer in another routine as we don't want to block here
 	go tailer.Stop()
 	delete(s.tailers, tailer.ContainerID)
 }
 
-func (s *Scanner) listContainers() []types.Container {
+func (s *DockerScanner) listContainers() []types.Container {
 	containers, err := s.cli.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
 		log.Error("Can't tail containers, ", err)
@@ -198,12 +198,12 @@ func (s *Scanner) listContainers() []types.Container {
 }
 
 // reportErrorToAllSources changes the status of all sources to Error with err
-func (s *Scanner) reportErrorToAllSources(err error) {
+func (s *DockerScanner) reportErrorToAllSources(err error) {
 	for _, source := range s.sources {
 		source.Status.Error(err)
 	}
 }
 
-func (s *Scanner) humanReadableContainerID(containerID string) string {
+func (s *DockerScanner) humanReadableContainerID(containerID string) string {
 	return containerID[:12]
 }
