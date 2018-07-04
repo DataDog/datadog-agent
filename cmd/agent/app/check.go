@@ -96,14 +96,6 @@ var checkCmd = &cobra.Command{
 					fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: invalid config for %s: %s", color.RedString("Error"), color.YellowString(check), error))
 				}
 			}
-			for check, errors := range autodiscovery.GetLoaderErrors() {
-				if checkName == check {
-					fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: could not load %s:", color.RedString("Error"), color.YellowString(checkName)))
-					for loader, error := range errors {
-						fmt.Fprintln(color.Output, fmt.Sprintf("* %s: %s", color.YellowString(loader), error))
-					}
-				}
-			}
 			for check, warnings := range autodiscovery.GetResolveWarnings() {
 				if checkName == check {
 					fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: could not resolve %s config:", color.YellowString("Warning"), color.YellowString(check)))

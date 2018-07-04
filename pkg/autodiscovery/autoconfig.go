@@ -37,12 +37,6 @@ func init() {
 	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
 		return errorStats.getConfigErrors()
 	}))
-	acErrors.Set("LoaderErrors", expvar.Func(func() interface{} {
-		return errorStats.getLoaderErrors()
-	}))
-	acErrors.Set("RunErrors", expvar.Func(func() interface{} {
-		return errorStats.getRunErrors()
-	}))
 	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
 		return errorStats.getResolveWarnings()
 	}))
@@ -471,11 +465,6 @@ func (pd *providerDescriptor) contains(c *integration.Config) bool {
 		}
 	}
 	return false
-}
-
-// GetLoaderErrors gets the errors from the loaderErrors struct
-func GetLoaderErrors() map[string]LoaderErrors {
-	return errorStats.getLoaderErrors()
 }
 
 // GetConfigErrors gets the config errors

@@ -46,8 +46,6 @@ func (s *CheckScheduler) ScheduleConfigs(configs []integration.Config) {
 		_, err := s.collector.RunCheck(c)
 		if err != nil {
 			log.Errorf("Unable to run Check %s: %v", c, err)
-			// TODO
-			// errorStats.setRunError(c.ID(), err.Error())
 			continue
 		}
 	}
@@ -72,8 +70,6 @@ func (s *CheckScheduler) UnscheduleConfigs(configs []integration.Config) {
 			err := s.collector.StopCheck(id)
 			if err != nil {
 				log.Errorf("Error stopping check %s: %s", id, err)
-				// TODO
-				// errorStats.setRunError(id, err.Error())
 			} else {
 				stopped[id] = struct{}{}
 			}
@@ -121,12 +117,8 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		res, err := loader.Load(config)
 		if err == nil {
 			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-			// errorStats.removeLoaderErrors(config.Name)
 			return res, nil
 		}
-
-		// errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-
 		// Check if some check instances were loaded correctly (can occur if there's multiple check instances)
 		if len(res) != 0 {
 			return res, nil
@@ -180,7 +172,6 @@ func (s *CheckScheduler) schedule(checks []check.Check) {
 		_, err := s.collector.RunCheck(c)
 		if err != nil {
 			log.Errorf("Unable to run Check %s: %v", c, err)
-			//errorStats.setRunError(c.ID(), err.Error())
 			continue
 		}
 	}
