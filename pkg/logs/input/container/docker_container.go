@@ -19,18 +19,18 @@ import (
 )
 
 // Container represents a container to tail logs from.
-type Container struct {
+type DockerContainer struct {
 	types.Container
 }
 
 // NewContainer returns a new Container
-func NewContainer(container types.Container) *Container {
-	return &Container{container}
+func NewDockerContainer(container types.Container) *DockerContainer {
+	return &DockerContainer{container}
 }
 
 // findSource returns the source that most closely matches the container,
 // if no source is found return nil
-func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
+func (c *DockerContainer) findSource(sources []*config.LogSource) *config.LogSource {
 	label := c.getLabel()
 	if label != "" {
 		return c.parseLabel(label)
@@ -57,7 +57,7 @@ func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 }
 
 // computeScore returns the matching score between the container and the source.
-func (c *Container) computeScore(source *config.LogSource) int {
+func (c *DockerContainer) computeScore(source *config.LogSource) int {
 	score := 0
 	if c.isImageMatch(source.Config.Image) {
 		score++
@@ -82,7 +82,7 @@ const tagSeparator = ":"
 // - '[<repository>/]image[:<tag>]',
 // - '[<repository>/]image[@sha256:<digest>]'
 // The imageFilter must respect the format '[<repository>/]image[:<tag>]'.
-func (c *Container) isImageMatch(imageFilter string) bool {
+func (c *DockerContainer) isImageMatch(imageFilter string) bool {
 	// Trim digest if present
 	splitted := strings.SplitN(c.Image, digestPrefix, 2)
 	image := splitted[0]
@@ -97,7 +97,7 @@ func (c *Container) isImageMatch(imageFilter string) bool {
 }
 
 // isNameMatch returns true if one of the container name matches with the filter.
-func (c *Container) isNameMatch(nameFilter string) bool {
+func (c *DockerContainer) isNameMatch(nameFilter string) bool {
 	re, err := regexp.Compile(nameFilter)
 	if err != nil {
 		log.Warn("used invalid name to filter containers: ", nameFilter)
@@ -112,7 +112,7 @@ func (c *Container) isNameMatch(nameFilter string) bool {
 }
 
 // isLabelMatch returns true if container labels contains at least one label from labelFilter.
-func (c *Container) isLabelMatch(labelFilter string) bool {
+func (c *DockerContainer) isLabelMatch(labelFilter string) bool {
 	// Expect a comma-separated list of labels, eg: foo:bar, baz
 	for _, value := range strings.Split(labelFilter, ",") {
 		// Trim whitespace, then check whether the label format is either key:value or key=value
@@ -134,7 +134,7 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 const configPath = "com.datadoghq.ad.logs"
 
 // getLabel returns the autodiscovery config label if it exists.
-func (c *Container) getLabel() string {
+func (c *DockerContainer) getLabel() string {
 	label, exists := c.Labels[configPath]
 	if exists {
 		return label
@@ -144,7 +144,7 @@ func (c *Container) getLabel() string {
 
 // parseLabel returns the config present in the container label 'com.datadoghq.ad.logs',
 // the config has to be conform with the format '[{...}]'.
-func (c *Container) parseLabel(label string) *config.LogSource {
+func (c *DockerContainer) parseLabel(label string) *config.LogSource {
 	var cfgs []config.LogsConfig
 	err := json.Unmarshal([]byte(label), &cfgs)
 	if err != nil || len(cfgs) < 1 {
