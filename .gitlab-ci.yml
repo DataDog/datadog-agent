@@ -865,10 +865,7 @@ deploy_windows_tags:
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-    # By default we update the "latest" artifacts on our s3 bucket so the
-    # staging box can pick it up. Allow the job to skip this step if needed
-    # (when building a custom beta for example).
-    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
 deploy_rpm:
