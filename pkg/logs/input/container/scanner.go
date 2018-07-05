@@ -21,5 +21,5 @@ func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *audit
 			return scanner
 		}
 	}
-	return NewDockerScanner(sources.GetValidSources(), pp, auditor)
+	return NewDockerScanner(sources, pp, auditor)
 }
