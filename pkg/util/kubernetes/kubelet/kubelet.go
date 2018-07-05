@@ -253,21 +253,16 @@ func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
 // GetContainerEntityID returns the container entity id matching the podUID and containerName,
 // returns an error if the arguments are invalid or if no container is found.
 func (ku *KubeUtil) GetContainerEntityID(podUID string, containerName string) (string, error) {
-	pods, err := ku.GetLocalPodList()
-	if err != nil {
-		return "", err
-	}
 	if podUID == "" || containerName == "" {
 		return "", fmt.Errorf("invalid podUID or containerName: %s, %s", podUID, containerName)
 	}
-	for _, pod := range pods {
-		if pod.Metadata.UID != podUID {
-			continue
-		}
-		for _, container := range pod.Status.Containers {
-			if container.Name == containerName {
-				return container.ID, nil
-			}
+	pod, err := ku.GetPodFromUID(podUID)
+	if err != nil {
+		return "", err
+	}
+	for _, container := range pod.Status.Containers {
+		if container.Name == containerName {
+			return container.ID, nil
 		}
 	}
 	return "", fmt.Errorf("containerID not found for podUID: %s, containerName: %s", podUID, containerName)

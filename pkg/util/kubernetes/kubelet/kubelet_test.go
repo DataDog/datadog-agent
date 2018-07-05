@@ -417,7 +417,7 @@ func (suite *KubeletTestSuite) TestGetContainerEntityID() {
 	// The /pods request is still cached
 	require.Equal(suite.T(), "", containerEntityID)
 	require.NotNil(suite.T(), err)
-	require.Contains(suite.T(), err.Error(), "containerID not found for podUID")
+	require.Contains(suite.T(), err.Error(), "not found in pod list")
 
 	// Invalid container name
 	containerEntityID, err = kubeutil.GetContainerEntityID("e2fdcecc-0749-11e8-a2b8-000c29dea4f6", "invalid")
