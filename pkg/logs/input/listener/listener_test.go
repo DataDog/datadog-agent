@@ -21,7 +21,7 @@ func TestLifeCycle(t *testing.T) {
 		config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: 8083}),
 	}
 	pipeline := pipeline.NewMockProvider()
-	networklisteners := New(sources, pipeline)
+	networklisteners := New(config.NewLogSources(sources), pipeline)
 
 	// tcp and udp listeners should be started
 	networklisteners.Start()
