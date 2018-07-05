@@ -10,9 +10,11 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 const (
@@ -81,6 +83,10 @@ func getContainerForPID(pid int32) (string, error) {
 	if err != nil {
 		return NoOrigin, err
 	}
+	runtime, err := containers.GetRuntimeForPID(pid)
+	if err != nil {
+		return NoOrigin, err
+	}
 
 	var value string
 	if len(id) == 0 {
@@ -88,7 +94,7 @@ func getContainerForPID(pid int32) (string, error) {
 		// cache the `NoOrigin` result for future packets
 		value = NoOrigin
 	} else {
-		value = fmt.Sprintf("docker://%s", id)
+		value = fmt.Sprintf("%s://%s", runtime, id)
 	}
 
 	cache.Cache.Set(key, value, 0)
