@@ -13,11 +13,17 @@ var AgentVersion string
 // DCAVersion contains the version of the Datatog Cluster Agent
 var DCAVersion string
 
+// JMXFetchVersion contains the version of the JMXFetch artifact
+var JMXFetchVersion string
+
 // Commit is populated with the short commit hash from which the Agent was built
 var Commit string
 
-var agentVersionDefault = "6.0.0"
-var clusterAgentVersionDefault = "1.0.0"
+var (
+	agentVersionDefault        = "6.0.0"
+	clusterAgentVersionDefault = "1.0.0"
+	jmxFetchVersionDefault     = "0.20.1"
+)
 
 func init() {
 	if AgentVersion == "" {
@@ -25,5 +31,8 @@ func init() {
 	}
 	if DCAVersion == "" {
 		DCAVersion = clusterAgentVersionDefault
+	}
+	if JMXFetchVersion == "" {
+		JMXFetchVersion = jmxFetchVersionDefault
 	}
 }

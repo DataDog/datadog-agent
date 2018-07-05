@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.20.1-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	defaultJmxCommand                 = "collect"
 	defaultJvmMaxMemoryAllocation     = " -Xmx200m"
@@ -37,6 +37,7 @@ const (
 )
 
 var (
+	jmxJarName     = fmt.Sprintf("jmxfetch-%s-jar-with-dependencies.jar", version.JMXFetchVersion)
 	jmxLogLevelMap = map[string]string{
 		"trace":    "TRACE",
 		"debug":    "DEBUG",

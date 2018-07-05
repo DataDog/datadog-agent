@@ -128,6 +128,7 @@ def get_version_ldflags(ctx):
 
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
     ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
+    ldflags += "-X {}/pkg/version.JMXFetchVersion={} ".format(REPO_PATH, get_jmxfetch_version())
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     return ldflags
 
@@ -201,6 +202,28 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7):
         else:
             version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
     return version
+
+def get_jmxfetch_version():
+    jmxfetch_version = os.environ.get('JMXFETCH_VERSION')
+    if jmxfetch_version:
+        return jmxfetch_version
+
+    # use omnibus provided version
+    here = os.path.dirname(os.path.realpath(__file__))
+    jmx_sw_definition = os.path.join(here, '..', 'omnibus', 'config', 'software', 'jmxfetch.rb')
+
+    with open(jmx_sw_definition) as fp:
+        for line in fp:
+            version_match = re.findall(r"^jmxfetch_version_default.*(\d+\.\d+\.\d+).*", line)
+            if version_match and version_match[0]:
+                jmxfetch_version = version_match[0]
+                break
+
+    if not jmxfetch_version:
+        raise Exception("Could not collect valid jmxfetch version from environment or omnibus definition")
+
+    return jmxfetch_version
+
 
 def get_version_numeric_only(ctx):
     version, _, _, _ = query_version(ctx)
