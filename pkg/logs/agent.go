@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Agent represents the data pipeline that collects, decodes,
@@ -30,7 +29,7 @@ import (
 type Agent struct {
 	auditor          *auditor.Auditor
 	pipelineProvider pipeline.Provider
-	scanners         []interface{}
+	scanners         []restart.Restartable
 }
 
 // NewAgent returns a new Agent
@@ -48,7 +47,7 @@ func NewAgent(sources *config.LogSources) *Agent {
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
 	// setup the scanners
-	var scanners []interface{}
+	var scanners []restart.Restartable
 	scanners = append(scanners, listener.New(sources, pipelineProvider))
 	scanners = append(scanners, file.New(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration))
 	scanners = append(scanners, journald.New(sources, pipelineProvider, auditor))
@@ -65,26 +64,19 @@ func NewAgent(sources *config.LogSources) *Agent {
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	restart.Start(a.auditor, a.pipelineProvider)
+	starter := restart.NewStarter(a.auditor, a.pipelineProvider)
 	for _, scanner := range a.scanners {
-		if start, ok := scanner.(restart.Startable); ok {
-			start.Start()
-		} else {
-			log.Errorf("error starting scanner %s: does not implement Startable", scanner)
-		}
+		starter.Add(scanner)
 	}
+	starter.Start()
 }
 
 // Stop stops all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Stop() {
 	scanners := restart.NewParallelStopper()
-	for _, scanner := range a.scanners {
-		if stop, ok := scanner.(restart.Stoppable); ok {
-			scanners.Add(stop)
-		} else {
-			log.Errorf("error stopping scanner %s: does not implement Stoppable", scanner)
-		}
+	for _, s := range a.scanners {
+		scanners.Add(s)
 	}
 	stopper := restart.NewSerialStopper(
 		scanners,

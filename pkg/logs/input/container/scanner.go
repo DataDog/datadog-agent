@@ -11,9 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) interface{} {
+func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) restart.Restartable {
 	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
 		if scanner, err := NewKubeScanner(pp, auditor); err == nil {
 			// Fow now, avoid manually scanning docker containers when in a kubernetes environment,
