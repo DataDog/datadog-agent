@@ -2,6 +2,35 @@
 Release Notes
 =============
 
+6.3.2
+=====
+2018-07-05
+=======
+
+Prelude
+-------
+
+Released on: 2018-07-05
+
+- Please refer to the `6.3.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.2>`_ for the list of changes on the Core Checks.
+
+
+Bug Fixes
+---------
+
+- The service mapper now groups the mappings of pods to services by namespace.
+  This prevents `kube_service` tags from being erroneously applied to metrics
+  for a pod not targeted by a service but has the same name as a pod in a different
+  namespace targeted by that service.
+
+- Fix a bug in dogstatsd metrics parsing where the Agent would leave the host tag
+  empty instead of applying its hostname on metrics with a tag metadata
+  field but no tags (i.e. the tags field is only one `#` character).
+  Regression introduced in 6.3.0
+
+- Replace invalid utf-8 characters by the standard replacement char.
+
+
 6.3.1
 =====
 2018-06-27
