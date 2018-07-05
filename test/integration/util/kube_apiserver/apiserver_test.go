@@ -266,6 +266,12 @@ func (suite *testSuite) TestServiceMapper() {
 					{
 						IP:       pendingPod.Status.PodIP,
 						NodeName: &node.Name,
+						TargetRef: &v1.ObjectReference{
+							Kind:      "Pod",
+							Namespace: pendingPod.Namespace,
+							Name:      pendingPod.Name,
+							UID:       pendingPod.UID,
+						},
 					},
 				},
 				Ports: []v1.EndpointPort{
