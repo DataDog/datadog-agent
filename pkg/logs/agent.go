@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Agent represents the data pipeline that collects, decodes,
@@ -27,13 +28,9 @@ import (
 // |                                                        |
 // + ------------------------------------------------------ +
 type Agent struct {
-	auditor              *auditor.Auditor
-	containersScanner    *container.Scanner
-	windowsEventLauncher *windowsevent.Launcher
-	filesScanner         *file.Scanner
-	networkListener      *listener.Listener
-	journaldLauncher     *journald.Launcher
-	pipelineProvider     pipeline.Provider
+	auditor          *auditor.Auditor
+	pipelineProvider pipeline.Provider
+	scanners         []interface{}
 }
 
 // NewAgent returns a new Agent
@@ -50,50 +47,48 @@ func NewAgent(sources *config.LogSources) *Agent {
 	)
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
-	// setup the collectors
+	// setup the scanners
 	validSources := sources.GetValidSources()
-	containersScanner := container.New(validSources, pipelineProvider, auditor)
-	networkListeners := listener.New(validSources, pipelineProvider)
-	filesScanner := file.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration)
-	journaldLauncher := journald.New(validSources, pipelineProvider, auditor)
-	windowsEventLauncher := windowsevent.New(validSources, pipelineProvider, auditor)
+	var scanners []interface{}
+	scanners = append(scanners, listener.New(validSources, pipelineProvider))
+	scanners = append(scanners, file.New(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration))
+	scanners = append(scanners, journald.New(validSources, pipelineProvider, auditor))
+	scanners = append(scanners, windowsevent.New(validSources, pipelineProvider, auditor))
+	scanners = append(scanners, container.NewScanner(sources, pipelineProvider, auditor))
 
 	return &Agent{
-		auditor:              auditor,
-		containersScanner:    containersScanner,
-		windowsEventLauncher: windowsEventLauncher,
-		filesScanner:         filesScanner,
-		journaldLauncher:     journaldLauncher,
-		networkListener:      networkListeners,
-		pipelineProvider:     pipelineProvider,
+		auditor:          auditor,
+		pipelineProvider: pipelineProvider,
+		scanners:         scanners,
 	}
 }
 
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	restart.Start(
-		a.auditor,
-		a.pipelineProvider,
-		a.filesScanner,
-		a.networkListener,
-		a.containersScanner,
-		a.journaldLauncher,
-		a.windowsEventLauncher,
-	)
+	restart.Start(a.auditor, a.pipelineProvider)
+	for _, scanner := range a.scanners {
+		if start, ok := scanner.(restart.Startable); ok {
+			start.Start()
+		} else {
+			log.Errorf("error starting scanner %s: does not implement Startable", scanner)
+		}
+	}
 }
 
 // Stop stops all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Stop() {
+	scanners := restart.NewParallelStopper()
+	for _, scanner := range a.scanners {
+		if stop, ok := scanner.(restart.Stoppable); ok {
+			scanners.Add(stop)
+		} else {
+			log.Errorf("error stopping scanner %s: does not implement Stoppable", scanner)
+		}
+	}
 	stopper := restart.NewSerialStopper(
-		restart.NewParallelStopper(
-			a.filesScanner,
-			a.networkListener,
-			a.containersScanner,
-			a.journaldLauncher,
-			a.windowsEventLauncher,
-		),
+		scanners,
 		a.pipelineProvider,
 		a.auditor,
 	)
