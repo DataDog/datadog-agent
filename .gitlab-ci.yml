@@ -54,40 +54,6 @@ before_script:
   - pip install -U pip
   - inv -e deps
 
-#
-# Trigger conditions
-#
-
-# run job only when triggered by an external tool (ex: Jenkins). This is used
-# for jobs that run both on nightlies and tags
-.run_when_triggered: &run_when_triggered
-  only:
-    - triggers
-
-# run job only when triggered by an external tool (ex: Jenkins) and when
-# RELEASE_VERSION is NOT "nightly". In this setting we are building either a
-# new tagged version of the agent (an RC for example). In both cases the
-# artifacts should be uploaded to our staging repository.
-
-.run_when_triggered_on_tag: &run_when_triggered_on_tag
-  only:
-    refs:
-      - triggers
-  except: # we have to use except since gitlab doens't handle '!=' operator
-    variables:
-      - $RELEASE_VERSION == "nightly"
-      - $RELEASE_VERSION == "" # no  RELEASE_VERSION means a nightly build for omnibus
-
-# run job only when triggered by an external tool (ex: Jenkins) and when
-# RELEASE_VERSION is "nightly". In this setting we build from master and update
-# the nightly build for windows, linux and docker.
-
-.run_when_triggered_on_nightly: &run_when_triggered_on_nightly
-  only:
-    refs:
-      - triggers
-    variables:
-      - $RELEASE_VERSION == "nightly"
 
 #
 # source_test
@@ -436,7 +402,9 @@ deploy_deb_testing:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -458,11 +426,13 @@ deploy_deb_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_rpm_testing:
-  <<: *run_when_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -475,12 +445,14 @@ deploy_rpm_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing:
-  <<: *run_when_triggered
   allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -493,12 +465,14 @@ deploy_suse_rpm_testing:
 
 # deploy windows packages to our testing bucket
 deploy_windows_testing:
-  <<: *run_when_triggered
   allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -511,7 +485,6 @@ kitchen_windows:
   only:
     - master
     - tags
-    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -538,7 +511,6 @@ kitchen_centos:
   only:
     - master
     - tags
-    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -563,7 +535,6 @@ kitchen_ubuntu:
   only:
     - master
     - tags
-    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -589,7 +560,6 @@ kitchen_suse:
   only:
     - master
     - tags
-    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -614,7 +584,6 @@ kitchen_debian:
   only:
     - master
     - tags
-    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -638,7 +607,6 @@ testkitchen_cleanup_s3:
   only:
     - master
     - tags
-    - triggers
   tags: [ "runner:main", "size:large" ]
   before_script:
     - ls
@@ -660,7 +628,6 @@ testkitchen_cleanup_azure:
   only:
     - master
     - tags
-    - triggers
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
@@ -770,7 +737,7 @@ dev_branch_docker_hub:
 dev_master_docker_hub:
   <<: *docker_tag_job_definition
   only:
-    master
+    - master
   variables:
     <<: *docker_hub_variables
   script:
@@ -790,7 +757,8 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
+  only:
+    - master
   variables:
     <<: *docker_hub_variables
   script:
@@ -801,7 +769,8 @@ dca_dev_master_docker_hub:
 # to run security scans on them
 dev_master_quay:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
+  only:
+    - master
   variables:
     <<: *quay_variables
   script:
@@ -816,11 +785,13 @@ dev_master_quay:
 
 # deploy debian packages to apt staging repo
 deploy_deb:
-  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -849,7 +820,8 @@ deploy_windows_master:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_nightly
+  only:
+    - master
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -861,7 +833,8 @@ deploy_windows_tags:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_tag
+  only:
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -869,11 +842,13 @@ deploy_windows_tags:
 
 # deploy rpm packages to yum staging repo
 deploy_rpm:
-  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -890,12 +865,14 @@ deploy_rpm:
 
 # deploy suse rpm packages to yum staging repo
 deploy_suse_rpm:
-  <<: *run_when_triggered
   allow_failure: true
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -912,11 +889,13 @@ deploy_suse_rpm:
 
 # deploy dsd binary to staging bucket
 deploy_dsd:
-  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
@@ -925,11 +904,13 @@ deploy_dsd:
 
 # deploy dsd binary to staging bucket
 deploy_puppy:
-  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/puppy/agent ./agent
@@ -942,9 +923,10 @@ deploy_puppy:
 
 tag_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
+  only:
+    - tags
   variables:
     <<: *docker_hub_variables
   script:
@@ -954,9 +936,10 @@ tag_release:
 
 latest_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
+  only:
+    - tags
   variables:
     <<: *docker_hub_variables
   script:
@@ -966,9 +949,10 @@ latest_release:
 
 dca_tag_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
+  only:
+    - tags
   variables:
     <<: *docker_hub_variables
   script:
@@ -977,9 +961,10 @@ dca_tag_release:
 
 dca_latest_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
+  only:
+    - tags
   variables:
     <<: *docker_hub_variables
   script:
@@ -987,11 +972,13 @@ dca_latest_release:
 
 # invalidate cloudfront cache
 deploy_cloudfront_invalidate:
-  <<: *run_when_triggered
   stage: deploy_invalidate
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - cd /deploy_scripts/cloudfront-invalidation
@@ -1020,13 +1007,14 @@ pupernetes-dev:
 pupernetes-master:
   <<: *pupernetes_template
   only:
-    master
+    - master
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:master
 
 pupernetes-tags:
   <<: *pupernetes_template
-  <<: *run_when_triggered_on_tag
+  only:
+    - tags
   script:
   # note: it's not the agent-dev
   - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
