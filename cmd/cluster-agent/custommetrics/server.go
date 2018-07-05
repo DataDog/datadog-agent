@@ -72,14 +72,21 @@ func StartServer() error {
 		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
 	}
 
+	client, err := as.GetAPIClient()
+	if err != nil {
+		return err
+	}
+
+	store := custommetrics.NewConfigMapStore(client.Cl, as.GetResourcesNamespace(), "datadog-hpa")
+
 	// HPA watcher
-	hpaClient, err := hpa.NewHPAWatcherClient()
+	hpaClient, err := hpa.NewHPAWatcherClient(client.Cl, store)
 	if err != nil {
 		return err
 	}
 	hpaClient.Start()
 
-	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, hpaClient)
+	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.
 	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)
 	if err != nil {

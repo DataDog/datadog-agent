@@ -8,55 +8,66 @@
 package hpa
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/api/autoscaling/v2beta1"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func newMockConfigMap(hpaName string, hpaNamespace string, metricName string, labels map[string]string) *v1.ConfigMap {
-	cm := &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      datadogHPAConfigMap,
-			Namespace: "default",
-		},
-	}
-
-	if metricName == "" || len(labels) == 0 {
-		return cm
-	}
-
-	custMetric := CustomExternalMetric{
-		Name:         metricName,
-		Labels:       labels,
-		Timestamp:    12,
-		HPAName:      hpaName,
-		HPANamespace: hpaNamespace,
-		Value:        1,
-		Valid:        false,
-	}
-	cm.Data = make(map[string]string)
-	marsh, _ := json.Marshal(custMetric)
-	key := fmt.Sprintf("external.metrics.%s.%s-%s", hpaNamespace, hpaName, metricName)
-	cm.Data[key] = string(marsh)
-	return cm
+type mockStore struct {
+	externalMetrics map[string]custommetrics.ExternalMetricValue
 }
 
-func newMockHPAExternalManifest(hpaName string, hpaNamespace string, metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
+func newMockStore(metricName string, labels map[string]string) *mockStore {
+	s := &mockStore{}
+	em := custommetrics.ExternalMetricValue{
+		OwnerRef:   custommetrics.ObjectReference{Name: "foo"},
+		MetricName: metricName,
+		Labels:     labels,
+		Timestamp:  12,
+		Value:      1,
+		Valid:      false,
+	}
+	s.UpdateExternalMetrics([]custommetrics.ExternalMetricValue{em})
+	return s
+}
+
+func (s *mockStore) UpdateExternalMetrics(updated []custommetrics.ExternalMetricValue) error {
+	for _, em := range updated {
+		if s.externalMetrics == nil {
+			s.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
+		}
+		s.externalMetrics[em.MetricName] = em
+	}
+	return nil
+}
+
+func (s *mockStore) DeleteExternalMetrics(metricNames []string) error {
+	for _, metricName := range metricNames {
+		delete(s.externalMetrics, metricName)
+	}
+	return nil
+}
+
+func (s *mockStore) ListAllExternalMetrics() ([]custommetrics.ExternalMetricValue, error) {
+	allMetrics := make([]custommetrics.ExternalMetricValue, 0)
+	for _, cm := range s.externalMetrics {
+		allMetrics = append(allMetrics, cm)
+	}
+	return allMetrics, nil
+}
+
+func newMockHPAExternalMetricSource(metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
 	return &v2beta1.HorizontalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      hpaName,
-			Namespace: hpaNamespace,
-		},
 		Spec: v2beta1.HorizontalPodAutoscalerSpec{
 			Metrics: []v2beta1.MetricSpec{
 				{
+					Type: v2beta1.ExternalMetricSourceType,
 					External: &v2beta1.ExternalMetricSource{
 						MetricName: metricName,
 						MetricSelector: &metav1.LabelSelector{
@@ -69,92 +80,46 @@ func newMockHPAExternalManifest(hpaName string, hpaNamespace string, metricName 
 	}
 }
 
-func TestRemoveEntryFromConfigMap(t *testing.T) {
-	hpaCl := HPAWatcherClient{
-		clientSet: fake.NewSimpleClientset(),
-		ns:        "default",
-	}
-	_, err := hpaCl.clientSet.CoreV1().ConfigMaps("default").Get(datadogHPAConfigMap, metav1.GetOptions{})
-	fmt.Printf("err is %s \n", err)
-	assert.True(t, errors.IsNotFound(err))
+func TestRemoveEntryFromStore(t *testing.T) {
+	hpaCl := HPAWatcherClient{clientSet: fake.NewSimpleClientset()}
 
 	testCases := []struct {
-		caseName          string
-		configmap         *v1.ConfigMap
-		hpa               *v2beta1.HorizontalPodAutoscaler
-		expectedConfigMap map[string]string
+		caseName        string
+		store           *mockStore
+		hpa             *v2beta1.HorizontalPodAutoscaler
+		expectedMetrics map[string]custommetrics.ExternalMetricValue
 	}{
 		{
-			caseName:          "Metric exists, deleting",
-			configmap:         newMockConfigMap("foohpa", "default", "foo", map[string]string{"bar": "baz"}),
-			hpa:               newMockHPAExternalManifest("foohpa", "default", "foo", map[string]string{"bar": "baz"}),
-			expectedConfigMap: map[string]string{},
+			caseName:        "Metric exists, deleting",
+			store:           newMockStore("foo", map[string]string{"bar": "baz"}),
+			hpa:             newMockHPAExternalMetricSource("foo", map[string]string{"bar": "baz"}),
+			expectedMetrics: map[string]custommetrics.ExternalMetricValue{},
 		},
 		{
-			caseName:          "Metric is not listed, no-op",
-			configmap:         newMockConfigMap("foohpa", "default", "foo", map[string]string{"bar": "baz"}),
-			hpa:               newMockHPAExternalManifest("foohpa", "default", "bar", map[string]string{"bar": "baz"}),
-			expectedConfigMap: map[string]string{"external.metrics.default.foohpa-foo": "{\"name\":\"foo\",\"labels\":{\"bar\":\"baz\"},\"ts\":12,\"hpa_name\":\"foohpa\",\"hpa_namespace\":\"default\",\"value\":1,\"valid\":false}"},
+			caseName: "Metric is not listed, no-op",
+			store:    newMockStore("foobar", map[string]string{"bar": "baz"}),
+			hpa:      newMockHPAExternalMetricSource("foo", map[string]string{"bar": "baz"}),
+			expectedMetrics: map[string]custommetrics.ExternalMetricValue{
+				"foobar": custommetrics.ExternalMetricValue{
+					OwnerRef:   custommetrics.ObjectReference{Name: "foo"},
+					MetricName: "foobar",
+					Labels:     map[string]string{"bar": "baz"},
+					Timestamp:  12,
+					Value:      1,
+					Valid:      false,
+				},
+			},
 		},
 	}
 
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
-			hpaCl.clientSet.CoreV1().ConfigMaps("default").Create(testCase.configmap)
+			hpaCl.store = testCase.store
+			require.NotZero(t, len(testCase.store.externalMetrics))
 
-			hpaCl.removeEntryFromConfigMap([]*v2beta1.HorizontalPodAutoscaler{testCase.hpa})
-			cm, _ := hpaCl.clientSet.CoreV1().ConfigMaps("default").Get(datadogHPAConfigMap, metav1.GetOptions{})
-			assert.Equal(t, testCase.expectedConfigMap, cm.Data)
-
-			hpaCl.clientSet.CoreV1().ConfigMaps("default").Delete(datadogHPAConfigMap, &metav1.DeleteOptions{})
-		})
-	}
-
-}
-
-func newMockCustomExternalMetric(hpaName string, hpaNamespace string, metricName string, labels map[string]string) CustomExternalMetric {
-	return CustomExternalMetric{
-		Name:         metricName,
-		Labels:       labels,
-		Timestamp:    12,
-		HPAName:      hpaName,
-		HPANamespace: hpaNamespace,
-		Value:        1,
-	}
-}
-
-func TestReadConfigMap(t *testing.T) {
-	hpaCl := HPAWatcherClient{
-		clientSet: fake.NewSimpleClientset(),
-		ns:        "default",
-	}
-	_, err := hpaCl.clientSet.CoreV1().ConfigMaps("default").Get(datadogHPAConfigMap, metav1.GetOptions{})
-	assert.Contains(t, err.Error(), "configmaps \"datadog-hpa\" not found")
-
-	testCases := []struct {
-		caseName       string
-		configmap      *v1.ConfigMap
-		expectedResult []CustomExternalMetric
-	}{
-		{
-			caseName:       "No correct metrics",
-			configmap:      newMockConfigMap("foohpa", "default", "foo", map[string]string{}),
-			expectedResult: nil,
-		},
-		{
-			caseName:       "Metric has the expected format",
-			configmap:      newMockConfigMap("foohpa", "default", "foo", map[string]string{"bar": "baz"}),
-			expectedResult: []CustomExternalMetric{newMockCustomExternalMetric("foohpa", "default", "foo", map[string]string{"bar": "baz"})},
-		},
-	}
-
-	for i, testCase := range testCases {
-		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
-			_, err = hpaCl.clientSet.CoreV1().ConfigMaps("default").Create(testCase.configmap)
-			cmRead := hpaCl.ReadConfigMap()
-			assert.Equal(t, testCase.expectedResult, cmRead)
-
-			hpaCl.clientSet.CoreV1().ConfigMaps("default").Delete(datadogHPAConfigMap, &metav1.DeleteOptions{})
+			err := hpaCl.removeEntryFromStore([]*v2beta1.HorizontalPodAutoscaler{testCase.hpa})
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedMetrics, testCase.store.externalMetrics)
 		})
 	}
 }
