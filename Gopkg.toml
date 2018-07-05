@@ -15,6 +15,10 @@
   version = "~v0.4.7"
 
 [[constraint]]
+  name = "github.com/hashicorp/consul"
+  version = "~1.0.0"
+
+[[constraint]]
   name = "github.com/beevik/ntp"
   revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
 
@@ -24,7 +28,7 @@
 
 [[constraint]]
   name = "github.com/coreos/etcd"
-  version = "~3.1.3"
+  version = "~3.2.0"
 
 [[constraint]]
   name = "github.com/docker/docker"
@@ -40,19 +44,33 @@
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
-  # branch = "release-1.9"
+  # branch = "release-1.11"
   #        + pinning to commit in branch above
-  revision = "616b23029fa3dc3e0ccefd47963f5651a6543d94"
+  version = "kubernetes-1.10.3"
 
 [[override]]
   name = "github.com/kubernetes/client-go"
-  version = "~v6.0.0"
+  version = "~v7.0.0"
 
 [[override]]
   name = "github.com/kubernetes/api"
-  # branch = "release-1.9"
+  # branch = "release-1.11"
   #        + pinning to commit in branch above
-  revision = "2694da5be9c4ab4f3fd826112d4c3f71b8bf4b23"
+  version = "kubernetes-1.10.3"
+
+[[override]]
+  name = "k8s.io/apiserver"
+  # branch = "release-1.11"
+  version = "kubernetes-1.10.3"
+
+[[override]]
+  name = "k8s.io/metrics"
+  version = "kubernetes-1.10.3"
+  # branch = "release-1.11"
+
+[[override]]
+  name = "github.com/kubernetes-incubator/custom-metrics-apiserver"
+  revision = "e61f72fec56ab519d74ebd396cd3fcf31b084558"
 
 [[constraint]]
   name = "github.com/gorilla/mux"

@@ -126,7 +126,7 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	le.coreClient = apiClient.Client
+	le.coreClient = apiClient.Cl.CoreV1().(*corev1.CoreV1Client)
 
 	// check if we can get ConfigMap.
 	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
@@ -211,14 +211,14 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 		return led, err
 	}
 
-	c := client.Client
+	c := client.Cl.CoreV1()
 
 	leaderNamespace := apiserver.GetResourcesNamespace()
 	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}
-	log.Infof("LeaderElection cm is %q", leaderElectionCM)
+	log.Debugf("LeaderElection cm is %#v", leaderElectionCM)
 	annotation, found := leaderElectionCM.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
 		return led, apiserver.ErrNotFound

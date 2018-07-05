@@ -47,7 +47,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 
 	log.Tracef("Starting watch of %v with resourceVersion %s", expectedType, since)
 
-	eventWatcher, err := c.Client.Events(metav1.NamespaceAll).Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
+	eventWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
 	if err != nil {
 		return nil, nil, "0", fmt.Errorf("Failed to watch %v: %v", expectedType, err)
 	}

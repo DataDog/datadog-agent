@@ -15,16 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var (
@@ -49,9 +48,8 @@ const (
 type APIClient struct {
 	// used to setup the APIClient
 	initRetry retry.Retrier
-
-	Client  *corev1.CoreV1Client
-	timeout time.Duration
+	Cl        kubernetes.Interface
+	timeout   time.Duration
 }
 
 // GetAPIClient returns the shared ApiClient instance.
@@ -77,8 +75,22 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
-// getClient returns an official Kubernetes core v1 client
-func getClient() (*corev1.CoreV1Client, error) {
+// getClientSet returns the generic kubernetes client set
+func getClientSet() (*kubernetes.Clientset, error) {
+	k8sConfig, err := getK8sConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientSet, err := kubernetes.NewForConfig(k8sConfig)
+	if err != nil {
+		log.Debugf("Could not create the ClientSet: %s", err)
+		return nil, err
+	}
+
+	return clientSet, nil
+}
+
+func getK8sConfig() (*rest.Config, error) {
 	var k8sConfig *rest.Config
 	var err error
 
@@ -98,22 +110,20 @@ func getClient() (*corev1.CoreV1Client, error) {
 		}
 	}
 	k8sConfig.Timeout = 2 * time.Second
-	coreClient, err := corev1.NewForConfig(k8sConfig)
-	return coreClient, err
+
+	return k8sConfig, nil
 }
 
 func (c *APIClient) connect() error {
 	var err error
-	if c.Client == nil {
-		c.Client, err = getClient()
-		if err != nil {
-			log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
-			return err
-		}
+	c.Cl, err = getClientSet()
+	if err != nil {
+		// We do not return an error as the HPA is an option that should not prevent the DCA to work.
+		log.Errorf("Not able to set up a client for the API Server: %s", err)
+		return err
 	}
-
 	// Try to get apiserver version to confim connectivity
-	APIversion := c.Client.RESTClient().APIVersion()
+	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
 	if APIversion.Empty() {
 		return fmt.Errorf("cannot retrieve the version of the API server at the moment")
 	}
@@ -147,7 +157,7 @@ func newMetadataMapperBundle() *MetadataMapperBundle {
 // node to the cache
 // Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
 func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) error {
-	endpointList, err := c.Client.Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
 		return err
@@ -177,7 +187,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 	// A poll run should take less than the poll frequency.
 	// We fetch nodes to reliably use nodename as key in the cache.
 	// Avoiding to retrieve them from the endpoints/podList.
-	nodeList, err := c.Client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	nodeList, err := c.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect nodes from the kube-apiserver: %q", err.Error())
 		return err
@@ -187,7 +197,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 		return nil
 	}
 
-	endpointList, err := c.Client.Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the kube-apiserver: %q", err.Error())
 		return err
@@ -197,7 +207,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 		return nil
 	}
 
-	podList, err := c.Client.Pods("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	podList, err := c.Cl.CoreV1().Pods("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect pods from the kube-apiserver: %q", err.Error())
 		return err
@@ -279,7 +289,7 @@ func (c *APIClient) checkResourcesAuth() error {
 	resourceTimeoutSeconds := int64(2)
 
 	// We always want to collect events
-	_, err := c.Client.Events("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err := c.Cl.CoreV1().Events("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
 	}
@@ -287,15 +297,16 @@ func (c *APIClient) checkResourcesAuth() error {
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
-	_, err = c.Client.Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Cl.CoreV1().Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
 	}
-	_, err = c.Client.Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Cl.CoreV1().Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
 	}
-	_, err = c.Client.Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
 	}
@@ -304,13 +315,13 @@ func (c *APIClient) checkResourcesAuth() error {
 
 // ComponentStatuses returns the component status list from the APIServer
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
-	return c.Client.ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	return c.Cl.CoreV1().ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 }
 
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
 	namespace := GetResourcesNamespace()
-	tokenConfigMap, err := c.Client.ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
 		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
 		return "", false, ErrNotFound
@@ -352,7 +363,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	namespace := GetResourcesNamespace()
-	tokenConfigMap, err := c.Client.ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -364,7 +375,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
 	tokenConfigMap.Data[eventTokenTS] = now.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
 
-	_, err = c.Client.ConfigMaps(namespace).Update(tokenConfigMap)
+	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(tokenConfigMap)
 	if err != nil {
 		return err
 	}
@@ -374,7 +385,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 
 // NodeLabels is used to fetch the labels attached to a given node.
 func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
-	node, err := c.Client.Nodes().Get(nodeName, metav1.GetOptions{})
+	node, err := c.Cl.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -441,7 +452,7 @@ func getNodeList() ([]v1.Node, error) {
 		log.Errorf("Can't create client to query the API Server: %s", err.Error())
 		return nil, err
 	}
-	nodes, err := cl.Client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	nodes, err := cl.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
 
 	if err != nil {
 		log.Errorf("Can't list nodes from the API server: %s", err.Error())

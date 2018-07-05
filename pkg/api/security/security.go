@@ -161,7 +161,7 @@ func DeleteAuthToken() error {
 func GetClusterAgentAuthToken() (string, error) {
 	authToken := config.Datadog.GetString("cluster_agent.auth_token")
 	if authToken != "" {
-		log.Debugf("Using cluster_agent.auth_token from datadog.yaml")
+		log.Debugf("Using configured cluster_agent.auth_token")
 		return authToken, validateAuthToken(authToken)
 	}
 
