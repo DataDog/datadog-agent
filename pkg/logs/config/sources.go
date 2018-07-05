@@ -42,15 +42,15 @@ func (s *LogSources) GetSources() []*LogSource {
 	return s.sources
 }
 
-func (s *LogSources) GetSourcesWithType(sourceType string) []*LogSource {
-	return s.getSources(func(source *LogSource) bool {
-		return source.Config != nil && source.Config.Type == sourceType
-	})
-}
-
 func (s *LogSources) GetValidSources() []*LogSource {
 	return s.getSources(func(source *LogSource) bool {
 		return !source.Status.IsError()
+	})
+}
+
+func (s *LogSources) GetValidSourcesWithType(sourceType string) []*LogSource {
+	return s.getSources(func(source *LogSource) bool {
+		return !source.Status.IsError() && source.Config != nil && source.Config.Type == sourceType
 	})
 }
 
