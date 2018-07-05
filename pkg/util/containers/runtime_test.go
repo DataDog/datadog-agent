@@ -73,6 +73,18 @@ func (s *RuntimeDetectionTestSuite) TestDockerLegacyCentOS7() {
 	assert.Equal(s.T(), RuntimeNameDocker, runtime)
 }
 
+func (s *RuntimeDetectionTestSuite) TestDockerLegacyNominal() {
+	s.proc.addDummyProcess("1", "0", "/usr/lib/systemd/systemd")
+	s.proc.addDummyProcess("10", "1", "/usr/bin/dockerd ...")
+	s.proc.addDummyProcess("25", "10", "docker-containerd ...")
+	s.proc.addDummyProcess("28", "25", "docker-containerd-shim-current 6f82f4e18c89fb10d533303220ce192e3a1b4cb6e0b79b01145ab3c5bfeec804 ...")
+	s.proc.addDummyProcess("444", "28", "/opt/datadog-agent/bin/agent/agent start")
+
+	runtime, err := GetRuntimeForPID(444)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), RuntimeNameDocker, runtime)
+}
+
 func TestRuntimeDetectionTestSuite(t *testing.T) {
 	suite.Run(t, new(RuntimeDetectionTestSuite))
 }

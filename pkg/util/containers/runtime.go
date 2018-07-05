@@ -75,6 +75,7 @@ func GetRuntimeForPID(pid int32) (string, error) {
 		case shimNameContainerd:
 			return RuntimeNameContainerd, nil
 		case daemonNameDockerLegacy1:
+			return RuntimeNameDocker, nil
 		case daemonNameDockerLegacy2:
 			return RuntimeNameDocker, nil
 		case shimNameCRIO:
