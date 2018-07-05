@@ -19,6 +19,7 @@ type LogSources struct {
 func NewLogSources(sources []*LogSource) *LogSources {
 	return &LogSources{
 		sources: sources,
+		lock:    &sync.Mutex{},
 	}
 }
 
