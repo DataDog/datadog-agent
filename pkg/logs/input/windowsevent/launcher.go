@@ -23,15 +23,9 @@ type Launcher struct {
 }
 
 // New returns a new Launcher.
-func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
-	windowsEventSources := []*config.LogSource{}
-	for _, source := range sources {
-		if source.Config.Type == config.WindowsEventType {
-			windowsEventSources = append(windowsEventSources, source)
-		}
-	}
+func New(sources *config.LogSources, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
 	return &Launcher{
-		sources:          windowsEventSources,
+		sources:          sources.GetValidSourcesWithType(config.WindowsEventType),
 		pipelineProvider: pipelineProvider,
 		auditor:          auditor,
 		tailers:          make(map[string]*Tailer),
