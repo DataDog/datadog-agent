@@ -17,17 +17,17 @@ func (s *MetaScheduler) Start() {
 	// no op
 }
 
-// ScheduleConfigs schedules configs to all registered schedulers
-func (s *MetaScheduler) ScheduleConfigs(configs []integration.Config) {
+// Schedule schedules configs to all registered schedulers
+func (s *MetaScheduler) Schedule(configs []integration.Config) {
 	for _, scheduler := range DefaultCatalog {
-		scheduler.ScheduleConfigs(configs)
+		scheduler.Schedule(configs)
 	}
 }
 
-// UnscheduleConfigs unschedules configs to all registered schedulers
-func (s *MetaScheduler) UnscheduleConfigs(configs []integration.Config) {
+// Unschedule unschedules configs to all registered schedulers
+func (s *MetaScheduler) Unschedule(configs []integration.Config) {
 	for _, scheduler := range DefaultCatalog {
-		scheduler.UnscheduleConfigs(configs)
+		scheduler.Unschedule(configs)
 	}
 }
 

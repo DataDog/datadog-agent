@@ -231,15 +231,9 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	return resolvedConfigs
 }
 
-// isCheckConfig returns true if the config is a check configuration,
-// this method should be moved to pkg/collector/check while removing the check related-code from the autodiscovery package.
-func isCheckConfig(config integration.Config) bool {
-	return config.MetricConfig != nil || len(config.Instances) > 0
-}
-
 // schedule takes a slice of checks and schedule them
 func (ac *AutoConfig) schedule(configs []integration.Config) {
-	ac.scheduler.ScheduleConfigs(configs)
+	ac.scheduler.Schedule(configs)
 }
 
 // resolve loads and resolves a given config into a slice of resolved configs
@@ -407,7 +401,7 @@ func (ac *AutoConfig) pollConfigs() {
 }
 
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
-	ac.scheduler.UnscheduleConfigs(configs)
+	ac.scheduler.Unschedule(configs)
 	for _, c := range configs {
 		delete(ac.configResolver.configToService, c.Digest())
 		ac.store.removeLoadedConfig(c)

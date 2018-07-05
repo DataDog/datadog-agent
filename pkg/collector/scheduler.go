@@ -38,8 +38,8 @@ func NewCheckScheduler(collector *Collector) *CheckScheduler {
 	return scheduler
 }
 
-// ScheduleConfigs schedules configs to checks
-func (s *CheckScheduler) ScheduleConfigs(configs []integration.Config) {
+// Schedule schedules configs to checks
+func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	checks := s.GetChecksFromConfigs(configs, true)
 	for _, c := range checks {
 		log.Infof("Scheduling check %s", c)
@@ -51,8 +51,8 @@ func (s *CheckScheduler) ScheduleConfigs(configs []integration.Config) {
 	}
 }
 
-// UnscheduleConfigs unschedules checks matching configs
-func (s *CheckScheduler) UnscheduleConfigs(configs []integration.Config) {
+// Unschedule unschedules checks matching configs
+func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	// Process removed configs first to handle the case where a
 	// container churn would result in the same configuration hash.
 	for _, config := range configs {
@@ -163,16 +163,4 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 // this method should be moved to pkg/collector/check while removing the check related-code from the autodiscovery package.
 func isCheckConfig(config integration.Config) bool {
 	return config.MetricConfig != nil || len(config.Instances) > 0
-}
-
-// schedule takes a slice of checks and schedule them
-func (s *CheckScheduler) schedule(checks []check.Check) {
-	for _, c := range checks {
-		log.Infof("Scheduling check %s", c)
-		_, err := s.collector.RunCheck(c)
-		if err != nil {
-			log.Errorf("Unable to run Check %s: %v", c, err)
-			continue
-		}
-	}
 }
