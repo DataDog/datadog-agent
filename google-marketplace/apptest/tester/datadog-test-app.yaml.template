@@ -1,0 +1,17 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2018 Datadog, Inc.
+
+
+apiVersion: "apps.k8s.io/v1alpha1"
+kind: Application
+metadata:
+  name: $NAME
+  namespace: $NAMESPACE
+  annotations:
+    marketplace.cloud.google.com/verification: test
+spec:
+  type: Datadog Agent
+  image: "gcr.io/datadog/agent:6"
+  restartPolicy: Never

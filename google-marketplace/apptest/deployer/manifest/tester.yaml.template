@@ -9,7 +9,7 @@ metadata:
 spec:
   containers:
   - name: tester
-    image: "${imageTester}"
+    image: "${testerImage}"
     volumeMounts:
     - name: config-volume
       mountPath: /tester
