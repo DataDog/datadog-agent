@@ -85,6 +85,16 @@ func (s *RuntimeDetectionTestSuite) TestDockerLegacyNominal() {
 	assert.Equal(s.T(), RuntimeNameDocker, runtime)
 }
 
+func (s *RuntimeDetectionTestSuite) TestCRIO() {
+	s.proc.addDummyProcess("1", "0", "/usr/lib/systemd/systemd")
+	s.proc.addDummyProcess("25", "1", "conmon ...")
+	s.proc.addDummyProcess("444", "25", "/opt/datadog-agent/bin/agent/agent start")
+
+	runtime, err := GetRuntimeForPID(444)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), RuntimeNameCRIO, runtime)
+}
+
 func TestRuntimeDetectionTestSuite(t *testing.T) {
 	suite.Run(t, new(RuntimeDetectionTestSuite))
 }

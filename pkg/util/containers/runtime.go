@@ -19,7 +19,7 @@ import (
 const (
 	RuntimeNameDocker     string = "docker"
 	RuntimeNameContainerd string = "containerd"
-	RuntimeNameCRIO       string = "crio"
+	RuntimeNameCRIO       string = "cri-o"
 )
 
 // Internal constants
