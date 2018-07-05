@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"path/filepath"
@@ -171,7 +172,20 @@ func ImportRegistryConfig() error {
 		config.Datadog.Set("hostname", val)
 		log.Debugf("Setting hostname %s", val)
 	} else {
-		log.Debug("hostname not found, not setting")
+		log.Debug("hostname not found in registry: using default value")
+	}
+	if val, _, err = k.GetStringValue("cmd_port"); err == nil && val != "" {
+		cmdPortInt, err := strconv.Atoi(val)
+		if err != nil {
+			log.Warnf("Not setting api port, invalid configuration %s %v", val, err)
+		} else if cmdPortInt <= 0 || cmdPortInt > 65534 {
+			log.Warnf("Not setting api port, invalid configuration %s", val)
+		} else {
+			config.Datadog.Set("cmd_port", cmdPortInt)
+			log.Debugf("Setting cmd_port  %d", cmdPortInt)
+		}
+	} else {
+		log.Debug("cmd_port not found, not setting")
 	}
 	for key, cfg := range subServices {
 		if val, _, err = k.GetStringValue(key); err == nil {
@@ -246,7 +260,7 @@ func ImportRegistryConfig() error {
 	}
 
 	valuenames := []string{"api_key", "tags", "hostname",
-		"proxy_host", "proxy_port", "proxy_user", "proxy_password"}
+		"proxy_host", "proxy_port", "proxy_user", "proxy_password", "cmd_port"}
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)
 	}
