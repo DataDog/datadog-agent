@@ -51,25 +51,26 @@ func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper, hp
 
 // GetRootScopedMetricByName - Not implemented
 func (p *datadogProvider) GetRootScopedMetricByName(groupResource schema.GroupResource, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	return nil, fmt.Errorf("Not Implemented - GetRootScopedMetricByName")
+	return nil, fmt.Errorf("not Implemented - GetRootScopedMetricByName")
 }
 
 // GetRootScopedMetricBySelector - Not implemented
 func (p *datadogProvider) GetRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
-	return nil, fmt.Errorf("Not Implemented - GetRootScopedMetricBySelector")
+	return nil, fmt.Errorf("not Implemented - GetRootScopedMetricBySelector")
 }
 
 // GetNamespacedMetricByName - Not implemented
 func (p *datadogProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	return nil, fmt.Errorf("Not Implemented - GetNamespacedMetricByName")
+	return nil, fmt.Errorf("not Implemented - GetNamespacedMetricByName")
 }
 
 // GetNamespacedMetricBySelector - Not implemented
 func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
-	return nil, fmt.Errorf("Not Implemented - GetNamespacedMetricBySelector")
+	return nil, fmt.Errorf("not Implemented - GetNamespacedMetricBySelector")
 }
 
 // ListAllMetrics reads from a ConfigMap, similarly to ListExternalMetrics
+// TODO implement the in cluster Custom Metrics Provider to use the ListAllMetrics
 func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
 	return nil
 }

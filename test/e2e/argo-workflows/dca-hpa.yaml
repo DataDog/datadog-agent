@@ -411,7 +411,7 @@ spec:
               serviceAccount: datadog-agent
               containers:
               - name: agent
-                image: datadog/agent-dev:dca-cmapi # TODO provide the ECR PR image
+                image: datadog/agent-dev:master # TODO provide the ECR PR image
                 command:
                 - /opt/datadog-agent/bin/agent/agent
                 - start

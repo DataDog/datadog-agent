@@ -8,6 +8,7 @@
 package custommetrics
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var options *server.CustomMetricsAdapterServerOptions
@@ -59,17 +59,17 @@ func StartServer() error {
 
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(clientConfig)
 	if err != nil {
-		return log.Errorf("Unable to construct discovery client for dynamic client: %v", err)
+		return fmt.Errorf("unable to construct discovery client for dynamic client: %v", err)
 	}
 
 	dynamicMapper, err := dynamicmapper.NewRESTMapper(discoveryClient, apimeta.InterfacesForUnstructured, time.Second*5)
 	if err != nil {
-		return log.Errorf("Unable to construct dynamic discovery mapper: %v", err)
+		return fmt.Errorf("unable to construct dynamic discovery mapper: %v", err)
 	}
 
 	clientPool := dynamic.NewClientPool(clientConfig, dynamicMapper, dynamic.LegacyAPIPathResolverFunc)
 	if err != nil {
-		return log.Errorf("Unable to construct lister client to initialize provider: %v", err)
+		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
 	}
 
 	// HPA watcher

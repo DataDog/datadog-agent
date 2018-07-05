@@ -78,7 +78,7 @@ func (c *HPAWatcherClient) run(res string) (new []*v2beta1.HorizontalPodAutoscal
 			}
 			currHPA, ok := rcvdHPA.Object.(*v2beta1.HorizontalPodAutoscaler)
 			if !ok {
-				log.Infof("Wrong type: %s", currHPA)
+				log.Errorf("Wrong type: %s", currHPA)
 				continue
 			}
 			if currHPA.ResourceVersion != "" && currHPA.ResourceVersion != resVer {
@@ -181,7 +181,6 @@ func (c *HPAWatcherClient) Start() {
 						c.storeHPA(modified)
 					}
 					if len(deleted) > 0 {
-						log.Infof("deleting if resver is diff")
 						c.removeEntryFromConfigMap(deleted)
 					}
 				}
@@ -200,7 +199,6 @@ func (c *HPAWatcherClient) Start() {
 
 func (c *HPAWatcherClient) updateCustomMetrics() {
 	maxAge := int64(c.externalMaxAge.Seconds())
-	var key string
 	configMap, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Infof("Error while retrieving the Config Map %s", datadogHPAConfigMap)
@@ -223,7 +221,6 @@ func (c *HPAWatcherClient) updateCustomMetrics() {
 		if metav1.Now().Unix()-cm.Timestamp > maxAge || !cm.Valid {
 			cm.Valid = false
 			cm.Timestamp = metav1.Now().Unix()
-
 			cm.Value, cm.Valid, err = c.validate(cm)
 			if err != nil {
 				log.Debugf("Could not update the metric %s from Datadog: %s", cm.Name, err.Error())
@@ -235,7 +232,7 @@ func (c *HPAWatcherClient) updateCustomMetrics() {
 				log.Errorf("Error while marshalling the custom metric %s: %s", cm.Name, err.Error())
 				continue
 			}
-			key = fmt.Sprintf("external.metrics.%s.%s-%s", cm.HPANamespace, cm.HPAName, cm.Name)
+			key := fmt.Sprintf("external.metrics.%s.%s-%s", cm.HPANamespace, cm.HPAName, cm.Name)
 			data[key] = string(c)
 			log.Debugf("Updated the custom metric %#v", cm)
 		}
@@ -245,7 +242,6 @@ func (c *HPAWatcherClient) updateCustomMetrics() {
 	if err != nil {
 		log.Errorf("Could not update because: %s", err)
 	}
-	return
 }
 
 func (c *HPAWatcherClient) createConfigMapHPA() error {
@@ -311,7 +307,6 @@ func (hpa *HPAWatcherClient) validate(cm CustomExternalMetric) (value int64, val
 // storeHPA processes the data collected from the HPA object watch to be validated and stored in the datadogHPAConfigMap ConfigMap.
 func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) error {
 	listCustomMetrics := c.processHPA(hpaList)
-	var key string
 	cm, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not store the custom metrics data in the ConfigMap %s: %s", datadogHPAConfigMap, err.Error())
@@ -324,7 +319,7 @@ func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) 
 			cm.Data = make(map[string]string)
 		}
 		// We use a specific key to avoid conflicting when processing several HPA manifests with the same name but in different namespaces.
-		key = fmt.Sprintf("external.metrics.%s.%s-%s", n.HPANamespace, n.HPAName, n.Name)
+		key := fmt.Sprintf("external.metrics.%s.%s-%s", n.HPANamespace, n.HPAName, n.Name)
 		cm.Data[key] = string(toStore)
 	}
 
@@ -337,7 +332,6 @@ func (c *HPAWatcherClient) storeHPA(hpaList []*v2beta1.HorizontalPodAutoscaler) 
 
 // removeEntryFromConfigMap will remove an External Custom Metric from removeEntryFromConfigMap if the corresponding HPA manifest is deleted.
 func (c *HPAWatcherClient) removeEntryFromConfigMap(deleted []*v2beta1.HorizontalPodAutoscaler) error {
-	var key string
 	cm, err := c.clientSet.CoreV1().ConfigMaps(c.ns).Get(datadogHPAConfigMap, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Could not remove the custom metrics data in the ConfigMap %s: %s", datadogHPAConfigMap, err.Error())
@@ -346,7 +340,7 @@ func (c *HPAWatcherClient) removeEntryFromConfigMap(deleted []*v2beta1.Horizonta
 	for _, d := range deleted {
 		for _, m := range d.Spec.Metrics {
 			metricName := m.External.MetricName
-			key = fmt.Sprintf("external.metrics.%s.%s-%s", d.Namespace, d.Name, metricName)
+			key := fmt.Sprintf("external.metrics.%s.%s-%s", d.Namespace, d.Name, metricName)
 			if cm.Data[key] != "" {
 				delete(cm.Data, key)
 				log.Debugf("Removed entry %#v from the ConfigMap %s", key, datadogHPAConfigMap)
