@@ -48,9 +48,8 @@ func NewAgent(sources *config.LogSources) *Agent {
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
 	// setup the scanners
-	validSources := sources.GetValidSources()
 	var scanners []interface{}
-	scanners = append(scanners, listener.New(validSources, pipelineProvider))
+	scanners = append(scanners, listener.New(sources, pipelineProvider))
 	scanners = append(scanners, file.New(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration))
 	scanners = append(scanners, journald.New(sources, pipelineProvider, auditor))
 	scanners = append(scanners, windowsevent.New(sources, pipelineProvider, auditor))
