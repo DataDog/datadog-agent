@@ -22,15 +22,9 @@ type Launcher struct {
 }
 
 // New returns a new Launcher.
-func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
-	journaldSources := []*config.LogSource{}
-	for _, source := range sources {
-		if source.Config.Type == config.JournaldType {
-			journaldSources = append(journaldSources, source)
-		}
-	}
+func New(sources *config.LogSources, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
 	return &Launcher{
-		sources:          journaldSources,
+		sources:          sources.GetValidSourcesWithType(config.JournaldType),
 		pipelineProvider: pipelineProvider,
 		auditor:          auditor,
 		tailers:          make(map[string]*Tailer),
