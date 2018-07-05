@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -42,7 +43,7 @@ func buildLogSources(ddconfdPath string, collectAllLogsFromContainers bool) (*Lo
 		sources = append(sources, containersSource)
 	}
 
-	logSources := &LogSources{sources}
+	logSources := NewLogSources(sources)
 
 	if len(logSources.GetValidSources()) == 0 {
 		return nil, fmt.Errorf("could not find any valid logs configuration")
