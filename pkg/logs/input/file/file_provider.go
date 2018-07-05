@@ -32,13 +32,13 @@ func NewFile(path string, source *config.LogSource) *File {
 
 // Provider implements the logic to retrieve at most filesLimit Files defined in sources
 type Provider struct {
-	sources         []*config.LogSource
+	sources         *config.LogSources
 	filesLimit      int
 	shouldLogErrors bool
 }
 
 // NewProvider returns a new Provider
-func NewProvider(sources []*config.LogSource, filesLimit int) *Provider {
+func NewProvider(sources *config.LogSources, filesLimit int) *Provider {
 	return &Provider{
 		sources:         sources,
 		filesLimit:      filesLimit,
@@ -51,12 +51,14 @@ func NewProvider(sources []*config.LogSource, filesLimit int) *Provider {
 // For now, there is no way to prioritize specific Files over others,
 // they are just returned in alphabetical order
 func (p *Provider) FilesToTail() []*File {
-	filesToTail := []*File{}
+	var filesToTail []*File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 
-	for i := 0; i < len(p.sources) && len(filesToTail) < p.filesLimit; i++ {
-		source := p.sources[i]
+	sources := config.NewLogSources(p.sources.GetSourcesWithType(config.FileType)).GetValidSources()
+
+	for i := 0; i < len(sources) && len(filesToTail) < p.filesLimit; i++ {
+		source := sources[i]
 		sourcePath := source.Config.Path
 		if p.exists(sourcePath) {
 			// no need to traverse the file system here as we found a file
@@ -67,7 +69,7 @@ func (p *Provider) FilesToTail() []*File {
 		pattern := sourcePath
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
-			err := fmt.Errorf("Malformed pattern, could not find any file: %s", pattern)
+			err := fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
 			source.Status.Error(err)
 			if shouldLogErrors {
 				log.Error(err)
@@ -77,13 +79,13 @@ func (p *Provider) FilesToTail() []*File {
 		if len(paths) == 0 {
 			// no file was found, its parent directories might have wrong permissions or it just does not exist
 			if p.containsWildcard(pattern) {
-				err := fmt.Errorf("Could not find any file matching pattern %s, check that all its subdirectories are exectutable", pattern)
+				err := fmt.Errorf("could not find any file matching pattern %s, check that all its subdirectories are exectutable", pattern)
 				source.Status.Error(err)
 				if shouldLogErrors {
 					log.Error(err)
 				}
 			} else {
-				err := fmt.Errorf("File %s does not exist", sourcePath)
+				err := fmt.Errorf("file %s does not exist", sourcePath)
 				source.Status.Error(err)
 				if shouldLogErrors {
 					log.Error(err)

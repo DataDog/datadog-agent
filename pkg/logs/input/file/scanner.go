@@ -34,19 +34,11 @@ type Scanner struct {
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor, tailerSleepDuration time.Duration) *Scanner {
-	tailSources := []*config.LogSource{}
-	for _, source := range sources {
-		switch source.Config.Type {
-		case config.FileType:
-			tailSources = append(tailSources, source)
-		default:
-		}
-	}
+func New(sources *config.LogSources, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor, tailerSleepDuration time.Duration) *Scanner {
 	return &Scanner{
 		pp:                  pp,
 		tailingLimit:        tailingLimit,
-		fileProvider:        NewProvider(tailSources, tailingLimit),
+		fileProvider:        NewProvider(sources, tailingLimit),
 		tailers:             make(map[string]*Tailer),
 		auditor:             auditor,
 		tailerSleepDuration: tailerSleepDuration,
