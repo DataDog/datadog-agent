@@ -10,9 +10,8 @@ package apiserver
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.

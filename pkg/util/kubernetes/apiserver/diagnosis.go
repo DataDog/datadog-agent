@@ -8,9 +8,8 @@
 package apiserver
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
