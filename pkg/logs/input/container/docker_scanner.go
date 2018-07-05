@@ -38,18 +38,10 @@ type DockerScanner struct {
 }
 
 // New returns an initialized Scanner
-func NewDockerScanner(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *DockerScanner {
-	containerSources := []*config.LogSource{}
-	for _, source := range sources {
-		switch source.Config.Type {
-		case config.DockerType:
-			containerSources = append(containerSources, source)
-		default:
-		}
-	}
+func NewDockerScanner(sources *config.LogSources, pp pipeline.Provider, a *auditor.Auditor) *DockerScanner {
 	return &DockerScanner{
 		pp:      pp,
-		sources: containerSources,
+		sources: sources.GetValidSourcesWithType(config.DockerType),
 		tailers: make(map[string]*DockerTailer),
 		auditor: a,
 		stop:    make(chan struct{}),

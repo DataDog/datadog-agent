@@ -15,7 +15,7 @@ import (
 type DockerScanner struct{}
 
 // New returns a new Scanner
-func NewDockerScanner(sources []*config.LogSource, pp pipeline.Provider, auditor *auditor.Auditor) *DockerScanner {
+func NewDockerScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) *DockerScanner {
 	return &DockerScanner{}
 }
 
