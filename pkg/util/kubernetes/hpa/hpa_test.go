@@ -33,24 +33,13 @@ func newMockStore(metricName string, labels map[string]string) *mockStore {
 		Value:      1,
 		Valid:      false,
 	}
-	s.UpdateExternalMetrics([]custommetrics.ExternalMetricValue{em})
+	s.externalMetrics = map[string]custommetrics.ExternalMetricValue{em.MetricName: em}
 	return s
 }
 
-func (s *mockStore) UpdateExternalMetrics(updated []custommetrics.ExternalMetricValue) error {
-	for _, em := range updated {
-		if s.externalMetrics == nil {
-			s.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
-		}
-		s.externalMetrics[em.MetricName] = em
-	}
-	return nil
-}
-
-func (s *mockStore) DeleteExternalMetrics(metricNames []string) error {
-	for _, metricName := range metricNames {
-		delete(s.externalMetrics, metricName)
-	}
+func (s *mockStore) Begin(f func(custommetrics.Tx)) error {
+	tx := &mockTx{s.externalMetrics}
+	f(tx)
 	return nil
 }
 
@@ -60,6 +49,21 @@ func (s *mockStore) ListAllExternalMetrics() ([]custommetrics.ExternalMetricValu
 		allMetrics = append(allMetrics, cm)
 	}
 	return allMetrics, nil
+}
+
+type mockTx struct {
+	externalMetrics map[string]custommetrics.ExternalMetricValue
+}
+
+func (t *mockTx) Set(m custommetrics.ExternalMetricValue) {
+	if t.externalMetrics == nil {
+		t.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
+	}
+	t.externalMetrics[m.MetricName] = m
+}
+
+func (t *mockTx) Del(_ string, metricName string) {
+	delete(t.externalMetrics, metricName)
 }
 
 func newMockHPAExternalMetricSource(metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {

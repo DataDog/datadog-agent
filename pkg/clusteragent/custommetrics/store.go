@@ -18,9 +18,13 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
+type Tx interface {
+	Set(ExternalMetricValue)
+	Delete(uid string, metricName string)
+}
+
 type Store interface {
-	UpdateExternalMetrics(updated []ExternalMetricValue) error
-	DeleteExternalMetrics(metricNames []string) error
+	Begin(func(Tx)) error
 	ListAllExternalMetrics() ([]ExternalMetricValue, error)
 }
 
@@ -71,46 +75,21 @@ func NewConfigMapStore(client corev1.CoreV1Interface, ns, name string) (Store, e
 	}, nil
 }
 
-// UpdateExternalMetrics updates the specified external metrics in the configmap. Only the
-// leader replica should call this function.
-func (c *configMapStore) UpdateExternalMetrics(updated []ExternalMetricValue) error {
+// Begin begins a series of updates/deletes on the store. Only the leader replica should
+// call this function.
+func (c *configMapStore) Begin(f func(Tx)) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
 	}
-	if len(updated) == 0 {
-		return nil
+	tx := &configMapTx{c.cm}
+	f(tx)
+	var err error
+	c.cm, err = c.client.ConfigMaps(c.namespace).Update(c.cm)
+	if err != nil {
+		log.Infof("Could not update the configmap %s: %s", c.name, err.Error())
+		return err
 	}
-	for _, m := range updated {
-		key := fmt.Sprintf("external_metric.%s", m.MetricName)
-		toStore, _ := json.Marshal(m)
-		if c.cm.Data == nil {
-			// Don't panic "assignment to entry in nil map" at init
-			c.cm.Data = make(map[string]string)
-		}
-		c.cm.Data[key] = string(toStore)
-	}
-	return c.updateConfigMap()
-}
-
-// DeleteExternalMetrics delete specified external metrics from the configmap. Only the
-// leader replica should call this function.
-func (c *configMapStore) DeleteExternalMetrics(metricNames []string) error {
-	if c.cm == nil {
-		return fmt.Errorf("configmap not initialized")
-	}
-	if len(metricNames) == 0 {
-		return nil
-	}
-	for _, metricName := range metricNames {
-		key := fmt.Sprintf("external_metric.%s", metricName)
-		if c.cm.Data[key] == "" {
-			log.Debugf("No data for external metric %s", metricName)
-			continue
-		}
-		delete(c.cm.Data, key)
-		log.Debugf("Removed external metric %#v from the configmap %s", metricName, c.name)
-	}
-	return c.updateConfigMap()
+	return nil
 }
 
 // ListAllExternalMetrics returns the most up-to-date list of external metrics from the configmap.
@@ -131,12 +110,26 @@ func (c *configMapStore) ListAllExternalMetrics() ([]ExternalMetricValue, error)
 	return metrics, nil
 }
 
-func (c *configMapStore) updateConfigMap() error {
-	var err error
-	c.cm, err = c.client.ConfigMaps(c.namespace).Update(c.cm)
-	if err != nil {
-		log.Infof("Could not update the configmap %s: %s", c.name, err.Error())
-		return err
+type configMapTx struct {
+	cm *v1.ConfigMap
+}
+
+func (c *configMapTx) Set(m ExternalMetricValue) {
+	key := fmt.Sprintf("external_metric.%s.%s", m.OwnerRef.UID, m.MetricName)
+	toStore, _ := json.Marshal(m)
+	if c.cm.Data == nil {
+		// Don't panic "assignment to entry in nil map" at init
+		c.cm.Data = make(map[string]string)
 	}
-	return nil
+	c.cm.Data[key] = string(toStore)
+}
+
+func (c *configMapTx) Del(uid string, metricName string) {
+	key := fmt.Sprintf("external_metric.%s.%s", uid, metricName)
+	if c.cm.Data[key] == "" {
+		log.Debugf("No data for external metric %s", metricName)
+		return
+	}
+	delete(c.cm.Data, key)
+	log.Debugf("Removed external metric %#v from the configmap %s", metricName, c.cm.Name)
 }

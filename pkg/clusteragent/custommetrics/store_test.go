@@ -8,7 +8,6 @@
 package custommetrics
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -18,41 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
-
-func newMockConfigMap(t *testing.T, name, metricName string, labels map[string]string) *v1.ConfigMap {
-	cm := &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: "default",
-		},
-	}
-	if metricName == "" || len(labels) == 0 {
-		return cm
-	}
-	em := ExternalMetricValue{
-		OwnerRef:   ObjectReference{Name: "foo"},
-		MetricName: metricName,
-		Labels:     labels,
-		Timestamp:  12,
-		Value:      1,
-		Valid:      false,
-	}
-	cm.Data = make(map[string]string)
-	b, err := json.Marshal(em)
-	require.NoError(t, err)
-	cm.Data[metricName] = string(b)
-	return cm
-}
-
-func newMockExternalMetricValue(name string, labels map[string]string) ExternalMetricValue {
-	return ExternalMetricValue{
-		OwnerRef:   ObjectReference{Name: "foo"},
-		MetricName: name,
-		Labels:     labels,
-		Timestamp:  12,
-		Value:      1,
-	}
-}
 
 func TestNewConfigMapStore(t *testing.T) {
 	cm := &v1.ConfigMap{
@@ -77,42 +41,116 @@ func TestNewConfigMapStore(t *testing.T) {
 	require.NotNil(t, store.(*configMapStore).cm)
 }
 
-func TestConfigMapStoreListAllExternalMetrics(t *testing.T) {
-	testCases := []struct {
-		caseName       string
-		configmap      *v1.ConfigMap
-		expectedResult []ExternalMetricValue
+func TestConfigMapStoreExternalMetrics(t *testing.T) {
+	client := fake.NewSimpleClientset().CoreV1()
+
+	tests := []struct {
+		desc     string
+		metrics  []ExternalMetricValue
+		expected []ExternalMetricValue
 	}{
 		{
-			caseName:       "No correct metrics",
-			configmap:      newMockConfigMap(t, "foo", "requests_per_sec", nil),
-			expectedResult: nil,
+			"same metric with different owners and labels",
+			[]ExternalMetricValue{
+				{
+					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "frontend"},
+				},
+				{
+					OwnerRef:   ObjectReference{Name: "bar", UID: "39f7b47d-7eeb-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "backend"},
+				},
+			},
+			[]ExternalMetricValue{
+				{
+					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "frontend"},
+				},
+				{
+					OwnerRef:   ObjectReference{Name: "bar", UID: "39f7b47d-7eeb-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "backend"},
+				},
+			},
 		},
 		{
-			caseName:       "Metric has the expected format",
-			configmap:      newMockConfigMap(t, "bar", "requests_per_sec", map[string]string{"bar": "baz"}),
-			expectedResult: []ExternalMetricValue{newMockExternalMetricValue("requests_per_sec", map[string]string{"bar": "baz"})},
+			"same metric with different owners and same labels",
+			[]ExternalMetricValue{
+				{
+					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "frontend"},
+				},
+				{
+					OwnerRef:   ObjectReference{Name: "bar", UID: "39f7b47d-7eeb-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "frontend"},
+				},
+			},
+			[]ExternalMetricValue{
+				{
+					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "frontend"},
+				},
+				{
+					OwnerRef:   ObjectReference{Name: "bar", UID: "39f7b47d-7eeb-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "frontend"},
+				},
+			},
+		},
+		{
+			"same metric with same owners and different labels",
+			[]ExternalMetricValue{
+				{
+					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "frontend"},
+				},
+				{
+					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "backend"},
+				},
+			},
+			[]ExternalMetricValue{
+				{
+					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
+					MetricName: "requests_per_sec",
+					Labels:     map[string]string{"role": "backend"},
+				},
+			},
 		},
 	}
 
-	for i, testCase := range testCases {
-		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
-			client := fake.NewSimpleClientset().CoreV1()
-
-			// create configmap populated with mock data
-			cm, err := client.ConfigMaps("default").Create(testCase.configmap)
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			store, err := NewConfigMapStore(client, "default", fmt.Sprintf("test-%d", i))
 			require.NoError(t, err)
+			require.NotNil(t, store.(*configMapStore).cm)
 
-			store := &configMapStore{
-				namespace: "default",
-				name:      testCase.configmap.Name,
-				client:    client,
-				cm:        cm,
-			}
+			err = store.Begin(func(tx Tx) {
+				for _, em := range tt.metrics {
+					tx.Set(em)
+				}
+			})
+			require.NoError(t, err)
 
 			allMetrics, err := store.ListAllExternalMetrics()
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedResult, allMetrics)
+			assert.ElementsMatch(t, tt.expected, allMetrics)
+
+			err = store.Begin(func(tx Tx) {
+				for _, em := range tt.metrics {
+					tx.Delete(string(em.OwnerRef.UID), em.MetricName)
+				}
+			})
+			require.NoError(t, err)
+			assert.Zero(t, len(store.(*configMapStore).cm.Data))
 		})
 	}
 }
