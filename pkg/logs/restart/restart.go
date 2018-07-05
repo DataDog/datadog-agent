@@ -5,13 +5,8 @@
 
 package restart
 
-// Startable represents a startable object
-type Startable interface {
-	Start()
-}
-
-// Starter starts a group of startable objects from a data pipeline
-type Starter interface {
+// Restartable represents a startable and stopable object
+type Restartable interface {
 	Startable
-	Add(components ...Startable)
+	Stoppable
 }
