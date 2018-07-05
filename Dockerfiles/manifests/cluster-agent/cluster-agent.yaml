@@ -10,7 +10,7 @@ spec:
         app: datadog-cluster-agent
       name: datadog-agent
     spec:
-      serviceAccountName: datadog-dca
+      serviceAccountName: datadog-cluster-agent
       containers:
       - image: datadog/cluster-agent:latest
         imagePullPolicy: Always
@@ -22,5 +22,11 @@ spec:
             value: "true"
           - name: DD_LEADER_ELECTION
             value: "true"
-          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-            value: <32 characters long token>
+         - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+           value: <Thirty_2_characters_long_token>
+         # If using a secret, you can alternatively use:
+#          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+#            valueFrom:
+#              secretKeyRef:
+#                name: datadog-auth-token
+#                key: token
