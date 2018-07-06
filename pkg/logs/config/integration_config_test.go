@@ -23,9 +23,8 @@ func TestAvailableIntegrationConfigs(t *testing.T) {
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	allSources, err := buildLogSources(ddconfdPath, false)
+	allSources := buildLogSources(ddconfdPath)
 
-	assert.Nil(t, err)
 	assert.Equal(t, 1, len(allSources.GetSources())-len(allSources.GetValidSources()))
 
 	sources := allSources.GetValidSources()
@@ -121,26 +120,25 @@ func TestCompileProcessingRules(t *testing.T) {
 
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	var ddconfdPath string
-	var err error
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
-	_, err = buildLogSources(ddconfdPath, false)
-	assert.NotNil(t, err)
+	sources := buildLogSources(ddconfdPath)
+	assert.Equal(t, 0, len(sources.GetValidSources()))
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_2", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false)
-	assert.NotNil(t, err)
+	sources = buildLogSources(ddconfdPath)
+	assert.Equal(t, 0, len(sources.GetValidSources()))
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_3", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false)
-	assert.NotNil(t, err)
+	sources = buildLogSources(ddconfdPath)
+	assert.Equal(t, 0, len(sources.GetValidSources()))
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false)
-	assert.NotNil(t, err)
+	sources = buildLogSources(ddconfdPath)
+	assert.Equal(t, 0, len(sources.GetValidSources()))
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false)
-	assert.NotNil(t, err)
+	sources = buildLogSources(ddconfdPath)
+	assert.Equal(t, 0, len(sources.GetValidSources()))
 }
 
 func TestIntegrationName(t *testing.T) {

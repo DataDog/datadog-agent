@@ -27,15 +27,9 @@ func TestBuildLogsSources(t *testing.T) {
 	var ddconfdPath string
 	var logsSources *LogSources
 	var source *LogSource
-	var err error
-
-	// should return an error
-	logsSources, err = buildLogSources(ddconfdPath, false)
-	assert.NotNil(t, err)
 
 	// should return the default tail all containers source
-	logsSources, err = buildLogSources(ddconfdPath, true)
-	assert.Nil(t, err)
+	logsSources = buildLogSources(ddconfdPath)
 	assert.Equal(t, 1, len(logsSources.GetValidSources()))
 
 	source = logsSources.GetValidSources()[0]
@@ -45,8 +39,7 @@ func TestBuildLogsSources(t *testing.T) {
 
 	// default tail all containers source should be the last element of the list
 	ddconfdPath = filepath.Join("tests", "any_docker_integration.d")
-	logsSources, err = buildLogSources(ddconfdPath, true)
-	assert.Nil(t, err)
+	logsSources = buildLogSources(ddconfdPath)
 	assert.Equal(t, 3, len(logsSources.GetValidSources()))
 
 	source = logsSources.GetValidSources()[2]
