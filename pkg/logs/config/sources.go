@@ -15,7 +15,7 @@ type LogSources struct {
 	lock    *sync.Mutex
 }
 
-// NewLogSources creates a new log sources with no initial entries.
+// NewEmptyLogSources creates a new log sources with no initial entries.
 func NewEmptyLogSources() *LogSources {
 	return NewLogSources(make([]*LogSource, 0))
 }
