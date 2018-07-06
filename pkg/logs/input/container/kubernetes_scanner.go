@@ -11,13 +11,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -81,8 +82,8 @@ func (s *KubeScanner) Start() {
 // Stop stops the scanner
 func (s *KubeScanner) Stop() {
 	log.Info("Stopping Kubernetes scanner")
-	s.fileScanner.Stop()
 	s.stopped <- struct{}{}
+	s.fileScanner.Stop()
 }
 
 // run runs periodically a scan to detect new and deleted pod.
