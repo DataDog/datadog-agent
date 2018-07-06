@@ -22,7 +22,11 @@ var (
 // Start starts logs-agent
 func Start() error {
 	// build log sources
-	sources := config.Build()
+	sources, err := config.Build()
+	if err != nil {
+		// could not find any valid logs configuration
+		return err
+	}
 
 	// setup and start the agent
 	log.Info("Starting logs-agent")

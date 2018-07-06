@@ -6,6 +6,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -13,8 +15,12 @@ import (
 var LogsAgent = config.Datadog
 
 // Build returns logs-agent sources
-func Build() *LogSources {
-	return buildLogSources(LogsAgent.GetString("confd_path"))
+func Build() (*LogSources, error) {
+	logSources := buildLogSources(LogsAgent.GetString("confd_path"))
+	if len(logSources.GetValidSources()) == 0 && !LogsAgent.GetBool("logs_config.container_collect_all") {
+		return logSources, fmt.Errorf("could not find any valid logs configuration")
+	}
+	return logSources, nil
 }
 
 // buildLogSources returns all the logs sources computed from logs configuration files and environment variables
