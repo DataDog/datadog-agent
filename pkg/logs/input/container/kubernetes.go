@@ -31,12 +31,11 @@ type KubeScanner struct {
 	stopped      chan struct{}
 }
 
-func NewKubeScanner(pp pipeline.Provider, auditor *auditor.Auditor) (*KubeScanner, error) {
+func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) (*KubeScanner, error) {
 	watcher, err := kubelet.NewPodWatcher(podExpiration)
 	if err != nil {
 		return nil, err
 	}
-	sources := config.NewLogSources(make([]*config.LogSource, 0))
 	scanner := file.New(sources, tailerMaxOpenFiles, pp, auditor, tailerSleepPeriod)
 	return &KubeScanner{
 		scanner:      scanner,
