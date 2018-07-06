@@ -16,7 +16,7 @@ import (
 
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
-	sources          []*config.LogSource
+	sources          *config.LogSources
 	pipelineProvider pipeline.Provider
 	auditor          *auditor.Auditor
 	tailers          map[string]*Tailer
@@ -25,7 +25,7 @@ type Launcher struct {
 // New returns a new Launcher.
 func New(sources *config.LogSources, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
 	return &Launcher{
-		sources:          sources.GetValidSourcesWithType(config.WindowsEventType),
+		sources:          sources,
 		pipelineProvider: pipelineProvider,
 		auditor:          auditor,
 		tailers:          make(map[string]*Tailer),
@@ -41,7 +41,7 @@ func (l *Launcher) Start() {
 		log.Debug("Found available windows event log channels: ", availableChannels)
 	}
 
-	for _, source := range l.sources {
+	for _, source := range l.sources.GetValidSourcesWithType(config.WindowsEventType) {
 		identifier := Identifier(source.Config.ChannelPath, source.Config.Query)
 		if _, exists := l.tailers[identifier]; exists {
 			// tailer already setup
