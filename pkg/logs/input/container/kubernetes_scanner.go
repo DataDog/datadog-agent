@@ -141,15 +141,34 @@ func (s *KubeScanner) addNewSources(pod *kubelet.Pod) {
 		if _, exists := s.sourcesByContainer[containerID]; exists {
 			continue
 		}
-		tags, _ := tagger.Tag(containerID, true)
-		containerName := container.Name
-		sourceName := pod.Metadata.Name + "/" + containerName
-		source := config.NewLogSource(sourceName, &config.LogsConfig{
-			Type: config.FileType,
-			Path: fmt.Sprintf("/var/log/pods/%s/%s/*.log", pod.Metadata.UID, containerName),
-			Tags: tags,
-		})
+		source := s.getSource(pod, container)
 		s.sourcesByContainer[containerID] = source
 		s.sources.AddSource(source)
 	}
+}
+
+// kubernetesIntegration represents the name of the integration
+const kubernetesIntegration = "kubernetes"
+
+// getSource returns a new source for the container in pod
+func (s *KubeScanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) *config.LogSource {
+	sourceName := pod.Metadata.Name + "/" + container.Name
+	return config.NewLogSource(sourceName, &config.LogsConfig{
+		Type:    config.FileType,
+		Path:    s.getPath(pod, container),
+		Source:  kubernetesIntegration,
+		Service: kubernetesIntegration,
+		Tags:    s.getTags(container),
+	})
+}
+
+// getPath returns the path where all the logs of the container of the pod are stored.
+func (s *KubeScanner) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+	return fmt.Sprintf("/var/log/pods/%s/%s/*.log", pod.Metadata.UID, container.Name)
+}
+
+// getTags returns all the tags of the container
+func (s *KubeScanner) getTags(container kubelet.ContainerStatus) []string {
+	tags, _ := tagger.Tag(container.ID, true)
+	return tags
 }
