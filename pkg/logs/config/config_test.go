@@ -21,6 +21,7 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.dev_mode_no_ssl"))
 	assert.Equal(t, true, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
 	assert.Equal(t, 100, LogsAgent.GetInt("logs_config.open_files_limit"))
+	assert.Equal(t, false, LogsAgent.GetBool("logs_config.container_collect_all"))
 }
 
 func TestBuildLogsSources(t *testing.T) {
@@ -31,4 +32,33 @@ func TestBuildLogsSources(t *testing.T) {
 	ddconfdPath = filepath.Join("tests", "any_docker_integration.d")
 	logsSources = buildLogSources(ddconfdPath)
 	assert.Equal(t, 2, len(logsSources.GetValidSources()))
+}
+
+func TestBuild(t *testing.T) {
+	var logsSources *LogSources
+	var err error
+
+	LogsAgent.Set("confd_path", "any_docker_integration.d")
+	LogsAgent.Set("logs_config.container_collect_all", false)
+	logsSources, err = Build()
+	assert.Equal(t, 2, len(logsSources.GetValidSources()))
+	assert.Nil(t, err)
+
+	LogsAgent.Set("confd_path", "any_docker_integration.d")
+	LogsAgent.Set("logs_config.container_collect_all", true)
+	logsSources, err = Build()
+	assert.Equal(t, 2, len(logsSources.GetValidSources()))
+	assert.Nil(t, err)
+
+	LogsAgent.Set("confd_path", "")
+	LogsAgent.Set("logs_config.container_collect_all", false)
+	logsSources, err := Build()
+	assert.Equal(t, 0, len(logsSources.GetValidSources()))
+	assert.NotNil(t, err)
+
+	LogsAgent.Set("confd_path", "")
+	LogsAgent.Set("logs_config.container_collect_all", true)
+	logsSources, err = Build()
+	assert.Equal(t, 0, len(logsSources.GetValidSources()))
+	assert.Nil(t, err)
 }
