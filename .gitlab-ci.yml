@@ -5,10 +5,10 @@ stages:
   - testkitchen_deploy
   - testkitchen_testing
   - testkitchen_cleanup
+  - package_build
   - image_build
   - image_deploy
   - deploy
-  - package_build
   - e2e
 
 variables:
