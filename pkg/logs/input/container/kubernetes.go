@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,6 +36,10 @@ func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *a
 	watcher, err := kubelet.NewPodWatcher(podExpiration)
 	if err != nil {
 		return nil, err
+	}
+	err = tagger.Init()
+	if err != nil {
+		log.Warn(err)
 	}
 	scanner := file.New(sources, tailerMaxOpenFiles, pp, auditor, tailerSleepPeriod)
 	return &KubeScanner{
@@ -86,35 +91,49 @@ func (s *KubeScanner) updatePods() {
 	}
 	for _, pod := range pods {
 		if pod.Status.Phase == "Running" {
-			log.Info("added pod", pod)
-			id := pod.Metadata.UID
-			cfg := &config.LogsConfig{
-				Type: config.FileType,
-				Path: fmt.Sprintf("/var/log/pods/%s/*/*.log", id),
+			log.Infof("added pod: %v", pod.Metadata.Name)
+			podUID := pod.Metadata.UID
+			for _, source := range s.toSources(pod) {
+				if _, exists := s.sourcesByPod[podUID]; !exists {
+					s.sourcesByPod[podUID] = source
+					s.sources.AddSource(source)
+				}
 			}
-			src := config.NewLogSource(id, cfg)
-			s.sourcesByPod[id] = src
-			s.sources.AddSource(src)
 		}
 	}
 }
 
 func (s *KubeScanner) expirePods() {
-	ids, err := s.watcher.Expire()
+	entityIDs, err := s.watcher.Expire()
 	if err != nil {
 		log.Error("can't list expired pods", err)
 		return
 	}
-	for _, id := range ids {
-		log.Info("removed id", id)
-		pod, err := s.watcher.GetPodForEntityID(id)
+	for _, entityID := range entityIDs {
+		log.Infof("removed pod %v", entityID)
+		pod, err := s.watcher.GetPodForEntityID(entityID)
 		if err != nil {
-			log.Error("can't find pod for id", id, err)
+			log.Errorf("can't find pod %v: %v", entityID, err)
 			continue
 		}
-		if src, ok := s.sourcesByPod[pod.Metadata.UID]; ok {
-			delete(s.sourcesByPod, pod.Metadata.UID)
-			s.sources.RemoveSource(src)
+		podUID := pod.Metadata.UID
+		if source, exists := s.sourcesByPod[podUID]; exists {
+			delete(s.sourcesByPod, podUID)
+			s.sources.RemoveSource(source)
 		}
 	}
+}
+
+func (s *KubeScanner) toSources(pod *kubelet.Pod) []*config.LogSource {
+	sources := []*config.LogSource{}
+	podUID := pod.Metadata.UID
+	for _, container := range pod.Status.Containers {
+		tags, _ := tagger.Tag(container.ID, true)
+		sources = append(sources, config.NewLogSource(podUID, &config.LogsConfig{
+			Type: config.FileType,
+			Path: fmt.Sprintf("/var/log/pods/%s/%s/*.log", podUID, container.Name),
+			Tags: tags,
+		}))
+	}
+	return sources
 }
