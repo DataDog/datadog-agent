@@ -104,13 +104,13 @@ func (s *KubeScanner) updatePods() {
 	}
 	for _, pod := range pods {
 		if pod.Status.Phase == "Running" {
-			log.Infof("added pod: %v", pod.Metadata.Name)
+			log.Infof("adding pod: %v", pod.Metadata.Name)
 			s.addNewSources(pod)
 		}
 	}
 }
 
-// expirePods removes a log source for all the containers of a deleted pod.
+// expirePods fetches all expired pods and removes the corresponding log sources.
 func (s *KubeScanner) expirePods() {
 	entityIDs, err := s.watcher.Expire()
 	if err != nil {
@@ -118,19 +118,13 @@ func (s *KubeScanner) expirePods() {
 		return
 	}
 	for _, entityID := range entityIDs {
-		log.Infof("removed pod %v", entityID)
+		log.Infof("removing pod %v", entityID)
 		pod, err := s.watcher.GetPodForEntityID(entityID)
 		if err != nil {
 			log.Errorf("can't find pod %v: %v", entityID, err)
 			continue
 		}
-		for _, container := range pod.Status.Containers {
-			containerID := container.ID
-			if source, exists := s.sourcesByContainer[containerID]; exists {
-				delete(s.sourcesByContainer, containerID)
-				s.sources.RemoveSource(source)
-			}
-		}
+		s.removeSources(pod)
 	}
 }
 
@@ -144,6 +138,17 @@ func (s *KubeScanner) addNewSources(pod *kubelet.Pod) {
 		source := s.getSource(pod, container)
 		s.sourcesByContainer[containerID] = source
 		s.sources.AddSource(source)
+	}
+}
+
+// removeSources removes all log sources for all the containers in pod.
+func (s *KubeScanner) removeSources(pod *kubelet.Pod) {
+	for _, container := range pod.Status.Containers {
+		containerID := container.ID
+		if source, exists := s.sourcesByContainer[containerID]; exists {
+			delete(s.sourcesByContainer, containerID)
+			s.sources.RemoveSource(source)
+		}
 	}
 }
 
