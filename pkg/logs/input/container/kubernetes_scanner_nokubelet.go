@@ -13,10 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// Scanner is not supported on no kubelet environment
+// KubeScanner is not supported on no kubelet environment
 type KubeScanner struct{}
 
-// New returns a new Scanner
+// NewKubeScanner returns a new Scanner
 func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) (*KubeScanner, error) {
 	return &KubeScanner{}
 }
