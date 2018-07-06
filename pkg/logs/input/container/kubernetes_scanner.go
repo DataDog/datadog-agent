@@ -19,13 +19,21 @@ import (
 )
 
 const (
-	// the scan period
-	podScanPeriod = 1 * time.Second
-	// the amount of time after which a pod is considered as deleted
-	podExpiration = 5 * time.Second
-	// the amount of time a tailer waits before reading again a file when reaching the very end
+
+	// How long should we wait before scanning for new pods.
+	// This can't be too low to avoid putting too much pressure on the kubelet.
+	// Also, currently KubeUtil has an internal cache duration, there is no
+	// point setting the period lower than that.
+	podScanPeriod = 10 * time.Second
+
+	// How should we wait before considering a pod has been deleted.
+	podExpiration = 20 * time.Second
+
+	// How long the file tailer should wait when it reaches EOF before trying to
+	// read again.
 	tailerSleepPeriod = 1 * time.Second
-	// the maximum number of files that can be open simultaneously
+
+	// The maximum number of files the tailer can open simultaneously.
 	tailerMaxOpenFiles = 1024
 )
 
