@@ -13,10 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// Scanner is not supported on no docker environment
+// DockerScanner is not supported on no docker environment
 type DockerScanner struct{}
 
-// New returns a new Scanner
+// NewDockerScanner returns a new Scanner
 func NewDockerScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) *DockerScanner {
 	return &DockerScanner{}
 }
