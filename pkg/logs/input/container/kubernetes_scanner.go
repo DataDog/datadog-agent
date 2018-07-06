@@ -6,9 +6,8 @@
 package container
 
 import (
-	"time"
-
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -19,33 +18,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const podScanPeriod = 1 * time.Second
-const podExpiration = 5 * time.Second
-const tailerSleepPeriod = 1 * time.Second
-const tailerMaxOpenFiles = 2147483647
+const (
+	// the scan period
+	podScanPeriod = 1 * time.Second
+	// the amount of time after which a pod is considered as deleted
+	podExpiration = 5 * time.Second
+	// the amount of time a tailer waits before reading again a file when reaching the very end
+	tailerSleepPeriod = 1 * time.Second
+	// the maximum number of files that can be open simultaneously
+	tailerMaxOpenFiles = 1024
+)
 
-// KubeScanner is a scanner for Kubernetes.
+// KubeScanner looks for new and deleted pods to start or stop one file tailer per container.
 type KubeScanner struct {
-	scanner            *file.Scanner
+	fileScanner        *file.Scanner
 	watcher            *kubelet.PodWatcher
 	sources            *config.LogSources
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
 }
 
-// NewKubeScanner creates a scanner that checks for Kubernetes containers to tail.
+// NewKubeScanner returns a new scanner.
 func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) (*KubeScanner, error) {
+	// initialize a pod watcher to list new and expired pods
 	watcher, err := kubelet.NewPodWatcher(podExpiration)
 	if err != nil {
 		return nil, err
 	}
+	// initialize the tagger to collect container tags
 	err = tagger.Init()
 	if err != nil {
-		log.Warn(err)
+		return nil, err
 	}
-	scanner := file.New(sources, tailerMaxOpenFiles, pp, auditor, tailerSleepPeriod)
+	// initialize a file scanner to collect logs from container files.
+	fileScanner := file.New(sources, tailerMaxOpenFiles, pp, auditor, tailerSleepPeriod)
 	return &KubeScanner{
-		scanner:            scanner,
+		fileScanner:        fileScanner,
 		watcher:            watcher,
 		sources:            sources,
 		sourcesByContainer: make(map[string]*config.LogSource),
@@ -53,20 +61,21 @@ func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *a
 	}, nil
 }
 
-// Start starts scanning.
+// Start starts the scanner
 func (s *KubeScanner) Start() {
 	log.Info("Starting Kubernetes scanner")
-	s.scanner.Start()
+	s.fileScanner.Start()
 	go s.run()
 }
 
-// Stop stop scanning.
+// Stop stops the scanner
 func (s *KubeScanner) Stop() {
 	log.Info("Stopping Kubernetes scanner")
-	s.scanner.Stop()
+	s.fileScanner.Stop()
 	s.stopped <- struct{}{}
 }
 
+// run runs periodically a scan to detect new and deleted pod.
 func (s *KubeScanner) run() {
 	ticker := time.NewTicker(podScanPeriod)
 	defer ticker.Stop()
@@ -80,11 +89,13 @@ func (s *KubeScanner) run() {
 	}
 }
 
+// scan handles new and deleted pods.
 func (s *KubeScanner) scan() {
 	s.updatePods()
 	s.expirePods()
 }
 
+// updatePods pulls the new pods and creates new log sources.
 func (s *KubeScanner) updatePods() {
 	pods, err := s.watcher.PullChanges()
 	if err != nil {
@@ -99,6 +110,7 @@ func (s *KubeScanner) updatePods() {
 	}
 }
 
+// expirePods removes a log source for all the containers of a deleted pod.
 func (s *KubeScanner) expirePods() {
 	entityIDs, err := s.watcher.Expire()
 	if err != nil {
@@ -122,6 +134,7 @@ func (s *KubeScanner) expirePods() {
 	}
 }
 
+// addNewSources creates a new log source for each container of a new pod.
 func (s *KubeScanner) addNewSources(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
