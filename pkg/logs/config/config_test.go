@@ -35,30 +35,35 @@ func TestBuildLogsSources(t *testing.T) {
 }
 
 func TestBuild(t *testing.T) {
+	var ddconfdPath string
 	var logsSources *LogSources
 	var err error
 
-	LogsAgent.Set("confd_path", "any_docker_integration.d")
+	ddconfdPath = filepath.Join("tests", "any_docker_integration.d")
+
+	LogsAgent.Set("confd_path", ddconfdPath)
 	LogsAgent.Set("logs_config.container_collect_all", false)
 	logsSources, err = Build()
-	assert.Equal(t, 2, len(logsSources.GetValidSources()))
+	assert.True(t, len(logsSources.GetValidSources()) > 0)
 	assert.Nil(t, err)
 
-	LogsAgent.Set("confd_path", "any_docker_integration.d")
+	LogsAgent.Set("confd_path", ddconfdPath)
 	LogsAgent.Set("logs_config.container_collect_all", true)
 	logsSources, err = Build()
-	assert.Equal(t, 2, len(logsSources.GetValidSources()))
+	assert.True(t, len(logsSources.GetValidSources()) > 0)
 	assert.Nil(t, err)
 
-	LogsAgent.Set("confd_path", "")
+	ddconfdPath = ""
+
+	LogsAgent.Set("confd_path", ddconfdPath)
 	LogsAgent.Set("logs_config.container_collect_all", false)
-	logsSources, err := Build()
-	assert.Equal(t, 0, len(logsSources.GetValidSources()))
+	logsSources, err = Build()
+	assert.False(t, len(logsSources.GetValidSources()) > 0)
 	assert.NotNil(t, err)
 
-	LogsAgent.Set("confd_path", "")
+	LogsAgent.Set("confd_path", ddconfdPath)
 	LogsAgent.Set("logs_config.container_collect_all", true)
 	logsSources, err = Build()
-	assert.Equal(t, 0, len(logsSources.GetValidSources()))
+	assert.False(t, len(logsSources.GetValidSources()) > 0)
 	assert.Nil(t, err)
 }
