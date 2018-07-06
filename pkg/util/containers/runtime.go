@@ -48,7 +48,8 @@ func GetRuntimeForPID(pid int32) (string, error) {
 	}
 
 	for {
-		// Get process cmdline
+		// Get process cmdline and extract cmd name. Not using the `exe`
+		// symlink because we don't always have permissions to read it
 		cmdline, err := currentProcess.CmdlineSlice()
 		if err != nil {
 			return "", err

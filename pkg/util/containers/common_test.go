@@ -51,17 +51,6 @@ func (f *tempProc) addFile(fileName, contents string) error {
 	return err
 }
 
-func (f *tempProc) addLink(fileName, target string) error {
-	filePath := filepath.Join(f.RootPath, fileName)
-	dirPath := filepath.Dir(filePath)
-	err := os.MkdirAll(dirPath, 0777)
-	if err != nil {
-		return err
-	}
-
-	return os.Symlink(target, filePath)
-}
-
 func (f *tempProc) addDummyStatus(pid string, fields map[string]string) error {
 	var contents string
 	for field, value := range fields {
@@ -71,12 +60,7 @@ func (f *tempProc) addDummyStatus(pid string, fields map[string]string) error {
 }
 
 func (f *tempProc) addDummyProcess(pid, ppid, cmdline string) error {
-	exe := strings.Split(cmdline, " ")[0]
 	err := f.addFile(filepath.Join(pid, "cmdline"), strings.Replace(cmdline, " ", "\u0000", -1))
-	if err != nil {
-		return err
-	}
-	err = f.addLink(filepath.Join(pid, "exe"), exe)
 	if err != nil {
 		return err
 	}
