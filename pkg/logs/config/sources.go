@@ -7,24 +7,23 @@ package config
 
 import (
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LogSources stores a list of log sources.
 type LogSources struct {
-	sources map[string]*LogSource
+	sources []*LogSource
 	lock    *sync.Mutex
+}
+
+// NewLogSources creates a new log sources with no initial entries.
+func NewEmptyLogSources() *LogSources {
+	return NewLogSources(make([]*LogSource, 0))
 }
 
 // NewLogSources creates a new log sources.
 func NewLogSources(sources []*LogSource) *LogSources {
-	sourceMap := make(map[string]*LogSource)
-	for _, source := range sources {
-		sourceMap[source.Name] = source
-	}
 	return &LogSources{
-		sources: sourceMap,
+		sources: sources,
 		lock:    &sync.Mutex{},
 	}
 }
@@ -32,29 +31,25 @@ func NewLogSources(sources []*LogSource) *LogSources {
 // AddSource adds a new source.
 func (s *LogSources) AddSource(source *LogSource) {
 	s.lock.Lock()
-	if _, exists := s.sources[source.Name]; exists {
-		log.Warnf("source %s already exists, updating it")
-	}
-	s.sources[source.Name] = source
+	s.sources = append(s.sources, source)
 	s.lock.Unlock()
 }
 
 // RemoveSource removes a source.
 func (s *LogSources) RemoveSource(source *LogSource) {
 	s.lock.Lock()
-	delete(s.sources, source.Name)
+	for i, src := range s.sources {
+		if src == source {
+			s.sources = append(s.sources[:i], s.sources[i+1:]...)
+			break
+		}
+	}
 	s.lock.Unlock()
 }
 
 // GetSources returns all the sources currently held.
 func (s *LogSources) GetSources() []*LogSource {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	sources := make([]*LogSource, 0, len(s.sources))
-	for _, source := range s.sources {
-		sources = append(sources, source)
-	}
-	return sources
+	return s.sources
 }
 
 // GetValidSources returns the sources which status is not in error.
