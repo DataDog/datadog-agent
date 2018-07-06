@@ -21,20 +21,18 @@ var (
 
 // Start starts logs-agent
 func Start() error {
-
+	// build log sources
 	sources := config.Build()
 
 	// setup and start the agent
-	agent := NewAgent(sources)
-
 	log.Info("Starting logs-agent")
+	agent = NewAgent(sources)
 	agent.Start()
 
 	// setup the status
 	status.Initialize(sources)
 
 	isRunning = true
-
 	return nil
 }
 
