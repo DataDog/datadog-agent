@@ -152,7 +152,7 @@ const kubernetesIntegration = "kubernetes"
 
 // getSource returns a new source for the container in pod
 func (s *KubeScanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) *config.LogSource {
-	sourceName := pod.Metadata.Name + "/" + container.Name
+	sourceName := fmt.Sprintf("%s/%s/%s", pod.Metadata.Namespace, pod.Metadata.Name, container.Name)
 	return config.NewLogSource(sourceName, &config.LogsConfig{
 		Type:    config.FileType,
 		Path:    s.getPath(pod, container),
