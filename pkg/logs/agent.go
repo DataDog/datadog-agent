@@ -29,7 +29,7 @@ import (
 type Agent struct {
 	auditor          *auditor.Auditor
 	pipelineProvider pipeline.Provider
-	scanners         []restart.Restartable
+	inputs           []restart.Restartable
 }
 
 // NewAgent returns a new Agent
@@ -46,18 +46,19 @@ func NewAgent(sources *config.LogSources) *Agent {
 	)
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
-	// setup the scanners
-	var scanners []restart.Restartable
-	scanners = append(scanners, listener.New(sources, pipelineProvider))
-	scanners = append(scanners, file.New(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration))
-	scanners = append(scanners, journald.New(sources, pipelineProvider, auditor))
-	scanners = append(scanners, windowsevent.New(sources, pipelineProvider, auditor))
-	scanners = append(scanners, container.NewScanner(sources, pipelineProvider, auditor))
+	// setup the inputs
+	inputs := []restart.Restartable{
+		listener.New(sources, pipelineProvider),
+		file.New(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		journald.New(sources, pipelineProvider, auditor),
+		windowsevent.New(sources, pipelineProvider, auditor),
+		container.NewScanner(sources, pipelineProvider, auditor),
+	}
 
 	return &Agent{
 		auditor:          auditor,
 		pipelineProvider: pipelineProvider,
-		scanners:         scanners,
+		inputs:           inputs,
 	}
 }
 
@@ -65,8 +66,8 @@ func NewAgent(sources *config.LogSources) *Agent {
 // in the right order to prevent data loss
 func (a *Agent) Start() {
 	starter := restart.NewStarter(a.auditor, a.pipelineProvider)
-	for _, scanner := range a.scanners {
-		starter.Add(scanner)
+	for _, input := range a.inputs {
+		starter.Add(input)
 	}
 	starter.Start()
 }
@@ -74,12 +75,12 @@ func (a *Agent) Start() {
 // Stop stops all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Stop() {
-	scanners := restart.NewParallelStopper()
-	for _, s := range a.scanners {
-		scanners.Add(s)
+	inputs := restart.NewParallelStopper()
+	for _, input := range a.inputs {
+		inputs.Add(input)
 	}
 	stopper := restart.NewSerialStopper(
-		scanners,
+		inputs,
 		a.pipelineProvider,
 		a.auditor,
 	)
