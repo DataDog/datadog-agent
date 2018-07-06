@@ -26,24 +26,9 @@ func TestDefaultDatadogConfig(t *testing.T) {
 func TestBuildLogsSources(t *testing.T) {
 	var ddconfdPath string
 	var logsSources *LogSources
-	var source *LogSource
-
-	// should return the default tail all containers source
-	logsSources = buildLogSources(ddconfdPath)
-	assert.Equal(t, 1, len(logsSources.GetValidSources()))
-
-	source = logsSources.GetValidSources()[0]
-	assert.Equal(t, "container_collect_all", source.Name)
-	assert.Equal(t, "docker", source.Config.Service)
-	assert.Equal(t, "docker", source.Config.Source)
 
 	// default tail all containers source should be the last element of the list
 	ddconfdPath = filepath.Join("tests", "any_docker_integration.d")
 	logsSources = buildLogSources(ddconfdPath)
-	assert.Equal(t, 3, len(logsSources.GetValidSources()))
-
-	source = logsSources.GetValidSources()[2]
-	assert.Equal(t, "container_collect_all", source.Name)
-	assert.Equal(t, "docker", source.Config.Service)
-	assert.Equal(t, "docker", source.Config.Source)
+	assert.Equal(t, 2, len(logsSources.GetValidSources()))
 }
