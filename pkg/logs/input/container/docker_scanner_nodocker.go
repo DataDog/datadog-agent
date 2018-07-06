@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build !docker
+
 package container
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// Scanner is not supported on windows environment
+// Scanner is not supported on no docker environment
 type DockerScanner struct{}
 
 // New returns a new Scanner
