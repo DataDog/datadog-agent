@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	golog "log"
+	"os"
 	"strings"
 	"sync"
 
@@ -295,40 +295,52 @@ func buildLogEntry(v ...interface{}) string {
 
 //Trace logs at the trace level
 func Trace(v ...interface{}) {
-	s := buildLogEntry(v...)
-	golog.Print(logger.scrub(s))
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
+		s := buildLogEntry(v)
+		logger.trace(logger.scrub(s))
+	}
 }
 
 //Debug logs at the debug level
 func Debug(v ...interface{}) {
-	s := buildLogEntry(v...)
-	golog.Print(logger.scrub(s))
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
+		s := buildLogEntry(v...)
+		logger.debug(logger.scrub(s))
+	}
 }
 
 //Info logs at the info level
 func Info(v ...interface{}) {
-	s := buildLogEntry(v...)
-	golog.Print(logger.scrub(s))
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+		s := buildLogEntry(v...)
+		logger.info(logger.scrub(s))
+	}
 }
 
 //Warn logs at the warn level
 func Warn(v ...interface{}) error {
-	s := buildLogEntry(v...)
-	golog.Print(logger.scrub(s))
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
+		s := buildLogEntry(v...)
+		return logger.warn(logger.scrub(s))
+	}
 	return nil
 }
 
 //Error logs at the error level
 func Error(v ...interface{}) error {
-	s := buildLogEntry(v...)
-	golog.Print(logger.scrub(s))
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
+		s := buildLogEntry(v...)
+		return logger.error(logger.scrub(s))
+	}
 	return nil
 }
 
 //Critical logs at the critical level
 func Critical(v ...interface{}) error {
-	s := buildLogEntry(v...)
-	golog.Print(logger.scrub(s))
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
+		s := buildLogEntry(v...)
+		return logger.critical(logger.scrub(s))
+	}
 	return nil
 }
 
@@ -341,34 +353,66 @@ func Flush() {
 
 //Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
+		logger.tracef(format, params...)
+	}
 }
 
 //Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
+		logger.debugf(format, params...)
+	}
 }
 
 //Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+		logger.infof(format, params...)
+	}
 }
 
 //Warnf logs with format at the warn level
 func Warnf(format string, params ...interface{}) error {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
+		return logger.warnf(format, params...)
+	}
 	return nil
 }
 
 //Errorf logs with format at the error level
 func Errorf(format string, params ...interface{}) error {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
+		return logger.errorf(format, params...)
+	} else if logger == nil || logger.inner == nil {
+		// We're currently trying to log an error before initializing
+		// the log module. This meant a early error while starting the
+		// agent. We should not silence such error.
+		msg := fmt.Sprintf(format, params...)
+		msgScrubbed, err := CredentialsCleanerBytes([]byte(msg))
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", msgScrubbed)
+			return fmt.Errorf(string(msgScrubbed))
+		}
+	}
 	return nil
 }
 
 //Criticalf logs with format at the critical level
 func Criticalf(format string, params ...interface{}) error {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
+		return logger.criticalf(format, params...)
+	} else if logger == nil || logger.inner == nil {
+		// We're currently trying to log an error before initializing
+		// the log module. This meant a early error while starting the
+		// agent. We should not silence such error.
+		msg := fmt.Sprintf(format, params...)
+		msgScrubbed, err := CredentialsCleanerBytes([]byte(msg))
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "Critical: %s\n", msgScrubbed)
+			return fmt.Errorf(string(msgScrubbed))
+		}
+	}
 	return nil
 }
 
