@@ -115,7 +115,7 @@ func (s *KubeScanner) updatePods() {
 	for _, pod := range pods {
 		if pod.Status.Phase == "Running" {
 			log.Infof("adding pod: %v", pod.Metadata.Name)
-			s.addNewSources(pod)
+			s.addSources(pod)
 		}
 	}
 }
@@ -138,8 +138,8 @@ func (s *KubeScanner) expirePods() {
 	}
 }
 
-// addNewSources creates a new log source for each container of a new pod.
-func (s *KubeScanner) addNewSources(pod *kubelet.Pod) {
+// addSources creates a new log source for each container of a new pod.
+func (s *KubeScanner) addSources(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
 		if _, exists := s.sourcesByContainer[containerID]; exists {
