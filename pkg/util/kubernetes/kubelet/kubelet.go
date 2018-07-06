@@ -250,6 +250,24 @@ func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
 	return ku.GetPodForContainerID(entityID)
 }
 
+// GetContainerEntityID returns the container entity id matching the podUID and containerName,
+// returns an error if the arguments are invalid or if no container is found.
+func (ku *KubeUtil) GetContainerEntityID(podUID string, containerName string) (string, error) {
+	if podUID == "" || containerName == "" {
+		return "", fmt.Errorf("invalid podUID or containerName: %s, %s", podUID, containerName)
+	}
+	pod, err := ku.GetPodFromUID(podUID)
+	if err != nil {
+		return "", err
+	}
+	for _, container := range pod.Status.Containers {
+		if container.Name == containerName {
+			return container.ID, nil
+		}
+	}
+	return "", fmt.Errorf("containerID not found for podUID: %s, containerName: %s", podUID, containerName)
+}
+
 // setupKubeletApiClient will try to setup the http(s) client to query the kubelet
 // with the following settings, in order:
 //  - Load Certificate Authority if needed

@@ -384,6 +384,55 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
 }
 
+func (suite *KubeletTestSuite) TestGetContainerEntityID() {
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	<-kubelet.Requests // Throwing away first GET
+
+	// Empty pod UID
+	containerEntityID, err := kubeutil.GetContainerEntityID("", "bar")
+	require.Equal(suite.T(), "", containerEntityID)
+	require.NotNil(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "invalid podUID or containerName")
+
+	// Empty container name
+	containerEntityID, err = kubeutil.GetContainerEntityID("foo", "")
+	// The /pods request is still cached
+	require.Equal(suite.T(), "", containerEntityID)
+	require.NotNil(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "invalid podUID or containerName")
+
+	// Invalid pod uid
+	containerEntityID, err = kubeutil.GetContainerEntityID("invalid", "kube-controller-manager")
+	// The /pods request is still cached
+	require.Equal(suite.T(), "", containerEntityID)
+	require.NotNil(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "not found in pod list")
+
+	// Invalid container name
+	containerEntityID, err = kubeutil.GetContainerEntityID("e2fdcecc-0749-11e8-a2b8-000c29dea4f6", "invalid")
+	// The /pods request is still cached
+	require.Equal(suite.T(), "", containerEntityID)
+	require.NotNil(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "containerID not found for podUID")
+
+	// Valid pod uid and container name
+	containerEntityID, err = kubeutil.GetContainerEntityID("e2fdcecc-0749-11e8-a2b8-000c29dea4f6", "kube-controller-manager")
+	// The /pods request is still cached
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "docker://8a5d143fcca3f0b53dfe5f445905a2e82c02f0ff70fc0a98cc37eca389f9480c", containerEntityID)
+}
+
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 	// without token, with certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
