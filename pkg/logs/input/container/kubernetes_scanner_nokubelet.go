@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// KubeScanner is not supported on no docker and kubelet environment
+// KubeScanner is not supported on no kubelet environment
 type KubeScanner struct{}
 
 // NewKubeScanner returns a new scanner
