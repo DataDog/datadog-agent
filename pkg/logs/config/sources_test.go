@@ -17,13 +17,13 @@ func TestAddSource(t *testing.T) {
 	assert.Equal(t, 0, len(sources.GetSources()))
 	sources.AddSource(NewLogSource("foo", nil))
 	assert.Equal(t, 1, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("foo", nil))
+	sources.AddSource(NewLogSource("bar", nil))
 	assert.Equal(t, 2, len(sources.GetSources()))
 }
 
 func TestRemoveSource(t *testing.T) {
-	source1 := NewLogSource("", nil)
-	source2 := NewLogSource("", nil)
+	source1 := NewLogSource("foo", nil)
+	source2 := NewLogSource("bar", nil)
 	sources := NewLogSources([]*LogSource{source1, source2})
 	assert.Equal(t, 2, len(sources.GetSources()))
 	sources.RemoveSource(source1)
@@ -41,8 +41,8 @@ func TestGetSources(t *testing.T) {
 }
 
 func TestGetValidSources(t *testing.T) {
-	source1 := NewLogSource("", nil)
-	source2 := NewLogSource("", nil)
+	source1 := NewLogSource("foo", nil)
+	source2 := NewLogSource("bar", nil)
 	sources := NewLogSources([]*LogSource{source1, source2})
 	assert.Equal(t, 2, len(sources.GetValidSources()))
 	source1.Status.Error(errors.New("invalid"))
@@ -52,10 +52,10 @@ func TestGetValidSources(t *testing.T) {
 }
 
 func TestGetValidSourcesWithType(t *testing.T) {
-	source1 := NewLogSource("", nil)
-	source2 := NewLogSource("", &LogsConfig{})
-	source3 := NewLogSource("", &LogsConfig{Type: "foo"})
-	source4 := NewLogSource("", &LogsConfig{Type: "bar"})
+	source1 := NewLogSource("foo", nil)
+	source2 := NewLogSource("bar", &LogsConfig{})
+	source3 := NewLogSource("baz", &LogsConfig{Type: "foo"})
+	source4 := NewLogSource("bat", &LogsConfig{Type: "bar"})
 	sources := NewLogSources([]*LogSource{source1, source2, source3, source4})
 	assert.Equal(t, 1, len(sources.GetValidSourcesWithType("foo")))
 }
