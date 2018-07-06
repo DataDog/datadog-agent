@@ -9,7 +9,6 @@ package system
 
 import (
 	"bytes"
-	"math"
 	"regexp"
 	"time"
 
@@ -17,16 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/xc"
 	"github.com/shirou/gopsutil/disk"
 )
 
 // For testing purpose
-var (
-	ioCounters = disk.IOCounters
+var ioCounters = disk.IOCounters
 
-	// for test purpose
-	nowNano = func() int64 { return time.Now().UnixNano() }
-)
+// kernel ticks / sec
+var hz int64
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
@@ -41,12 +39,6 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data) 
 	err := c.commonConfigure(data, initConfig)
 	return err
 }
-
-// round a float64 with 2 decimal precision
-func roundFloat(val float64) float64 {
-	return math.Round(val*100) / 100
-}
-
 func (c *IOCheck) nixIO() error {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
@@ -60,10 +52,8 @@ func (c *IOCheck) nixIO() error {
 		return err
 	}
 
-	// tick in millisecond
-	now := nowNano() / 1000000
+	now := time.Now().Unix()
 	delta := float64(now - c.ts)
-	deltaSecond := delta / 1000
 
 	var tagbuff bytes.Buffer
 	for device, ioStats := range iomap {
@@ -95,9 +85,8 @@ func (c *IOCheck) nixIO() error {
 			continue
 		}
 
-		// computing kB/s
-		rkbs := float64(ioStats.ReadBytes-lastIOStats.ReadBytes) / kB / deltaSecond
-		wkbs := float64(ioStats.WriteBytes-lastIOStats.WriteBytes) / kB / deltaSecond
+		rkbs := float64(ioStats.ReadBytes-lastIOStats.ReadBytes) / kB
+		wkbs := float64(ioStats.WriteBytes-lastIOStats.WriteBytes) / kB
 		avgqusz := float64(ioStats.WeightedIO-lastIOStats.WeightedIO) / 1000
 
 		rAwait := 0.0
@@ -119,29 +108,28 @@ func (c *IOCheck) nixIO() error {
 			aWait = float64(ioStats.ReadTime-lastIOStats.ReadTime+ioStats.WriteTime-lastIOStats.WriteTime) / diffNIO
 		}
 
-		// we are aligning ourselves with the metric reported by
-		// sysstat, so itv is a time interval in 1/100th of a second
-		itv := delta / 10
-		tput := diffNIO * 100 / itv
-		util := float64(ioStats.IoTime-lastIOStats.IoTime) / itv * 100
+		tput := diffNIO * float64(hz)
+		util := float64(ioStats.IoTime - lastIOStats.IoTime)
 		svctime := 0.0
 		if tput != 0 {
 			svctime = util / tput
 		}
 
-		sender.Gauge("system.io.rkb_s", roundFloat(rkbs), "", tags)
-		sender.Gauge("system.io.wkb_s", roundFloat(wkbs), "", tags)
-		sender.Gauge("system.io.avg_rq_sz", roundFloat(avgrqsz), "", tags)
-		sender.Gauge("system.io.await", roundFloat(aWait), "", tags)
-		sender.Gauge("system.io.r_await", roundFloat(rAwait), "", tags)
-		sender.Gauge("system.io.w_await", roundFloat(wAwait), "", tags)
-		sender.Gauge("system.io.avg_q_sz", roundFloat(avgqusz), "", tags)
-		sender.Gauge("system.io.svctm", roundFloat(svctime), "", tags)
+		sender.Gauge("system.io.rkb_s", rkbs/delta, "", tags)
+		sender.Gauge("system.io.wkb_s", wkbs/delta, "", tags)
+		sender.Gauge("system.io.avg_rq_sz", avgrqsz/delta, "", tags)
+		sender.Gauge("system.io.await", aWait/delta, "", tags)
+		sender.Gauge("system.io.r_await", rAwait/delta, "", tags)
+		sender.Gauge("system.io.w_await", wAwait/delta, "", tags)
+		sender.Gauge("system.io.avg_q_sz", avgqusz/delta, "", tags)
+		if hz > 0 { // only send if we were able to collect HZ
+			sender.Gauge("system.io.svctm", svctime/delta, "", tags)
+		}
 
 		// Stats should be per device no device groups.
 		// If device groups ever become a thing - util / 10.0 / n_devs_in_group
 		// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
-		sender.Gauge("system.io.util", roundFloat(util/10.0), "", tags)
+		sender.Gauge("system.io.util", (util / 10.0 / delta), "", tags)
 
 	}
 
@@ -162,4 +150,17 @@ func (c *IOCheck) Run() error {
 		sender.Commit()
 	}
 	return err
+}
+
+func init() {
+	var err error
+	hz, err = xc.GetSystemFreq()
+	if err != nil {
+		hz = 0
+	}
+
+	if hz <= 0 {
+		log.Errorf("Unable to grab HZ: perhaps unavailable in your architecture" +
+			"(svctm will not be available)")
+	}
 }

@@ -64,10 +64,6 @@ func ioSampler(names ...string) (map[string]disk.IOCountersStat, error) {
 }
 
 func TestIOCheck(t *testing.T) {
-	startNow := time.Now().UnixNano()
-	nowNano = func() int64 { return startNow } // time of the first run
-	defer func() { nowNano = time.Now().UnixNano }()
-
 	ioCounters = ioSampler
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
@@ -96,8 +92,8 @@ func TestIOCheck(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 
-	// simulate a 1s interval
-	nowNano = func() int64 { return startNow + int64(1*time.Second) } // time of the second run
+	// sleep for a second, for delta
+	time.Sleep(time.Second)
 
 	switch os := runtime.GOOS; os {
 	case "windows":
@@ -114,7 +110,7 @@ func TestIOCheck(t *testing.T) {
 		mock.On("Gauge", "system.io.await", 0.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.r_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.w_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Gauge", "system.io.avg_q_sz", 0.03, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.avg_q_sz", 0.028, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.util", 2.8, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.svctm", 0.0, "", []string{"device:sda"}).Return().Times(1)
 		expectedRates += 4
