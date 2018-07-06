@@ -26,7 +26,7 @@ import (
 
 const scanPeriod = 10 * time.Second
 
-// A Scanner listens for stdout and stderr of containers
+// DockerScanner listens for stdout and stderr of containers
 type DockerScanner struct {
 	pp        pipeline.Provider
 	sources   []*config.LogSource
@@ -37,7 +37,7 @@ type DockerScanner struct {
 	stop      chan struct{}
 }
 
-// New returns an initialized Scanner
+// NewDockerScanner returns an initialized Scanner
 func NewDockerScanner(sources *config.LogSources, pp pipeline.Provider, a *auditor.Auditor) *DockerScanner {
 	return &DockerScanner{
 		pp:      pp,

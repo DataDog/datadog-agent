@@ -21,15 +21,14 @@ func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *audit
 			// Fow now, avoid manually scanning docker containers when in a
 			// kubernetes environment, and rely on Kubernetes API.
 			return scanner
-		} else {
-			// Append a fake source to collect all logs from all containers.
-			dockerConfig := &config.LogsConfig{
-				Type:    config.DockerType,
-				Service: "docker",
-				Source:  "docker",
-			}
-			sources.AddSource(config.NewLogSource("container_collect_all", dockerConfig))
 		}
+		// Append a fake source to collect all logs from all containers.
+		dockerConfig := &config.LogsConfig{
+			Type:    config.DockerType,
+			Service: "docker",
+			Source:  "docker",
+		}
+		sources.AddSource(config.NewLogSource("container_collect_all", dockerConfig))
 	}
 	return NewDockerScanner(sources, pp, auditor)
 }

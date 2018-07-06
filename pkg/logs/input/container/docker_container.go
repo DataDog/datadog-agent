@@ -18,12 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
-// Container represents a container to tail logs from.
+// DockerContainer represents a container to tail logs from.
 type DockerContainer struct {
 	types.Container
 }
 
-// NewContainer returns a new Container
+// NewDockerContainer returns a new Container
 func NewDockerContainer(container types.Container) *DockerContainer {
 	return &DockerContainer{container}
 }
