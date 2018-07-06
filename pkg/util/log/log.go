@@ -321,14 +321,18 @@ func Trace(v ...interface{}) {
 
 //Debug logs at the debug level
 func Debug(v ...interface{}) {
-	s := buildLogEntry(v...)
-	golog.Print(logger.scrub(s))
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
+		s := buildLogEntry(v...)
+		logger.debug(logger.scrub(s))
+	}
 }
 
 //Info logs at the info level
 func Info(v ...interface{}) {
-	s := buildLogEntry(v...)
-	golog.Print(logger.scrub(s))
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+		s := buildLogEntry(v...)
+		logger.info(logger.scrub(s))
+	}
 }
 
 //Warn logs at the warn level and returns an error containing the formated log message
@@ -371,17 +375,23 @@ func Flush() {
 
 //Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
+		logger.tracef(format, params...)
+	}
 }
 
 //Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
+		logger.debugf(format, params...)
+	}
 }
 
 //Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	golog.Printf(format, params...)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+		logger.infof(format, params...)
+	}
 }
 
 //Warnf logs with format at the warn level and returns an error containing the formated log message

@@ -25,4 +25,5 @@ gobind {
 
     // build tags can be set with GOMOBILEFLAGS as below
     // GOMOBILEFLAGS="-tags \"foo\""
+    GOMOBILEFLAGS="-ldflags=\"-X github.com/DataDog/datadog-agent/pkg/version.Commit=03f53d13 -X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=6.3.0-rc.5+git.5.03f53d1 -X github.com/DataDog/datadog-agent/pkg/serializer.AgentPayloadVersion=4.7 \""
 }
