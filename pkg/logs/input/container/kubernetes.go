@@ -25,11 +25,11 @@ const tailerSleepPeriod = 1 * time.Second
 const tailerMaxOpenFiles = 2147483647
 
 type KubeScanner struct {
-	scanner      *file.Scanner
-	watcher      *kubelet.PodWatcher
-	sources      *config.LogSources
-	sourcesByPod map[string]*config.LogSource
-	stopped      chan struct{}
+	scanner            *file.Scanner
+	watcher            *kubelet.PodWatcher
+	sources            *config.LogSources
+	sourcesByContainer map[string]*config.LogSource
+	stopped            chan struct{}
 }
 
 func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) (*KubeScanner, error) {
@@ -43,11 +43,11 @@ func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *a
 	}
 	scanner := file.New(sources, tailerMaxOpenFiles, pp, auditor, tailerSleepPeriod)
 	return &KubeScanner{
-		scanner:      scanner,
-		watcher:      watcher,
-		sources:      sources,
-		sourcesByPod: make(map[string]*config.LogSource),
-		stopped:      make(chan struct{}),
+		scanner:            scanner,
+		watcher:            watcher,
+		sources:            sources,
+		sourcesByContainer: make(map[string]*config.LogSource),
+		stopped:            make(chan struct{}),
 	}, nil
 }
 
@@ -92,13 +92,7 @@ func (s *KubeScanner) updatePods() {
 	for _, pod := range pods {
 		if pod.Status.Phase == "Running" {
 			log.Infof("added pod: %v", pod.Metadata.Name)
-			podUID := pod.Metadata.UID
-			for _, source := range s.toSources(pod) {
-				if _, exists := s.sourcesByPod[podUID]; !exists {
-					s.sourcesByPod[podUID] = source
-					s.sources.AddSource(source)
-				}
-			}
+			s.addNewSources(pod)
 		}
 	}
 }
@@ -116,25 +110,31 @@ func (s *KubeScanner) expirePods() {
 			log.Errorf("can't find pod %v: %v", entityID, err)
 			continue
 		}
-		podUID := pod.Metadata.UID
-		if source, exists := s.sourcesByPod[podUID]; exists {
-			delete(s.sourcesByPod, podUID)
-			s.sources.RemoveSource(source)
+		for _, container := range pod.Status.Containers {
+			containerID := container.ID
+			if source, exists := s.sourcesByContainer[containerID]; exists {
+				delete(s.sourcesByContainer, containerID)
+				s.sources.RemoveSource(source)
+			}
 		}
 	}
 }
 
-func (s *KubeScanner) toSources(pod *kubelet.Pod) []*config.LogSource {
-	sources := []*config.LogSource{}
+func (s *KubeScanner) addNewSources(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
-		tags, _ := tagger.Tag(container.ID, true)
+		containerID := container.ID
+		if _, exists := s.sourcesByContainer[containerID]; exists {
+			continue
+		}
+		tags, _ := tagger.Tag(containerID, true)
 		containerName := container.Name
 		sourceName := pod.Metadata.Name + "/" + containerName
-		sources = append(sources, config.NewLogSource(sourceName, &config.LogsConfig{
+		source := config.NewLogSource(sourceName, &config.LogsConfig{
 			Type: config.FileType,
 			Path: fmt.Sprintf("/var/log/pods/%s/%s/*.log", pod.Metadata.UID, containerName),
 			Tags: tags,
-		}))
+		})
+		s.sourcesByContainer[containerID] = source
+		s.sources.AddSource(source)
 	}
-	return sources
 }
