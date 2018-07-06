@@ -565,6 +565,9 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 // ContainerIDForPID is a lighter version of CgroupsForPids to only retrieve the
 // container ID for origin detection. Returns container id as a string, empty if
 // the PID is not in a container.
+//
+// Matching also works on containerd and cri-o default cgroups on Kubernetes
+// FIXME: move to the containers package
 func ContainerIDForPID(pid int) (string, error) {
 	cgPath := hostProc(strconv.Itoa(pid), "cgroup")
 	containerID, _, err := readCgroupPaths(cgPath)

@@ -8,9 +8,11 @@
 package listeners
 
 import (
-	"fmt"
+	"errors"
 	"net"
 )
+
+var ErrLinuxOnly = errors.New("only implemented on Linux hosts")
 
 // getUDSAncillarySize returns 0 on non-linux hosts
 func getUDSAncillarySize() int {
@@ -19,10 +21,10 @@ func getUDSAncillarySize() int {
 
 // enableUDSPassCred returns a "not implemented" error on non-linux hosts
 func enableUDSPassCred(conn *net.UnixConn) error {
-	return fmt.Errorf("only implemented on Linux hosts")
+	return ErrLinuxOnly
 }
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
 func processUDSOrigin(oob []byte) (string, error) {
-	return "", fmt.Errorf("only implemented on Linux hosts")
+	return NoOrigin, ErrLinuxOnly
 }

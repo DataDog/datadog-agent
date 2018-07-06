@@ -24,12 +24,10 @@ const (
 
 // Internal constants
 const (
-	daemonNameDockerLegacy1 string = "dockerd"
-	daemonNameDockerLegacy2 string = "dockerd-current" // Centos
-
-	shimNameContainerd string = "containerd-shim"
-	shimNameCRIO       string = "conmon"
-
+	daemonNameDockerLegacy1  string = "dockerd"
+	daemonNameDockerLegacy2  string = "dockerd-current" // CentOS
+	shimNameContainerd       string = "containerd-shim"
+	shimNameCRIO             string = "conmon"
 	shimNameContainerdUnsure string = "docker-containerd-shim"
 	shimArgContainerdK8s     string = "-namespace k8s.io"
 	shimArgContainerdDocker  string = "-namespace moby"
@@ -40,7 +38,7 @@ var ErrNoRuntimeMatch = errors.New("cannot match a container runtime")
 
 // GetRuntimeForPID inspects a PID's parents to detect a container runtime.
 // For now, this assumes we are running on hostPID, as gopsutil looks-up
-// processess in `/proc` or HOST_PROC if set
+// processess in `/proc` (or HOST_PROC if set)
 func GetRuntimeForPID(pid int32) (string, error) {
 	var currentProcess *process.Process
 	// Inspect given process
@@ -64,7 +62,7 @@ func GetRuntimeForPID(pid int32) (string, error) {
 		switch cmd {
 		case shimNameContainerdUnsure:
 			// Shim can be used either by k8s for direct containerd
-			// or new docker versions checking arguments
+			// or new docker versions, checking arguments
 			args := strings.Join(cmdline[1:], " ")
 			switch {
 			case strings.Contains(args, shimArgContainerdK8s):
@@ -74,18 +72,21 @@ func GetRuntimeForPID(pid int32) (string, error) {
 			}
 		case shimNameContainerd:
 			return RuntimeNameContainerd, nil
+		case shimNameCRIO:
+			return RuntimeNameCRIO, nil
 		case daemonNameDockerLegacy1:
 			return RuntimeNameDocker, nil
 		case daemonNameDockerLegacy2:
 			return RuntimeNameDocker, nil
-		case shimNameCRIO:
-			return RuntimeNameCRIO, nil
 		}
 
-		// Didn't match, go up to parent process
+		// Didn't match, are we at PID 1 yet?
+		if currentProcess.Pid == 1 {
+			return "", ErrNoRuntimeMatch
+		}
+		// Else, go up to parent process and loop
 		currentProcess, err = currentProcess.Parent()
 		if err != nil {
-			// Will fail when getting PID 1's parent
 			return "", err
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -18,8 +19,8 @@ import (
 )
 
 const (
-	// PIDToContainerKeyPrefix holds the name prefix for cache keys
-	PIDToContainerKeyPrefix = "pid_to_container"
+	pidToEntityCacheKeyPrefix = "pid_to_entity"
+	pidToEntityCacheDuration  = time.Minute
 )
 
 // getUDSAncillarySize gets the needed buffer size to retrieve the ancillary data
@@ -64,39 +65,44 @@ func processUDSOrigin(ancillary []byte) (string, error) {
 			"probably to another namespace. Is the agent in host PID mode?")
 	}
 
-	container, err := getContainerForPID(cred.Pid)
+	entity, err := getEntityForPID(cred.Pid)
 	if err != nil {
 		return NoOrigin, err
 	}
-	return container, nil
+	return entity, nil
 }
 
-// getContainerForPID returns the docker container id and caches the value for future lookups
-// As the result is cached and the lookup is really fast (parsing a local file), it can be
+// getEntityForPID returns the container entity name and caches the value for future lookups
+// As the result is cached and the lookup is really fast (parsing local files), it can be
 // called from the intake goroutine.
-func getContainerForPID(pid int32) (string, error) {
-	key := cache.BuildAgentKey(PIDToContainerKeyPrefix, strconv.Itoa(int(pid)))
+func getEntityForPID(pid int32) (string, error) {
+	key := cache.BuildAgentKey(pidToEntityCacheKeyPrefix, strconv.Itoa(int(pid)))
 	if x, found := cache.Cache.Get(key); found {
 		return x.(string), nil
 	}
+
 	id, err := docker.ContainerIDForPID(int(pid))
 	if err != nil {
 		return NoOrigin, err
 	}
-	runtime, err := containers.GetRuntimeForPID(pid)
-	if err != nil {
-		return NoOrigin, err
-	}
-
-	var value string
-	if len(id) == 0 {
+	if id == "" {
 		// If no container is found, it's probably a host process,
 		// cache the `NoOrigin` result for future packets
-		value = NoOrigin
-	} else {
-		value = fmt.Sprintf("%s://%s", runtime, id)
+		cache.Cache.Set(key, NoOrigin, pidToEntityCacheDuration)
+		return NoOrigin, nil
 	}
 
-	cache.Cache.Set(key, value, 0)
-	return value, err
+	runtime, err := containers.GetRuntimeForPID(pid)
+	if err != nil {
+		if err == containers.ErrNoRuntimeMatch {
+			// No runtime detected, cache the `NoOrigin` result
+			cache.Cache.Set(key, NoOrigin, pidToEntityCacheDuration)
+			return NoOrigin, nil
+		}
+		// Other lookup error, retry next time
+		return NoOrigin, err
+	}
+	value := fmt.Sprintf("%s://%s", runtime, id)
+	cache.Cache.Set(key, value, pidToEntityCacheDuration)
+	return value, nil
 }

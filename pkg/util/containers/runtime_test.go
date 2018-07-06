@@ -95,6 +95,16 @@ func (s *RuntimeDetectionTestSuite) TestCRIO() {
 	assert.Equal(s.T(), RuntimeNameCRIO, runtime)
 }
 
+func (s *RuntimeDetectionTestSuite) TestNoMatch() {
+	s.proc.addDummyProcess("1", "0", "/usr/lib/systemd/systemd")
+	s.proc.addDummyProcess("25", "1", "supervisord ...")
+	s.proc.addDummyProcess("444", "25", "/opt/datadog-agent/bin/agent/agent start")
+
+	runtime, err := GetRuntimeForPID(444)
+	assert.Equal(s.T(), ErrNoRuntimeMatch, err)
+	assert.Equal(s.T(), "", runtime)
+}
+
 func TestRuntimeDetectionTestSuite(t *testing.T) {
 	suite.Run(t, new(RuntimeDetectionTestSuite))
 }
