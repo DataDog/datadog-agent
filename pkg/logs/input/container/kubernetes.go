@@ -24,6 +24,7 @@ const podExpiration = 5 * time.Second
 const tailerSleepPeriod = 1 * time.Second
 const tailerMaxOpenFiles = 2147483647
 
+// KubeScanner is a scanner for Kubernetes.
 type KubeScanner struct {
 	scanner            *file.Scanner
 	watcher            *kubelet.PodWatcher
@@ -32,6 +33,7 @@ type KubeScanner struct {
 	stopped            chan struct{}
 }
 
+// NewKubeScanner creates a scanner that checks for Kubernetes containers to tail.
 func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) (*KubeScanner, error) {
 	watcher, err := kubelet.NewPodWatcher(podExpiration)
 	if err != nil {
@@ -51,14 +53,14 @@ func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *a
 	}, nil
 }
 
-// Start
+// Start starts scanning.
 func (s *KubeScanner) Start() {
 	log.Info("Starting Kubernetes scanner")
 	s.scanner.Start()
 	go s.run()
 }
 
-// Stop
+// Stop stop scanning.
 func (s *KubeScanner) Stop() {
 	log.Info("Stopping Kubernetes scanner")
 	s.scanner.Stop()
