@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
+// NewScanner returns a new container scanner.
 func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) restart.Restartable {
 	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
 		if scanner, err := NewKubeScanner(sources, pp, auditor); err == nil {
@@ -22,8 +23,6 @@ func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *audit
 			return scanner
 		} else {
 			// Append a fake source to collect all logs from all containers.
-			// This source must be added to the end of the list to make sure
-			// sources metadata are not overridden when already defined
 			dockerConfig := &config.LogsConfig{
 				Type:    config.DockerType,
 				Service: "docker",

@@ -126,12 +126,13 @@ func (s *KubeScanner) expirePods() {
 
 func (s *KubeScanner) toSources(pod *kubelet.Pod) []*config.LogSource {
 	sources := []*config.LogSource{}
-	podUID := pod.Metadata.UID
 	for _, container := range pod.Status.Containers {
 		tags, _ := tagger.Tag(container.ID, true)
-		sources = append(sources, config.NewLogSource(podUID, &config.LogsConfig{
+		containerName := container.Name
+		sourceName := pod.Metadata.Name + "/" + containerName
+		sources = append(sources, config.NewLogSource(sourceName, &config.LogsConfig{
 			Type: config.FileType,
-			Path: fmt.Sprintf("/var/log/pods/%s/%s/*.log", podUID, container.Name),
+			Path: fmt.Sprintf("/var/log/pods/%s/%s/*.log", pod.Metadata.UID, containerName),
 			Tags: tags,
 		}))
 	}
