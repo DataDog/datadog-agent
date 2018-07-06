@@ -30,7 +30,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 	s.lock.Unlock()
 }
 
-// RemoveSources removes a source.
+// RemoveSource removes a source.
 func (s *LogSources) RemoveSource(source *LogSource) {
 	s.lock.Lock()
 	// TODO impl!
@@ -43,12 +43,15 @@ func (s *LogSources) GetSources() []*LogSource {
 	return s.sources
 }
 
+// GetValidSources returns the sources which status is not in error.
 func (s *LogSources) GetValidSources() []*LogSource {
 	return s.getSources(func(source *LogSource) bool {
 		return !source.Status.IsError()
 	})
 }
 
+// GetValidSources returns the sources which status is not in error,
+// and the config type matches the provided type.
 func (s *LogSources) GetValidSourcesWithType(sourceType string) []*LogSource {
 	return s.getSources(func(source *LogSource) bool {
 		return !source.Status.IsError() && source.Config != nil && source.Config.Type == sourceType
