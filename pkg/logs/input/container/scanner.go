@@ -15,10 +15,20 @@ import (
 
 func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) interface{} {
 	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
-		if scanner, err := NewKubeScanner(pp, auditor); err == nil {
-			// Fow now, avoid manually scanning docker containers when in a kubernetes environment,
-			// and rely on Kubernetes API.
+		if scanner, err := NewKubeScanner(sources, pp, auditor); err == nil {
+			// Fow now, avoid manually scanning docker containers when in a
+			// kubernetes environment, and rely on Kubernetes API.
 			return scanner
+		} else {
+			// Append a fake source to collect all logs from all containers.
+			// This source must be added to the end of the list to make sure
+			// sources metadata are not overridden when already defined
+			dockerConfig := &config.LogsConfig{
+				Type:    config.DockerType,
+				Service: "docker",
+				Source:  "docker",
+			}
+			sources.AddSource(config.NewLogSource("container_collect_all", dockerConfig))
 		}
 	}
 	return NewDockerScanner(sources, pp, auditor)
