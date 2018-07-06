@@ -19,7 +19,7 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 		config.NewLogSource("bar", &config.LogsConfig{}),
 		config.NewLogSource("foo", &config.LogsConfig{}),
 	}
-	Initialize(sources)
+	Initialize(config.NewLogSources(sources))
 	status := Get()
 	assert.Equal(t, true, status.IsRunning)
 	assert.Equal(t, 2, len(status.Integrations))
