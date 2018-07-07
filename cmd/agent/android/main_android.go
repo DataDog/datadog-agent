@@ -5,8 +5,6 @@
 
 // +build android
 
-//go:generate go run ../../pkg/config/render_config.go agent ../../pkg/config/config_template.yaml ./dist/datadog.yaml
-
 package ddandroid
 
 import (
@@ -27,7 +25,7 @@ type androidEnv struct {
 func (ae *androidEnv) read() *androidEnv {
 	yamlFile, err := readAsset("android.yaml")
 	if err == nil {
-		log.Printf("read android config")
+		//		log.Printf("read android config")
 
 		err = yaml.Unmarshal(yamlFile, ae)
 		if err == nil {
@@ -40,6 +38,9 @@ func (ae *androidEnv) read() *androidEnv {
 
 func readAsset(name string) ([]byte, error) {
 	f, errOpen := asset.Open(name)
+	//var f *os.File
+	//var errOpen error
+
 	if errOpen != nil {
 		return nil, errOpen
 	}
@@ -52,6 +53,7 @@ func readAsset(name string) ([]byte, error) {
 }
 
 func AndroidMain() {
+	//readAsset("android.yaml")
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
 
