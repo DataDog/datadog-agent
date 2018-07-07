@@ -8,6 +8,7 @@ package container
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
@@ -15,7 +16,7 @@ import (
 // NewScanner returns a new container scanner.
 func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) restart.Restartable {
 	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
-		if scanner, err := NewKubeScanner(sources); err == nil {
+		if scanner, err := kubernetes.NewScanner(sources); err == nil {
 			// Fow now, avoid manually scanning docker containers when in a
 			// kubernetes environment, and rely on Kubernetes API.
 			return scanner
@@ -28,5 +29,5 @@ func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *audit
 		}
 		sources.AddSource(config.NewLogSource("container_collect_all", dockerConfig))
 	}
-	return NewDockerScanner(sources, pp, auditor)
+	return docker.NewScanner(sources, pp, auditor)
 }

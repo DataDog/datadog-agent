@@ -18,7 +18,7 @@ import (
 
 func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 	var source *config.LogSource
-	var container *DockerContainer
+	var container *Container
 
 	sources := []*config.LogSource{
 		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"}),
@@ -26,46 +26,46 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"}),
 	}
 
-	container = NewDockerContainer(types.Container{Image: "myapp"})
+	container = NewContainer(types.Container{Image: "myapp"})
 	source = container.findSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[0])
 
-	container = NewDockerContainer(types.Container{Image: "wrongapp", Labels: map[string]string{"mylabel": "anything"}})
+	container = NewContainer(types.Container{Image: "wrongapp", Labels: map[string]string{"mylabel": "anything"}})
 	source = container.findSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[1])
 
-	container = NewDockerContainer(types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}})
+	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}})
 	source = container.findSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[2])
 
-	container = NewDockerContainer(types.Container{Image: "wrongapp"})
+	container = NewContainer(types.Container{Image: "wrongapp"})
 	source = container.findSource(sources)
 	assert.Nil(t, source)
 }
 
 func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
 	var source *config.LogSource
-	var container *DockerContainer
+	var container *Container
 
 	sources := []*config.LogSource{
 		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
 	}
 
-	container = NewDockerContainer(types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}})
+	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}})
 	source = container.findSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[1])
 
-	container = NewDockerContainer(types.Container{Image: "wrongapp"})
+	container = NewContainer(types.Container{Image: "wrongapp"})
 	source = container.findSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[0])
 
-	container = NewDockerContainer(types.Container{Image: "wrongapp", Labels: map[string]string{"wronglabel": "anything", "com.datadoghq.ad.logs": "[{\"source\":\"any_source\",\"service\":\"any_service\"}]"}})
+	container = NewContainer(types.Container{Image: "wrongapp", Labels: map[string]string{"wronglabel": "anything", "com.datadoghq.ad.logs": "[{\"source\":\"any_source\",\"service\":\"any_service\"}]"}})
 	source = container.findSource(sources)
 	assert.NotNil(t, source)
 	for _, s := range sources {
@@ -75,133 +75,133 @@ func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
 
 func TestFindSourceWithInvalidContainerLabelShouldReturnNil(t *testing.T) {
 	var source *config.LogSource
-	var container *DockerContainer
+	var container *Container
 
-	container = NewDockerContainer(types.Container{Image: "myapp", Labels: map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}})
+	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}})
 	source = container.findSource(nil)
 	assert.Nil(t, source)
 }
 
 func TestIsImageMatch(t *testing.T) {
-	var container *DockerContainer
+	var container *Container
 
-	container = NewDockerContainer(types.Container{Image: "myapp"})
+	container = NewContainer(types.Container{Image: "myapp"})
 	assert.True(t, container.isImageMatch("myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "repository/myapp"})
-	assert.True(t, container.isImageMatch("myapp"))
-	assert.True(t, container.isImageMatch("repository/myapp"))
-
-	container = NewDockerContainer(types.Container{Image: "myapp@sha256:1234567890"})
-	assert.True(t, container.isImageMatch("myapp"))
-
-	container = NewDockerContainer(types.Container{Image: "repository/myapp@sha256:1234567890"})
+	container = NewContainer(types.Container{Image: "repository/myapp"})
 	assert.True(t, container.isImageMatch("myapp"))
 	assert.True(t, container.isImageMatch("repository/myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "repository/myapp:latest"})
+	container = NewContainer(types.Container{Image: "myapp@sha256:1234567890"})
+	assert.True(t, container.isImageMatch("myapp"))
+
+	container = NewContainer(types.Container{Image: "repository/myapp@sha256:1234567890"})
+	assert.True(t, container.isImageMatch("myapp"))
+	assert.True(t, container.isImageMatch("repository/myapp"))
+
+	container = NewContainer(types.Container{Image: "repository/myapp:latest"})
 	assert.True(t, container.isImageMatch("myapp"))
 	assert.True(t, container.isImageMatch("myapp:latest"))
 	assert.True(t, container.isImageMatch("repository/myapp"))
 	assert.True(t, container.isImageMatch("repository/myapp:latest"))
 
-	container = NewDockerContainer(types.Container{Image: "myapp:latest"})
+	container = NewContainer(types.Container{Image: "myapp:latest"})
 	assert.True(t, container.isImageMatch("myapp"))
 	assert.True(t, container.isImageMatch("myapp:latest"))
 
-	container = NewDockerContainer(types.Container{Image: "repositorymyapp"})
+	container = NewContainer(types.Container{Image: "repositorymyapp"})
 	assert.False(t, container.isImageMatch("myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "myapp2"})
+	container = NewContainer(types.Container{Image: "myapp2"})
 	assert.False(t, container.isImageMatch("myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "myapp2@sha256:1234567890"})
+	container = NewContainer(types.Container{Image: "myapp2@sha256:1234567890"})
 	assert.False(t, container.isImageMatch("myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "repository/myapp2"})
+	container = NewContainer(types.Container{Image: "repository/myapp2"})
 	assert.False(t, container.isImageMatch("myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "repository/myapp2@sha256:1234567890"})
+	container = NewContainer(types.Container{Image: "repository/myapp2@sha256:1234567890"})
 	assert.False(t, container.isImageMatch("myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "repository/myapp2:latest"})
+	container = NewContainer(types.Container{Image: "repository/myapp2:latest"})
 	assert.False(t, container.isImageMatch("myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "myapp2:latest"})
+	container = NewContainer(types.Container{Image: "myapp2:latest"})
 	assert.False(t, container.isImageMatch("myapp"))
 
-	container = NewDockerContainer(types.Container{Image: "myapp"})
+	container = NewContainer(types.Container{Image: "myapp"})
 	assert.False(t, container.isImageMatch("dd/myapp"))
 	assert.False(t, container.isImageMatch("myapp:latest"))
 	assert.False(t, container.isImageMatch("dd/myapp:latest"))
 
-	container = NewDockerContainer(types.Container{Image: "repository/myapp"})
+	container = NewContainer(types.Container{Image: "repository/myapp"})
 	assert.False(t, container.isImageMatch("dd/myapp"))
 	assert.False(t, container.isImageMatch("myapp:latest"))
 	assert.False(t, container.isImageMatch("dd/myapp:latest"))
 
-	container = NewDockerContainer(types.Container{Image: "repository/myapp:latest"})
+	container = NewContainer(types.Container{Image: "repository/myapp:latest"})
 	assert.False(t, container.isImageMatch("dd/myapp"))
 	assert.False(t, container.isImageMatch("myapp:foo"))
 	assert.False(t, container.isImageMatch("repository/myapp:foo"))
 
-	container = NewDockerContainer(types.Container{Image: "myapp:latest"})
+	container = NewContainer(types.Container{Image: "myapp:latest"})
 	assert.False(t, container.isImageMatch("myapp:foo"))
 	assert.False(t, container.isImageMatch("repository/myapp"))
 	assert.False(t, container.isImageMatch("repository/myapp:foo"))
 }
 
 func TestIsLabelMatch(t *testing.T) {
-	var container *DockerContainer
+	var container *Container
 
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"bar": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"bar": ""}})
 	assert.False(t, container.isLabelMatch("foo"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": ""}})
 	assert.True(t, container.isLabelMatch("foo"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
 	assert.True(t, container.isLabelMatch("foo"))
 
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"bar": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"bar": ""}})
 	assert.False(t, container.isLabelMatch("foo:bar"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": ""}})
 	assert.False(t, container.isLabelMatch("foo:bar"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
 	assert.True(t, container.isLabelMatch("foo:bar"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo:bar": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo:bar": ""}})
 	assert.True(t, container.isLabelMatch("foo:bar"))
 
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": ""}})
 	assert.False(t, container.isLabelMatch("foo:bar:baz"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
 	assert.False(t, container.isLabelMatch("foo:bar:baz"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": "bar:baz"}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": "bar:baz"}})
 	assert.False(t, container.isLabelMatch("foo:bar:baz"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo:bar": "baz"}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo:bar": "baz"}})
 	assert.False(t, container.isLabelMatch("foo:bar:baz"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo:bar:baz": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo:bar:baz": ""}})
 	assert.True(t, container.isLabelMatch("foo:bar:baz"))
 
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"bar": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"bar": ""}})
 	assert.False(t, container.isLabelMatch("foo=bar"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": ""}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": ""}})
 	assert.False(t, container.isLabelMatch("foo=bar"))
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
 	assert.True(t, container.isLabelMatch("foo=bar"))
 
-	container = NewDockerContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
+	container = NewContainer(types.Container{Labels: map[string]string{"foo": "bar"}})
 	assert.True(t, container.isLabelMatch(" a , b:c , foo:bar , d=e "))
 }
 
 func TestIsNameMatch(t *testing.T) {
-	var container *DockerContainer
+	var container *Container
 
-	container = NewDockerContainer(types.Container{Names: []string{"foo", "bar"}})
+	container = NewContainer(types.Container{Names: []string{"foo", "bar"}})
 	assert.True(t, container.isNameMatch("foo"))
 	assert.True(t, container.isNameMatch("bar"))
 	assert.True(t, container.isNameMatch(""))
 	assert.False(t, container.isNameMatch("boo"))
 
-	container = NewDockerContainer(types.Container{Names: []string{"/api/v1/pods/foo", "/bar"}})
+	container = NewContainer(types.Container{Names: []string{"/api/v1/pods/foo", "/bar"}})
 	assert.True(t, container.isNameMatch("foo"))
 	assert.True(t, container.isNameMatch("bar"))
 	assert.True(t, container.isNameMatch(""))
@@ -211,14 +211,14 @@ func TestIsNameMatch(t *testing.T) {
 func TestFindSourceFromLabelWithWrongLabelNameShouldFail(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
-	var container *DockerContainer
+	var container *Container
 
-	container = NewDockerContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.Nil(t, source)
 
 	labels = map[string]string{"com.datadoghq.ad.name": "any_name"}
-	container = NewDockerContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.Nil(t, source)
 }
@@ -226,15 +226,15 @@ func TestFindSourceFromLabelWithWrongLabelNameShouldFail(t *testing.T) {
 func TestFindSourceFromLabelWithWrongFormatShouldFail(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
-	var container *DockerContainer
+	var container *Container
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{}"}
-	container = NewDockerContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.Nil(t, source)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}
-	container = NewDockerContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.Nil(t, source)
 }
@@ -242,10 +242,10 @@ func TestFindSourceFromLabelWithWrongFormatShouldFail(t *testing.T) {
 func TestFindSourceFromLabelWithInvalidProcessingRuleShouldFail(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
-	var container *DockerContainer
+	var container *Container
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line"}]}]`}
-	container = NewDockerContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.Nil(t, source)
 }
@@ -253,23 +253,23 @@ func TestFindSourceFromLabelWithInvalidProcessingRuleShouldFail(t *testing.T) {
 func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
-	var container *DockerContainer
+	var container *Container
 	var rule config.LogsProcessingRule
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{}]`}
-	container = NewDockerContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.NotNil(t, source)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service"}]`}
-	container = NewDockerContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.NotNil(t, source)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`}
-	container = NewDockerContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.NotNil(t, source)
 	assert.Equal(t, "any_source", source.Config.Source)

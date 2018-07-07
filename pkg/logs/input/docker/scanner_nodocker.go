@@ -13,16 +13,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// DockerScanner is not supported on no docker environment
-type DockerScanner struct{}
+// Scanner is not supported on no docker environment
+type Scanner struct{}
 
-// NewDockerScanner returns a new scanner
-func NewDockerScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) *DockerScanner {
-	return &DockerScanner{}
+// NewScanner returns a new scanner
+func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
+	return &Scanner{}
 }
 
 // Start does nothing
-func (s *DockerScanner) Start() {}
+func (s *Scanner) Start() {}
 
 // Stop does nothing
-func (s *DockerScanner) Stop() {}
+func (s *Scanner) Stop() {}

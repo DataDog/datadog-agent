@@ -17,7 +17,7 @@ import (
 )
 
 func TestGetSource(t *testing.T) {
-	scanner := KubeScanner{}
+	scanner := Scanner{}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
