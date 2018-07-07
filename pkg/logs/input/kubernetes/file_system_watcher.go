@@ -28,7 +28,7 @@ type FileSystemWatcher struct {
 
 // NewFileSystemWatcher returns a new watcher.
 func NewFileSystemWatcher(added, removed chan *kubelet.Pod) (*FileSystemWatcher, error) {
-	// initialize a file system watcher to list added and removed pod directories.
+	// initialize a file system watcher to list added and deleted pod directories.
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err

@@ -13,13 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// Watcher looks for new and removed pods.
+// Watcher looks for new and deleted pods.
 type Watcher interface {
 	Start()
 	Stop()
 }
 
-// Strategy represents the strategy to collect new and removed pods.
+// Strategy represents the strategy to collect new and deleted pods.
 type Strategy uint32
 
 const (
