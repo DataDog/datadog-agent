@@ -5,7 +5,7 @@
 
 // +build kubelet
 
-package container
+package kubernetes
 
 import (
 	"fmt"
@@ -14,9 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
 const (
@@ -33,9 +31,10 @@ type Scanner struct {
 	stopped            chan struct{}
 }
 
-func Scanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) (*Scanner, error) {
+// NewScanner returns a new scanner.
+func NewScanner(sources *config.LogSources) (*Scanner, error) {
 	// initialize a pods watcher to handle added and removed pods.
-	watcher, err := NewWatcher(Inotify) // TODO: drive the strategy by a configuration parameter.
+	watcher, err := NewWatcher(KubeletPolling) // TODO: drive the strategy by a configuration parameter.
 	if err != nil {
 		return nil, err
 	}
@@ -70,10 +69,10 @@ func (s *Scanner) Stop() {
 func (s *Scanner) run() {
 	for {
 		select {
-		case added := <-s.watcher.Added():
+		case pod := <-s.watcher.Added():
 			log.Infof("adding pod: %v", pod.Metadata.Name)
 			s.addSources(pod)
-		case removed := <-s.watcher.Removed():
+		case pod := <-s.watcher.Removed():
 			log.Infof("removing pod %v", pod.Metadata.Name)
 			s.removeSources(pod)
 		case <-s.stopped:

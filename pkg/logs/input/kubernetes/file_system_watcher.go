@@ -1,0 +1,109 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2018 Datadog, Inc.
+
+// +build kubelet
+
+package kubernetes
+
+import (
+	"fmt"
+	"path/filepath"
+
+	"github.com/fsnotify/fsnotify"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// FileSystemWatcher looks for new and deleted pods listening to file system events.
+type FileSystemWatcher struct {
+	watcher  *fsnotify.Watcher
+	kubeUtil *kubelet.KubeUtil
+	added    chan *kubelet.Pod
+	removed  chan *kubelet.Pod
+	stopped  chan struct{}
+}
+
+// NewFileSystemWatcher returns a new watcher.
+func NewFileSystemWatcher() (*FileSystemWatcher, error) {
+	// initialize a file system watcher to list added and removed pod directories.
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, err
+	}
+	if err = watcher.Add(podsDirectoryPath); err != nil {
+		return nil, err
+	}
+	// initialize kubeUtil to request pods information from podUIDs
+	kubeUtil, err := kubelet.GetKubeUtil()
+	if err != nil {
+		return nil, err
+	}
+	return &FileSystemWatcher{
+		watcher:  watcher,
+		kubeUtil: kubeUtil,
+		added:    make(chan *kubelet.Pod),
+		removed:  make(chan *kubelet.Pod),
+		stopped:  make(chan struct{}),
+	}, nil
+}
+
+// Start starts the watcher.
+func (w *FileSystemWatcher) Start() {
+	go w.run()
+}
+
+// Stop stops the watcher.
+func (w *FileSystemWatcher) Stop() {
+	w.watcher.Close()
+	w.stopped <- struct{}{}
+}
+
+// Added returns a channel of new pods.
+func (w *FileSystemWatcher) Added() chan *kubelet.Pod {
+	return w.added
+}
+
+// Removed returns a channel of pods removed.
+func (w *FileSystemWatcher) Removed() chan *kubelet.Pod {
+	return w.removed
+}
+
+// run listens to file system events and errors.
+func (w *FileSystemWatcher) run() {
+	for {
+		select {
+		case event := <-w.watcher.Events:
+			w.handle(event)
+		case err := <-w.watcher.Errors:
+			log.Errorf("an error occurred scanning %v: %v", podsDirectoryPath, err)
+		case <-w.stopped:
+			return
+		}
+	}
+}
+
+// handle handles new events on the file system in the '/var/log/pods' directory
+// to collect information about the new pods added and removed.
+func (w *FileSystemWatcher) handle(event fsnotify.Event) {
+	pod, err := w.getPod(event.Name)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	switch event.Op {
+	case fsnotify.Create:
+		w.added <- pod
+	case fsnotify.Remove:
+		w.removed <- pod
+	}
+}
+
+// getPod returns the pod reversed from its log path with format: '/var/log/pods/podUID'.
+func (w *FileSystemWatcher) getPod(path string) (*kubelet.Pod, error) {
+	podUID := filepath.Base(path)
+	pod, err := w.kubeUtil.GetPodFromUID(podUID)
+	return pod, fmt.Errorf("can't find pod with id %v: %v", podUID, err)
+}

@@ -5,7 +5,7 @@
 
 // +build !docker
 
-package container
+package docker
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"

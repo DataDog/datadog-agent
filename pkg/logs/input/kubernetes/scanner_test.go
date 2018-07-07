@@ -5,7 +5,7 @@
 
 // +build kubelet
 
-package container
+package kubernetes
 
 import (
 	"testing"
