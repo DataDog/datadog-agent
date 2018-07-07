@@ -15,7 +15,7 @@ import (
 // NewScanner returns a new container scanner.
 func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) restart.Restartable {
 	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
-		if scanner, err := NewKubeScanner(sources, pp, auditor); err == nil {
+		if scanner, err := NewKubeScanner(sources); err == nil {
 			// Fow now, avoid manually scanning docker containers when in a
 			// kubernetes environment, and rely on Kubernetes API.
 			return scanner

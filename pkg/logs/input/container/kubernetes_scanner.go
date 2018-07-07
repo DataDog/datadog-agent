@@ -9,41 +9,44 @@ package container
 
 import (
 	"fmt"
-	"time"
+	"path/filepath"
+
+	"github.com/fsnotify/fsnotify"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
 const (
 
-	// How long should we wait before scanning for new pods.
-	// This can't be too low to avoid putting too much pressure on the kubelet.
-	// Also, currently KubeUtil has an internal cache duration, there is no
-	// point setting the period lower than that.
-	podScanPeriod = 10 * time.Second
-
-	// How should we wait before considering a pod has been deleted.
-	podExpiration = 20 * time.Second
+	// The path to the pods log directory.
+	podsDirectoryPath = "/var/log/pods"
 )
 
 // KubeScanner looks for new and deleted pods to start or stop one file tailer per container.
 type KubeScanner struct {
-	watcher            *kubelet.PodWatcher
+	watcher            *fsnotify.Watcher
+	kubeUtil           *kubelet.KubeUtil
 	sources            *config.LogSources
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
 }
 
 // NewKubeScanner returns a new scanner.
-func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) (*KubeScanner, error) {
-	// initialize a pod watcher to list new and expired pods
-	watcher, err := kubelet.NewPodWatcher(podExpiration)
+func NewKubeScanner(sources *config.LogSources) (*KubeScanner, error) {
+	// initialize a file system watcher to list added and removed pod directories.
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, err
+	}
+	if err = watcher.Add(podsDirectoryPath); err != nil {
+		return nil, err
+	}
+	// initialize kubeUtil to request pods from podUIDs
+	kubeUtil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
 	}
@@ -52,9 +55,9 @@ func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *a
 	if err != nil {
 		return nil, err
 	}
-	// initialize a file scanner to collect logs from container files.
 	return &KubeScanner{
 		watcher:            watcher,
+		kubeUtil:           kubeUtil,
 		sources:            sources,
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
@@ -70,60 +73,47 @@ func (s *KubeScanner) Start() {
 // Stop stops the scanner
 func (s *KubeScanner) Stop() {
 	log.Info("Stopping Kubernetes scanner")
+	s.watcher.Close()
 	s.stopped <- struct{}{}
 }
 
 // run runs periodically a scan to detect new and deleted pod.
 func (s *KubeScanner) run() {
-	ticker := time.NewTicker(podScanPeriod)
-	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
-			s.scan()
+		case event := <-s.watcher.Events:
+			s.handle(event)
+		case err := <-s.watcher.Errors:
+			log.Warnf("an error occured scanning %v: %v", podsDirectoryPath, err)
 		case <-s.stopped:
 			return
 		}
 	}
 }
 
-// scan handles new and deleted pods.
-func (s *KubeScanner) scan() {
-	s.updatePods()
-	s.expirePods()
-}
-
-// updatePods pulls the new pods and creates new log sources.
-func (s *KubeScanner) updatePods() {
-	pods, err := s.watcher.PullChanges()
+// handle handles new events on the file system in the '/var/log/pods' directory
+// to create or remove log sources to start or stop file tailers.
+func (s *KubeScanner) handle(event fsnotify.Event) {
+	pod, err := s.getPod(event.Name)
 	if err != nil {
-		log.Error("can't list changed pods", err)
+		log.Error(err)
 		return
 	}
-	for _, pod := range pods {
-		if pod.Status.Phase == "Running" {
-			log.Infof("adding pod: %v", pod.Metadata.Name)
-			s.addSources(pod)
-		}
-	}
-}
-
-// expirePods fetches all expired pods and removes the corresponding log sources.
-func (s *KubeScanner) expirePods() {
-	entityIDs, err := s.watcher.Expire()
-	if err != nil {
-		log.Error("can't list expired pods", err)
-		return
-	}
-	for _, entityID := range entityIDs {
-		log.Infof("removing pod %v", entityID)
-		pod, err := s.watcher.GetPodForEntityID(entityID)
-		if err != nil {
-			log.Errorf("can't find pod %v: %v", entityID, err)
-			continue
-		}
+	switch event.Op {
+	case fsnotify.Create:
+		log.Infof("adding pod: %v", pod.Metadata.Name)
+		s.addSources(pod)
+	case fsnotify.Remove:
+		log.Infof("removing pod %v", pod.Metadata.Name)
 		s.removeSources(pod)
 	}
+}
+
+// getPod returns the pod reversed from the log path with format '/var/log/pods/podUID'.
+func (s *KubeScanner) getPod(path string) (*kubelet.Pod, error) {
+	podUID := filepath.Base(path)
+	pod, err := s.kubeUtil.GetPodFromUID(podUID)
+	return pod, fmt.Errorf("can't find pod with id %v: %v", podUID, err)
 }
 
 // addSources creates a new log source for each container of a new pod.
@@ -171,7 +161,7 @@ func (s *KubeScanner) getSourceName(pod *kubelet.Pod, container kubelet.Containe
 
 // getPath returns the path where all the logs of the container of the pod are stored.
 func (s *KubeScanner) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
-	return fmt.Sprintf("/var/log/pods/%s/%s/*.log", pod.Metadata.UID, container.Name)
+	return fmt.Sprintf("%s/%s/%s/*.log", podsDirectoryPath, pod.Metadata.UID, container.Name)
 }
 
 // getTags returns all the tags of the container
