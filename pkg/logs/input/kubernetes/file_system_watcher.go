@@ -27,7 +27,7 @@ type FileSystemWatcher struct {
 }
 
 // NewFileSystemWatcher returns a new watcher.
-func NewFileSystemWatcher() (*FileSystemWatcher, error) {
+func NewFileSystemWatcher(added, removed chan *kubelet.Pod) (*FileSystemWatcher, error) {
 	// initialize a file system watcher to list added and removed pod directories.
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -44,8 +44,8 @@ func NewFileSystemWatcher() (*FileSystemWatcher, error) {
 	return &FileSystemWatcher{
 		watcher:  watcher,
 		kubeUtil: kubeUtil,
-		added:    make(chan *kubelet.Pod),
-		removed:  make(chan *kubelet.Pod),
+		added:    added,
+		removed:  removed,
 		stopped:  make(chan struct{}),
 	}, nil
 }
@@ -59,16 +59,6 @@ func (w *FileSystemWatcher) Start() {
 func (w *FileSystemWatcher) Stop() {
 	w.watcher.Close()
 	w.stopped <- struct{}{}
-}
-
-// Added returns a channel of new pods.
-func (w *FileSystemWatcher) Added() chan *kubelet.Pod {
-	return w.added
-}
-
-// Removed returns a channel of pods removed.
-func (w *FileSystemWatcher) Removed() chan *kubelet.Pod {
-	return w.removed
 }
 
 // run listens to file system events and errors.

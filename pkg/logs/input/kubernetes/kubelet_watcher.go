@@ -34,15 +34,15 @@ type KubeletWatcher struct {
 }
 
 // NewKubeletWatcher returns a new watcher.
-func NewKubeletWatcher() (*KubeletWatcher, error) {
+func NewKubeletWatcher(added, removed chan *kubelet.Pod) (*KubeletWatcher, error) {
 	watcher, err := kubelet.NewPodWatcher(podExpiration)
 	if err != nil {
 		return nil, err
 	}
 	return &KubeletWatcher{
 		watcher: watcher,
-		added:   make(chan *kubelet.Pod),
-		removed: make(chan *kubelet.Pod),
+		added:   added,
+		removed: removed,
 	}, nil
 }
 
@@ -54,16 +54,6 @@ func (w *KubeletWatcher) Start() {
 // Stop stops the watcher.
 func (w *KubeletWatcher) Stop() {
 	w.stopped <- struct{}{}
-}
-
-// Added returns a channel of new pods.
-func (w *KubeletWatcher) Added() chan *kubelet.Pod {
-	return w.added
-}
-
-// Removed returns a channel of pods removed.
-func (w *KubeletWatcher) Removed() chan *kubelet.Pod {
-	return w.removed
 }
 
 // run runs periodically a scan to detect new and deleted pod.

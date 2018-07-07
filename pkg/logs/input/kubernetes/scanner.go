@@ -25,7 +25,7 @@ const (
 
 // Scanner looks for new and deleted pods to start or stop one file tailer per container.
 type Scanner struct {
-	watcher            Watcher
+	podProvider        *PodProvider
 	sources            *config.LogSources
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
@@ -33,8 +33,8 @@ type Scanner struct {
 
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources) (*Scanner, error) {
-	// initialize a pods watcher to handle added and removed pods.
-	watcher, err := NewWatcher(KubeletPolling) // TODO: drive the strategy by a configuration parameter.
+	// initialize a pod provider to handle added and removed pods.
+	podProvider, err := NewPodProvider(KubeletPolling) // TODO: drive the strategy by a configuration parameter.
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func NewScanner(sources *config.LogSources) (*Scanner, error) {
 		return nil, err
 	}
 	return &Scanner{
-		watcher:            watcher,
+		podProvider:        podProvider,
 		sources:            sources,
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
@@ -55,13 +55,13 @@ func NewScanner(sources *config.LogSources) (*Scanner, error) {
 func (s *Scanner) Start() {
 	log.Info("Starting Kubernetes scanner")
 	go s.run()
-	s.watcher.Start()
+	s.podProvider.Start()
 }
 
 // Stop stops the scanner
 func (s *Scanner) Stop() {
 	log.Info("Stopping Kubernetes scanner")
-	s.watcher.Stop()
+	s.podProvider.Stop()
 	s.stopped <- struct{}{}
 }
 
@@ -69,10 +69,10 @@ func (s *Scanner) Stop() {
 func (s *Scanner) run() {
 	for {
 		select {
-		case pod := <-s.watcher.Added():
+		case pod := <-s.podProvider.Added:
 			log.Infof("adding pod: %v", pod.Metadata.Name)
 			s.addSources(pod)
-		case pod := <-s.watcher.Removed():
+		case pod := <-s.podProvider.Removed:
 			log.Infof("removing pod %v", pod.Metadata.Name)
 			s.removeSources(pod)
 		case <-s.stopped:
