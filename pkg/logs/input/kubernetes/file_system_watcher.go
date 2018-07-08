@@ -95,5 +95,8 @@ func (w *FileSystemWatcher) handle(event fsnotify.Event) {
 func (w *FileSystemWatcher) getPod(path string) (*kubelet.Pod, error) {
 	podUID := filepath.Base(path)
 	pod, err := w.kubeUtil.GetPodFromUID(podUID)
-	return pod, fmt.Errorf("can't find pod with id %v: %v", podUID, err)
+	if err != nil {
+		return nil, fmt.Errorf("can't find pod with id %v: %v", podUID, err)
+	}
+	return pod, nil
 }
