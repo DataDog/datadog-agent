@@ -8,8 +8,6 @@
 package kubernetes
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -19,16 +17,6 @@ type Watcher interface {
 	Stop()
 }
 
-// Strategy represents the strategy to collect new and deleted pods.
-type Strategy uint32
-
-const (
-	// KubeletPolling pod discovery
-	KubeletPolling Strategy = 1 << iota
-	// Inotify pod discovery
-	Inotify
-)
-
 // PodProvider provides the new pods and the ones that have been removed.
 type PodProvider struct {
 	Added   chan *kubelet.Pod
@@ -37,18 +25,15 @@ type PodProvider struct {
 }
 
 // NewPodProvider returns a new pod provider.
-func NewPodProvider(strategy Strategy) (*PodProvider, error) {
+func NewPodProvider(useInotify bool) (*PodProvider, error) {
 	added := make(chan *kubelet.Pod)
 	removed := make(chan *kubelet.Pod)
 	var watcher Watcher
 	var err error
-	switch strategy {
-	case KubeletPolling:
-		watcher, err = NewKubeletWatcher(added, removed)
-	case Inotify:
+	if useInotify {
 		watcher, err = NewFileSystemWatcher(added, removed)
-	default:
-		return nil, fmt.Errorf("invalid watching strategy: %v", strategy)
+	} else {
+		watcher, err = NewKubeletWatcher(added, removed)
 	}
 	return &PodProvider{
 		Added:   added,
