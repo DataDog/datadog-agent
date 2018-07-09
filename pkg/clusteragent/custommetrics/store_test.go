@@ -42,7 +42,7 @@ func TestNewConfigMapStore(t *testing.T) {
 }
 
 func TestConfigMapStoreExternalMetrics(t *testing.T) {
-	client := fake.NewSimpleClientset().CoreV1()
+	client := fake.NewSimpleClientset()
 
 	tests := []struct {
 		desc     string

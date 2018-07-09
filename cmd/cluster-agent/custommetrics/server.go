@@ -12,6 +12,7 @@ import (
 	"os"
 	"time"
 
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
 	"github.com/spf13/pflag"

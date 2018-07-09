@@ -15,6 +15,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
@@ -36,14 +37,14 @@ type configMapStore struct {
 
 // NewConfigMapStore returns a new store backed by a configmap. The configmap will be created
 // in the specified namespace if it does not exist.
-func NewConfigMapStore(client corev1.CoreV1Interface, ns, name string) (Store, error) {
-	cm, err := client.ConfigMaps(ns).Get(name, metav1.GetOptions{})
+func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, error) {
+	cm, err := client.CoreV1().ConfigMaps(ns).Get(name, metav1.GetOptions{})
 	if err == nil {
 		log.Infof("Retrieved the configmap %s", name)
 		return &configMapStore{
 			namespace: ns,
 			name:      name,
-			client:    client,
+			client:    client.CoreV1(),
 			cm:        cm,
 		}, nil
 	}
@@ -61,14 +62,14 @@ func NewConfigMapStore(client corev1.CoreV1Interface, ns, name string) (Store, e
 		},
 	}
 	// FIXME: distinguish RBAC error
-	cm, err = client.ConfigMaps(ns).Create(cm)
+	cm, err = client.CoreV1().ConfigMaps(ns).Create(cm)
 	if err != nil {
 		return nil, err
 	}
 	return &configMapStore{
 		namespace: ns,
 		name:      name,
-		client:    client,
+		client:    client.CoreV1(),
 		cm:        cm,
 	}, nil
 }
