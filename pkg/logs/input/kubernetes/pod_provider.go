@@ -9,6 +9,7 @@ package kubernetes
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Watcher looks for new and deleted pods.
@@ -31,8 +32,10 @@ func NewPodProvider(useInotify bool) (*PodProvider, error) {
 	var watcher Watcher
 	var err error
 	if useInotify {
+		log.Info("Using inotify to watch pods")
 		watcher, err = NewFileSystemWatcher(added, removed)
 	} else {
+		log.Info("Using kubelet to watch pods")
 		watcher, err = NewKubeletWatcher(added, removed)
 	}
 	return &PodProvider{
