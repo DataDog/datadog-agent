@@ -19,12 +19,11 @@ import (
 
 // FileSystemWatcher looks for new and deleted pods listening to file system events.
 type FileSystemWatcher struct {
-	watcher          *fsnotify.Watcher
-	kubeUtil         *kubelet.KubeUtil
-	podsPerDirectory map[string]*kubelet.Pod
-	added            chan *kubelet.Pod
-	removed          chan *kubelet.Pod
-	stopped          chan struct{}
+	watcher  *fsnotify.Watcher
+	kubeUtil *kubelet.KubeUtil
+	added    chan *kubelet.Pod
+	removed  chan *kubelet.Pod
+	stopped  chan struct{}
 }
 
 // NewFileSystemWatcher returns a new watcher.
@@ -43,12 +42,11 @@ func NewFileSystemWatcher(added, removed chan *kubelet.Pod) (*FileSystemWatcher,
 		return nil, err
 	}
 	return &FileSystemWatcher{
-		watcher:          watcher,
-		kubeUtil:         kubeUtil,
-		podsPerDirectory: make(map[string]*kubelet.Pod),
-		added:            added,
-		removed:          removed,
-		stopped:          make(chan struct{}),
+		watcher:  watcher,
+		kubeUtil: kubeUtil,
+		added:    added,
+		removed:  removed,
+		stopped:  make(chan struct{}),
 	}, nil
 }
 
@@ -78,53 +76,19 @@ func (w *FileSystemWatcher) run() {
 }
 
 // handle handles new events on the file system in the '/var/log/pods' directory
-// to collect new pods added and removed.
+// to collect information about the new pods added and removed.
 func (w *FileSystemWatcher) handle(event fsnotify.Event) {
-	if event.Op != fsnotify.Write {
-		return
-	}
-
-	directories, err := w.getPodDirectories()
+	pod, err := w.getPod(event.Name)
 	if err != nil {
 		log.Error(err)
 		return
 	}
-
-	pods := make(map[string]*kubelet.Pod, len(w.podsPerDirectory))
-	for d, pod := range w.podsPerDirectory {
-		pods[d] = pod
-	}
-
-	for _, d := range directories {
-		if _, exists := w.podsPerDirectory[d]; !exists {
-			pod, err := w.getPod(event.Name)
-			if err != nil {
-				log.Warn(err)
-				continue
-			}
-			w.podsPerDirectory[d] = pod
-			w.added <- pod
-		} else {
-			delete(pods, d)
-		}
-	}
-
-	for d, pod := range pods {
-		delete(w.podsPerDirectory, d)
+	switch event.Op {
+	case fsnotify.Create:
+		w.added <- pod
+	case fsnotify.Remove:
 		w.removed <- pod
 	}
-}
-
-// podDirectoriesPattern represents the pattern to match all pod directories.
-var podDirectoriesPattern = fmt.Sprintf("%s/*", podsDirectoryPath)
-
-// getPodDirectories returns the current list of pod directories in /var/log/pods.
-func (w *FileSystemWatcher) getPodDirectories() ([]string, error) {
-	podDirectories, err := filepath.Glob(podDirectoriesPattern)
-	if err != nil {
-		return nil, fmt.Errorf("can't list pod directories: %v", err)
-	}
-	return podDirectories, nil
 }
 
 // getPod returns the pod reversed from its log path with format: '/var/log/pods/podUID'.
