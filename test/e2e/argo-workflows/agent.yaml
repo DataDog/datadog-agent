@@ -551,6 +551,9 @@ spec:
     - - name: find-metrics-kubernetes
         template: find-metrics-kubernetes
 
+      - name: find-container-meta
+        template: find-container-meta
+
       - name: find-kube-state-metrics
         template: find-kube-state-metrics
 
@@ -925,4 +928,26 @@ spec:
           }
           prevNb = nb;
           sleep(30000);
+        }
+
+  - name: find-container-meta
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.intake.find({
+            $and : [
+            {"apiKey":"123er"},
+            {"gohai":{$exists: 1}},
+            {"container-meta.kubelet_version":{$regex: "^v1."}},
+            {"container-meta.docker_swarm":"inactive"},
+            {"container-meta.docker_version":{$exists: 1}} ]
+          }).count();
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
         }
