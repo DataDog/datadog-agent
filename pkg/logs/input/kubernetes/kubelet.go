@@ -25,21 +25,21 @@ const (
 	podExpiration = 20 * time.Second
 )
 
-// KubeletWatcher looks for new and deleted pods polling the kubelet.
-type KubeletWatcher struct {
+// Kubelet looks for new and deleted pods polling the kubelet.
+type Kubelet struct {
 	watcher *kubelet.PodWatcher
 	added   chan *kubelet.Pod
 	removed chan *kubelet.Pod
 	stopped chan struct{}
 }
 
-// NewKubeletWatcher returns a new watcher.
-func NewKubeletWatcher(added, removed chan *kubelet.Pod) (*KubeletWatcher, error) {
+// NewKubelet returns a new watcher.
+func NewKubelet(added, removed chan *kubelet.Pod) (*Kubelet, error) {
 	watcher, err := kubelet.NewPodWatcher(podExpiration)
 	if err != nil {
 		return nil, err
 	}
-	return &KubeletWatcher{
+	return &Kubelet{
 		watcher: watcher,
 		added:   added,
 		removed: removed,
@@ -47,17 +47,17 @@ func NewKubeletWatcher(added, removed chan *kubelet.Pod) (*KubeletWatcher, error
 }
 
 // Start starts the watcher.
-func (w *KubeletWatcher) Start() {
+func (w *Kubelet) Start() {
 	go w.run()
 }
 
 // Stop stops the watcher.
-func (w *KubeletWatcher) Stop() {
+func (w *Kubelet) Stop() {
 	w.stopped <- struct{}{}
 }
 
 // run runs periodically a scan to detect new and deleted pod.
-func (w *KubeletWatcher) run() {
+func (w *Kubelet) run() {
 	ticker := time.NewTicker(podScanPeriod)
 	defer ticker.Stop()
 	for {
@@ -72,30 +72,28 @@ func (w *KubeletWatcher) run() {
 }
 
 // addPods pulls the new pods and passes them along to the channel.
-func (w *KubeletWatcher) addPods() {
+func (w *Kubelet) addPods() {
 	pods, err := w.watcher.PullChanges()
 	if err != nil {
-		log.Error("can't list changed pods", err)
+		log.Warnf("Can't list changed pods: %v", err)
 		return
 	}
 	for _, pod := range pods {
-		if pod.Status.Phase == "Running" {
-			w.added <- pod
-		}
+		w.added <- pod
 	}
 }
 
 // removePods fetches all expired pods and passes them along to the channel.
-func (w *KubeletWatcher) removePods() {
+func (w *Kubelet) removePods() {
 	entityIDs, err := w.watcher.Expire()
 	if err != nil {
-		log.Errorf("can't list expired pods: %v", err)
+		log.Warnf("Can't list expired pods: %v", err)
 		return
 	}
 	for _, entityID := range entityIDs {
 		pod, err := w.watcher.GetPodForEntityID(entityID)
 		if err != nil {
-			log.Errorf("can't find pod %v: %v", entityID, err)
+			log.Warnf("Can't find pod %v: %v", entityID, err)
 			continue
 		}
 		w.removed <- pod

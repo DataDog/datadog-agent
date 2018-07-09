@@ -17,13 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
-const (
+// The path to the pods log directory.
+const podsDirectoryPath = "/var/log/pods"
 
-	// The path to the pods log directory.
-	podsDirectoryPath = "/var/log/pods"
-)
-
-// Scanner looks for new and deleted pods to start or stop one file tailer per container.
+// Scanner looks for new and deleted pods to create or delete one logs-source per container.
 type Scanner struct {
 	podProvider        *PodProvider
 	sources            *config.LogSources
@@ -33,7 +30,7 @@ type Scanner struct {
 
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources) (*Scanner, error) {
-	// initialize a pod provider to handle added and deleted pods.
+	// initialize a pod provider to retrieve added and deleted pods.
 	podProvider, err := NewPodProvider(config.LogsAgent.GetBool("logs_config.dev_mode_use_inotify"))
 	if err != nil {
 		return nil, err
@@ -81,7 +78,7 @@ func (s *Scanner) run() {
 	}
 }
 
-// addSources creates a new log source for each container of a new pod.
+// addSources creates new log-sources for each container of the pod.
 func (s *Scanner) addSources(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
@@ -94,7 +91,7 @@ func (s *Scanner) addSources(pod *kubelet.Pod) {
 	}
 }
 
-// removeSources removes all log sources for all the containers in pod.
+// removeSources removes all the log-sources of all the containers of the pod.
 func (s *Scanner) removeSources(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
