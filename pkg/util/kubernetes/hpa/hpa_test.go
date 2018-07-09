@@ -26,20 +26,28 @@ type mockStore struct {
 func newMockStore(metricName string, labels map[string]string) *mockStore {
 	s := &mockStore{}
 	em := custommetrics.ExternalMetricValue{
-		OwnerRef:   custommetrics.ObjectReference{Name: "foo"},
-		MetricName: metricName,
-		Labels:     labels,
-		Timestamp:  12,
-		Value:      1,
-		Valid:      false,
+		MetricName:   metricName,
+		Labels:       labels,
+		HPANamespace: "default",
+		HPAName:      "foo",
+		Timestamp:    12,
+		Value:        1,
+		Valid:        false,
 	}
-	s.externalMetrics = map[string]custommetrics.ExternalMetricValue{em.MetricName: em}
+	_ = s.SetExternalMetric(em)
 	return s
 }
 
-func (s *mockStore) Begin(f func(custommetrics.Tx)) error {
-	tx := &mockTx{s.externalMetrics}
-	f(tx)
+func (s *mockStore) SetExternalMetric(em custommetrics.ExternalMetricValue) error {
+	if s.externalMetrics == nil {
+		s.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
+	}
+	s.externalMetrics[em.MetricName] = em
+	return nil
+}
+
+func (s *mockStore) DeleteExternalMetric(hpaNamespace, hpaName, metricName string) error {
+	delete(s.externalMetrics, metricName)
 	return nil
 }
 
@@ -51,20 +59,7 @@ func (s *mockStore) ListAllExternalMetrics() ([]custommetrics.ExternalMetricValu
 	return allMetrics, nil
 }
 
-type mockTx struct {
-	externalMetrics map[string]custommetrics.ExternalMetricValue
-}
-
-func (t *mockTx) Set(m custommetrics.ExternalMetricValue) {
-	if t.externalMetrics == nil {
-		t.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
-	}
-	t.externalMetrics[m.MetricName] = m
-}
-
-func (t *mockTx) Del(_ string, metricName string) {
-	delete(t.externalMetrics, metricName)
-}
+func (s *mockStore) Update() error { return nil }
 
 func newMockHPAExternalMetricSource(metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
 	return &v2beta1.HorizontalPodAutoscaler{
@@ -105,12 +100,13 @@ func TestRemoveEntryFromStore(t *testing.T) {
 			hpa:      newMockHPAExternalMetricSource("foo", map[string]string{"bar": "baz"}),
 			expectedMetrics: map[string]custommetrics.ExternalMetricValue{
 				"foobar": custommetrics.ExternalMetricValue{
-					OwnerRef:   custommetrics.ObjectReference{Name: "foo"},
-					MetricName: "foobar",
-					Labels:     map[string]string{"bar": "baz"},
-					Timestamp:  12,
-					Value:      1,
-					Valid:      false,
+					MetricName:   "foobar",
+					Labels:       map[string]string{"bar": "baz"},
+					HPANamespace: "default",
+					HPAName:      "foo",
+					Timestamp:    12,
+					Value:        1,
+					Valid:        false,
 				},
 			},
 		},

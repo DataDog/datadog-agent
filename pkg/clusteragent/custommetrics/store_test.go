@@ -50,29 +50,33 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 		expected []ExternalMetricValue
 	}{
 		{
-			"same metric with different owners and labels",
+			"same metric with different hpas and labels",
 			[]ExternalMetricValue{
 				{
-					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "frontend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "frontend"},
+					HPAName:      "foo",
+					HPANamespace: "default",
 				},
 				{
-					OwnerRef:   ObjectReference{Name: "bar", UID: "39f7b47d-7eeb-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "backend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "backend"},
+					HPAName:      "bar",
+					HPANamespace: "default",
 				},
 			},
 			[]ExternalMetricValue{
 				{
-					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "frontend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "frontend"},
+					HPAName:      "foo",
+					HPANamespace: "default",
 				},
 				{
-					OwnerRef:   ObjectReference{Name: "bar", UID: "39f7b47d-7eeb-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "backend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "backend"},
+					HPAName:      "bar",
+					HPANamespace: "default",
 				},
 			},
 		},
@@ -80,26 +84,30 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			"same metric with different owners and same labels",
 			[]ExternalMetricValue{
 				{
-					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "frontend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "frontend"},
+					HPAName:      "foo",
+					HPANamespace: "default",
 				},
 				{
-					OwnerRef:   ObjectReference{Name: "bar", UID: "39f7b47d-7eeb-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "frontend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "frontend"},
+					HPAName:      "bar",
+					HPANamespace: "default",
 				},
 			},
 			[]ExternalMetricValue{
 				{
-					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "frontend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "frontend"},
+					HPAName:      "foo",
+					HPANamespace: "default",
 				},
 				{
-					OwnerRef:   ObjectReference{Name: "bar", UID: "39f7b47d-7eeb-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "frontend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "frontend"},
+					HPAName:      "bar",
+					HPANamespace: "default",
 				},
 			},
 		},
@@ -107,21 +115,24 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			"same metric with same owners and different labels",
 			[]ExternalMetricValue{
 				{
-					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "frontend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "frontend"},
+					HPAName:      "foo",
+					HPANamespace: "default",
 				},
 				{
-					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "backend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "backend"},
+					HPAName:      "foo",
+					HPANamespace: "default",
 				},
 			},
 			[]ExternalMetricValue{
 				{
-					OwnerRef:   ObjectReference{Name: "foo", UID: "d7c6d419-7ee8-11e8-a56b-42010a800227"},
-					MetricName: "requests_per_sec",
-					Labels:     map[string]string{"role": "backend"},
+					MetricName:   "requests_per_sec",
+					Labels:       map[string]string{"role": "backend"},
+					HPAName:      "foo",
+					HPANamespace: "default",
 				},
 			},
 		},
@@ -133,22 +144,22 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, store.(*configMapStore).cm)
 
-			err = store.Begin(func(tx Tx) {
-				for _, em := range tt.metrics {
-					tx.Set(em)
-				}
-			})
+			for _, em := range tt.metrics {
+				err = store.SetExternalMetric(em)
+				require.NoError(t, err)
+			}
+			err = store.Update()
 			require.NoError(t, err)
 
 			allMetrics, err := store.ListAllExternalMetrics()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, allMetrics)
 
-			err = store.Begin(func(tx Tx) {
-				for _, em := range tt.metrics {
-					tx.Delete(string(em.OwnerRef.UID), em.MetricName)
-				}
-			})
+			for _, em := range tt.metrics {
+				err = store.DeleteExternalMetric(em.HPANamespace, em.HPAName, em.MetricName)
+				require.NoError(t, err)
+			}
+			err = store.Update()
 			require.NoError(t, err)
 			assert.Zero(t, len(store.(*configMapStore).cm.Data))
 		})

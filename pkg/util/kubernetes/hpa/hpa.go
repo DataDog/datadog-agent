@@ -180,66 +180,60 @@ func (c *HPAWatcherClient) updateExternalMetrics() {
 		return
 	}
 
-	err = c.store.Begin(func(tx custommetrics.Tx) {
-		for _, em := range emList {
-			if metav1.Now().Unix()-em.Timestamp <= maxAge && em.Valid {
-				continue
-			}
-
-			em.Valid = false
-			em.Timestamp = metav1.Now().Unix()
-
-			em.Value, em.Valid, err = c.validateExternalMetric(em)
-			if err != nil {
-				log.Debugf("Could not update the metric %s from Datadog: %s", em.MetricName, err.Error())
-				continue
-			}
-
-			tx.Set(em)
-
-			log.Debugf("Updated the custom metric %#v", em)
+	for _, em := range emList {
+		if metav1.Now().Unix()-em.Timestamp <= maxAge && em.Valid {
+			continue
 		}
-	})
-	if err != nil {
-		log.Errorf("Could not store the custom metrics in the store: %s", err.Error())
+
+		em.Valid = false
+		em.Timestamp = metav1.Now().Unix()
+		em.Value, em.Valid, err = c.validateExternalMetric(em)
+		if err != nil {
+			log.Debugf("Could not update the metric %s from Datadog: %s", em.MetricName, err.Error())
+			continue
+		}
+
+		if err = c.store.SetExternalMetric(em); err != nil {
+			continue
+		}
+
+		log.Debugf("Updated the custom metric %#v", em)
+	}
+
+	if err = c.store.Update(); err != nil {
+		log.Errorf("Could not update the external metrics in the store: %s", err.Error())
 	}
 }
 
 // processHPAs transforms HPA data into structures to be stored upon validation that they are available in Datadog
 func (c *HPAWatcherClient) processHPAs(hpas []*v2beta1.HorizontalPodAutoscaler) error {
-	err := c.store.Begin(func(tx custommetrics.Tx) {
-		var err error
-		for _, hpa := range hpas {
-			ownerRef := custommetrics.ObjectReference{
-				Kind:       hpa.Kind,
-				Name:       hpa.Name,
-				Namespace:  hpa.Namespace,
-				UID:        hpa.UID,
-				APIVersion: hpa.APIVersion,
-			}
-			for _, metricSpec := range hpa.Spec.Metrics {
-				switch metricSpec.Type {
-				case v2beta1.ExternalMetricSourceType:
-					em := custommetrics.ExternalMetricValue{
-						OwnerRef:   ownerRef,
-						MetricName: metricSpec.External.MetricName,
-						Timestamp:  metav1.Now().Unix(),
-						Labels:     metricSpec.External.MetricSelector.MatchLabels,
-					}
-					em.Value, em.Valid, err = c.validateExternalMetric(em)
-					if err != nil {
-						log.Debugf("Not able to process external metric %#v: %s", em, err)
-						continue
-					}
-					tx.Set(em)
-				default:
-					log.Debugf("Unsupported metric type %s", metricSpec.Type)
+	var err error
+	for _, hpa := range hpas {
+		for _, metricSpec := range hpa.Spec.Metrics {
+			switch metricSpec.Type {
+			case v2beta1.ExternalMetricSourceType:
+				em := custommetrics.ExternalMetricValue{
+					MetricName:   metricSpec.External.MetricName,
+					Timestamp:    metav1.Now().Unix(),
+					HPANamespace: hpa.Namespace,
+					HPAName:      hpa.Name,
+					Labels:       metricSpec.External.MetricSelector.MatchLabels,
 				}
+				em.Value, em.Valid, err = c.validateExternalMetric(em)
+				if err != nil {
+					log.Debugf("Not able to process external metric %#v: %s", em, err)
+					continue
+				}
+				if err = c.store.SetExternalMetric(em); err != nil {
+					continue
+				}
+			default:
+				log.Debugf("Unsupported metric type %s", metricSpec.Type)
 			}
 		}
-	})
-	if err != nil {
-		log.Infof("Could not update external metrics in the store: %s", err)
+	}
+	if err = c.store.Update(); err != nil {
+		log.Infof("Could not update the external metrics in the store: %s", err.Error())
 		return err
 	}
 	return nil
@@ -256,21 +250,19 @@ func (c *HPAWatcherClient) validateExternalMetric(em custommetrics.ExternalMetri
 
 // removeEntryFromStore will remove an External Custom Metric from removeEntryFromStore if the corresponding HPA manifest is deleted.
 func (c *HPAWatcherClient) removeEntryFromStore(deleted []*v2beta1.HorizontalPodAutoscaler) error {
-	err := c.store.Begin(func(tx custommetrics.Tx) {
-		for _, d := range deleted {
-			for _, metricSpec := range d.Spec.Metrics {
-				var metricName string
-				switch metricSpec.Type {
-				case v2beta1.ExternalMetricSourceType:
-					metricName = metricSpec.External.MetricName
-				default:
-					log.Debugf("Unsupported metric type %s", metricSpec.Type)
-				}
-				tx.Delete(string(d.UID), metricName)
+	for _, hpa := range deleted {
+		for _, metricSpec := range hpa.Spec.Metrics {
+			var metricName string
+			switch metricSpec.Type {
+			case v2beta1.ExternalMetricSourceType:
+				metricName = metricSpec.External.MetricName
+			default:
+				log.Debugf("Unsupported metric type %s", metricSpec.Type)
 			}
+			c.store.DeleteExternalMetric(hpa.Namespace, hpa.Name, metricName)
 		}
-	})
-	if err != nil {
+	}
+	if err := c.store.Update(); err != nil {
 		log.Infof("Could not delete external metrics in the store: %s", err.Error())
 		return err
 	}

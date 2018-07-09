@@ -7,23 +7,12 @@
 
 package custommetrics
 
-import (
-	"k8s.io/apimachinery/pkg/types"
-)
-
 type ExternalMetricValue struct {
-	OwnerRef   ObjectReference   `json:"ownerRef"`
-	MetricName string            `json:"metricName"`
-	Labels     map[string]string `json:"labels"`
-	Timestamp  int64             `json:"ts"`
-	Value      int64             `json:"value"`
-	Valid      bool              `json:"valid"`
-}
-
-type ObjectReference struct {
-	Kind       string    `json:"kind"`
-	Namespace  string    `json:"namespace"`
-	Name       string    `json:"name"`
-	UID        types.UID `json:"uid"`
-	APIVersion string    `json:"apiVersion"`
+	MetricName   string            `json:"metricName"`
+	Labels       map[string]string `json:"labels"`
+	Timestamp    int64             `json:"ts"`
+	HPAName      string            `json:"hpa_name"`
+	HPANamespace string            `json:"hpa_namespace"`
+	Value        int64             `json:"value"`
+	Valid        bool              `json:"valid"`
 }
