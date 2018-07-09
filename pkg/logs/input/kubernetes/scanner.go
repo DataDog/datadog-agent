@@ -85,7 +85,11 @@ func (s *Scanner) addSources(pod *kubelet.Pod) {
 		if _, exists := s.sourcesByContainer[containerID]; exists {
 			continue
 		}
-		source := s.getSource(pod, container)
+		source, err := s.getSource(pod, container)
+		if err != nil {
+			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
+			continue
+		}
 		s.sourcesByContainer[containerID] = source
 		s.sources.AddSource(source)
 	}
@@ -106,13 +110,13 @@ func (s *Scanner) removeSources(pod *kubelet.Pod) {
 const kubernetesIntegration = "kubernetes"
 
 // getSource returns a new source for the container in pod
-func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) *config.LogSource {
+func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
 	if annotation := s.getAnnotation(pod, container); annotation != "" {
-		cfg, err := config.Parse(annotation)
+		var err error
+		cfg, err = config.Parse(annotation)
 		if err != nil {
-			log.Warnf("Invalid pod annotation for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
-			return nil
+			return nil, err
 		}
 	} else {
 		cfg = &config.LogsConfig{
@@ -123,7 +127,7 @@ func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus)
 	cfg.Type = config.FileType
 	cfg.Path = s.getPath(pod, container)
 	cfg.Tags = append(cfg.Tags, s.getTags(container)...)
-	return config.NewLogSource(s.getSourceName(pod, container), cfg)
+	return config.NewLogSource(s.getSourceName(pod, container), cfg), nil
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,

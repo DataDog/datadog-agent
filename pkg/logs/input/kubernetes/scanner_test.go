@@ -17,7 +17,7 @@ import (
 )
 
 func TestGetSource(t *testing.T) {
-	scanner := Scanner{}
+	scanner := &Scanner{}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -34,7 +34,8 @@ func TestGetSource(t *testing.T) {
 		},
 	}
 
-	source := scanner.getSource(pod, container)
+	source, err := scanner.getSource(pod, container)
+	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
 	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
@@ -43,7 +44,7 @@ func TestGetSource(t *testing.T) {
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
-	scanner := Scanner{}
+	scanner := &Scanner{}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -63,7 +64,8 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 		},
 	}
 
-	source := scanner.getSource(pod, container)
+	source, err := scanner.getSource(pod, container)
+	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
 	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
@@ -72,14 +74,40 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 	assert.True(t, contains(source.Config.Tags, "tag1", "tag2"))
 }
 
+func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
+	scanner := &Scanner{}
+	container := kubelet.ContainerStatus{
+		Name:  "foo",
+		Image: "bar",
+		ID:    "boo",
+	}
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "fuz",
+			Namespace: "buu",
+			UID:       "baz",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/foo.logs": `{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}`,
+			},
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{container},
+		},
+	}
+
+	source, err := scanner.getSource(pod, container)
+	assert.NotNil(t, err)
+	assert.Nil(t, source)
+}
+
 // contains returns true if the list contains all the items.
 func contains(list []string, items ...string) bool {
-	m := make(map[string]struct{}, len(list))
-	for _, elt := range list {
-		m[elt] = struct{}{}
-	}
+	m := make(map[string]struct{}, len(items))
 	for _, item := range items {
-		if _, exists := m[item]; !exists {
+		m[item] = struct{}{}
+	}
+	for _, elt := range list {
+		if _, exists := m[elt]; !exists {
 			return false
 		}
 	}
