@@ -19,21 +19,22 @@ import (
 
 // FileSystem looks for new and deleted pods listening to file system events.
 type FileSystem struct {
-	watcher  *fsnotify.Watcher
-	kubeUtil *kubelet.KubeUtil
-	added    chan *kubelet.Pod
-	removed  chan *kubelet.Pod
-	stopped  chan struct{}
+	watcher       *fsnotify.Watcher
+	kubeUtil      *kubelet.KubeUtil
+	podsDirectory string
+	added         chan *kubelet.Pod
+	removed       chan *kubelet.Pod
+	stopped       chan struct{}
 }
 
 // NewFileSystem returns a new watcher.
-func NewFileSystem(added, removed chan *kubelet.Pod) (*FileSystem, error) {
+func NewFileSystem(podsDirectory string, added, removed chan *kubelet.Pod) (*FileSystem, error) {
 	// initialize a file system watcher to list added and deleted pod directories.
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
-	if err = watcher.Add(podsDirectoryPath); err != nil {
+	if err = watcher.Add(podsDirectory); err != nil {
 		return nil, err
 	}
 	// initialize kubeUtil to request pods information from podUIDs
@@ -42,11 +43,12 @@ func NewFileSystem(added, removed chan *kubelet.Pod) (*FileSystem, error) {
 		return nil, err
 	}
 	return &FileSystem{
-		watcher:  watcher,
-		kubeUtil: kubeUtil,
-		added:    added,
-		removed:  removed,
-		stopped:  make(chan struct{}),
+		watcher:       watcher,
+		kubeUtil:      kubeUtil,
+		podsDirectory: podsDirectory,
+		added:         added,
+		removed:       removed,
+		stopped:       make(chan struct{}),
 	}, nil
 }
 
@@ -62,12 +64,9 @@ func (w *FileSystem) Stop() {
 	w.stopped <- struct{}{}
 }
 
-// podDirectoriesPattern represents the pattern to match all pod directories.
-var podDirectoriesPattern = fmt.Sprintf("%s/*", podsDirectoryPath)
-
 // addExistingPods retrieves all pods in /var/log/pods at start and pass them along to the channel.
 func (w *FileSystem) addExistingPods() {
-	directories, err := filepath.Glob(podDirectoriesPattern)
+	directories, err := filepath.Glob(fmt.Sprintf("%s/*", w.podsDirectory))
 	if err != nil {
 		log.Warnf("Can't retrieve pod directories: %v", err)
 	}
@@ -88,7 +87,7 @@ func (w *FileSystem) run() {
 		case event := <-w.watcher.Events:
 			w.handle(event)
 		case err := <-w.watcher.Errors:
-			log.Errorf("An error occurred scanning %v: %v", podsDirectoryPath, err)
+			log.Warnf("An error occurred scanning %v: %v", w.podsDirectory, err)
 		case <-w.stopped:
 			return
 		}

@@ -33,10 +33,10 @@ func NewPodProvider(useInotify bool) (*PodProvider, error) {
 	var err error
 	if useInotify {
 		log.Info("Using inotify to watch pods")
-		watcher, err = NewFileSystemWatcher(added, removed)
+		watcher, err = NewFileSystem(podsDirectoryPath, added, removed)
 	} else {
 		log.Info("Using kubelet to watch pods")
-		watcher, err = NewKubeletWatcher(added, removed)
+		watcher, err = NewKubelet(added, removed)
 	}
 	return &PodProvider{
 		Added:   added,
