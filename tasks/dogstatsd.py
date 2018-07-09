@@ -45,7 +45,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     if static:
         bin_path = STATIC_BIN_PATH
 
-    # NOTE: consider stripping symbols to reduce binary size 
+    # NOTE: consider stripping symbols to reduce binary size
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd/"
     args = {
@@ -193,6 +193,8 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     if install_deps:
         deps(ctx)
 
+    # Go tests
+
     test_args = {
         "go_build_tags": " ".join(get_default_build_tags()),
         "race_opt": "-race" if race else "",
@@ -210,6 +212,14 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
     for prefix in prefixes:
         ctx.run("{} {}".format(go_cmd, prefix))
+
+    # Python tests
+
+    if sys.platform.startswith('linux'):
+        image_build(ctx, skip_build=False)
+        print("Starting dsd alpine docker image integration tests")
+        env = {"DOCKER_IMAGE": DOGSTATSD_TAG}
+        ctx.run("python ./test/integration/dogstatsd/dsd_alpine_listening.py", env=env)
 
 
 @task
