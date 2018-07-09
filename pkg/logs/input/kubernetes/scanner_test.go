@@ -41,3 +41,47 @@ func TestGetSource(t *testing.T) {
 	assert.Equal(t, "kubernetes", source.Config.Source)
 	assert.Equal(t, "kubernetes", source.Config.Service)
 }
+
+func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
+	scanner := Scanner{}
+	container := kubelet.ContainerStatus{
+		Name:  "foo",
+		Image: "bar",
+		ID:    "boo",
+	}
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "fuz",
+			Namespace: "buu",
+			UID:       "baz",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+			},
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{container},
+		},
+	}
+
+	source := scanner.getSource(pod, container)
+	assert.Equal(t, config.FileType, source.Config.Type)
+	assert.Equal(t, "buu/fuz/foo", source.Name)
+	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "any_source", source.Config.Source)
+	assert.Equal(t, "any_service", source.Config.Service)
+	assert.True(t, contains(source.Config.Tags, "tag1", "tag2"))
+}
+
+// contains returns true if the list contains all the items.
+func contains(list []string, items ...string) bool {
+	m := make(map[string]struct{}, len(list))
+	for _, elt := range list {
+		m[elt] = struct{}{}
+	}
+	for _, item := range items {
+		if _, exists := m[item]; !exists {
+			return false
+		}
+	}
+	return true
+}
