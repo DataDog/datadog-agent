@@ -16,7 +16,7 @@ func Parse(jsonString string) (*LogsConfig, error) {
 	var configs []LogsConfig
 	var err error
 	err = json.Unmarshal([]byte(jsonString), &configs)
-	if err != nil || len(configs) < 1 {
+	if err != nil || len(configs) == 0 {
 		return nil, fmt.Errorf("could not parse logs config, invalid format: %v", jsonString)
 	}
 	config := configs[0]
