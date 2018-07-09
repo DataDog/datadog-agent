@@ -8,16 +8,14 @@
 package kubernetes
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
 // Scanner is not supported on no kubelet environment
 type Scanner struct{}
 
 // NewScanner returns a new scanner
-func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) (*Scanner, error) {
+func NewScanner(sources *config.LogSources) (*Scanner, error) {
 	return &Scanner{}, nil
 }
 
