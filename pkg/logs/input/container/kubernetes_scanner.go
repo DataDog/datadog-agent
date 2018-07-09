@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -31,18 +30,10 @@ const (
 
 	// How should we wait before considering a pod has been deleted.
 	podExpiration = 20 * time.Second
-
-	// How long the file tailer should wait when it reaches EOF before trying to
-	// read again.
-	tailerSleepPeriod = 1 * time.Second
-
-	// The maximum number of files the tailer can open simultaneously.
-	tailerMaxOpenFiles = 1024
 )
 
 // KubeScanner looks for new and deleted pods to start or stop one file tailer per container.
 type KubeScanner struct {
-	fileScanner        *file.Scanner
 	watcher            *kubelet.PodWatcher
 	sources            *config.LogSources
 	sourcesByContainer map[string]*config.LogSource
@@ -62,9 +53,7 @@ func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *a
 		return nil, err
 	}
 	// initialize a file scanner to collect logs from container files.
-	fileScanner := file.New(sources, tailerMaxOpenFiles, pp, auditor, tailerSleepPeriod)
 	return &KubeScanner{
-		fileScanner:        fileScanner,
 		watcher:            watcher,
 		sources:            sources,
 		sourcesByContainer: make(map[string]*config.LogSource),
@@ -75,7 +64,6 @@ func NewKubeScanner(sources *config.LogSources, pp pipeline.Provider, auditor *a
 // Start starts the scanner
 func (s *KubeScanner) Start() {
 	log.Info("Starting Kubernetes scanner")
-	s.fileScanner.Start()
 	go s.run()
 }
 
@@ -83,7 +71,6 @@ func (s *KubeScanner) Start() {
 func (s *KubeScanner) Stop() {
 	log.Info("Stopping Kubernetes scanner")
 	s.stopped <- struct{}{}
-	s.fileScanner.Stop()
 }
 
 // run runs periodically a scan to detect new and deleted pod.
