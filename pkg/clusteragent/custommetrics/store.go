@@ -54,7 +54,7 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 		return nil, err
 	}
 
-	log.Infof("The configmap %s not dot exist, trying to create it", name)
+	log.Infof("The configmap %s does not exist, trying to create it", name)
 	cm = &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -100,7 +100,7 @@ func (c *configMapStore) DeleteExternalMetric(hpaNamespace, hpaName, metricName 
 		return nil
 	}
 	delete(c.cm.Data, key)
-	log.Debugf("Deleted external metric %#v from the configmap %s", metricName, c.cm.Name)
+	log.Debugf("Deleted external metric %#v from the configmap %s", metricName, c.name)
 	return nil
 }
 
