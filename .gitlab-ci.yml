@@ -52,7 +52,6 @@ before_script:
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
   - pip install -U pip
-  - pip install mercurial
   - inv -e deps
 
 #
@@ -121,7 +120,6 @@ run_security_scan_test:
     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
-    - pip install mercurial
     - dep ensure
   script:
     - set +x     # don't print the api key to the logs
@@ -325,7 +323,6 @@ build_windows_msi_x64:
     - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    - pip install mercurial
     - inv -e deps
   stage: package_build
   variables:
