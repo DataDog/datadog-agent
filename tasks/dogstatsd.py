@@ -216,8 +216,8 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     # Python tests
 
     if sys.platform.startswith('linux'):
+        print("\n=== Running dogstatsd alpine docker image tests ===\n")
         image_build(ctx, skip_build=False)
-        print("Starting dsd alpine docker image integration tests")
         env = {"DOCKER_IMAGE": DOGSTATSD_TAG}
         ctx.run("python ./test/integration/dogstatsd/dsd_alpine_listening.py", env=env)
 
