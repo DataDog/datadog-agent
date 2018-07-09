@@ -12,6 +12,7 @@ import (
 	"net"
 )
 
+// ErrLinuxOnly is emitted on non-linux platforms
 var ErrLinuxOnly = errors.New("only implemented on Linux hosts")
 
 // getUDSAncillarySize returns 0 on non-linux hosts
