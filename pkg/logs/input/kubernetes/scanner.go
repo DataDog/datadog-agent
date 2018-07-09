@@ -70,10 +70,10 @@ func (s *Scanner) run() {
 	for {
 		select {
 		case pod := <-s.podProvider.Added:
-			log.Infof("adding pod: %v", pod.Metadata.Name)
+			log.Infof("Adding pod: %v", pod.Metadata.Name)
 			s.addSources(pod)
 		case pod := <-s.podProvider.Removed:
-			log.Infof("removing pod %v", pod.Metadata.Name)
+			log.Infof("Removing pod %v", pod.Metadata.Name)
 			s.removeSources(pod)
 		case <-s.stopped:
 			return
