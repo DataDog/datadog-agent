@@ -52,6 +52,7 @@ func NewFileSystemWatcher(added, removed chan *kubelet.Pod) (*FileSystemWatcher,
 
 // Start starts the watcher.
 func (w *FileSystemWatcher) Start() {
+	w.handleInitialPods()
 	go w.run()
 }
 
@@ -59,6 +60,25 @@ func (w *FileSystemWatcher) Start() {
 func (w *FileSystemWatcher) Stop() {
 	w.watcher.Close()
 	w.stopped <- struct{}{}
+}
+
+// podDirectoriesPattern represents the pattern to match all pod directories.
+var podDirectoriesPattern = fmt.Sprintf("%s/*", podsDirectoryPath)
+
+// handleInitialPods retrieves all pods in /var/log/pods and pass them along to the channel.
+func (w *FileSystemWatcher) handleInitialPods() {
+	directories, err := filepath.Glob(podDirectoriesPattern)
+	if err != nil {
+		log.Warnf("Can't retrieve pod directories: %v", err)
+	}
+	for _, directory := range directories {
+		pod, err := w.getPod(directory)
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		w.added <- pod
+	}
 }
 
 // run listens to file system events and errors.
@@ -76,7 +96,7 @@ func (w *FileSystemWatcher) run() {
 }
 
 // handle handles new events on the file system in the '/var/log/pods' directory
-// to collect information about the new pods added and removed.
+// to collect the new pods added and removed.
 func (w *FileSystemWatcher) handle(event fsnotify.Event) {
 	pod, err := w.getPod(event.Name)
 	if err != nil {
