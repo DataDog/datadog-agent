@@ -99,7 +99,7 @@ func TestRemoveEntryFromStore(t *testing.T) {
 			store:    newMockStore("foobar", map[string]string{"bar": "baz"}),
 			hpa:      newMockHPAExternalMetricSource("foo", map[string]string{"bar": "baz"}),
 			expectedMetrics: map[string]custommetrics.ExternalMetricValue{
-				"foobar": custommetrics.ExternalMetricValue{
+				"foobar": {
 					MetricName:   "foobar",
 					Labels:       map[string]string{"bar": "baz"},
 					HPANamespace: "default",
