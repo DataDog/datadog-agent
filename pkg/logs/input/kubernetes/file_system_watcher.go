@@ -52,7 +52,7 @@ func NewFileSystemWatcher(added, removed chan *kubelet.Pod) (*FileSystemWatcher,
 
 // Start starts the watcher.
 func (w *FileSystemWatcher) Start() {
-	w.handleInitialPods()
+	w.addExistingPods()
 	go w.run()
 }
 
@@ -65,8 +65,8 @@ func (w *FileSystemWatcher) Stop() {
 // podDirectoriesPattern represents the pattern to match all pod directories.
 var podDirectoriesPattern = fmt.Sprintf("%s/*", podsDirectoryPath)
 
-// handleInitialPods retrieves all pods in /var/log/pods and pass them along to the channel.
-func (w *FileSystemWatcher) handleInitialPods() {
+// addExistingPods retrieves all pods in /var/log/pods at start and pass them along to the channel.
+func (w *FileSystemWatcher) addExistingPods() {
 	directories, err := filepath.Glob(podDirectoriesPattern)
 	if err != nil {
 		log.Warnf("Can't retrieve pod directories: %v", err)
