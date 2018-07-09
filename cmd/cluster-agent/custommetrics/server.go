@@ -77,7 +77,10 @@ func StartServer() error {
 		return err
 	}
 
-	store := custommetrics.NewConfigMapStore(client.Cl, as.GetResourcesNamespace(), "datadog-hpa")
+	store, err := custommetrics.NewConfigMapStore(client.Cl, as.GetResourcesNamespace(), "datadog-hpa")
+	if err != nil {
+		return err
+	}
 
 	// HPA watcher
 	hpaClient, err := hpa.NewHPAWatcherClient(client.Cl, store)
