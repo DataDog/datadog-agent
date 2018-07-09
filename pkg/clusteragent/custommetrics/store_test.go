@@ -26,8 +26,8 @@ func TestNewConfigMapStore(t *testing.T) {
 		},
 	}
 
-	client := fake.NewSimpleClientset().CoreV1()
-	_, err := client.ConfigMaps("default").Create(cm)
+	client := fake.NewSimpleClientset()
+	_, err := client.CoreV1().ConfigMaps("default").Create(cm)
 	require.NoError(t, err)
 
 	// configmap already exists
