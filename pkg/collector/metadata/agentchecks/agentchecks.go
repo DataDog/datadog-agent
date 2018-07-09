@@ -6,11 +6,15 @@
 package agentchecks
 
 import (
+	"encoding/json"
+
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetPayload builds a payload of all the agentchecks metadata
@@ -37,6 +41,19 @@ func GetPayload() *Payload {
 		if status != nil {
 			agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 		}
+	}
+
+	loaderErrors := collector.GetLoaderErrors()
+
+	for check, errs := range loaderErrors {
+		jsonErrs, err := json.Marshal(errs)
+		if err != nil {
+			log.Warnf("Error formatting loader error from check %s: %v", check, err)
+		}
+		status := []interface{}{
+			check, check, "initialization", "ERROR", string(jsonErrs),
+		}
+		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}
 
 	// Grab the non agent checks information

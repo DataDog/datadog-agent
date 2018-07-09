@@ -25,6 +25,12 @@
         </td></tr>
       {{- end -}}
 
+      {{- range $checkname, $errors := $.LoaderErrs}}
+        <tr><td>{{$checkname}}</td>
+        <td class="l_space"> - </td>
+        <td class="error l_space"> Loader Error </td></tr>
+      {{ end }}
+
       {{- range $checkname, $errors := $.ConfigErrs}}
         <tr><td>{{$checkname}}</td>
         <td class="l_space"> - </td>

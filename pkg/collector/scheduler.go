@@ -6,6 +6,7 @@
 package collector
 
 import (
+	"expvar"
 	"fmt"
 	"sync"
 
@@ -14,6 +15,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var (
+	schedulerErrs *expvar.Map
+	errorStats    = newCollectorErrors()
+)
+
+func init() {
+	schedulerErrs = expvar.NewMap("CheckScheduler")
+	schedulerErrs.Set("LoaderErrors", expvar.Func(func() interface{} {
+		return errorStats.getLoaderErrors()
+	}))
+	schedulerErrs.Set("RunErrors", expvar.Func(func() interface{} {
+		return errorStats.getRunErrors()
+	}))
+}
 
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
@@ -46,6 +62,7 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 		_, err := s.collector.RunCheck(c)
 		if err != nil {
 			log.Errorf("Unable to run Check %s: %v", c, err)
+			errorStats.setRunError(c.ID(), err.Error())
 			continue
 		}
 	}
@@ -70,6 +87,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 			err := s.collector.StopCheck(id)
 			if err != nil {
 				log.Errorf("Error stopping check %s: %s", id, err)
+				errorStats.setRunError(id, err.Error())
 			} else {
 				stopped[id] = struct{}{}
 			}
@@ -117,12 +135,14 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		res, err := loader.Load(config)
 		if err == nil {
 			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+			errorStats.removeLoaderErrors(config.Name)
 			return res, nil
 		}
 		// Check if some check instances were loaded correctly (can occur if there's multiple check instances)
 		if len(res) != 0 {
 			return res, nil
 		}
+		errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
 		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
@@ -160,7 +180,11 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 }
 
 // isCheckConfig returns true if the config is a check configuration,
-// this method should be moved to pkg/collector/check while removing the check related-code from the autodiscovery package.
 func isCheckConfig(config integration.Config) bool {
 	return config.MetricConfig != nil || len(config.Instances) > 0
+}
+
+// GetLoaderErrors returns the check loader errors
+func GetLoaderErrors() map[string]map[string]string {
+	return errorStats.getLoaderErrors()
 }
