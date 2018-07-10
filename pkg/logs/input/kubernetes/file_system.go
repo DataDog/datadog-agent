@@ -19,12 +19,13 @@ import (
 
 // FileSystem looks for new and deleted pods listening to file system events.
 type FileSystem struct {
-	watcher       *fsnotify.Watcher
-	kubeUtil      *kubelet.KubeUtil
-	podsDirectory string
-	added         chan *kubelet.Pod
-	removed       chan *kubelet.Pod
-	stopped       chan struct{}
+	watcher          *fsnotify.Watcher
+	kubeUtil         *kubelet.KubeUtil
+	podsDirectory    string
+	podsPerDirectory map[string]*kubelet.Pod
+	added            chan *kubelet.Pod
+	removed          chan *kubelet.Pod
+	stopped          chan struct{}
 }
 
 // NewFileSystem returns a new watcher.
@@ -43,12 +44,13 @@ func NewFileSystem(podsDirectory string, added, removed chan *kubelet.Pod) (*Fil
 		return nil, err
 	}
 	return &FileSystem{
-		watcher:       watcher,
-		kubeUtil:      kubeUtil,
-		podsDirectory: podsDirectory,
-		added:         added,
-		removed:       removed,
-		stopped:       make(chan struct{}),
+		watcher:          watcher,
+		kubeUtil:         kubeUtil,
+		podsDirectory:    podsDirectory,
+		podsPerDirectory: make(map[string]*kubelet.Pod),
+		added:            added,
+		removed:          removed,
+		stopped:          make(chan struct{}),
 	}, nil
 }
 
@@ -76,6 +78,7 @@ func (w *FileSystem) addExistingPods() {
 			log.Warn(err)
 			continue
 		}
+		w.podsPerDirectory[directory] = pod
 		w.added <- pod
 	}
 }
@@ -97,16 +100,21 @@ func (w *FileSystem) run() {
 // handle handles new events on the file system in the '/var/log/pods' directory
 // to collect the new pods added and removed.
 func (w *FileSystem) handle(event fsnotify.Event) {
-	pod, err := w.getPod(event.Name)
-	if err != nil {
-		log.Warn(err)
-		return
-	}
+	directory := event.Name
 	switch event.Op {
 	case fsnotify.Create:
+		pod, err := w.getPod(directory)
+		if err != nil {
+			log.Warn(err)
+			return
+		}
+		w.podsPerDirectory[directory] = pod
 		w.added <- pod
 	case fsnotify.Remove:
-		w.removed <- pod
+		if pod, exists := w.podsPerDirectory[directory]; exists {
+			delete(w.podsPerDirectory, directory)
+			w.removed <- pod
+		}
 	}
 }
 
