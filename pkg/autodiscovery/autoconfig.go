@@ -387,6 +387,8 @@ func (ac *AutoConfig) pollConfigs() {
 					// retrieve the list of newly added configurations as well
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
+					// Process removed configs first to handle the case where a
+					// container churn would result in the same configuration hash.
 					ac.processRemovedConfigs(removedConfigs)
 
 					for _, config := range newConfigs {

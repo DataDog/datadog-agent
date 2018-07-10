@@ -11,19 +11,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-// Catalog holds available schedulers
-type Catalog map[string]Scheduler
-
-// DefaultCatalog holds every registered scheduler
-var DefaultCatalog = make(Catalog)
+// ActiveSchedulers holds every registered scheduler
+var ActiveSchedulers = make(map[string]Scheduler)
 
 // Register a scheduler in the scheduler catalog, the meta scheduler in
 // autodiscovery will dispatch to every registered scheduler
 func Register(name string, s Scheduler) {
-	if _, ok := DefaultCatalog[name]; ok {
+	if _, ok := ActiveSchedulers[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
 	}
-	DefaultCatalog[name] = s
+	ActiveSchedulers[name] = s
 }
 
 // Scheduler is the interface that should be implemented if you want to schedule and

@@ -44,7 +44,7 @@ func NewCheckScheduler(collector *Collector) *CheckScheduler {
 	scheduler := &CheckScheduler{
 		collector:      collector,
 		configToChecks: make(map[string][]check.ID),
-		loaders:        make([]check.Loader, 0, 5),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog())),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog() {
@@ -70,8 +70,6 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
-	// Process removed configs first to handle the case where a
-	// container churn would result in the same configuration hash.
 	for _, config := range configs {
 		if !isCheckConfig(config) {
 			// skip non check configs.
@@ -150,7 +148,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 }
 
 // GetChecksFromConfigs gets all the check instances for given configurations
-// optionally can populate ac cache configToChecks
+// optionally can populate the configToChecks cache
 func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	s.m.Lock()
 	defer s.m.Unlock()

@@ -19,28 +19,28 @@ func (s *MetaScheduler) Start() {
 
 // Schedule schedules configs to all registered schedulers
 func (s *MetaScheduler) Schedule(configs []integration.Config) {
-	for _, scheduler := range DefaultCatalog {
+	for _, scheduler := range ActiveSchedulers {
 		scheduler.Schedule(configs)
 	}
 }
 
 // Unschedule unschedules configs to all registered schedulers
 func (s *MetaScheduler) Unschedule(configs []integration.Config) {
-	for _, scheduler := range DefaultCatalog {
+	for _, scheduler := range ActiveSchedulers {
 		scheduler.Unschedule(configs)
 	}
 }
 
 // Stop handles clean stop of registered schedulers
 func (s *MetaScheduler) Stop() {
-	for _, scheduler := range DefaultCatalog {
+	for _, scheduler := range ActiveSchedulers {
 		scheduler.Stop()
 	}
 }
 
 // GetScheduler returns a registered scheduler
 func (s *MetaScheduler) GetScheduler(name string) Scheduler {
-	for key, scheduler := range DefaultCatalog {
+	for key, scheduler := range ActiveSchedulers {
 		if name == key {
 			return scheduler
 		}
