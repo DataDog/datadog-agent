@@ -128,7 +128,6 @@ run_security_scan_test:
       snyk monitor # send the list of the dependencies to snyk
   only:
     - master
-    - arbll/fix-snyk
 
 #
 # binary_build
