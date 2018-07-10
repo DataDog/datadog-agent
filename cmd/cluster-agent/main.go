@@ -4,6 +4,7 @@
 // Copyright 2018 Datadog, Inc.
 
 // +build !windows
+// +build kubeapiserver
 //go:generate go run ../../pkg/config/render_config.go dca ../../pkg/config/config_template.yaml ../../Dockerfiles/cluster-agent/datadog-cluster.yaml
 
 package main
