@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"encoding/json"
 	"regexp"
 	"strings"
 
@@ -31,9 +30,14 @@ func NewContainer(container types.Container) *Container {
 // findSource returns the source that most closely matches the container,
 // if no source is found return nil
 func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
-	label := c.getLabel()
-	if label != "" {
-		return c.parseLabel(label)
+	if label := c.getLabel(); label != "" {
+		cfg, err := config.Parse(label)
+		if err != nil {
+			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
+			return nil
+		}
+		cfg.Type = config.DockerType
+		return config.NewLogSource(c.getSourceName(), cfg)
 	}
 	var candidate *config.LogSource
 	for _, source := range sources {
@@ -142,26 +146,7 @@ func (c *Container) getLabel() string {
 	return ""
 }
 
-// parseLabel returns the config present in the container label 'com.datadoghq.ad.logs',
-// the config has to be conform with the format '[{...}]'.
-func (c *Container) parseLabel(label string) *config.LogSource {
-	var cfgs []config.LogsConfig
-	err := json.Unmarshal([]byte(label), &cfgs)
-	if err != nil || len(cfgs) < 1 {
-		log.Warnf("Could not parse logs config for container %v, %v is malformed", c.Container.ID, label)
-		return nil
-	}
-	cfg := cfgs[0]
-	err = config.ValidateProcessingRules(cfg.ProcessingRules)
-	if err != nil {
-		log.Warnf("Invalid processing rules for container %v: %v", c.Container.ID, err)
-		return nil
-	}
-	cfg.Type = config.DockerType
-	err = config.CompileProcessingRules(cfg.ProcessingRules)
-	if err != nil {
-		log.Errorf("invalid processing rule for container %v: %v", c.Container.ID, err)
-		return nil
-	}
-	return config.NewLogSource(configPath, &cfg)
+// getSourceName returns the source name of the container to tail.
+func (c *Container) getSourceName() string {
+	return c.Container.Image
 }

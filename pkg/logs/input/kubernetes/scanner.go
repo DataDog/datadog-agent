@@ -85,7 +85,11 @@ func (s *Scanner) addSources(pod *kubelet.Pod) {
 		if _, exists := s.sourcesByContainer[containerID]; exists {
 			continue
 		}
-		source := s.getSource(pod, container)
+		source, err := s.getSource(pod, container)
+		if err != nil {
+			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
+			continue
+		}
 		s.sourcesByContainer[containerID] = source
 		s.sources.AddSource(source)
 	}
@@ -106,14 +110,46 @@ func (s *Scanner) removeSources(pod *kubelet.Pod) {
 const kubernetesIntegration = "kubernetes"
 
 // getSource returns a new source for the container in pod
-func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) *config.LogSource {
-	return config.NewLogSource(s.getSourceName(pod, container), &config.LogsConfig{
-		Type:    config.FileType,
-		Path:    s.getPath(pod, container),
-		Source:  kubernetesIntegration,
-		Service: kubernetesIntegration,
-		Tags:    s.getTags(container),
-	})
+func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
+	var cfg *config.LogsConfig
+	if annotation := s.getAnnotation(pod, container); annotation != "" {
+		var err error
+		cfg, err = config.Parse(annotation)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		cfg = &config.LogsConfig{
+			Source:  kubernetesIntegration,
+			Service: kubernetesIntegration,
+		}
+	}
+	cfg.Type = config.FileType
+	cfg.Path = s.getPath(pod, container)
+	cfg.Tags = append(cfg.Tags, s.getTags(container)...)
+	return config.NewLogSource(s.getSourceName(pod, container), cfg), nil
+}
+
+// configPath refers to the configuration that can be passed over a pod annotation,
+// this feature is commonly named 'ad' or 'autodicovery'.
+// The pod annotation must respect the format: ad.datadoghq.com/<container_name>.logs: '[{...}]'.
+const (
+	configPathPrefix = "ad.datadoghq.com"
+	configPathSuffix = "logs"
+)
+
+// getConfigPath returns the path of the logs-config annotation for container.
+func (s *Scanner) getConfigPath(container kubelet.ContainerStatus) string {
+	return fmt.Sprintf("%s/%s.%s", configPathPrefix, container.Name, configPathSuffix)
+}
+
+// getAnnotation returns the logs-config annotation for container if present.
+func (s *Scanner) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+	configPath := s.getConfigPath(container)
+	if annotation, exists := pod.Metadata.Annotations[configPath]; exists {
+		return annotation
+	}
+	return ""
 }
 
 // getSourceName returns the source name of the container to tail.
