@@ -104,7 +104,7 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.retryQueueLimit = 1
 
 	// Default value should be 0
-	assert.Equal(t, 0, transactionsDropped.Value())
+	assert.Equal(t, int64(0), transactionsDropped.Value())
 
 	t1 := NewHTTPTransaction()
 	t1.Domain = "domain/"
