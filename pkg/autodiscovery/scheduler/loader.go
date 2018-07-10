@@ -14,10 +14,11 @@ import (
 // Catalog holds available schedulers
 type Catalog map[string]Scheduler
 
-// DefaultCatalog holds every compiled-in diagnosis
+// DefaultCatalog holds every registered scheduler
 var DefaultCatalog = make(Catalog)
 
-// Register a diagnosis that will be called on diagnose
+// Register a scheduler in the scheduler catalog, the meta scheduler in
+// autodiscovery will dispatch to every registered scheduler
 func Register(name string, s Scheduler) {
 	if _, ok := DefaultCatalog[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
@@ -25,7 +26,8 @@ func Register(name string, s Scheduler) {
 	DefaultCatalog[name] = s
 }
 
-// Scheduler should return an error to report its health
+// Scheduler is the interface that should be implemented if you want to schedule and
+// unschedule integrations
 type Scheduler interface {
 	Schedule([]integration.Config)
 	Unschedule([]integration.Config)
