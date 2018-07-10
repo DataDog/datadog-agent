@@ -22,7 +22,7 @@ For a more detailed usage please [refer to the official Docker Hub](https://hub.
 ### Dockerized Agent
 
 The Datadog Cluster Agent is designed to be used in a containerized ecosystem.
-Therefore, you will need to have docker installed on your system.
+Therefore, you need to have docker installed on your system.
 
 Start by creating the binary by running `inv -e cluster-agent.build`. This will add a binary in `./bin/datadog-cluster-agent/`
 Then from the current folder, run `inv -e cluster-agent.image-build`.
@@ -32,8 +32,8 @@ Then from the current folder, run `inv -e cluster-agent.image-build`.
 ### Security premise
 <a name="security-premise"></a>
 
-You can create the secret that will be used for your agents to communicate with the DCA. 
-You can modify the value in [this file](/manifests/cluster-agent/dca-secret.yaml) then create it:
+You should create the secret that is be used for your Agents to communicate with the DCA. 
+You must modify the value in [the dca-secret.yaml](/manifests/cluster-agent/dca-secret.yaml) then create it:
 
 `kubectl create -f manifests/cluster-agent/dca-secret.yaml` 
 
@@ -100,7 +100,7 @@ You can also set the `event.tokenTimestamp`, if not present, it will be automati
 
 ### Command line interface of the Cluster Agent
 
-The available commands for the cluster agents are:
+The available commands for the Cluster Agents are:
 - `datadog-cluster-agent status`: This will give you an overview of the components of the agent and their health.
 - `datadog-cluster-agent metamap [nodeName]`: Will query the local cache of the mapping between the pods living on `nodeName`
     and the cluster level metadata it's associated with (endpoints ...).
@@ -130,12 +130,20 @@ Enabling the leader election will ensure that only one agent collects the events
 
 #### Cluster metadata provider
 
-You need to ensure the Node agents and the DCA can properly communicate.
+You need to ensure the Node Agents and the DCA can properly communicate.
 Create a service in front of the DCA (see /manifests/datadog-cluster-agent_service.yaml)
 Ensure an auth_token is properly shared between the agents.
 Confirm the RBAC rules are properly set (see /manifests/rbac/).
 
 In the Node Agent, make sure the `DD_CLUSTER_AGENT` env var is set to true.
-The env var `DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ` can be set to specify how often the node agents hit the DCA.
+The env var `DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ` can be set to specify how often the Node Agents hit the DCA.
 You can disable the kubernetes metadata tag collection with `DD_KUBERNETES_COLLECT_METADATA_TAGS`.
 
+#### HPA
+
+To enable the HPA: 
+- Set `DD_HPA_ENABLED` to `true` in the Deployment of the DCA.
+- Configure the `<DD_APP_KEY>` as well as the `<DD_API_KEY>` in the Deployment of the DCA.
+- Create a service exposing the port 443 and register it as an APIService for External Metrics.
+
+Refer to [the dedicated guide](/docs/cluster-agent/HORIZONTAL_POD_AUTOSCALING.md) to configure the HPA and get more details about this feature.

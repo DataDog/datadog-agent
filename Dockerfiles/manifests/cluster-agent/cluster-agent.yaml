@@ -26,7 +26,7 @@ spec:
           - name: DD_LEADER_ELECTION
             value: "true"
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-            value: <Thirty_2_characters_long_token>
+            value: <THIRTY_2_CHARACTERS_LONG_TOKEN>
           - name: DD_ENABLE_HPA
             value: 'true'
          # If using a secret, you can alternatively use:
