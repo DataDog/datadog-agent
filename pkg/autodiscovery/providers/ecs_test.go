@@ -28,14 +28,14 @@ func TestParseECSContainers(t *testing.T) {
 	assert.Len(t, tpls, 2)
 	assert.Equal(t, []string{"docker://deadbeef"}, tpls[0].ADIdentifiers)
 	assert.Equal(t, "nginx", string(tpls[0].Name))
-	assert.Equal(t, "{}", string(tpls[0].InitConfig))
+	assert.JSONEq(t, "{}", string(tpls[0].InitConfig))
 	assert.Len(t, tpls[0].Instances, 1)
-	assert.Equal(t, "{\"nginx_status_url\":\"http://%%host%%\"}", string(tpls[0].Instances[0]))
+	assert.JSONEq(t, "{\"nginx_status_url\":\"http://%%host%%\"}", string(tpls[0].Instances[0]))
 
 	assert.Equal(t, []string{"docker://deadbeef"}, tpls[1].ADIdentifiers)
 	assert.Equal(t, "http_check", string(tpls[1].Name))
-	assert.Equal(t, "{}", string(tpls[1].InitConfig))
+	assert.JSONEq(t, "{}", string(tpls[1].InitConfig))
 	assert.Len(t, tpls[1].Instances, 1)
-	assert.Equal(t, "{\"url\":\"http://%%host%%/healthz\"}", string(tpls[1].Instances[0]))
+	assert.JSONEq(t, "{\"url\":\"http://%%host%%/healthz\"}", string(tpls[1].Instances[0]))
 
 }
