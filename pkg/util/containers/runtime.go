@@ -6,6 +6,8 @@
 // This code is not tied to docker itself, hence no docker build flag.
 // It could be moved to its own package.
 
+// +build linux
+
 package containers
 
 import (
