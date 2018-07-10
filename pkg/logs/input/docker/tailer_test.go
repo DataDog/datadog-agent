@@ -5,7 +5,7 @@
 
 // +build docker
 
-package container
+package docker
 
 import (
 	"testing"
@@ -15,16 +15,16 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type DockerTailerTestSuite struct {
+type TailerTestSuite struct {
 	suite.Suite
-	tailer *DockerTailer
+	tailer *Tailer
 }
 
-func (suite *DockerTailerTestSuite) SetupTest() {
-	suite.tailer = &DockerTailer{}
+func (suite *TailerTestSuite) SetupTest() {
+	suite.tailer = &Tailer{}
 }
 
-func (suite *DockerTailerTestSuite) TestDockerTailerRemovesDate() {
+func (suite *TailerTestSuite) TestTailerRemovesDate() {
 	msgMeta := [8]byte{}
 	msgMeta[0] = 1
 	// https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
@@ -57,17 +57,17 @@ func (suite *DockerTailerTestSuite) TestDockerTailerRemovesDate() {
 	suite.Equal("2008-01-12T01:01:01.000000000Z", dockerMsg.Timestamp)
 }
 
-func (suite *DockerTailerTestSuite) TestDockerTailerNextLogSinceDate() {
+func (suite *TailerTestSuite) TestTailerNextLogSinceDate() {
 	suite.Equal("2008-01-12T01:01:01.000000001Z", suite.tailer.nextLogSinceDate("2008-01-12T01:01:01.000000000Z"))
 	suite.Equal("2008-01-12T01:01:01.anything", suite.tailer.nextLogSinceDate("2008-01-12T01:01:01.anything"))
 	suite.Equal("", suite.tailer.nextLogSinceDate(""))
 }
 
-func (suite *DockerTailerTestSuite) TestDockerTailerIdentifier() {
+func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.ContainerID = "test"
 	suite.Equal("docker:test", suite.tailer.Identifier())
 }
 
-func TestDockerTailerTestSuite(t *testing.T) {
-	suite.Run(t, new(DockerTailerTestSuite))
+func TestTailerTestSuite(t *testing.T) {
+	suite.Run(t, new(TailerTestSuite))
 }

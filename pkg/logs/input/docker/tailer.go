@@ -5,7 +5,7 @@
 
 // +build docker
 
-package container
+package docker
 
 import (
 	"context"
@@ -31,10 +31,10 @@ import (
 const defaultSleepDuration = 1 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
 
-// DockerTailer tails logs coming from stdout and stderr of a docker container
+// Tailer tails logs coming from stdout and stderr of a docker container
 // With docker api, there is no way to know if a log comes from strout or stderr
 // so if we want to capture the severity, we need to tail both in two goroutines
-type DockerTailer struct {
+type Tailer struct {
 	ContainerID   string
 	outputChan    chan message.Message
 	decoder       *decoder.Decoder
@@ -49,9 +49,9 @@ type DockerTailer struct {
 	done          chan struct{}
 }
 
-// NewDockerTailer returns a new DockerTailer
-func NewDockerTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *DockerTailer {
-	return &DockerTailer{
+// NewTailer returns a new Tailer
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *Tailer {
+	return &Tailer{
 		ContainerID: containerID,
 		outputChan:  outputChan,
 		decoder:     decoder.InitializeDecoder(source),
@@ -65,13 +65,13 @@ func NewDockerTailer(cli *client.Client, containerID string, source *config.LogS
 }
 
 // Identifier returns a string that uniquely identifies a source
-func (dt *DockerTailer) Identifier() string {
+func (dt *Tailer) Identifier() string {
 	return fmt.Sprintf("docker:%s", dt.ContainerID)
 }
 
 // Stop stops the tailer from reading new container logs,
 // this call blocks until the decoder is completely flushed
-func (dt *DockerTailer) Stop() {
+func (dt *Tailer) Stop() {
 	log.Info("Stop tailing container ", dt.ContainerID[:12])
 	dt.stop <- struct{}{}
 	dt.reader.Close()
@@ -82,19 +82,19 @@ func (dt *DockerTailer) Stop() {
 
 // tailFromBeginning starts the tailing from the beginning
 // of the container logs
-func (dt *DockerTailer) tailFromBeginning() error {
+func (dt *Tailer) tailFromBeginning() error {
 	return dt.tailFrom(time.Time{}.Format(config.DateFormat))
 }
 
 // tailFromEnd starts the tailing from the last line
 // of the container logs
-func (dt *DockerTailer) tailFromEnd() error {
+func (dt *Tailer) tailFromEnd() error {
 	return dt.tailFrom(time.Now().UTC().Format(config.DateFormat))
 }
 
 // recoverTailing starts the tailing from the last log line processed, or now
 // if we see this container for the first time
-func (dt *DockerTailer) recoverTailing(a *auditor.Auditor) error {
+func (dt *Tailer) recoverTailing(a *auditor.Auditor) error {
 	return dt.tailFrom(dt.nextLogSinceDate(a.GetLastCommittedOffset(dt.Identifier())))
 }
 
@@ -105,7 +105,7 @@ func (dt *DockerTailer) recoverTailing(a *auditor.Auditor) error {
 // from this date, we collect that last log line twice on restart.
 // A workaround is to add one nano second, to exclude that last
 // log line
-func (dt *DockerTailer) nextLogSinceDate(lastTs string) string {
+func (dt *Tailer) nextLogSinceDate(lastTs string) string {
 	ts, err := time.Parse(config.DateFormat, lastTs)
 	if err != nil {
 		return lastTs
@@ -116,7 +116,7 @@ func (dt *DockerTailer) nextLogSinceDate(lastTs string) string {
 
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
-func (dt *DockerTailer) setupReader(from string) (io.ReadCloser, error) {
+func (dt *Tailer) setupReader(from string) (io.ReadCloser, error) {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -129,7 +129,7 @@ func (dt *DockerTailer) setupReader(from string) (io.ReadCloser, error) {
 }
 
 // tailFrom sets up and starts the tailer
-func (dt *DockerTailer) tailFrom(from string) error {
+func (dt *Tailer) tailFrom(from string) error {
 	reader, err := dt.setupReader(from)
 	if err != nil {
 		// could not start the tailer
@@ -151,7 +151,7 @@ func (dt *DockerTailer) tailFrom(from string) error {
 
 // readForever reads from the reader as fast as it can,
 // and sleeps when there is nothing to read
-func (dt *DockerTailer) readForever() {
+func (dt *Tailer) readForever() {
 	defer dt.decoder.Stop()
 	for {
 		select {
@@ -185,7 +185,7 @@ func (dt *DockerTailer) readForever() {
 // to store the time of the last processed line.
 // As a result, we need to remove this timestamp from the log
 // message before forwarding it
-func (dt *DockerTailer) forwardMessages() {
+func (dt *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
 		dt.shouldStop = true
@@ -205,7 +205,7 @@ func (dt *DockerTailer) forwardMessages() {
 	}
 }
 
-func (dt *DockerTailer) keepDockerTagsUpdated() {
+func (dt *Tailer) keepDockerTagsUpdated() {
 	dt.checkForNewDockerTags()
 	ticker := time.NewTicker(tagsUpdatePeriod)
 	for range ticker.C {
@@ -216,7 +216,7 @@ func (dt *DockerTailer) keepDockerTagsUpdated() {
 	}
 }
 
-func (dt *DockerTailer) checkForNewDockerTags() {
+func (dt *Tailer) checkForNewDockerTags() {
 	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(dt.ContainerID), true)
 	if err != nil {
 		log.Warn(err)
@@ -228,6 +228,6 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 }
 
 // wait lets the reader sleep for a bit
-func (dt *DockerTailer) wait() {
+func (dt *Tailer) wait() {
 	time.Sleep(dt.sleepDuration)
 }

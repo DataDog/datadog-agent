@@ -5,7 +5,7 @@
 
 // +build kubelet
 
-package container
+package kubernetes
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ import (
 )
 
 func TestGetSource(t *testing.T) {
-	scanner := KubeScanner{}
+	scanner := Scanner{}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
