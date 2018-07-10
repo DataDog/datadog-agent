@@ -8,7 +8,7 @@
 package v5
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"

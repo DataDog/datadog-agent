@@ -487,7 +487,8 @@
 [[projects]]
   name = "github.com/json-iterator/go"
   packages = ["."]
-  revision = "f2b4162afba35581b6d4a50d3b8f34e33c144682"
+  revision = "ab8a2e0c74be9d3be70b3184d9acc634935ded82"
+  version = "1.1.4"
 
 [[projects]]
   name = "github.com/k-sone/snmpgo"
@@ -1300,6 +1301,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "93591a49081406a09997ccc0a20a961d4c95330a07255af743b88e2a6e8067ea"
+  inputs-digest = "68a535bea5655513d4aaf581fc5c6423632d25e52482e7b2e1ba50cd68e9a41a"
   solver-name = "gps-cdcl"
   solver-version = 1

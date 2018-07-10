@@ -6,9 +6,8 @@
 package app
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
+	json "github.com/json-iterator/go"
 	"io/ioutil"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -76,9 +75,11 @@ func requestStatus() error {
 
 	// The rendering is done in the client so that the agent has less work to do
 	if prettyPrintJSON {
-		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ")
-		s = prettyJSON.String()
+		prettyJSON, err := json.MarshalIndent(r, "", "  ")
+		if err != nil {
+			return err
+		}
+		s = string(prettyJSON[:])
 	} else if jsonStatus {
 		s = string(r)
 	} else {

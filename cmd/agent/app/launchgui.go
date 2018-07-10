@@ -6,7 +6,7 @@
 package app
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"

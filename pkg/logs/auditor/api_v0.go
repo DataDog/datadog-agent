@@ -6,7 +6,7 @@
 package auditor
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"fmt"
 	"strconv"
 	"time"

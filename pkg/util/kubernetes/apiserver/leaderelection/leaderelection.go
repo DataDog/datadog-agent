@@ -8,7 +8,7 @@
 package leaderelection
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"flag"
 	"fmt"
 	"os"

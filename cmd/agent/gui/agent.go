@@ -1,7 +1,7 @@
 package gui
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"html"
 	"io/ioutil"
 	"net/http"

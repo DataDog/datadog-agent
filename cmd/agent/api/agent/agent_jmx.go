@@ -12,7 +12,7 @@
 package agent
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"net/http"
 	"strconv"
 	"time"

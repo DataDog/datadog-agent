@@ -6,7 +6,7 @@
 package status
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"expvar"
 	"os"
 	"strconv"

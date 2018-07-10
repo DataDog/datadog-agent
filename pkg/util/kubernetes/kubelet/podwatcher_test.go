@@ -8,7 +8,7 @@
 package kubelet
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"fmt"
 	"io/ioutil"
 	"testing"

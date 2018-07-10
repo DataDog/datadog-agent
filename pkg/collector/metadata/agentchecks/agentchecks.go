@@ -6,7 +6,7 @@
 package agentchecks
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"

@@ -7,7 +7,7 @@ package flare
 
 import (
 	"bytes"
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"fmt"
 	"io"
 	"io/ioutil"
