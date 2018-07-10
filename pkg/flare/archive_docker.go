@@ -34,13 +34,10 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	}
 
 	// Serialise as JSON
-	jsonStats, err := json.Marshal(co)
+	jsonStats, err := json.MarshalIndent(co, "", "\t")
 	if err != nil {
 		return err
 	}
-	var out bytes.Buffer
-	json.Indent(&out, jsonStats, "", "\t")
-	serialized := out.Bytes()
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
 	w, err := NewRedactingWriter(f, os.ModePerm, true)
@@ -58,7 +55,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		},
 	})
 
-	_, err = w.Write(serialized)
+	_, err = w.Write(jsonStats)
 	return err
 }
 
