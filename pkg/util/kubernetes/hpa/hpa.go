@@ -167,7 +167,7 @@ func (c *HPAWatcherClient) Start() {
 func (c *HPAWatcherClient) updateExternalMetrics() {
 	maxAge := int64(c.externalMaxAge.Seconds())
 
-	emList, err := c.store.ListAllExternalMetrics()
+	emList, err := c.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Infof("Error while retrieving external metrics from the store: %s", err)
 		return
@@ -191,7 +191,7 @@ func (c *HPAWatcherClient) updateExternalMetrics() {
 		}
 		log.Debugf("Updated the custom metric %#v", em)
 	}
-	if err = c.store.SetExternalMetrics(emList); err != nil {
+	if err = c.store.SetExternalMetricValues(emList); err != nil {
 		log.Errorf("Could not update the external metrics in the store: %s", err.Error())
 	}
 }
@@ -225,7 +225,7 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 			}
 		}
 	}
-	return c.store.SetExternalMetrics(external)
+	return c.store.SetExternalMetricValues(external)
 }
 
 func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.HorizontalPodAutoscaler) error {
@@ -238,7 +238,7 @@ func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.Horizon
 			switch metricSpec.Type {
 			case autoscalingv2.ExternalMetricSourceType:
 				info := custommetrics.ExternalMetricInfo{
-					MetricName:   metricName,
+					MetricName:   metricSpec.External.MetricName,
 					HPANamespace: hpa.Namespace,
 					HPAName:      hpa.Name,
 				}
@@ -248,7 +248,7 @@ func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.Horizon
 			}
 		}
 	}
-	return c.store.DeleteExternalMetrics(external)
+	return c.store.DeleteExternalMetricValues(external)
 }
 
 // validateExternalMetric queries Datadog to validate the availability of an external metric

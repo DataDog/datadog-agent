@@ -145,10 +145,10 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, store.(*configMapStore).cm)
 
-			err = store.SetExternalMetrics(tt.metrics)
+			err = store.SetExternalMetricValues(tt.metrics)
 			require.NoError(t, err)
 
-			allMetrics, err := store.ListAllExternalMetrics()
+			allMetrics, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, allMetrics)
 
@@ -162,7 +162,7 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				infos = append(infos, info)
 			}
 
-			err = store.DeleteExternalMetrics(infos)
+			err = store.DeleteExternalMetricValues(infos)
 			require.NoError(t, err)
 			assert.Zero(t, len(store.(*configMapStore).cm.Data))
 		})

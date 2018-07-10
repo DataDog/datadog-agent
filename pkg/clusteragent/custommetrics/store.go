@@ -21,9 +21,9 @@ import (
 
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
-	SetExternalMetrics([]ExternalMetricValue) error
-	DeleteExternalMetrics([]ExternalMetricInfo) error
-	ListAllExternalMetrics() ([]ExternalMetricValue, error)
+	SetExternalMetricValues([]ExternalMetricValue) error
+	DeleteExternalMetricValues([]ExternalMetricInfo) error
+	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
 }
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.
@@ -73,8 +73,8 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 	}, nil
 }
 
-// SetExternalMetrics updates the external metrics in the configmap.
-func (c *configMapStore) SetExternalMetrics(added []ExternalMetricValue) error {
+// SetExternalMetricValues updates the external metrics in the configmap.
+func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
 	}
@@ -93,8 +93,8 @@ func (c *configMapStore) SetExternalMetrics(added []ExternalMetricValue) error {
 	return c.updateConfigMap()
 }
 
-// DeleteExternalMetrics deletes the external metric from the configmap associated with the hpas.
-func (c *configMapStore) DeleteExternalMetrics(deleted []ExternalMetricInfo) error {
+// DeleteExternalMetricValues deletes the external metrics from the configmap.
+func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricInfo) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
 	}
@@ -113,9 +113,9 @@ func (c *configMapStore) DeleteExternalMetrics(deleted []ExternalMetricInfo) err
 	return c.updateConfigMap()
 }
 
-// ListAllExternalMetrics returns the most up-to-date list of external metrics from the configmap.
+// ListAllExternalMetricValues returns the most up-to-date list of external metrics from the configmap.
 // Any replica can safely call this function.
-func (c *configMapStore) ListAllExternalMetrics() ([]ExternalMetricValue, error) {
+func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
 	var metrics []ExternalMetricValue
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Get(c.name, metav1.GetOptions{})

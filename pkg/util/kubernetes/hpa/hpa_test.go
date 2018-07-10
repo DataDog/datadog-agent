@@ -34,11 +34,11 @@ func newMockStore(metricName string, labels map[string]string) *mockStore {
 		Value:        1,
 		Valid:        false,
 	}
-	_ = s.SetExternalMetrics([]custommetrics.ExternalMetricValue{em})
+	_ = s.SetExternalMetricValues([]custommetrics.ExternalMetricValue{em})
 	return s
 }
 
-func (s *mockStore) SetExternalMetrics(added []custommetrics.ExternalMetricValue) error {
+func (s *mockStore) SetExternalMetricValues(added []custommetrics.ExternalMetricValue) error {
 	if s.externalMetrics == nil {
 		s.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
 	}
@@ -48,14 +48,14 @@ func (s *mockStore) SetExternalMetrics(added []custommetrics.ExternalMetricValue
 	return nil
 }
 
-func (s *mockStore) DeleteExternalMetrics(deleted []custommetrics.ExternalMetricInfo) error {
+func (s *mockStore) DeleteExternalMetricValues(deleted []custommetrics.ExternalMetricInfo) error {
 	for _, info := range deleted {
 		delete(s.externalMetrics, info.MetricName)
 	}
 	return nil
 }
 
-func (s *mockStore) ListAllExternalMetrics() ([]custommetrics.ExternalMetricValue, error) {
+func (s *mockStore) ListAllExternalMetricValues() ([]custommetrics.ExternalMetricValue, error) {
 	allMetrics := make([]custommetrics.ExternalMetricValue, 0)
 	for _, cm := range s.externalMetrics {
 		allMetrics = append(allMetrics, cm)

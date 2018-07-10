@@ -78,7 +78,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	var externalMetricsInfoList []provider.ExternalMetricInfo
 	var externalMetricsList []externalMetric
 
-	rawMetrics, err := p.store.ListAllExternalMetrics()
+	rawMetrics, err := p.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Could not list the external metrics in the store: %s", err.Error())
 		return externalMetricsInfoList
