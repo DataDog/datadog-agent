@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -53,13 +54,13 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			"same metric with different hpas and labels",
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "frontend"},
 					HPAName:      "foo",
 					HPANamespace: "default",
 				},
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "backend"},
 					HPAName:      "bar",
 					HPANamespace: "default",
@@ -67,13 +68,13 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			},
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "frontend"},
 					HPAName:      "foo",
 					HPANamespace: "default",
 				},
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "backend"},
 					HPAName:      "bar",
 					HPANamespace: "default",
@@ -84,13 +85,13 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			"same metric with different owners and same labels",
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "frontend"},
 					HPAName:      "foo",
 					HPANamespace: "default",
 				},
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "frontend"},
 					HPAName:      "bar",
 					HPANamespace: "default",
@@ -98,13 +99,13 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			},
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "frontend"},
 					HPAName:      "foo",
 					HPANamespace: "default",
 				},
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "frontend"},
 					HPAName:      "bar",
 					HPANamespace: "default",
@@ -115,13 +116,13 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			"same metric with same owners and different labels",
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "frontend"},
 					HPAName:      "foo",
 					HPANamespace: "default",
 				},
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "backend"},
 					HPAName:      "foo",
 					HPANamespace: "default",
@@ -129,7 +130,7 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			},
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_sec",
+					MetricName:   "requests_per_s",
 					Labels:       map[string]string{"role": "backend"},
 					HPAName:      "foo",
 					HPANamespace: "default",
@@ -144,22 +145,24 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, store.(*configMapStore).cm)
 
-			for _, em := range tt.metrics {
-				err = store.SetExternalMetric(em)
-				require.NoError(t, err)
-			}
-			err = store.Update()
+			err = store.SetExternalMetrics(tt.metrics)
 			require.NoError(t, err)
 
 			allMetrics, err := store.ListAllExternalMetrics()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, allMetrics)
 
-			for _, em := range tt.metrics {
-				err = store.DeleteExternalMetric(em.HPANamespace, em.HPAName, em.MetricName)
-				require.NoError(t, err)
+			infos := make([]ExternalMetricInfo, 0)
+			for _, m := range tt.metrics {
+				info := ExternalMetricInfo{
+					MetricName:   m.MetricName,
+					HPAName:      m.HPAName,
+					HPANamespace: m.HPANamespace,
+				}
+				infos = append(infos, info)
 			}
-			err = store.Update()
+
+			err = store.DeleteExternalMetrics(infos)
 			require.NoError(t, err)
 			assert.Zero(t, len(store.(*configMapStore).cm.Data))
 		})

@@ -16,3 +16,9 @@ type ExternalMetricValue struct {
 	Value        int64             `json:"value"`
 	Valid        bool              `json:"valid"`
 }
+
+type ExternalMetricInfo struct {
+	MetricName   string
+	HPAName      string
+	HPANamespace string
+}

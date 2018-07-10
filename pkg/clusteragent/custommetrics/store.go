@@ -21,10 +21,9 @@ import (
 
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
-	SetExternalMetric(ExternalMetricValue) error
-	DeleteExternalMetric(hpaNamespace, hpaName, metricName string) error
+	SetExternalMetrics([]ExternalMetricValue) error
+	DeleteExternalMetrics([]ExternalMetricInfo) error
 	ListAllExternalMetrics() ([]ExternalMetricValue, error)
-	Update() error
 }
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.
@@ -74,34 +73,44 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 	}, nil
 }
 
-// SetExternalMetric updates the associated external metric in the cached configmap.
-func (c *configMapStore) SetExternalMetric(em ExternalMetricValue) error {
+// SetExternalMetrics updates the external metrics in the configmap.
+func (c *configMapStore) SetExternalMetrics(added []ExternalMetricValue) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
+	}
+	if len(added) == 0 {
+		return nil
 	}
 	if c.cm.Data == nil {
 		// Don't panic "assignment to entry in nil map" at init
 		c.cm.Data = make(map[string]string)
 	}
-	key := fmt.Sprintf("external_metric.%s.%s-%s", em.HPANamespace, em.HPAName, em.MetricName)
-	toStore, _ := json.Marshal(em)
-	c.cm.Data[key] = string(toStore)
-	return nil
+	for _, em := range added {
+		key := fmt.Sprintf("external_metric.%s.%s-%s", em.HPANamespace, em.HPAName, em.MetricName)
+		toStore, _ := json.Marshal(em)
+		c.cm.Data[key] = string(toStore)
+	}
+	return c.updateConfigMap()
 }
 
-// DeleteExternalMetric deletes the associated external metric from the cached configmap.
-func (c *configMapStore) DeleteExternalMetric(hpaNamespace, hpaName, metricName string) error {
+// DeleteExternalMetrics deletes the external metric from the configmap associated with the hpas.
+func (c *configMapStore) DeleteExternalMetrics(deleted []ExternalMetricInfo) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
 	}
-	key := fmt.Sprintf("external_metric.%s.%s-%s", hpaNamespace, hpaName, metricName)
-	if c.cm.Data[key] == "" {
-		log.Debugf("No data for external metric %s", metricName)
+	if len(deleted) == 0 {
 		return nil
 	}
-	delete(c.cm.Data, key)
-	log.Debugf("Deleted external metric %#v from the configmap %s", metricName, c.name)
-	return nil
+	for _, info := range deleted {
+		key := fmt.Sprintf("external_metric.%s.%s-%s", info.HPANamespace, info.HPAName, info.MetricName)
+		if c.cm.Data[key] == "" {
+			log.Debugf("No data for external metric %s", info.MetricName)
+			continue
+		}
+		delete(c.cm.Data, key)
+		log.Debugf("Deleted external metric %#v from the configmap %s", info.MetricName, c.name)
+	}
+	return c.updateConfigMap()
 }
 
 // ListAllExternalMetrics returns the most up-to-date list of external metrics from the configmap.
@@ -122,8 +131,7 @@ func (c *configMapStore) ListAllExternalMetrics() ([]ExternalMetricValue, error)
 	return metrics, nil
 }
 
-// Update updates the underlying configmap.
-func (c *configMapStore) Update() error {
+func (c *configMapStore) updateConfigMap() error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
 	}

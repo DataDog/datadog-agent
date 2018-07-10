@@ -34,20 +34,24 @@ func newMockStore(metricName string, labels map[string]string) *mockStore {
 		Value:        1,
 		Valid:        false,
 	}
-	_ = s.SetExternalMetric(em)
+	_ = s.SetExternalMetrics([]custommetrics.ExternalMetricValue{em})
 	return s
 }
 
-func (s *mockStore) SetExternalMetric(em custommetrics.ExternalMetricValue) error {
+func (s *mockStore) SetExternalMetrics(added []custommetrics.ExternalMetricValue) error {
 	if s.externalMetrics == nil {
 		s.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
 	}
-	s.externalMetrics[em.MetricName] = em
+	for _, em := range added {
+		s.externalMetrics[em.MetricName] = em
+	}
 	return nil
 }
 
-func (s *mockStore) DeleteExternalMetric(hpaNamespace, hpaName, metricName string) error {
-	delete(s.externalMetrics, metricName)
+func (s *mockStore) DeleteExternalMetrics(deleted []custommetrics.ExternalMetricInfo) error {
+	for _, info := range deleted {
+		delete(s.externalMetrics, info.MetricName)
+	}
 	return nil
 }
 
