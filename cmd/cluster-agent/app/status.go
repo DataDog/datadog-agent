@@ -9,10 +9,10 @@ package app
 
 import (
 	"bytes"
-	json "github.com/json-iterator/go"
 	"fmt"
 	"io/ioutil"
 
+	json "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"

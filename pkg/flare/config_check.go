@@ -6,7 +6,6 @@
 package flare
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 	"io"
 	"strconv"
@@ -14,7 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/fatih/color"
+	json "github.com/json-iterator/go"
 )
 
 // ConfigCheckURL contains the Agent API endpoint URL exposing the loaded checks

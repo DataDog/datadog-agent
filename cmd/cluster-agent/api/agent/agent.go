@@ -9,12 +9,11 @@
 package agent
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 

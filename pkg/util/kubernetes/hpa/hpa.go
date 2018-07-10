@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"

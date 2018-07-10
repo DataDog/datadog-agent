@@ -7,16 +7,16 @@ package metrics
 
 import (
 	"bytes"
-	json "github.com/json-iterator/go"
 	"expvar"
 	"fmt"
 	"strings"
 
-	"github.com/gogo/protobuf/proto"
-
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+
+	"github.com/gogo/protobuf/proto"
+	json "github.com/json-iterator/go"
 )
 
 var seriesExpvar = expvar.NewMap("series")

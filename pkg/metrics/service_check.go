@@ -7,11 +7,11 @@ package metrics
 
 import (
 	"bytes"
-	json "github.com/json-iterator/go"
 	"expvar"
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
+	json "github.com/json-iterator/go"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"

@@ -6,13 +6,13 @@
 package status
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 	"html/template"
 	"strconv"
 	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"golang.org/x/text/unicode/norm"
 )
 

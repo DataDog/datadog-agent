@@ -6,13 +6,14 @@
 package v1
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 	"net/http"
 
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 )
 
 // eventChecks are checks that send events and are supported by the DCA

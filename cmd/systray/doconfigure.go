@@ -7,15 +7,15 @@
 package main
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	json "github.com/json-iterator/go"
 )
 
 func canConfigure() bool {

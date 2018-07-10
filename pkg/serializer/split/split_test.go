@@ -6,11 +6,12 @@
 package split
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+
+	json "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 )
 

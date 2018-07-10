@@ -10,13 +10,14 @@ package secrets
 import (
 	"bytes"
 	"context"
-	json "github.com/json-iterator/go"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	json "github.com/json-iterator/go"
 )
 
 const payloadVersion = "1.0"

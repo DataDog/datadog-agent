@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	json "github.com/json-iterator/go"
 	"expvar"
 	"io/ioutil"
 	"os"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	json "github.com/json-iterator/go"
 	"github.com/mholt/archiver"
 	yaml "gopkg.in/yaml.v2"
 )

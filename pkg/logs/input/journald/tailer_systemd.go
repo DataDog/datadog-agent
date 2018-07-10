@@ -8,16 +8,16 @@
 package journald
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 	"io"
 	"time"
 
-	"github.com/coreos/go-systemd/sdjournal"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/coreos/go-systemd/sdjournal"
+	json "github.com/json-iterator/go"
 )
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal

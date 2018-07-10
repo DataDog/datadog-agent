@@ -9,7 +9,6 @@ package kubelet
 
 import (
 	"crypto/tls"
-	json "github.com/json-iterator/go"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -17,14 +16,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	json "github.com/json-iterator/go"
 )
 
 const (

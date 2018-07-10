@@ -7,15 +7,15 @@ package metrics
 
 import (
 	"bytes"
-	json "github.com/json-iterator/go"
 	"expvar"
 	"fmt"
-
-	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util"
+
+	"github.com/gogo/protobuf/proto"
+	json "github.com/json-iterator/go"
 )
 
 // EventPriority represents the priority of an event
