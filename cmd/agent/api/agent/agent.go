@@ -9,7 +9,7 @@
 package agent
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"fmt"
 	"net/http"
 	"sort"

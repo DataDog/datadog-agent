@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"expvar"
 	"io/ioutil"
 	"os"

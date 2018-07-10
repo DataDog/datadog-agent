@@ -3,7 +3,7 @@ package gui
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"fmt"
 	"html/template"
 	"io/ioutil"

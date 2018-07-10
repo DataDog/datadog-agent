@@ -611,7 +611,8 @@
   name = "github.com/json-iterator/go"
   packages = ["."]
   pruneopts = ""
-  revision = "f2b4162afba35581b6d4a50d3b8f34e33c144682"
+  revision = "ab8a2e0c74be9d3be70b3184d9acc634935ded82"
+  version = "1.1.4"
 
 [[projects]]
   digest = "1:bf3f3d50a823d94ff1042d76d30ef35be1c12f133ca1c0699b2126c6307abaa3"
@@ -1678,5 +1679,6 @@
     "k8s.io/metrics/pkg/apis/custom_metrics",
     "k8s.io/metrics/pkg/apis/external_metrics",
   ]
+  inputs-digest = "68a535bea5655513d4aaf581fc5c6423632d25e52482e7b2e1ba50cd68e9a41a"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -6,7 +6,7 @@
 package metrics
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"

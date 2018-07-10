@@ -2,7 +2,7 @@ package gui
 
 import (
 	"bytes"
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"expvar"
 	"fmt"
 	"html/template"

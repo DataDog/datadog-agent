@@ -8,7 +8,7 @@ package flare
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"io/ioutil"
 	"os"
 	"path/filepath"
