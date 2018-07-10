@@ -27,6 +27,7 @@
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/tagger/                            @DataDog/container-integrations
+/pkg/util/containers/                   @DataDog/container-integrations
 /pkg/util/docker/                       @DataDog/container-integrations @DataDog/burrito
 /pkg/util/ecs/                          @DataDog/container-integrations @DataDog/burrito
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/burrito
