@@ -1,6 +1,7 @@
 kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: datadog-cluster-agent
+  name: dca
 rules:
 - apiGroups:
   - ""
@@ -13,6 +14,13 @@ rules:
   - componentstatuses
   verbs:
   - get
+  - list
+  - watch
+- apiGroups:
+  - "autoscaling"
+  resources:
+  - horizontalpodautoscalers
+  verbs:
   - list
   - watch
 - apiGroups:
@@ -31,6 +39,8 @@ rules:
   - configmaps
   verbs:
   - create
+  - get
+  - update
 - nonResourceURLs:
   - "/version"
   - "/healthz"
@@ -40,19 +50,19 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: datadog-cluster-agent
+  name: dca
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: datadog-cluster-agent
+  name: dca
 subjects:
 - kind: ServiceAccount
-  name: datadog-cluster-agent
+  name: dca
   namespace: default
 ---
 kind: ServiceAccount
 apiVersion: v1
 metadata:
-  name: datadog-cluster-agent
+  name: dca
   namespace: default
 

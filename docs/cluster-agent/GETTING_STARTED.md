@@ -175,7 +175,7 @@ Node detected: gke-test-default-pool-068cb9c0-wntj
   
   - Namespace: default
       - Pod: datadog-cluster-agent-8568545574-x9tc9
-        Services: [datadog-cluster-hpa dca]
+        Services: [datadog-custom-metrics-server dca]
   
   - Namespace: kube-system
       - Pod: heapster-v1.5.2-6d59ff54cf-g7q4h
