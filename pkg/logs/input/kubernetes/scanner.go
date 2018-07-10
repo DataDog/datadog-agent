@@ -132,16 +132,18 @@ func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus)
 
 // configPath refers to the configuration that can be passed over a pod annotation,
 // this feature is commonly named 'ad' or 'autodicovery'.
-// The pod annotation must respect the format: ad.datadoghq.com/<container_name>.logs: [{...}]
+// The pod annotation must respect the format: ad.datadoghq.com/<container_name>.logs: '[{...}]'.
 const (
 	configPathPrefix = "ad.datadoghq.com"
 	configPathSuffix = "logs"
 )
 
+// getConfigPath returns the path of the logs-config annotation for container.
 func (s *Scanner) getConfigPath(container kubelet.ContainerStatus) string {
 	return fmt.Sprintf("%s/%s.%s", configPathPrefix, container.Name, configPathSuffix)
 }
 
+// getAnnotation returns the logs-config annotation for container if present.
 func (s *Scanner) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	configPath := s.getConfigPath(container)
 	if annotation, exists := pod.Metadata.Annotations[configPath]; exists {
