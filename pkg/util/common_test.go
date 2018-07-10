@@ -2,7 +2,6 @@ package util
 
 import (
 	"crypto/tls"
-	json "github.com/json-iterator/go"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
+	json "github.com/json-iterator/go"
 	"gopkg.in/yaml.v2"
 )
 

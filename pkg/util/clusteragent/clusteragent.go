@@ -6,23 +6,22 @@
 package clusteragent
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
-
 	"strings"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	json "github.com/json-iterator/go"
 )
 
 /*

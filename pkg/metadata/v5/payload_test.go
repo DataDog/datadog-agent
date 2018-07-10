@@ -8,10 +8,11 @@
 package v5
 
 import (
-	json "github.com/json-iterator/go"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
+
+	json "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 )
 

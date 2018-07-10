@@ -3,7 +3,6 @@ package gui
 import (
 	"crypto/rand"
 	"encoding/hex"
-	json "github.com/json-iterator/go"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -16,7 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 	"github.com/urfave/negroni"
 )
 

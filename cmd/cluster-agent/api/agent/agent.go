@@ -9,11 +9,11 @@
 package agent
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"

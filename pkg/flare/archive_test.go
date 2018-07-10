@@ -6,7 +6,6 @@
 package flare
 
 import (
-	json "github.com/json-iterator/go"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -19,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	json "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 )
 

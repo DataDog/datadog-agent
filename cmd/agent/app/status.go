@@ -7,13 +7,14 @@ package app
 
 import (
 	"fmt"
-	json "github.com/json-iterator/go"
 	"io/ioutil"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+
+	json "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
 )
 

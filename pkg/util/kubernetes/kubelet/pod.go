@@ -8,9 +8,9 @@
 package kubelet
 
 import (
-	json "github.com/json-iterator/go"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	json "github.com/json-iterator/go"
 )
 
 type creatorRef struct {

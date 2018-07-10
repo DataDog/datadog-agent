@@ -9,7 +9,6 @@ package flare
 
 import (
 	"bytes"
-	json "github.com/json-iterator/go"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/docker/docker/api/types"
+	json "github.com/json-iterator/go"
 )
 
 func zipDockerSelfInspect(tempDir, hostname string) error {

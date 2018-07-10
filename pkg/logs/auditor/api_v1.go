@@ -6,9 +6,10 @@
 package auditor
 
 import (
-	json "github.com/json-iterator/go"
 	"strconv"
 	"time"
+
+	json "github.com/json-iterator/go"
 )
 
 // v1: In the second version of the auditor, Timestamp became LastUpdated and we added Timestamp to record container offsets.

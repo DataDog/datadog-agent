@@ -6,12 +6,13 @@
 package v5
 
 import (
-	json "github.com/json-iterator/go"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
+
+	json "github.com/json-iterator/go"
 )
 
 // CommonPayload wraps Payload from the common package
