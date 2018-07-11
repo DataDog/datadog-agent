@@ -211,7 +211,7 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 				em := custommetrics.ExternalMetricValue{
 					MetricName: metricSpec.External.MetricName,
 					Timestamp:  metav1.Now().Unix(),
-					HPA:        custommetrics.ObjectReference{hpa.Name, hpa.Namespace},
+					HPA:        custommetrics.ObjectReference{Name: hpa.Name, Namespace: hpa.Namespace},
 					Labels:     metricSpec.External.MetricSelector.MatchLabels,
 				}
 				em.Value, em.Valid, err = c.validateExternalMetric(em)
@@ -233,7 +233,7 @@ func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.Horizon
 	}
 	toDelete := []custommetrics.ObjectReference{}
 	for _, hpa := range deleted {
-		toDelete = append(toDelete, custommetrics.ObjectReference{hpa.Name, hpa.Namespace})
+		toDelete = append(toDelete, custommetrics.ObjectReference{Name: hpa.Name, Namespace: hpa.Namespace})
 	}
 	return c.store.DeleteExternalMetricValues(toDelete)
 }

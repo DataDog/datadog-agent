@@ -62,7 +62,7 @@ func TestRemoveEntryFromStore(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{"foo", "default"},
+					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
@@ -78,7 +78,7 @@ func TestRemoveEntryFromStore(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{"bar", "default"},
+					HPA:        custommetrics.ObjectReference{Name: "bar", Namespace: "default"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
@@ -90,7 +90,7 @@ func TestRemoveEntryFromStore(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{"bar", "default"},
+					HPA:        custommetrics.ObjectReference{Name: "bar", Namespace: "default"},
 					Timestamp:  12,
 					Value:      1,
 					Valid:      false,
