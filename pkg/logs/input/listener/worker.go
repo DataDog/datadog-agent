@@ -22,24 +22,27 @@ const defaultTimeout = 60000 * time.Millisecond
 
 // Worker reads data from a connection
 type Worker struct {
-	source     *config.LogSource
-	conn       net.Conn
-	outputChan chan message.Message
-	decoder    *decoder.Decoder
-	shouldStop bool
-	stop       chan struct{}
-	done       chan struct{}
+	source           *config.LogSource
+	conn             net.Conn
+	outputChan       chan message.Message
+	keepAlive        bool
+	recoverFromError func(*Worker)
+	decoder          *decoder.Decoder
+	stop             chan struct{}
+	done             chan struct{}
 }
 
 // NewWorker returns a new Worker
-func NewWorker(source *config.LogSource, conn net.Conn, outputChan chan message.Message) *Worker {
+func NewWorker(source *config.LogSource, conn net.Conn, outputChan chan message.Message, keepAlive bool, recoverFromError func(*Worker)) *Worker {
 	return &Worker{
-		source:     source,
-		conn:       conn,
-		outputChan: outputChan,
-		decoder:    decoder.InitializeDecoder(source),
-		stop:       make(chan struct{}, 1),
-		done:       make(chan struct{}, 1),
+		source:           source,
+		conn:             conn,
+		outputChan:       outputChan,
+		keepAlive:        keepAlive,
+		recoverFromError: recoverFromError,
+		decoder:          decoder.InitializeDecoder(source),
+		stop:             make(chan struct{}, 1),
+		done:             make(chan struct{}, 1),
 	}
 }
 
@@ -61,7 +64,6 @@ func (w *Worker) Stop() {
 func (w *Worker) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		w.shouldStop = true
 		w.done <- struct{}{}
 	}()
 	for output := range w.decoder.OutputChan {
@@ -82,7 +84,7 @@ func (w *Worker) readForever() {
 			// stop reading data from the connection
 			return
 		default:
-			if !w.mustKeepConnAlive() {
+			if !w.keepAlive {
 				w.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			}
 			inBuf := make([]byte, 4096)
@@ -96,24 +98,11 @@ func (w *Worker) readForever() {
 			}
 			if err != nil {
 				// an error occurred, stop from reading new data
-				w.source.Status.Error(err)
-				log.Warn("Couldn't read message from connection: ", err)
+				log.Warnf("Couldn't read message from connection: %v", err)
+				w.recoverFromError(w)
 				return
 			}
 			w.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
 	}
-}
-
-// mustKeepConnAlive returns if the connection must remain open
-// returns false otherwise
-func (w *Worker) mustKeepConnAlive() bool {
-	switch w.source.Config.Type {
-	case config.UDPType:
-		return true
-	case config.TCPType:
-		// prevent client from keeping too many open connections
-		return false
-	}
-	return false
 }

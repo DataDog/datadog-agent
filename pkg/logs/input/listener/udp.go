@@ -15,57 +15,70 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// A UDPListener listens for UDP connections and delegates the work to connHandler
+// A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a Worker.
 type UDPListener struct {
-	port        int
-	conn        *net.UDPConn
-	connHandler *ConnectionHandler
-	stop        chan struct{}
-	done        chan struct{}
+	pp     pipeline.Provider
+	source *config.LogSource
+	worker *Worker
 }
 
 // NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pp pipeline.Provider, source *config.LogSource) (*UDPListener, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", source.Config.Port))
+func NewUDPListener(pp pipeline.Provider, source *config.LogSource) *UDPListener {
+	return &UDPListener{
+		pp:     pp,
+		source: source,
+	}
+}
+
+// Start opens a new UDP connection and starts a worker.
+func (l *UDPListener) Start() {
+	log.Infof("Starting UDP forwarder on port: %d", l.source.Config.Port)
+	conn, err := l.newUDPConnection()
 	if err != nil {
-		source.Status.Error(err)
+		log.Errorf("Can't open a UDP connection: %v", err)
+		l.source.Status.Error(err)
+		return
+	}
+	l.worker = l.newWorker(conn)
+	l.worker.Start()
+}
+
+// Stop stops the worker.
+func (l *UDPListener) Stop() {
+	log.Infof("Stopping UDP forwarder on port: %d", l.source.Config.Port)
+	l.worker.Stop()
+}
+
+// newUDPConnection returns a new UDP connection,
+// returns an error if the creation failed.
+func (l *UDPListener) newUDPConnection() (net.Conn, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", l.source.Config.Port))
+	if err != nil {
 		return nil, err
 	}
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		source.Status.Error(err)
 		return nil, err
 	}
-	source.Status.Success()
-	connHandler := NewConnectionHandler(pp, source)
-	return &UDPListener{
-		port:        source.Config.Port,
-		conn:        conn,
-		connHandler: connHandler,
-		stop:        make(chan struct{}, 1),
-		done:        make(chan struct{}, 1),
-	}, nil
+	return conn, nil
 }
 
-// Start listens to UDP connections on another routine
-func (l *UDPListener) Start() {
-	log.Info("Starting UDP forwarder on port ", l.port)
-	l.connHandler.Start()
-	go l.run()
+// newWorker returns a new worker that reads from conn.
+func (l *UDPListener) newWorker(conn net.Conn) *Worker {
+	return NewWorker(l.source, conn, l.pp.NextPipelineChan(), true, l.recoverFromError)
 }
 
-// Stop closes the UDP connection
-// it blocks until connHandler is flushed
-func (l *UDPListener) Stop() {
-	log.Info("Stopping UDP forwarder on port ", l.port)
-	l.stop <- struct{}{}
-	<-l.done
-}
-
-// run lets connHandler handle new UDP connections
-func (l *UDPListener) run() {
-	l.connHandler.HandleConnection(l.conn)
-	<-l.stop
-	l.connHandler.Stop()
-	l.done <- struct{}{}
+// recoverFromError restarts a worker when the previous one gracefully stopped,
+// from reading data from its connection.
+func (l *UDPListener) recoverFromError() {
+	log.Info("Restarting a new UDP connection on port: %d", l.source.Config.Port)
+	l.worker.Stop()
+	conn, err := l.newUDPConnection()
+	if err != nil {
+		log.Errorf("Could not restart a UDP connection: %v", err)
+		l.source.Status.Error(err)
+		return
+	}
+	l.worker = l.newWorker(conn)
+	l.worker.Start()
 }

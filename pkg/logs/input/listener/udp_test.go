@@ -32,8 +32,7 @@ func (suite *UDPTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
 	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.UDPType, Port: udpTestPort})
-	udpl, err := NewUDPListener(suite.pp, suite.source)
-	suite.Nil(err)
+	udpl := NewUDPListener(suite.pp, suite.source)
 	suite.udpl = udpl
 	suite.udpl.Start()
 }

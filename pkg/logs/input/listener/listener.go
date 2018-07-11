@@ -42,11 +42,7 @@ func (l *Listener) Start() {
 			tcpl.Start()
 			l.listeners = append(l.listeners, tcpl)
 		case config.UDPType:
-			udpl, err := NewUDPListener(l.pp, source)
-			if err != nil {
-				log.Error("Can't start udp source: ", err)
-				continue
-			}
+			udpl := NewUDPListener(l.pp, source)
 			udpl.Start()
 			l.listeners = append(l.listeners, udpl)
 		}
