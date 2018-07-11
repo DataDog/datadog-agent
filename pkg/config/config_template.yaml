@@ -331,10 +331,10 @@ api_key:
 # If TLS enabled, you must specify a path to a private key here
 #
 # syslog_key: /path/to/key.pem
-# 
-# If TLS enabled, you may enforce TLS verification here (defaults to true) 
 #
-# syslog_tls_verify: yes 
+# If TLS enabled, you may enforce TLS verification here (defaults to true)
+#
+# syslog_tls_verify: yes
 #
 {{ end -}}
 {{- if .Autodiscovery }}
@@ -492,6 +492,7 @@ api_key:
 # ContainerIDs with the following options:
 # kubernetes_collect_metadata_tags: true
 # kubernetes_metadata_tag_update_freq: 300
+# kubernetes_metadata_tag_client_timeout: 10
 #
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
