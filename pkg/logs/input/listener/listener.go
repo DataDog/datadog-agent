@@ -6,8 +6,6 @@
 package listener
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
@@ -34,11 +32,7 @@ func (l *Listener) Start() {
 	for _, source := range l.sources {
 		switch source.Config.Type {
 		case config.TCPType:
-			tcpl, err := NewTCPListener(l.pp, source)
-			if err != nil {
-				log.Error("Can't start tcp source: ", err)
-				continue
-			}
+			tcpl := NewTCPListener(l.pp, source)
 			tcpl.Start()
 			l.listeners = append(l.listeners, tcpl)
 		case config.UDPType:

@@ -13,58 +13,56 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
 // A TCPListener listens and accepts TCP connections and delegates the work to connHandler
 type TCPListener struct {
-	port        int
-	listener    net.Listener
-	connHandler *ConnectionHandler
-	stop        chan struct{}
-	done        chan struct{}
+	pp       pipeline.Provider
+	source   *config.LogSource
+	listener net.Listener
+	workers  []*Worker
+	stop     chan struct{}
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pp pipeline.Provider, source *config.LogSource) (*TCPListener, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Config.Port))
-	if err != nil {
-		source.Status.Error(err)
-		return nil, err
-	}
-	source.Status.Success()
-	connHandler := NewConnectionHandler(pp, source)
+func NewTCPListener(pp pipeline.Provider, source *config.LogSource) *TCPListener {
 	return &TCPListener{
-		port:        source.Config.Port,
-		listener:    listener,
-		connHandler: connHandler,
-		stop:        make(chan struct{}, 1),
-		done:        make(chan struct{}, 1),
-	}, nil
+		pp:      pp,
+		source:  source,
+		workers: []*Worker{},
+		stop:    make(chan struct{}),
+	}
 }
 
 // Start listens to TCP connections on another routine
 func (l *TCPListener) Start() {
-	log.Info("Starting TCP forwarder on port ", l.port)
-	l.connHandler.Start()
+	log.Info("Starting TCP forwarder on port ", l.source.Config.Port)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
+	if err != nil {
+		log.Errorf("Can't listen: %v", err)
+		l.source.Status.Error(err)
+		return
+	}
+	l.listener = listener
 	go l.run()
 }
 
 // Stop prevents the listener to accept new incoming connections
 // it blocks until connHandler is flushed
 func (l *TCPListener) Stop() {
-	log.Info("Stopping TCP forwarder on port ", l.port)
+	log.Info("Stopping TCP forwarder on port ", l.source.Config.Port)
 	l.stop <- struct{}{}
-	l.listener.Close()
-	<-l.done
+	stopper := restart.NewParallelStopper()
+	for _, worker := range l.workers {
+		stopper.Add(worker)
+	}
+	stopper.Stop()
 }
 
 // run accepts new TCP connections and lets connHandler handle them
 func (l *TCPListener) run() {
-	defer func() {
-		l.listener.Close()
-		l.connHandler.Stop()
-		l.done <- struct{}{}
-	}()
+	defer l.listener.Close()
 	for {
 		select {
 		case <-l.stop:
@@ -73,13 +71,38 @@ func (l *TCPListener) run() {
 		default:
 			conn, err := l.listener.Accept()
 			if err != nil {
-				// an error occurred, stop from accepting new connections
-				l.connHandler.source.Status.Error(err)
-				log.Error("Can't listen: ", err)
-				return
+				// an error occurred, restart the listener.
+				log.Warnf("Can't accept new connections, restarting a listener: %v", err)
+				l.listener.Close()
+				listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
+				if err != nil {
+					log.Errorf("Can't restart a listener: %v", err)
+					l.source.Status.Error(err)
+					return
+				}
+				l.listener = listener
+				continue
 			}
-			l.connHandler.source.Status.Success()
-			go l.connHandler.HandleConnection(conn)
+			worker := l.newWorker(conn)
+			worker.Start()
+			l.workers = append(l.workers, worker)
+		}
+	}
+}
+
+// newWorker returns a new worker that reads from conn.
+func (l *TCPListener) newWorker(conn net.Conn) *Worker {
+	return NewWorker(l.source, conn, l.pp.NextPipelineChan(), false, l.recoverFromError)
+}
+
+// recoverFromError stops the worker.
+func (l *TCPListener) recoverFromError(worker *Worker) {
+	log.Info("Stopping a worker")
+	worker.Stop()
+	for i, w := range l.workers {
+		if w == worker {
+			l.workers = append(l.workers[:i], l.workers[i+1:]...)
+			break
 		}
 	}
 }

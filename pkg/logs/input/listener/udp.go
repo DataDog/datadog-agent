@@ -56,11 +56,7 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
+	return net.ListenUDP("udp", udpAddr)
 }
 
 // newWorker returns a new worker that reads from conn.
@@ -68,11 +64,11 @@ func (l *UDPListener) newWorker(conn net.Conn) *Worker {
 	return NewWorker(l.source, conn, l.pp.NextPipelineChan(), true, l.recoverFromError)
 }
 
-// recoverFromError restarts a worker when the previous one gracefully stopped,
+// recoverFromError restarts a worker when the previous one gracefully stopped
 // from reading data from its connection.
-func (l *UDPListener) recoverFromError() {
+func (l *UDPListener) recoverFromError(worker *Worker) {
 	log.Info("Restarting a new UDP connection on port: %d", l.source.Config.Port)
-	l.worker.Stop()
+	worker.Stop()
 	conn, err := l.newUDPConnection()
 	if err != nil {
 		log.Errorf("Could not restart a UDP connection: %v", err)

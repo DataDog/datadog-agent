@@ -30,7 +30,7 @@ func (suite *WorkerTestSuite) SetupTest() {
 	msgChan := make(chan message.Message)
 	r, w := net.Pipe()
 
-	suite.w = NewWorker(source, r, msgChan, true, func() {})
+	suite.w = NewWorker(source, r, msgChan, true, func(*Worker) {})
 	suite.conn = w
 	suite.msgChan = msgChan
 

@@ -32,8 +32,7 @@ func (suite *TCPTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
 	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: tcpTestPort})
-	tcpl, err := NewTCPListener(suite.pp, suite.source)
-	suite.Nil(err)
+	tcpl := NewTCPListener(suite.pp, suite.source)
 	suite.tcpl = tcpl
 	suite.tcpl.Start()
 }
