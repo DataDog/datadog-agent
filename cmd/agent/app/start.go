@@ -160,14 +160,18 @@ func StartAgent() error {
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)
 		if err != nil {
-			return log.Errorf("Error while writing PID file, exiting: %v", err)
+			err := fmt.Errorf("Error while writing PID file, exiting: %v", err)
+			log.Error(err)
+			return err
 		}
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
 	hostname, err := util.GetHostname()
 	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
+		err := fmt.Errorf("Error while getting hostname, exiting: %v", err)
+		log.Error(err)
+		return err
 	}
 	log.Infof("Hostname is: %s", hostname)
 
@@ -180,7 +184,9 @@ func StartAgent() error {
 
 	// start the cmd HTTP server
 	if err = api.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
+		err := fmt.Errorf("Error while starting api server, exiting: %v", err)
+		log.Error(err)
+		return err
 	}
 
 	// start the GUI server
@@ -282,11 +288,15 @@ func setupMetadataCollection(s *serializer.Serializer, hostname string) error {
 	// Should be always true, except in some edge cases (multiple agents per host)
 	err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 	if err != nil {
-		return log.Error("Host metadata is supposed to be always available in the catalog!")
+		err := fmt.Errorf("Host metadata is supposed to be always available in the catalog")
+		log.Error(err)
+		return err
 	}
 	err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
 	if err != nil {
-		return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
+		err := fmt.Errorf("Agent Checks metadata is supposed to be always available in the catalog")
+		log.Error(err)
+		return err
 	}
 	if addDefaultResourcesCollector && runtime.GOOS == "linux" {
 		err = common.MetadataScheduler.AddCollector("resources", defaultResourcesMetadataCollectorInterval*time.Second)
