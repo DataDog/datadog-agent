@@ -202,40 +202,47 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 	if len(added) == 0 {
 		return nil
 	}
-	var toUpdate []custommetrics.ExternalMetricValue
+	var externalMetrics []custommetrics.ExternalMetricValue
 	var err error
 	for _, hpa := range added {
 		for _, metricSpec := range hpa.Spec.Metrics {
 			switch metricSpec.Type {
 			case autoscalingv2.ExternalMetricSourceType:
-				em := custommetrics.ExternalMetricValue{
+				m := custommetrics.ExternalMetricValue{
 					MetricName: metricSpec.External.MetricName,
 					Timestamp:  metav1.Now().Unix(),
-					HPA:        custommetrics.ObjectReference{Name: hpa.Name, Namespace: hpa.Namespace},
-					Labels:     metricSpec.External.MetricSelector.MatchLabels,
+					HPA: custommetrics.ObjectReference{
+						Name:      hpa.Name,
+						Namespace: hpa.Namespace,
+					},
+					Labels: metricSpec.External.MetricSelector.MatchLabels,
 				}
-				em.Value, em.Valid, err = c.validateExternalMetric(em)
+				m.Value, m.Valid, err = c.validateExternalMetric(m)
 				if err != nil {
-					log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
+					log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", m.MetricName, err)
 				}
-				toUpdate = append(toUpdate, em)
+				externalMetrics = append(externalMetrics, m)
 			default:
 				log.Debugf("Unsupported metric type %s", metricSpec.Type)
 			}
 		}
 	}
-	return c.store.SetExternalMetricValues(toUpdate)
+	return c.store.SetExternalMetricValues(externalMetrics)
 }
 
 func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.HorizontalPodAutoscaler) error {
 	if len(deleted) == 0 {
 		return nil
 	}
-	toDelete := []custommetrics.ObjectReference{}
+	objectRefs := []custommetrics.ObjectReference{}
 	for _, hpa := range deleted {
-		toDelete = append(toDelete, custommetrics.ObjectReference{Name: hpa.Name, Namespace: hpa.Namespace})
+		objectRef := custommetrics.ObjectReference{
+			Name:      hpa.Name,
+			Namespace: hpa.Namespace,
+		}
+		objectRefs = append(objectRefs, objectRef)
 	}
-	return c.store.DeleteExternalMetricValues(toDelete)
+	return c.store.Delete(objectRefs)
 }
 
 // validateExternalMetric queries Datadog to validate the availability of an external metric

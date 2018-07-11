@@ -23,7 +23,9 @@ import (
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
 	SetExternalMetricValues([]ExternalMetricValue) error
-	DeleteExternalMetricValues([]ObjectReference) error
+
+	Delete([]ObjectReference) error
+
 	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
 }
 
@@ -86,17 +88,16 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 		// Don't panic "assignment to entry in nil map" at init
 		c.cm.Data = make(map[string]string)
 	}
-	for _, em := range added {
-		key := strings.Join([]string{"external_metric", em.HPA.Namespace, em.HPA.Name, em.MetricName}, ".")
-		toStore, _ := json.Marshal(em)
+	for _, m := range added {
+		key := strings.Join([]string{"external_metric", m.HPA.Namespace, m.HPA.Name, m.MetricName}, ".")
+		toStore, _ := json.Marshal(m)
 		c.cm.Data[key] = string(toStore)
 	}
 	return c.updateConfigMap()
 }
 
-// DeleteExternalMetricValues deletes all the external metrics from the configmap that refer to
-// the given object references.
-func (c *configMapStore) DeleteExternalMetricValues(deleted []ObjectReference) error {
+// Delete deletes all metrics in the configmap that refer to any of the given object references.
+func (c *configMapStore) Delete(deleted []ObjectReference) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
 	}
@@ -104,7 +105,7 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ObjectReference) e
 		return nil
 	}
 	for _, obj := range deleted {
-		// Delete all external metrics from the configmap that reference this object.
+		// Delete all metrics from the configmap that reference this object.
 		for k := range c.cm.Data {
 			parts := strings.Split(k, ".")
 			if len(parts) != 4 {
@@ -116,7 +117,7 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ObjectReference) e
 				continue
 			}
 			delete(c.cm.Data, k)
-			log.Debugf("Deleted external metric %s for HPA %s from the configmap %s", parts[3], obj.Name, c.name)
+			log.Debugf("Deleted metric %s for HPA %s from the configmap %s", parts[3], obj.Name, c.name)
 		}
 	}
 	return c.updateConfigMap()
@@ -126,21 +127,28 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ObjectReference) e
 // Any replica can safely call this function.
 func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
 	var metrics []ExternalMetricValue
-	var err error
-	c.cm, err = c.client.ConfigMaps(c.namespace).Get(c.name, metav1.GetOptions{})
-	if err != nil {
-		log.Infof("Could not get the configmap %s: %s", c.name, err.Error())
+	if err := c.getConfigMap(); err != nil {
 		return nil, err
 	}
 	for k, v := range c.cm.Data {
 		if !strings.HasPrefix(k, "external_metric") {
 			continue
 		}
-		em := &ExternalMetricValue{}
-		json.Unmarshal([]byte(v), &em)
-		metrics = append(metrics, *em)
+		m := &ExternalMetricValue{}
+		json.Unmarshal([]byte(v), &m)
+		metrics = append(metrics, *m)
 	}
 	return metrics, nil
+}
+
+func (c *configMapStore) getConfigMap() error {
+	var err error
+	c.cm, err = c.client.ConfigMaps(c.namespace).Get(c.name, metav1.GetOptions{})
+	if err != nil {
+		log.Infof("Could not get the configmap %s: %s", c.name, err)
+		return err
+	}
+	return nil
 }
 
 func (c *configMapStore) updateConfigMap() error {
@@ -150,7 +158,7 @@ func (c *configMapStore) updateConfigMap() error {
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Update(c.cm)
 	if err != nil {
-		log.Infof("Could not update the configmap %s: %s", c.name, err.Error())
+		log.Infof("Could not update the configmap %s: %s", c.name, err)
 		return err
 	}
 	return nil
