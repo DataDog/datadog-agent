@@ -99,6 +99,7 @@ func (t *Tailer) readForever() {
 			if err != nil {
 				// an error occurred, stop from reading new data
 				log.Warnf("Couldn't read message from connection: %v", err)
+				t.source.Status.Error(err)
 				t.recoverFromError(t)
 				return
 			}

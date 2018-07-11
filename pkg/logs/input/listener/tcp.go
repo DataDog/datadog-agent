@@ -100,6 +100,7 @@ func (l *TCPListener) newTailer(conn net.Conn) *Tailer {
 func (l *TCPListener) recoverFromError(tailer *Tailer) {
 	tailer.Stop()
 	l.remove(tailer)
+	l.source.Status.Success()
 }
 
 // add adds the tailer to the active list of tailers.

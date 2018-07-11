@@ -75,6 +75,7 @@ func (l *UDPListener) recoverFromError(tailer *Tailer) {
 		l.source.Status.Error(err)
 		return
 	}
+	l.source.Status.Success()
 	l.tailer = l.newTailer(conn)
 	l.tailer.Start()
 }
