@@ -492,7 +492,7 @@ api_key:
 # ContainerIDs with the following options:
 # kubernetes_collect_metadata_tags: true
 # kubernetes_metadata_tag_update_freq: 300
-# kubernetes_metadata_tag_client_timeout: 10
+# kubernetes_apiserver_client_timeout: 10
 #
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.

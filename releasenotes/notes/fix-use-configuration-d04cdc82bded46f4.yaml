@@ -2,4 +2,4 @@
 fixes:
   - |
     Use as expected the configuration value of kubernetes_metadata_tag_update_freq,
-    introduce a kubernetes_metadata_tag_client_timeout configuration option.
+    introduce a kubernetes_apiserver_client_timeout configuration option.

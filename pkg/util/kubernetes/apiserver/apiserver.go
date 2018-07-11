@@ -55,7 +55,7 @@ type APIClient struct {
 func GetAPIClient() (*APIClient, error) {
 	if globalAPIClient == nil {
 		globalAPIClient = &APIClient{
-			timeoutSeconds:   config.Datadog.GetInt64("kubernetes_metadata_tag_client_timeout"),
+			timeoutSeconds:   config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
 			metadataPollIntl: config.Datadog.GetDuration("kubernetes_metadata_tag_update_freq"),
 		}
 		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
