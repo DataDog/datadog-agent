@@ -9,6 +9,7 @@ package hpa
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -23,18 +24,9 @@ type mockStore struct {
 	externalMetrics map[string]custommetrics.ExternalMetricValue
 }
 
-func newMockStore(metricName string, labels map[string]string) *mockStore {
+func newMockStore(metrics []custommetrics.ExternalMetricValue) *mockStore {
 	s := &mockStore{}
-	em := custommetrics.ExternalMetricValue{
-		MetricName:   metricName,
-		Labels:       labels,
-		HPANamespace: "default",
-		HPAName:      "foo",
-		Timestamp:    12,
-		Value:        1,
-		Valid:        false,
-	}
-	_ = s.SetExternalMetricValues([]custommetrics.ExternalMetricValue{em})
+	_ = s.SetExternalMetricValues(metrics)
 	return s
 }
 
@@ -43,14 +35,19 @@ func (s *mockStore) SetExternalMetricValues(added []custommetrics.ExternalMetric
 		s.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
 	}
 	for _, em := range added {
-		s.externalMetrics[em.MetricName] = em
+		s.externalMetrics[fmt.Sprintf("%s.%s.%s", em.HPA.Namespace, em.HPA.Name, em.MetricName)] = em
 	}
 	return nil
 }
 
-func (s *mockStore) DeleteExternalMetricValues(deleted []custommetrics.ExternalMetricInfo) error {
-	for _, info := range deleted {
-		delete(s.externalMetrics, info.MetricName)
+func (s *mockStore) DeleteExternalMetricValues(deleted []custommetrics.ObjectReference) error {
+	for _, obj := range deleted {
+		for k := range s.externalMetrics {
+			if !strings.HasPrefix(k, fmt.Sprintf("%s.%s", obj.Namespace, obj.Name)) {
+				continue
+			}
+			delete(s.externalMetrics, k)
+		}
 	}
 	return nil
 }
@@ -63,10 +60,12 @@ func (s *mockStore) ListAllExternalMetricValues() ([]custommetrics.ExternalMetri
 	return allMetrics, nil
 }
 
-func (s *mockStore) Update() error { return nil }
-
-func newMockHPAExternalMetricSource(metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
+func newMockHPAExternalMetricSource(name, ns, metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
 	return &v2beta1.HorizontalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
 		Spec: v2beta1.HorizontalPodAutoscalerSpec{
 			Metrics: []v2beta1.MetricSpec{
 				{
@@ -93,24 +92,43 @@ func TestRemoveEntryFromStore(t *testing.T) {
 		expectedMetrics map[string]custommetrics.ExternalMetricValue
 	}{
 		{
-			caseName:        "Metric exists, deleting",
-			store:           newMockStore("foo", map[string]string{"bar": "baz"}),
-			hpa:             newMockHPAExternalMetricSource("foo", map[string]string{"bar": "baz"}),
+			caseName: "metric exists in store for deleted hpa",
+			store: newMockStore([]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"bar": "baz"},
+					HPA:        custommetrics.ObjectReference{"foo", "default"},
+					Timestamp:  12,
+					Value:      1,
+					Valid:      false,
+				},
+			}),
+			// This HPA references the same metric as the one in the store and has the same name.
+			hpa:             newMockHPAExternalMetricSource("foo", "default", "requests_per_s", map[string]string{"bar": "baz"}),
 			expectedMetrics: map[string]custommetrics.ExternalMetricValue{},
 		},
 		{
-			caseName: "Metric is not listed, no-op",
-			store:    newMockStore("foobar", map[string]string{"bar": "baz"}),
-			hpa:      newMockHPAExternalMetricSource("foo", map[string]string{"bar": "baz"}),
+			caseName: "metric exists in store for different hpa",
+			store: newMockStore([]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"bar": "baz"},
+					HPA:        custommetrics.ObjectReference{"bar", "default"},
+					Timestamp:  12,
+					Value:      1,
+					Valid:      false,
+				},
+			}),
+			// This HPA references the same metric as the one in the store but has a different name.
+			hpa: newMockHPAExternalMetricSource("foo", "default", "requests_per_s", map[string]string{"bar": "baz"}),
 			expectedMetrics: map[string]custommetrics.ExternalMetricValue{
-				"foobar": {
-					MetricName:   "foobar",
-					Labels:       map[string]string{"bar": "baz"},
-					HPANamespace: "default",
-					HPAName:      "foo",
-					Timestamp:    12,
-					Value:        1,
-					Valid:        false,
+				"default.bar.requests_per_s": {
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"bar": "baz"},
+					HPA:        custommetrics.ObjectReference{"bar", "default"},
+					Timestamp:  12,
+					Value:      1,
+					Valid:      false,
 				},
 			},
 		},

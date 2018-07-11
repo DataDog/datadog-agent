@@ -202,53 +202,40 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 	if len(added) == 0 {
 		return nil
 	}
-	var external []custommetrics.ExternalMetricValue
+	var toUpdate []custommetrics.ExternalMetricValue
 	var err error
 	for _, hpa := range added {
 		for _, metricSpec := range hpa.Spec.Metrics {
 			switch metricSpec.Type {
 			case autoscalingv2.ExternalMetricSourceType:
 				em := custommetrics.ExternalMetricValue{
-					MetricName:   metricSpec.External.MetricName,
-					Timestamp:    metav1.Now().Unix(),
-					HPANamespace: hpa.Namespace,
-					HPAName:      hpa.Name,
-					Labels:       metricSpec.External.MetricSelector.MatchLabels,
+					MetricName: metricSpec.External.MetricName,
+					Timestamp:  metav1.Now().Unix(),
+					HPA:        custommetrics.ObjectReference{hpa.Name, hpa.Namespace},
+					Labels:     metricSpec.External.MetricSelector.MatchLabels,
 				}
 				em.Value, em.Valid, err = c.validateExternalMetric(em)
 				if err != nil {
 					log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
 				}
-				external = append(external, em)
+				toUpdate = append(toUpdate, em)
 			default:
 				log.Debugf("Unsupported metric type %s", metricSpec.Type)
 			}
 		}
 	}
-	return c.store.SetExternalMetricValues(external)
+	return c.store.SetExternalMetricValues(toUpdate)
 }
 
 func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.HorizontalPodAutoscaler) error {
 	if len(deleted) == 0 {
 		return nil
 	}
-	var external []custommetrics.ExternalMetricInfo
+	toDelete := []custommetrics.ObjectReference{}
 	for _, hpa := range deleted {
-		for _, metricSpec := range hpa.Spec.Metrics {
-			switch metricSpec.Type {
-			case autoscalingv2.ExternalMetricSourceType:
-				info := custommetrics.ExternalMetricInfo{
-					MetricName:   metricSpec.External.MetricName,
-					HPANamespace: hpa.Namespace,
-					HPAName:      hpa.Name,
-				}
-				external = append(external, info)
-			default:
-				log.Debugf("Unsupported metric type %s", metricSpec.Type)
-			}
-		}
+		toDelete = append(toDelete, custommetrics.ObjectReference{hpa.Name, hpa.Namespace})
 	}
-	return c.store.DeleteExternalMetricValues(external)
+	return c.store.DeleteExternalMetricValues(toDelete)
 }
 
 // validateExternalMetric queries Datadog to validate the availability of an external metric

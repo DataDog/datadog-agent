@@ -8,17 +8,16 @@
 package custommetrics
 
 type ExternalMetricValue struct {
-	MetricName   string            `json:"metricName"`
-	Labels       map[string]string `json:"labels"`
-	Timestamp    int64             `json:"ts"`
-	HPAName      string            `json:"hpa_name"`
-	HPANamespace string            `json:"hpa_namespace"`
-	Value        int64             `json:"value"`
-	Valid        bool              `json:"valid"`
+	MetricName string            `json:"metricName"`
+	Labels     map[string]string `json:"labels"`
+	Timestamp  int64             `json:"ts"`
+	HPA        ObjectReference   `json:"hpa"`
+	Value      int64             `json:"value"`
+	Valid      bool              `json:"valid"`
 }
 
-type ExternalMetricInfo struct {
-	MetricName   string
-	HPAName      string
-	HPANamespace string
+// ObjectReference contains enough information to let you identify the referred resource.
+type ObjectReference struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }

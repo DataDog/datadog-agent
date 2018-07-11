@@ -54,30 +54,26 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			"same metric with different hpas and labels",
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "frontend"},
-					HPAName:      "foo",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					HPA:        ObjectReference{"foo", "default"},
 				},
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "backend"},
-					HPAName:      "bar",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "backend"},
+					HPA:        ObjectReference{"bar", "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "frontend"},
-					HPAName:      "foo",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					HPA:        ObjectReference{"foo", "default"},
 				},
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "backend"},
-					HPAName:      "bar",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "backend"},
+					HPA:        ObjectReference{"bar", "default"},
 				},
 			},
 		},
@@ -85,30 +81,26 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			"same metric with different owners and same labels",
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "frontend"},
-					HPAName:      "foo",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					HPA:        ObjectReference{"foo", "default"},
 				},
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "frontend"},
-					HPAName:      "bar",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					HPA:        ObjectReference{"bar", "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "frontend"},
-					HPAName:      "foo",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					HPA:        ObjectReference{"foo", "default"},
 				},
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "frontend"},
-					HPAName:      "bar",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					HPA:        ObjectReference{"bar", "default"},
 				},
 			},
 		},
@@ -116,24 +108,21 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			"same metric with same owners and different labels",
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "frontend"},
-					HPAName:      "foo",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "frontend"},
+					HPA:        ObjectReference{"foo", "default"},
 				},
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "backend"},
-					HPAName:      "foo",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "backend"},
+					HPA:        ObjectReference{"foo", "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
-					MetricName:   "requests_per_s",
-					Labels:       map[string]string{"role": "backend"},
-					HPAName:      "foo",
-					HPANamespace: "default",
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"role": "backend"},
+					HPA:        ObjectReference{"foo", "default"},
 				},
 			},
 		},
@@ -152,17 +141,12 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, allMetrics)
 
-			infos := make([]ExternalMetricInfo, 0)
+			refs := make([]ObjectReference, 0)
 			for _, m := range tt.metrics {
-				info := ExternalMetricInfo{
-					MetricName:   m.MetricName,
-					HPAName:      m.HPAName,
-					HPANamespace: m.HPANamespace,
-				}
-				infos = append(infos, info)
+				refs = append(refs, m.HPA)
 			}
 
-			err = store.DeleteExternalMetricValues(infos)
+			err = store.DeleteExternalMetricValues(refs)
 			require.NoError(t, err)
 			assert.Zero(t, len(store.(*configMapStore).cm.Data))
 		})

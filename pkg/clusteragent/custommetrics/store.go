@@ -10,6 +10,7 @@ package custommetrics
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/api/core/v1"
@@ -22,7 +23,7 @@ import (
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
 	SetExternalMetricValues([]ExternalMetricValue) error
-	DeleteExternalMetricValues([]ExternalMetricInfo) error
+	DeleteExternalMetricValues([]ObjectReference) error
 	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
 }
 
@@ -86,29 +87,31 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 		c.cm.Data = make(map[string]string)
 	}
 	for _, em := range added {
-		key := fmt.Sprintf("external_metric.%s.%s-%s", em.HPANamespace, em.HPAName, em.MetricName)
+		key := fmt.Sprintf("external_metric.%s.%s.%s", em.HPA.Namespace, em.HPA.Name, em.MetricName)
 		toStore, _ := json.Marshal(em)
 		c.cm.Data[key] = string(toStore)
 	}
 	return c.updateConfigMap()
 }
 
-// DeleteExternalMetricValues deletes the external metrics from the configmap.
-func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricInfo) error {
+// DeleteExternalMetricValues deletes all the external metrics from the configmap that refer to
+// the given object references.
+func (c *configMapStore) DeleteExternalMetricValues(deleted []ObjectReference) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
 	}
 	if len(deleted) == 0 {
 		return nil
 	}
-	for _, info := range deleted {
-		key := fmt.Sprintf("external_metric.%s.%s-%s", info.HPANamespace, info.HPAName, info.MetricName)
-		if c.cm.Data[key] == "" {
-			log.Debugf("No data for external metric %s", info.MetricName)
-			continue
+	for _, obj := range deleted {
+		// Delete all external metrics from the configmap that reference this object.
+		for k := range c.cm.Data {
+			if !strings.HasPrefix(k, fmt.Sprintf("external_metric.%s.%s", obj.Namespace, obj.Name)) {
+				continue
+			}
+			delete(c.cm.Data, k)
+			log.Debugf("Deleted external metrics for HPA %s from the configmap %s", obj.Name, c.name)
 		}
-		delete(c.cm.Data, key)
-		log.Debugf("Deleted external metric %#v from the configmap %s", info.MetricName, c.name)
 	}
 	return c.updateConfigMap()
 }
@@ -123,9 +126,12 @@ func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, e
 		log.Infof("Could not get the configmap %s: %s", c.name, err.Error())
 		return nil, err
 	}
-	for _, val := range c.cm.Data {
+	for k, v := range c.cm.Data {
+		if !strings.HasPrefix(k, "external_metric") {
+			continue
+		}
 		em := &ExternalMetricValue{}
-		json.Unmarshal([]byte(val), &em)
+		json.Unmarshal([]byte(v), &em)
 		metrics = append(metrics, *em)
 	}
 	return metrics, nil
