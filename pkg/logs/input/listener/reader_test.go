@@ -30,7 +30,7 @@ func (suite *ReaderTestSuite) SetupTest() {
 	msgChan := make(chan message.Message)
 	r, w := net.Pipe()
 
-	suite.reader = NewReader(source, r, msgChan, true, func(*Reader) {})
+	suite.reader = NewReader(source, r, msgChan, func(*Reader) {})
 	suite.conn = w
 	suite.msgChan = msgChan
 

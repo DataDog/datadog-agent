@@ -25,7 +25,6 @@ type Reader struct {
 	source               *config.LogSource
 	conn                 net.Conn
 	outputChan           chan message.Message
-	keepAlive            bool
 	handleUngracefulStop func(*Reader)
 	decoder              *decoder.Decoder
 	stop                 chan struct{}
@@ -33,12 +32,11 @@ type Reader struct {
 }
 
 // NewReader returns a new Reader
-func NewReader(source *config.LogSource, conn net.Conn, outputChan chan message.Message, keepAlive bool, handleUngracefulStop func(*Reader)) *Reader {
+func NewReader(source *config.LogSource, conn net.Conn, outputChan chan message.Message, handleUngracefulStop func(*Reader)) *Reader {
 	return &Reader{
 		source:               source,
 		conn:                 conn,
 		outputChan:           outputChan,
-		keepAlive:            keepAlive,
 		handleUngracefulStop: handleUngracefulStop,
 		decoder:              decoder.InitializeDecoder(source),
 		stop:                 make(chan struct{}, 1),
@@ -84,16 +82,9 @@ func (r *Reader) readForever() {
 			// stop reading data from the connection
 			return
 		default:
-			if !r.keepAlive {
-				r.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
-			}
 			inBuf := make([]byte, 4096)
 			n, err := r.conn.Read(inBuf)
 			if err == io.EOF {
-				return
-			}
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				// timeout expired, stop from reading new data
 				return
 			}
 			if err != nil {

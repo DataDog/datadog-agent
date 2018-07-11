@@ -93,7 +93,7 @@ func (l *TCPListener) run() {
 
 // newReader returns a new reader that reads from conn.
 func (l *TCPListener) newReader(conn net.Conn) *Reader {
-	return NewReader(l.source, conn, l.pp.NextPipelineChan(), false, l.handleUngracefulStop)
+	return NewReader(l.source, conn, l.pp.NextPipelineChan(), l.handleUngracefulStop)
 }
 
 // handleUngracefulStop stops the reader.

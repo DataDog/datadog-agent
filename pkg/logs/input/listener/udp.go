@@ -61,7 +61,7 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 
 // newReader returns a new reader that reads from conn.
 func (l *UDPListener) newReader(conn net.Conn) *Reader {
-	return NewReader(l.source, conn, l.pp.NextPipelineChan(), true, l.handleUngracefulStop)
+	return NewReader(l.source, conn, l.pp.NextPipelineChan(), l.handleUngracefulStop)
 }
 
 // handleUngracefulStop restarts a reader when the previous one ungracefully stopped
