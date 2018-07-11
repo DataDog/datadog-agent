@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -60,7 +59,6 @@ func newTagger() *Tagger {
 		pruneTicker: time.NewTicker(5 * time.Minute),
 		retryTicker: time.NewTicker(30 * time.Second),
 		stop:        make(chan bool),
-		health:      health.Register("tagger"),
 	}
 }
 
@@ -78,6 +76,7 @@ func (t *Tagger) Init(catalog collectors.Catalog) {
 
 	log.Info("starting the tagging system")
 
+	t.health = health.Register("tagger")
 	t.startCollectors()
 	go t.run()
 	go t.pull()
@@ -272,15 +271,15 @@ IterCollectors:
 }
 
 // List the content of the tagger
-func (t *Tagger) List(highCard bool) response.TaggerListResponse {
-	r := response.TaggerListResponse{
-		Entities: make(map[string]response.TaggerListEntity),
+func (t *Tagger) List(highCard bool) ListResponse {
+	r := ListResponse{
+		Entities: make(map[string]ListEntity),
 	}
 
 	t.tagStore.storeMutex.RLock()
 	defer t.tagStore.storeMutex.RUnlock()
 	for entityID, et := range t.tagStore.store {
-		entity := response.TaggerListEntity{}
+		entity := ListEntity{}
 		tags, sources, _ := et.get(highCard)
 		entity.Tags = copyArray(tags)
 		entity.Sources = copyArray(sources)

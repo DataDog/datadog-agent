@@ -6,9 +6,6 @@
 package app
 
 import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 
 	"github.com/fatih/color"
@@ -28,14 +25,7 @@ var configCheckCommand = &cobra.Command{
 	Short: "Print all configurations loaded & resolved of a running agent",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-		}
-		if flagNoColor {
-			color.NoColor = true
-		}
-		err = flare.GetConfigCheck(color.Output, withDebug)
+		err := flare.GetConfigCheck(color.Output, withDebug)
 		if err != nil {
 			return err
 		}

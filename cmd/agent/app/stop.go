@@ -11,10 +11,10 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -32,11 +32,6 @@ func init() {
 }
 
 func stop(*cobra.Command, []string) error {
-	// Global Agent configuration
-	err := common.SetupConfig(confFilePath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token

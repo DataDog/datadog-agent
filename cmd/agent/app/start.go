@@ -7,15 +7,14 @@ package app
 
 import (
 	"fmt"
+	"net/http"
+	"os"
 	"runtime"
 	"strings"
 	"time"
 
-	_ "expvar" // Blank import used because this isn't directly used in this file
-	"net/http"
+	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
-
-	"os"
 
 	"github.com/spf13/cobra"
 

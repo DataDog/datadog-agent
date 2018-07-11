@@ -8,6 +8,7 @@ package security
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
@@ -104,6 +105,33 @@ func GenerateRootCert(hosts []string, bits int) (
 	b := pem.Block{Type: "CERTIFICATE", Bytes: certDER}
 	certPEM = pem.EncodeToMemory(&b)
 	return
+}
+
+// GenerateSelfSignedConfig is a helper function to quickly generate
+// a self-signed certificate valid for a given list of hostnames
+func GenerateSelfSignedConfig(tlsHosts []string) (*tls.Config, error) {
+	// Generate a root certificate
+	_, rootCertPEM, rootKey, err := GenerateRootCert(tlsHosts, 2048)
+	if err != nil {
+		return nil, fmt.Errorf("unable to start TLS: %s", err)
+	}
+
+	// PEM encode the private key
+	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	})
+
+	// Create a TLS cert using the private key and certificate
+	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("invalid key pair: %v", err)
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{rootTLSCert},
+	}
+
+	return tlsConfig, nil
 }
 
 // FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist

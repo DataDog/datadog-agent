@@ -3,6 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package main
+package app
 
 const defaultLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd.log"

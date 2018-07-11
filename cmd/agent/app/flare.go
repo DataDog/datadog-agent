@@ -36,15 +36,6 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			return err
-		}
-
-		if flagNoColor {
-			color.NoColor = true
-		}
-
 		caseID := ""
 		if len(args) > 0 {
 			caseID = args[0]

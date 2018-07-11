@@ -1,0 +1,4 @@
+---
+features:
+  - The standalone dogstatsd command now has `health` and `tagger-list` sub-commands
+  - The `datadog/dogstatsd` image now has a proper healthcheck

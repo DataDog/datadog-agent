@@ -8,7 +8,6 @@ package tagger
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
@@ -47,7 +46,7 @@ func IsFullCardinality() bool {
 }
 
 // List the content of the defaulTagger
-func List(highCard bool) response.TaggerListResponse {
+func List(highCard bool) ListResponse {
 	return defaultTagger.List(highCard)
 }
 

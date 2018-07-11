@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	AgentCmd.AddCommand(versionCmd)
+	DogstatsdCmd.AddCommand(versionCmd)
 }
 
 var versionCmd = &cobra.Command{
@@ -24,6 +24,9 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version info",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
+		if flagNoColor {
+			color.NoColor = true
+		}
 		av, _ := version.New(version.AgentVersion, version.Commit)
 		meta := ""
 		if av.Meta != "" {
@@ -31,7 +34,7 @@ var versionCmd = &cobra.Command{
 		}
 		fmt.Fprintln(
 			color.Output,
-			fmt.Sprintf("Agent %s %s- Commit: %s - Serialization version: %s",
+			fmt.Sprintf("Dogstatsd %s %s- Commit: %s - Serialization version: %s",
 				color.CyanString(av.GetNumberAndPre()),
 				meta,
 				color.GreenString(av.Commit),

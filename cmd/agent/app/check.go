@@ -48,17 +48,6 @@ var checkCmd = &cobra.Command{
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Global Agent configuration
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			fmt.Printf("Cannot setup config, exiting: %v\n", err)
-			return err
-		}
-
-		if flagNoColor {
-			color.NoColor = true
-		}
-
 		if logLevel == "" {
 			if confFilePath != "" {
 				logLevel = config.Datadog.GetString("log_level")
@@ -68,7 +57,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		// Setup logger
-		err = config.SetupLogger(logLevel, "", "", false, true, false)
+		err := config.SetupLogger(logLevel, "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err

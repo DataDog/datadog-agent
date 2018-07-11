@@ -10,10 +10,10 @@ import (
 
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -34,10 +34,6 @@ var reloadCheckCommand = &cobra.Command{
 			return fmt.Errorf("missing arguments")
 		}
 
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-		}
 		return doReloadCheck(checkName)
 	},
 }

@@ -9,11 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -33,11 +33,6 @@ func init() {
 }
 
 func launchGui(cmd *cobra.Command, args []string) error {
-	err := common.SetupConfig(confFilePath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-
 	guiPort := config.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")

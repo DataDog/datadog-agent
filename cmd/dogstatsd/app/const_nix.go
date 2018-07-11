@@ -5,6 +5,6 @@
 
 // +build !windows
 
-package main
+package app
 
 const defaultLogFile = "/var/log/datadog/dogstatsd.log"

@@ -4,10 +4,16 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 
 RUN apk add --no-cache ca-certificates
 
-COPY entrypoint.sh /entrypoint.sh
+ENV DOCKER_DD_AGENT=yes \
+    PATH=/:$PATH
+
+COPY entrypoint.sh probe.sh /
 COPY static/dogstatsd /dogstatsd
 
 EXPOSE 8125/udp
+
+HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
+  CMD ["/probe.sh"]
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/dogstatsd", "start"]

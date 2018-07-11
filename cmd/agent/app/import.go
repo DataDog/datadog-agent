@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -45,10 +44,6 @@ func doImport(cmd *cobra.Command, args []string) error {
 	}
 	oldConfigDir := args[0]
 	newConfigDir := args[1]
-
-	if flagNoColor {
-		color.NoColor = true
-	}
 
 	return common.ImportConfig(oldConfigDir, newConfigDir, force)
 }

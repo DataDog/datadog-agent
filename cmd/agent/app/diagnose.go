@@ -6,8 +6,6 @@
 package app
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -29,18 +27,6 @@ var diagnoseCommand = &cobra.Command{
 }
 
 func doDiagnose(cmd *cobra.Command, args []string) {
-	// Global config setup
-	if confFilePath != "" {
-		if err := common.SetupConfig(confFilePath); err != nil {
-			fmt.Println("Cannot setup config, exiting:", err)
-			panic(err)
-		}
-	}
-
-	if flagNoColor {
-		color.NoColor = true
-	}
-
 	err := config.SetupLogger(
 		config.Datadog.GetString("log_level"),
 		common.DefaultLogFile,

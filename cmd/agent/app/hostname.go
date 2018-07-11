@@ -8,10 +8,10 @@ package app
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -28,10 +28,6 @@ var getHostnameCommand = &cobra.Command{
 // query for the version
 func doGetHostname(cmd *cobra.Command, args []string) error {
 	config.SetupLogger("off", "", "", false, true, false)
-	err := common.SetupConfig(confFilePath)
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
 	hname, err := util.GetHostname()
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)

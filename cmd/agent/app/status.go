@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -36,11 +36,7 @@ var statusCmd = &cobra.Command{
 	Short: "Print the current status",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-		}
-		err = requestStatus()
+		err := requestStatus()
 		if err != nil {
 			return err
 		}

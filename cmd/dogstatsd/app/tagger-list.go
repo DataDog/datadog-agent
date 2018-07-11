@@ -9,25 +9,25 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/api"
-	statusapi "github.com/DataDog/datadog-agent/pkg/status/api"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	taggerapi "github.com/DataDog/datadog-agent/pkg/tagger/api"
 )
 
 func init() {
-	AgentCmd.AddCommand(healthCmd)
+	DogstatsdCmd.AddCommand(taggerListCommand)
 }
 
-var healthCmd = &cobra.Command{
-	Use:          "health",
-	Short:        "Print the current agent health",
+var taggerListCommand = &cobra.Command{
+	Use:          "tagger-list",
+	Short:        "Print the tagger content of a running dogstatsd",
 	Long:         ``,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := new(health.Status)
-		err := api.RetrieveJSON("/agent/status/health", s)
+		tr := &tagger.ListResponse{}
+		err := api.RetrieveJSON("/dogstatsd/tagger-list", tr)
 		if err != nil {
 			return err
 		}
-		return statusapi.PrintHealth(s, "Agent")
+		return taggerapi.PrintList(tr)
 	},
 }
