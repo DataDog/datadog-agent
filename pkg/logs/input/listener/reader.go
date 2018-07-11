@@ -20,21 +20,21 @@ import (
 // defaultTimeout represents the time after which a connection is closed when no data is read
 const defaultTimeout = 60000 * time.Millisecond
 
-// Tailer reads data from a connection
-type Tailer struct {
+// Reader reads data from a connection
+type Reader struct {
 	source               *config.LogSource
 	conn                 net.Conn
 	outputChan           chan message.Message
 	keepAlive            bool
-	handleUngracefulStop func(*Tailer)
+	handleUngracefulStop func(*Reader)
 	decoder              *decoder.Decoder
 	stop                 chan struct{}
 	done                 chan struct{}
 }
 
-// NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan message.Message, keepAlive bool, handleUngracefulStop func(*Tailer)) *Tailer {
-	return &Tailer{
+// NewReader returns a new Reader
+func NewReader(source *config.LogSource, conn net.Conn, outputChan chan message.Message, keepAlive bool, handleUngracefulStop func(*Reader)) *Reader {
+	return &Reader{
 		source:               source,
 		conn:                 conn,
 		outputChan:           outputChan,
@@ -46,49 +46,49 @@ func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan message.
 	}
 }
 
-// Start prepares the tailer to read and decode data from the connection
-func (t *Tailer) Start() {
-	go t.forwardMessages()
-	t.decoder.Start()
-	go t.readForever()
+// Start prepares the reader to read and decode data from the connection
+func (r *Reader) Start() {
+	go r.forwardMessages()
+	r.decoder.Start()
+	go r.readForever()
 }
 
-// Stop stops the tailer and waits for the decoder to be flushed
-func (t *Tailer) Stop() {
-	t.stop <- struct{}{}
-	t.conn.Close()
-	<-t.done
+// Stop stops the reader and waits for the decoder to be flushed
+func (r *Reader) Stop() {
+	r.stop <- struct{}{}
+	r.conn.Close()
+	<-r.done
 }
 
 // forwardMessages forwards messages to output channel
-func (t *Tailer) forwardMessages() {
+func (r *Reader) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		t.done <- struct{}{}
+		r.done <- struct{}{}
 	}()
-	for output := range t.decoder.OutputChan {
-		origin := message.NewOrigin(t.source)
-		t.outputChan <- message.New(output.Content, origin, "")
+	for output := range r.decoder.OutputChan {
+		origin := message.NewOrigin(r.source)
+		r.outputChan <- message.New(output.Content, origin, "")
 	}
 }
 
 // readForever reads the data from conn until timeout or an error occurt
-func (t *Tailer) readForever() {
+func (r *Reader) readForever() {
 	defer func() {
-		t.conn.Close()
-		t.decoder.Stop()
+		r.conn.Close()
+		r.decoder.Stop()
 	}()
 	for {
 		select {
-		case <-t.stop:
+		case <-r.stop:
 			// stop reading data from the connection
 			return
 		default:
-			if !t.keepAlive {
-				t.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+			if !r.keepAlive {
+				r.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			}
 			inBuf := make([]byte, 4096)
-			n, err := t.conn.Read(inBuf)
+			n, err := r.conn.Read(inBuf)
 			if err == io.EOF {
 				return
 			}
@@ -99,11 +99,11 @@ func (t *Tailer) readForever() {
 			if err != nil {
 				// an error occurred, stop from reading new data
 				log.Warnf("Couldn't read message from connection: %v", err)
-				t.source.Status.Error(err)
-				t.handleUngracefulStop(t)
+				r.source.Status.Error(err)
+				r.handleUngracefulStop(r)
 				return
 			}
-			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			r.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
 	}
 }

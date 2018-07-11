@@ -17,12 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
+// A TCPListener listens and accepts TCP connections and delegates the read operations to a reader.
 type TCPListener struct {
 	pp       pipeline.Provider
 	source   *config.LogSource
 	listener net.Listener
-	tailers  []*Tailer
+	readers  []*Reader
 	stop     chan struct{}
 	mu       sync.Mutex
 }
@@ -32,7 +32,7 @@ func NewTCPListener(pp pipeline.Provider, source *config.LogSource) *TCPListener
 	return &TCPListener{
 		pp:      pp,
 		source:  source,
-		tailers: []*Tailer{},
+		readers: []*Reader{},
 		stop:    make(chan struct{}),
 	}
 }
@@ -50,18 +50,18 @@ func (l *TCPListener) Start() {
 	go l.run()
 }
 
-// Stop stops the listener from accepting new connections and all the activer tailers.
+// Stop stops the listener from accepting new connections and all the activer readers.
 func (l *TCPListener) Stop() {
 	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
+	for _, reader := range l.readers {
+		stopper.Add(reader)
 	}
 	stopper.Stop()
 }
 
-// run accepts new TCP connections and create a dedicated tailer for each one.
+// run accepts new TCP connections and create a dedicated reader for each one.
 func (l *TCPListener) run() {
 	defer l.listener.Close()
 	for {
@@ -84,39 +84,39 @@ func (l *TCPListener) run() {
 				l.listener = listener
 				continue
 			}
-			tailer := l.newTailer(conn)
-			tailer.Start()
-			l.add(tailer)
+			reader := l.newReader(conn)
+			reader.Start()
+			l.add(reader)
 		}
 	}
 }
 
-// newTailer returns a new tailer that reads from conn.
-func (l *TCPListener) newTailer(conn net.Conn) *Tailer {
-	return NewTailer(l.source, conn, l.pp.NextPipelineChan(), false, l.handleUngracefulStop)
+// newReader returns a new reader that reads from conn.
+func (l *TCPListener) newReader(conn net.Conn) *Reader {
+	return NewReader(l.source, conn, l.pp.NextPipelineChan(), false, l.handleUngracefulStop)
 }
 
-// handleUngracefulStop stops the tailer.
-func (l *TCPListener) handleUngracefulStop(tailer *Tailer) {
-	tailer.Stop()
-	l.remove(tailer)
+// handleUngracefulStop stops the reader.
+func (l *TCPListener) handleUngracefulStop(reader *Reader) {
+	reader.Stop()
+	l.remove(reader)
 	l.source.Status.Success()
 }
 
-// add adds the tailer to the active list of tailers.
-func (l *TCPListener) add(tailer *Tailer) {
+// add adds the reader to the active list of readers.
+func (l *TCPListener) add(reader *Reader) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.tailers = append(l.tailers, tailer)
+	l.readers = append(l.readers, reader)
 }
 
-// remove removes the tailer from the active list of tailers.
-func (l *TCPListener) remove(tailer *Tailer) {
+// remove removes the reader from the active list of readers.
+func (l *TCPListener) remove(reader *Reader) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for i, t := range l.tailers {
-		if t == tailer {
-			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)
+	for i, t := range l.readers {
+		if t == reader {
+			l.readers = append(l.readers[:i], l.readers[i+1:]...)
 			break
 		}
 	}

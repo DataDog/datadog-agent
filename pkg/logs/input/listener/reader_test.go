@@ -17,31 +17,31 @@ import (
 
 const port = 10493
 
-type TailerTestSuite struct {
+type ReaderTestSuite struct {
 	suite.Suite
 
-	tailer  *Tailer
+	reader  *Reader
 	conn    net.Conn
 	msgChan chan message.Message
 }
 
-func (suite *TailerTestSuite) SetupTest() {
+func (suite *ReaderTestSuite) SetupTest() {
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: port})
 	msgChan := make(chan message.Message)
 	r, w := net.Pipe()
 
-	suite.tailer = NewTailer(source, r, msgChan, true, func(*Tailer) {})
+	suite.reader = NewReader(source, r, msgChan, true, func(*Reader) {})
 	suite.conn = w
 	suite.msgChan = msgChan
 
-	suite.tailer.Start()
+	suite.reader.Start()
 }
 
-func (suite *TailerTestSuite) TearDownTest() {
-	suite.tailer.Stop()
+func (suite *ReaderTestSuite) TearDownTest() {
+	suite.reader.Stop()
 }
 
-func (suite *TailerTestSuite) TestReadAndForward() {
+func (suite *ReaderTestSuite) TestReadAndForward() {
 	var msg message.Message
 
 	// should receive and decode one message
@@ -57,6 +57,6 @@ func (suite *TailerTestSuite) TestReadAndForward() {
 	suite.Equal("boo", string(msg.Content()))
 }
 
-func TestTailerTestSuite(t *testing.T) {
-	suite.Run(t, new(TailerTestSuite))
+func TestReaderTestSuite(t *testing.T) {
+	suite.Run(t, new(ReaderTestSuite))
 }

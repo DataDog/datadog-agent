@@ -15,11 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a tailer.
+// A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a reader.
 type UDPListener struct {
 	pp     pipeline.Provider
 	source *config.LogSource
-	tailer *Tailer
+	reader *Reader
 }
 
 // NewUDPListener returns an initialized UDPListener
@@ -30,7 +30,7 @@ func NewUDPListener(pp pipeline.Provider, source *config.LogSource) *UDPListener
 	}
 }
 
-// Start opens a new UDP connection and starts a tailer.
+// Start opens a new UDP connection and starts a reader.
 func (l *UDPListener) Start() {
 	log.Infof("Starting UDP forwarder on port: %d", l.source.Config.Port)
 	conn, err := l.newUDPConnection()
@@ -39,14 +39,14 @@ func (l *UDPListener) Start() {
 		l.source.Status.Error(err)
 		return
 	}
-	l.tailer = l.newTailer(conn)
-	l.tailer.Start()
+	l.reader = l.newReader(conn)
+	l.reader.Start()
 }
 
-// Stop stops the tailer.
+// Stop stops the reader.
 func (l *UDPListener) Stop() {
 	log.Infof("Stopping UDP forwarder on port: %d", l.source.Config.Port)
-	l.tailer.Stop()
+	l.reader.Stop()
 }
 
 // newUDPConnection returns a new UDP connection,
@@ -59,16 +59,16 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 	return net.ListenUDP("udp", udpAddr)
 }
 
-// newTailer returns a new tailer that reads from conn.
-func (l *UDPListener) newTailer(conn net.Conn) *Tailer {
-	return NewTailer(l.source, conn, l.pp.NextPipelineChan(), true, l.handleUngracefulStop)
+// newReader returns a new reader that reads from conn.
+func (l *UDPListener) newReader(conn net.Conn) *Reader {
+	return NewReader(l.source, conn, l.pp.NextPipelineChan(), true, l.handleUngracefulStop)
 }
 
-// handleUngracefulStop restarts a tailer when the previous one ungracefully stopped
+// handleUngracefulStop restarts a reader when the previous one ungracefully stopped
 // from reading data from its connection.
-func (l *UDPListener) handleUngracefulStop(tailer *Tailer) {
+func (l *UDPListener) handleUngracefulStop(reader *Reader) {
 	log.Info("Restarting a new UDP connection on port: %d", l.source.Config.Port)
-	tailer.Stop()
+	reader.Stop()
 	conn, err := l.newUDPConnection()
 	if err != nil {
 		log.Errorf("Could not restart UDP connection on port %d: %v", l.source.Config.Port, err)
@@ -76,6 +76,6 @@ func (l *UDPListener) handleUngracefulStop(tailer *Tailer) {
 		return
 	}
 	l.source.Status.Success()
-	l.tailer = l.newTailer(conn)
-	l.tailer.Start()
+	l.reader = l.newReader(conn)
+	l.reader.Start()
 }
