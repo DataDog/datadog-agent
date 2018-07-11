@@ -93,11 +93,11 @@ func (l *TCPListener) run() {
 
 // newTailer returns a new tailer that reads from conn.
 func (l *TCPListener) newTailer(conn net.Conn) *Tailer {
-	return NewTailer(l.source, conn, l.pp.NextPipelineChan(), false, l.recoverFromError)
+	return NewTailer(l.source, conn, l.pp.NextPipelineChan(), false, l.handleUngracefulStop)
 }
 
-// recoverFromError stops the tailer.
-func (l *TCPListener) recoverFromError(tailer *Tailer) {
+// handleUngracefulStop stops the tailer.
+func (l *TCPListener) handleUngracefulStop(tailer *Tailer) {
 	tailer.Stop()
 	l.remove(tailer)
 	l.source.Status.Success()

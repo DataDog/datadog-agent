@@ -22,27 +22,27 @@ const defaultTimeout = 60000 * time.Millisecond
 
 // Tailer reads data from a connection
 type Tailer struct {
-	source           *config.LogSource
-	conn             net.Conn
-	outputChan       chan message.Message
-	keepAlive        bool
-	recoverFromError func(*Tailer)
-	decoder          *decoder.Decoder
-	stop             chan struct{}
-	done             chan struct{}
+	source               *config.LogSource
+	conn                 net.Conn
+	outputChan           chan message.Message
+	keepAlive            bool
+	handleUngracefulStop func(*Tailer)
+	decoder              *decoder.Decoder
+	stop                 chan struct{}
+	done                 chan struct{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan message.Message, keepAlive bool, recoverFromError func(*Tailer)) *Tailer {
+func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan message.Message, keepAlive bool, handleUngracefulStop func(*Tailer)) *Tailer {
 	return &Tailer{
-		source:           source,
-		conn:             conn,
-		outputChan:       outputChan,
-		keepAlive:        keepAlive,
-		recoverFromError: recoverFromError,
-		decoder:          decoder.InitializeDecoder(source),
-		stop:             make(chan struct{}, 1),
-		done:             make(chan struct{}, 1),
+		source:               source,
+		conn:                 conn,
+		outputChan:           outputChan,
+		keepAlive:            keepAlive,
+		handleUngracefulStop: handleUngracefulStop,
+		decoder:              decoder.InitializeDecoder(source),
+		stop:                 make(chan struct{}, 1),
+		done:                 make(chan struct{}, 1),
 	}
 }
 
@@ -100,7 +100,7 @@ func (t *Tailer) readForever() {
 				// an error occurred, stop from reading new data
 				log.Warnf("Couldn't read message from connection: %v", err)
 				t.source.Status.Error(err)
-				t.recoverFromError(t)
+				t.handleUngracefulStop(t)
 				return
 			}
 			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])

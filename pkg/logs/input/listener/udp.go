@@ -61,12 +61,12 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 
 // newTailer returns a new tailer that reads from conn.
 func (l *UDPListener) newTailer(conn net.Conn) *Tailer {
-	return NewTailer(l.source, conn, l.pp.NextPipelineChan(), true, l.recoverFromError)
+	return NewTailer(l.source, conn, l.pp.NextPipelineChan(), true, l.handleUngracefulStop)
 }
 
-// recoverFromError restarts a tailer when the previous one gracefully stopped
+// handleUngracefulStop restarts a tailer when the previous one ungracefully stopped
 // from reading data from its connection.
-func (l *UDPListener) recoverFromError(tailer *Tailer) {
+func (l *UDPListener) handleUngracefulStop(tailer *Tailer) {
 	log.Info("Restarting a new UDP connection on port: %d", l.source.Config.Port)
 	tailer.Stop()
 	conn, err := l.newUDPConnection()
