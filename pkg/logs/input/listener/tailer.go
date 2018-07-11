@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// This product includes software developed at Datadog (https://wwt.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
 package listener
@@ -20,21 +20,21 @@ import (
 // defaultTimeout represents the time after which a connection is closed when no data is read
 const defaultTimeout = 60000 * time.Millisecond
 
-// Worker reads data from a connection
-type Worker struct {
+// Tailer reads data from a connection
+type Tailer struct {
 	source           *config.LogSource
 	conn             net.Conn
 	outputChan       chan message.Message
 	keepAlive        bool
-	recoverFromError func(*Worker)
+	recoverFromError func(*Tailer)
 	decoder          *decoder.Decoder
 	stop             chan struct{}
 	done             chan struct{}
 }
 
-// NewWorker returns a new Worker
-func NewWorker(source *config.LogSource, conn net.Conn, outputChan chan message.Message, keepAlive bool, recoverFromError func(*Worker)) *Worker {
-	return &Worker{
+// NewTailer returns a new Tailer
+func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan message.Message, keepAlive bool, recoverFromError func(*Tailer)) *Tailer {
+	return &Tailer{
 		source:           source,
 		conn:             conn,
 		outputChan:       outputChan,
@@ -46,49 +46,49 @@ func NewWorker(source *config.LogSource, conn net.Conn, outputChan chan message.
 	}
 }
 
-// Start prepares the worker to read and decode data from the connection
-func (w *Worker) Start() {
-	go w.forwardMessages()
-	w.decoder.Start()
-	go w.readForever()
+// Start prepares the tailer to read and decode data from the connection
+func (t *Tailer) Start() {
+	go t.forwardMessages()
+	t.decoder.Start()
+	go t.readForever()
 }
 
-// Stop stops the worker and wait the decoder to be flushed
-func (w *Worker) Stop() {
-	w.stop <- struct{}{}
-	w.conn.Close()
-	<-w.done
+// Stop stops the tailer and waits for the decoder to be flushed
+func (t *Tailer) Stop() {
+	t.stop <- struct{}{}
+	t.conn.Close()
+	<-t.done
 }
 
 // forwardMessages forwards messages to output channel
-func (w *Worker) forwardMessages() {
+func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		w.done <- struct{}{}
+		t.done <- struct{}{}
 	}()
-	for output := range w.decoder.OutputChan {
-		origin := message.NewOrigin(w.source)
-		w.outputChan <- message.New(output.Content, origin, "")
+	for output := range t.decoder.OutputChan {
+		origin := message.NewOrigin(t.source)
+		t.outputChan <- message.New(output.Content, origin, "")
 	}
 }
 
-// readForever reads the data from conn until timeout or an error occurs
-func (w *Worker) readForever() {
+// readForever reads the data from conn until timeout or an error occurt
+func (t *Tailer) readForever() {
 	defer func() {
-		w.conn.Close()
-		w.decoder.Stop()
+		t.conn.Close()
+		t.decoder.Stop()
 	}()
 	for {
 		select {
-		case <-w.stop:
+		case <-t.stop:
 			// stop reading data from the connection
 			return
 		default:
-			if !w.keepAlive {
-				w.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+			if !t.keepAlive {
+				t.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			}
 			inBuf := make([]byte, 4096)
-			n, err := w.conn.Read(inBuf)
+			n, err := t.conn.Read(inBuf)
 			if err == io.EOF {
 				return
 			}
@@ -99,10 +99,10 @@ func (w *Worker) readForever() {
 			if err != nil {
 				// an error occurred, stop from reading new data
 				log.Warnf("Couldn't read message from connection: %v", err)
-				w.recoverFromError(w)
+				t.recoverFromError(t)
 				return
 			}
-			w.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
 	}
 }

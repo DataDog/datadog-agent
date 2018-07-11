@@ -15,11 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a Worker.
+// A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a tailer.
 type UDPListener struct {
 	pp     pipeline.Provider
 	source *config.LogSource
-	worker *Worker
+	tailer *Tailer
 }
 
 // NewUDPListener returns an initialized UDPListener
@@ -30,23 +30,23 @@ func NewUDPListener(pp pipeline.Provider, source *config.LogSource) *UDPListener
 	}
 }
 
-// Start opens a new UDP connection and starts a worker.
+// Start opens a new UDP connection and starts a tailer.
 func (l *UDPListener) Start() {
 	log.Infof("Starting UDP forwarder on port: %d", l.source.Config.Port)
 	conn, err := l.newUDPConnection()
 	if err != nil {
-		log.Errorf("Can't open a UDP connection: %v", err)
+		log.Errorf("Can't open UDP connection on port %d: %v", l.source.Config.Port, err)
 		l.source.Status.Error(err)
 		return
 	}
-	l.worker = l.newWorker(conn)
-	l.worker.Start()
+	l.tailer = l.newTailer(conn)
+	l.tailer.Start()
 }
 
-// Stop stops the worker.
+// Stop stops the tailer.
 func (l *UDPListener) Stop() {
 	log.Infof("Stopping UDP forwarder on port: %d", l.source.Config.Port)
-	l.worker.Stop()
+	l.tailer.Stop()
 }
 
 // newUDPConnection returns a new UDP connection,
@@ -59,22 +59,22 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 	return net.ListenUDP("udp", udpAddr)
 }
 
-// newWorker returns a new worker that reads from conn.
-func (l *UDPListener) newWorker(conn net.Conn) *Worker {
-	return NewWorker(l.source, conn, l.pp.NextPipelineChan(), true, l.recoverFromError)
+// newTailer returns a new tailer that reads from conn.
+func (l *UDPListener) newTailer(conn net.Conn) *Tailer {
+	return NewTailer(l.source, conn, l.pp.NextPipelineChan(), true, l.recoverFromError)
 }
 
-// recoverFromError restarts a worker when the previous one gracefully stopped
+// recoverFromError restarts a tailer when the previous one gracefully stopped
 // from reading data from its connection.
-func (l *UDPListener) recoverFromError(worker *Worker) {
+func (l *UDPListener) recoverFromError(tailer *Tailer) {
 	log.Info("Restarting a new UDP connection on port: %d", l.source.Config.Port)
-	worker.Stop()
+	tailer.Stop()
 	conn, err := l.newUDPConnection()
 	if err != nil {
-		log.Errorf("Could not restart a UDP connection: %v", err)
+		log.Errorf("Could not restart UDP connection on port %d: %v", l.source.Config.Port, err)
 		l.source.Status.Error(err)
 		return
 	}
-	l.worker = l.newWorker(conn)
-	l.worker.Start()
+	l.tailer = l.newTailer(conn)
+	l.tailer.Start()
 }

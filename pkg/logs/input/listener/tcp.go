@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -16,13 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// A TCPListener listens and accepts TCP connections and delegates the work to connHandler
+// A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
 type TCPListener struct {
 	pp       pipeline.Provider
 	source   *config.LogSource
 	listener net.Listener
-	workers  []*Worker
+	tailers  []*Tailer
 	stop     chan struct{}
+	mu       sync.Mutex
 }
 
 // NewTCPListener returns an initialized TCPListener
@@ -30,17 +32,17 @@ func NewTCPListener(pp pipeline.Provider, source *config.LogSource) *TCPListener
 	return &TCPListener{
 		pp:      pp,
 		source:  source,
-		workers: []*Worker{},
+		tailers: []*Tailer{},
 		stop:    make(chan struct{}),
 	}
 }
 
-// Start listens to TCP connections on another routine
+// Start starts the listener to accepts new incoming connections.
 func (l *TCPListener) Start() {
-	log.Info("Starting TCP forwarder on port ", l.source.Config.Port)
+	log.Infof("Starting TCP forwarder on port %d", l.source.Config.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
 	if err != nil {
-		log.Errorf("Can't listen: %v", err)
+		log.Errorf("Can't listen on port %d: %v", l.source.Config.Port, err)
 		l.source.Status.Error(err)
 		return
 	}
@@ -48,19 +50,18 @@ func (l *TCPListener) Start() {
 	go l.run()
 }
 
-// Stop prevents the listener to accept new incoming connections
-// it blocks until connHandler is flushed
+// Stop stops the listener from accepting new connections and all the activer tailers.
 func (l *TCPListener) Stop() {
-	log.Info("Stopping TCP forwarder on port ", l.source.Config.Port)
+	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
-	for _, worker := range l.workers {
-		stopper.Add(worker)
+	for _, tailer := range l.tailers {
+		stopper.Add(tailer)
 	}
 	stopper.Stop()
 }
 
-// run accepts new TCP connections and lets connHandler handle them
+// run accepts new TCP connections and create a dedicated tailer for each one.
 func (l *TCPListener) run() {
 	defer l.listener.Close()
 	for {
@@ -72,36 +73,49 @@ func (l *TCPListener) run() {
 			conn, err := l.listener.Accept()
 			if err != nil {
 				// an error occurred, restart the listener.
-				log.Warnf("Can't accept new connections, restarting a listener: %v", err)
+				log.Warnf("Can't list on port %d, restarting a listener: %v", err)
 				l.listener.Close()
 				listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
 				if err != nil {
-					log.Errorf("Can't restart a listener: %v", err)
+					log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
 					l.source.Status.Error(err)
 					return
 				}
 				l.listener = listener
 				continue
 			}
-			worker := l.newWorker(conn)
-			worker.Start()
-			l.workers = append(l.workers, worker)
+			tailer := l.newTailer(conn)
+			tailer.Start()
+			l.add(tailer)
 		}
 	}
 }
 
-// newWorker returns a new worker that reads from conn.
-func (l *TCPListener) newWorker(conn net.Conn) *Worker {
-	return NewWorker(l.source, conn, l.pp.NextPipelineChan(), false, l.recoverFromError)
+// newTailer returns a new tailer that reads from conn.
+func (l *TCPListener) newTailer(conn net.Conn) *Tailer {
+	return NewTailer(l.source, conn, l.pp.NextPipelineChan(), false, l.recoverFromError)
 }
 
-// recoverFromError stops the worker.
-func (l *TCPListener) recoverFromError(worker *Worker) {
-	log.Info("Stopping a worker")
-	worker.Stop()
-	for i, w := range l.workers {
-		if w == worker {
-			l.workers = append(l.workers[:i], l.workers[i+1:]...)
+// recoverFromError stops the tailer.
+func (l *TCPListener) recoverFromError(tailer *Tailer) {
+	tailer.Stop()
+	l.remove(tailer)
+}
+
+// add adds the tailer to the active list of tailers.
+func (l *TCPListener) add(tailer *Tailer) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.tailers = append(l.tailers, tailer)
+}
+
+// remove removes the tailer from the active list of tailers.
+func (l *TCPListener) remove(tailer *Tailer) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for i, t := range l.tailers {
+		if t == tailer {
+			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)
 			break
 		}
 	}
