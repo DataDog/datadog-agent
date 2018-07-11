@@ -35,7 +35,8 @@ func (s *mockStore) SetExternalMetricValues(added []custommetrics.ExternalMetric
 		s.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
 	}
 	for _, em := range added {
-		s.externalMetrics[fmt.Sprintf("%s.%s.%s", em.HPA.Namespace, em.HPA.Name, em.MetricName)] = em
+		key := strings.Join([]string{em.HPA.Namespace, em.HPA.Name, em.MetricName}, ".")
+		s.externalMetrics[key] = em
 	}
 	return nil
 }
@@ -43,7 +44,8 @@ func (s *mockStore) SetExternalMetricValues(added []custommetrics.ExternalMetric
 func (s *mockStore) DeleteExternalMetricValues(deleted []custommetrics.ObjectReference) error {
 	for _, obj := range deleted {
 		for k := range s.externalMetrics {
-			if !strings.HasPrefix(k, fmt.Sprintf("%s.%s", obj.Namespace, obj.Name)) {
+			parts := strings.Split(k, ".")
+			if parts[0] != obj.Namespace || parts[1] != obj.Name {
 				continue
 			}
 			delete(s.externalMetrics, k)

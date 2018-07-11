@@ -87,7 +87,7 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 		c.cm.Data = make(map[string]string)
 	}
 	for _, em := range added {
-		key := fmt.Sprintf("external_metric.%s.%s.%s", em.HPA.Namespace, em.HPA.Name, em.MetricName)
+		key := strings.Join([]string{"external_metric", em.HPA.Namespace, em.HPA.Name, em.MetricName}, ".")
 		toStore, _ := json.Marshal(em)
 		c.cm.Data[key] = string(toStore)
 	}
@@ -106,11 +106,17 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ObjectReference) e
 	for _, obj := range deleted {
 		// Delete all external metrics from the configmap that reference this object.
 		for k := range c.cm.Data {
-			if !strings.HasPrefix(k, fmt.Sprintf("external_metric.%s.%s", obj.Namespace, obj.Name)) {
+			parts := strings.Split(k, ".")
+			if len(parts) != 4 {
+				log.Debugf("deleting malformed key %s", k)
+				delete(c.cm.Data, k)
+				continue
+			}
+			if parts[1] != obj.Namespace || parts[2] != obj.Name {
 				continue
 			}
 			delete(c.cm.Data, k)
-			log.Debugf("Deleted external metrics for HPA %s from the configmap %s", obj.Name, c.name)
+			log.Debugf("Deleted external metric %s for HPA %s from the configmap %s", parts[3], obj.Name, c.name)
 		}
 	}
 	return c.updateConfigMap()
