@@ -11,41 +11,49 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// Listener summons different protocol specific listeners based on configuration
-type Listener struct {
+// Listener represents an objet that can accept new incomming connections.
+type Listener interface {
+	Start()
+	Stop()
+}
+
+// Listeners summons different protocol specific listeners based on configuration
+type Listeners struct {
 	pp        pipeline.Provider
 	sources   []*config.LogSource
-	listeners []restart.Stoppable
+	listeners []Listener
 }
 
-// New returns an initialized Listener
-func New(sources []*config.LogSource, pp pipeline.Provider) *Listener {
-	return &Listener{
-		pp:        pp,
-		sources:   sources,
-		listeners: []restart.Stoppable{},
-	}
-}
-
-// Start starts the Listener
-func (l *Listener) Start() {
-	for _, source := range l.sources {
+// New returns an initialized Listeners
+func New(sources []*config.LogSource, pp pipeline.Provider) *Listeners {
+	listeners := []Listener{}
+	for _, source := range sources {
 		switch source.Config.Type {
 		case config.TCPType:
-			tcpl := NewTCPListener(l.pp, source)
-			tcpl.Start()
-			l.listeners = append(l.listeners, tcpl)
+			listeners = append(listeners, NewTCPListener(pp, source))
 		case config.UDPType:
-			udpl := NewUDPListener(l.pp, source)
-			udpl.Start()
-			l.listeners = append(l.listeners, udpl)
+			listeners = append(listeners, NewUDPListener(pp, source))
 		}
+	}
+	return &Listeners{
+		pp:        pp,
+		sources:   sources,
+		listeners: listeners,
 	}
 }
 
-// Stop stops all the listeners
-func (l *Listener) Stop() {
-	stopper := restart.NewParallelStopper(l.listeners...)
+// Start starts all listeners
+func (l *Listeners) Start() {
+	for _, l := range l.listeners {
+		l.Start()
+	}
+}
+
+// Stop stops all listeners
+func (l *Listeners) Stop() {
+	stopper := restart.NewParallelStopper()
+	for _, l := range l.listeners {
+		stopper.Add(l)
+	}
 	stopper.Stop()
-	l.listeners = l.listeners[:0]
 }

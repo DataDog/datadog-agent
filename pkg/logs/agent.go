@@ -31,7 +31,7 @@ type Agent struct {
 	containersScanner    *container.Scanner
 	windowsEventLauncher *windowsevent.Launcher
 	filesScanner         *file.Scanner
-	networkListener      *listener.Listener
+	networkListeners     *listener.Listeners
 	journaldLauncher     *journald.Launcher
 	pipelineProvider     pipeline.Provider
 }
@@ -64,7 +64,7 @@ func NewAgent(sources *config.LogSources) *Agent {
 		windowsEventLauncher: windowsEventLauncher,
 		filesScanner:         filesScanner,
 		journaldLauncher:     journaldLauncher,
-		networkListener:      networkListeners,
+		networkListeners:     networkListeners,
 		pipelineProvider:     pipelineProvider,
 	}
 }
@@ -76,7 +76,7 @@ func (a *Agent) Start() {
 		a.auditor,
 		a.pipelineProvider,
 		a.filesScanner,
-		a.networkListener,
+		a.networkListeners,
 		a.containersScanner,
 		a.journaldLauncher,
 		a.windowsEventLauncher,
@@ -89,7 +89,7 @@ func (a *Agent) Stop() {
 	stopper := restart.NewSerialStopper(
 		restart.NewParallelStopper(
 			a.filesScanner,
-			a.networkListener,
+			a.networkListeners,
 			a.containersScanner,
 			a.journaldLauncher,
 			a.windowsEventLauncher,
