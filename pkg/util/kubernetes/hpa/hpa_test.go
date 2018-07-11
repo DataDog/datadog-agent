@@ -9,7 +9,6 @@ package hpa
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -20,46 +19,12 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-type mockStore struct {
-	externalMetrics map[string]custommetrics.ExternalMetricValue
-}
-
-func newMockStore(metrics []custommetrics.ExternalMetricValue) *mockStore {
-	s := &mockStore{}
-	_ = s.SetExternalMetricValues(metrics)
-	return s
-}
-
-func (s *mockStore) SetExternalMetricValues(added []custommetrics.ExternalMetricValue) error {
-	if s.externalMetrics == nil {
-		s.externalMetrics = make(map[string]custommetrics.ExternalMetricValue)
-	}
-	for _, em := range added {
-		key := strings.Join([]string{em.HPA.Namespace, em.HPA.Name, em.MetricName}, ".")
-		s.externalMetrics[key] = em
-	}
-	return nil
-}
-
-func (s *mockStore) DeleteExternalMetricValues(deleted []custommetrics.ObjectReference) error {
-	for _, obj := range deleted {
-		for k := range s.externalMetrics {
-			parts := strings.Split(k, ".")
-			if parts[0] != obj.Namespace || parts[1] != obj.Name {
-				continue
-			}
-			delete(s.externalMetrics, k)
-		}
-	}
-	return nil
-}
-
-func (s *mockStore) ListAllExternalMetricValues() ([]custommetrics.ExternalMetricValue, error) {
-	allMetrics := make([]custommetrics.ExternalMetricValue, 0)
-	for _, cm := range s.externalMetrics {
-		allMetrics = append(allMetrics, cm)
-	}
-	return allMetrics, nil
+func newFakeConfigMapStore(t *testing.T, ns, name string, metrics []custommetrics.ExternalMetricValue) custommetrics.Store {
+	store, err := custommetrics.NewConfigMapStore(fake.NewSimpleClientset(), ns, name)
+	require.NoError(t, err)
+	err = store.SetExternalMetricValues(metrics)
+	require.NoError(t, err)
+	return store
 }
 
 func newMockHPAExternalMetricSource(name, ns, metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
@@ -85,17 +50,15 @@ func newMockHPAExternalMetricSource(name, ns, metricName string, labels map[stri
 }
 
 func TestRemoveEntryFromStore(t *testing.T) {
-	hpaCl := HPAWatcherClient{clientSet: fake.NewSimpleClientset()}
-
 	testCases := []struct {
-		caseName        string
-		store           *mockStore
-		hpa             *v2beta1.HorizontalPodAutoscaler
-		expectedMetrics map[string]custommetrics.ExternalMetricValue
+		caseName string
+		metrics  []custommetrics.ExternalMetricValue
+		hpa      *v2beta1.HorizontalPodAutoscaler
+		expected []custommetrics.ExternalMetricValue
 	}{
 		{
 			caseName: "metric exists in store for deleted hpa",
-			store: newMockStore([]custommetrics.ExternalMetricValue{
+			metrics: []custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
@@ -104,14 +67,14 @@ func TestRemoveEntryFromStore(t *testing.T) {
 					Value:      1,
 					Valid:      false,
 				},
-			}),
+			},
 			// This HPA references the same metric as the one in the store and has the same name.
-			hpa:             newMockHPAExternalMetricSource("foo", "default", "requests_per_s", map[string]string{"bar": "baz"}),
-			expectedMetrics: map[string]custommetrics.ExternalMetricValue{},
+			hpa:      newMockHPAExternalMetricSource("foo", "default", "requests_per_s", map[string]string{"bar": "baz"}),
+			expected: []custommetrics.ExternalMetricValue{},
 		},
 		{
 			caseName: "metric exists in store for different hpa",
-			store: newMockStore([]custommetrics.ExternalMetricValue{
+			metrics: []custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
@@ -120,11 +83,11 @@ func TestRemoveEntryFromStore(t *testing.T) {
 					Value:      1,
 					Valid:      false,
 				},
-			}),
+			},
 			// This HPA references the same metric as the one in the store but has a different name.
 			hpa: newMockHPAExternalMetricSource("foo", "default", "requests_per_s", map[string]string{"bar": "baz"}),
-			expectedMetrics: map[string]custommetrics.ExternalMetricValue{
-				"default.bar.requests_per_s": {
+			expected: []custommetrics.ExternalMetricValue{
+				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"bar": "baz"},
 					HPA:        custommetrics.ObjectReference{"bar", "default"},
@@ -138,12 +101,15 @@ func TestRemoveEntryFromStore(t *testing.T) {
 
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
-			hpaCl.store = testCase.store
-			require.NotZero(t, len(testCase.store.externalMetrics))
+			store := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
+			hpaCl := &HPAWatcherClient{store: store}
 
 			err := hpaCl.removeEntryFromStore([]*v2beta1.HorizontalPodAutoscaler{testCase.hpa})
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedMetrics, testCase.store.externalMetrics)
+
+			allMetrics, err := store.ListAllExternalMetricValues()
+			require.NoError(t, err)
+			assert.ElementsMatch(t, testCase.expected, allMetrics)
 		})
 	}
 }
