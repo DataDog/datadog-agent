@@ -189,7 +189,7 @@ func (c *HPAWatcherClient) updateExternalMetrics() {
 		if err != nil {
 			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
 		}
-		log.Debugf("Updated the custom metric %#v", em)
+		log.Debugf("Updated the external metric %#v", em)
 		updated = append(updated, em)
 	}
 	if err = c.store.SetExternalMetricValues(updated); err != nil {
