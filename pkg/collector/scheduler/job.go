@@ -279,8 +279,9 @@ func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Che
 		bucket := jq.buckets[idx]
 		bucket.mu.RLock()
 
-		bIdx := jq.rand.Intn(len(bucket.jobs))
-		jobs := append(bucket.jobs[bIdx:len(bucket.jobs)], bucket.jobs[0:bIdx]...)
+		// randomize job scheduling to avoid job starvation
+		jIdx := jq.rand.Intn(len(bucket.jobs))
+		jobs := append(bucket.jobs[jIdx:len(bucket.jobs)], bucket.jobs[0:jIdx]...)
 
 		for _, check := range jobs {
 			// sending to `out` is blocking, we need to constantly check that someone
@@ -294,6 +295,7 @@ func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Che
 			case out <- check:
 				log.Debugf("Enqueuing check %s for queue %s", check, jq.interval)
 			case <-deadline:
+				log.Infof("Bucket[%d] deadline reached not enough runners were available - skipping runs", idx)
 				break
 			}
 		}
