@@ -178,20 +178,21 @@ func (c *HPAWatcherClient) updateExternalMetrics() {
 		return
 	}
 
+	var updated []custommetrics.ExternalMetricValue
 	for _, em := range emList {
 		if metav1.Now().Unix()-em.Timestamp <= maxAge && em.Valid {
 			continue
 		}
-
 		em.Valid = false
 		em.Timestamp = metav1.Now().Unix()
-		em.Value, em.Valid, err = c.validateExternalMetric(em)
+		em.Value, em.Valid, err = c.validateExternalMetric(em.MetricName, em.Labels)
 		if err != nil {
 			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
 		}
 		log.Debugf("Updated the custom metric %#v", em)
+		updated = append(updated, em)
 	}
-	if err = c.store.SetExternalMetricValues(emList); err != nil {
+	if err = c.store.SetExternalMetricValues(updated); err != nil {
 		log.Errorf("Could not update the external metrics in the store: %s", err.Error())
 	}
 }
@@ -217,7 +218,7 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 					},
 					Labels: metricSpec.External.MetricSelector.MatchLabels,
 				}
-				m.Value, m.Valid, err = c.validateExternalMetric(m)
+				m.Value, m.Valid, err = c.validateExternalMetric(m.MetricName, m.Labels)
 				if err != nil {
 					log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", m.MetricName, err)
 				}
@@ -246,10 +247,10 @@ func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.Horizon
 }
 
 // validateExternalMetric queries Datadog to validate the availability of an external metric
-func (c *HPAWatcherClient) validateExternalMetric(em custommetrics.ExternalMetricValue) (value int64, valid bool, err error) {
-	val, err := c.queryDatadogExternal(em.MetricName, em.Labels)
+func (c *HPAWatcherClient) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
+	val, err := c.queryDatadogExternal(metricName, labels)
 	if err != nil {
-		return em.Value, false, err
+		return val, false, err
 	}
 	return val, true, nil
 }

@@ -20,6 +20,10 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
+const (
+	keyDelimeter = "-"
+)
+
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
 	SetExternalMetricValues([]ExternalMetricValue) error
@@ -89,7 +93,7 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 		c.cm.Data = make(map[string]string)
 	}
 	for _, m := range added {
-		key := strings.Join([]string{"external_metric", m.HPA.Namespace, m.HPA.Name, m.MetricName}, ".")
+		key := strings.Join([]string{"external_metric", m.HPA.Namespace, m.HPA.Name, m.MetricName}, keyDelimeter)
 		toStore, err := json.Marshal(m)
 		if err != nil {
 			log.Debugf("Could not marshal the external metric %v: %s", m, err)
@@ -111,8 +115,8 @@ func (c *configMapStore) Delete(deleted []ObjectReference) error {
 	for _, obj := range deleted {
 		// Delete all metrics from the configmap that reference this object.
 		for k := range c.cm.Data {
-			parts := strings.Split(k, ".")
-			if len(parts) != 4 {
+			parts := strings.Split(k, keyDelimeter)
+			if len(parts) < 4 {
 				log.Debugf("Deleting malformed key %s", k)
 				delete(c.cm.Data, k)
 				continue
