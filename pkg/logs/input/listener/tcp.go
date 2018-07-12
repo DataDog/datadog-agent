@@ -111,7 +111,7 @@ func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
 	n, err := tailer.conn.Read(inBuf)
 	if err != nil {
 		l.source.Status.Error(err)
-		l.stopTailer(tailer)
+		go l.stopTailer(tailer)
 		return nil, err
 	}
 	return inBuf[:n], nil
@@ -130,7 +130,7 @@ func (l *TCPListener) startNewTailer(conn net.Conn) {
 func (l *TCPListener) stopTailer(tailer *Tailer) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	go tailer.Stop()
+	tailer.Stop()
 	for i, t := range l.tailers {
 		if t == tailer {
 			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)

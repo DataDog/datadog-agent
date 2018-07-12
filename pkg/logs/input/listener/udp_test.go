@@ -10,43 +10,27 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	// "github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
-	"github.com/stretchr/testify/suite"
 )
 
 const udpTestPort = 10513
 
-type UDPTestSuite struct {
-	suite.Suite
+func TestUDPShouldReceiveMessage(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}))
+	listener.Start()
 
-	outputChan chan message.Message
-	pp         pipeline.Provider
-	source     *config.LogSource
-	udpl       *UDPListener
-}
-
-func (suite *UDPTestSuite) SetupTest() {
-	suite.pp = mock.NewMockProvider()
-	suite.outputChan = suite.pp.NextPipelineChan()
-	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.UDPType, Port: udpTestPort})
-	udpl := NewUDPListener(suite.pp, suite.source)
-	suite.udpl = udpl
-	suite.udpl.Start()
-}
-
-func (suite *UDPTestSuite) TestUDPReceivesMessages() {
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
-	suite.Nil(err)
+	assert.Nil(t, err)
 
-	// should receive and decode message
 	fmt.Fprintf(conn, "hello world\n")
-	msg := <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
-}
+	msg := <-msgChan
+	assert.Equal(t, "hello world", string(msg.Content()))
 
-func TestUDPTestSuite(t *testing.T) {
-	suite.Run(t, new(UDPTestSuite))
+	listener.Stop()
 }

@@ -74,7 +74,7 @@ func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
 	inBuf := make([]byte, 4096)
 	n, err := tailer.conn.Read(inBuf)
 	if err != nil {
-		l.resetTailer()
+		go l.resetTailer()
 		return nil, err
 	}
 	return inBuf[:n], nil
@@ -83,7 +83,7 @@ func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
 // resetTailer creates a new tailer.
 func (l *UDPListener) resetTailer() {
 	log.Info("Resetting the UDP connection on port: %d", l.source.Config.Port)
-	go l.tailer.Stop()
+	l.tailer.Stop()
 	err := l.startNewTailer()
 	if err != nil {
 		log.Errorf("Could not reset the UDP connection on port %d: %v", l.source.Config.Port, err)

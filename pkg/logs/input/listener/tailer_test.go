@@ -6,10 +6,11 @@
 package listener
 
 import (
+	"errors"
 	"net"
 	"testing"
 
-	"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -17,48 +18,45 @@ import (
 
 const port = 10493
 
-type TailerTestSuite struct {
-	suite.Suite
-
-	tailer  *Tailer
-	conn    net.Conn
-	msgChan chan message.Message
-}
-
-func (suite *TailerTestSuite) SetupTest() {
-	source := config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: port})
+func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
 	msgChan := make(chan message.Message)
 	r, w := net.Pipe()
+	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{Port: port}), r, msgChan, read)
+	tailer.Start()
 
-	suite.tailer = NewTailer(source, r, msgChan, read)
-	suite.conn = w
-	suite.msgChan = msgChan
-
-	suite.tailer.Start()
-}
-
-func (suite *TailerTestSuite) TearDownTest() {
-	suite.tailer.Stop()
-}
-
-func (suite *TailerTestSuite) TestReadAndForward() {
 	var msg message.Message
 
 	// should receive and decode one message
-	suite.conn.Write([]byte("foo\n"))
-	msg = <-suite.msgChan
-	suite.Equal("foo", string(msg.Content()))
+	w.Write([]byte("foo\n"))
+	msg = <-msgChan
+	assert.Equal(t, "foo", string(msg.Content()))
 
 	// should receive and decode two messages
-	suite.conn.Write([]byte("bar\nboo\n"))
-	msg = <-suite.msgChan
-	suite.Equal("bar", string(msg.Content()))
-	msg = <-suite.msgChan
-	suite.Equal("boo", string(msg.Content()))
+	w.Write([]byte("bar\nboo\n"))
+	msg = <-msgChan
+	assert.Equal(t, "bar", string(msg.Content()))
+	msg = <-msgChan
+	assert.Equal(t, "boo", string(msg.Content()))
+
+	tailer.Stop()
 }
 
-func TestTailerTestSuite(t *testing.T) {
-	suite.Run(t, new(TailerTestSuite))
+func TestReadShouldFailWithError(t *testing.T) {
+	msgChan := make(chan message.Message)
+	r, w := net.Pipe()
+	read := func(*Tailer) ([]byte, error) { return nil, errors.New("") }
+	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{Port: port}), r, msgChan, read)
+	tailer.Start()
+
+	w.Write([]byte("foo\n"))
+	select {
+	case <-msgChan:
+		assert.Fail(t, "no data should return")
+	default:
+		break
+	}
+
+	tailer.Stop()
 }
 
 func read(tailer *Tailer) ([]byte, error) {
