@@ -23,7 +23,7 @@ type Replacer struct {
 	ReplFunc func(b []byte) []byte
 }
 
-var apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer Replacer
+var apiKeyReplacer, uriPasswordReplacer, appKeyReplacer, passwordReplacer, tokenReplacer, snmpReplacer Replacer
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 
@@ -33,6 +33,10 @@ func init() {
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
+	}
+	appKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`***********************************$1`),
 	}
 	uriPasswordReplacer = Replacer{
 		Regex: regexp.MustCompile(`([A-Za-z]+\:\/\/|\b)([A-Za-z0-9_]+)\:([^\s-]+)\@`),
@@ -53,7 +57,7 @@ func init() {
 		Hints: []string{"community_string", "authKey", "privKey"},
 		Repl:  []byte(`$1 ********`),
 	}
-	replacers = []Replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	replacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 }
 
 func matchYAMLKeyPart(part string) *regexp.Regexp {

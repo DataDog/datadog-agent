@@ -30,6 +30,7 @@ import "C"
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
 	id           check.ID
+	version      string
 	instance     *python.PyObject
 	class        *python.PyObject
 	ModuleName   string
@@ -126,6 +127,11 @@ func (c *PythonCheck) Stop() {}
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {
 	return c.ModuleName
+}
+
+// Version returns the version of the check if load from a python wheel
+func (c *PythonCheck) Version() string {
+	return c.version
 }
 
 // GetWarnings grabs the last warnings from the struct

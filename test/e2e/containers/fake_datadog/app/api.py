@@ -20,7 +20,7 @@ record_dir = path.join(path.dirname(path.dirname(path.abspath(__file__))), "reco
 
 
 def get_collection(name: str):
-    c = pymongo.MongoClient("127.0.0.1", 27017, connectTimeoutMS=5000)
+    c = pymongo.MongoClient("192.168.254.241", 27017, connectTimeoutMS=5000)
     db = c.get_database("datadog")
     return db.get_collection(name)
 
@@ -84,9 +84,90 @@ def insert_check_run(data: list):
     coll.insert_many(data)
 
 
+def get_series_from_query(q: dict):
+    app.logger.info("Query is %s", q["query"])
+    query = q["query"].replace("avg:", "")
+    first_open_brace, first_close_brace = query.index("{"), query.index("}")
+
+    metric_name = query[:first_open_brace]
+    from_ts, to_ts = int(q["from"]), int(q["to"])
+
+    # tags
+    all_tags = query[first_open_brace + 1:first_close_brace]
+    all_tags = all_tags.split(",") if all_tags else []
+
+    # group by
+    # TODO
+    last_open_brace, last_close_brace = query.rindex("{"), query.rindex("}")
+    group_by = query[last_open_brace + 1:last_close_brace].split(",")
+
+    match_conditions = [
+        {"metric": metric_name},
+        {"points.0.0": {"$gt": from_ts}},
+        {"points.0.0": {"$lt": to_ts}},
+    ]
+    if all_tags:
+        match_conditions.append({'tags': {"$all": all_tags}})
+
+    c = get_collection("series")
+    aggregate = [
+        {"$match": {"$and": match_conditions}},
+        {"$unwind": "$points"}, {"$group": {"_id": "$metric", "points": {"$push": "$points"}}},
+        {"$sort": {"points.0": 1}},
+    ]
+    app.logger.info("Mongodb aggregate is %s", aggregate)
+    cur = c.aggregate(aggregate)
+    points_list = []
+    for elt in cur:
+        for p in elt["points"]:
+            points_list.append(p)
+
+    result = {
+        "status": "ok",
+        "res_type": "time_series",
+        "series": [
+            {
+                "metric": metric_name,
+                "attributes": {},
+                "display_name": metric_name,
+                "unit": None,
+                "pointlist": points_list,
+                "end": points_list[-1][0] if points_list else 0.,
+                "interval": 600,
+                "start": points_list[0][0] if points_list else 0.,
+                "length": len(points_list),
+                "aggr": None,
+                "scope": "host:vagrant-ubuntu-trusty-64", # TODO
+                "expression": query,
+            }
+        ],
+        "from_date": from_ts,
+        "group_by": [
+            "host"
+        ],
+        "to_date": to_ts,
+        "query": q["query"],
+        "message": ""
+    }
+    return result
+
+
 @app.route("/api/v1/validate", methods=["GET"])
 def validate():
     return Response(status=200)
+
+
+@app.route("/api/v1/query", methods=["GET"])
+def metrics_query():
+    """
+    Honor a query like documented here:
+    https://docs.datadoghq.com/api/?lang=bash#query-time-series-points
+    :return:
+    """
+    if "query" not in request.args or "from" not in request.args or "to" not in request.args:
+        return Response(status=400)
+
+    return jsonify(get_series_from_query(request.args))
 
 
 @app.route("/api/v1/series", methods=["POST"])
@@ -190,4 +271,4 @@ def not_found(_):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", debug=True, port=5000)

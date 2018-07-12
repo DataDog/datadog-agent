@@ -17,16 +17,16 @@ import (
 func getLeaderElectionDetails() map[string]string {
 	leaderElectionStats := make(map[string]string)
 
-	leaderElectionDetails, err := leaderelection.GetLeaderDetails()
+	record, err := leaderelection.GetLeaderElectionRecord()
 	if err != nil {
 		leaderElectionStats["status"] = "Failing"
 		leaderElectionStats["error"] = err.Error()
 		return leaderElectionStats
 	}
-	leaderElectionStats["leaderName"] = leaderElectionDetails.HolderIdentity
-	leaderElectionStats["acquiredTime"] = leaderElectionDetails.AcquireTime.Format(time.RFC1123)
-	leaderElectionStats["renewedTime"] = leaderElectionDetails.RenewTime.Format(time.RFC1123)
-	leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", leaderElectionDetails.LeaderTransitions)
+	leaderElectionStats["leaderName"] = record.HolderIdentity
+	leaderElectionStats["acquiredTime"] = record.AcquireTime.Format(time.RFC1123)
+	leaderElectionStats["renewedTime"] = record.RenewTime.Format(time.RFC1123)
+	leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", record.LeaderTransitions)
 	leaderElectionStats["status"] = "Running"
 	return leaderElectionStats
 }

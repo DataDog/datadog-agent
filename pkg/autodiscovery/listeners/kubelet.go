@@ -244,3 +244,8 @@ func (s *PodContainerService) GetPorts() ([]ContainerPort, error) {
 func (s *PodContainerService) GetTags() ([]string, error) {
 	return tagger.Tag(string(s.ID), tagger.IsFullCardinality())
 }
+
+// GetHostname returns nil and an error because port is not supported in Kubelet
+func (s *PodContainerService) GetHostname() (string, error) {
+	return "", ErrNotSupported
+}

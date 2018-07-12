@@ -296,7 +296,7 @@ func buildLogEntry(v ...interface{}) string {
 //Trace logs at the trace level
 func Trace(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
-		s := buildLogEntry(v)
+		s := buildLogEntry(v...)
 		logger.trace(logger.scrub(s))
 	}
 }

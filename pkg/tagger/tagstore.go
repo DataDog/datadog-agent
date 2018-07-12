@@ -2,6 +2,9 @@ package tagger
 
 import (
 	"fmt"
+	"hash/fnv"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -19,6 +22,7 @@ type entityTags struct {
 	cachedSource []string
 	cachedAll    []string // Low + high
 	cachedLow    []string // Sub-slice of cachedAll
+	tagsHash     string
 }
 
 // tagStore stores entity tags in memory and handles search and collation.
@@ -55,29 +59,39 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	}
 
 	// TODO: check if real change
-	s.storeMutex.RLock()
+	s.storeMutex.Lock()
+	defer s.storeMutex.Unlock()
 	storedTags, exist := s.store[info.Entity]
-	s.storeMutex.RUnlock()
-	if exist == false {
+	if !exist {
 		storedTags = &entityTags{
 			lowCardTags:  make(map[string][]string),
 			highCardTags: make(map[string][]string),
 		}
+		s.store[info.Entity] = storedTags
 	}
 
 	storedTags.Lock()
+	defer storedTags.Unlock()
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
 	storedTags.highCardTags[info.Source] = info.HighCardTags
 	storedTags.cacheValid = false
-	storedTags.Unlock()
-
-	if exist == false {
-		s.storeMutex.Lock()
-		s.store[info.Entity] = storedTags
-		s.storeMutex.Unlock()
-	}
 
 	return nil
+}
+
+func computeTagsHash(tags []string) string {
+	hash := ""
+	if len(tags) > 0 {
+		// do not sort original slice
+		tags = copyArray(tags)
+		h := fnv.New64()
+		sort.Strings(tags)
+		for _, i := range tags {
+			h.Write([]byte(i))
+		}
+		hash = strconv.FormatUint(h.Sum64(), 16)
+	}
+	return hash
 }
 
 // prune will lock the store and delete tags for the entity previously
@@ -91,12 +105,12 @@ func (s *tagStore) prune() error {
 	}
 
 	s.storeMutex.Lock()
+	defer s.storeMutex.Unlock()
 	for entity := range s.toDelete {
 		delete(s.store, entity)
 	}
-	s.storeMutex.Unlock()
 
-	log.Debugf("pruned %d removed entites, %d remaining", len(s.toDelete), len(s.store))
+	log.Debugf("pruned %d removed entities, %d remaining", len(s.toDelete), len(s.store))
 
 	// Start fresh
 	s.toDelete = make(map[string]struct{})
@@ -104,16 +118,17 @@ func (s *tagStore) prune() error {
 	return nil
 }
 
-// lookup gets tags from the store and returns them concatenated in a []string
-// array. It returns the source names in the second []string to allow the
-// client to trigger manual lookups on missing sources.
-func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
+// lookup gets tags from the store and returns them concatenated in a string
+// slice. It returns the source names in the second slice to allow the
+// client to trigger manual lookups on missing sources, the last string
+// is the tags hash to have a snapshot digest of all the tags.
+func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string, string) {
 	s.storeMutex.RLock()
+	defer s.storeMutex.RUnlock()
 	storedTags, present := s.store[entity]
-	s.storeMutex.RUnlock()
 
 	if present == false {
-		return nil, nil
+		return nil, nil, ""
 	}
 	return storedTags.get(highCard)
 }
@@ -124,16 +139,16 @@ type tagPriority struct {
 	isHighCard bool                         // is the tag high cardinality
 }
 
-func (e *entityTags) get(highCard bool) ([]string, []string) {
-	e.RLock()
+func (e *entityTags) get(highCard bool) ([]string, []string, string) {
+	e.Lock()
+	defer e.Unlock()
 
 	// Cache hit
 	if e.cacheValid {
-		defer e.RUnlock()
 		if highCard {
-			return e.cachedAll, e.cachedSource
+			return e.cachedAll, e.cachedSource, e.tagsHash
 		}
-		return e.cachedLow, e.cachedSource
+		return e.cachedLow, e.cachedSource, e.tagsHash
 	}
 
 	// Cache miss
@@ -149,8 +164,8 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 		insertWithPriority(tagPrioMapper, tags, source, true)
 	}
 
-	lowCardTags := []string{}
-	highCardTags := []string{}
+	var lowCardTags []string
+	var highCardTags []string
 	for _, tags := range tagPrioMapper {
 		for i := 0; i < len(tags); i++ {
 			insert := true
@@ -161,31 +176,30 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 					break
 				}
 			}
-			if insert {
-				if tags[i].isHighCard {
-					highCardTags = append(highCardTags, tags[i].tag)
-				} else {
-					lowCardTags = append(lowCardTags, tags[i].tag)
-				}
+			if !insert {
+				continue
 			}
+			if tags[i].isHighCard {
+				highCardTags = append(highCardTags, tags[i].tag)
+				continue
+			}
+			lowCardTags = append(lowCardTags, tags[i].tag)
 		}
 	}
 
 	tags := append(lowCardTags, highCardTags...)
 
 	// Write cache
-	e.RUnlock()
-	e.Lock()
 	e.cacheValid = true
 	e.cachedSource = sources
 	e.cachedAll = tags
 	e.cachedLow = e.cachedAll[:len(lowCardTags)]
-	e.Unlock()
+	e.tagsHash = computeTagsHash(e.cachedAll)
 
 	if highCard {
-		return tags, sources
+		return tags, sources, e.tagsHash
 	}
-	return lowCardTags, sources
+	return lowCardTags, sources, e.tagsHash
 }
 
 func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, isHighCard bool) {

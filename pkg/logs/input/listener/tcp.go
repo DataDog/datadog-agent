@@ -8,78 +8,133 @@ package listener
 import (
 	"fmt"
 	"net"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// A TCPListener listens and accepts TCP connections and delegates the work to connHandler
+// defaultTimeout represents the time after which a connection is closed when no data is read
+const defaultTimeout = time.Minute
+
+// A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
 type TCPListener struct {
-	port        int
-	listener    net.Listener
-	connHandler *ConnectionHandler
-	stop        chan struct{}
-	done        chan struct{}
+	pp       pipeline.Provider
+	source   *config.LogSource
+	listener net.Listener
+	tailers  []*Tailer
+	stop     chan struct{}
+	mu       sync.Mutex
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pp pipeline.Provider, source *config.LogSource) (*TCPListener, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Config.Port))
-	if err != nil {
-		source.Status.Error(err)
-		return nil, err
-	}
-	source.Status.Success()
-	connHandler := NewConnectionHandler(pp, source)
+func NewTCPListener(pp pipeline.Provider, source *config.LogSource) *TCPListener {
 	return &TCPListener{
-		port:        source.Config.Port,
-		listener:    listener,
-		connHandler: connHandler,
-		stop:        make(chan struct{}, 1),
-		done:        make(chan struct{}, 1),
-	}, nil
+		pp:      pp,
+		source:  source,
+		tailers: []*Tailer{},
+		stop:    make(chan struct{}, 1),
+	}
 }
 
-// Start listens to TCP connections on another routine
+// Start starts the listener to accepts new incoming connections.
 func (l *TCPListener) Start() {
-	log.Info("Starting TCP forwarder on port ", l.port)
-	l.connHandler.Start()
+	log.Infof("Starting TCP forwarder on port %d", l.source.Config.Port)
+	err := l.startListener()
+	if err != nil {
+		log.Errorf("Can't start TCP forwarder on port %d: %v", l.source.Config.Port, err)
+		l.source.Status.Error(err)
+		return
+	}
+	l.source.Status.Success()
 	go l.run()
 }
 
-// Stop prevents the listener to accept new incoming connections
-// it blocks until connHandler is flushed
+// Stop stops the listener from accepting new connections and all the activer tailers.
 func (l *TCPListener) Stop() {
-	log.Info("Stopping TCP forwarder on port ", l.port)
+	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
 	l.stop <- struct{}{}
-	l.listener.Close()
-	<-l.done
+	stopper := restart.NewParallelStopper()
+	for _, tailer := range l.tailers {
+		stopper.Add(tailer)
+	}
+	stopper.Stop()
 }
 
-// run accepts new TCP connections and lets connHandler handle them
+// run accepts new TCP connections and create a dedicated tailer for each.
 func (l *TCPListener) run() {
-	defer func() {
-		l.listener.Close()
-		l.connHandler.Stop()
-		l.done <- struct{}{}
-	}()
+	defer l.listener.Close()
 	for {
 		select {
 		case <-l.stop:
-			// stop accepting new connections
+			// stop accepting new connections.
 			return
 		default:
 			conn, err := l.listener.Accept()
 			if err != nil {
-				// an error occurred, stop from accepting new connections
-				l.connHandler.source.Status.Error(err)
-				log.Error("Can't listen: ", err)
-				return
+				// an error occurred, restart the listener.
+				log.Warnf("Can't list on port %d, restarting a listener: %v", err)
+				l.listener.Close()
+				err := l.startListener()
+				if err != nil {
+					log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
+					l.source.Status.Error(err)
+					return
+				}
+				l.source.Status.Success()
+				continue
 			}
-			l.connHandler.source.Status.Success()
-			go l.connHandler.HandleConnection(conn)
+			l.startNewTailer(conn)
+			l.source.Status.Success()
+		}
+	}
+}
+
+// startListener starts a new listener, returns an error if it failed.
+func (l *TCPListener) startListener() error {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
+	if err != nil {
+		return err
+	}
+	l.listener = listener
+	return nil
+}
+
+// read reads data from connection, returns an error if it failed and stop the tailer.
+func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
+	tailer.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+	inBuf := make([]byte, 4096)
+	n, err := tailer.conn.Read(inBuf)
+	if err != nil {
+		l.source.Status.Error(err)
+		go l.stopTailer(tailer)
+		return nil, err
+	}
+	return inBuf[:n], nil
+}
+
+// startNewTailer creates and starts a new tailer that reads from the connection.
+func (l *TCPListener) startNewTailer(conn net.Conn) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	tailer := NewTailer(l.source, conn, l.pp.NextPipelineChan(), l.read)
+	l.tailers = append(l.tailers, tailer)
+	tailer.Start()
+}
+
+// stopTailer stops the tailer.
+func (l *TCPListener) stopTailer(tailer *Tailer) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	tailer.Stop()
+	for i, t := range l.tailers {
+		if t == tailer {
+			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)
+			break
 		}
 	}
 }

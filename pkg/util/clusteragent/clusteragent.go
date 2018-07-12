@@ -151,7 +151,7 @@ func getClusterAgentEndpoint() (string, error) {
 
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
 // Kubernetes metadata.
-func (c *DCAClient) GetKubernetesMetadataNames(nodeName, podName string) ([]string, error) {
+func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	const dcaMetadataPath = "api/v1/metadata"
 	var metadataNames metadataNames
 	var err error
@@ -159,11 +159,15 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, podName string) ([]stri
 	if c == nil {
 		return nil, fmt.Errorf("cluster agent's client is not properly initialized")
 	}
+	if ns == "" {
+		return nil, fmt.Errorf("namespace is empty")
+	}
+
 	req := &http.Request{
 		Header: *c.clusterAgentAPIRequestHeaders,
 	}
-	// https://host:port /api/v1/metadata/ {nodeName}/ {pod-[0-9a-z]+}
-	rawURL := fmt.Sprintf("%s/%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, podName)
+	// https://host:port/api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
+	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
 	req.URL, err = url.Parse(rawURL)
 	if err != nil {
 		return metadataNames, err

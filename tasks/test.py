@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version, pkg_config_path
 from .go import fmt, lint, vet, misspell, ineffassign
-from .build_tags import get_default_build_tags
+from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
@@ -44,8 +44,8 @@ DEFAULT_TEST_TARGETS = [
 
 
 @task()
-def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
-         timeout=120):
+def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
+    race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False, timeout=120):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -63,7 +63,10 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     else:
         tool_targets = test_targets = targets
 
-    build_tags = get_default_build_tags()
+    build_include = get_default_build_tags() if build_include is None else build_include.split(",")
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
+    build_tags = get_build_tags(build_include, build_exclude)
+
     timeout = int(timeout)
 
     # explicitly run these tasks instead of using pre-tasks so we can

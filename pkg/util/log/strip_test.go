@@ -63,6 +63,34 @@ func TestConfigStripApiKey(t *testing.T) {
 		`container_id: "b32bd6f9b73ba7ccb64953a04b82b48e29dfafab65fd57ca01d3b94a0e024885"`)
 }
 
+func TestConfigAppKey(t *testing.T) {
+	assertClean(t,
+		`app_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`app_key: ***********************************abbbb`)
+	assertClean(t,
+		`app_key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB`,
+		`app_key: ***********************************ABBBB`)
+	assertClean(t,
+		`app_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"`,
+		`app_key: "***********************************abbbb"`)
+	assertClean(t,
+		`app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'`,
+		`app_key: '***********************************abbbb'`)
+	assertClean(t,
+		`app_key: |
+			aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`app_key: |
+			***********************************abbbb`)
+	assertClean(t,
+		`app_key: >
+			aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`app_key: >
+			***********************************abbbb`)
+	assertClean(t,
+		`   app_key:   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'   `,
+		`   app_key:   '***********************************abbbb'   `)
+}
+
 func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`random_url_key: http://user:password@host:port`,

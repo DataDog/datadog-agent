@@ -4,12 +4,12 @@ Golang related tasks go here
 from __future__ import print_function
 import os
 import sys
-import json
 
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .utils import pkg_config_path, get_build_flags
+from .bootstrap import get_deps, process_deps
 
 
 # List of modules to ignore when running lint on Windows platform
@@ -27,18 +27,6 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "dist", "checks", "prometheus_check"),
     os.path.join("cmd", "agent", "gui", "views", "private"),
 ]
-
-# Bootstrap dependencies description
-BOOTSTRAP_DEPS = "bootstrap.json"
-
-
-def get_deps(key):
-    here = os.path.abspath(os.path.dirname(__file__))
-    with open(os.path.join(here, '..', BOOTSTRAP_DEPS)) as f:
-        deps = json.load(f)
-
-    return deps.get(key, {})
-
 
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
@@ -198,32 +186,19 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     """
     verbosity = ' -v' if verbose else ''
     deps = get_deps('deps')
-    for tool, version in deps.iteritems():
-        # download tools
-        path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
-        if not os.path.exists(path):
-            ctx.run("go get{} -d -u {}".format(verbosity, tool))
+    order = deps.get("order", deps.keys())
+    for dependency in order:
+        tool = deps.get(dependency)
+        if not tool:
+            print("Malformed bootstrap JSON, dependency {} not found". format(dependency))
+            raise Exit(code=1)
 
-        with ctx.cd(path):
-            # checkout versions
-            ctx.run("git fetch")
-            ctx.run("git checkout {}".format(version))
+        process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
 
-    postdeps = get_deps('post-deps')
-    for tool, version in postdeps.iteritems():
-        # download tools
-        path = os.path.join(os.environ.get('GOPATH'), 'src', tool)
-        if not os.path.exists(path):
-            ctx.run("go get{} -d -u {}".format(verbosity, tool))
-
-        with ctx.cd(path):
-            # checkout versions
-            ctx.run("git fetch")
-            ctx.run("git checkout {}".format(version))
-
-    for tool, version in deps.iteritems():
-        # install tools
-        ctx.run("go install{} {}".format(verbosity, tool))
+    order = deps.get("order", deps.keys())
+    for dependency in order:
+        tool = deps.get(dependency)
+        process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
 
     # source level deps
     ctx.run("dep ensure{}".format(verbosity))
@@ -241,12 +216,14 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         if core_dir:
             checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
             ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
+            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
         else:
             core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
             checks_base = os.path.join(core_dir, 'datadog_checks_base')
             if not os.path.isdir(core_dir):
                 ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
             ctx.run('pip install -{} {}'.format(verbosity, checks_base))
+            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
 
 
 @task

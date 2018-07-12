@@ -49,12 +49,6 @@ func TestApplicationName(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
-	var err error
-	err = tailer.setup()
-	assert.Nil(t, err)
-	err = tailer.seek("")
-	assert.Nil(t, err)
-
 	assert.Equal(t, "foo", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
@@ -89,12 +83,6 @@ func TestContent(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
-	var err error
-	err = tailer.setup()
-	assert.Nil(t, err)
-	err = tailer.seek("")
-	assert.Nil(t, err)
-
 	assert.Equal(t, []byte(`{"journald":{"_A":"foo.service"},"message":"bar"}`), tailer.getContent(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
@@ -120,12 +108,6 @@ func TestSeverity(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
-	var err error
-	err = tailer.setup()
-	assert.Nil(t, err)
-	err = tailer.seek("")
-	assert.Nil(t, err)
-
 	priorityValues := []string{"0", "1", "2", "3", "4", "5", "6", "7", "foo"}
 	statuses := []string{message.StatusEmergency, message.StatusAlert, message.StatusCritical, message.StatusError, message.StatusWarning, message.StatusNotice, message.StatusInfo, message.StatusDebug, message.StatusInfo}
 
@@ -137,4 +119,19 @@ func TestSeverity(t *testing.T) {
 				},
 			}))
 	}
+}
+
+func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, nil)
+
+	assert.Equal(t, "docker", tailer.getApplicationName(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+				containerIDKey:                               "bar",
+			},
+		}))
 }

@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -85,6 +86,7 @@ func init() {
 
 	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	custommetrics.AddFlags(startCmd.Flags())
 }
 
 func start(cmd *cobra.Command, args []string) error {
@@ -151,7 +153,6 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Errorf("Could not start the Cluster Agent Process.")
 
 	}
-
 	// Start the Service Mapper.
 	asc, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -167,9 +168,26 @@ func start(cmd *cobra.Command, args []string) error {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
+
+	// HPA Process
+	if config.Datadog.GetBool("enable_hpa") {
+		err = custommetrics.ValidateArgs(args)
+		if err != nil {
+			log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
+
+		} else {
+			// Start the k8s custom metrics server. This is a blocking call
+			err = custommetrics.StartServer()
+			if err != nil {
+				log.Errorf("Could not start the custom metrics API server: %s", err.Error())
+			}
+		}
+	}
 	// Block here until we receive the interrupt signal
 	<-signalCh
-
+	if config.Datadog.GetBool("enable_hpa") {
+		custommetrics.StopServer()
+	}
 	clusterAgent.Stop()
 	log.Info("See ya!")
 	log.Flush()

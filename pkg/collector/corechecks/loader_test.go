@@ -18,6 +18,7 @@ import (
 type TestCheck struct{}
 
 func (c *TestCheck) String() string                            { return "TestCheck" }
+func (c *TestCheck) Version() string                           { return "" }
 func (c *TestCheck) Run() error                                { return nil }
 func (c *TestCheck) Stop()                                     {}
 func (c *TestCheck) Interval() time.Duration                   { return 1 }

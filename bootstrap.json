@@ -1,11 +1,36 @@
 {
-    "post-deps": {
-    },
     "deps": {
-        "github.com/golang/dep/cmd/dep": "v0.4.1",
-        "golang.org/x/lint/golint": "master",
-        "github.com/fzipp/gocyclo": "master",
-        "github.com/gordonklaus/ineffassign": "master",
-        "github.com/client9/misspell/cmd/misspell": "master"
+        "order": [
+            "mercurial",
+            "golang.org/x/lint/golint",
+            "github.com/fzipp/gocyclo",
+            "github.com/gordonklaus/ineffassign",
+            "github.com/client9/misspell/cmd/misspell",
+            "github.com/golang/dep/cmd/dep"
+        ],
+        "mercurial": {
+            "version": "4.6.2",
+            "type": "python"
+        },
+        "github.com/golang/dep/cmd/dep": {
+            "version": "v0.4.1",
+            "type": "go"
+        },
+        "golang.org/x/lint/golint": {
+            "version": "master",
+            "type": "go"
+        },
+        "github.com/fzipp/gocyclo": {
+            "version": "master",
+            "type": "go"
+        },
+        "github.com/gordonklaus/ineffassign": {
+            "version": "master",
+            "type": "go"
+        },
+        "github.com/client9/misspell/cmd/misspell": {
+            "version": "master",
+            "type": "go"
+        }
     }
 }

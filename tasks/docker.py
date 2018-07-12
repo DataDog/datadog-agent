@@ -113,10 +113,13 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
         dst_tag = "_".join(match.groups()).replace(".", "_")
 
     dst = "{}:{}".format(dst_image, dst_tag)
-    print("Uploading {} to {}".format(src_image, dst))
+    publish(src_image, dst)
 
-    # TODO: use docker python lib
+
+@task
+def publish(ctx, src, dst):
+    print("Uploading {} to {}".format(src, dst))
     ctx.run("docker pull {src} && docker tag {src} {dst} && docker push {dst}".format(
-        src=src_image,
+        src=src,
         dst=dst)
     )

@@ -101,9 +101,14 @@ build do
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
     python_pip = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt #{windows_safe_path(project_dir)}"
+    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt -r #{windows_safe_path(project_dir)}"
 
+    pinned_requirements = "#{project_dir}/datadog_checks_base/requirements.in"
     if windows?
       command("#{python_bin} -m #{python_pip}\\datadog_checks_base")
+      if File.exist? pinned_requirements
+        command("#{python_bin} -m #{python_pip_req}\\datadog_checks_base\\requirements.in")
+      end
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
@@ -111,9 +116,12 @@ build do
       }
       pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
       pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      if File.exist? pinned_requirements
+        pip "install -c #{install_dir}/agent_requirements.txt -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      end
     end
 
-    # Set frozen requirements post `datadog_checks_base` - constraints file will be used by 
+    # Set frozen requirements post `datadog_checks_base` - constraints file will be used by
     # pip to ensure all other integrations dependency sanity.
     pip "freeze > #{install_dir}/agent_requirements.txt"
 
@@ -140,40 +148,50 @@ build do
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
 
       # Copy the check config to the conf directories
-      if File.exist? "#{check_dir}/conf.yaml.example"
-        copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
+      conf_file_example = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.example"
+      if File.exist? conf_file_example
+        copy conf_file_example, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
       end
 
       # Copy the default config, if it exists
-      if File.exist? "#{check_dir}/conf.yaml.default"
+      conf_file_default = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.default"
+      if File.exist? conf_file_default
         mkdir check_conf_dir
-        copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
+        copy conf_file_default, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
       end
 
       # Copy the metric file, if it exists
-      if File.exist? "#{check_dir}/metrics.yaml"
+      metrics_yaml = "#{check_dir}/datadog_checks/#{check}/data/metrics.yaml"
+      if File.exist? metrics_yaml
         mkdir check_conf_dir
-        copy "#{check_dir}/metrics.yaml", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
+        copy metrics_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
       end
 
       # We don't have auto_conf on windows yet
       if os != 'windows'
-        if File.exist? "#{check_dir}/auto_conf.yaml"
+        auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
+        if File.exist? auto_conf_yaml
           mkdir check_conf_dir
-          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
+          copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
         end
       end
 
       File.file?("#{check_dir}/setup.py") || next
+      pinned_requirements = "#{check_dir}/requirements.in"
       if windows?
         command("#{python_bin} -m #{python_pip}\\#{check}")
+        if File.exist? pinned_requirements
+          command("#{python_bin} -m #{python_pip_req}\\#{check}\\requirements.in")
+        end
       else
         build_env = {
           "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
           "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
         }
         pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/#{check}"
-        pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        if File.exist? pinned_requirements
+          pip "install -c #{install_dir}/agent_requirements.txt *.whl -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        end
       end
     end
   end

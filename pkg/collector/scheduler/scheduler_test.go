@@ -18,6 +18,7 @@ import (
 type TestCheck struct{ intl time.Duration }
 
 func (c *TestCheck) String() string                                     { return "TestCheck" }
+func (c *TestCheck) Version() string                                    { return "" }
 func (c *TestCheck) Configure(integration.Data, integration.Data) error { return nil }
 func (c *TestCheck) Interval() time.Duration                            { return c.intl }
 func (c *TestCheck) Run() error                                         { return nil }

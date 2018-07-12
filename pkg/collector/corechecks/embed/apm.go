@@ -43,6 +43,10 @@ func (c *APMCheck) String() string {
 	return "APM Agent"
 }
 
+func (c *APMCheck) Version() string {
+	return ""
+}
+
 // Run executes the check with retries
 func (c *APMCheck) Run() error {
 	atomic.StoreUint32(&c.running, 1)
