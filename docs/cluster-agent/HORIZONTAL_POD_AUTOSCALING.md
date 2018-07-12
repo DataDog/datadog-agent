@@ -1,4 +1,4 @@
-# Datadog Cluster Agent (DCA) | Getting Started
+# Datadog Cluster Agent - DCA | Horizontal Pod Autoscaling
 
 The DCA is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
 
