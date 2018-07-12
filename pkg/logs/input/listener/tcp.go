@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -17,12 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// A TCPListener listens and accepts TCP connections and delegates the read operations to a reader.
+// defaultTimeout represents the time after which a connection is closed when no data is read
+const defaultTimeout = time.Minute
+
+// A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
 type TCPListener struct {
 	pp       pipeline.Provider
 	source   *config.LogSource
 	listener net.Listener
-	readers  []*Reader
+	tailers  []*Tailer
 	stop     chan struct{}
 	mu       sync.Mutex
 }
@@ -32,7 +36,7 @@ func NewTCPListener(pp pipeline.Provider, source *config.LogSource) *TCPListener
 	return &TCPListener{
 		pp:      pp,
 		source:  source,
-		readers: []*Reader{},
+		tailers: []*Tailer{},
 		stop:    make(chan struct{}),
 	}
 }
@@ -40,34 +44,34 @@ func NewTCPListener(pp pipeline.Provider, source *config.LogSource) *TCPListener
 // Start starts the listener to accepts new incoming connections.
 func (l *TCPListener) Start() {
 	log.Infof("Starting TCP forwarder on port %d", l.source.Config.Port)
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
+	err := l.startListener()
 	if err != nil {
-		log.Errorf("Can't listen on port %d: %v", l.source.Config.Port, err)
+		log.Errorf("Can't start TCP forwarder on port %d: %v", l.source.Config.Port, err)
 		l.source.Status.Error(err)
 		return
 	}
-	l.listener = listener
+	l.source.Status.Success()
 	go l.run()
 }
 
-// Stop stops the listener from accepting new connections and all the activer readers.
+// Stop stops the listener from accepting new connections and all the activer tailers.
 func (l *TCPListener) Stop() {
 	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
-	for _, reader := range l.readers {
-		stopper.Add(reader)
+	for _, tailer := range l.tailers {
+		stopper.Add(tailer)
 	}
 	stopper.Stop()
 }
 
-// run accepts new TCP connections and create a dedicated reader for each one.
+// run accepts new TCP connections and create a dedicated tailer for each.
 func (l *TCPListener) run() {
 	defer l.listener.Close()
 	for {
 		select {
 		case <-l.stop:
-			// stop accepting new connections
+			// stop accepting new connections.
 			return
 		default:
 			conn, err := l.listener.Accept()
@@ -75,48 +79,61 @@ func (l *TCPListener) run() {
 				// an error occurred, restart the listener.
 				log.Warnf("Can't list on port %d, restarting a listener: %v", err)
 				l.listener.Close()
-				listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
+				err := l.startListener()
 				if err != nil {
 					log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
 					l.source.Status.Error(err)
 					return
 				}
-				l.listener = listener
+				l.source.Status.Success()
 				continue
 			}
-			reader := l.newReader(conn)
-			reader.Start()
-			l.add(reader)
+			l.startNewTailer(conn)
+			l.source.Status.Success()
 		}
 	}
 }
 
-// newReader returns a new reader that reads from conn.
-func (l *TCPListener) newReader(conn net.Conn) *Reader {
-	return NewReader(l.source, conn, l.pp.NextPipelineChan(), l.handleUngracefulStop)
+// startListener starts a new listener, returns an error if it failed.
+func (l *TCPListener) startListener() error {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
+	if err != nil {
+		return err
+	}
+	l.listener = listener
+	return nil
 }
 
-// handleUngracefulStop stops the reader.
-func (l *TCPListener) handleUngracefulStop(reader *Reader) {
-	reader.Stop()
-	l.remove(reader)
-	l.source.Status.Success()
+// read reads data from connection, returns an error if it failed and stop the tailer.
+func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
+	tailer.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+	inBuf := make([]byte, 4096)
+	n, err := tailer.conn.Read(inBuf)
+	if err != nil {
+		l.source.Status.Error(err)
+		l.stopTailer(tailer)
+		return nil, err
+	}
+	return inBuf[:n], nil
 }
 
-// add adds the reader to the active list of readers.
-func (l *TCPListener) add(reader *Reader) {
+// startNewTailer creates and starts a new tailer that reads from the connection.
+func (l *TCPListener) startNewTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.readers = append(l.readers, reader)
+	tailer := NewTailer(l.source, conn, l.pp.NextPipelineChan(), l.read)
+	l.tailers = append(l.tailers, tailer)
+	tailer.Start()
 }
 
-// remove removes the reader from the active list of readers.
-func (l *TCPListener) remove(reader *Reader) {
+// stopTailer stops the tailer.
+func (l *TCPListener) stopTailer(tailer *Tailer) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for i, t := range l.readers {
-		if t == reader {
-			l.readers = append(l.readers[:i], l.readers[i+1:]...)
+	go tailer.Stop()
+	for i, t := range l.tailers {
+		if t == tailer {
+			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)
 			break
 		}
 	}

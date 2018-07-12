@@ -17,31 +17,31 @@ import (
 
 const port = 10493
 
-type ReaderTestSuite struct {
+type TailerTestSuite struct {
 	suite.Suite
 
-	reader  *Reader
+	tailer  *Tailer
 	conn    net.Conn
 	msgChan chan message.Message
 }
 
-func (suite *ReaderTestSuite) SetupTest() {
+func (suite *TailerTestSuite) SetupTest() {
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: port})
 	msgChan := make(chan message.Message)
 	r, w := net.Pipe()
 
-	suite.reader = NewReader(source, r, msgChan, func(*Reader) {})
+	suite.tailer = NewTailer(source, r, msgChan, read)
 	suite.conn = w
 	suite.msgChan = msgChan
 
-	suite.reader.Start()
+	suite.tailer.Start()
 }
 
-func (suite *ReaderTestSuite) TearDownTest() {
-	suite.reader.Stop()
+func (suite *TailerTestSuite) TearDownTest() {
+	suite.tailer.Stop()
 }
 
-func (suite *ReaderTestSuite) TestReadAndForward() {
+func (suite *TailerTestSuite) TestReadAndForward() {
 	var msg message.Message
 
 	// should receive and decode one message
@@ -57,6 +57,15 @@ func (suite *ReaderTestSuite) TestReadAndForward() {
 	suite.Equal("boo", string(msg.Content()))
 }
 
-func TestReaderTestSuite(t *testing.T) {
-	suite.Run(t, new(ReaderTestSuite))
+func TestTailerTestSuite(t *testing.T) {
+	suite.Run(t, new(TailerTestSuite))
+}
+
+func read(tailer *Tailer) ([]byte, error) {
+	inBuf := make([]byte, 4096)
+	n, err := tailer.conn.Read(inBuf)
+	if err != nil {
+		return nil, err
+	}
+	return inBuf[:n], nil
 }

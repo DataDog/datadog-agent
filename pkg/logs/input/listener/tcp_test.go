@@ -45,8 +45,6 @@ func (suite *TCPTestSuite) TestTCPReceivesMessages() {
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
-
-	suite.Equal(1, len(suite.tcpl.readers))
 }
 
 func TestTCPTestSuite(t *testing.T) {
