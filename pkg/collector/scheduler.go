@@ -179,7 +179,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 
 // isCheckConfig returns true if the config is a check configuration,
 func isCheckConfig(config integration.Config) bool {
-	return config.MetricConfig != nil || len(config.Instances) > 0
+	return len(config.Instances) > 0
 }
 
 // GetLoaderErrors returns the check loader errors

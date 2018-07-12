@@ -164,6 +164,7 @@ func (ac *AutoConfig) LoadAndRun() {
 
 // GetChecksByName returns any Check instance we can load for the given
 // check name
+// FIXME: autodiscovery should ideally not import the collector package
 func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	// try to also match `FooCheck` if `foo` was passed
 	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")

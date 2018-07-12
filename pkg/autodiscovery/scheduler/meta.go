@@ -40,10 +40,5 @@ func (s *MetaScheduler) Stop() {
 
 // GetScheduler returns a registered scheduler
 func (s *MetaScheduler) GetScheduler(name string) Scheduler {
-	for key, scheduler := range ActiveSchedulers {
-		if name == key {
-			return scheduler
-		}
-	}
-	return nil
+	return ActiveSchedulers[name]
 }
