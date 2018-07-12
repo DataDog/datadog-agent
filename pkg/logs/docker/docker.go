@@ -36,32 +36,57 @@ func ParseMessage(msg []byte) (Message, error) {
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return Message{}, errors.New("Can't parse docker message: expected a 8 bytes header")
+		return Message{}, errors.New("can't parse docker message: expected a 8 bytes header")
 	}
 
-	// remove partial headers that are added by docker when the message gets too long.
-	if len(msg) > dockerBufferSize {
-		msg = removePartialDockerMetadata(msg)
+	// Read the first byte to get the status
+	status := getStatus(msg)
+	if status == "" {
+
+		// When tailing logs coming from a container running with a tty, docker
+		// does not add the header. In that case, the message only contains
+		// the timestamp followed by whatever comes from what is running in the
+		// container (and maybe stdin). As a fallback, set the status to info.
+		status = message.StatusInfo
+
+	} else {
+
+		// remove partial headers that are added by docker when the message gets too long
+		if len(msg) > dockerBufferSize {
+			msg = removePartialDockerMetadata(msg)
+		}
+
+		// remove the header as we don't need it anymore
+		msg = msg[dockerHeaderLength:]
+
 	}
 
-	// First byte is 1 for stdout and 2 for stderr
-	status := message.StatusInfo
-	if msg[0] == 2 {
-		status = message.StatusError
+	// timestamp goes till first space
+	idx := bytes.Index(msg, []byte{' '})
+	if idx == -1 {
+		// Nothing after the timestamp: empty message
+		return Message{}, nil
 	}
-
-	// timestamp goes from byte 8 till first space
-	metadataLen := GetDockerMetadataLength(msg)
-	if metadataLen == 0 {
-		return Message{}, errors.New("Can't parse docker message: expected a whitespace after header")
-	}
-	timestamp := string(msg[dockerHeaderLength : metadataLen-1])
 
 	return Message{
-		Content:   msg[metadataLen:],
+		Content:   msg[idx+1:],
 		Status:    status,
-		Timestamp: timestamp,
+		Timestamp: string(msg[:idx]),
 	}, nil
+}
+
+// getStatus returns the status of the message based on the value of the
+// STREAM_TYPE byte in the header. STREAM_TYPE can be 1 for stdout and 2 for
+// stderr. If it doesn't match either of these, return an empty string.
+func getStatus(msg []byte) string {
+	switch msg[0] {
+	case 1:
+		return message.StatusInfo
+	case 2:
+		return message.StatusError
+	default:
+		return ""
+	}
 }
 
 // removePartialDockerMetadata removes the 8 byte header, timestamp, and space that occurs between 16Kb section of a log.
