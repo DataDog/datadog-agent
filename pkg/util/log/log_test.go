@@ -93,12 +93,100 @@ func TestExtraLogging(t *testing.T) {
 	assert.Equal(t, a.String(), a.String())
 }
 
-func TestFormatErrorf(t *testing.T) {
+func TestFormatErrorfScrubbing(t *testing.T) {
 	err := formatErrorf("%s", "aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa")
 	assert.Equal(t, "***************************baaaa", err.Error())
 }
 
-func TestFormatError(t *testing.T) {
+func TestFormatErrorScrubbing(t *testing.T) {
 	err := formatError("aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa")
 	assert.Equal(t, "***************************baaaa", err.Error())
+}
+
+func TestWarnNotNil(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	assert.NotNil(t, Warn("test"))
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
+	SetupDatadogLogger(l, "critical")
+
+	assert.NotNil(t, Warn("test"))
+
+	changeLogLevel("info")
+
+	assert.NotNil(t, Warn("test"))
+}
+
+func TestWarnfNotNil(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	assert.NotNil(t, Warn("test"))
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
+	SetupDatadogLogger(l, "critical")
+
+	assert.NotNil(t, Warn("test"))
+
+	changeLogLevel("info")
+
+	assert.NotNil(t, Warn("test"))
+}
+
+func TestErrorNotNil(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	assert.NotNil(t, Error("test"))
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
+	SetupDatadogLogger(l, "critical")
+
+	assert.NotNil(t, Error("test"))
+
+	changeLogLevel("info")
+
+	assert.NotNil(t, Error("test"))
+}
+
+func TestErrorfNotNil(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	assert.NotNil(t, Errorf("test"))
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
+	SetupDatadogLogger(l, "critical")
+
+	assert.NotNil(t, Errorf("test"))
+
+	changeLogLevel("info")
+
+	assert.NotNil(t, Errorf("test"))
+}
+
+func TestCriticalNotNil(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	assert.NotNil(t, Critical("test"))
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+	SetupDatadogLogger(l, "info")
+
+	assert.NotNil(t, Critical("test"))
+}
+
+func TestCriticalfNotNil(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	assert.NotNil(t, Criticalf("test"))
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+	SetupDatadogLogger(l, "info")
+
+	assert.NotNil(t, Criticalf("test"))
 }
