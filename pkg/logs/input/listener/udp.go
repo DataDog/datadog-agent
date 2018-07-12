@@ -8,7 +8,6 @@ package listener
 import (
 	"fmt"
 	"net"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -18,16 +17,18 @@ import (
 
 // A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a tailer.
 type UDPListener struct {
-	pp     pipeline.Provider
-	source *config.LogSource
-	tailer *Tailer
+	pp           pipeline.Provider
+	source       *config.LogSource
+	maxFrameSize int
+	tailer       *Tailer
 }
 
 // NewUDPListener returns an initialized UDPListener
 func NewUDPListener(pp pipeline.Provider, source *config.LogSource) *UDPListener {
 	return &UDPListener{
-		pp:     pp,
-		source: source,
+		pp:           pp,
+		source:       source,
+		maxFrameSize: getMaxFrameSize(source),
 	}
 }
 
@@ -72,16 +73,16 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 
 // read reads data from the tailer connection, returns an error if it failed and reset the tailer.
 func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
-	inBuf := make([]byte, 4096)
-	n, err := tailer.conn.Read(inBuf)
+	frame := make([]byte, l.maxFrameSize+1)
+	n, err := tailer.conn.Read(frame)
 	switch {
-	case err != nil && l.isClosedConnError(err):
+	case err != nil && isClosedConnError(err):
 		return nil, err
 	case err != nil:
 		go l.resetTailer()
 		return nil, err
 	default:
-		return inBuf[:n], nil
+		return getContent(frame[:n], l.maxFrameSize), nil
 	}
 }
 
@@ -96,10 +97,4 @@ func (l *UDPListener) resetTailer() {
 		return
 	}
 	l.source.Status.Success()
-}
-
-// isConnClosedError returns true if the error is related to a closed connection,
-// for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
-func (l *UDPListener) isClosedConnError(err error) bool {
-	return strings.Contains(err.Error(), "use of closed network connection")
 }

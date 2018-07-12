@@ -23,21 +23,23 @@ const defaultTimeout = time.Minute
 
 // A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
 type TCPListener struct {
-	pp       pipeline.Provider
-	source   *config.LogSource
-	listener net.Listener
-	tailers  []*Tailer
-	stop     chan struct{}
-	mu       sync.Mutex
+	pp           pipeline.Provider
+	source       *config.LogSource
+	maxFrameSize int
+	listener     net.Listener
+	tailers      []*Tailer
+	mu           sync.Mutex
+	stop         chan struct{}
 }
 
 // NewTCPListener returns an initialized TCPListener
 func NewTCPListener(pp pipeline.Provider, source *config.LogSource) *TCPListener {
 	return &TCPListener{
-		pp:      pp,
-		source:  source,
-		tailers: []*Tailer{},
-		stop:    make(chan struct{}, 1),
+		pp:           pp,
+		source:       source,
+		maxFrameSize: getMaxFrameSize(source),
+		tailers:      []*Tailer{},
+		stop:         make(chan struct{}, 1),
 	}
 }
 
@@ -58,6 +60,7 @@ func (l *TCPListener) Start() {
 func (l *TCPListener) Stop() {
 	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
 	l.stop <- struct{}{}
+	l.listener.Close()
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
@@ -75,9 +78,12 @@ func (l *TCPListener) run() {
 			return
 		default:
 			conn, err := l.listener.Accept()
-			if err != nil {
+			switch {
+			case err != nil && isClosedConnError(err):
+				return
+			case err != nil:
 				// an error occurred, restart the listener.
-				log.Warnf("Can't list on port %d, restarting a listener: %v", err)
+				log.Warnf("Can't listen on port %d, restarting a listener: %v", l.source.Config.Port, err)
 				l.listener.Close()
 				err := l.startListener()
 				if err != nil {
@@ -87,9 +93,10 @@ func (l *TCPListener) run() {
 				}
 				l.source.Status.Success()
 				continue
+			default:
+				l.startNewTailer(conn)
+				l.source.Status.Success()
 			}
-			l.startNewTailer(conn)
-			l.source.Status.Success()
 		}
 	}
 }
@@ -107,14 +114,14 @@ func (l *TCPListener) startListener() error {
 // read reads data from connection, returns an error if it failed and stop the tailer.
 func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
 	tailer.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
-	inBuf := make([]byte, 4096)
-	n, err := tailer.conn.Read(inBuf)
+	frame := make([]byte, l.maxFrameSize+1)
+	n, err := tailer.conn.Read(frame)
 	if err != nil {
 		l.source.Status.Error(err)
 		go l.stopTailer(tailer)
 		return nil, err
 	}
-	return inBuf[:n], nil
+	return getContent(frame[:n], l.maxFrameSize), nil
 }
 
 // startNewTailer creates and starts a new tailer that reads from the connection.

@@ -8,11 +8,13 @@ package listener
 import (
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
@@ -27,11 +29,38 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
 	assert.Nil(t, err)
 
-	// should receive and decode message
+	var msg message.Message
+
 	fmt.Fprintf(conn, "hello world\n")
-	msg := <-msgChan
+	msg = <-msgChan
 	assert.Equal(t, "hello world", string(msg.Content()))
 	assert.Equal(t, 1, len(listener.tailers))
+
+	listener.Stop()
+}
+
+func TestTCPShouldProperlyTruncateTooBigMessages(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort, FrameSize: 100}))
+	listener.Start()
+
+	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+	assert.Nil(t, err)
+
+	var msg message.Message
+
+	fmt.Fprintf(conn, strings.Repeat("a", 80)+"\n")
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 80), string(msg.Content()))
+
+	// fmt.Fprintf(conn, strings.Repeat("a", 150)+"\n")
+	// msg = <-msgChan
+	// assert.Equal(t, strings.Repeat("a", 99), string(msg.Content()))
+
+	fmt.Fprintf(conn, strings.Repeat("a", 70)+"\n")
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 70), string(msg.Content()))
 
 	listener.Stop()
 }
