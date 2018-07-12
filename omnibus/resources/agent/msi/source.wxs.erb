@@ -63,6 +63,8 @@
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
 
+    <Property Id="DDUSER" Value="ddagentuser"/>
+
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="APPLICATIONROOTDIRECTORY" Name="Datadog">
@@ -83,9 +85,9 @@
                 UpdateIfExists="yes"
                 />
             <CreateFolder>
-                <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
                 <util:PermissionEx User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
                 <util:PermissionEx User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
+                <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                 <util:PermissionEx User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
             </CreateFolder>
           
@@ -135,60 +137,60 @@
                      Key="SOFTWARE\Datadog\Datadog Agent"
                      ForceCreateOnInstall="yes"
                      >
-          <util:PermissionEx User="ddagentuser"  GenericAll="yes"  ChangePermission="yes"/>
+          <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
           <RegistryValue Name="api_key"
                          Type="string"
                          Value="[APIKEY]">
-            <util:PermissionEx User="ddagentuser"  GenericAll="yes"  ChangePermission="yes"/>
+            <util:PermissionEx User="[DDUSER]"  GenericAll="yes"  ChangePermission="yes"/>
           </RegistryValue>
           <RegistryValue Name="tags"
                          Type="string"
                          Value="[TAGS]" >
-            <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+            <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
           </RegistryValue>
           <RegistryValue Name="hostname"
                          Type="string"
                          Value="[HOSTNAME]" >
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
            <RegistryValue Name="proxy_host"
                          Type="string"
                          Value="[PROXY_HOST]">
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_port"
                          Type="string"
                          Value="[PROXY_PORT]" >
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_user"
                          Type="string"
                          Value="[PROXY_USER]">
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_password"
                          Type="string"
                          Value="[PROXY_PASSWORD]" >
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="logs_enabled"
                          Type="string"
                          Value="[LOGS_ENABLED]">
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="apm_enabled"
                          Type="string"
                          Value="[APM_ENABLED]" >
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="process_enabled"
                          Type="string"
                          Value="[PROCESS_ENABLED]">
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
           <RegistryValue Name="cmd_port"
                          Type="string"
                          Value="[CMD_PORT]" >
-                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
         </RegistryKey>
 
@@ -388,10 +390,10 @@
                    Location="either"
                    NeverOverwrite="yes">
           <CreateFolder>
-              <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
               <util:PermissionEx User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
               <util:PermissionEx User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
               <util:PermissionEx User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+              <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
           </CreateFolder>
         </Component>
       </Directory>

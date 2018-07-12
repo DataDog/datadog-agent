@@ -7,7 +7,9 @@ package security
 
 import (
 	"io/ioutil"
+	"os/user"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	acl "github.com/hectane/go-acl"
 	"golang.org/x/sys/windows"
 )
@@ -32,14 +34,26 @@ func init() {
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
 func saveAuthToken(token, tokenPath string) error {
-	err := ioutil.WriteFile(tokenPath, []byte(token), 0755)
+	// get the current user
+	currUser, err := user.Current()
+	if err != nil {
+		log.Warnf("Unable to get current user %v", err)
+		return err
+	}
+	currUserSid, err := windows.StringToSid(currUser.Uid)
+	if err != nil {
+		log.Warnf("Unable to get current user sid %v", err)
+		return err
+	}
+	err = ioutil.WriteFile(tokenPath, []byte(token), 0755)
 	if err == nil {
 		err = acl.Apply(
 			tokenPath,
 			true,  // replace the file permissions
 			false, // don't inherit
 			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["Administrators"]),
-			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["System"]))
+			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["System"]),
+			acl.GrantSid(windows.GENERIC_ALL, currUserSid))
 	}
 	return err
 }
