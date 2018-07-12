@@ -37,7 +37,7 @@ func NewTCPListener(pp pipeline.Provider, source *config.LogSource) *TCPListener
 		pp:      pp,
 		source:  source,
 		tailers: []*Tailer{},
-		stop:    make(chan struct{}),
+		stop:    make(chan struct{}, 1),
 	}
 }
 
