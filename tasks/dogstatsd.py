@@ -45,7 +45,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     if static:
         bin_path = STATIC_BIN_PATH
 
-    # NOTE: consider stripping symbols to reduce binary size 
+    # NOTE: consider stripping symbols to reduce binary size
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
     args = {
@@ -69,6 +69,16 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     }
     cmd = "go generate {}/cmd/dogstatsd"
     ctx.run(cmd.format(REPO_PATH), env=env)
+
+    if static and sys.platform.startswith("linux"):
+        cmd = "file {bin_name} "
+        args = {
+            "bin_name": os.path.join(bin_path, bin_name("dogstatsd")),
+        }
+        result = ctx.run(cmd.format(**args))
+        if "statically linked" not in result.stdout:
+            print("Dogstatsd binary is not static, exiting...")
+            raise Exit(code=1)
 
     refresh_assets(ctx)
 
