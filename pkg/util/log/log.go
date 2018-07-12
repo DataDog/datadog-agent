@@ -334,7 +334,7 @@ func Info(v ...interface{}) {
 	}
 }
 
-//Warn logs at the warn level
+//Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
@@ -343,7 +343,7 @@ func Warn(v ...interface{}) error {
 	return formatError(v...)
 }
 
-//Error logs at the error level
+//Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
@@ -352,7 +352,7 @@ func Error(v ...interface{}) error {
 	return formatError(v...)
 }
 
-//Critical logs at the critical level
+//Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
@@ -389,7 +389,7 @@ func Infof(format string, params ...interface{}) {
 	}
 }
 
-//Warnf logs with format at the warn level
+//Warnf logs with format at the warn level and returns an error containing the formated log message
 func Warnf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		return logger.warnf(format, params...)
@@ -397,7 +397,7 @@ func Warnf(format string, params ...interface{}) error {
 	return formatErrorf(format, params)
 }
 
-//Errorf logs with format at the error level
+//Errorf logs with format at the error level and returns an error containing the formated log message
 func Errorf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		return logger.errorf(format, params...)
@@ -405,7 +405,7 @@ func Errorf(format string, params ...interface{}) error {
 	return formatErrorf(format, params)
 }
 
-//Criticalf logs with format at the critical level
+//Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		return logger.criticalf(format, params...)
