@@ -90,7 +90,11 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 	}
 	for _, m := range added {
 		key := strings.Join([]string{"external_metric", m.HPA.Namespace, m.HPA.Name, m.MetricName}, ".")
-		toStore, _ := json.Marshal(m)
+		toStore, err := json.Marshal(m)
+		if err != nil {
+			log.Debugf("Could not marshal the external metric %v: %s", m, err)
+			continue
+		}
 		c.cm.Data[key] = string(toStore)
 	}
 	return c.updateConfigMap()
@@ -109,7 +113,7 @@ func (c *configMapStore) Delete(deleted []ObjectReference) error {
 		for k := range c.cm.Data {
 			parts := strings.Split(k, ".")
 			if len(parts) != 4 {
-				log.Debugf("deleting malformed key %s", k)
+				log.Debugf("Deleting malformed key %s", k)
 				delete(c.cm.Data, k)
 				continue
 			}
@@ -134,9 +138,12 @@ func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, e
 		if !strings.HasPrefix(k, "external_metric") {
 			continue
 		}
-		m := &ExternalMetricValue{}
-		json.Unmarshal([]byte(v), &m)
-		metrics = append(metrics, *m)
+		m := ExternalMetricValue{}
+		if err := json.Unmarshal([]byte(v), &m); err != nil {
+			log.Debugf("Could not unmarshal the external metric for key %s: %s", k, err)
+			continue
+		}
+		metrics = append(metrics, m)
 	}
 	return metrics, nil
 }
