@@ -39,15 +39,21 @@ func (hpa *HPAWatcherClient) queryDatadogExternal(metricName string, tags map[st
 	seriesSlice, err := hpa.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 
 	if err != nil {
-		return 0, log.Errorf("Error while executing metric query %s: %s", query, err)
+		err = fmt.Errorf("Error while executing metric query %s: %s", query, err)
+		log.Error(err)
+		return 0, err
 	}
 	if len(seriesSlice) == 0 {
-		return 0, log.Errorf("Returned series slice empty")
+		err = fmt.Errorf("Returned series slice empty")
+		log.Error(err)
+		return 0, err
 	}
 	points := seriesSlice[0].Points
 
 	if len(points) == 0 {
-		return 0, log.Errorf("No points in series")
+		err = fmt.Errorf("No points in series")
+		log.Error(err)
+		return 0, err
 	}
 	lastValue := int64(points[len(points)-1][1])
 	return lastValue, nil
