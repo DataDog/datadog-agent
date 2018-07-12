@@ -201,7 +201,8 @@ func init() {
 
 	Datadog.SetDefault("kubernetes_collect_metadata_tags", true)
 	Datadog.SetDefault("kubernetes_metadata_tag_update_freq", 60*5) // 5 min
-	BindEnvAndSetDefault("kubernetes_map_services_on_ip", false)    // temporary opt-out of the new mapping logic
+	BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
+	BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
