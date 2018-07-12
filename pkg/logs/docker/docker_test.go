@@ -62,12 +62,6 @@ func TestParseMessageShouldFailWithInvalidInput(t *testing.T) {
 	_, err = ParseMessage(msg)
 	assert.NotNil(t, err)
 
-	// invalid header size
-	msg = []byte{}
-	msg = append(msg, []byte{1, 0, 0, 0, 0, 62, 49, 103}...)
-	msg = append(msg, []byte("INFO_10:26:31 _Loading_settings_from_file:/etc/cassandra/cassandra.yaml")...)
-	_, err = ParseMessage(msg)
-	assert.NotNil(t, err)
 }
 
 func TestParseMessageShouldRemovePartialHeaders(t *testing.T) {
