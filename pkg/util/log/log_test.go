@@ -92,3 +92,13 @@ func TestExtraLogging(t *testing.T) {
 	assert.Equal(t, strings.Count(a.String(), "http://user:********@host:port"), 1)
 	assert.Equal(t, a.String(), a.String())
 }
+
+func TestFormatErrorf(t *testing.T) {
+	err := formatErrorf("%s", "aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa")
+	assert.Equal(t, "***************************baaaa", err.Error())
+}
+
+func TestFormatError(t *testing.T) {
+	err := formatError("aaaaaaaaaaaaaaaaaaaaaaaaaaabaaaa")
+	assert.Equal(t, "***************************baaaa", err.Error())
+}

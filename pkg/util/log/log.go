@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 
@@ -293,6 +292,24 @@ func buildLogEntry(v ...interface{}) string {
 	return fmt.Sprintf(fmtBuffer.String(), v...)
 }
 
+func scrubMessage(message string) string {
+	msgScrubbed, err := CredentialsCleanerBytes([]byte(message))
+	if err == nil {
+		return string(msgScrubbed)
+	}
+	return ""
+}
+
+func formatErrorf(format string, params ...interface{}) error {
+	msg := scrubMessage(fmt.Sprintf(format, params...))
+	return errors.New(msg)
+}
+
+func formatError(v ...interface{}) error {
+	msg := scrubMessage(fmt.Sprint(v...))
+	return errors.New(msg)
+}
+
 //Trace logs at the trace level
 func Trace(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
@@ -303,7 +320,7 @@ func Trace(v ...interface{}) {
 
 //Debug logs at the debug level
 func Debug(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		logger.debug(logger.scrub(s))
 	}
@@ -311,7 +328,7 @@ func Debug(v ...interface{}) {
 
 //Info logs at the info level
 func Info(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		logger.info(logger.scrub(s))
 	}
@@ -319,29 +336,29 @@ func Info(v ...interface{}) {
 
 //Warn logs at the warn level
 func Warn(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		return logger.warn(logger.scrub(s))
 	}
-	return nil
+	return formatError(v...)
 }
 
 //Error logs at the error level
 func Error(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		return logger.error(logger.scrub(s))
 	}
-	return nil
+	return formatError(v...)
 }
 
 //Critical logs at the critical level
 func Critical(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		return logger.critical(logger.scrub(s))
 	}
-	return nil
+	return formatError(v...)
 }
 
 //Flush flushes the underlying inner log
@@ -353,67 +370,47 @@ func Flush() {
 
 //Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
+	if logger != nil && logger.inner != nil {
 		logger.tracef(format, params...)
 	}
 }
 
 //Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
+	if logger != nil && logger.inner != nil {
 		logger.debugf(format, params...)
 	}
 }
 
 //Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+	if logger != nil && logger.inner != nil {
 		logger.infof(format, params...)
 	}
 }
 
 //Warnf logs with format at the warn level
 func Warnf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
+	if logger != nil && logger.inner != nil {
 		return logger.warnf(format, params...)
 	}
-	return nil
+	return formatErrorf(format, params)
 }
 
 //Errorf logs with format at the error level
 func Errorf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
+	if logger != nil && logger.inner != nil {
 		return logger.errorf(format, params...)
-	} else if logger == nil || logger.inner == nil {
-		// We're currently trying to log an error before initializing
-		// the log module. This meant a early error while starting the
-		// agent. We should not silence such error.
-		msg := fmt.Sprintf(format, params...)
-		msgScrubbed, err := CredentialsCleanerBytes([]byte(msg))
-		if err == nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", msgScrubbed)
-			return fmt.Errorf(string(msgScrubbed))
-		}
 	}
-	return nil
+	return formatErrorf(format, params)
 }
 
 //Criticalf logs with format at the critical level
 func Criticalf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
+	if logger != nil && logger.inner != nil {
 		return logger.criticalf(format, params...)
-	} else if logger == nil || logger.inner == nil {
-		// We're currently trying to log an error before initializing
-		// the log module. This meant a early error while starting the
-		// agent. We should not silence such error.
-		msg := fmt.Sprintf(format, params...)
-		msgScrubbed, err := CredentialsCleanerBytes([]byte(msg))
-		if err == nil {
-			fmt.Fprintf(os.Stderr, "Critical: %s\n", msgScrubbed)
-			return fmt.Errorf(string(msgScrubbed))
-		}
 	}
-	return nil
+	return formatErrorf(format, params)
 }
 
 //ReplaceLogger allows replacing the internal logger, returns old logger
