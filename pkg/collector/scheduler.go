@@ -8,6 +8,7 @@ package collector
 import (
 	"expvar"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -19,6 +20,8 @@ import (
 var (
 	schedulerErrs *expvar.Map
 	errorStats    = newCollectorErrors()
+	// Scheduler is the global check scheduler instance
+	Scheduler *CheckScheduler
 )
 
 func init() {
@@ -39,19 +42,19 @@ type CheckScheduler struct {
 	m              sync.RWMutex
 }
 
-// NewCheckScheduler returns a check scheduler
-func NewCheckScheduler(collector *Collector) *CheckScheduler {
-	scheduler := &CheckScheduler{
+// InitCheckScheduler creates and returns the global check scheduler
+func InitCheckScheduler(collector *Collector) *CheckScheduler {
+	Scheduler = &CheckScheduler{
 		collector:      collector,
 		configToChecks: make(map[string][]check.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog())),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog() {
-		scheduler.AddLoader(loader)
+		Scheduler.AddLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
-	return scheduler
+	return Scheduler
 }
 
 // Schedule schedules configs to checks
@@ -145,6 +148,23 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	}
 
 	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
+}
+
+// GetChecksByNameForConfigs returns checks matching name for passed in configs
+func GetChecksByNameForConfigs(checkName string, configs []integration.Config) []check.Check {
+	var checks []check.Check
+	if Scheduler == nil {
+		return checks
+	}
+	// try to also match `FooCheck` if `foo` was passed
+	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
+
+	for _, c := range Scheduler.GetChecksFromConfigs(configs, false) {
+		if checkName == c.String() || titleCheck == c.String() {
+			checks = append(checks, c)
+		}
+	}
+	return checks
 }
 
 // GetChecksFromConfigs gets all the check instances for given configurations

@@ -90,7 +90,7 @@ var checkCmd = &cobra.Command{
 		s := &serializer.Serializer{Forwarder: common.Forwarder}
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
-		cs := common.AC.GetChecksByName(checkName)
+		cs := collector.GetChecksByNameForConfigs(checkName, common.AC.GetAllConfigs())
 		if len(cs) == 0 {
 			for check, error := range autodiscovery.GetConfigErrors() {
 				if checkName == check {

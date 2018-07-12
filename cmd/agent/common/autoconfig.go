@@ -33,7 +33,7 @@ func SetupAutoConfig(confdPath string) {
 	Coll = collector.NewCollector(GetPythonPaths()...)
 
 	// registering the check scheduler
-	scheduler.Register("check", collector.NewCheckScheduler(Coll))
+	scheduler.Register("check", collector.InitCheckScheduler(Coll))
 
 	// create the Autoconfig instance
 	AC = autodiscovery.NewAutoConfig()

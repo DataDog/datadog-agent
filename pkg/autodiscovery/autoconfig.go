@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -160,26 +159,6 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 func (ac *AutoConfig) LoadAndRun() {
 	resolvedConfigs := ac.GetAllConfigs()
 	ac.schedule(resolvedConfigs)
-}
-
-// GetChecksByName returns any Check instance we can load for the given
-// check name
-// FIXME: autodiscovery should ideally not import the collector package
-func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
-	// try to also match `FooCheck` if `foo` was passed
-	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
-	var checks []check.Check
-
-	checkScheduler, ok := ac.scheduler.GetScheduler("check").(*collector.CheckScheduler)
-	if !ok {
-		return checks
-	}
-	for _, c := range checkScheduler.GetChecksFromConfigs(ac.GetAllConfigs(), false) {
-		if checkName == c.String() || titleCheck == c.String() {
-			checks = append(checks, c)
-		}
-	}
-	return checks
 }
 
 // GetAllConfigs queries all the providers and returns all the integration
