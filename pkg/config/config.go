@@ -200,8 +200,9 @@ func init() {
 	Datadog.SetDefault("kubelet_client_key", "")
 
 	Datadog.SetDefault("kubernetes_collect_metadata_tags", true)
-	Datadog.SetDefault("kubernetes_metadata_tag_update_freq", 60*5) // 5 min
+	Datadog.SetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
 	BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
+	BindEnvAndSetDefault("kubernetes_apiserver_poll_freq", 30) // Polling frequency of the DCA (or the agent if the DCA is disabled) to the API Server in seconds
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
