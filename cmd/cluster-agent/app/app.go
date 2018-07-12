@@ -127,13 +127,17 @@ func start(cmd *cobra.Command, args []string) error {
 	// get hostname
 	hostname, err := util.GetHostname()
 	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
+		err = fmt.Errorf("Error while getting hostname, exiting: %v", err)
+		log.Error(err)
+		return err
 	}
 	log.Infof("Hostname is: %s", hostname)
 
 	// start the cmd HTTPS server
 	if err = api.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
+		err = fmt.Errorf("Error while starting api server, exiting: %v", err)
+		log.Error(err)
+		return err
 	}
 
 	// setup the forwarder

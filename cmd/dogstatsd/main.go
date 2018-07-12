@@ -155,7 +155,9 @@ func start(cmd *cobra.Command, args []string) error {
 		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 		if err != nil {
 			metaScheduler.Stop()
-			return log.Error("Host metadata is supposed to be always available in the catalog!")
+			err = fmt.Errorf("Host metadata is supposed to be always available in the catalog")
+			log.Error(err)
+			return err
 		}
 	} else {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
