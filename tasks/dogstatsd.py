@@ -47,7 +47,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
 
     # NOTE: consider stripping symbols to reduce binary size
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
-    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd/"
+    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
