@@ -32,4 +32,6 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	msg := <-msgChan
 	assert.Equal(t, "hello world", string(msg.Content()))
 	assert.Equal(t, 1, len(listener.tailers))
+
+	listener.Stop()
 }
