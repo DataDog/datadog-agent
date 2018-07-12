@@ -203,6 +203,8 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     if install_deps:
         deps(ctx)
 
+    # Go tests
+
     test_args = {
         "go_build_tags": " ".join(get_default_build_tags()),
         "race_opt": "-race" if race else "",
@@ -220,6 +222,14 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
     for prefix in prefixes:
         ctx.run("{} {}".format(go_cmd, prefix))
+
+    # Python tests
+
+    if sys.platform.startswith('linux'):
+        print("\n=== Running dogstatsd alpine docker image tests ===\n")
+        image_build(ctx, skip_build=False)
+        env = {"DOCKER_IMAGE": DOGSTATSD_TAG}
+        ctx.run("python ./test/integration/dogstatsd/dsd_alpine_listening.py", env=env)
 
 
 @task
