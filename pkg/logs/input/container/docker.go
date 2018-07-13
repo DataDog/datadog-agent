@@ -197,13 +197,11 @@ func (dt *DockerTailer) forwardMessages() {
 			log.Warn(err)
 			continue
 		}
-		if len(dockerMsg.Content) > 0 {
-			origin := message.NewOrigin(dt.source)
-			origin.Offset = dockerMsg.Timestamp
-			origin.Identifier = dt.Identifier()
-			origin.SetTags(dt.containerTags)
-			dt.outputChan <- message.New(dockerMsg.Content, origin, dockerMsg.Status)
-		}
+		origin := message.NewOrigin(dt.source)
+		origin.Offset = dockerMsg.Timestamp
+		origin.Identifier = dt.Identifier()
+		origin.SetTags(dt.containerTags)
+		dt.outputChan <- message.New(dockerMsg.Content, origin, dockerMsg.Status)
 	}
 }
 
