@@ -312,7 +312,7 @@ func formatError(v ...interface{}) error {
 
 //Trace logs at the trace level
 func Trace(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		logger.trace(logger.scrub(s))
 	}
