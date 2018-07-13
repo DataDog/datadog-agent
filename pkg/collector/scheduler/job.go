@@ -64,6 +64,13 @@ func (jb *jobBucket) stop() {
 	}
 }
 
+func (jb *jobBucket) size() int {
+	jb.mu.RLock()
+	defer jb.mu.RUnlock()
+
+	return len(jb.jobs)
+}
+
 func (jb *jobBucket) addJob(c check.Check) {
 	jb.mu.Lock()
 	defer jb.mu.Unlock()
@@ -135,6 +142,24 @@ func (jq *jobQueue) removeJob(id check.ID) error {
 	}
 
 	return fmt.Errorf("check with id %s is not in this Job Queue", id)
+}
+
+func (jq *jobQueue) stats() map[string]interface{} {
+	jq.mu.RLock()
+	defer jq.mu.RUnlock()
+
+	nJobs := 0
+	nBuckets := 0
+	for _, bucket := range jq.buckets {
+		nJobs += bucket.size()
+		nBuckets++
+	}
+
+	return map[string]interface{}{
+		"Interval": jq.interval / time.Second,
+		"Buckets":  nBuckets,
+		"Size":     nJobs,
+	}
 }
 
 // run schedules the checks in the queue by posting them to the
