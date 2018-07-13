@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -73,16 +74,20 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
 	inBuf := make([]byte, 4096)
 	n, err := tailer.conn.Read(inBuf)
-	if err != nil {
+	switch {
+	case l.isClosedConnError(err):
+		return nil, err
+	case err != nil:
 		go l.resetTailer()
 		return nil, err
+	default:
+		return inBuf[:n], nil
 	}
-	return inBuf[:n], nil
 }
 
 // resetTailer creates a new tailer.
 func (l *UDPListener) resetTailer() {
-	log.Info("Resetting the UDP connection on port: %d", l.source.Config.Port)
+	log.Infof("Resetting the UDP connection on port: %d", l.source.Config.Port)
 	l.tailer.Stop()
 	err := l.startNewTailer()
 	if err != nil {
@@ -91,4 +96,10 @@ func (l *UDPListener) resetTailer() {
 		return
 	}
 	l.source.Status.Success()
+}
+
+// isConnClosedError returns true if the error is related to a closed connection,
+// for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
+func (l *UDPListener) isClosedConnError(err error) bool {
+	return strings.Contains(err.Error(), "use of closed network connection")
 }
