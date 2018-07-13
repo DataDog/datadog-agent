@@ -109,6 +109,23 @@ run_test_rpm-x64:
   script:
     - inv -e test --race --profile
 
+# run tests for windows
+run_test_windows-x64:
+  stage: source_test
+  variables:
+    WINDOWS_BUILDER: 'true'
+    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
+  tags: ["runner:windows-agent6"]
+  before_script:
+    - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
+    - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
+    - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    - inv -e deps
+  script:
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    - inv -e test --race --profile
+
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
   stage: source_test
