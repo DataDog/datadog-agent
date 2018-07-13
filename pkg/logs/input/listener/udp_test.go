@@ -38,6 +38,6 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 
 func TestIsConnectionClosedError(t *testing.T) {
 	listener := NewUDPListener(nil, nil)
-	assert.True(t, errors.New("use of closed network connection"))
-	assert.False(t, io.EOF)
+	assert.True(t, listener.isClosedConnError(errors.New("use of closed network connection")))
+	assert.False(t, listener.isClosedConnError(io.EOF))
 }

@@ -75,7 +75,7 @@ func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
 	inBuf := make([]byte, 4096)
 	n, err := tailer.conn.Read(inBuf)
 	switch {
-	case l.isClosedConnError(err):
+	case err != nil && l.isClosedConnError(err):
 		return nil, err
 	case err != nil:
 		go l.resetTailer()
