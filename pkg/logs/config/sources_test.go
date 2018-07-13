@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,8 +45,10 @@ func TestGetValidSources(t *testing.T) {
 	source2 := NewLogSource("bar", nil)
 	sources := NewLogSources([]*LogSource{source1, source2})
 	assert.Equal(t, 2, len(sources.GetValidSources()))
-	source1.Invalidate()
+	source1.Status.Error(errors.New("invalid"))
 	assert.Equal(t, 1, len(sources.GetValidSources()))
+	source1.Status.Success()
+	assert.Equal(t, 2, len(sources.GetValidSources()))
 }
 
 func TestGetValidSourcesWithType(t *testing.T) {
