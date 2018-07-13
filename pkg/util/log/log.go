@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -297,7 +298,7 @@ func scrubMessage(message string) string {
 	if err == nil {
 		return string(msgScrubbed)
 	}
-	return ""
+	return "[REDACTED] - failure to clean the message"
 }
 
 func formatErrorf(format string, params ...interface{}) error {
@@ -349,7 +350,9 @@ func Error(v ...interface{}) error {
 		s := buildLogEntry(v...)
 		return logger.error(logger.scrub(s))
 	}
-	return formatError(v...)
+	err := formatError(v...)
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+	return err
 }
 
 //Critical logs at the critical level and returns an error containing the formated log message
@@ -358,7 +361,9 @@ func Critical(v ...interface{}) error {
 		s := buildLogEntry(v...)
 		return logger.critical(logger.scrub(s))
 	}
-	return formatError(v...)
+	err := formatError(v...)
+	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
+	return err
 }
 
 //Flush flushes the underlying inner log
@@ -402,7 +407,9 @@ func Errorf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		return logger.errorf(format, params...)
 	}
-	return formatErrorf(format, params...)
+	err := formatErrorf(format, params...)
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+	return err
 }
 
 //Criticalf logs with format at the critical level and returns an error containing the formated log message
@@ -410,7 +417,9 @@ func Criticalf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		return logger.criticalf(format, params...)
 	}
-	return formatErrorf(format, params...)
+	err := formatErrorf(format, params...)
+	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
+	return err
 }
 
 //ReplaceLogger allows replacing the internal logger, returns old logger
