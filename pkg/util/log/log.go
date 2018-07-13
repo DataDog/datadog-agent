@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -292,17 +293,35 @@ func buildLogEntry(v ...interface{}) string {
 	return fmt.Sprintf(fmtBuffer.String(), v...)
 }
 
+func scrubMessage(message string) string {
+	msgScrubbed, err := CredentialsCleanerBytes([]byte(message))
+	if err == nil {
+		return string(msgScrubbed)
+	}
+	return "[REDACTED] - failure to clean the message"
+}
+
+func formatErrorf(format string, params ...interface{}) error {
+	msg := scrubMessage(fmt.Sprintf(format, params...))
+	return errors.New(msg)
+}
+
+func formatError(v ...interface{}) error {
+	msg := scrubMessage(fmt.Sprint(v...))
+	return errors.New(msg)
+}
+
 //Trace logs at the trace level
 func Trace(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
-		s := buildLogEntry(v)
+	if logger != nil && logger.inner != nil {
+		s := buildLogEntry(v...)
 		logger.trace(logger.scrub(s))
 	}
 }
 
 //Debug logs at the debug level
 func Debug(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		logger.debug(logger.scrub(s))
 	}
@@ -310,37 +329,41 @@ func Debug(v ...interface{}) {
 
 //Info logs at the info level
 func Info(v ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		logger.info(logger.scrub(s))
 	}
 }
 
-//Warn logs at the warn level
+//Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		return logger.warn(logger.scrub(s))
 	}
-	return nil
+	return formatError(v...)
 }
 
-//Error logs at the error level
+//Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		return logger.error(logger.scrub(s))
 	}
-	return nil
+	err := formatError(v...)
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+	return err
 }
 
-//Critical logs at the critical level
+//Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
+	if logger != nil && logger.inner != nil {
 		s := buildLogEntry(v...)
 		return logger.critical(logger.scrub(s))
 	}
-	return nil
+	err := formatError(v...)
+	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
+	return err
 }
 
 //Flush flushes the underlying inner log
@@ -352,47 +375,51 @@ func Flush() {
 
 //Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
+	if logger != nil && logger.inner != nil {
 		logger.tracef(format, params...)
 	}
 }
 
 //Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
+	if logger != nil && logger.inner != nil {
 		logger.debugf(format, params...)
 	}
 }
 
 //Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+	if logger != nil && logger.inner != nil {
 		logger.infof(format, params...)
 	}
 }
 
-//Warnf logs with format at the warn level
+//Warnf logs with format at the warn level and returns an error containing the formated log message
 func Warnf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
+	if logger != nil && logger.inner != nil {
 		return logger.warnf(format, params...)
 	}
-	return nil
+	return formatErrorf(format, params...)
 }
 
-//Errorf logs with format at the error level
+//Errorf logs with format at the error level and returns an error containing the formated log message
 func Errorf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
+	if logger != nil && logger.inner != nil {
 		return logger.errorf(format, params...)
 	}
-	return nil
+	err := formatErrorf(format, params...)
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+	return err
 }
 
-//Criticalf logs with format at the critical level
+//Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
+	if logger != nil && logger.inner != nil {
 		return logger.criticalf(format, params...)
 	}
-	return nil
+	err := formatErrorf(format, params...)
+	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
+	return err
 }
 
 //ReplaceLogger allows replacing the internal logger, returns old logger
