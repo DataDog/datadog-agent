@@ -50,7 +50,8 @@ func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
 
 // Warn sends an integration warning to logs + agent status.
 func (c *CheckBase) Warn(v ...interface{}) error {
-	w := log.Warn(v)
+	log.Warn(v)
+	w := fmt.Errorf(fmt.Sprint(v...))
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -58,7 +59,9 @@ func (c *CheckBase) Warn(v ...interface{}) error {
 
 // Warnf sends an integration warning to logs + agent status.
 func (c *CheckBase) Warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params)
+	log.Warnf(format, params)
+	w := fmt.Errorf(format, params)
+
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w

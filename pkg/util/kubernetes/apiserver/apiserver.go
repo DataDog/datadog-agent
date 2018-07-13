@@ -346,7 +346,9 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 
 	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
 	if err != nil {
-		return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
+		err = fmt.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
+		log.Error(err)
+		return "", found, err
 	}
 	tokenAge := time.Now().Unix() - tokenTime.Unix()
 
