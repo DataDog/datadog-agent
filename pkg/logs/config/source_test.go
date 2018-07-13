@@ -28,13 +28,6 @@ func (s *LogSourceSuite) TestInputs() {
 
 }
 
-func (s *LogSourceSuite) TestIsValid() {
-	s.source = NewLogSource("", nil)
-	s.True(s.source.IsValid())
-	s.source.Invalidate()
-	s.False(s.source.IsValid())
-}
-
 func TestTrackerSuite(t *testing.T) {
 	suite.Run(t, new(LogSourceSuite))
 }

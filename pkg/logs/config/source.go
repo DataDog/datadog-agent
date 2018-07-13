@@ -14,7 +14,6 @@ type LogSource struct {
 	Name   string
 	Config *LogsConfig
 	Status *LogStatus
-	valid  bool
 	inputs map[string]bool
 	lock   *sync.Mutex
 }
@@ -25,7 +24,6 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		Name:   name,
 		Config: config,
 		Status: NewLogStatus(),
-		valid:  true,
 		inputs: make(map[string]bool),
 		lock:   &sync.Mutex{},
 	}
@@ -54,18 +52,4 @@ func (s *LogSource) GetInputs() []string {
 		inputs = append(inputs, input)
 	}
 	return inputs
-}
-
-// Invalidate invalidates the source.
-func (s *LogSource) Invalidate() {
-	s.lock.Lock()
-	s.valid = false
-	s.lock.Unlock()
-}
-
-// IsValid returns true if the source is valid.
-func (s *LogSource) IsValid() bool {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.valid
 }
