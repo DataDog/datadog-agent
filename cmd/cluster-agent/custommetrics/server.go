@@ -87,8 +87,13 @@ func StartServer() error {
 		return err
 	}
 
+	datadogCl, err := hpa.NewDatadogClient()
+	if err != nil {
+		return err
+	}
+
 	// HPA watcher
-	hpaClient, err := hpa.NewHPAWatcherClient(client.Cl, store)
+	hpaClient, err := hpa.NewHPAWatcherClient(client.Cl, datadogCl, store)
 	if err != nil {
 		return err
 	}

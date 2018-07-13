@@ -28,6 +28,10 @@ var (
 	expectedHPAType = reflect.TypeOf(autoscalingv2.HorizontalPodAutoscaler{})
 )
 
+type DatadogClient interface {
+	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
+}
+
 // HPAWatcherClient embeds the API Server client and the configuration to refresh metrics from Datadog and watch the HPA Objects' activities
 type HPAWatcherClient struct {
 	clientSet      kubernetes.Interface
@@ -35,16 +39,12 @@ type HPAWatcherClient struct {
 	refreshItl     *time.Ticker
 	pollItl        *time.Ticker
 	externalMaxAge time.Duration
-	datadogClient  *datadog.Client
+	datadogClient  DatadogClient
 	store          custommetrics.Store
 }
 
 // NewHPAWatcherClient returns a new HPAWatcherClient
-func NewHPAWatcherClient(clientSet kubernetes.Interface, store custommetrics.Store) (*HPAWatcherClient, error) {
-	datadogCl, err := NewDatadogClient()
-	if err != nil {
-		return nil, err
-	}
+func NewHPAWatcherClient(clientSet kubernetes.Interface, datadogCl DatadogClient, store custommetrics.Store) (*HPAWatcherClient, error) {
 	pollInterval := config.Datadog.GetInt("hpa_watcher_polling_freq")
 	refreshInterval := config.Datadog.GetInt("hpa_external_metrics_polling_freq")
 	externalMaxAge := config.Datadog.GetInt("hpa_external_metrics_max_age")

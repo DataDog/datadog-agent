@@ -14,10 +14,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 	"k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
+
+type fakeDatadogClient struct {
+	queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error)
+}
+
+func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
+	if d.queryMetricsFunc != nil {
+		return d.queryMetricsFunc(from, to, query)
+	}
+	return nil, nil
+}
 
 func newFakeConfigMapStore(t *testing.T, ns, name string, metrics []custommetrics.ExternalMetricValue) custommetrics.Store {
 	store, err := custommetrics.NewConfigMapStore(fake.NewSimpleClientset(), ns, name)
@@ -49,7 +61,7 @@ func newMockHPAExternalMetricSource(name, ns, metricName string, labels map[stri
 	}
 }
 
-func TestRemoveEntryFromStore(t *testing.T) {
+func TestHPAWatcherRemoveEntryFromStore(t *testing.T) {
 	testCases := []struct {
 		caseName string
 		metrics  []custommetrics.ExternalMetricValue
@@ -110,6 +122,71 @@ func TestRemoveEntryFromStore(t *testing.T) {
 			allMetrics, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, testCase.expected, allMetrics)
+		})
+	}
+}
+
+func TestHPAWatcherUpdateExternalMetrics(t *testing.T) {
+	metricName := "requests_per_s"
+	tests := []struct {
+		desc     string
+		metrics  []custommetrics.ExternalMetricValue
+		series   []datadog.Series
+		expected []custommetrics.ExternalMetricValue
+	}{
+		{
+			"update invalid metric",
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+				},
+			},
+			[]datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						{1531492452, 12},
+						{1531492486, 14},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"foo": "bar"},
+					Value:      14,
+					Valid:      true,
+				},
+			},
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			store := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), tt.metrics)
+			datadogClient := &fakeDatadogClient{
+				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
+					return tt.series, nil
+				},
+			}
+			hpaCl := &HPAWatcherClient{datadogClient: datadogClient, store: store}
+
+			hpaCl.updateExternalMetrics()
+
+			externalMetrics, err := store.ListAllExternalMetricValues()
+
+			// Timestamps are always set to time.Now() so we cannot assert the value
+			// in a unit test.
+			strippedTs := make([]custommetrics.ExternalMetricValue, 0)
+			for _, m := range externalMetrics {
+				m.Timestamp = 0
+				strippedTs = append(strippedTs, m)
+			}
+
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.expected, strippedTs)
 		})
 	}
 }
