@@ -50,6 +50,9 @@ func TestParseMessageShouldHandleEmptyTtyMessage(t *testing.T) {
 	msg, err := ParseMessage([]byte("2018-06-14T18:27:03.246999277Z"))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
+	msg, err = ParseMessage([]byte("2018-06-14T18:27:03.246999277Z "))
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(msg.Content))
 }
 
 func TestParseMessageShouldFailWithInvalidInput(t *testing.T) {
