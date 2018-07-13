@@ -15,13 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-var header = string([]byte{1, 0, 0, 0, 0, 0, 0, 0}) + "2018-06-14T18:27:03.246999277Z"
-
-func TestGetStatus(t *testing.T) {
-	assert.Equal(t, message.StatusInfo, getStatus([]byte{1}))
-	assert.Equal(t, message.StatusError, getStatus([]byte{2}))
-	assert.Equal(t, "", getStatus([]byte{3}))
-}
+const header = "100000002018-06-14T18:27:03.246999277Z"
 
 func TestParseMessageShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := header + " " + "anything"
@@ -30,26 +24,6 @@ func TestParseMessageShouldSucceedWithValidInput(t *testing.T) {
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", dockerMsg.Timestamp)
 	assert.Equal(t, message.StatusInfo, dockerMsg.Status)
 	assert.Equal(t, []byte("anything"), dockerMsg.Content)
-}
-
-func TestParseMessageShouldHandleEmptyMessage(t *testing.T) {
-	msg, err := ParseMessage([]byte(header))
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(msg.Content))
-}
-
-func TestParseMessageShouldHandleTtyMessage(t *testing.T) {
-	msg, err := ParseMessage([]byte("2018-06-14T18:27:03.246999277Z foo"))
-	assert.Nil(t, err)
-	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
-	assert.Equal(t, message.StatusInfo, msg.Status)
-	assert.Equal(t, []byte("foo"), msg.Content)
-}
-
-func TestParseMessageShouldHandleEmptyTtyMessage(t *testing.T) {
-	msg, err := ParseMessage([]byte("2018-06-14T18:27:03.246999277Z"))
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(msg.Content))
 }
 
 func TestParseMessageShouldFailWithInvalidInput(t *testing.T) {
@@ -65,7 +39,7 @@ func TestParseMessageShouldFailWithInvalidInput(t *testing.T) {
 	// invalid header size
 	msg = []byte{}
 	msg = append(msg, []byte{1, 0, 0, 0, 0, 62, 49, 103}...)
-	msg = append(msg, []byte("INFO_10:26:31 _Loading_settings_from_file:/etc/cassandra/cassandra.yaml")...)
+	msg = append(msg, []byte("INFO_10:26:31_Loading_settings_from_file:/etc/cassandra/cassandra.yaml")...)
 	_, err = ParseMessage(msg)
 	assert.NotNil(t, err)
 }
