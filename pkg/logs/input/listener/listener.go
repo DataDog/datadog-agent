@@ -6,56 +6,52 @@
 package listener
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// Listener summons different protocol specific listeners based on configuration
-type Listener struct {
+// Listener represents an objet that can accept new incomming connections.
+type Listener interface {
+	Start()
+	Stop()
+}
+
+// Listeners summons different protocol specific listeners based on configuration
+type Listeners struct {
 	pp        pipeline.Provider
 	sources   *config.LogSources
-	listeners []restart.Stoppable
+	listeners []Listener
 }
 
-// New returns an initialized Listener
-func New(sources *config.LogSources, pp pipeline.Provider) *Listener {
-	return &Listener{
+// New returns an initialized Listeners
+func New(sources *config.LogSources, pp pipeline.Provider) *Listeners {
+	var listeners []Listener
+	for _, source := range sources.GetValidSourcesWithType(config.TCPType) {
+		listeners = append(listeners, NewTCPListener(pp, source))
+	}
+	for _, source := range sources.GetValidSourcesWithType(config.UDPType) {
+		listeners = append(listeners, NewUDPListener(pp, source))
+	}
+	return &Listeners{
 		pp:        pp,
 		sources:   sources,
-		listeners: []restart.Stoppable{},
+		listeners: listeners,
 	}
 }
 
-// Start starts the Listener
-func (l *Listener) Start() {
-	for _, source := range l.sources.GetValidSources() {
-		switch source.Config.Type {
-		case config.TCPType:
-			tcpl, err := NewTCPListener(l.pp, source)
-			if err != nil {
-				log.Error("Can't start tcp source: ", err)
-				continue
-			}
-			tcpl.Start()
-			l.listeners = append(l.listeners, tcpl)
-		case config.UDPType:
-			udpl, err := NewUDPListener(l.pp, source)
-			if err != nil {
-				log.Error("Can't start udp source: ", err)
-				continue
-			}
-			udpl.Start()
-			l.listeners = append(l.listeners, udpl)
-		}
+// Start starts all listeners
+func (l *Listeners) Start() {
+	for _, l := range l.listeners {
+		l.Start()
 	}
 }
 
-// Stop stops all the listeners
-func (l *Listener) Stop() {
-	stopper := restart.NewParallelStopper(l.listeners...)
+// Stop stops all listeners
+func (l *Listeners) Stop() {
+	stopper := restart.NewParallelStopper()
+	for _, l := range l.listeners {
+		stopper.Add(l)
+	}
 	stopper.Stop()
-	l.listeners = l.listeners[:0]
 }

@@ -17,10 +17,10 @@ var (
 
 // Source provides some information about a logs source.
 type Source struct {
-	Type          string            `json:"type"`
-	Configuration map[string]string `json:"configuration"`
-	Status        string            `json:"status"`
-	Inputs        []string          `json:"inputs"`
+	Type          string                 `json:"type"`
+	Configuration map[string]interface{} `json:"configuration"`
+	Status        string                 `json:"status"`
+	Inputs        []string               `json:"inputs"`
 }
 
 // Integration provides some information about a logs integration.
@@ -86,11 +86,11 @@ func Get() Status {
 }
 
 // toDictionary returns a representation of the configuration
-func toDictionary(c *config.LogsConfig) map[string]string {
-	dictionary := make(map[string]string)
+func toDictionary(c *config.LogsConfig) map[string]interface{} {
+	dictionary := make(map[string]interface{})
 	switch c.Type {
 	case config.TCPType, config.UDPType:
-		dictionary["Port"] = string(c.Port)
+		dictionary["Port"] = c.Port
 	case config.FileType:
 		dictionary["Path"] = c.Path
 	case config.DockerType:

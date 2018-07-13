@@ -15,57 +15,80 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// A UDPListener listens for UDP connections and delegates the work to connHandler
+// A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a tailer.
 type UDPListener struct {
-	port        int
-	conn        *net.UDPConn
-	connHandler *ConnectionHandler
-	stop        chan struct{}
-	done        chan struct{}
+	pp     pipeline.Provider
+	source *config.LogSource
+	tailer *Tailer
 }
 
 // NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pp pipeline.Provider, source *config.LogSource) (*UDPListener, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", source.Config.Port))
-	if err != nil {
-		source.Status.Error(err)
-		return nil, err
-	}
-	conn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		source.Status.Error(err)
-		return nil, err
-	}
-	source.Status.Success()
-	connHandler := NewConnectionHandler(pp, source)
+func NewUDPListener(pp pipeline.Provider, source *config.LogSource) *UDPListener {
 	return &UDPListener{
-		port:        source.Config.Port,
-		conn:        conn,
-		connHandler: connHandler,
-		stop:        make(chan struct{}, 1),
-		done:        make(chan struct{}, 1),
-	}, nil
+		pp:     pp,
+		source: source,
+	}
 }
 
-// Start listens to UDP connections on another routine
+// Start opens a new UDP connection and starts a tailer.
 func (l *UDPListener) Start() {
-	log.Info("Starting UDP forwarder on port ", l.port)
-	l.connHandler.Start()
-	go l.run()
+	log.Infof("Starting UDP forwarder on port: %d", l.source.Config.Port)
+	err := l.startNewTailer()
+	if err != nil {
+		log.Errorf("Can't start UDP forwarder on port %d: %v", l.source.Config.Port, err)
+		l.source.Status.Error(err)
+		return
+	}
+	l.source.Status.Success()
 }
 
-// Stop closes the UDP connection
-// it blocks until connHandler is flushed
+// Stop stops the tailer.
 func (l *UDPListener) Stop() {
-	log.Info("Stopping UDP forwarder on port ", l.port)
-	l.stop <- struct{}{}
-	<-l.done
+	log.Infof("Stopping UDP forwarder on port: %d", l.source.Config.Port)
+	l.tailer.Stop()
 }
 
-// run lets connHandler handle new UDP connections
-func (l *UDPListener) run() {
-	l.connHandler.HandleConnection(l.conn)
-	<-l.stop
-	l.connHandler.Stop()
-	l.done <- struct{}{}
+// startNewTailer starts a new Tailer
+func (l *UDPListener) startNewTailer() error {
+	conn, err := l.newUDPConnection()
+	if err != nil {
+		return err
+	}
+	l.tailer = NewTailer(l.source, conn, l.pp.NextPipelineChan(), l.read)
+	l.tailer.Start()
+	return nil
+}
+
+// newUDPConnection returns a new UDP connection,
+// returns an error if the creation failed.
+func (l *UDPListener) newUDPConnection() (net.Conn, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", l.source.Config.Port))
+	if err != nil {
+		return nil, err
+	}
+	return net.ListenUDP("udp", udpAddr)
+}
+
+// read reads data from the tailer connection, returns an error if it failed and reset the tailer.
+func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
+	inBuf := make([]byte, 4096)
+	n, err := tailer.conn.Read(inBuf)
+	if err != nil {
+		go l.resetTailer()
+		return nil, err
+	}
+	return inBuf[:n], nil
+}
+
+// resetTailer creates a new tailer.
+func (l *UDPListener) resetTailer() {
+	log.Info("Resetting the UDP connection on port: %d", l.source.Config.Port)
+	l.tailer.Stop()
+	err := l.startNewTailer()
+	if err != nil {
+		log.Errorf("Could not reset the UDP connection on port %d: %v", l.source.Config.Port, err)
+		l.source.Status.Error(err)
+		return
+	}
+	l.source.Status.Success()
 }

@@ -27,18 +27,16 @@ import (
 )
 
 var (
-	globalAPIClient      *APIClient
-	globalTimeoutSeconds = int64(5)
-	ErrNotFound          = errors.New("entity not found")
-	ErrOutdated          = errors.New("entity is outdated")
-	ErrNotLeader         = errors.New("not Leader")
+	globalAPIClient *APIClient
+	ErrNotFound     = errors.New("entity not found")
+	ErrOutdated     = errors.New("entity is outdated")
+	ErrNotLeader    = errors.New("not Leader")
 )
 
 const (
 	configMapDCAToken         = "datadogtoken"
 	tokenTime                 = "tokenTimestamp"
 	tokenKey                  = "tokenKey"
-	metadataPollIntl          = 20 * time.Second
 	metadataMapExpire         = 2 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
@@ -47,17 +45,18 @@ const (
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
 	// used to setup the APIClient
-	initRetry retry.Retrier
-	Cl        kubernetes.Interface
-	timeout   time.Duration
+	initRetry        retry.Retrier
+	Cl               kubernetes.Interface
+	timeoutSeconds   int64
+	metadataPollIntl time.Duration
 }
 
 // GetAPIClient returns the shared ApiClient instance.
 func GetAPIClient() (*APIClient, error) {
 	if globalAPIClient == nil {
 		globalAPIClient = &APIClient{
-			// TODO: make it configurable if requested
-			timeout: 5 * time.Second,
+			timeoutSeconds:   config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
+			metadataPollIntl: time.Duration(config.Datadog.GetInt64("kubernetes_apiserver_poll_freq")) * time.Second,
 		}
 		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
 			Name:          "apiserver",
@@ -157,7 +156,7 @@ func newMetadataMapperBundle() *MetadataMapperBundle {
 // node to the cache
 // Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
 func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) error {
-	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
 		return err
@@ -187,7 +186,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 	// A poll run should take less than the poll frequency.
 	// We fetch nodes to reliably use nodename as key in the cache.
 	// Avoiding to retrieve them from the endpoints/podList.
-	nodeList, err := c.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	nodeList, err := c.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect nodes from the kube-apiserver: %q", err.Error())
 		return err
@@ -197,7 +196,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 		return nil
 	}
 
-	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the kube-apiserver: %q", err.Error())
 		return err
@@ -207,7 +206,7 @@ func (c *APIClient) ClusterMetadataMapping() error {
 		return nil
 	}
 
-	podList, err := c.Cl.CoreV1().Pods("").List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	podList, err := c.Cl.CoreV1().Pods("").List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect pods from the kube-apiserver: %q", err.Error())
 		return err
@@ -261,7 +260,7 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 // StartMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
 // The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
 func (c *APIClient) StartMetadataMapping() {
-	tickerSvcProcess := time.NewTicker(metadataPollIntl)
+	tickerSvcProcess := time.NewTicker(c.metadataPollIntl)
 	go func() {
 		for {
 			select {
@@ -315,7 +314,7 @@ func (c *APIClient) checkResourcesAuth() error {
 
 // ComponentStatuses returns the component status list from the APIServer
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
-	return c.Cl.CoreV1().ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	return c.Cl.CoreV1().ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 }
 
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
@@ -452,7 +451,7 @@ func getNodeList() ([]v1.Node, error) {
 		log.Errorf("Can't create client to query the API Server: %s", err.Error())
 		return nil, err
 	}
-	nodes, err := cl.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
+	nodes, err := cl.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &cl.timeoutSeconds})
 
 	if err != nil {
 		log.Errorf("Can't list nodes from the API server: %s", err.Error())

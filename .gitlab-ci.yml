@@ -120,7 +120,8 @@ run_security_scan_test:
     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
-    - dep ensure
+    - pip install invoke
+    - inv deps
   script:
     - set +x     # don't print the api key to the logs
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)

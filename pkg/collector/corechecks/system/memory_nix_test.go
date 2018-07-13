@@ -67,6 +67,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	mock.On("Gauge", "system.mem.used", 791363890/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.pct_usable", 0.19, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.cached", 2596446142464.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.buffered", 353818902528.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.shared", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.slab", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.page_tables", 37790679040.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -83,7 +84,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 16)
+	mock.AssertNumberOfCalls(t, "Gauge", 17)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -174,6 +175,7 @@ func TestSwapMemoryError(t *testing.T) {
 	mock.On("Gauge", "system.mem.usable", 234567890.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.pct_usable", 0.19, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.cached", 2596446142464.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.buffered", 353818902528.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.shared", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.slab", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.page_tables", 37790679040.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -185,7 +187,7 @@ func TestSwapMemoryError(t *testing.T) {
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 12)
+	mock.AssertNumberOfCalls(t, "Gauge", 13)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 

@@ -28,18 +28,20 @@ import (
 // }
 type ServicesMapper map[string]map[string][]string
 
-func (m ServicesMapper) Get(ns, podName string) ([]string, error) {
+// Get returns the list of services for a given namespace and pod name.
+func (m ServicesMapper) Get(ns, podName string) ([]string, bool) {
 	pods, ok := m[ns]
 	if !ok {
-		return nil, fmt.Errorf("no mapping for namespace %s", ns)
+		return nil, false
 	}
 	svcs, ok := pods[podName]
 	if !ok {
-		return nil, fmt.Errorf("no mapping for pod %s in namespace %s", podName, ns)
+		return nil, false
 	}
-	return svcs, nil
+	return svcs, true
 }
 
+// Set updates the list of services for a given namespace and pod name.
 func (m ServicesMapper) Set(ns, podName string, svcs []string) {
 	if _, ok := m[ns]; !ok {
 		m[ns] = make(map[string][]string)
@@ -152,10 +154,5 @@ func (metaBundle *MetadataMapperBundle) ServicesForPod(ns, podName string) ([]st
 	metaBundle.m.RLock()
 	defer metaBundle.m.RUnlock()
 
-	svcs, err := metaBundle.Services.Get(ns, podName)
-	if err != nil {
-		log.Errorf("could not get services: %s", err)
-		return nil, false
-	}
-	return svcs, true
+	return metaBundle.Services.Get(ns, podName)
 }
