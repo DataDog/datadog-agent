@@ -25,7 +25,7 @@ type TestCheck struct {
 
 func (c *TestCheck) Stop()                                     { c.stop <- true }
 func (c *TestCheck) Configure(a, b integration.Data) error     { return nil }
-func (c *TestCheck) Interval() time.Duration                   { return 5 * time.Second }
+func (c *TestCheck) Interval() time.Duration                   { return 1 * time.Minute }
 func (c *TestCheck) Run() error                                { <-c.stop; return nil }
 func (c *TestCheck) GetWarnings() []error                      { return []error{} }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }

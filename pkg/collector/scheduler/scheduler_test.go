@@ -107,11 +107,11 @@ func TestEnter(t *testing.T) {
 
 	// schedule again the previous plus another with different interval
 	s.Enter(c)
-	c = &TestCheck{intl: 10 * time.Second}
+	c = &TestCheck{intl: 20 * time.Second}
 	s.Enter(c)
 	assert.Len(t, s.jobQueues, 2)
 	assert.Len(t, s.jobQueues[1*time.Second].buckets[0].jobs, 3)
-	assert.Len(t, s.jobQueues[c.intl].buckets, 10)
+	assert.Len(t, s.jobQueues[c.intl].buckets, 20)
 	assert.Len(t, s.jobQueues[c.intl].buckets[0].jobs, 1)
 
 	stop <- true
@@ -153,13 +153,13 @@ func TestRun(t *testing.T) {
 
 func TestStop(t *testing.T) {
 	s := getScheduler()
-	s.Enter(&TestCheck{intl: 5 * time.Second})
+	s.Enter(&TestCheck{intl: 10 * time.Second})
 	s.Run()
 
 	err := s.Stop()
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(0), s.running)
-	assert.False(t, s.jobQueues[5*time.Second].running)
+	assert.False(t, s.jobQueues[10*time.Second].running)
 
 	// stopping again should be non blocking, noop and return nil
 	assert.Nil(t, s.Stop())
