@@ -17,7 +17,6 @@ if [[ -z "$DD_DD_URL" ]]; then
     export DD_DD_URL="https://app.datadoghq.com"
 fi
 
-chmod +x /opt/datadog-agent/bin/datadog-cluster-agent/datadog-cluster-agent
 sync	# Fix for 'Text file busy' error
 
 ##### Starting up #####

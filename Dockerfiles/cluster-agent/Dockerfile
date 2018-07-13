@@ -21,7 +21,8 @@ RUN apt-get update \
 COPY entrypoint.sh .
 
 RUN chmod 755 /entrypoint.sh \
-    && chmod g+r,g+w,g+X -R /etc/datadog-agent/
+    && chmod g+r,g+w,g+X -R /etc/datadog-agent/ \
+    && chmod +x /opt/datadog-agent/bin/datadog-cluster-agent/datadog-cluster-agent
 
 ENTRYPOINT ["/entrypoint.sh"]
 
