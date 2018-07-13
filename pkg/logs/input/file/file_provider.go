@@ -55,7 +55,7 @@ func (p *Provider) FilesToTail() []*File {
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 
-	sources := p.sources.GetValidSourcesWithType(config.FileType)
+	sources := p.sources.GetSourcesWithType(config.FileType)
 
 	for i := 0; i < len(sources) && len(filesToTail) < p.filesLimit; i++ {
 		source := sources[i]
