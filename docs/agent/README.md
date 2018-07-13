@@ -39,7 +39,7 @@ While some will be dropped as unsupported, others are simply not yet supported.
 Agent 6 is currently available on these platforms:
 
 | System | Supported version |
-|:------ |:-------- |
+|--------|-------------------|
 | Debian x86_64 | version 7 (wheezy) and above (we do not support SysVinit)|
 | Ubuntu x86_64 | version 12.04 and above |
 | RedHat/CentOS x86_64 | version 6 and above |
