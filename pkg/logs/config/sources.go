@@ -59,6 +59,13 @@ func (s *LogSources) GetValidSources() []*LogSource {
 	})
 }
 
+// GetSourcesWithType returns the sources which config type matches the provided type.
+func (s *LogSources) GetSourcesWithType(sourceType string) []*LogSource {
+	return s.getSources(func(source *LogSource) bool {
+		return source.Config != nil && source.Config.Type == sourceType
+	})
+}
+
 // GetValidSourcesWithType returns the sources which status is not in error,
 // and the config type matches the provided type.
 func (s *LogSources) GetValidSourcesWithType(sourceType string) []*LogSource {
