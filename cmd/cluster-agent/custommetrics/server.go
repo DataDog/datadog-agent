@@ -12,6 +12,7 @@ import (
 	"os"
 	"time"
 
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
 	"github.com/spf13/pflag"
@@ -26,6 +27,10 @@ import (
 
 var options *server.CustomMetricsAdapterServerOptions
 var stopCh chan struct{}
+
+const (
+	datadogHPAConfigMap = "datadog-hpa"
+)
 
 func init() {
 	// FIXME: log to seelog
@@ -72,14 +77,29 @@ func StartServer() error {
 		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
 	}
 
+	client, err := as.GetAPIClient()
+	if err != nil {
+		return err
+	}
+
+	store, err := custommetrics.NewConfigMapStore(client.Cl, as.GetResourcesNamespace(), datadogHPAConfigMap)
+	if err != nil {
+		return err
+	}
+
+	datadogCl, err := hpa.NewDatadogClient()
+	if err != nil {
+		return err
+	}
+
 	// HPA watcher
-	hpaClient, err := hpa.NewHPAWatcherClient()
+	hpaClient, err := hpa.NewHPAWatcherClient(client.Cl, datadogCl, store)
 	if err != nil {
 		return err
 	}
 	hpaClient.Start()
 
-	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, hpaClient)
+	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.
 	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)
 	if err != nil {
