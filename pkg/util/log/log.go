@@ -394,7 +394,7 @@ func Warnf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		return logger.warnf(format, params...)
 	}
-	return formatErrorf(format, params)
+	return formatErrorf(format, params...)
 }
 
 //Errorf logs with format at the error level and returns an error containing the formated log message
@@ -402,7 +402,7 @@ func Errorf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		return logger.errorf(format, params...)
 	}
-	return formatErrorf(format, params)
+	return formatErrorf(format, params...)
 }
 
 //Criticalf logs with format at the critical level and returns an error containing the formated log message
@@ -410,7 +410,7 @@ func Criticalf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil {
 		return logger.criticalf(format, params...)
 	}
-	return formatErrorf(format, params)
+	return formatErrorf(format, params...)
 }
 
 //ReplaceLogger allows replacing the internal logger, returns old logger
