@@ -66,6 +66,7 @@ We automatically collect common tags from [Docker](https://github.com/DataDog/da
 - `DD_DOCKER_ENV_AS_TAGS` : extract docker container environment variables
 - `DD_KUBERNETES_POD_LABELS_AS_TAGS` : extract pod labels
 - `DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS` : extract pod annotations
+- `DD_COLLECT_EC2_TAGS` : extract EC2 tags
 
 You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the datadog tag name.
 
