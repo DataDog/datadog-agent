@@ -88,7 +88,6 @@ func StartServer() error {
 
 	go srv.Serve(tlsListener)
 	return nil
-
 }
 
 // StopServer closes the connection and the server
@@ -104,7 +103,7 @@ func StopServer() {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		if strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 6 {
+		if strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 {
 			if err := util.ValidateDCARequest(w, r); err != nil {
 				return
 			}

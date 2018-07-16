@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	k32     = syscall.NewLazyDLL("kernel32.dll")
-	apicore = syscall.NewLazyDLL("api-ms-win-core-version-l1-1-0.dll")
+	k32        = syscall.NewLazyDLL("kernel32.dll")
+	versiondll = syscall.NewLazyDLL("version.dll")
 
 	procGetModuleHandle          = k32.NewProc("GetModuleHandleW")
 	procGetModuleFileName        = k32.NewProc("GetModuleFileNameW")
-	procGetFileVersionInfoSizeEx = apicore.NewProc("GetFileVersionInfoSizeExW")
-	procGetFileVersionInfoEx     = apicore.NewProc("GetFileVersionInfoExW")
-	procVerQueryValue            = apicore.NewProc("VerQueryValueW")
+	procGetFileVersionInfoSizeEx = versiondll.NewProc("GetFileVersionInfoSizeExW")
+	procGetFileVersionInfoEx     = versiondll.NewProc("GetFileVersionInfoExW")
+	procVerQueryValue            = versiondll.NewProc("VerQueryValueW")
 )
 
 // GetWindowsBuildString retrieves the windows build version by querying

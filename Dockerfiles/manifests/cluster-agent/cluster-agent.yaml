@@ -1,0 +1,37 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: datadog-cluster-agent
+  namespace: default
+spec:
+  template:
+    metadata:
+      labels:
+        app: datadog-cluster-agent
+      name: datadog-agent
+    spec:
+      serviceAccountName: dca
+      containers:
+      - image: datadog/cluster-agent:latest
+        imagePullPolicy: Always
+        name: datadog-agent
+        env:
+          - name: DD_API_KEY
+            value: '<YOUR_API_KEY>'
+          # Optionally reference an APP KEY for the External Metrics Provider.
+          #- name: DD_APP_KEY
+          #  value: '<YOUR_APP_KEY>'
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: "true"
+          - name: DD_LEADER_ELECTION
+            value: "true"
+          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+            value: <THIRTY_2_CHARACTERS_LONG_TOKEN>
+          - name: DD_ENABLE_HPA
+            value: 'true'
+         # If using a secret, you can alternatively use:
+#          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+#            valueFrom:
+#              secretKeyRef:
+#                name: datadog-auth-token
+#                key: token

@@ -13,11 +13,11 @@ gobind {
     //pkg = "golang.org/x/mobile/example/bind/hello"
     pkg = ".."
 
-    /* GOPATH where the Go package is; check `go env` */
-    GOPATH = "c:\\dev\\go"
+   /* GOPATH where the Go package is; check `go env` */
+    GOPATH = "d:\\dev\\go"
 
     /* Absolute path to the go binary */
-    GO = "c:\\devtools\\go\\bin"
+    GO = "d:\\devtools\\go\\bin"
 
     /* Optionally, set the absolute path to the gomobile binary if the
     /* gomobile binary is not located in the GOPATH's bin directory. */

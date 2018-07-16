@@ -14,9 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -200,6 +201,8 @@ func init() {
 
 	Datadog.SetDefault("kubernetes_collect_metadata_tags", true)
 	Datadog.SetDefault("kubernetes_metadata_tag_update_freq", 60*5) // 5 min
+	BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
+	BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
@@ -212,6 +215,7 @@ func init() {
 	Datadog.SetDefault("cluster_agent.auth_token", "")
 	Datadog.SetDefault("cluster_agent.url", "")
 	Datadog.SetDefault("cluster_agent.kubernetes_service_name", "dca")
+	Datadog.BindEnv("enable_hpa")
 
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
@@ -272,6 +276,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_origin_detection")
 	Datadog.BindEnv("dogstatsd_so_rcvbuf")
 	Datadog.BindEnv("check_runners")
+	Datadog.BindEnv("expvar_port")
 
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
@@ -298,6 +303,9 @@ func init() {
 	Datadog.BindEnv("cluster_agent.url")
 	Datadog.BindEnv("cluster_agent.auth_token")
 	Datadog.BindEnv("cluster_agent_cmd_port")
+	BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
+	BindEnvAndSetDefault("hpa_external_metrics_polling_freq", 30)
+	BindEnvAndSetDefault("hpa_external_metric_bucket_size", 60*5)
 
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")

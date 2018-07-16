@@ -97,6 +97,45 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 
 	// Try to find a class inheriting from AgentCheck within the module
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule, glock)
+
+	wheelVersion := "unversioned"
+	if err == nil {
+		// getting the wheel version fo the check
+		wheelVersionPy := checkModule.GetAttrString("__version__")
+		if wheelVersionPy != nil {
+			defer wheelVersionPy.DecRef()
+			if python.PyString_Check(wheelVersionPy) {
+				wheelVersion = python.PyString_AS_STRING(wheelVersionPy.Str())
+			} else {
+				// This should never happen. If the check is a custom one
+				// (a simple .py file dropped in the check.d folder) it does
+				// not have a '__version__' attribute. If it's a datadog wheel
+				// the '__version__' is a string.
+				//
+				// If we end up here: we're dealing with a custom wheel from
+				// the user or a buggy official wheels.
+				//
+				// In any case we'll try to detect the type of '__version__' to
+				// display a meaningful error message.
+
+				typeName := "unable to detect type"
+				pyType := wheelVersionPy.Type()
+				if pyType != nil {
+					defer pyType.DecRef()
+					pyTypeStr := pyType.Str()
+					if pyTypeStr != nil {
+						defer pyTypeStr.DecRef()
+						typeName = python.PyString_AS_STRING(pyTypeStr)
+					}
+				}
+
+				log.Errorf("'%s' python wheel attribute '__version__' has the wrong type (%s) instead of 'string'", config.Name, typeName)
+			}
+		} else {
+			log.Infof("python check '%s' doesn't have a '__version__' attribute", config.Name)
+		}
+	}
+
 	checkModule.DecRef()
 	glock.unlock()
 	if err != nil {
@@ -112,13 +151,14 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 			log.Errorf("py.loader: could not configure check '%s': %s", moduleName, err)
 			continue
 		}
+		check.version = wheelVersion
 		checks = append(checks, check)
 	}
 	glock = newStickyLock()
 	defer glock.unlock()
 	checkClass.DecRef()
 
-	log.Debugf("python loader: done loading check %s", moduleName)
+	log.Debugf("python loader: done loading check %s (version %s)", moduleName, wheelVersion)
 	return checks, nil
 }
 

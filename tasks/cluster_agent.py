@@ -23,7 +23,7 @@ DEFAULT_BUILD_TAGS = [
 
 
 @task
-def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False):
+def build(ctx, rebuild=False, race=False, use_embedded_libs=False):
     """
     Build Cluster Agent
 
@@ -32,8 +32,8 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
     """
 
     build_tags = get_build_tags(DEFAULT_BUILD_TAGS, [])
-
-    ldflags, gcflags, env = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
+    # We rely on the go libs embedded in the debian stretch image to build dynamically
+    ldflags, gcflags, env = get_build_flags(ctx, static=False, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent"

@@ -68,9 +68,9 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Only supports systemd and upstart
         echo "Enabling service $SERVICE_NAME"
         if command -v systemctl >/dev/null 2>&1; then
-            systemctl enable $SERVICE_NAME
-            systemctl enable $SERVICE_NAME-process
-            systemctl enable $SERVICE_NAME-trace
+            systemctl enable $SERVICE_NAME || echo "[ WARNING ]\tCannot enable $SERVICE_NAME with systemctl"
+            systemctl enable $SERVICE_NAME-process || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with systemctl"
+            systemctl enable $SERVICE_NAME-trace || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with systemctl"
         elif command -v initctl >/dev/null 2>&1; then
             # Nothing to do, this is defined directly in the upstart job file
             :

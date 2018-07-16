@@ -15,8 +15,8 @@ Collector
   {{end -}}
 
   {{- range .Checks}}
-    {{.CheckName}}
-    {{printDashes .CheckName "-"}}
+    {{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}
+    {{printDashes .CheckName "-"}}{{- if .CheckVersion }}{{printDashes .CheckVersion "-"}}---{{ end }}
       Total Runs: {{.TotalRuns}}
       Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
       Events: {{.Events}}, Total: {{humanize .TotalEvents}}

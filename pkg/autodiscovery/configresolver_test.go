@@ -357,6 +357,25 @@ func TestResolve(t *testing.T) {
 			},
 			errorString: "envvar name is missing, skipping service a5901276aed1",
 		},
+		//// hostname
+		{
+			testName: "simple %%hostname%%",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hostname:      "imhere",
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%hostname%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: imhere")},
+			},
+		},
 		//// other tags testing
 		{
 			testName: "simple %%pid%%",
@@ -392,8 +411,7 @@ func TestResolve(t *testing.T) {
 		},
 	}
 	ac := &AutoConfig{
-		loadedConfigs: make(map[string]integration.Config),
-		store:         newStore(),
+		store: newStore(),
 	}
 	cr := newConfigResolver(nil, ac, NewTemplateCache())
 	validTemplates := 0
@@ -415,7 +433,7 @@ func TestResolve(t *testing.T) {
 		})
 
 		// Assert the valid configs are stored in the AC and the store
-		assert.Equal(t, validTemplates, len(ac.loadedConfigs))
+		assert.Equal(t, validTemplates, len(ac.GetLoadedConfigs()))
 		assert.Equal(t, len(ac.store.getConfigsForService(tc.svc.GetID())), validTemplates)
 	}
 }

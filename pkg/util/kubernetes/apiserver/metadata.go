@@ -16,7 +16,7 @@ import (
 )
 
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.
-func GetPodMetadataNames(nodeName string, podName string) ([]string, error) {
+func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	var metaList []string
 	cacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
@@ -32,7 +32,7 @@ func GetPodMetadataNames(nodeName string, podName string) ([]string, error) {
 	}
 	// The list of metadata collected in the metaBundle is extensible and is handled here.
 	// If new cluster level tags need to be collected by the agent, only this needs to be modified.
-	serviceList, foundServices := metaBundle.ServicesForPod(podName)
+	serviceList, foundServices := metaBundle.ServicesForPod(ns, podName)
 	if !foundServices {
 		log.Tracef("no cached services list found for the pod %s on the node %s", podName, nodeName)
 		return nil, nil

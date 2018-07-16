@@ -6,8 +6,10 @@
 package gohai
 
 import (
-	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPayload(t *testing.T) {
@@ -17,5 +19,18 @@ func TestGetPayload(t *testing.T) {
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)
 	assert.NotNil(t, gohai.Gohai.Network)
+	assert.NotNil(t, gohai.Gohai.Platform)
+}
+
+func TestGetPayloadContainerized(t *testing.T) {
+	os.Setenv("DOCKER_DD_AGENT", "yes")
+	defer os.Unsetenv("DOCKER_DD_AGENT")
+
+	gohai := GetPayload()
+
+	assert.NotNil(t, gohai.Gohai.CPU)
+	assert.NotNil(t, gohai.Gohai.FileSystem)
+	assert.NotNil(t, gohai.Gohai.Memory)
+	assert.Nil(t, gohai.Gohai.Network)
 	assert.NotNil(t, gohai.Gohai.Platform)
 }

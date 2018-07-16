@@ -51,6 +51,11 @@ func List(highCard bool) response.TaggerListResponse {
 	return defaultTagger.List(highCard)
 }
 
+// GetEntityHash returns the hash for the tags associated with the given entity
+func GetEntityHash(entity string) string {
+	return defaultTagger.GetEntityHash(entity)
+}
+
 func init() {
 	defaultTagger = newTagger()
 }

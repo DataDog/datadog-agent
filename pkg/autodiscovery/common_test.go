@@ -13,6 +13,7 @@ type dummyService struct {
 	Hosts         map[string]string
 	Ports         []listeners.ContainerPort
 	Pid           int
+	Hostname      string
 }
 
 // GetID returns the service ID
@@ -43,4 +44,9 @@ func (s *dummyService) GetTags() ([]string, error) {
 // GetPid return a dummy pid
 func (s *dummyService) GetPid() (int, error) {
 	return s.Pid, nil
+}
+
+// GetHostname return a dummy hostname
+func (s *dummyService) GetHostname() (string, error) {
+	return s.Hostname, nil
 }

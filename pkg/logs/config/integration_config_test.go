@@ -26,8 +26,7 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	allSources, err := buildLogSources(ddconfdPath, false)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 7, len(allSources.GetValidSources()))
-	assert.Equal(t, 8, len(allSources.GetSources()))
+	assert.Equal(t, 1, len(allSources.GetSources())-len(allSources.GetValidSources()))
 
 	sources := allSources.GetValidSources()
 
@@ -55,6 +54,7 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 
 	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[5].Config.Tags)
 	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[6].Config.Tags)
+	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[7].Config.Tags)
 
 	// processing
 	assert.Equal(t, 0, len(sources[0].Config.ProcessingRules))
@@ -91,6 +91,32 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	re = iRule.Reg
 	assert.True(t, re.MatchString("bob@datadoghq.com"))
 	assert.False(t, re.MatchString("bob"))
+}
+
+func TestCompileProcessingRules(t *testing.T) {
+	var rules []LogsProcessingRule
+	var err error
+
+	rules = []LogsProcessingRule{{Pattern: "(?=abf)", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
+
+	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.Nil(t, err)
+	assert.NotNil(t, rules[0].Reg)
+	assert.True(t, rules[0].Reg.MatchString("abcde"))
+
+	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}"}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
+
+	rules = []LogsProcessingRule{{Pattern: "", Type: IncludeAtMatch}}
+	err = CompileProcessingRules(rules)
+	assert.NotNil(t, err)
+	assert.Nil(t, rules[0].Reg)
 }
 
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {

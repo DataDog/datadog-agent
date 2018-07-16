@@ -6,6 +6,8 @@
 package status
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
@@ -15,17 +17,10 @@ var (
 
 // Source provides some information about a logs source.
 type Source struct {
-	Type   string   `json:"type"`
-	Status string   `json:"status"`
-	Inputs []string `json:"inputs"`
-	// TCP, UDP
-	Port int `json:"port"`
-	// File
-	Path string `json:"path"`
-	// Docker
-	Image string `json:"image"`
-	Label string `json:"label"`
-	Name  string `json:"name"`
+	Type          string                 `json:"type"`
+	Configuration map[string]interface{} `json:"configuration"`
+	Status        string                 `json:"status"`
+	Inputs        []string               `json:"inputs"`
 }
 
 // Integration provides some information about a logs integration.
@@ -76,14 +71,10 @@ func Get() Status {
 				status = source.Status.GetError()
 			}
 			sources = append(sources, Source{
-				Type:   source.Config.Type,
-				Status: status,
-				Inputs: source.GetInputs(),
-				Port:   source.Config.Port,
-				Path:   source.Config.Path,
-				Image:  source.Config.Image,
-				Label:  source.Config.Label,
-				Name:   source.Config.Name,
+				Type:          source.Config.Type,
+				Configuration: toDictionary(source.Config),
+				Status:        status,
+				Inputs:        source.GetInputs(),
 			})
 		}
 		integrations = append(integrations, Integration{Name: name, Sources: sources})
@@ -92,4 +83,31 @@ func Get() Status {
 		IsRunning:    true,
 		Integrations: integrations,
 	}
+}
+
+// toDictionary returns a representation of the configuration
+func toDictionary(c *config.LogsConfig) map[string]interface{} {
+	dictionary := make(map[string]interface{})
+	switch c.Type {
+	case config.TCPType, config.UDPType:
+		dictionary["Port"] = c.Port
+	case config.FileType:
+		dictionary["Path"] = c.Path
+	case config.DockerType:
+		dictionary["Image"] = c.Image
+		dictionary["Label"] = c.Label
+		dictionary["Name"] = c.Name
+	case config.JournaldType:
+		dictionary["IncludeUnits"] = strings.Join(c.IncludeUnits, ", ")
+		dictionary["ExcludeUnits"] = strings.Join(c.ExcludeUnits, ", ")
+	case config.WindowsEventType:
+		dictionary["ChannelPath"] = c.ChannelPath
+		dictionary["Query"] = c.Query
+	}
+	for k, v := range dictionary {
+		if v == "" {
+			delete(dictionary, k)
+		}
+	}
+	return dictionary
 }

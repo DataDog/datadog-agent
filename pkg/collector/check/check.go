@@ -26,4 +26,5 @@ type Check interface {
 	ID() ID                                              // provide a unique identifier for every check instance
 	GetWarnings() []error                                // return the last warning registered by the check
 	GetMetricStats() (map[string]int64, error)           // get metric stats from the sender
+	Version() string                                     // return the version of the check if available
 }

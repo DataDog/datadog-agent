@@ -9,6 +9,7 @@ stages:
   - image_build
   - image_deploy
   - deploy
+  - deploy_invalidate
   - e2e
 
 variables:
@@ -40,21 +41,57 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION: nightly
 
+
+# Default before_script for all the jobs. If you create a new job and don't want this to execute
+# you NEED to overwrite it.
 before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
   # GOPATH to the project folder would be too complex (we'd need to replicate the `src/github/project` scheme).
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
+  - echo running default before_script
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
   - pip install -U pip
   - inv -e deps
 
+#
+# Trigger conditions
+#
 
+# run job only when triggered by an external tool (ex: Jenkins). This is used
+# for jobs that run both on nightlies and tags
+.run_when_triggered: &run_when_triggered
+  only:
+    - triggers
+
+# run job only when triggered by an external tool (ex: Jenkins) and when
+# RELEASE_VERSION is NOT "nightly". In this setting we are building either a
+# new tagged version of the agent (an RC for example). In both cases the
+# artifacts should be uploaded to our staging repository.
+
+.run_when_triggered_on_tag: &run_when_triggered_on_tag
+  only:
+    refs:
+      - triggers
+  except: # we have to use except since gitlab doens't handle '!=' operator
+    variables:
+      - $RELEASE_VERSION == "nightly"
+      - $RELEASE_VERSION == "" # no  RELEASE_VERSION means a nightly build for omnibus
+
+# run job only when triggered by an external tool (ex: Jenkins) and when
+# RELEASE_VERSION is "nightly". In this setting we build from master and update
+# the nightly build for windows, linux and docker.
+
+.run_when_triggered_on_nightly: &run_when_triggered_on_nightly
+  only:
+    refs:
+      - triggers
+    variables:
+      - $RELEASE_VERSION == "nightly"
 
 #
 # source_test
 #
-
 
 # run tests for deb-x64
 run_tests_deb-x64:
@@ -83,7 +120,8 @@ run_security_scan_test:
     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
-    - dep ensure
+    - pip install invoke
+    - inv deps
   script:
     - set +x     # don't print the api key to the logs
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
@@ -137,7 +175,7 @@ cluster_agent-build:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - inv -e cluster-agent.build -s
+    - inv -e cluster-agent.build
     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
 
 #
@@ -302,6 +340,31 @@ build_windows_msi_x64:
     paths:
       - .omnibus/pkg
 
+
+# build Agent package for android
+agent_android_apk:
+  allow_failure: true
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:v513248-e1d6f02
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # for now do the steps manually.  Should eventually move this to an invoke
+    # task
+    - mkdir -p bin/agent
+    - gomobile bind -target android -o bin/agent/ddagent.aar github.com/DataDog/datadog-agent/cmd/agent/android
+    - cd cmd/agent/android
+    - ./gradlew build
+    - mkdir -p $CI_PROJECT_DIR/apk
+    - cp ./app/build/outputs/apk/release/app-release-unsigned.apk $CI_PROJECT_DIR/apk
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/apk
+
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
   stage: package_build
@@ -399,9 +462,7 @@ deploy_deb_testing:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  only:
-    - master
-    - tags
+  <<: *run_when_triggered
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -423,13 +484,11 @@ deploy_deb_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_rpm_testing:
+  <<: *run_when_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  only:
-    - master
-    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -442,14 +501,12 @@ deploy_rpm_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing:
+  <<: *run_when_triggered
   allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
-  only:
-    - master
-    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -462,14 +519,12 @@ deploy_suse_rpm_testing:
 
 # deploy windows packages to our testing bucket
 deploy_windows_testing:
+  <<: *run_when_triggered
   allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
-  only:
-    - master
-    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -482,6 +537,7 @@ kitchen_windows:
   only:
     - master
     - tags
+    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -508,6 +564,7 @@ kitchen_centos:
   only:
     - master
     - tags
+    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -532,6 +589,7 @@ kitchen_ubuntu:
   only:
     - master
     - tags
+    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -557,6 +615,7 @@ kitchen_suse:
   only:
     - master
     - tags
+    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -581,6 +640,7 @@ kitchen_debian:
   only:
     - master
     - tags
+    - triggers
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -604,6 +664,7 @@ testkitchen_cleanup_s3:
   only:
     - master
     - tags
+    - triggers
   tags: [ "runner:main", "size:large" ]
   before_script:
     - ls
@@ -625,6 +686,7 @@ testkitchen_cleanup_azure:
   only:
     - master
     - tags
+    - triggers
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
@@ -639,7 +701,7 @@ testkitchen_cleanup_azure:
 # image_build
 #
 
-.docker_job_definition: &docker_job_definition
+.docker_build_job_definition: &docker_build_job_definition
   stage: image_build
   tags: [ "runner:main", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
@@ -658,14 +720,14 @@ testkitchen_cleanup_azure:
 
 # build the agent6 image
 build_agent6:
-  <<: *docker_job_definition
+  <<: *docker_build_job_definition
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
 
 # build the agent6 jmx image
 build_agent6_jmx:
-  <<: *docker_job_definition
+  <<: *docker_build_job_definition
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -674,20 +736,20 @@ build_agent6_jmx:
 
 # build the cluster-agent image
 build_cluster_agent:
-  <<: *docker_job_definition
+  <<: *docker_build_job_definition
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
 
 # build the dogstatsd image
 build_dogstatsd:
-  <<: *docker_job_definition
+  <<: *docker_build_job_definition
   variables:
     IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
 
 #
-# image_deploy
+# Docker dev image deployments
 #
 
 .docker_tag_job_definition: &docker_tag_job_definition
@@ -696,149 +758,82 @@ build_dogstatsd:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
   services:
     - 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
-  before_script: [ "# noop" ] # Override top level entry
-  dependencies: [] # Don't download Gitlab artefacts
-  script:
+  before_script:
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - TAG_SUFFIX=${TAG_SUFFIX:-}
-    - LATEST_TAG=${LATEST_TAG:-latest}
-    - docker pull $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
-    - docker tag $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $DEST_IMAGE:$LATEST_TAG$TAG_SUFFIX
-    - docker push $DEST_IMAGE:$LATEST_TAG$TAG_SUFFIX
+    - pip install invoke
+  dependencies: [] # Don't download Gitlab artefacts
 
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
+  SRC_AGENT: *agent_ecr
+  SRC_DSD: *dogstatsd_ecr
+  SRC_DCA: *cluster-agent_ecr
 
 .quay_variables: &quay_variables
+  <<: *docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: quay_login
   DOCKER_REGISTRY_PWD_SSM_KEY: quay_pwd
   DOCKER_REGISTRY_URL: quay.io
 
-agent6_dev_docker_hub:
+dev_branch_docker_hub:
   <<: *docker_tag_job_definition
   when: manual
   except:
     - master
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
-agent6_jmx_dev_docker_hub:
+dev_master_docker_hub:
+  <<: *docker_tag_job_definition
+  only:
+    - master
+  variables:
+    <<: *docker_hub_variables
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
+
+dca_dev_branch_docker_hub:
   <<: *docker_tag_job_definition
   when: manual
   except:
     - master
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-    TAG_SUFFIX: -jmx
+  script:
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
-agent6_dev_docker_hub_master:
+dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  only:
-    - master
+  <<: *run_when_triggered_on_nightly
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-agent6_jmx_dev_docker_hub_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-    TAG_SUFFIX: -jmx
-
-cluster_agent_dev_docker_hub:
-  <<: *docker_tag_job_definition
-  when: manual
-  except:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *cluster-agent_ecr
-    DEST_IMAGE: datadog/cluster-agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-cluster_agent_dev_docker_hub_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *cluster-agent_ecr
-    DEST_IMAGE: datadog/cluster-agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-dogstatsd_dev_docker_hub:
-  <<: *docker_tag_job_definition
-  when: manual
-  except:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: datadog/dogstatsd-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-dogstatsd_dev_docker_hub_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: datadog/dogstatsd-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
+  script:
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
 
 # deploys to quay
 # docker images are mirrored on quay.io
 # to run security scans on them
-agent6_dev_quay_master:
+dev_master_quay:
   <<: *docker_tag_job_definition
-  only:
-    - master
+  <<: *run_when_triggered_on_nightly
   variables:
     <<: *quay_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: quay.io/datawhale/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
-agent6_jmx_dev_quay_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *quay_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: quay.io/datawhale/agent-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-    TAG_SUFFIX: -jmx
-
-dogstatsd_dev_quay_master:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *quay_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: quay.io/datawhale/dogstatsd-dev
-    LATEST_TAG: $CI_COMMIT_REF_SLUG
-
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} quay.io/datawhale/agent-dev:master
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx quay.io/datawhale/agent-dev:master-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
 
 #
 # deploy
@@ -847,13 +842,11 @@ dogstatsd_dev_quay_master:
 
 # deploy debian packages to apt staging repo
 deploy_deb:
+  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  only:
-    - master
-    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -882,8 +875,7 @@ deploy_windows_master:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  only:
-    - master
+  <<: *run_when_triggered_on_nightly
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -895,22 +887,22 @@ deploy_windows_tags:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  only:
-    - tags
+  <<: *run_when_triggered_on_tag
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    # By default we update the "latest" artifacts on our s3 bucket so the
+    # staging box can pick it up. Allow the job to skip this step if needed
+    # (when building a custom beta for example).
+    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
 # deploy rpm packages to yum staging repo
 deploy_rpm:
+  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  only:
-    - master
-    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -927,14 +919,12 @@ deploy_rpm:
 
 # deploy suse rpm packages to yum staging repo
 deploy_suse_rpm:
+  <<: *run_when_triggered
   allow_failure: true
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
-  only:
-    - master
-    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -951,13 +941,11 @@ deploy_suse_rpm:
 
 # deploy dsd binary to staging bucket
 deploy_dsd:
+  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  only:
-    - master
-    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
@@ -966,121 +954,78 @@ deploy_dsd:
 
 # deploy dsd binary to staging bucket
 deploy_puppy:
+  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  only:
-    - master
-    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/puppy/agent ./agent
     - export VERSION=$(inv version --url-safe)
     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-tag_push_agent:
+#
+# Docker releases
+#
+
+tag_release:
   <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent
-    LATEST_TAG: $CI_COMMIT_TAG
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent:${CI_COMMIT_TAG}
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
 
-tag_jmx_push_agent:
+latest_release:
   <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent
-    LATEST_TAG: $CI_COMMIT_TAG
-    TAG_SUFFIX: -jmx
+  script:
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent:latest
+    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
 
-latest_push_agent:
+dca_tag_release:
   <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent
+  script:
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_TAG}
 
-latest_jmx_push_agent:
+
+dca_latest_release:
   <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
     <<: *docker_hub_variables
-    SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: datadog/agent
-    TAG_SUFFIX: -jmx
+  script:
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:latest
 
-tag_push_cluster_agent:
-  <<: *docker_tag_job_definition
-  stage: deploy
-  when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *cluster-agent_ecr
-    DEST_IMAGE: datadog/cluster-agent
-    LATEST_TAG: $CI_COMMIT_TAG
-
-latest_push_cluster_agent:
-  <<: *docker_tag_job_definition
-  stage: deploy
-  when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *cluster-agent_ecr
-    DEST_IMAGE: datadog/cluster-agent
-
-tag_dsd_push:
-  <<: *docker_tag_job_definition
-  stage: deploy
-  when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: datadog/dogstatsd
-    LATEST_TAG: $CI_COMMIT_TAG
-
-latest_dsd_push:
-  <<: *docker_tag_job_definition
-  stage: deploy
-  when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
-  variables:
-    <<: *docker_hub_variables
-    SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: datadog/dogstatsd
-
+# invalidate cloudfront cache
+deploy_cloudfront_invalidate:
+  <<: *run_when_triggered
+  stage: deploy_invalidate
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd /deploy_scripts/cloudfront-invalidation
+    - "REPO=apt PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=yum PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 
 #
 # end to end
@@ -1110,8 +1055,7 @@ pupernetes-master:
 
 pupernetes-tags:
   <<: *pupernetes_template
-  only:
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  <<: *run_when_triggered_on_tag
   script:
   # note: it's not the agent-dev
   - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
