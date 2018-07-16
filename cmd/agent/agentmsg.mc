@@ -74,12 +74,40 @@ MessageId=9
 SymbolicName=MSG_UNEXPECTED_CONTROL_REQUEST
 Severity=Error
 Language=English
-The Service failed: %1
+Unexpected message from the service control manager: %1
 .
 
 MessageId=10
 SymbolicName=MSG_RECEIVED_STOP_COMMAND
 Severity=Informational
 Language=English
-The service %1 received the stop command, shutting down.
+The service %1 received the stop signal, shutting down.
+.
+
+MessageId=11
+SymbolicName=MSG_AGENT_START_FAILURE
+Severity=Error
+Language=English
+The service failed to start. Error %1
+.
+
+MessageId=12
+SymbolicName=MSG_RECEIVED_STOP_SVC_COMMAND
+Severity=Informational
+Language=English
+The service %1 received the stop command from the service control manager, shutting down.
+.
+
+MessageId=13
+SymbolicName=MSG_RECEIVED_STOP_SHUTDOWN
+Severity=Informational
+Language=English
+The service %1 received the shutdown command from the service control manager, shutting down.
+.
+
+MessageId=14
+SymbolicName=MSG_AGENT_SHUTDOWN_STARTING
+Severity=Informational
+Language=English
+The service %1 service is initiating shutdown.
 .

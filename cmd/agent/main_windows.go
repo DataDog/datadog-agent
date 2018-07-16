@@ -56,7 +56,6 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
-
 	if err := common.ImportRegistryConfig(); err != nil {
 		elog.Warning(0x80000001, err.Error())
 		// continue running agent with existing config
@@ -65,8 +64,15 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
 	}
-	app.StartAgent()
+	if err := app.StartAgent(); err != nil {
+		log.Errorf("Failed to start agent %v", err)
+		elog.Error(0xc000000B, err.Error())
+		errno = 1 // indicates non-successful return from handler.
+		changes <- svc.Status{State: svc.Stopped}
+		return
+	}
 	elog.Info(0x40000003, app.ServiceName)
+
 loop:
 	for {
 		select {
@@ -77,8 +83,13 @@ loop:
 				// Testing deadlock from https://code.google.com/p/winsvc/issues/detail?id=4
 				time.Sleep(100 * time.Millisecond)
 				changes <- c.CurrentStatus
-			case svc.Stop, svc.Shutdown:
-				app.StopAgent()
+			case svc.Stop:
+				log.Info("Received stop message from service control manager")
+				elog.Info(0x4000000c, app.ServiceName)
+				break loop
+			case svc.Shutdown:
+				log.Info("Received shutdown message from service control manager")
+				elog.Info(0x4000000d, app.ServiceName)
 				break loop
 			default:
 				log.Warnf("unexpected control request #%d", c)
@@ -86,13 +97,15 @@ loop:
 			}
 		case <-signals.Stopper:
 			elog.Info(0x4000000a, app.ServiceName)
-			app.StopAgent()
 			break loop
 
 		}
 	}
-	elog.Info(1, fmt.Sprintf("prestopping %s service", app.ServiceName))
+	elog.Info(0x4000000d, app.ServiceName)
+	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
+	app.StopAgent()
+	changes <- svc.Status{State: svc.Stopped}
 	return
 }
 
