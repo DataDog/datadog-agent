@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package container
+// +build !docker
+
+package docker
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -14,8 +16,8 @@ import (
 // Scanner is not supported on windows environment
 type Scanner struct{}
 
-// New returns a new Scanner
-func New(sources []*config.LogSource, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
+// NewScanner returns a new Scanner
+func NewScanner(sources []*config.LogSource, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
 	return &Scanner{}
 }
 

@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build docker
 
-package container
+package docker
 
 import (
 	"context"
@@ -30,15 +30,15 @@ const scanPeriod = 10 * time.Second
 type Scanner struct {
 	pp        pipeline.Provider
 	sources   []*config.LogSource
-	tailers   map[string]*DockerTailer
+	tailers   map[string]*Tailer
 	cli       *client.Client
 	auditor   *auditor.Auditor
 	isRunning bool
 	stop      chan struct{}
 }
 
-// New returns an initialized Scanner
-func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
+// NewScanner returns an initialized Scanner
+func NewScanner(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
 	containerSources := []*config.LogSource{}
 	for _, source := range sources {
 		switch source.Config.Type {
@@ -50,7 +50,7 @@ func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) 
 	return &Scanner{
 		pp:      pp,
 		sources: containerSources,
-		tailers: make(map[string]*DockerTailer),
+		tailers: make(map[string]*Tailer),
 		auditor: a,
 		stop:    make(chan struct{}),
 	}
@@ -142,7 +142,7 @@ func (s *Scanner) setup() error {
 		return fmt.Errorf("No container source defined")
 	}
 
-	cli, err := NewDockerClient()
+	cli, err := NewClient()
 	if err != nil {
 		log.Error("Can't tail containers, ", err)
 		return fmt.Errorf("Can't initialize client")
@@ -164,7 +164,7 @@ func (s *Scanner) setup() error {
 // returns true if the setup succeeded, false otherwise
 func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
-	t := NewDockerTailer(cli, container.ID, source, outputChan)
+	t := NewTailer(cli, container.ID, source, outputChan)
 	var err error
 	if tailFromBeginning {
 		err = t.tailFromBeginning()
@@ -180,7 +180,7 @@ func (s *Scanner) setupTailer(cli *client.Client, container types.Container, sou
 }
 
 // dismissTailer stops the tailer and removes it from the list of active tailers
-func (s *Scanner) dismissTailer(tailer *DockerTailer) {
+func (s *Scanner) dismissTailer(tailer *Tailer) {
 	// stop the tailer in another routine as we don't want to block here
 	go tailer.Stop()
 	delete(s.tailers, tailer.ContainerID)
