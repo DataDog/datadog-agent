@@ -27,13 +27,9 @@ import (
 // |                                                        |
 // + ------------------------------------------------------ +
 type Agent struct {
-	auditor              *auditor.Auditor
-	dockerScanner        *docker.Scanner
-	windowsEventLauncher *windowsevent.Launcher
-	filesScanner         *file.Scanner
-	networkListeners     *listener.Listeners
-	journaldLauncher     *journald.Launcher
-	pipelineProvider     pipeline.Provider
+	auditor          *auditor.Auditor
+	pipelineProvider pipeline.Provider
+	inputs           []restart.Restartable
 }
 
 // NewAgent returns a new Agent
@@ -50,50 +46,42 @@ func NewAgent(sources *config.LogSources) *Agent {
 	)
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
-	// setup the collectors
+	// setup the inputs
 	validSources := sources.GetValidSources()
-	dockerScanner := docker.NewScanner(validSources, pipelineProvider, auditor)
-	networkListeners := listener.New(validSources, pipelineProvider)
-	filesScanner := file.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration)
-	journaldLauncher := journald.New(validSources, pipelineProvider, auditor)
-	windowsEventLauncher := windowsevent.New(validSources, pipelineProvider, auditor)
+	inputs := []restart.Restartable{
+		docker.NewScanner(validSources, pipelineProvider, auditor),
+		listener.New(validSources, pipelineProvider),
+		file.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		journald.New(validSources, pipelineProvider, auditor),
+		windowsevent.New(validSources, pipelineProvider, auditor),
+	}
 
 	return &Agent{
-		auditor:              auditor,
-		dockerScanner:        dockerScanner,
-		windowsEventLauncher: windowsEventLauncher,
-		filesScanner:         filesScanner,
-		journaldLauncher:     journaldLauncher,
-		networkListeners:     networkListeners,
-		pipelineProvider:     pipelineProvider,
+		auditor:          auditor,
+		pipelineProvider: pipelineProvider,
+		inputs:           inputs,
 	}
 }
 
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Start() {
-	restart.Start(
-		a.auditor,
-		a.pipelineProvider,
-		a.filesScanner,
-		a.networkListeners,
-		a.dockerScanner,
-		a.journaldLauncher,
-		a.windowsEventLauncher,
-	)
+	starter := restart.NewStarter(a.auditor, a.pipelineProvider)
+	for _, input := range a.inputs {
+		starter.Add(input)
+	}
+	starter.Start()
 }
 
 // Stop stops all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *Agent) Stop() {
+	inputs := restart.NewParallelStopper()
+	for _, input := range a.inputs {
+		inputs.Add(input)
+	}
 	stopper := restart.NewSerialStopper(
-		restart.NewParallelStopper(
-			a.filesScanner,
-			a.networkListeners,
-			a.dockerScanner,
-			a.journaldLauncher,
-			a.windowsEventLauncher,
-		),
+		inputs,
 		a.pipelineProvider,
 		a.auditor,
 	)
