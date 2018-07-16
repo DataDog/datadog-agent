@@ -238,7 +238,7 @@ Make sure the service map is available by exec'ing into the DCA pod and run:
 `datadog-cluster-agent metamap`
 Then, make sure you have the same secret (or a 32 characters long) token referenced in the Agent and in the DCA.
 The best way to do this is to check the environment variables (just type `env` when in the Agent or the DCA pod).
-Then make sure you have the `DD_CLUSTER_AGENT` option turned on in the Node Agent's manifest.
+Then make sure you have the `DD_CLUSTER_AGENT_ENABLED` option turned on in the Node Agent's manifest.
 
 - Why am I not seeing the same value in Datadog and in Kubernetes?
 

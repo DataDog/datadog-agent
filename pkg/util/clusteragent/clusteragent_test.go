@@ -314,7 +314,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 }
 
 func TestClusterAgentSuite(t *testing.T) {
-	clusterAgentAuthTokenFilename := "cluster_agent_auth_token"
+	clusterAgentAuthTokenFilename := "cluster_agent.auth_token"
 
 	fakeDir, err := ioutil.TempDir("", "fake-datadog-etc")
 	require.Nil(t, err, fmt.Sprintf("%v", err))

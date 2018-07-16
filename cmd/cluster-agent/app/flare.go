@@ -71,7 +71,7 @@ func requestFlare(caseID string) error {
 	fmt.Println("Asking the Cluster Agent to build the flare archive.")
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/flare", config.Datadog.GetInt("cluster_agent_cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/flare", config.Datadog.GetInt("cluster_agent.cmd_port"))
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {

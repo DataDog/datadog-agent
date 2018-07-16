@@ -101,7 +101,7 @@ func init() {
 	Datadog.SetDefault("syslog_tls_verify", true)
 	Datadog.SetDefault("cmd_host", "localhost")
 	Datadog.SetDefault("cmd_port", 5001)
-	Datadog.SetDefault("cluster_agent_cmd_port", 5005)
+	Datadog.SetDefault("cluster_agent.cmd_port", 5005)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
@@ -212,7 +212,7 @@ func init() {
 	Datadog.SetDefault("kube_resources_namespace", "")
 
 	// Datadog cluster agent
-	Datadog.SetDefault("cluster_agent", false)
+	Datadog.SetDefault("cluster_agent.enabled", false)
 	Datadog.SetDefault("cluster_agent.auth_token", "")
 	Datadog.SetDefault("cluster_agent.url", "")
 	Datadog.SetDefault("cluster_agent.kubernetes_service_name", "dca")
@@ -300,10 +300,10 @@ func init() {
 	Datadog.BindEnv("ac_include")
 	Datadog.BindEnv("ac_exclude")
 
-	Datadog.BindEnv("cluster_agent")
+	Datadog.BindEnv("cluster_agent.enabled")
 	Datadog.BindEnv("cluster_agent.url")
 	Datadog.BindEnv("cluster_agent.auth_token")
-	Datadog.BindEnv("cluster_agent_cmd_port")
+	Datadog.BindEnv("cluster_agent.cmd_port")
 	BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	BindEnvAndSetDefault("hpa_external_metrics_polling_freq", 30)
 	BindEnvAndSetDefault("hpa_external_metric_bucket_size", 60*5)
