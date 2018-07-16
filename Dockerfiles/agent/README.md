@@ -106,6 +106,7 @@ Please refer to the dedicated section about the [Kubernetes integration](#kubern
 - `DD_LEADER_ELECTION` [DCA]: activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to `true`. The expected value is a bool: true/false.
 - `DD_LEADER_LEASE_DURATION` [DCA]: only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 - `DD_KUBE_RESOURCES_NAMESPACE` [DCA]: can be used to configure the namespace where the configmaps of the Leader Election and the Event Collection live.
+- `DD_KUBERNETES_APISERVER_POLL_FREQ`: frequency in seconds at which the agent (if not using the DCA) will query the API Server to refresh the cluster metadata map. Allows to reduce the traffic to the API Server.
 
 #### Others
 
