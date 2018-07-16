@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build docker
 
-package container
+package docker
 
 import (
 	"context"
@@ -21,8 +21,8 @@ const (
 	maxVersion = "1.25"
 )
 
-// NewDockerClient returns a new Docker client with the right API version to communicate with the docker server
-func NewDockerClient() (*client.Client, error) {
+// NewClient returns a new Docker client with the right API version to communicate with the docker server
+func NewClient() (*client.Client, error) {
 	client, err := client.NewEnvClient()
 	if err != nil {
 		return nil, err

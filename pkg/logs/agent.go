@@ -8,7 +8,7 @@ package logs
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
@@ -28,7 +28,7 @@ import (
 // + ------------------------------------------------------ +
 type Agent struct {
 	auditor              *auditor.Auditor
-	containersScanner    *container.Scanner
+	dockerScanner        *docker.Scanner
 	windowsEventLauncher *windowsevent.Launcher
 	filesScanner         *file.Scanner
 	networkListeners     *listener.Listeners
@@ -52,7 +52,7 @@ func NewAgent(sources *config.LogSources) *Agent {
 
 	// setup the collectors
 	validSources := sources.GetValidSources()
-	containersScanner := container.New(validSources, pipelineProvider, auditor)
+	dockerScanner := docker.NewScanner(validSources, pipelineProvider, auditor)
 	networkListeners := listener.New(validSources, pipelineProvider)
 	filesScanner := file.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration)
 	journaldLauncher := journald.New(validSources, pipelineProvider, auditor)
@@ -60,7 +60,7 @@ func NewAgent(sources *config.LogSources) *Agent {
 
 	return &Agent{
 		auditor:              auditor,
-		containersScanner:    containersScanner,
+		dockerScanner:        dockerScanner,
 		windowsEventLauncher: windowsEventLauncher,
 		filesScanner:         filesScanner,
 		journaldLauncher:     journaldLauncher,
@@ -77,7 +77,7 @@ func (a *Agent) Start() {
 		a.pipelineProvider,
 		a.filesScanner,
 		a.networkListeners,
-		a.containersScanner,
+		a.dockerScanner,
 		a.journaldLauncher,
 		a.windowsEventLauncher,
 	)
@@ -90,7 +90,7 @@ func (a *Agent) Stop() {
 		restart.NewParallelStopper(
 			a.filesScanner,
 			a.networkListeners,
-			a.containersScanner,
+			a.dockerScanner,
 			a.journaldLauncher,
 			a.windowsEventLauncher,
 		),
