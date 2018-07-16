@@ -11,9 +11,12 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -26,10 +29,11 @@ type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
 
 var (
 	templateVariables = map[string]variableGetter{
-		"host": getHost,
-		"pid":  getPid,
-		"port": getPort,
-		"env":  getEnvvar,
+		"host":     getHost,
+		"pid":      getPid,
+		"port":     getPort,
+		"env":      getEnvvar,
+		"hostname": getHostname,
 	}
 )
 
@@ -40,8 +44,8 @@ type ConfigResolver struct {
 	ac              *AutoConfig
 	collector       *collector.Collector
 	templates       *TemplateCache
-	services        map[listeners.ID]listeners.Service // Service.ID --> []Service
-	adIDToServices  map[string][]listeners.ID          // AD id --> services that have it
+	services        map[listeners.ID]listeners.Service // Service.ID --> Service
+	adIDToServices  map[string]map[listeners.ID]bool   // AD id --> services that have it
 	configToService map[string]listeners.ID            // config digest --> service ID
 	newService      chan listeners.Service
 	delService      chan listeners.Service
@@ -57,7 +61,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		collector:       coll,
 		templates:       tc,
 		services:        make(map[listeners.ID]listeners.Service),
-		adIDToServices:  make(map[string][]listeners.ID),
+		adIDToServices:  make(map[string]map[listeners.ID]bool),
 		configToService: make(map[string]listeners.ID),
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
@@ -108,6 +112,7 @@ func (cr *ConfigResolver) Stop() {
 // resolver at this moment.
 func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.Config {
 	// use a map to dedupe configurations
+	// FIXME: the config digest as the key is currently not reliable
 	resolvedSet := map[string]integration.Config{}
 
 	// go through the AD identifiers provided by the template
@@ -121,21 +126,20 @@ func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.
 			continue
 		}
 
-		for _, serviceID := range serviceIds {
+		for serviceID := range serviceIds {
 			config, err := cr.resolve(tpl, cr.services[serviceID])
 			if err == nil {
 				resolvedSet[config.Digest()] = config
-			} else {
-				err := fmt.Errorf("Error resolving template %s for service %s: %v",
-					tpl.Name, serviceID, err)
-				errorStats.setResolveWarning(tpl.Name, err.Error())
-				log.Warn(err)
+				continue
 			}
+			err = fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, serviceID, err)
+			errorStats.setResolveWarning(tpl.Name, err.Error())
+			log.Warn(err)
 		}
 	}
 
 	// build the slice of configs to return
-	resolved := []integration.Config{}
+	var resolved []integration.Config
 	for _, v := range resolvedSet {
 		resolved = append(resolved, v)
 	}
@@ -184,11 +188,18 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 	}
 
 	// store resolved configs in the AC
-	cr.ac.m.Lock()
-	defer cr.ac.m.Unlock()
-	cr.ac.loadedConfigs[resolvedConfig.Digest()] = resolvedConfig
+	cr.ac.store.setLoadedConfig(resolvedConfig)
 	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
 	cr.configToService[resolvedConfig.Digest()] = svc.GetID()
+	// TODO: harmonize service & entities ID
+	entityName := string(svc.GetID())
+	if !strings.Contains(entityName, "://") {
+		entityName = docker.ContainerIDToEntityName(entityName)
+	}
+	cr.ac.store.setTagsHashForService(
+		svc.GetID(),
+		tagger.GetEntityHash(entityName),
+	)
 
 	return resolvedConfig, nil
 }
@@ -199,11 +210,11 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	cr.m.Lock()
 	defer cr.m.Unlock()
 
-	// in any case, register the service
+	// in any case, register the service and store its tag hash
 	cr.services[svc.GetID()] = svc
 
 	// get all the templates matching service identifiers
-	templates := []integration.Config{}
+	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers()
 	if err != nil {
 		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetID(), err)
@@ -211,7 +222,10 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	}
 	for _, adID := range ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
-		cr.adIDToServices[adID] = append(cr.adIDToServices[adID], svc.GetID())
+		if cr.adIDToServices[adID] == nil {
+			cr.adIDToServices[adID] = make(map[listeners.ID]bool)
+		}
+		cr.adIDToServices[adID][svc.GetID()] = true
 		tpls, err := cr.templates.Get(adID)
 		if err != nil {
 			log.Debugf("Unable to fetch templates from the cache: %v", err)
@@ -240,9 +254,14 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (cr *ConfigResolver) processDelService(svc listeners.Service) {
+	cr.m.Lock()
+	defer cr.m.Unlock()
+
+	delete(cr.services, svc.GetID())
 	configs := cr.ac.store.getConfigsForService(svc.GetID())
 	cr.ac.store.removeConfigsForService(svc.GetID())
 	cr.ac.processRemovedConfigs(configs)
+	cr.ac.store.removeTagsHashForService(svc.GetID())
 }
 
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
@@ -255,10 +274,11 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	}
 
 	// a network was specified
-	if ip, ok := hosts[string(tplVar)]; ok {
+	tplVarStr := string(tplVar)
+	if ip, ok := hosts[tplVarStr]; ok {
 		return []byte(ip), nil
 	}
-	log.Warnf("network %s not found, trying bridge IP instead", string(tplVar))
+	log.Warnf("Network %q not found, trying bridge IP instead", tplVarStr)
 
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)
@@ -301,7 +321,7 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return []byte(strconv.Itoa(ports[len(ports)-1].Port)), nil
 	}
 
-	idx, err := strconv.Atoi((string(tplVar)))
+	idx, err := strconv.Atoi(string(tplVar))
 	if err != nil {
 		// The template variable is not an index so try to lookup port by name.
 		for _, port := range ports {
@@ -318,12 +338,22 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 }
 
 // getPid returns the process identifier of the service
-func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
+func getPid(_ []byte, svc listeners.Service) ([]byte, error) {
 	pid, err := svc.GetPid()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
 	}
 	return []byte(strconv.Itoa(pid)), nil
+}
+
+// getHostname returns the hostname of the service, to be used
+// when the IP is unavailable or erroneous
+func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	name, err := svc.GetHostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetID(), err)
+	}
+	return []byte(name), nil
 }
 
 // getEnvvar returns a system environment variable if found
@@ -347,12 +377,10 @@ func parseTemplateVar(v []byte) (name, key []byte) {
 		}
 		return r
 	}, v)
-	split := bytes.SplitN(stripped, []byte("_"), 2)
-	name = split[0]
-	if len(split) == 2 {
-		key = split[1]
-	} else {
-		key = []byte("")
+	parts := bytes.SplitN(stripped, []byte("_"), 2)
+	name = parts[0]
+	if len(parts) == 2 {
+		return name, parts[1]
 	}
-	return name, key
+	return name, []byte("")
 }

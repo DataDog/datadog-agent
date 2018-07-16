@@ -42,6 +42,10 @@ func (c *TestCheck) String() string {
 	return "TestCheck"
 }
 
+func (c *TestCheck) Version() string {
+	return ""
+}
+
 func NewCheck() *TestCheck { return &TestCheck{stop: make(chan bool)} }
 func NewCheckUnique(id check.ID, name string) *TestCheck {
 	return &TestCheck{uniqueID: id, name: name, stop: make(chan bool)}

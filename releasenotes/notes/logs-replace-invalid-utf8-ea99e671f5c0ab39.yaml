@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Replace invalid utf-8 characters by the standard replacement char.

@@ -474,3 +474,72 @@ func TestParseDockerPort(t *testing.T) {
 		})
 	}
 }
+
+func TestGetHostname(t *testing.T) {
+	cId := "12345678901234567890123456789012"
+	cBase := types.ContainerJSONBase{
+		ID:    cId,
+		Image: "test",
+	}
+
+	testCases := []struct {
+		hostname      string
+		domainname    string
+		expected      string
+		expectedError error
+	}{
+		{
+			hostname:      "",
+			domainname:    "",
+			expected:      "",
+			expectedError: errors.New("empty hostname for container 123456789012"),
+		},
+		{
+			hostname:      "host",
+			domainname:    "",
+			expected:      "host",
+			expectedError: nil,
+		},
+		{
+			hostname:      "host",
+			domainname:    "domain",
+			expected:      "host",
+			expectedError: nil,
+		},
+		{
+			hostname:      "",
+			domainname:    "domain",
+			expected:      "",
+			expectedError: errors.New("empty hostname for container 123456789012"),
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("case %d: %s.%s", i, tc.hostname, tc.domainname), func(t *testing.T) {
+			cj := types.ContainerJSON{
+				ContainerJSONBase: &cBase,
+				Config: &container.Config{
+					Hostname:   tc.hostname,
+					Domainname: tc.domainname,
+				},
+			}
+			// add cj to the cache so svc.GetPorts finds it
+			cacheKey := docker.GetInspectCacheKey(cId, false)
+			cache.Cache.Set(cacheKey, cj, 10*time.Second)
+
+			svc := DockerService{
+				ID: ID(cId),
+			}
+
+			name, err := svc.GetHostname()
+			assert.Equal(t, tc.expected, name)
+
+			if tc.expectedError == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.Equal(t, tc.expectedError.Error(), err.Error())
+			}
+
+		})
+	}
+}

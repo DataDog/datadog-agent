@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,14 +37,12 @@ type forwarderHealth struct {
 	health  *health.Handle
 	stop    chan bool
 	stopped chan struct{}
-	ddURL   string
 	timeout time.Duration
 }
 
 func (fh *forwarderHealth) init(keysPerDomains map[string][]string) {
 	fh.stop = make(chan bool, 1)
 	fh.stopped = make(chan struct{})
-	fh.ddURL = config.Datadog.GetString("dd_url")
 
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
@@ -114,7 +111,7 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status 
 }
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
-	url := fmt.Sprintf("%s%s?api_key=%s", fh.ddURL, v1ValidateEndpoint, apiKey)
+	url := fmt.Sprintf("%s%s?api_key=%s", domain, v1ValidateEndpoint, apiKey)
 
 	transport := util.CreateHTTPTransport()
 

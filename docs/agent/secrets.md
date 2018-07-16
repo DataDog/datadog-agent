@@ -15,7 +15,7 @@ method, and continuous integration workflow.
 
 This section covers how to set up this feature.
 
-## Defining secrets in check configurations
+## Defining secrets in configurations
 
 To declare a secret in a check configuration simply use the `ENC[]` notation.
 This notation can be used to denotate as a secret the *value* of any YAML field
@@ -23,6 +23,11 @@ in your configuration (not the key), in any section (`init_config`, `instances`,
 `logs`, ...).
 
 Secrets are supported in every configuration backend: file, etcd, consul ...
+
+Secrets are also supported in `datadog.yaml`. The agent will first load the
+main configuration and reload it after decrypting the secrets. This means the
+only place where secrets can't be used is the `secret_*` settings (see
+Configuration section).
 
 Example:
 

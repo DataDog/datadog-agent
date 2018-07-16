@@ -7,7 +7,24 @@ spec:
   #onExit: delete # call argo submit --entrypoint delete instead
   arguments:
     parameters:
-    - name: redis
+    - name: redis-service
+      value: |
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: redis
+          namespace: default
+        spec:
+          ports:
+          - port: 6379
+            protocol: TCP
+            targetPort: 6379
+            name: redis
+          selector:
+            app: redis
+          type: ClusterIP
+
+    - name: redis-deployment
       value: |
         apiVersion: extensions/v1beta1
         kind: Deployment
@@ -41,7 +58,8 @@ spec:
               - name: redis
                 image: redis
                 ports:
-                - containerPort: 6379
+                - name: redis
+                  containerPort: 6379
                 resources:
                   requests:
                     memory: "64Mi"
@@ -49,6 +67,34 @@ spec:
                   limits:
                     memory: "128Mi"
                     cpu: "100m"
+
+    - name: cpu-stress
+      value: |
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: cpu-stress
+          namespace: default
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                app: cpu-stress
+            spec:
+              containers:
+              - name: cpu-stress
+                image: datadog/docker-library:progrium_stress
+                args:
+                - "--cpu"
+                - "2"
+                resources:
+                  requests:
+                    memory: "64Mi"
+                    cpu: "400m"
+                  limits:
+                    memory: "64Mi"
+                    cpu: "400m"
 
     - name: agent-service-account
       value: |
@@ -136,6 +182,7 @@ spec:
             - name: kubelet
               polling: true
             leader_election: true
+            kubernetes_metadata_tag_update_freq: 20
 
           kubelet.yaml: |
             init_config:
@@ -181,7 +228,7 @@ spec:
               serviceAccount: datadog-agent
               containers:
               - name: agent
-                image: datadog/agent:latest # TODO provide the ECR PR image
+                image: datadog/agent-dev:master
                 command:
                 - /opt/datadog-agent/bin/agent/agent
                 - start
@@ -294,11 +341,131 @@ spec:
               - name: mongo
                 image: mongo:3.6.3
 
+    - name: kube-state-metrics-rbac
+      value: |
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: kube-state-metrics
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: kube-state-metrics
+        subjects:
+        - kind: ServiceAccount
+          name: kube-state-metrics
+          namespace: kube-system
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: kube-state-metrics
+        rules:
+        - apiGroups: [""]
+          resources:
+          - configmaps
+          - secrets
+          - nodes
+          - pods
+          - services
+          - resourcequotas
+          - replicationcontrollers
+          - limitranges
+          - persistentvolumeclaims
+          - persistentvolumes
+          - namespaces
+          - endpoints
+          verbs: ["list", "watch"]
+        - apiGroups: ["extensions"]
+          resources:
+          - daemonsets
+          - deployments
+          - replicasets
+          verbs: ["list", "watch"]
+        - apiGroups: ["apps"]
+          resources:
+          - statefulsets
+          verbs: ["list", "watch"]
+        - apiGroups: ["batch"]
+          resources:
+          - cronjobs
+          - jobs
+          verbs: ["list", "watch"]
+        - apiGroups: ["autoscaling"]
+          resources:
+          - horizontalpodautoscalers
+          verbs: ["list", "watch"]
+        ---
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: kube-state-metrics
+          namespace: kube-system
+
+    - name: kube-state-metrics-deployment
+      value: |
+        apiVersion: apps/v1beta2
+        kind: Deployment
+        metadata:
+          name: kube-state-metrics
+          namespace: kube-system
+        spec:
+          selector:
+            matchLabels:
+              k8s-app: kube-state-metrics
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                k8s-app: kube-state-metrics
+            spec:
+              serviceAccountName: kube-state-metrics
+              containers:
+              - name: kube-state-metrics
+                image: quay.io/coreos/kube-state-metrics:v1.3.1
+                ports:
+                - name: http-metrics
+                  containerPort: 8080
+                - name: telemetry
+                  containerPort: 8081
+                readinessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8080
+                  initialDelaySeconds: 5
+                  timeoutSeconds: 5
+
+    - name: kube-state-metrics-service
+      value: |
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: kube-state-metrics
+          namespace: kube-system
+          labels:
+            k8s-app: kube-state-metrics
+          annotations:
+            prometheus.io/scrape: 'true'
+        spec:
+          ports:
+          - name: http-metrics
+            port: 8080
+            targetPort: http-metrics
+            protocol: TCP
+          - name: telemetry
+            port: 8081
+            targetPort: telemetry
+            protocol: TCP
+          selector:
+            k8s-app: kube-state-metrics
+
   templates:
   - name: main
     inputs:
       parameters:
-      - name: redis
+      - name: cpu-stress
+      - name: redis-service
+      - name: redis-deployment
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -306,6 +473,9 @@ spec:
       - name: agent-daemonset
       - name: fake-datadog-deployment
       - name: fake-datadog-service
+      - name: kube-state-metrics-rbac
+      - name: kube-state-metrics-deployment
+      - name: kube-state-metrics-service
     steps:
     - - name: fake-dd-setup
         template: manifest
@@ -318,7 +488,8 @@ spec:
         withItems:
         - "{{inputs.parameters.fake-datadog-deployment}}"
         - "{{inputs.parameters.fake-datadog-service}}"
-      - name: redis-setup
+
+      - name: redis-deployment-setup
         template: manifest
         arguments:
           parameters:
@@ -327,7 +498,18 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
-        - "{{inputs.parameters.redis}}"
+        - "{{inputs.parameters.redis-deployment}}"
+
+      - name: cpu-stress-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.cpu-stress}}"
 
     - - name: fake-dd-reset
         template: fake-dd-reset
@@ -347,6 +529,19 @@ spec:
         - "{{inputs.parameters.agent-cluster-role-binding}}"
         - "{{inputs.parameters.agent-daemonset}}"
 
+    - - name: kube-state-metrics-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.kube-state-metrics-rbac}}"
+        - "{{inputs.parameters.kube-state-metrics-deployment}}"
+        - "{{inputs.parameters.kube-state-metrics-service}}"
+
     - - name: health
         template: datadog-agent-health
 
@@ -356,8 +551,37 @@ spec:
     - - name: find-metrics-kubernetes
         template: find-metrics-kubernetes
 
+      - name: find-container-meta
+        template: find-container-meta
+
+      - name: find-kube-state-metrics
+        template: find-kube-state-metrics
+
       - name: find-metrics-redis
         template: find-metrics-redis
+
+      - name: find-metrics-cpu-docker
+        template: find-metrics-cpu-docker
+
+      - name: find-metrics-cpu-kubelet
+        template: find-metrics-cpu-kubelet
+
+      - name: find-metrics-cpu-system
+        template: find-metrics-cpu-system
+
+    - - name: redis-service-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.redis-service}}"
+
+    - - name: find-metrics-redis-tagged
+        template: find-metrics-redis-tagged
 
     - - name: delete-redis
         template: manifest
@@ -368,7 +592,8 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
-        - "{{inputs.parameters.redis}}"
+        - "{{inputs.parameters.redis-deployment}}"
+        - "{{inputs.parameters.redis-service}}"
 
     - - name: no-more-redis
         template: no-more-metrics-redis
@@ -387,7 +612,9 @@ spec:
   - name: delete
     inputs:
       parameters:
-      - name: redis
+      - name: redis-service
+      - name: redis-deployment
+      - name: cpu-stress
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -395,6 +622,9 @@ spec:
       - name: agent-daemonset
       - name: fake-datadog-deployment
       - name: fake-datadog-service
+      - name: kube-state-metrics-rbac
+      - name: kube-state-metrics-deployment
+      - name: kube-state-metrics-service
     steps:
     - - name: delete-manifest
         template: manifest
@@ -405,7 +635,9 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
-        - "{{inputs.parameters.redis}}"
+        - "{{inputs.parameters.redis-service}}"
+        - "{{inputs.parameters.redis-deployment}}"
+        - "{{inputs.parameters.cpu-stress}}"
         - "{{inputs.parameters.agent-configmap}}"
         - "{{inputs.parameters.agent-service-account}}"
         - "{{inputs.parameters.agent-cluster-role}}"
@@ -413,6 +645,9 @@ spec:
         - "{{inputs.parameters.agent-daemonset}}"
         - "{{inputs.parameters.fake-datadog-service}}"
         - "{{inputs.parameters.fake-datadog-deployment}}"
+        - "{{inputs.parameters.kube-state-metrics-rbac}}"
+        - "{{inputs.parameters.kube-state-metrics-deployment}}"
+        - "{{inputs.parameters.kube-state-metrics-service}}"
 
   - name: manifest
     inputs:
@@ -496,6 +731,40 @@ spec:
           sleep(2000);
         }
 
+  - name: find-kube-state-metrics
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        // This step is intended to test end-to-end scraping of prometheus metrics
+        // by asserting the value of a few simple metrics collected from the
+        // kubernetes_state integration.
+
+        while (1) {
+          var nb = db.series.find({
+          metric: "kubernetes_state.daemonset.ready",
+          tags: { $all: ["namespace:default", "daemonset:datadog-agent"] },
+          "points.0.1": { $eq: 1 } }).count();
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
+        }
+
+        while (1) {
+          var nb = db.series.find({
+          metric: "kubernetes_state.deployment.replicas_available",
+          tags: { $all: ["namespace:default", "deployment:redis"] },
+          "points.0.1": { $eq: 1 } }).count();
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
+        }
+
   - name: find-metrics-redis
     activeDeadlineSeconds: 200
     script:
@@ -514,8 +783,120 @@ spec:
           sleep(2000);
         }
 
-  - name: no-more-metrics-redis
+  - name: find-metrics-cpu-docker
     activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.series.find({
+          metric: "docker.cpu.usage",
+          tags: { $all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"] },
+          "points.0.1": { $gt: 39, $lt: 41 } }).count();
+          print("find: " + nb)
+          if (nb != 0) {
+            print("cpu value in target range")
+            break;
+          }
+          sleep(2000);
+        }
+
+  - name: find-metrics-redis-tagged
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.series.find({
+            metric: {$regex: "redis*"},
+            tags: "kube_service:redis"
+          }).count();
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
+        }
+
+  - name: find-metrics-cpu-kubelet
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var point = db.series.find({
+            metric: "kubernetes.cpu.usage.total",
+            tags: {$all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"]}
+          }).limit(1).sort({$natural:-1})[0];
+
+          if (point) {
+            value = point.points[0][1] / 10e6
+            print("cpu value: " + value)
+            // Sampling is less accurate than cgroups, widening the acceptable range
+            if (value > 35 && value < 45) {
+              print("cpu value in target range")
+              break;
+            }
+          } else {
+              print("no kubernetes.cpu.usage.total metric reported")
+          }
+
+          sleep(2000);
+        }
+
+  - name: find-metrics-cpu-system
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          sleep(2000);
+
+          // Determine the hostname the cpu-stress pod is running on
+          var point = db.series.find({
+            metric: "kubernetes.cpu.usage.total",
+            tags: {$all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"]}
+          }).limit(1).sort({$natural:-1})[0];
+          if (!point) {
+            print("cannot get hostname for pod");
+            continue;
+          }
+          hostname = point.host;
+
+          // Get the number of CPUs on that host
+          var point = db.series.find({
+            metric: "kubernetes.cpu.capacity",
+            host: hostname
+          }).limit(1).sort({$natural:-1})[0];
+          if (!point) {
+            print("cannot get cpu capacity for host " + hostname);
+            continue;
+          }
+          cpucount = point.points[0][1];
+
+          // Get the user CPU usage, make sure it's above 39% non-normalized
+          var point = db.series.find({
+            metric: "system.cpu.user",
+            host: hostname
+          }).limit(1).sort({$natural:-1})[0];
+          if (!point) {
+            print("no system.cpu.usage metric reported for host " + hostname)
+            continue;
+          }
+          value = point.points[0][1] * cpucount;
+          print("cpu value: " + value)
+          if (value > 39) {
+            print("cpu value in target range");
+            break;
+          }
+        }
+
+  - name: no-more-metrics-redis
+    activeDeadlineSeconds: 300
     script:
       image: mongo:3.6.3
       command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
@@ -533,4 +914,40 @@ spec:
           }
           prevNb = nb;
           sleep(30000);
+        }
+        var prevNb = -1
+        while (1) {
+          var nb = db.check_run.find({check: "datadog.agent.check_status",
+          tags: "check:redisdb",
+          status: {$ne: 0}}).count();
+
+          print("prev-find: " + prevNb)
+          print("find: " + nb)
+          if (nb == prevNb) {
+            break;
+          }
+          prevNb = nb;
+          sleep(30000);
+        }
+
+  - name: find-container-meta
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.intake.find({
+            $and : [
+            {"apiKey":"123er"},
+            {"gohai":{$exists: 1}},
+            {"container-meta.kubelet_version":{$regex: "^v1."}},
+            {"container-meta.docker_swarm":"inactive"},
+            {"container-meta.docker_version":{$exists: 1}} ]
+          }).count();
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
         }

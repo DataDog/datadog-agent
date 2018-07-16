@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/gohai/network"
 	"github.com/DataDog/gohai/platform"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +24,6 @@ func GetPayload() *Payload {
 }
 
 func getGohaiInfo() *gohai {
-
 	res := new(gohai)
 
 	cpuPayload, err := new(cpu.Cpu).Collect()
@@ -47,11 +47,13 @@ func getGohaiInfo() *gohai {
 		log.Errorf("Failed to retrieve memory metadata: %s", err)
 	}
 
-	networkPayload, err := new(network.Network).Collect()
-	if err == nil {
-		res.Network = networkPayload
-	} else {
-		log.Errorf("Failed to retrieve network metadata: %s", err)
+	if !config.IsContainerized() {
+		networkPayload, err := new(network.Network).Collect()
+		if err == nil {
+			res.Network = networkPayload
+		} else {
+			log.Errorf("Failed to retrieve network metadata: %s", err)
+		}
 	}
 
 	platformPayload, err := new(platform.Platform).Collect()

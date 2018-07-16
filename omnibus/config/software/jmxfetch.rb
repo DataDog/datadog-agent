@@ -9,8 +9,8 @@ jmxfetch_version = ENV['JMXFETCH_VERSION']
 jmxfetch_hash = ENV['JMXFETCH_HASH']
 
 if jmxfetch_version.nil? || jmxfetch_version.empty?
-  jmxfetch_version = '0.20.0'
-  jmxfetch_hash = "5aad61dfec602ad536f855a12e6c47289515a10808422fc984a57c6a59964c04"
+  jmxfetch_version = '0.20.1'
+  jmxfetch_hash = "076dc742d158e888bfff914e022bd1e640bde2b27735e27ed47799dd89058752"
 end
 
 default_version jmxfetch_version

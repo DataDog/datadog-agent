@@ -5,8 +5,21 @@
 
 package dogstatsd
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 func TestUDSOriginDetection(t *testing.T) {
+	config.SetupLogger(
+		"debug",
+		"",
+		"",
+		false,
+		true,
+		false,
+	)
+
 	testUDSOriginDetection(t)
 }

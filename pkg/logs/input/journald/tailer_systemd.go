@@ -38,6 +38,8 @@ func (t *Tailer) setup() error {
 	config := t.source.Config
 	var err error
 
+	t.initializeTagger()
+
 	if config.Path == "" {
 		// open the default journal
 		t.journal, err = sdjournal.NewJournal()
@@ -191,6 +193,7 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	applicationName := t.getApplicationName(entry)
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
+	origin.SetTags(t.getTags(entry))
 	return origin
 }
 
@@ -203,12 +206,24 @@ var applicationKeys = []string{
 
 // getApplicationName returns the name of the application from where the entry is from.
 func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry) string {
+	if t.isContainerEntry(entry) {
+		return "docker"
+	}
 	for _, key := range applicationKeys {
 		if value, exists := entry.Fields[key]; exists {
 			return value
 		}
 	}
 	return ""
+}
+
+// getTags returns a list of tags matching with the journal entry.
+func (t *Tailer) getTags(entry *sdjournal.JournalEntry) []string {
+	var tags []string
+	if t.isContainerEntry(entry) {
+		tags = append(tags, t.getContainerTags(t.getContainerID(entry))...)
+	}
+	return tags
 }
 
 // priorityStatusMapping represents the 1:1 mapping between journal entry priorities and statuses.

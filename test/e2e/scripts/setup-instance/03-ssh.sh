@@ -34,7 +34,8 @@ done
 
 _ssh git clone https://github.com/DataDog/datadog-agent.git /home/core/datadog-agent || {
     # To be able to retry
-    echo "Already cloned ?"
+    echo "Already cloned, fetching new changes"
+    _ssh git -C /home/core/datadog-agent fetch
 }
 _ssh git -C /home/core/datadog-agent checkout ${COMMIT_ID}
 

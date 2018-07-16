@@ -86,6 +86,7 @@ func (c *MemoryCheck) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) 
 	}
 
 	sender.Gauge("system.mem.cached", float64(v.Cached)/mbSize, "", nil)
+	sender.Gauge("system.mem.buffered", float64(v.Buffers)/mbSize, "", nil)
 	sender.Gauge("system.mem.shared", float64(v.Shared)/mbSize, "", nil)
 	sender.Gauge("system.mem.slab", float64(v.Slab)/mbSize, "", nil)
 	sender.Gauge("system.mem.page_tables", float64(v.PageTables)/mbSize, "", nil)

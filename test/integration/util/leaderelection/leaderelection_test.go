@@ -103,7 +103,7 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 	for {
 		select {
 		case <-tick.C:
-			leaderName = le.CurrentLeaderName()
+			leaderName = le.GetLeader()
 			if leaderName == le.HolderIdentity {
 				log.Infof("Waiting for leader: leader is %q", leaderName)
 				return
@@ -162,11 +162,11 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 
 	for i, testCase := range testCases {
 		assert.Equal(suite.T(), fmt.Sprintf("%s%d", baseIdentityName, i), testCase.leaderEngine.HolderIdentity)
-		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.CurrentLeaderName())
+		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.GetLeader())
 	}
 
 	c, err := apiserver.GetAPIClient()
-	client := c.Client
+	client := c.Cl.CoreV1()
 
 	require.Nil(suite.T(), err)
 	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})

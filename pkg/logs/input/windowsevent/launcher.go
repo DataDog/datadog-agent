@@ -40,7 +40,6 @@ func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, audito
 
 // Start starts new tailers.
 func (l *Launcher) Start() {
-	log.Info("Start tailing windows event log")
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
 		log.Debug("Could not list windows event log channels: ", err)

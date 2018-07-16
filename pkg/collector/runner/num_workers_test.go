@@ -35,8 +35,9 @@ type stickyLock struct {
 	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
 }
 
-func (nc *NumWorkersCheck) String() string { return nc.name }
-func (nc *NumWorkersCheck) ID() check.ID   { return check.ID(nc.String()) }
+func (nc *NumWorkersCheck) String() string  { return nc.name }
+func (nc *NumWorkersCheck) Version() string { return "" }
+func (nc *NumWorkersCheck) ID() check.ID    { return check.ID(nc.String()) }
 func (nc *NumWorkersCheck) Run() error {
 	if *pythonCheck {
 		e := runPythonCheck() // BUG: this panics occasionally

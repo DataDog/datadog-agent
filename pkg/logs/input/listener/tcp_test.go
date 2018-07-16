@@ -10,44 +10,28 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
-	"github.com/stretchr/testify/suite"
 )
 
 const tcpTestPort = 10512
 
-type TCPTestSuite struct {
-	suite.Suite
+func TestTCPShouldReceivesMessages(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}))
+	listener.Start()
 
-	outputChan chan message.Message
-	pp         pipeline.Provider
-	source     *config.LogSource
-	tcpl       *TCPListener
-}
-
-func (suite *TCPTestSuite) SetupTest() {
-	suite.pp = mock.NewMockProvider()
-	suite.outputChan = suite.pp.NextPipelineChan()
-	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: tcpTestPort})
-	tcpl, err := NewTCPListener(suite.pp, suite.source)
-	suite.Nil(err)
-	suite.tcpl = tcpl
-	suite.tcpl.Start()
-}
-
-func (suite *TCPTestSuite) TestTCPReceivesMessages() {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
-	suite.Nil(err)
+	assert.Nil(t, err)
 
 	// should receive and decode message
 	fmt.Fprintf(conn, "hello world\n")
-	msg := <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
-}
+	msg := <-msgChan
+	assert.Equal(t, "hello world", string(msg.Content()))
+	assert.Equal(t, 1, len(listener.tailers))
 
-func TestTCPTestSuite(t *testing.T) {
-	suite.Run(t, new(TCPTestSuite))
+	listener.Stop()
 }

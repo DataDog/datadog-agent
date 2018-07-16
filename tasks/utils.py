@@ -17,7 +17,7 @@ import invoke
 ORG_PATH = "github.com/DataDog"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
 
-def bin_name(name, android):
+def bin_name(name, android=False):
     """
     Generate platform dependent names for binaries
     """
@@ -67,7 +67,8 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
 
     if static:
-        ldflags += "-s -w -linkmode external -extldflags '-static' "
+        ldflags += "-s -w -linkmode=external '-extldflags=-static' "
+        #env["CGO_ENABLED"] = "0"
     elif use_embedded_libs:
         embedded_lib_path = ctx.run("pkg-config --variable=libdir python-2.7",
                                     env=env, hide=True).stdout.strip()

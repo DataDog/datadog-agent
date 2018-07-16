@@ -78,6 +78,11 @@ func (k *KubeASCheck) Run() error {
 		return err
 	}
 
+	if config.Datadog.GetBool("cluster_agent") {
+		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
+		return nil
+	}
+
 	// Only run if Leader Election is enabled.
 	if !config.Datadog.GetBool("leader_election") {
 		k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
@@ -167,10 +172,10 @@ func (k *KubeASCheck) runLeaderElection() error {
 	}
 
 	if !leaderEngine.IsLeader() {
-		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
+		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader(), leaderEngine.HolderIdentity)
 		return apiserver.ErrNotLeader
 	}
-	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
+	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader())
 	return nil
 }
 func (k *KubeASCheck) eventCollectionInit() {

@@ -50,6 +50,10 @@ func (c *ProcessAgentCheck) String() string {
 	return "Process Agent"
 }
 
+func (c *ProcessAgentCheck) Version() string {
+	return ""
+}
+
 // Run executes the check with retries
 func (c *ProcessAgentCheck) Run() error {
 	atomic.StoreUint32(&c.running, 1)
