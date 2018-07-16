@@ -30,6 +30,27 @@
       <span/>
   </div>
 
+  {{- with .pyLoaderStats }}
+    {{- if .ConfigureErrors }}
+    <div class="stat">
+      <span class="stat_title">Check Initialization Errors</span>
+      <span class="stat_data">
+      {{ range $checkname, $errors :=  .ConfigureErrors }}
+          <span class="stat_subtitle">{{$checkname}}</span>
+          <span class="stat_subdata">
+            {{- range $idx, $err := $errors}}
+              <span class="stat_subtitle">Instance {{$idx}}</span>
+              <span class="stat_subdata">
+                {{ pythonLoaderError $err }}
+              </span>
+            {{- end }}
+          </span>
+      {{- end}}
+      </span>
+    </div>
+    {{- end }}
+  {{- end }}
+
   {{- with .autoConfigStats -}}
     {{- if .ConfigErrors}}
       <div class="stat">

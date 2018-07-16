@@ -199,6 +199,16 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
 	stats["aggregatorStats"] = aggregatorStats
 
+	pyLoaderData := expvar.Get("pyLoader")
+	if pyLoaderData != nil {
+		pyLoaderStatsJSON := []byte(pyLoaderData.String())
+		pyLoaderStats := make(map[string]interface{})
+		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats)
+		stats["pyLoaderStats"] = pyLoaderStats
+	} else {
+		stats["pyLoaderStats"] = nil
+	}
+
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}

@@ -34,6 +34,24 @@ Collector
   {{ end }}
 {{- end }}
 
+{{- with .pyLoaderStats }}
+  {{- if .ConfigureErrors }}
+  Check Initialization Errors
+  ===========================
+
+    {{ range $CheckName, $errors :=  .ConfigureErrors }}
+      {{ $CheckName }}
+      {{printDashes $CheckName "-"}}
+      {{- range $idx, $err := $errors}}
+
+      instance {{$idx}}:
+
+        {{ doNotEscape $err }}
+      {{- end }}
+    {{- end}}
+  {{- end }}
+{{- end }}
+
 {{- with .AutoConfigStats }}
   {{- if .ConfigErrors}}
   Config Errors
