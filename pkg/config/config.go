@@ -215,7 +215,7 @@ func init() {
 	Datadog.SetDefault("cluster_agent.enabled", false)
 	Datadog.SetDefault("cluster_agent.auth_token", "")
 	Datadog.SetDefault("cluster_agent.url", "")
-	Datadog.SetDefault("cluster_agent.kubernetes_service_name", "dca")
+	Datadog.SetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	Datadog.BindEnv("external_metrics_provider.enabled")
 
 	// ECS

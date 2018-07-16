@@ -106,7 +106,7 @@ type clusterAgentSuite struct {
 }
 
 const (
-	clusterAgentServiceName = "DCA"
+	clusterAgentServiceName = "DATADOG-CLUSTER-AGENT"
 	clusterAgentServiceHost = clusterAgentServiceName + "_SERVICE_HOST"
 	clusterAgentServicePort = clusterAgentServiceName + "_SERVICE_PORT"
 	clusterAgentTokenValue  = "01234567890123456789012345678901"
@@ -220,7 +220,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrlInvalid() {
 
 func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvc() {
 	config.Datadog.Set("cluster_agent.url", "")
-	config.Datadog.Set("cluster_agent.kubernetes_service_name", "dca")
+	config.Datadog.Set("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	os.Setenv(clusterAgentServiceHost, "127.0.0.1")
 	os.Setenv(clusterAgentServicePort, "443")
 
@@ -231,7 +231,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvc() {
 
 func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvcEmpty() {
 	config.Datadog.Set("cluster_agent.url", "")
-	config.Datadog.Set("cluster_agent.kubernetes_service_name", "dca")
+	config.Datadog.Set("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	os.Setenv(clusterAgentServiceHost, "127.0.0.1")
 	os.Setenv(clusterAgentServicePort, "")
 

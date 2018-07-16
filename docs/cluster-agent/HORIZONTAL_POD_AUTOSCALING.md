@@ -68,7 +68,7 @@ SVCS:
 
 NAMESPACE     NAME                  TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)         AGE
 default       datadog-custom-metrics-server   ClusterIP   192.168.254.87    <none>        443/TCP         28m
-default       dca                   ClusterIP   192.168.254.197   <none>        5005/TCP        28m
+default       datadog-cluster-agent           ClusterIP   192.168.254.197   <none>        5005/TCP        28m
 
 ```
 
