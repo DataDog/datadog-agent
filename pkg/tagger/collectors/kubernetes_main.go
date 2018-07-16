@@ -58,9 +58,7 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 		if err != nil {
 			return NoCollection, err
 		}
-		c.apiClient.StartMetadataMapping()
 	}
-
 	c.infoOut = out
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
 	return PullCollection, nil
