@@ -55,9 +55,9 @@
             <span class="stat_subdata">
               {{- range $kind, $err := $errors -}}
                 {{- if eq $kind "Python Check Loader"}}
-                  {{$kind}}: {{ pythonLoaderError $err -}}<br>
+                  <b>{{$kind}}</b>: {{ pythonLoaderError $err -}}<br>
                 {{- else}}
-                  {{$kind}}: {{ $err -}}<br>
+                  <b>{{$kind}}</b>: {{ $err -}}<br>
                 {{end -}}
               {{end -}}
             </span>

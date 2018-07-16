@@ -22,7 +22,6 @@ func init() {
 		"lastError":          lastError,
 		"lastErrorTraceback": lastErrorTraceback,
 		"lastErrorMessage":   LastErrorMessage,
-		"pythonLoaderError":  pythonLoaderError,
 		"configError":        configError,
 		"printDashes":        printDashes,
 		"formatUnixTime":     FormatUnixTime,
@@ -31,18 +30,6 @@ func init() {
 }
 
 func doNotEscape(value string) template.HTML {
-	return template.HTML(value)
-}
-
-func pythonLoaderError(value string) template.HTML {
-	value = strings.Replace(value, "', '", "", -1)
-	value = strings.Replace(value, "['", "", -1)
-	value = strings.Replace(value, "\\n']", "", -1)
-	value = strings.Replace(value, "']", "", -1)
-	value = strings.Replace(value, "\\n", "\n      ", -1)
-	value = strings.TrimRight(value, "\n\t ")
-	var loaderErrorArray []string
-	json.Unmarshal([]byte(value), &loaderErrorArray)
 	return template.HTML(value)
 }
 

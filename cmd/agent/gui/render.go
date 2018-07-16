@@ -114,17 +114,10 @@ func fillTemplate(w io.Writer, data Data, request string) error {
 /****** Helper functions for the template formatting ******/
 
 func pythonLoaderError(value string) template.HTML {
-	value = strings.Replace(value, "', '", "", -1)
-	value = strings.Replace(value, "['", "", -1)
-	value = strings.Replace(value, "\\n']", "", -1)
-	value = strings.Replace(value, "']", "", -1)
-
 	value = template.HTMLEscapeString(value)
 
-	value = strings.Replace(value, "\\n", "<br>", -1)
+	value = strings.Replace(value, "\n", "<br>", -1)
 	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
-	var loaderErrorArray []string
-	json.Unmarshal([]byte(value), &loaderErrorArray)
 	return template.HTML(value)
 }
 
