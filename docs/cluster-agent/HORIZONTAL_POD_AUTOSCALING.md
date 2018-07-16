@@ -47,7 +47,7 @@ serviceaccount "dca" created
 
 Then create the DCA and its services.
 Start by adding your <API_KEY> and <APP_KEY> in the Deployment manifest of the DCA.
-Then enable the HPA Processing by setting the `DD_ENABLE_HPA` variable to true.
+Then enable the HPA Processing by setting the `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` variable to true.
 Finally, spin up the resources:
 
 `kubectl apply -f manifests/cluster-agent/cluster-agent.yaml`

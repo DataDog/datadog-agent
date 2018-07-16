@@ -170,7 +170,7 @@ func start(cmd *cobra.Command, args []string) error {
 	common.StartAutoConfig()
 
 	// HPA Process
-	if config.Datadog.GetBool("enable_hpa") {
+	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		err = custommetrics.ValidateArgs(args)
 		if err != nil {
 			log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
@@ -185,7 +185,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	// Block here until we receive the interrupt signal
 	<-signalCh
-	if config.Datadog.GetBool("enable_hpa") {
+	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		custommetrics.StopServer()
 	}
 	clusterAgent.Stop()

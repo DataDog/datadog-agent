@@ -46,8 +46,8 @@ type HPAWatcherClient struct {
 // NewHPAWatcherClient returns a new HPAWatcherClient
 func NewHPAWatcherClient(clientSet kubernetes.Interface, datadogCl DatadogClient, store custommetrics.Store) (*HPAWatcherClient, error) {
 	pollInterval := config.Datadog.GetInt("hpa_watcher_polling_freq")
-	refreshInterval := config.Datadog.GetInt("hpa_external_metrics_polling_freq")
-	externalMaxAge := config.Datadog.GetInt("hpa_external_metrics_max_age")
+	refreshInterval := config.Datadog.GetInt("external_metrics_provider.polling_freq")
+	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
 	return &HPAWatcherClient{
 		clientSet:      clientSet,
 		readTimeout:    100 * time.Millisecond,

@@ -178,7 +178,7 @@ spec:
                   value: "debug"
                 - name: DD_CLUSTER_AGENT_AUTH_TOKEN
                   value: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
-                - name: DD_ENABLE_HPA
+                - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
                   value: "true"
                 - name: DD_LEADER_ELECTION
                   value: "true"

@@ -144,7 +144,7 @@ You can disable the kubernetes metadata tag collection with `DD_KUBERNETES_COLLE
 #### HPA
 
 To enable the HPA: 
-- Set `DD_HPA_ENABLED` to `true` in the Deployment of the DCA.
+- Set `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` to `true` in the Deployment of the DCA.
 - Configure the `<DD_APP_KEY>` as well as the `<DD_API_KEY>` in the Deployment of the DCA.
 - Create a service exposing the port 443 and register it as an APIService for External Metrics.
 
