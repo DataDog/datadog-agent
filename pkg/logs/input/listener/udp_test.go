@@ -53,9 +53,13 @@ func TestUDPShouldProperlyTruncateTooBigMessages(t *testing.T) {
 	msg = <-msgChan
 	assert.Equal(t, strings.Repeat("a", 80), string(msg.Content()))
 
+	fmt.Fprintf(conn, strings.Repeat("a", 100)+"\n")
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 100), string(msg.Content()))
+
 	fmt.Fprintf(conn, strings.Repeat("a", 150)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 99), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", 100), string(msg.Content()))
 
 	fmt.Fprintf(conn, strings.Repeat("a", 70)+"\n")
 	msg = <-msgChan

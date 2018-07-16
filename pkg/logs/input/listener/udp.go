@@ -84,7 +84,7 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 
 // read reads data from the tailer connection, returns an error if it failed and reset the tailer.
 func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
-	frame := make([]byte, l.frameSize)
+	frame := make([]byte, l.frameSize+1)
 	n, err := tailer.conn.Read(frame)
 	switch {
 	case err != nil && isClosedConnError(err):
@@ -93,10 +93,10 @@ func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
 		go l.resetTailer()
 		return nil, err
 	default:
-		if n == l.frameSize {
-			// Adding '\n' ensures that the current message will be truncated by the decoder,
-			// otherwise it would be mixed the following one.
-			frame[l.frameSize-1] = '\n'
+		if n == l.frameSize+1 {
+			// The message is bigger than the length of the read buffer, the trailing part of the content will be dropped.
+			// Adding '\n' ensures that the message will correctly be decoded later on and not mixed the following message.
+			frame[l.frameSize] = '\n'
 		}
 		return frame[:n], nil
 	}
