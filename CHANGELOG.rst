@@ -2,6 +2,52 @@
 Release Notes
 =============
 
+.. _Release Notes_6.3.3:
+
+6.3.3
+=====
+
+.. _Release Notes_6.3.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-07-16
+
+- Please refer to the `6.3.3 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.3>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.3.3 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.3>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.3.3 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.3.3>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.3.3_Enhancements Notes:
+
+Enhancements Notes
+------------------
+
+- Add 'system.mem.buffered' metric on linux system.
+
+
+.. _Release Notes_6.3.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the IO check behavior on unix based on 'iostat' tool:
+  - Most metrics are an average time, so we don't need to divide again by
+    'delta' (ex: number of read/time doing read operations)
+  - time is based on the millisecond and not the second
+
+- Kubernetes API Server's polling frequency is now customisable.
+
+- Use as expected the configuration value of kubernetes_metadata_tag_update_freq,
+  introduce a kubernetes_apiserver_client_timeout configuration option.
+
+- Fix a bug that led the agent to panic in some cases if
+  the ``log_level`` configuration option was set to ``error``.
+
+
 6.3.2
 =====
 2018-07-05
