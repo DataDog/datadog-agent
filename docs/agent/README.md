@@ -46,7 +46,7 @@ Agent 6 is currently available on these platforms:
 | SUSE Enterprise Linux x86_64 | version 11 SP4 and above (we do not support SysVinit)|
 | MacOS | 10.10 and above |
 | Windows Server 64-bit |  2008 R2 and above |
-| Docker ||
+| Docker | Version 1.12 and higher|
 |Kubernetese | Version 1.3 and higher |
 
 
