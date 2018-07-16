@@ -10,8 +10,8 @@
 [[projects]]
   name = "github.com/DataDog/agent-payload"
   packages = ["gogen"]
-  revision = "246130ded2c16b070b54933d8518fd1f14bc700f"
-  version = "4.7"
+  revision = "f0521943f60221829c6bb5de1c7f788cd4411372"
+  version = "4.8"
 
 [[projects]]
   branch = "master"
@@ -236,6 +236,12 @@
     "internal/prefix"
   ]
   revision = "cc9eb1d7ad760af14e8f918698f745e80377af4f"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/dustin/go-humanize"
+  packages = ["."]
+  revision = "9f541cc9db5d55bce703bd99987c9d5cb8eea45e"
 
 [[projects]]
   name = "github.com/elazarl/go-bindata-assetfs"
@@ -1288,6 +1294,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d67bb4f152ad13b40f02cd8b9a632d813eb86b2af988e01e1f73ff3c9cd0d843"
+  inputs-digest = "1724620913f1ac5cfa146a5a1a9f0c1dd6847599daa19406fd0b41d3056b8be1"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -8,13 +8,10 @@ package metrics
 import (
 	// stdlib
 	"fmt"
-	"sort"
 	"testing"
 
 	// 3p
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
 // AssertPointsEqual evaluate if two list of point are equal (order doesn't matters).
@@ -54,48 +51,32 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	AssertPointsEqual(t, expected.Points, actual.Points)
 }
 
-// AssertSketchSeriesEqual checks whether two SketchSeries are equal
-func AssertSketchSeriesEqual(t *testing.T, expected, actual *percentile.SketchSeries) {
-	assert.Equal(t, expected.Name, actual.Name)
-	if expected.Tags != nil {
-		assert.NotNil(t, actual.Tags)
-		AssertTagsEqual(t, expected.Tags, actual.Tags)
-	}
-	assert.Equal(t, expected.Host, actual.Host)
-	assert.Equal(t, expected.Interval, actual.Interval)
-	if !expected.ContextKey.IsZero() {
-		assert.Equal(t, expected.ContextKey, actual.ContextKey)
-	}
-	if expected.Sketches != nil {
-		assert.NotNil(t, actual.Sketches)
-		AssertSketchesEqual(t, expected.Sketches, actual.Sketches)
-	}
-}
+// // AssertSketchSeriesEqual checks whether two SketchSeries are equal
+// func AssertSketchSeriesEqual(t *testing.T, expected, actual *SketchSeries) {
+// 	assert.Equal(t, expected.Name, actual.Name)
+// 	if expected.Tags != nil {
+// 		assert.NotNil(t, actual.Tags)
+// 		AssertTagsEqual(t, expected.Tags, actual.Tags)
+// 	}
+// 	assert.Equal(t, expected.Host, actual.Host)
+// 	assert.Equal(t, expected.Interval, actual.Interval)
+// 	if !expected.ContextKey.IsZero() {
+// 		assert.Equal(t, expected.ContextKey, actual.ContextKey)
+// 	}
+// 	if expected.Sketches != nil {
+// 		assert.NotNil(t, actual.Sketches)
+// 		AssertSketchesEqual(t, expected.Sketches, actual.Sketches)
+// 	}
+// }
 
-// AssertSketchesEqual checks whether two Sketch slices are equal
-func AssertSketchesEqual(t *testing.T, expected, actual []percentile.Sketch) {
-	if assert.Equal(t, len(expected), len(actual)) {
-		actualOrdered := OrderedSketches{actual}
-		sort.Sort(actualOrdered)
-		for i, sketch := range expected {
-			assert.Equal(t, sketch, actualOrdered.sketches[i])
-		}
-	}
-}
-
-// OrderedSketches are used to sort []Sketch
-type OrderedSketches struct {
-	sketches []percentile.Sketch
-}
-
-func (os OrderedSketches) Len() int {
-	return len(os.sketches)
-}
-
-func (os OrderedSketches) Less(i, j int) bool {
-	return os.sketches[i].Timestamp < os.sketches[j].Timestamp
-}
-
-func (os OrderedSketches) Swap(i, j int) {
-	os.sketches[i], os.sketches[j] = os.sketches[j], os.sketches[i]
-}
+// // AssertSketchesEqual checks whether two Sketch slices are equal
+// func AssertSketchesEqual(t *testing.T, expected, actual []Sketch) {
+// 	if assert.Equal(t, len(expected), len(actual)) {
+// 		sort.Slice(actual, func(i, j int) bool {
+// 			return actual[i].Ts < actual[j].Ts
+// 		})
+// 		for i, sketch := range expected {
+// 			assert.Equal(t, sketch, actual[i])
+// 		}
+// 	}
+// }

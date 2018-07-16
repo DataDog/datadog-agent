@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
+
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
@@ -361,9 +361,13 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 }
 
 // GetSketches grabs all the sketches from the queue and clears the queue
-func (agg *BufferedAggregator) GetSketches() percentile.SketchSeriesList {
+func (agg *BufferedAggregator) GetSketches() metrics.SketchSeriesList {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
+
+	// Q: Why does this use a float64 ts here?
+	//  - timeNowNano        = float64(time.Now().UnixNano()) / float64(time.Second)
+	//  - int64(timeNowNano) = time.Now().Unix()?
 	return agg.distSampler.flush(timeNowNano())
 }
 
