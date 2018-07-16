@@ -20,11 +20,11 @@ func Parse(jsonString string) (*LogsConfig, error) {
 		return nil, fmt.Errorf("could not parse logs config, invalid format: %v", jsonString)
 	}
 	config := configs[0]
-	err = ValidateProcessingRules(config.ProcessingRules)
+	err = validateProcessingRules(config.ProcessingRules)
 	if err != nil {
 		return nil, fmt.Errorf("invalid processing rules: %v", err)
 	}
-	err = CompileProcessingRules(config.ProcessingRules)
+	err = compileProcessingRules(config.ProcessingRules)
 	if err != nil {
 		return nil, fmt.Errorf("could not compile processing rules: %v", err)
 	}
