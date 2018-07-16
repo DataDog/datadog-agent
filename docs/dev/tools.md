@@ -48,7 +48,7 @@ A debugger for Go.
 
 Example usage:
 ```sh
-$ sudo dlv attach `pgrep -f '/opt/datadog-agent/bin/agent/agent start'`
+$ sudo dlv attach `pgrep -f '/opt/datadog-agent/bin/agent/agent run'`
 (dlv) help # help on all commands
 (dlv) goroutines # list goroutines
 (dlv) threads # list threads
