@@ -7,6 +7,7 @@ metadata:
   annotations:
     marketplace.cloud.google.com/verification: test
 spec:
+  serviceAccountName: ${serviceAccount}
   containers:
   - name: tester
     image: "${testerImage}"
@@ -31,7 +32,5 @@ metadata:
     marketplace.cloud.google.com/verification: test
 data:
   run.sh: |-
-    ##### TODO #####
-    # set -x
-    # endpoint=""
-    # ##############
+    set -x
+    kubectl get daemonset ${name} | tail -n +2 | awk '$2==$3 {exit 0}{exit 1}'

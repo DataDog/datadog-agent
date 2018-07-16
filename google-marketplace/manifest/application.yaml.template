@@ -1,5 +1,5 @@
 ---
-apiVersion: app.k8s.io/v1alpha1
+apiVersion: app.k8s.io/v1beta1
 kind: Application
 metadata:
   name: "$name"
@@ -11,29 +11,63 @@ metadata:
   labels:
     app.kubernetes.io/name: "$name"
 spec:
-  type: Datadog Agent
-  version: '0.1'
-  description: |-
-    TODO
+  descriptor:
+    type: 'Datadog Agent'
+    version: '0.1'
+    description: |-
+      Datadog provides infrastructure monitoring, application performance monitoring,
+      and log management in a single-pane-of-glass view so teams can
+      scale rapidly and maintain operational excellence.
+    maintainers:
+    - name: Datadog
+      url: https://www.datadoghq.com
+    links:
+    - description: Sign up
+      url: https://app.datadoghq.com/signup
+    - description: RBAC policy
+      url: https://docs.datadoghq.com/integrations/faq/using-rbac-permission-with-your-kubernetes-integration/
+    - description: Documentation
+      url: https://docs.datadoghq.com
+    - description: Application
+      url: https://app.datadoghq.com
+    - description: Blog
+      url: https://www.datadoghq.com/blog/
+    notes: |-
+      # Send custom metrics with DogStatsD
+      
+      To enable the collection of custom metrics, the Datadog Agent ships with
+      a lightweight DogStatsD server for metric collection and aggregation.
+      To send metrics to a containerized DogStatsD, you can bind the container’s
+      port to the host port and address DogStatsD using the node’s IP address.
+      To do that, add a hostPort to your datadog-agent.yaml file:
 
-    # Support
-    Support is available at support@datadoghq.com
-    Additional support is available on
-    [our public Slack](http://chat.datadoghq.com/).
-  maintainers:
-  - name: Datadog
-    url: https://www.datadoghq.com
-  links:
-  - description: Sign up
-    url: https://app.datadoghq.com/signup
-  - description: RBAC policy
-  - url: https://docs.datadoghq.com/integrations/faq/using-rbac-permission-with-your-kubernetes-integration/
-  - description: Documentation
-    url: https://docs.datadoghq.com
-  - description: Application
-    url: https://app.datadoghq.com
-  - description: Blog
-    url: https://www.datadoghq.com/blog/
+      ```
+      ports:
+      - containerPort: 8125
+        hostPort: 8125
+        name: dogstatsdport
+        protocol: UDP
+      ```
+
+      This enables your applications to send metrics via DogStatsD on port 8125 on
+      whichever node they happen to be running.
+
+      ## Pass the node’s IP address to your app
+
+      Since we’ve made it possible to send metrics via a known port on the host,
+      let's now pass the IP address of the host to the application, using the
+      Kubernetes Downward API. Simply add this to your application manifest:
+
+      ```
+      env:
+      - name: DOGSTATSD_HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+      ```
+
+      Now any pod running the application will be able to send DogStatsD metrics
+      via port 8125 on $DOGSTATSD_HOST_IP.
   selector:
     matchLabels:
       app.kubernetes.io/name: "$name"
@@ -44,13 +78,5 @@ spec:
     kind: Secret
   - group: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
-  - group: rbac.authorization.k8s.io/v1
-    kind: ClusterRole
   - group: v1
     kind: ServiceAccount
-  notes: |-
-    # TODO: document how to:
-
-    #- edit agent configuration
-    #- pre-provision RBAC entities
-    #- attach RBAC policies

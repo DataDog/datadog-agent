@@ -50,7 +50,3 @@ Install the Datadog agent:
 ```bash
 make app/install
 ```
-
-## Upgrades
-
-*TODO*: instructions for upgrades

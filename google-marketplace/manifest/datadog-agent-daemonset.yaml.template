@@ -19,7 +19,7 @@ metadata:
     app.kubernetes.io/component: node-agent
 spec:
   selector:
-    matchLabels: *DatadogDsLabels    
+    matchLabels: *DatadogDsLabels
   template:
     metadata:
       labels: *DatadogDsLabels
@@ -31,27 +31,30 @@ spec:
         imagePullPolicy: Always
         name: datadog-agent
         ports:
-          - containerPort: 8125
-            # un-comment if you need to use dogstatsd
-            # see: https://app.datadoghq.com/account/settings#agent/kubernetes
-            # hostPort: 8125
-            name: dogstatsdport
-            protocol: UDP
-          - containerPort: 8126
-            name: traceport
-            protocol: TCP
+        - containerPort: 8125
+          # un-comment if you need to use dogstatsd
+          # see: https://app.datadoghq.com/account/settings#agent/kubernetes
+          # hostPort: 8125
+          name: dogstatsdport
+          protocol: UDP
+        - containerPort: 8126
+          # un-comment if you need to use the trace agent
+          # see: https://app.datadoghq.com/account/settings#agent/kubernetes
+          # hostPort: 8126
+          name: traceport
+          protocol: TCP
         env:
-          - name: DD_API_KEY
-            valueFrom:
-             secretKeyRef:
-               name: $name_apikey_secret
-               key: apiKey
-          - name: KUBERNETES
-            value: "yes"
-          - name: DD_KUBERNETES_KUBELET_HOST
-            valueFrom:
-              fieldRef:
-                fieldPath: status.hostIP
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: $name_apikey_secret
+              key: apiKey
+        - name: KUBERNETES
+          value: "yes"
+        - name: DD_KUBERNETES_KUBELET_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
         resources:
           requests:
             memory: "256Mi"
@@ -60,12 +63,12 @@ spec:
             memory: "256Mi"
             cpu: "200m"
         volumeMounts:
-          - name: procdir
-            mountPath: /host/proc
-            readOnly: true
-          - name: cgroups
-            mountPath: /host/sys/fs/cgroup
-            readOnly: true
+        - name: procdir
+          mountPath: /host/proc
+          readOnly: true
+        - name: cgroups
+          mountPath: /host/sys/fs/cgroup
+          readOnly: true
         livenessProbe:
           exec:
             command:
@@ -73,9 +76,9 @@ spec:
           initialDelaySeconds: 15
           periodSeconds: 10
       volumes:
-        - hostPath:
-            path: /proc
-          name: procdir
-        - hostPath:
-            path: /sys/fs/cgroup
-          name: cgroups
+      - hostPath:
+          path: /proc
+        name: procdir
+      - hostPath:
+          path: /sys/fs/cgroup
+        name: cgroups
