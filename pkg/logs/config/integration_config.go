@@ -59,9 +59,7 @@ type LogsProcessingRule struct {
 type LogsConfig struct {
 	Type string
 
-	Port      int // Network
-	FrameSize int `mapstructure:"frame_size" json:"frame_size"` // Network
-
+	Port int    // Network
 	Path string // File, Journald
 
 	IncludeUnits []string `mapstructure:"include_units" json:"include_units"` // Journald

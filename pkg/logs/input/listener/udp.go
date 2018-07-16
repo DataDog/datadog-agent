@@ -15,20 +15,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
+// The UDP listener is limited by the size of its read buffer,
+// if the content of the message is bigger than the buffer length,
+// it will arbitrary be truncated.
+// For examples for |MSG| := |F1|F2|F3| where |F1| + |F2| > BUF_LEN and |F1| < BUF_LEN :
+// sending: |F1|
+// sending: |F2|
+// sending: |F3|
+// would result in sending |MSG| to the logs-backend.
+// sending: |MSG|
+// would result in sending TRUNC(|F1|+|F2|) to the logs-backend.
+
 // A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a tailer.
 type UDPListener struct {
-	pp           pipeline.Provider
-	source       *config.LogSource
-	maxFrameSize int
-	tailer       *Tailer
+	pp        pipeline.Provider
+	source    *config.LogSource
+	frameSize int
+	tailer    *Tailer
 }
 
 // NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pp pipeline.Provider, source *config.LogSource) *UDPListener {
+func NewUDPListener(pp pipeline.Provider, source *config.LogSource, frameSize int) *UDPListener {
 	return &UDPListener{
-		pp:           pp,
-		source:       source,
-		maxFrameSize: getMaxFrameSize(source),
+		pp:        pp,
+		source:    source,
+		frameSize: frameSize,
 	}
 }
 
@@ -73,7 +84,7 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 
 // read reads data from the tailer connection, returns an error if it failed and reset the tailer.
 func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
-	frame := make([]byte, l.maxFrameSize+1)
+	frame := make([]byte, l.frameSize)
 	n, err := tailer.conn.Read(frame)
 	switch {
 	case err != nil && isClosedConnError(err):
@@ -82,7 +93,12 @@ func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
 		go l.resetTailer()
 		return nil, err
 	default:
-		return getContent(frame[:n], l.maxFrameSize), nil
+		if n == l.frameSize {
+			// Adding '\n' ensures that the current message will be truncated by the decoder,
+			// otherwise it would be mixed the following one.
+			frame[l.frameSize-1] = '\n'
+		}
+		return frame[:n], nil
 	}
 }
 

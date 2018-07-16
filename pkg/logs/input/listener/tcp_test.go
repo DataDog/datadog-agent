@@ -23,7 +23,7 @@ const tcpTestPort = 10512
 func TestTCPShouldReceivesMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}))
+	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), defaultFrameSize)
 	listener.Start()
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
@@ -39,10 +39,10 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	listener.Stop()
 }
 
-func TestTCPShouldProperlyTruncateTooBigMessages(t *testing.T) {
+func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort, FrameSize: 100}))
+	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 100)
 	listener.Start()
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
@@ -54,9 +54,9 @@ func TestTCPShouldProperlyTruncateTooBigMessages(t *testing.T) {
 	msg = <-msgChan
 	assert.Equal(t, strings.Repeat("a", 80), string(msg.Content()))
 
-	// fmt.Fprintf(conn, strings.Repeat("a", 150)+"\n")
-	// msg = <-msgChan
-	// assert.Equal(t, strings.Repeat("a", 99), string(msg.Content()))
+	fmt.Fprintf(conn, strings.Repeat("a", 200)+"\n")
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 200), string(msg.Content()))
 
 	fmt.Fprintf(conn, strings.Repeat("a", 70)+"\n")
 	msg = <-msgChan
