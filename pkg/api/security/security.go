@@ -161,7 +161,7 @@ func DeleteAuthToken() error {
 func GetClusterAgentAuthToken() (string, error) {
 	authToken := config.Datadog.GetString("cluster_agent.auth_token")
 	if authToken != "" {
-		log.Debugf("Using configured cluster_agent.auth_token")
+		log.Infof("Using configured cluster_agent.auth_token")
 		return authToken, validateAuthToken(authToken)
 	}
 
@@ -182,7 +182,7 @@ func GetClusterAgentAuthToken() (string, error) {
 		if e != nil {
 			return "", fmt.Errorf("error creating authentication token: %s", e)
 		}
-		log.Infof("Saved a new authentication token to %s", tokenAbsPath)
+		log.Infof("Saved a new authentication token for the Cluster Agent at %s", tokenAbsPath)
 	}
 
 	_, err := os.Stat(tokenAbsPath)
