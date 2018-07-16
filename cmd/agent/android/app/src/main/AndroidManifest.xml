@@ -16,7 +16,8 @@
         android:label="DataDog Agent"
         android:icon="@mipmap/ic_launcher">
         <service
-            android:name=".DDService" />
+            android:name=".DDService" 
+            android:singleUser="true" />
         <activity
             android:name=".MainActivity"
             android:label="DatadogAgent" >
