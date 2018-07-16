@@ -3,6 +3,7 @@ stages:
   - binary_build
   - integration_test
   - package_build
+  - check_deploy
   - testkitchen_deploy
   - testkitchen_testing
   - testkitchen_cleanup
@@ -809,9 +810,25 @@ dev_master_quay:
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
 
 #
-# deploy
+# Check Deploy
 #
 
+# Check that the current version hasn't already been deployed (we don't want to
+# overwrite a public package). To update a erroneous package, first remove it
+# from our S3 bucket.
+check_already_deployed_version:
+  <<: *run_when_triggered
+  stage: check_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+
+#
+# deploy
+#
 
 # deploy debian packages to apt staging repo
 deploy_deb:
@@ -834,9 +851,6 @@ deploy_deb:
 
     - echo "$APT_SIGNING_KEY_ID"
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
-
-    # Check if each artifact is already in the shared APT pool. If it is, re-release the one in the pool instead of the new artifact.
-    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/check_apt_pool.sh && cd -
 
     # Release the artifacts to the "6" component
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
