@@ -10,7 +10,10 @@ package aggregator
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
+)
+
+const (
+	defaultDistInterval = 10
 )
 
 // FIXME(Jee) : This should be integrated with time_sampler.go since it
@@ -26,6 +29,10 @@ type DistSampler struct {
 
 // NewDistSampler returns a newly initialized DistSampler
 func NewDistSampler(interval int64, defaultHostname string) *DistSampler {
+	if interval == 0 {
+		interval = defaultDistInterval
+	}
+
 	return &DistSampler{
 		interval:            interval,
 		contextResolver:     newContextResolver(),
@@ -42,49 +49,67 @@ func (d *DistSampler) calculateBucketStart(timestamp float64) int64 {
 func (d *DistSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	contextKey := d.contextResolver.trackContext(metricSample, timestamp)
 	bucketStart := d.calculateBucketStart(timestamp)
-	sketch, ok := d.sketchesByTimestamp[bucketStart]
+
+	byCtx, ok := d.sketchesByTimestamp[bucketStart]
 	if !ok {
-		sketch = metrics.MakeContextSketch()
-		d.sketchesByTimestamp[bucketStart] = sketch
+		byCtx = make(metrics.ContextSketch)
+		d.sketchesByTimestamp[bucketStart] = byCtx
 	}
-	sketch.AddSample(contextKey, metricSample, timestamp, d.interval)
+
+	byCtx.AddSample(contextKey, metricSample, timestamp, d.interval)
 }
 
-func (d *DistSampler) flush(timestamp float64) percentile.SketchSeriesList {
-	var result []*percentile.SketchSeries
+func (d *DistSampler) each(flushTs float64, f func(ckey.ContextKey, metrics.SketchPoint)) {
+	tsLimit := d.calculateBucketStart(flushTs)
 
-	sketchesByContext := make(map[ckey.ContextKey]*percentile.SketchSeries)
-
-	cutoffTime := d.calculateBucketStart(timestamp)
-	for bucketTimestamp, ctxSketch := range d.sketchesByTimestamp {
-		if cutoffTime <= bucketTimestamp {
+	for bucketTs, bucket := range d.sketchesByTimestamp {
+		if tsLimit <= bucketTs {
 			continue
 		}
 
-		sketches := ctxSketch.Flush(float64(bucketTimestamp))
-		for _, sketchSeries := range sketches {
-			contextKey := sketchSeries.ContextKey
-
-			if existingSeries, ok := sketchesByContext[contextKey]; ok {
-				existingSeries.Sketches = append(existingSeries.Sketches, sketchSeries.Sketches[0])
-			} else {
-				context := d.contextResolver.contextsByKey[contextKey]
-				sketchSeries.Name = context.Name
-				sketchSeries.Tags = context.Tags
-				if context.Host != "" {
-					sketchSeries.Host = context.Host
-				} else {
-					sketchSeries.Host = d.defaultHostname
-				}
-				sketchSeries.Interval = d.interval
-
-				sketchesByContext[contextKey] = sketchSeries
-				result = append(result, sketchSeries)
-			}
+		for ctxkey, as := range bucket {
+			f(ctxkey, metrics.SketchPoint{
+				Sketch: as.Finish(),
+				Ts:     bucketTs,
+			})
 		}
-		delete(d.sketchesByTimestamp, bucketTimestamp)
-	}
-	d.contextResolver.expireContexts(timestamp - defaultExpiry)
 
-	return result
+		delete(d.sketchesByTimestamp, bucketTs)
+	}
+}
+func (d *DistSampler) flush(flushTs float64) metrics.SketchSeriesList {
+	// points are inserted by `ts` -> `ctx`, we want to invert this mapping.
+	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+	d.each(flushTs, func(ck ckey.ContextKey, p metrics.SketchPoint) {
+		if p.Sketch == nil {
+			return
+		}
+
+		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+	})
+
+	out := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
+	for ck, points := range pointsByCtx {
+		out = append(out, d.newSeries(ck, points))
+	}
+
+	d.contextResolver.expireContexts(flushTs - defaultExpiry)
+	return out
+}
+
+func (d *DistSampler) newSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+	ctx := d.contextResolver.contextsByKey[ck]
+	ss := metrics.SketchSeries{
+		Name:     ctx.Name,
+		Tags:     ctx.Tags,
+		Host:     ctx.Host,
+		Interval: d.interval,
+		Points:   points,
+	}
+
+	if ss.Host == "" {
+		ss.Host = d.defaultHostname
+	}
+
+	return ss
 }
