@@ -271,10 +271,10 @@ func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
 	assert.Equal(t, "any_service", source.Config.Service)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`}
-	container = NewContainer(types.Container{Labels: labels, Image: "any_image"})
+	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.NotNil(t, source)
-	assert.Equal(t, "any_image", source.Name)
+	assert.Equal(t, "", source.Name)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
 	assert.Equal(t, 1, len(source.Config.ProcessingRules))
