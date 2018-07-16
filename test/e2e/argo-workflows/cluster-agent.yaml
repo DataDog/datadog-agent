@@ -328,15 +328,7 @@ spec:
             port: 8090
             targetPort: 80
 
-    - name: agent-service-account
-      value: |
-        kind: ServiceAccount
-        apiVersion: v1
-        metadata:
-          name: datadog-agent
-          namespace: default
-
-    - name: agent-cluster-role
+    - name: agent-rbac
       value: |
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRole
@@ -351,9 +343,7 @@ spec:
           - nodes/proxy
           verbs:
           - get
-
-    - name: agent-cluster-role-binding
-      value: |
+        ---
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRoleBinding
         metadata:
@@ -364,6 +354,12 @@ spec:
           name: datadog-agent
         subjects:
         - kind: ServiceAccount
+          name: datadog-agent
+          namespace: default
+        ---
+        kind: ServiceAccount
+        apiVersion: v1
+        metadata:
           name: datadog-agent
           namespace: default
 
@@ -378,6 +374,7 @@ spec:
           datadog.yaml: |
             api_key: "123er"
             dd_url: "http://fake-datadog.default.svc.cluster.local"
+            cluster_agent: true
             listeners:
             - name: kubelet
             config_providers:
@@ -414,8 +411,6 @@ spec:
                 - /opt/datadog-agent/bin/agent/agent
                 - start
                 env:
-                - name: DD_CLUSTER_AGENT
-                  value: "true"
                 - name: DD_CLUSTER_AGENT_AUTH_TOKEN
                   value: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
                 - name: DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ
@@ -527,14 +522,12 @@ spec:
       parameters:
       - name: nginx
       - name: agent-configmap
-      - name: agent-service-account
-      - name: agent-cluster-role
-      - name: agent-cluster-role-binding
+      - name: agent-rbac
       - name: agent-daemonset
       - name: cluster-agent-rbac
       - name: cluster-agent-deployment
-      - name: cluster-agent-hpa-svc
       - name: cluster-agent-svc
+      - name: cluster-agent-hpa-svc
       - name: custom-metrics-server-rbac
       - name: fake-datadog-deployment
       - name: fake-datadog-service
@@ -591,9 +584,7 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.agent-configmap}}"
-        - "{{inputs.parameters.agent-service-account}}"
-        - "{{inputs.parameters.agent-cluster-role}}"
-        - "{{inputs.parameters.agent-cluster-role-binding}}"
+        - "{{inputs.parameters.agent-rbac}}"
         - "{{inputs.parameters.agent-daemonset}}"
 
     - - name: nginx-hpa-setup
@@ -635,9 +626,7 @@ spec:
       parameters:
       - name: nginx
       - name: agent-configmap
-      - name: agent-service-account
-      - name: agent-cluster-role
-      - name: agent-cluster-role-binding
+      - name: agent-rbac
       - name: agent-daemonset
       - name: fake-datadog-deployment
       - name: fake-datadog-service
@@ -660,9 +649,7 @@ spec:
         withItems:
         - "{{inputs.parameters.nginx}}"
         - "{{inputs.parameters.agent-configmap}}"
-        - "{{inputs.parameters.agent-service-account}}"
-        - "{{inputs.parameters.agent-cluster-role}}"
-        - "{{inputs.parameters.agent-cluster-role-binding}}"
+        - "{{inputs.parameters.agent-rbac}}"
         - "{{inputs.parameters.agent-daemonset}}"
         - "{{inputs.parameters.fake-datadog-service}}"
         - "{{inputs.parameters.fake-datadog-deployment}}"
