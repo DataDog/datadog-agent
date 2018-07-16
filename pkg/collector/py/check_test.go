@@ -123,8 +123,7 @@ func TestInitNewSignatureCheck(t *testing.T) {
 func TestInitException(t *testing.T) {
 	_, err := getCheckInstance("init_exception", "TestCheck")
 
-	assert.Contains(t, err.Error(), "could not invoke python check constructor: ['Traceback (most recent call last):\\n")
-	assert.Contains(t, err.Error(), "raise RuntimeError(\"unexpected error\")\\n', 'RuntimeError: unexpected error\\n']")
+	assert.Regexp(t, "could not invoke python check constructor: Traceback \\(most recent call last\\):\n  File \"[\\S]+(\\/|\\\\)init_exception\\.py\", line 11, in __init__\n    raise RuntimeError\\(\"unexpected error\"\\)\nRuntimeError: unexpected error", err.Error())
 }
 
 func TestInitNoTracebackException(t *testing.T) {
