@@ -26,7 +26,7 @@ type ProviderTestSuite struct {
 
 // newProvider returns a new Provider initialized with the right configuration
 func (suite *ProviderTestSuite) newProvider(path string) *Provider {
-	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
+	sources := config.NewLogSources([]*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})})
 	return NewProvider(sources, suite.filesLimit)
 }
 

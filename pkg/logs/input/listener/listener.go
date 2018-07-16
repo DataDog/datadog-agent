@@ -20,20 +20,18 @@ type Listener interface {
 // Listeners summons different protocol specific listeners based on configuration
 type Listeners struct {
 	pp        pipeline.Provider
-	sources   []*config.LogSource
+	sources   *config.LogSources
 	listeners []Listener
 }
 
 // New returns an initialized Listeners
-func New(sources []*config.LogSource, pp pipeline.Provider) *Listeners {
-	listeners := []Listener{}
-	for _, source := range sources {
-		switch source.Config.Type {
-		case config.TCPType:
-			listeners = append(listeners, NewTCPListener(pp, source))
-		case config.UDPType:
-			listeners = append(listeners, NewUDPListener(pp, source))
-		}
+func New(sources *config.LogSources, pp pipeline.Provider) *Listeners {
+	var listeners []Listener
+	for _, source := range sources.GetValidSourcesWithType(config.TCPType) {
+		listeners = append(listeners, NewTCPListener(pp, source))
+	}
+	for _, source := range sources.GetValidSourcesWithType(config.UDPType) {
+		listeners = append(listeners, NewUDPListener(pp, source))
 	}
 	return &Listeners{
 		pp:        pp,

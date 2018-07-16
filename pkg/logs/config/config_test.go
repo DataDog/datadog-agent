@@ -20,37 +20,51 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, 10516, LogsAgent.GetInt("logs_config.dd_port"))
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.dev_mode_no_ssl"))
 	assert.Equal(t, true, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
+	assert.Equal(t, false, LogsAgent.GetBool("logs_config.dev_mode_use_inotify"))
 	assert.Equal(t, 100, LogsAgent.GetInt("logs_config.open_files_limit"))
+	assert.Equal(t, false, LogsAgent.GetBool("logs_config.container_collect_all"))
 }
 
 func TestBuildLogsSources(t *testing.T) {
 	var ddconfdPath string
 	var logsSources *LogSources
-	var source *LogSource
-	var err error
-
-	// should return an error
-	logsSources, err = buildLogSources(ddconfdPath, false)
-	assert.NotNil(t, err)
-
-	// should return the default tail all containers source
-	logsSources, err = buildLogSources(ddconfdPath, true)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(logsSources.GetValidSources()))
-
-	source = logsSources.GetValidSources()[0]
-	assert.Equal(t, "container_collect_all", source.Name)
-	assert.Equal(t, "docker", source.Config.Service)
-	assert.Equal(t, "docker", source.Config.Source)
 
 	// default tail all containers source should be the last element of the list
 	ddconfdPath = filepath.Join("tests", "any_docker_integration.d")
-	logsSources, err = buildLogSources(ddconfdPath, true)
-	assert.Nil(t, err)
-	assert.Equal(t, 3, len(logsSources.GetValidSources()))
+	logsSources = buildLogSources(ddconfdPath)
+	assert.Equal(t, 2, len(logsSources.GetValidSources()))
+}
 
-	source = logsSources.GetValidSources()[2]
-	assert.Equal(t, "container_collect_all", source.Name)
-	assert.Equal(t, "docker", source.Config.Service)
-	assert.Equal(t, "docker", source.Config.Source)
+func TestBuild(t *testing.T) {
+	var ddconfdPath string
+	var logsSources *LogSources
+	var err error
+
+	ddconfdPath = filepath.Join("tests", "any_docker_integration.d")
+
+	LogsAgent.Set("confd_path", ddconfdPath)
+	LogsAgent.Set("logs_config.container_collect_all", false)
+	logsSources, err = Build()
+	assert.True(t, len(logsSources.GetValidSources()) > 0)
+	assert.Nil(t, err)
+
+	LogsAgent.Set("confd_path", ddconfdPath)
+	LogsAgent.Set("logs_config.container_collect_all", true)
+	logsSources, err = Build()
+	assert.True(t, len(logsSources.GetValidSources()) > 0)
+	assert.Nil(t, err)
+
+	ddconfdPath = ""
+
+	LogsAgent.Set("confd_path", ddconfdPath)
+	LogsAgent.Set("logs_config.container_collect_all", false)
+	logsSources, err = Build()
+	assert.False(t, len(logsSources.GetValidSources()) > 0)
+	assert.NotNil(t, err)
+
+	LogsAgent.Set("confd_path", ddconfdPath)
+	LogsAgent.Set("logs_config.container_collect_all", true)
+	logsSources, err = Build()
+	assert.False(t, len(logsSources.GetValidSources()) > 0)
+	assert.Nil(t, err)
 }

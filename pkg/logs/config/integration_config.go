@@ -126,6 +126,7 @@ func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 			err = validateConfig(config)
 			if err != nil {
 				source.Status.Error(err)
+				source.Invalidate()
 				log.Error(err)
 				continue
 			}

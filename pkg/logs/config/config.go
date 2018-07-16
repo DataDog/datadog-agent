@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -15,38 +16,20 @@ var LogsAgent = config.Datadog
 
 // Build returns logs-agent sources
 func Build() (*LogSources, error) {
-	sources, err := buildLogSources(LogsAgent.GetString("confd_path"), LogsAgent.GetBool("logs_config.container_collect_all"))
-	if err != nil {
-		return nil, err
+	logSources := buildLogSources(LogsAgent.GetString("confd_path"))
+	if len(logSources.GetValidSources()) == 0 && !LogsAgent.GetBool("logs_config.container_collect_all") {
+		return logSources, fmt.Errorf("could not find any valid logs configuration")
 	}
-	return sources, nil
+	return logSources, nil
 }
 
 // buildLogSources returns all the logs sources computed from logs configuration files and environment variables
-func buildLogSources(ddconfdPath string, collectAllLogsFromContainers bool) (*LogSources, error) {
+func buildLogSources(ddconfdPath string) *LogSources {
 	var sources []*LogSource
 
 	// append sources from all logs config files
 	fileSources := buildLogSourcesFromDirectory(ddconfdPath)
 	sources = append(sources, fileSources...)
 
-	if collectAllLogsFromContainers {
-		// append source to collect all logs from all containers,
-		// this source must be added to the end of the list
-		// to assure sources metadata are not overridden when already defined
-		containersSource := NewLogSource("container_collect_all", &LogsConfig{
-			Type:    DockerType,
-			Service: "docker",
-			Source:  "docker",
-		})
-		sources = append(sources, containersSource)
-	}
-
-	logSources := &LogSources{sources}
-
-	if len(logSources.GetValidSources()) == 0 {
-		return nil, fmt.Errorf("could not find any valid logs configuration")
-	}
-
-	return logSources, nil
+	return NewLogSources(sources)
 }
