@@ -103,7 +103,7 @@ func (m ServicesMapper) mapOnRef(nodeName string, endpointList v1.EndpointsList)
 		for _, endpointsSubsets := range svc.Subsets {
 			for _, edpt := range endpointsSubsets.Addresses {
 				if edpt.TargetRef == nil {
-					log.Debug("Empty TargetRef on endpoint %s of service %s, skipping", edpt.IP, svc.Name)
+					log.Debugf("Empty TargetRef on endpoint %s of service %s, skipping", edpt.IP, svc.Name)
 					continue
 				}
 				ref := *edpt.TargetRef
@@ -111,7 +111,7 @@ func (m ServicesMapper) mapOnRef(nodeName string, endpointList v1.EndpointsList)
 					continue
 				}
 				if ref.Name == "" || ref.Namespace == "" {
-					log.Debug("Incomplete reference for object %s on service %s, skipping", ref.UID, svc.Name)
+					log.Debugf("Incomplete reference for object %s on service %s, skipping", ref.UID, svc.Name)
 					continue
 				}
 				uidToPod[ref.UID] = ref
