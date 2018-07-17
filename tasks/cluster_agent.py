@@ -60,25 +60,6 @@ def build(ctx, rebuild=False, race=False, use_embedded_libs=False):
 
     ctx.run(cmd.format(REPO_PATH), env=env)
 
-
-@task
-def run(ctx, rebuild=False, race=False, skip_build=False, development=True):
-    """
-    Run the Cluster Agent's binary. Build the binary before executing, unless
-    --skip-build was passed.
-    """
-    if not skip_build:
-        print("Building the Cluster Agent...")
-        build(ctx, rebuild=rebuild, race=race)
-
-    target = os.path.join(BIN_PATH, bin_name("datadog-cluster-agent"))
-    cfgPath = ""
-    if development:
-        cfgPath = "-c dev/dist/datadog-cluster.yaml"
-
-    ctx.run("{0} start {1}".format(target, cfgPath))
-
-
 @task
 def clean(ctx):
     """
