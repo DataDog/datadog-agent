@@ -5,125 +5,175 @@
 
 package aggregator
 
-// import (
-// 	"sort"
-// 	"testing"
+import (
+	"sort"
+	"testing"
+	"time"
 
-// 	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-// 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-// 	"github.com/DataDog/datadog-agent/pkg/metrics"
-// 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
-// )
+func TestDistSampler(t *testing.T) {
+	const (
+		defaultHost       = "default_host"
+		defaultBucketSize = 10
+	)
 
-// // OrderedSketchSeries used to sort []*SketchSeries
-// type OrderedSketchSeries struct {
-// 	sketchSeries []*percentile.SketchSeries
-// }
+	var (
+		d = newDistSampler(0, defaultHost)
 
-// func (oss OrderedSketchSeries) Len() int {
-// 	return len(oss.sketchSeries)
-// }
+		insert = func(t *testing.T, ts int64, ctx Context, values ...float64) {
+			t.Helper()
+			for _, v := range values {
+				d.addSample(&metrics.MetricSample{
+					Name:       ctx.Name,
+					Tags:       ctx.Tags,
+					Host:       ctx.Host,
+					Value:      v,
+					Mtype:      metrics.DistributionType,
+					SampleRate: 1,
+				}, ts)
+			}
+		}
+	)
 
-// func (oss OrderedSketchSeries) Less(i, j int) bool {
-// 	return ckey.Compare(oss.sketchSeries[i].ContextKey, oss.sketchSeries[j].ContextKey) == -1
-// }
+	assert.EqualValues(t, defaultBucketSize, d.interval,
+		"interval should default to 10")
 
-// func (oss OrderedSketchSeries) Swap(i, j int) {
-// 	oss.sketchSeries[i], oss.sketchSeries[j] = oss.sketchSeries[j], oss.sketchSeries[i]
-// }
+	t.Run("empty flush", func(t *testing.T) {
+		flushed := d.flush(time.Now().Unix())
+		require.Len(t, flushed, 0)
+	})
 
-// func TestDistSamplerBucketSampling(t *testing.T) {
-// 	distSampler := NewDistSampler(10, "")
+	t.Run("single bucket", func(t *testing.T) {
+		var (
+			now int64
+			ctx = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
+			exp = &quantile.Sketch{}
+		)
 
-// 	mSample1 := metrics.MetricSample{
-// 		Name:       "test.metric.name",
-// 		Value:      1,
-// 		Mtype:      metrics.DistributionType,
-// 		Tags:       []string{"a", "b"},
-// 		SampleRate: 1,
-// 	}
-// 	mSample2 := metrics.MetricSample{
-// 		Name:       "test.metric.name",
-// 		Value:      2,
-// 		Mtype:      metrics.DistributionType,
-// 		Tags:       []string{"a", "b"},
-// 		SampleRate: 1,
-// 	}
-// 	distSampler.addSample(&mSample1, 10001)
-// 	distSampler.addSample(&mSample2, 10002)
-// 	distSampler.addSample(&mSample1, 10011)
-// 	distSampler.addSample(&mSample2, 10012)
-// 	distSampler.addSample(&mSample1, 10021)
+		for i := 0; i < bucketSize; i++ {
+			v := float64(i)
+			insert(t, now, ctx, v)
+			exp.Insert(quantile.Default(), v)
 
-// 	sketchSeries := distSampler.flush(10020.0)
+			now++
+		}
 
-// 	expectedSketch := percentile.NewGKArray()
-// 	expectedSketch = expectedSketch.Add(1)
-// 	expectedSketch = expectedSketch.Add(2)
-// 	expectedSeries := &percentile.SketchSeries{
-// 		Name:     "test.metric.name",
-// 		Tags:     []string{"a", "b"},
-// 		Interval: 10,
-// 		Sketches: []percentile.Sketch{
-// 			{Timestamp: 10000, Sketch: expectedSketch},
-// 			{Timestamp: 10010, Sketch: expectedSketch},
-// 		},
-// 		ContextKey: generateContextKey(&mSample1),
-// 	}
-// 	assert.Equal(t, 1, len(sketchSeries))
-// 	metrics.AssertSketchSeriesEqual(t, expectedSeries, sketchSeries[0])
+		flushed := d.flush(now)
+		metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+			Name:     ctx.Name,
+			Tags:     ctx.Tags,
+			Host:     ctx.Host,
+			Interval: 10,
+			Points: []metrics.SketchPoint{
+				{
+					Sketch: exp,
+					Ts:     0,
+				},
+			},
+			ContextKey: ckey.Generate(ctx.Name, ctx.Host, ctx.Tags),
+		}, flushed[0])
 
-// 	// The samples added after the flush time remains in the dist sampler
-// 	assert.Equal(t, 1, len(distSampler.sketchesByTimestamp))
-// }
+		require.Len(t, d.flush(now), 0, "these points have already been flushed")
+	})
 
-// func TestDistSamplerContextSampling(t *testing.T) {
-// 	distSampler := NewDistSampler(10, "")
+}
 
-// 	mSample1 := metrics.MetricSample{
-// 		Name:       "test.metric.name1",
-// 		Value:      1,
-// 		Mtype:      metrics.DistributionType,
-// 		Tags:       []string{"a", "b"},
-// 		SampleRate: 1,
-// 	}
-// 	mSample2 := metrics.MetricSample{
-// 		Name:       "test.metric.name2",
-// 		Value:      1,
-// 		Mtype:      metrics.DistributionType,
-// 		Tags:       []string{"a", "c"},
-// 		SampleRate: 1,
-// 	}
-// 	distSampler.addSample(&mSample1, 10011)
-// 	distSampler.addSample(&mSample2, 10011)
+func TestDistSamplerBucketSampling(t *testing.T) {
 
-// 	orderedSketchSeries := OrderedSketchSeries{distSampler.flush(10020.0)}
-// 	sort.Sort(orderedSketchSeries)
-// 	sketchSeries := orderedSketchSeries.sketchSeries
+	distSampler := newDistSampler(10, "")
 
-// 	expectedSketch := percentile.NewGKArray()
-// 	expectedSketch = expectedSketch.Add(1)
-// 	expectedSeries1 := &percentile.SketchSeries{
-// 		Name:     "test.metric.name1",
-// 		Tags:     []string{"a", "b"},
-// 		Interval: 10,
-// 		Sketches: []percentile.Sketch{
-// 			{Timestamp: 10010, Sketch: expectedSketch},
-// 		},
-// 		ContextKey: generateContextKey(&mSample1),
-// 	}
-// 	expectedSeries2 := &percentile.SketchSeries{
-// 		Name:     "test.metric.name2",
-// 		Tags:     []string{"a", "c"},
-// 		Interval: 10,
-// 		Sketches: []percentile.Sketch{
-// 			{Timestamp: 10010, Sketch: expectedSketch},
-// 		},
-// 		ContextKey: generateContextKey(&mSample2),
-// 	}
+	mSample1 := metrics.MetricSample{
+		Name:       "test.metric.name",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "b"},
+		SampleRate: 1,
+	}
+	mSample2 := metrics.MetricSample{
+		Name:       "test.metric.name",
+		Value:      2,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "b"},
+		SampleRate: 1,
+	}
+	distSampler.addSample(&mSample1, 10001)
+	distSampler.addSample(&mSample2, 10002)
+	distSampler.addSample(&mSample1, 10011)
+	distSampler.addSample(&mSample2, 10012)
+	distSampler.addSample(&mSample1, 10021)
 
-// 	assert.Equal(t, 2, len(sketchSeries))
-// 	metrics.AssertSketchSeriesEqual(t, expectedSeries1, sketchSeries[1])
-// 	metrics.AssertSketchSeriesEqual(t, expectedSeries2, sketchSeries[0])
-// }
+	flushed := distSampler.flush(10020.0)
+	expSketch := &quantile.Sketch{}
+	expSketch.Insert(quantile.Default(), 1, 2)
+
+	assert.Equal(t, 1, len(flushed))
+	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+		Name:     "test.metric.name",
+		Tags:     []string{"a", "b"},
+		Interval: 10,
+		Points: []metrics.SketchPoint{
+			{Ts: 10000, Sketch: expSketch},
+			{Ts: 10010, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(&mSample1),
+	}, flushed[0])
+
+	// The samples added after the flush time remains in the dist sampler
+	assert.Equal(t, 1, distSampler.m.Len())
+}
+
+func TestDistSamplerContextSampling(t *testing.T) {
+	distSampler := newDistSampler(10, "")
+
+	mSample1 := metrics.MetricSample{
+		Name:       "test.metric.name1",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "b"},
+		SampleRate: 1,
+	}
+	mSample2 := metrics.MetricSample{
+		Name:       "test.metric.name2",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "c"},
+		SampleRate: 1,
+	}
+	distSampler.addSample(&mSample1, 10011)
+	distSampler.addSample(&mSample2, 10011)
+
+	flushed := distSampler.flush(10020)
+	expSketch := &quantile.Sketch{}
+	expSketch.Insert(quantile.Default(), 1)
+
+	assert.Equal(t, 2, len(flushed))
+	sort.Slice(flushed, func(i, j int) bool {
+		return flushed[i].Name < flushed[j].Name
+	})
+
+	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+		Name:     "test.metric.name1",
+		Tags:     []string{"a", "b"},
+		Interval: 10,
+		Points: []metrics.SketchPoint{
+			{Ts: 10010, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(&mSample1),
+	}, flushed[0])
+
+	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+		Name:     "test.metric.name2",
+		Tags:     []string{"a", "c"},
+		Interval: 10,
+		Points: []metrics.SketchPoint{
+			{Ts: 10010, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(&mSample2),
+	}, flushed[1])
+}

@@ -6,11 +6,14 @@
 package metrics
 
 import (
+	"sort"
+
 	// stdlib
 	"fmt"
 	"testing"
 
 	// 3p
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +27,7 @@ func AssertPointsEqual(t *testing.T, expected, actual []Point) {
 }
 
 // AssertTagsEqual evaluate if two list of tags are equal (the order doesn't matters).
-func AssertTagsEqual(t *testing.T, expected, actual []string) {
+func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 	if assert.Equal(t, len(expected), len(actual), fmt.Sprintf("Unexpected number of tags: expected %s, actual: %s", expected, actual)) {
 		for _, tag := range expected {
 			assert.Contains(t, actual, tag)
@@ -51,32 +54,49 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	AssertPointsEqual(t, expected.Points, actual.Points)
 }
 
-// // AssertSketchSeriesEqual checks whether two SketchSeries are equal
-// func AssertSketchSeriesEqual(t *testing.T, expected, actual *SketchSeries) {
-// 	assert.Equal(t, expected.Name, actual.Name)
-// 	if expected.Tags != nil {
-// 		assert.NotNil(t, actual.Tags)
-// 		AssertTagsEqual(t, expected.Tags, actual.Tags)
-// 	}
-// 	assert.Equal(t, expected.Host, actual.Host)
-// 	assert.Equal(t, expected.Interval, actual.Interval)
-// 	if !expected.ContextKey.IsZero() {
-// 		assert.Equal(t, expected.ContextKey, actual.ContextKey)
-// 	}
-// 	if expected.Sketches != nil {
-// 		assert.NotNil(t, actual.Sketches)
-// 		AssertSketchesEqual(t, expected.Sketches, actual.Sketches)
-// 	}
-// }
+// AssertSketchSeriesEqual checks whether two SketchSeries are equal
+func AssertSketchSeriesEqual(t assert.TestingT, exp, act SketchSeries) {
+	if h, ok := t.(tHelper); ok {
+		h.Helper()
+	}
+	assert.Equal(t, exp.Name, act.Name, "Name")
 
-// // AssertSketchesEqual checks whether two Sketch slices are equal
-// func AssertSketchesEqual(t *testing.T, expected, actual []Sketch) {
-// 	if assert.Equal(t, len(expected), len(actual)) {
-// 		sort.Slice(actual, func(i, j int) bool {
-// 			return actual[i].Ts < actual[j].Ts
-// 		})
-// 		for i, sketch := range expected {
-// 			assert.Equal(t, sketch, actual[i])
-// 		}
-// 	}
-// }
+	switch {
+	case len(exp.Tags) == 0:
+		assert.Len(t, act.Tags, 0, "(act) Tags: should be empty")
+	case len(act.Tags) == 0:
+		assert.Len(t, exp.Tags, 0, "(act) Tags: shouldn't be empty")
+	default:
+		AssertTagsEqual(t, exp.Tags, act.Tags)
+	}
+
+	assert.Equal(t, exp.Host, act.Host, "Host")
+	assert.Equal(t, exp.Interval, act.Interval, "Interval")
+	assert.Equal(t, exp.ContextKey, act.ContextKey, "ContextKey")
+
+	switch {
+	case len(exp.Points) != len(act.Points):
+		t.Errorf("Points: %v != %v", exp.Points, act.Points)
+	default:
+		for _, points := range [][]SketchPoint{exp.Points, act.Points} {
+			sort.SliceStable(points, func(i, j int) bool {
+				return points[i].Ts < points[j].Ts
+			})
+		}
+
+		assert.Equal(t, exp.Points, act.Points)
+
+		// assert.Equal does lots of magic, lets double check with a concrete equals
+		// method.
+		for i := range exp.Points {
+			a, e := act.Points[i], exp.Points[i]
+			if a.Ts != e.Ts || !a.Sketch.Equals(e.Sketch) {
+				t.Errorf("Points[%d]: %s != %s", a, e)
+			}
+		}
+	}
+}
+
+type tHelper interface {
+	Helper()
+}

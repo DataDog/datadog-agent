@@ -22,7 +22,7 @@ func (a *Agent) IsEmpty() bool {
 func (a *Agent) Finish() *Sketch {
 	a.Flush()
 
-	if a.Sketch.Basic.Cnt == 0 {
+	if a.IsEmpty() {
 		return nil
 	}
 
