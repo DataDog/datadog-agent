@@ -37,7 +37,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     """
     # ensure BIN_PATH exists
     if not os.path.exists(BIN_PATH):
-        os.mkdir(BIN_PATH)
+        os.makedirs(BIN_PATH)
 
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -73,25 +73,23 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     }
     ctx.run(cmd.format(**args), env=env)
 
-
-    cmd = "cmd/agent/android/gradlew/build"
+    pwd = os.getcwd()
+    os.chdir("cmd/agent/android")
+    if sys.platform == 'win32':
+        cmd = "gradlew.bat build"
+    else:
+        cmd = "./gradlew build"
     ctx.run(cmd)
-    shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", "bin/agent")
-
-    if android:
-        cmd = "java -jar signapk.jar platform.x509.pem platform.pk8 bin\\agent\\agent.apk bin\\agent\\agent-signed.apk"
-        ctx.run(cmd)
-
-    if not skip_assets:
-        refresh_assets(ctx, development=development)
+    os.chdir(pwd)
+    shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", "bin/agent/ddagent-release-unsigned.apk")
 
 
 @task
 def sign_apk(ctx, development=True):
     """
-    Clean up and refresh Collector's assets and config files
+    Signs the APK with the default platform signature.
     """
-    cmd = "java -jar signapk.jar platform.x509.pem platform.pk8 bin/agent/app-release-unsigned.apk bin/agent/agent-signed.apk"
+    cmd = "java -jar signapk.jar platform.x509.pem platform.pk8 bin/agent/ddagent-release-unsigned.apk bin/agent/ddagent-release-signed.apk"
     ctx.run(cmd)
 
 
@@ -99,7 +97,7 @@ def sign_apk(ctx, development=True):
 def install(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
         skip_build=False):
     """
-    Execute the agent binary.
+    Installs the APK on a device.
 
     By default it builds the agent before executing it, unless --skip-build was
     passed. It accepts the same set of options as agent.build.
@@ -108,109 +106,8 @@ def install(ctx, rebuild=False, race=False, build_include=None, build_exclude=No
         build(ctx, rebuild, race, build_include, build_exclude)
         sign_apk(ctx)
 
-    cmd = "adb install -r bin/agent/agent-signed.apk"
+    cmd = "adb install -r bin/agent/ddagent-release-signed.apk"
     ctx.run(cmd)
-
-
-@task
-def system_tests(ctx):
-    """
-    Run the system testsuite.
-    """
-    pass
-
-
-@task
-def image_build(ctx, base_dir="omnibus"):
-    """
-    Build the docker image
-    """
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-    pkg_dir = os.path.join(base_dir, 'pkg')
-    list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-agent*_amd64.deb'))
-    # get the last debian package built
-    if not list_of_files:
-        print("No debian package build found in {}".format(pkg_dir))
-        print("See agent.omnibus-build")
-        raise Exit(code=1)
-    latest_file = max(list_of_files, key=os.path.getctime)
-    shutil.copy2(latest_file, "Dockerfiles/agent/")
-    ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
-    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
-
-
-@task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
-    """
-    Run integration tests for the Agent
-    """
-    if install_deps:
-        deps(ctx)
-
-    test_args = {
-        "go_build_tags": " ".join(get_default_build_tags()),
-        "race_opt": "-race" if race else "",
-        "exec_opts": "",
-    }
-
-    if remote_docker:
-        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
-
-    go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
-
-    prefixes = [
-        "./test/integration/config_providers/...",
-        "./test/integration/corechecks/...",
-        "./test/integration/listeners/...",
-        "./test/integration/util/kubelet/...",
-    ]
-
-    for prefix in prefixes:
-        ctx.run("{} {}".format(go_cmd, prefix))
-
-
-@task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
-def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, skip_sign=False, release_version="nightly", omnibus_s3_cache=False):
-    """
-    Build the Agent packages with Omnibus Installer.
-    """
-    if not skip_deps:
-        deps(ctx)
-
-    # omnibus config overrides
-    overrides = []
-
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-    if base_dir:
-        overrides.append("base_dir:{}".format(base_dir))
-
-    overrides_cmd = ""
-    if overrides:
-        overrides_cmd = "--override=" + " ".join(overrides)
-
-    with ctx.cd("omnibus"):
-        env = load_release_versions(ctx, release_version)
-        cmd = "bundle install"
-        if gem_path:
-            cmd += " --path {}".format(gem_path)
-        ctx.run(cmd, env=env)
-
-        omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
-        cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
-        args = {
-            "omnibus": omnibus,
-            "project_name": "puppy" if puppy else "agent",
-            "log_level": log_level,
-            "overrides": overrides_cmd,
-            "populate_s3_cache": ""
-        }
-        if omnibus_s3_cache:
-            args['populate_s3_cache'] = " --populate-s3-cache "
-        if skip_sign:
-            env['SKIP_SIGN_MAC'] = 'true'
-        ctx.run(cmd.format(**args), env=env)
 
 
 @task

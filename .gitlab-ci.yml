@@ -354,12 +354,9 @@ agent_android_apk:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # for now do the steps manually.  Should eventually move this to an invoke
     # task
-    - mkdir -p bin/agent
-    - gomobile bind -target android -o bin/agent/ddagent.aar github.com/DataDog/datadog-agent/cmd/agent/android
-    - cd cmd/agent/android
-    - ./gradlew build
+    - inv -e android.build
     - mkdir -p $CI_PROJECT_DIR/apk
-    - cp ./app/build/outputs/apk/release/app-release-unsigned.apk $CI_PROJECT_DIR/apk
+    - cp ./bin/agent/ddagent-release-unsigned.apk $CI_PROJECT_DIR/apk
   artifacts:
     expire_in: 2 weeks
     paths:
