@@ -36,7 +36,6 @@ func printBins(w io.Writer, bins []bin, maxPerLine int) {
 		}
 
 		fmt.Fprintf(w, "%s%d:%d", prefix, b.k, b.n)
-		i++
 	}
 }
 
