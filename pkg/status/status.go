@@ -58,6 +58,10 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
+	if config.Datadog.GetBool("cluster_agent") {
+		stats["clusterAgentStatus"] = getDCAStatus()
+	}
+
 	return stats, nil
 }
 

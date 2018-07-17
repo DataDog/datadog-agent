@@ -41,7 +41,7 @@ type DCAClient struct {
 	// used to setup the DCAClient
 	initRetry retry.Retrier
 
-	clusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
+	ClusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
 	clusterAgentAPIClient         *http.Client
 	clusterAgentAPIRequestHeaders *http.Header
 }
@@ -68,7 +68,7 @@ func GetClusterAgentClient() (*DCAClient, error) {
 func (c *DCAClient) init() error {
 	var err error
 
-	c.clusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
+	c.ClusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 		Header: *c.clusterAgentAPIRequestHeaders,
 	}
 	// https://host:port/api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
-	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
+	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
 	req.URL, err = url.Parse(rawURL)
 	if err != nil {
 		return metadataNames, err

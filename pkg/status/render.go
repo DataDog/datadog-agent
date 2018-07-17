@@ -39,6 +39,7 @@ func FormatStatus(data []byte) (string, error) {
 	aggregatorStats := stats["aggregatorStats"]
 	jmxStats := stats["JMXStatus"]
 	logsStats := stats["logsStats"]
+	dcaStats := stats["clusterAgentStatus"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
@@ -47,6 +48,7 @@ func FormatStatus(data []byte) (string, error) {
 	renderForwarderStatus(b, forwarderStats)
 	renderLogsStatus(b, logsStats)
 	renderDogstatsdStatus(b, aggregatorStats)
+	renderDatadogClusterAgentStatus(b, dcaStats)
 
 	return b.String(), nil
 }
@@ -102,6 +104,14 @@ func renderDogstatsdStatus(w io.Writer, aggregatorStats interface{}) {
 func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
 	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "forwarder.tmpl")))
 	err := t.Execute(w, forwarderStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderDatadogClusterAgentStatus(w io.Writer, dcaStats interface{}) {
+	t := template.Must(template.New("clusteragent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "clusteragent.tmpl")))
+	err := t.Execute(w, dcaStats)
 	if err != nil {
 		fmt.Println(err)
 	}
