@@ -14,6 +14,8 @@ import (
 
 	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestProcessContainerEvent(t *testing.T) {
@@ -23,7 +25,7 @@ func TestProcessContainerEvent(t *testing.T) {
 	timestamp := time.Now().Truncate(10 * time.Millisecond)
 
 	// Container filter
-	filter, err := NewFilter([]string{},
+	filter, err := containers.NewFilter([]string{},
 		[]string{"name:excluded_name", "image:excluded_image"})
 
 	assert.Nil(err)

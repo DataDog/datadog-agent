@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package docker
+package containers
 
 import (
 	"fmt"
@@ -12,10 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
-
-// TODO: move to pkg/util/container once it does not
-// import pkg/util/docker anymore (circular import)
-// It's already decoupled from that package
 
 const (
 	// pauseContainerGCR regex matches:

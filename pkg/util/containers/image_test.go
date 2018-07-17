@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build docker
-
-package docker
+package containers
 
 import (
 	"fmt"
@@ -16,11 +14,11 @@ import (
 
 func TestSplitImageName(t *testing.T) {
 	for nb, tc := range []struct {
-		source     string
-		long_name  string
-		short_name string
-		tag        string
-		err        error
+		source    string
+		longName  string
+		shortName string
+		tag       string
+		err       error
 	}{
 		// Empty
 		{"", "", "", "", fmt.Errorf("empty image name")},
@@ -49,8 +47,8 @@ func TestSplitImageName(t *testing.T) {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
 			long, short, tag, err := SplitImageName(tc.source)
-			assert.Equal(tc.long_name, long)
-			assert.Equal(tc.short_name, short)
+			assert.Equal(tc.longName, long)
+			assert.Equal(tc.shortName, short)
 			assert.Equal(tc.tag, tag)
 
 			if tc.err == nil {

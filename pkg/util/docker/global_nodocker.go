@@ -7,19 +7,6 @@
 
 package docker
 
-var (
-	// NullContainer is an empty container object that has
-	// default values for all fields including sub-fields.
-	// If new sub-structs are added to Container this must
-	// be updated.
-	NullContainer = &Container{
-		CPU:     &CgroupTimesStat{},
-		Memory:  &CgroupMemStat{},
-		IO:      &CgroupIOStat{},
-		Network: ContainerNetStats{},
-	}
-)
-
 // HostnameProvider docker implementation for the hostname provider
 func HostnameProvider(hostName string) (string, error) {
 	return "", ErrDockerNotCompiled
