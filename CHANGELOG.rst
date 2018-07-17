@@ -6,13 +6,14 @@ Release Notes
 
 6.3.3
 =====
+2018-07-17
 
 .. _Release Notes_6.3.3_Prelude:
 
 Prelude
 -------
 
-Release on: 2018-07-16
+Release on: 2018-07-17
 
 - Please refer to the `6.3.3 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.3>`_ for the list of changes on the Core Checks.
 
@@ -51,7 +52,6 @@ Bug Fixes
 6.3.2
 =====
 2018-07-05
-=======
 
 Prelude
 -------
@@ -80,7 +80,6 @@ Bug Fixes
 6.3.1
 =====
 2018-06-27
-=======
 
 Prelude
 -------
@@ -117,7 +116,6 @@ Bug Fixes
 6.3.0
 =====
 2018-06-20
-=======
 
 Prelude
 -------
