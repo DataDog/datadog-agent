@@ -125,6 +125,7 @@ func getClusterAgentEndpoint() (string, error) {
 	}
 
 	dcaSvc = strings.ToUpper(dcaSvc)
+	dcaSvc = strings.Replace(dcaSvc, "-", "_", -1) // Kubernetes replaces "-" with "_" in the service names injected in the env var.
 
 	// host
 	dcaSvcHostEnv := fmt.Sprintf("%s_SERVICE_HOST", dcaSvc)

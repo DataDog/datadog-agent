@@ -305,6 +305,7 @@ func init() {
 	Datadog.BindEnv("cluster_agent.url")
 	Datadog.BindEnv("cluster_agent.auth_token")
 	Datadog.BindEnv("cluster_agent.cmd_port")
+	Datadog.BindEnv("cluster_agent.kubernetes_service_name")
 	BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	BindEnvAndSetDefault("external_metrics_provider.polling_freq", 30)
 	BindEnvAndSetDefault("external_metrics_provider.max_age", 60)

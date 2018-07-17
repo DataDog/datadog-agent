@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
@@ -48,7 +49,9 @@ func FormatStatus(data []byte) (string, error) {
 	renderForwarderStatus(b, forwarderStats)
 	renderLogsStatus(b, logsStats)
 	renderDogstatsdStatus(b, aggregatorStats)
-	renderDatadogClusterAgentStatus(b, dcaStats)
+	if config.Datadog.GetBool("cluster_agent.enabled") {
+		renderDatadogClusterAgentStatus(b, dcaStats)
+	}
 
 	return b.String(), nil
 }
