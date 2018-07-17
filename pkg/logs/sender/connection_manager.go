@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/net/proxy"
 )
 
 const (
@@ -27,6 +28,7 @@ type ConnectionManager struct {
 	connectionString string
 	serverName       string
 	devModeNoSSL     bool
+	socksProxy		 string
 
 	mutex   sync.Mutex
 	retries int
@@ -35,11 +37,12 @@ type ConnectionManager struct {
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(serverName string, serverPort int, devModeNoSSL bool) *ConnectionManager {
+func NewConnectionManager(serverName string, serverPort int, devModeNoSSL bool, socksProxy string) *ConnectionManager {
 	return &ConnectionManager{
 		connectionString: fmt.Sprintf("%s:%d", serverName, serverPort),
 		serverName:       serverName,
 		devModeNoSSL:     devModeNoSSL,
+		socksProxy:		  socksProxy,
 
 		mutex: sync.Mutex{},
 
@@ -60,7 +63,22 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 		}
 
 		cm.retries++
-		outConn, err := net.DialTimeout("tcp", cm.connectionString, timeout)
+
+		var outConn net.Conn
+		var err error
+
+		if cm.socksProxy != "" {
+			log.Info("Connecting to logs intake via socks5://", cm.socksProxy)
+			proxyDialer, err := proxy.SOCKS5("tcp", cm.socksProxy, nil, proxy.Direct)
+			if err != nil {
+				log.Warn(err)
+				cm.backoff()
+				continue
+			}
+			outConn, err = proxyDialer.Dial("tcp", cm.connectionString)
+		} else {
+			outConn, err = net.DialTimeout("tcp", cm.connectionString, timeout)
+		}
 		if err != nil {
 			log.Warn(err)
 			cm.backoff()
