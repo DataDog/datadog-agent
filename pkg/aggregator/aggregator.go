@@ -123,7 +123,7 @@ type BufferedAggregator struct {
 	eventIn            chan metrics.Event
 	sampler            TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
-	distSampler        DistSampler
+	distSampler        distSampler
 	serviceChecks      metrics.ServiceChecks
 	events             metrics.Events
 	flushInterval      time.Duration
@@ -145,7 +145,7 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInter
 		eventIn:            make(chan metrics.Event, 100),         // TODO make buffer size configurable
 		sampler:            *NewTimeSampler(bucketSize, hostname),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
-		distSampler:        *NewDistSampler(bucketSize, hostname),
+		distSampler:        newDistSampler(bucketSize, hostname),
 		flushInterval:      flushInterval,
 		serializer:         s,
 		hostname:           hostname,
@@ -263,9 +263,11 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 // addSample adds the metric sample to either the sampler or distSampler
 func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	metricSample.Tags = deduplicateTags(metricSample.Tags)
-	if _, ok := metrics.DistributionMetricTypes[metricSample.Mtype]; ok {
-		agg.distSampler.addSample(metricSample, timestamp)
-	} else {
+
+	switch metricSample.Mtype {
+	case metrics.DistributionType:
+		agg.distSampler.addSample(metricSample, int64(timestamp))
+	default:
 		agg.sampler.addSample(metricSample, timestamp)
 	}
 }
@@ -368,7 +370,7 @@ func (agg *BufferedAggregator) GetSketches() metrics.SketchSeriesList {
 	// Q: Why does this use a float64 ts here?
 	//  - timeNowNano        = float64(time.Now().UnixNano()) / float64(time.Second)
 	//  - int64(timeNowNano) = time.Now().Unix()?
-	return agg.distSampler.flush(timeNowNano())
+	return agg.distSampler.flush(int64(timeNowNano()))
 }
 
 func (agg *BufferedAggregator) flushSketches() {

@@ -138,3 +138,26 @@ func (s *Sketch) Copy() *Sketch {
 	s.CopyTo(dst)
 	return dst
 }
+
+// Equals returns true if s and o are equivalent.
+func (s *Sketch) Equals(o *Sketch) bool {
+	if s.Basic != o.Basic {
+		return false
+	}
+
+	if s.count != o.count {
+		return false
+	}
+
+	if len(s.bins) != len(o.bins) {
+		return false
+	}
+
+	for i := range s.bins {
+		if o.bins[i] != s.bins[i] {
+			return false
+		}
+	}
+
+	return true
+}
