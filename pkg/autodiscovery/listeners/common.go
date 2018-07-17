@@ -6,9 +6,9 @@
 package listeners
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -38,7 +38,7 @@ func ComputeContainerServiceIDs(cid string, image string, labels map[string]stri
 	}
 
 	// Add Image names (long then short if different)
-	long, short, _, err := docker.SplitImageName(image)
+	long, short, _, err := containers.SplitImageName(image)
 	if err != nil {
 		log.Warnf("error while spliting image name: %s", err)
 	}

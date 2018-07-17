@@ -16,9 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -137,7 +136,7 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 
 			// Add other identifiers if no template found
 			svc.ADIdentifiers = append(svc.ADIdentifiers, container.Image)
-			_, short, _, err := docker.SplitImageName(container.Image)
+			_, short, _, err := containers.SplitImageName(container.Image)
 			if err != nil {
 				log.Warnf("Error while spliting image name: %s", err)
 			}

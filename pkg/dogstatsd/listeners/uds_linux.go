@@ -80,13 +80,12 @@ func getEntityForPID(pid int32) (string, error) {
 		return x.(string), nil
 	}
 
-	ent, err := containers.EntityForPID(pid)
+	entity, err := containers.EntityForPID(pid)
 	switch err {
 	case nil:
 		// No error, yay!
-		value := fmt.Sprintf("%s://%s", runtime, id)
-		cache.Cache.Set(key, value, pidToEntityCacheDuration)
-		return value, nil
+		cache.Cache.Set(key, entity, pidToEntityCacheDuration)
+		return entity, nil
 	case containers.ErrNoRuntimeMatch, containers.ErrNoContainerMatch:
 		// No runtime detected, cache the `NoOrigin` result
 		cache.Cache.Set(key, NoOrigin, pidToEntityCacheDuration)

@@ -10,7 +10,7 @@ package py
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // #cgo pkg-config: python-2.7
@@ -20,9 +20,7 @@ import (
 // #include <Python.h>
 import "C"
 
-// TODO: move filter to `pkg/util/containers`
-// It does not require the docker build tag though
-var filter *docker.Filter
+var filter *containers.Filter
 
 // IsContainerExcluded returns whether a container should be excluded,
 // based on it's name and image name. Exclusion patterns are configured
@@ -52,7 +50,7 @@ func initContainers() {
 // Separated to unit testing
 func initContainerFilter() {
 	var err error
-	filter, err = docker.NewFilterFromConfig()
+	filter, err = containers.NewFilterFromConfig()
 	if err != nil {
 		log.Errorf("Error initializing container filtering: %s", err)
 	}

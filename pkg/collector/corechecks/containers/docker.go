@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -24,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -74,14 +75,14 @@ type DockerCheck struct {
 	collectContainerSizeCounter uint64
 }
 
-func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
+func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
 	var containerTags []string
 	var err error
 
 	if c.Excluded {
 		// TODO we can do SplitImageName because we are in the docker corecheck and the image name is not a sha[...]
 		// We should resolve the image tags in the tagger as a real entity.
-		long, short, tag, err := docker.SplitImageName(c.Image)
+		long, short, tag, err := containers.SplitImageName(c.Image)
 		if err != nil {
 			log.Errorf("Cannot split the image name %s: %v", c.Image, err)
 			return
@@ -106,9 +107,9 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *docker
 		images[key] = &containerPerImage{tags: containerTags, running: 0, stopped: 0}
 	}
 
-	if c.State == docker.ContainerRunningState {
+	if c.State == containers.ContainerRunningState {
 		images[key].running++
-	} else if c.State == docker.ContainerExitedState {
+	} else if c.State == containers.ContainerExitedState {
 		images[key].stopped++
 	}
 }
@@ -133,7 +134,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 				log.Tracef("Skipping image %s, no repo tags", i.ID)
 				continue
 			}
-			name, _, tag, err := docker.SplitImageName(i.RepoTags[0])
+			name, _, tag, err := containers.SplitImageName(i.RepoTags[0])
 			if err != nil {
 				log.Errorf("Could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
@@ -162,7 +163,7 @@ func (d *DockerCheck) Run() error {
 		d.Warnf("Error initialising check: %s", err)
 		return err
 	}
-	containers, err := du.Containers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
+	cList, err := du.Containers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
 		d.Warnf("Error collecting containers: %s", err)
@@ -172,9 +173,9 @@ func (d *DockerCheck) Run() error {
 	collectingContainerSizeDuringThisRun := d.instance.CollectContainerSize && d.collectContainerSizeCounter == 0
 
 	images := map[string]*containerPerImage{}
-	for _, c := range containers {
+	for _, c := range cList {
 		updateContainerRunningCount(images, c)
-		if c.State != docker.ContainerRunningState || c.Excluded {
+		if c.State != containers.ContainerRunningState || c.Excluded {
 			continue
 		}
 		tags, err := tagger.Tag(c.EntityID, true)
