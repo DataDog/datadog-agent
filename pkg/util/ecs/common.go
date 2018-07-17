@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,18 +56,18 @@ func GetECSContainers() ([]Container, error) {
 
 // GetContainers returns all containers exposed by the ECS API
 // after transforming them into "generic" Docker containers.
-func GetContainers() ([]*docker.Container, error) {
-	var containers []*docker.Container
+func GetContainers() ([]*containers.Container, error) {
+	var cList []*containers.Container
 	var stats ContainerStats
 
 	ecsContainers, err := GetECSContainers()
 	if err != nil {
 		log.Error("unable to get the container list from ecs")
-		return containers, err
+		return cList, err
 	}
 	for _, c := range ecsContainers {
 		entityID := docker.ContainerIDToEntityName(c.DockerID)
-		ctr := &docker.Container{
+		ctr := &containers.Container{
 			Type:     "ECS",
 			ID:       c.DockerID,
 			EntityID: entityID,
@@ -110,9 +112,9 @@ func GetContainers() ([]*docker.Container, error) {
 				ctr.MemLimit = memLimit
 			}
 		}
-		containers = append(containers, ctr)
+		cList = append(cList, ctr)
 	}
-	return containers, err
+	return cList, err
 }
 
 // GetContainerStats retrives stats about a container from the ECS stats endpoint
@@ -150,19 +152,19 @@ func computeIOStats(ops []OPStat, kind string) uint64 {
 
 // convertECSStats is responsible for converting ecs stats structs to docker style stats
 // TODO: get rid of this by supporting ECS stats everywhere we use docker stats only.
-func convertECSStats(stats ContainerStats) (docker.CgroupTimesStat, docker.CgroupMemStat, docker.CgroupIOStat, uint64) {
-	cpu := docker.CgroupTimesStat{
+func convertECSStats(stats ContainerStats) (metrics.CgroupTimesStat, metrics.CgroupMemStat, metrics.CgroupIOStat, uint64) {
+	cpu := metrics.CgroupTimesStat{
 		System:      stats.CPU.Usage.Kernelmode,
 		User:        stats.CPU.Usage.Usermode,
 		SystemUsage: stats.CPU.System,
 	}
-	mem := docker.CgroupMemStat{
+	mem := metrics.CgroupMemStat{
 		RSS:             stats.Memory.Details.RSS,
 		Cache:           stats.Memory.Details.Cache,
 		Pgfault:         stats.Memory.Details.PgFault,
 		MemUsageInBytes: stats.Memory.Details.Usage,
 	}
-	io := docker.CgroupIOStat{
+	io := metrics.CgroupIOStat{
 		ReadBytes:  stats.IO.ReadBytes,
 		WriteBytes: stats.IO.WriteBytes,
 	}

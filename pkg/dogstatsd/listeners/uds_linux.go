@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 const (
@@ -81,28 +80,19 @@ func getEntityForPID(pid int32) (string, error) {
 		return x.(string), nil
 	}
 
-	id, err := docker.ContainerIDForPID(int(pid))
-	if err != nil {
-		return NoOrigin, err
-	}
-	if id == "" {
-		// If no container is found, it's probably a host process,
-		// cache the `NoOrigin` result for future packets
+	ent, err := containers.EntityForPID(pid)
+	switch err {
+	case nil:
+		// No error, yay!
+		value := fmt.Sprintf("%s://%s", runtime, id)
+		cache.Cache.Set(key, value, pidToEntityCacheDuration)
+		return value, nil
+	case containers.ErrNoRuntimeMatch, containers.ErrNoContainerMatch:
+		// No runtime detected, cache the `NoOrigin` result
 		cache.Cache.Set(key, NoOrigin, pidToEntityCacheDuration)
 		return NoOrigin, nil
-	}
-
-	runtime, err := containers.GetRuntimeForPID(pid)
-	if err != nil {
-		if err == containers.ErrNoRuntimeMatch {
-			// No runtime detected, cache the `NoOrigin` result
-			cache.Cache.Set(key, NoOrigin, pidToEntityCacheDuration)
-			return NoOrigin, nil
-		}
+	default:
 		// Other lookup error, retry next time
 		return NoOrigin, err
 	}
-	value := fmt.Sprintf("%s://%s", runtime, id)
-	cache.Cache.Set(key, value, pidToEntityCacheDuration)
-	return value, nil
 }
