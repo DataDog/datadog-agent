@@ -25,7 +25,7 @@ func (hpa *HPAWatcherClient) queryDatadogExternal(metricName string, tags map[st
 	if metricName == "" || len(tags) == 0 {
 		return 0, errors.New("invalid metric to query")
 	}
-	bucketSize := config.Datadog.GetInt64("hpa_external_metric_bucket_size")
+	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
 	datadogTags := []string{}
 
 	for key, val := range tags {

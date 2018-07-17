@@ -47,20 +47,18 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 		return NoCollection, err
 	}
 	// if no DCA or can't communicate with the DCA run the local service mapper.
-	if config.Datadog.GetBool("cluster_agent") {
+	if config.Datadog.GetBool("cluster_agent.enabled") {
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
 			log.Errorf("Could not initialise the communication with the DCA, falling back to local service mapping: %s", errDCA.Error())
 		}
 	}
-	if !config.Datadog.GetBool("cluster_agent") || errDCA != nil {
+	if !config.Datadog.GetBool("cluster_agent.enabled") || errDCA != nil {
 		c.apiClient, err = apiserver.GetAPIClient()
 		if err != nil {
 			return NoCollection, err
 		}
-		c.apiClient.StartMetadataMapping()
 	}
-
 	c.infoOut = out
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
 	return PullCollection, nil
@@ -79,7 +77,7 @@ func (c *KubeMetadataCollector) Pull() error {
 	if err != nil {
 		return err
 	}
-	if !config.Datadog.GetBool("cluster_agent") {
+	if !config.Datadog.GetBool("cluster_agent.enabled") {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
@@ -106,7 +104,7 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, error)
 	}
 
 	pods := []*kubelet.Pod{pod}
-	if !config.Datadog.GetBool("cluster_agent") {
+	if !config.Datadog.GetBool("cluster_agent.enabled") {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
