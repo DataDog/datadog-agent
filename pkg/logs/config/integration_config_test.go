@@ -98,23 +98,23 @@ func TestCompileProcessingRules(t *testing.T) {
 	var err error
 
 	rules = []LogsProcessingRule{{Pattern: "(?=abf)", Type: IncludeAtMatch}}
-	err = CompileProcessingRules(rules)
+	err = compileProcessingRules(rules)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 
 	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}", Type: IncludeAtMatch}}
-	err = CompileProcessingRules(rules)
+	err = compileProcessingRules(rules)
 	assert.Nil(t, err)
 	assert.NotNil(t, rules[0].Reg)
 	assert.True(t, rules[0].Reg.MatchString("abcde"))
 
 	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}"}}
-	err = CompileProcessingRules(rules)
+	err = compileProcessingRules(rules)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 
 	rules = []LogsProcessingRule{{Pattern: "", Type: IncludeAtMatch}}
-	err = CompileProcessingRules(rules)
+	err = compileProcessingRules(rules)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 }

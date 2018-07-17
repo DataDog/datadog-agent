@@ -257,14 +257,16 @@ func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
 	var rule config.LogsProcessingRule
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{}]`}
-	container = NewContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels, Image: "any_image"})
 	source = container.findSource(nil)
 	assert.NotNil(t, source)
+	assert.Equal(t, "any_image", source.Name)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service"}]`}
-	container = NewContainer(types.Container{Labels: labels})
+	container = NewContainer(types.Container{Labels: labels, Image: "any_image"})
 	source = container.findSource(nil)
 	assert.NotNil(t, source)
+	assert.Equal(t, "any_image", source.Name)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
 
@@ -272,6 +274,7 @@ func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
 	container = NewContainer(types.Container{Labels: labels})
 	source = container.findSource(nil)
 	assert.NotNil(t, source)
+	assert.Equal(t, "", source.Name)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
 	assert.Equal(t, 1, len(source.Config.ProcessingRules))
