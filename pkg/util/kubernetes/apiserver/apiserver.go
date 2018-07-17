@@ -98,14 +98,14 @@ func getK8sConfig() (*rest.Config, error) {
 	if cfgPath == "" {
 		k8sConfig, err = rest.InClusterConfig()
 		if err != nil {
-			log.Debug("Can't create a config for the official client from the service account's token: %s", err)
+			log.Debugf("Can't create a config for the official client from the service account's token: %s", err)
 			return nil, err
 		}
 	} else {
 		// use the current context in kubeconfig
 		k8sConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
 		if err != nil {
-			log.Debug("Can't create a config for the official client from the configured path to the kubeconfig: %s, ", cfgPath, err)
+			log.Debugf("Can't create a config for the official client from the configured path to the kubeconfig: %s, %s", cfgPath, err)
 			return nil, err
 		}
 	}
