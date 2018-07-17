@@ -177,7 +177,7 @@ func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) er
 	return nil
 }
 
-// ClusterMetadataMapping queries the Kubernetes apiserver to get the following resources:
+// ClusterMetadataMapping is run by the Cluster Agent. It queries the Kubernetes apiserver to get the following resources:
 // - all nodes
 // - all endpoints of all namespaces
 // - all pods of all namespaces
@@ -257,9 +257,9 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 	}
 }
 
-// StartMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
+// StartClusterMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
 // The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
-func (c *APIClient) StartMetadataMapping() {
+func (c *APIClient) StartClusterMetadataMapping() {
 	tickerSvcProcess := time.NewTicker(c.metadataPollIntl)
 	go func() {
 		for {

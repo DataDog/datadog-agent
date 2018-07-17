@@ -158,7 +158,7 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Errorf("Could not instantiate the API Server Client: %s", err.Error())
 	} else {
-		asc.StartMetadataMapping()
+		asc.StartClusterMetadataMapping()
 	}
 
 	// Setup a channel to catch OS signals
