@@ -7,7 +7,6 @@ package app
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -52,11 +51,11 @@ func doDiagnose(cmd *cobra.Command, args []string) {
 	)
 	if err != nil {
 		log.Errorf("Error while setting up logging, exiting: %v", err)
+		panic(err)
 	}
 
-	errors, err := diagnose.RunAll(color.Output)
+	err = diagnose.RunAll(color.Output)
 	if err != nil {
 		panic(err)
 	}
-	os.Exit(errors)
 }
