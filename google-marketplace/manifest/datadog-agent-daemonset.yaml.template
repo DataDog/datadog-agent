@@ -2,13 +2,13 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: $name_apikey_secret
+  name: datadog-api-key
   labels:
     app.kubernetes.io/name: "$name"
     app.kubernetes.io/component: apikey-secret
 type: Opaque
 data:
-  apiKey: "$api_key"
+  apiKey: "$apiKey"
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -25,9 +25,9 @@ spec:
       labels: *DatadogDsLabels
       name: datadog-agent
     spec:
-      serviceAccountName: $name_service_account
+      serviceAccountName: $serviceAccount
       containers:
-      - image: $image_datadog_agent
+      - image: $datadogAgentImage
         imagePullPolicy: Always
         name: datadog-agent
         ports:
@@ -47,7 +47,7 @@ spec:
         - name: DD_API_KEY
           valueFrom:
             secretKeyRef:
-              name: $name_apikey_secret
+              name: datadog-api-key
               key: apiKey
         - name: KUBERNETES
           value: "yes"

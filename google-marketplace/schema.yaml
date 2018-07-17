@@ -10,15 +10,14 @@ properties:
       type: NAMESPACE
   datadogAgentImage:
     type: string
-    default: $REGISTRY:$TAG
+    default: 'gcr.io/datadog-public/datadog:6'
     x-google-marketplace:
       type: IMAGE
   apiKey:
-    title: Datadog API key
+    title: Datadog API key in base64
     description: Get your Datadog API key at https://app.datadoghq.com/account/settings#api
     type: string
-    maxLength: 32
-    pattern: '[a-z0-9]+'
+    maxLength: 45
   serviceAccount:
     title: Datadog Service Account
     description: >-
@@ -33,8 +32,7 @@ properties:
         roles:
         - type: ClusterRole
           rulesType: PREDEFINED
-          rulesFromRoleName: datadog
-
+          rulesFromRoleName: cluster-admin
 
 required:
 - name

@@ -33,7 +33,7 @@ Set environment variables (update when necessary):
 export namespace=default
 export name=datadog-agent
 export name_apikey_secret=datadog-api-key
-export api_key=INSERT_YOUR_DATADOG_API_KEY
+export api_key=YOUR_DATADOG_API_KEY_IN_BASE64
 export name_service_account=datadog-sa
 export image_datadog_agent=datadog/agent:latest
 export name_cluster_role=datadog-cr
