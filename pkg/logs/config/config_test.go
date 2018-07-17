@@ -21,6 +21,7 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.dev_mode_no_ssl"))
 	assert.Equal(t, true, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
 	assert.Equal(t, 100, LogsAgent.GetInt("logs_config.open_files_limit"))
+	assert.Equal(t, 9000, LogsAgent.GetInt("logs_config.frame_size"))
 }
 
 func TestBuildLogsSources(t *testing.T) {

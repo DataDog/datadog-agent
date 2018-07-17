@@ -6,6 +6,7 @@
 package listener
 
 import (
+	"io"
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,6 +78,10 @@ func (t *Tailer) readForever() {
 			return
 		default:
 			data, err := t.read(t)
+			if err != nil && err == io.EOF {
+				// connection has been closed client-side, stop from reading new data
+				return
+			}
 			if err != nil {
 				// an error occurred, stop from reading new data
 				log.Warnf("Couldn't read message from connection: %v", err)

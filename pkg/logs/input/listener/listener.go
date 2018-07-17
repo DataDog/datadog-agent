@@ -11,6 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
+// defaultFrameSize represents the size of the read buffer of the TCP and UDP sockets.
+var defaultFrameSize = config.LogsAgent.GetInt("logs_config.frame_size")
+
 // Listener represents an objet that can accept new incomming connections.
 type Listener interface {
 	Start()
@@ -30,9 +33,9 @@ func New(sources []*config.LogSource, pp pipeline.Provider) *Listeners {
 	for _, source := range sources {
 		switch source.Config.Type {
 		case config.TCPType:
-			listeners = append(listeners, NewTCPListener(pp, source))
+			listeners = append(listeners, NewTCPListener(pp, source, defaultFrameSize))
 		case config.UDPType:
-			listeners = append(listeners, NewUDPListener(pp, source))
+			listeners = append(listeners, NewUDPListener(pp, source, defaultFrameSize))
 		}
 	}
 	return &Listeners{

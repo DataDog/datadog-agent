@@ -7,7 +7,7 @@ Type=simple
 PIDFile=<%= install_dir %>/run/agent.pid
 User=dd-agent
 Restart=on-failure
-ExecStart=<%= install_dir %>/bin/agent/agent start -p <%= install_dir %>/run/agent.pid
+ExecStart=<%= install_dir %>/bin/agent/agent run -p <%= install_dir %>/run/agent.pid
 
 [Install]
 WantedBy=multi-user.target

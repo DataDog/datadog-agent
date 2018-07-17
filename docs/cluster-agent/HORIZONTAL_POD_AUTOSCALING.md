@@ -47,7 +47,7 @@ serviceaccount "dca" created
 
 Then create the DCA and its services.
 Start by adding your <API_KEY> and <APP_KEY> in the Deployment manifest of the DCA.
-Then enable the HPA Processing by setting the `DD_ENABLE_HPA` variable to true.
+Then enable the HPA Processing by setting the `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` variable to true.
 Finally, spin up the resources:
 
 `kubectl apply -f manifests/cluster-agent/cluster-agent.yaml`
@@ -68,7 +68,7 @@ SVCS:
 
 NAMESPACE     NAME                  TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)         AGE
 default       datadog-custom-metrics-server   ClusterIP   192.168.254.87    <none>        443/TCP         28m
-default       dca                   ClusterIP   192.168.254.197   <none>        5005/TCP        28m
+default       datadog-cluster-agent           ClusterIP   192.168.254.197   <none>        5005/TCP        28m
 
 ```
 
@@ -238,7 +238,7 @@ Make sure the service map is available by exec'ing into the DCA pod and run:
 `datadog-cluster-agent metamap`
 Then, make sure you have the same secret (or a 32 characters long) token referenced in the Agent and in the DCA.
 The best way to do this is to check the environment variables (just type `env` when in the Agent or the DCA pod).
-Then make sure you have the `DD_CLUSTER_AGENT` option turned on in the Node Agent's manifest.
+Then make sure you have the `DD_CLUSTER_AGENT_ENABLED` option turned on in the Node Agent's manifest.
 
 - Why am I not seeing the same value in Datadog and in Kubernetes?
 
