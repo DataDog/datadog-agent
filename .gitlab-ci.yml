@@ -2,10 +2,10 @@ stages:
   - source_test
   - binary_build
   - integration_test
-  - package_build
   - testkitchen_deploy
   - testkitchen_testing
   - testkitchen_cleanup
+  - package_build
   - image_build
   - image_deploy
   - deploy
