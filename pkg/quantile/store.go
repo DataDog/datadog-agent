@@ -10,12 +10,22 @@ type sparseStore struct {
 	count int
 }
 
-func (s *sparseStore) Range(f func(k Key, n uint16) bool) {
-	for _, b := range s.bins {
-		if !f(b.k, b.n) {
-			return
-		}
+// Cols returns an array of k and n.
+func (s *sparseStore) Cols() (k []int32, n []uint32) {
+	if len(s.bins) == 0 {
+		return
 	}
+
+	k = make([]int32, len(s.bins))
+	n = make([]uint32, len(s.bins))
+
+	// TODO: do this better.
+	for i, b := range s.bins {
+		k[i] = int32(b.k)
+		n[i] = uint32(b.n)
+	}
+
+	return
 }
 
 // MemSize returns memory use in bytes:
