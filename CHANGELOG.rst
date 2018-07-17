@@ -24,8 +24,8 @@ Release on: 2018-07-17
 
 .. _Release Notes_6.3.3_Enhancements Notes:
 
-Enhancements Notes
-------------------
+Enhancements
+------------
 
 - Add 'system.mem.buffered' metric on linux system.
 
@@ -36,6 +36,7 @@ Bug Fixes
 ---------
 
 - Fix the IO check behavior on unix based on 'iostat' tool:
+
   - Most metrics are an average time, so we don't need to divide again by
     'delta' (ex: number of read/time doing read operations)
   - time is based on the millisecond and not the second
