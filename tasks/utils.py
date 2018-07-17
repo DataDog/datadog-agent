@@ -22,7 +22,7 @@ def bin_name(name, android=False):
     Generate platform dependent names for binaries
     """
     if android:
-        return "{}.apk".format(name)
+        return "{}.aar".format(name)
 
     if sys.platform == 'win32':
         return "{}.exe".format(name)
