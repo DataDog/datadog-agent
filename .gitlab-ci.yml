@@ -340,6 +340,28 @@ build_windows_msi_x64:
     paths:
       - .omnibus/pkg
 
+
+# build Agent package for android
+agent_android_apk:
+  allow_failure: true
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:v513248-e1d6f02
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # for now do the steps manually.  Should eventually move this to an invoke
+    # task
+    - inv -e android.build
+    - mkdir -p $CI_PROJECT_DIR/apk
+    - cp ./bin/agent/ddagent-release-unsigned.apk $CI_PROJECT_DIR/apk
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/apk
+
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
   stage: package_build

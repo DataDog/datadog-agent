@@ -44,7 +44,7 @@ DEFAULT_BUILD_TAGS = [
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
-          skip_assets=False):
+          skip_assets=False, android=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -52,6 +52,10 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=snmp,systemd
     """
+    if android:
+        print("setting puppy to true for android\n")
+        puppy=True
+
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
@@ -69,7 +73,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
-    if sys.platform == 'win32':
+    if sys.platform == 'win32' and not android:
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
@@ -93,13 +97,18 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     else:
         build_tags = get_build_tags(build_include, build_exclude)
 
-    cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    if android:
+        build_tags.add("android")
+        cmd = "gomobile build -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    else:
+        cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
+
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
+        "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android)),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
@@ -116,6 +125,10 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     })
     cmd = "go generate {}/cmd/agent"
     ctx.run(cmd.format(REPO_PATH), env=env)
+
+    if android:
+        cmd = "java -jar signapk.jar platform.x509.pem platform.pk8 bin\\agent\\agent.apk bin\\agent\\agent-signed.apk"
+        ctx.run(cmd, env=env)
 
     if not skip_assets:
         refresh_assets(ctx, development=development)

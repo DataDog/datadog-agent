@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2015 The Go Authors. All rights reserved.
+     Use of this source code is governed by a BSD-style
+     license that can be found in the LICENSE file.  -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.datadog.agent" 
+    android:versionCode="1"
+	android:versionName="1.0"
+    coreApp="true"
+    android:sharedUserId="android.uid.system"
+    >
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.INTERACT_ACROSS_USERS" />
+    <uses-permission android:name="android.INTERACT_ACROSS_USERS_FULL" />
+    <application
+        android:allowBackup="true"
+        android:label="DataDog Agent"
+        android:icon="@mipmap/ic_launcher">
+        <service
+            android:name=".DDService" 
+            android:singleUser="true" />
+        <activity
+            android:name=".MainActivity"
+            android:label="DatadogAgent" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
