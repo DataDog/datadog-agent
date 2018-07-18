@@ -150,8 +150,8 @@ func getClusterAgentEndpoint() (string, error) {
 	return u.String(), nil
 }
 
-// GetClusterAgentVersion fetches the version of the Cluster Agent. Used in the agent status command.
-func (c *DCAClient) GetClusterAgentVersion() (string, error) {
+// GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
+func (c *DCAClient) GetVersion() (string, error) {
 	const dcaVersionPath = "/version"
 	var version string
 	var err error
@@ -179,9 +179,7 @@ func (c *DCAClient) GetClusterAgentVersion() (string, error) {
 	if err != nil {
 		return version, err
 	}
-
-	err = json.Unmarshal(b, &version)
-	return version, err
+	return string(b), err
 }
 
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
