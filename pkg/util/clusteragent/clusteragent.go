@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 /*
@@ -153,7 +154,7 @@ func getClusterAgentEndpoint() (string, error) {
 // GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
 func (c *DCAClient) GetVersion() (string, error) {
 	const dcaVersionPath = "/version"
-	var version string
+	var version version.Version
 	var err error
 
 	// https://host:port/version
@@ -161,25 +162,33 @@ func (c *DCAClient) GetVersion() (string, error) {
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
-		return version, err
+		return "", err
 	}
 	req.Header = c.clusterAgentAPIRequestHeaders
 
 	resp, err := c.clusterAgentAPIClient.Do(req)
 	if err != nil {
-		return version, err
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return version, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+		return "", fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
 	}
 
-	b, err := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return version, err
+		return "", err
 	}
-	return string(b), err
+
+	err = json.Unmarshal(body, &version)
+
+	if err != nil {
+		return "", err
+	}
+
+	dcaVersion := fmt.Sprintf("%+v", version)
+	return dcaVersion, nil
 }
 
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
