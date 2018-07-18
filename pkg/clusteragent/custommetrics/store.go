@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -39,6 +40,11 @@ type configMapStore struct {
 	name      string
 	client    corev1.CoreV1Interface
 	cm        *v1.ConfigMap
+}
+
+// GetHPAConfigmapName returns the name of the ConfigMap used to store the state of the Custom Metrics Provider
+func GetHPAConfigmapName() string {
+	return config.Datadog.GetString("hpa_configmap_name")
 }
 
 // NewConfigMapStore returns a new store backed by a configmap. The configmap will be created

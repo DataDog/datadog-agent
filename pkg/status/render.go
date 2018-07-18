@@ -74,6 +74,15 @@ func FormatDCAStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
+// FormatHPAStatus takes a json bytestring and prints out the formatted statuspage
+func FormatHPAStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats)
+	renderHPAStats(b, stats)
+	return b.String(), nil
+}
+
 // FormatMetadataMapCLI builds the rendering in the metadataMapper template.
 func FormatMetadataMapCLI(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
@@ -115,6 +124,14 @@ func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
 func renderDatadogClusterAgentStatus(w io.Writer, dcaStats interface{}) {
 	t := template.Must(template.New("clusteragent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "clusteragent.tmpl")))
 	err := t.Execute(w, dcaStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderHPAStats(w io.Writer, hpaStats interface{}) {
+	t := template.Must(template.New("custommetricsprovider.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "custommetricsprovider.tmpl")))
+	err := t.Execute(w, hpaStats)
 	if err != nil {
 		fmt.Println(err)
 	}

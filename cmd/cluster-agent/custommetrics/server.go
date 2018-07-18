@@ -28,10 +28,6 @@ import (
 var options *server.CustomMetricsAdapterServerOptions
 var stopCh chan struct{}
 
-const (
-	datadogHPAConfigMap = "datadog-hpa"
-)
-
 func init() {
 	// FIXME: log to seelog
 	options = server.NewCustomMetricsAdapterServerOptions(os.Stdout, os.Stdout)
@@ -81,7 +77,7 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-
+	datadogHPAConfigMap := custommetrics.GetHPAConfigmapName()
 	store, err := custommetrics.NewConfigMapStore(client.Cl, as.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		return err

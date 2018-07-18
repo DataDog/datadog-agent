@@ -128,6 +128,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
+	stats["hpaExternal"] = GetHorizontalPodAutoscalingStatus()
 
 	return stats, nil
 }
