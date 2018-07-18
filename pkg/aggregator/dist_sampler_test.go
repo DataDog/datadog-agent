@@ -8,7 +8,6 @@ package aggregator
 import (
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -26,7 +25,7 @@ func TestDistSampler(t *testing.T) {
 	var (
 		d = newDistSampler(0, defaultHost)
 
-		insert = func(t *testing.T, ts int64, ctx Context, values ...float64) {
+		insert = func(t *testing.T, ts float64, ctx Context, values ...float64) {
 			t.Helper()
 			for _, v := range values {
 				d.addSample(&metrics.MetricSample{
@@ -45,13 +44,13 @@ func TestDistSampler(t *testing.T) {
 		"interval should default to 10")
 
 	t.Run("empty flush", func(t *testing.T) {
-		flushed := d.flush(time.Now().Unix())
+		flushed := d.flush(timeNowNano())
 		require.Len(t, flushed, 0)
 	})
 
 	t.Run("single bucket", func(t *testing.T) {
 		var (
-			now int64
+			now float64
 			ctx = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
 			exp = &quantile.Sketch{}
 		)
