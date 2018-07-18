@@ -36,21 +36,20 @@ func newDistSampler(interval int64, defaultHostname string) distSampler {
 	}
 }
 
-func (d *distSampler) truncateTs(ts int64) int64 {
-	return ts - ts%d.interval
+func (d *distSampler) calculateBucketStart(ts float64) int64 {
+	return int64(ts) - int64(ts)%d.interval
 }
 
-func (d *distSampler) addSample(ms *metrics.MetricSample, ts int64) {
-	ts = d.truncateTs(ts)
-	ck := d.ctxResolver.trackContext(ms, float64(ts))
-	d.m.insert(ts, ck, ms.Value)
+func (d *distSampler) addSample(ms *metrics.MetricSample, ts float64) {
+	ck := d.ctxResolver.trackContext(ms, ts)
+	d.m.insert(d.calculateBucketStart(ts), ck, ms.Value)
 }
 
-func (d *distSampler) flush(flushTs int64) metrics.SketchSeriesList {
-	flushTs = d.truncateTs(flushTs)
-
+func (d *distSampler) flush(flushTs float64) metrics.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-	d.m.flushBefore(flushTs, func(ck ckey.ContextKey, p metrics.SketchPoint) {
+
+	tsb := d.calculateBucketStart(flushTs)
+	d.m.flushBefore(tsb, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
 			return
 		}
@@ -61,7 +60,7 @@ func (d *distSampler) flush(flushTs int64) metrics.SketchSeriesList {
 	for ck, points := range pointsByCtx {
 		out = append(out, d.newSeries(ck, points))
 	}
-	d.ctxResolver.expireContexts(float64(flushTs) - defaultExpiry)
+	d.ctxResolver.expireContexts(flushTs - defaultExpiry)
 	return out
 }
 

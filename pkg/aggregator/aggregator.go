@@ -266,7 +266,7 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
-		agg.distSampler.addSample(metricSample, int64(timestamp))
+		agg.distSampler.addSample(metricSample, timestamp)
 	default:
 		agg.sampler.addSample(metricSample, timestamp)
 	}
@@ -367,10 +367,7 @@ func (agg *BufferedAggregator) GetSketches() metrics.SketchSeriesList {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	// Q: Why does this use a float64 ts here?
-	//  - timeNowNano        = float64(time.Now().UnixNano()) / float64(time.Second)
-	//  - int64(timeNowNano) = time.Now().Unix()?
-	return agg.distSampler.flush(int64(timeNowNano()))
+	return agg.distSampler.flush(timeNowNano())
 }
 
 func (agg *BufferedAggregator) flushSketches() {
