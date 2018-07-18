@@ -149,6 +149,38 @@ func getClusterAgentEndpoint() (string, error) {
 
 	return u.String(), nil
 }
+func (c *DCAClient) GetClusterAgentVersion() (string, error) {
+	const dcaVersionPath = "/version"
+	var version string
+	var err error
+
+	req := &http.Request{
+		Header: *c.clusterAgentAPIRequestHeaders,
+	}
+	// https://host:port/version
+	rawURL := fmt.Sprintf("%s/%s", c.ClusterAgentAPIEndpoint, dcaVersionPath)
+	req.URL, err = url.Parse(rawURL)
+	if err != nil {
+		return version, err
+	}
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return version, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return version, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return version, err
+	}
+
+	err = json.Unmarshal(b, &version)
+	return version, err
+}
 
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
 // Kubernetes metadata.

@@ -34,11 +34,19 @@ func getLeaderElectionDetails() map[string]string {
 
 func getDCAStatus() map[string]string {
 	clusterAgentDetails := make(map[string]string)
+
 	dcaCl, err := clusteragent.GetClusterAgentClient()
 	if err != nil {
-		clusterAgentDetails["Error"] = err.Error()
+		clusterAgentDetails["DetectionError"] = err.Error()
 		return clusterAgentDetails
 	}
 	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint
+
+	ver, err := dcaCl.GetClusterAgentVersion()
+	if err != nil {
+		clusterAgentDetails["ConnectionError"] = err.Error()
+		return clusterAgentDetails
+	}
+	clusterAgentDetails["Version"] = ver
 	return clusterAgentDetails
 }
