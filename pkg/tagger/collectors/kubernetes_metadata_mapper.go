@@ -58,10 +58,10 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 				log.Debugf("Could not pull the metadata map of po %s on node %s from the Datadog Cluster Agent: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
 				continue
 			}
-			if len(metadataNames) == 0 {
-				log.Tracef("No cluster metadata for pod %s on node %s from the Datadog Cluster Agent", po.Metadata.Name, po.Spec.NodeName)
-				continue
-			}
+		}
+		if len(metadataNames) == 0 {
+			log.Tracef("No cluster metadata for the pod %s on node %s", po.Metadata.Name, po.Spec.NodeName)
+			continue
 		}
 		for _, tagDCA := range metadataNames {
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)

@@ -261,7 +261,7 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 // The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
 func (c *APIClient) StartClusterMetadataMapping() {
 	tickerSvcProcess := time.NewTicker(c.metadataPollIntl)
-	log.Infof("Starting the cluster level metadata mapping, polling every %s s", c.metadataPollIntl.Seconds())
+	log.Infof("Starting the cluster level metadata mapping, polling every %s", c.metadataPollIntl.String())
 	go func() {
 		for {
 			select {
