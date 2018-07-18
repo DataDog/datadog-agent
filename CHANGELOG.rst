@@ -158,6 +158,17 @@ New Features
   from our private TUF repository. Please note any third party dependencies will
   still be downloaded from PyPI with no additional security validation.
 
+Upgrade Notes
+-------------
+
+- If your Agent is configured to use a web proxy through the ``proxy`` config option
+  or one of the ``*_PROXY``  environment variables, and the configured proxy URL
+  starts with the ``https://`` scheme, the Agent will now attempt to connect to
+  your proxy using HTTPS, whereas it would previously connect to your proxy using
+  HTTP. If you have a working proxy configuration, please make sure your proxy URL(s)
+  start with the  ``http://`` scheme before upgrading to v6.3+. This has no impact on the
+  security of the data sent to Datadog, since the payloads are always secured with
+  HTTPS between your Agents and Datadog whatever ``proxy`` configuration you may use.
 
 Bug Fixes
 ---------
