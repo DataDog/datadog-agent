@@ -72,9 +72,9 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 		var err error
 
 		if cm.socksProxy != "" {
-			proxyDialer, err := proxy.SOCKS5("tcp", cm.socksProxy, nil, proxy.Direct)
-			if err != nil {
-				log.Warn(err)
+			proxyDialer, proxyErr := proxy.SOCKS5("tcp", cm.socksProxy, nil, proxy.Direct)
+			if proxyErr != nil {
+				log.Warn(proxyErr)
 				cm.backoff()
 				continue
 			}
