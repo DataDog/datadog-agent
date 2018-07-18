@@ -152,14 +152,8 @@ func zipMetadataMap(tempDir, hostname string) error {
 		log.Infof("Error while marshalling the cluster level metadata: %q", err)
 		return err
 	}
-	// Clean it up
-	cleanedMetaBytes, err := log.CredentialsCleanerBytes(metaBytes)
-	if err != nil {
-		log.Infof("Error redacting the log files: %q", err)
-		return err
-	}
 
-	str, err := status.FormatMetadataMapCLI(cleanedMetaBytes)
+	str, err := status.FormatMetadataMapCLI(metaBytes)
 	if err != nil {
 		log.Infof("Error while rendering the cluster level metadata: %q", err)
 		return err
