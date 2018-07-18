@@ -143,6 +143,21 @@ spec:
           name: horizontal-pod-autoscaler
           namespace: kube-system
 
+    - name: cluster-agent-configmap
+      value: |
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: datadog-cluster
+          namespace: default
+        data:
+          datadog.yaml: |
+            dd_url: "http://fake-datadog.default.svc.cluster.local"
+            cluster_agent:
+              auth_token: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
+            external_metrics_provider:
+              enabled: true
+
     - name: cluster-agent-deployment
       value: |
         apiVersion: extensions/v1beta1
@@ -167,16 +182,10 @@ spec:
                   value: "123er"
                 - name: DD_APP_KEY
                   value: "123er1"
-                - name: DATADOG_HOST
-                  value: "http://fake-datadog.default.svc.cluster.local"
-                - name: DD_DD_URL
+                - name: DATADOG_HOST # used by https://github.com/zorkian/go-datadog-api
                   value: "http://fake-datadog.default.svc.cluster.local"
                 - name: DD_LOG_LEVEL
                   value: "debug"
-                - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-                  value: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
-                - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
-                  value: "true"
                 - name: DD_LEADER_ELECTION
                   value: "true"
                 - name: DD_KUBERNETES_APISERVER_POLL_FREQ
@@ -195,6 +204,14 @@ spec:
                     - status
                   failureThreshold: 5
                   initialDelaySeconds: 20
+                volumeMounts:
+                - name: datadog-config
+                  mountPath: /etc/datadog-agent/datadog.yaml
+                  subPath: datadog.yaml
+              volumes:
+              - name: datadog-config
+                configMap:
+                  name: datadog-cluster
 
     - name: cluster-agent-svc
       value: |
@@ -374,7 +391,10 @@ spec:
           datadog.yaml: |
             api_key: "123er"
             dd_url: "http://fake-datadog.default.svc.cluster.local"
-            cluster_agent: true
+            cluster_agent:
+              enabled: true
+              kubernetes_service_name: "dca"
+              auth_token: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
             listeners:
             - name: kubelet
             config_providers:
@@ -407,12 +427,11 @@ spec:
               containers:
               - name: agent
                 image: datadog/agent-dev:master # TODO provide the ECR PR image
+                imagePullPolicy: Always
                 command:
                 - /opt/datadog-agent/bin/agent/agent
                 - start
                 env:
-                - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-                  value: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
                 - name: DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ
                   value: "20"
                 - name: DD_KUBERNETES_KUBELET_HOST
@@ -524,6 +543,7 @@ spec:
       - name: agent-configmap
       - name: agent-rbac
       - name: agent-daemonset
+      - name: cluster-agent-configmap
       - name: cluster-agent-rbac
       - name: cluster-agent-deployment
       - name: cluster-agent-svc
@@ -568,6 +588,7 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
+        - "{{inputs.parameters.cluster-agent-configmap}}"
         - "{{inputs.parameters.cluster-agent-rbac}}"
         - "{{inputs.parameters.cluster-agent-deployment}}"
         - "{{inputs.parameters.cluster-agent-svc}}"
@@ -630,6 +651,7 @@ spec:
       - name: agent-daemonset
       - name: fake-datadog-deployment
       - name: fake-datadog-service
+      - name: cluster-agent-configmap
       - name: cluster-agent-rbac
       - name: cluster-agent-deployment
       - name: cluster-agent-hpa-svc
@@ -653,6 +675,7 @@ spec:
         - "{{inputs.parameters.agent-daemonset}}"
         - "{{inputs.parameters.fake-datadog-service}}"
         - "{{inputs.parameters.fake-datadog-deployment}}"
+        - "{{inputs.parameters.cluster-agent-configmap}}"
         - "{{inputs.parameters.cluster-agent-rbac}}"
         - "{{inputs.parameters.cluster-agent-deployment}}"
         - "{{inputs.parameters.cluster-agent-svc}}"
