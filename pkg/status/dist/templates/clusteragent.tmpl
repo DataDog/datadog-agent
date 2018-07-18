@@ -2,9 +2,8 @@
 =====================
 Datadog Cluster Agent
 =====================
-
-{{- if .Error }}
+{{ if .Error }}
   Could not reach the Datadog Cluster Agent: {{ .Error }}
-{{else}}
-  Datadog Cluster Agent available at: {{ .Endpoint }}
+{{ else }}
+  Datadog Cluster Agent endpoint detected: {{ .Endpoint }}
 {{- end }}

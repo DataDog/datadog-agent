@@ -59,7 +59,7 @@ func GetClusterAgentClient() (*DCAClient, error) {
 		})
 	}
 	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {
-		log.Debugf("Cluster Agent init error: %s", err)
+		log.Debugf("Cluster Agent init error: %s", err.Error())
 		return nil, err
 	}
 	return globalClusterAgentClient, nil
@@ -121,7 +121,7 @@ func getClusterAgentEndpoint() (string, error) {
 	dcaSvc := config.Datadog.GetString(configDcaSvcName)
 	log.Debugf("Identified service for the Datadog Cluster Agent: %s", dcaSvc)
 	if dcaSvc == "" {
-		return "", fmt.Errorf("cannot get a cluster agent endpoint, both %q and %q are empty", configDcaURL, configDcaSvcName)
+		return "", fmt.Errorf("cannot get a cluster agent endpoint, both %s and %s are empty", configDcaURL, configDcaSvcName)
 	}
 
 	dcaSvc = strings.ToUpper(dcaSvc)
@@ -131,13 +131,13 @@ func getClusterAgentEndpoint() (string, error) {
 	dcaSvcHostEnv := fmt.Sprintf("%s_SERVICE_HOST", dcaSvc)
 	dcaSvcHost := os.Getenv(dcaSvcHostEnv)
 	if dcaSvcHost == "" {
-		return "", fmt.Errorf("cannot get a cluster agent endpoint for kubernetes service %q, env %q is empty", dcaSvc, dcaSvcHostEnv)
+		return "", fmt.Errorf("cannot get a cluster agent endpoint for kubernetes service %s, env %s is empty", dcaSvc, dcaSvcHostEnv)
 	}
 
 	// port
 	dcaSvcPort := os.Getenv(fmt.Sprintf("%s_SERVICE_PORT", dcaSvc))
 	if dcaSvcPort == "" {
-		return "", fmt.Errorf("cannot get a cluster agent endpoint for kubernetes service %q, env %q is empty", dcaSvc, dcaSvcPort)
+		return "", fmt.Errorf("cannot get a cluster agent endpoint for kubernetes service %s, env %s is empty", dcaSvc, dcaSvcPort)
 	}
 
 	// validate the URL
