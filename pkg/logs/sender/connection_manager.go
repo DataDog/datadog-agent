@@ -28,7 +28,7 @@ type ConnectionManager struct {
 	connectionString string
 	serverName       string
 	devModeNoSSL     bool
-	socksProxy		 string
+	socksProxy       string
 
 	mutex   sync.Mutex
 	retries int
@@ -42,7 +42,7 @@ func NewConnectionManager(serverName string, serverPort int, devModeNoSSL bool, 
 		connectionString: fmt.Sprintf("%s:%d", serverName, serverPort),
 		serverName:       serverName,
 		devModeNoSSL:     devModeNoSSL,
-		socksProxy:		  socksProxy,
+		socksProxy:       socksProxy,
 
 		mutex: sync.Mutex{},
 
