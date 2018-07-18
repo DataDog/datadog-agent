@@ -43,7 +43,7 @@ type DCAClient struct {
 
 	ClusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
 	clusterAgentAPIClient         *http.Client
-	clusterAgentAPIRequestHeaders *http.Header
+	clusterAgentAPIRequestHeaders http.Header
 }
 
 // GetClusterAgentClient returns or init the DCAClient
@@ -78,7 +78,7 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	c.clusterAgentAPIRequestHeaders = &http.Header{}
+	c.clusterAgentAPIRequestHeaders = http.Header{}
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
 
 	// TODO remove insecure
@@ -156,21 +156,20 @@ func (c *DCAClient) GetClusterAgentVersion() (string, error) {
 	var version string
 	var err error
 
-	req := &http.Request{
-		Header: *c.clusterAgentAPIRequestHeaders,
-	}
 	// https://host:port/version
 	rawURL := fmt.Sprintf("%s/%s", c.ClusterAgentAPIEndpoint, dcaVersionPath)
-	req.URL, err = url.Parse(rawURL)
+
+	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return version, err
 	}
+	req.Header = c.clusterAgentAPIRequestHeaders
 
 	resp, err := c.clusterAgentAPIClient.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		return version, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return version, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
@@ -199,20 +198,19 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 		return nil, fmt.Errorf("namespace is empty")
 	}
 
-	req := &http.Request{
-		Header: *c.clusterAgentAPIRequestHeaders,
-	}
 	// https://host:port/api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
 	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
-	req.URL, err = url.Parse(rawURL)
+	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return metadataNames, err
 	}
+	req.Header = c.clusterAgentAPIRequestHeaders
 
 	resp, err := c.clusterAgentAPIClient.Do(req)
 	if err != nil {
 		return metadataNames, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return metadataNames, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
