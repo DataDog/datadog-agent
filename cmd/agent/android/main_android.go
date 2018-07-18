@@ -10,7 +10,6 @@ package ddandroid
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 
 	ddapp "github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -57,13 +56,15 @@ func AndroidMain() {
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
 
-	var ae androidEnv
-	ae.read()
-	if len(ae.Cfgpath) != 0 {
-		log.Printf("Setting config path to %s", ae.Cfgpath)
-		ddapp.SetCfgPath(ae.Cfgpath)
-	}
-
+	/*
+		var ae androidEnv
+		ae.read()
+		if len(ae.Cfgpath) != 0 {
+			log.Printf("Setting config path to %s", ae.Cfgpath)
+			ddapp.SetCfgPath(ae.Cfgpath)
+		}
+	*/
+	ddapp.SetCfgPath("/data/datadog-agent")
 	ddapp.StartAgent()
 }
 
