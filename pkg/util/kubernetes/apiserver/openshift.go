@@ -52,7 +52,7 @@ func (c *APIClient) ListOShiftClusterQuotas() ([]osq.ClusterResourceQuota, error
 		url = "/apis/quota.openshift.io/v1/clusterresourcequotas/"
 		break
 	case OpenShiftOApi:
-		url = "/oapi/v1/appliedclusterresourcequotas/"
+		url = "/oapi/v1/clusterresourcequotas/"
 		break
 	}
 
