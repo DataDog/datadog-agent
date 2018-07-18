@@ -169,6 +169,8 @@ func (d *DockerCheck) Run() error {
 		return err
 	}
 
+	collectingContainerSizeDuringThisRun := d.instance.CollectContainerSize && d.collectContainerSizeCounter == 0
+
 	images := map[string]*containerPerImage{}
 	for _, c := range containers {
 		updateContainerRunningCount(images, c)
@@ -226,7 +228,7 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
-		if d.instance.CollectContainerSize && d.collectContainerSizeCounter == 0 {
+		if collectingContainerSizeDuringThisRun {
 			info, err := du.Inspect(c.ID, true)
 			if err != nil {
 				log.Errorf("Failed to inspect container %s - %s", c.ID[:12], err)
