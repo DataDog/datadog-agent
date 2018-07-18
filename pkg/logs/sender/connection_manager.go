@@ -58,7 +58,11 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 
 	for {
 		if cm.firstConn {
-			log.Info("Connecting to the backend: ", cm.connectionString)
+			if cm.socksProxy != "" {
+				log.Info("Connecting to the backend: ", cm.connectionString, " via socks5:", cm.socksProxy)
+			} else {
+				log.Info("Connecting to the backend: ", cm.connectionString)
+			}
 			cm.firstConn = false
 		}
 
@@ -68,7 +72,6 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 		var err error
 
 		if cm.socksProxy != "" {
-			log.Info("Connecting to logs intake via socks5://", cm.socksProxy)
 			proxyDialer, err := proxy.SOCKS5("tcp", cm.socksProxy, nil, proxy.Direct)
 			if err != nil {
 				log.Warn(err)
