@@ -59,7 +59,7 @@ func GetClusterAgentClient() (*DCAClient, error) {
 		})
 	}
 	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {
-		log.Debugf("Cluster Agent init error: %s", err.Error())
+		log.Debugf("Cluster Agent init error: %v", err)
 		return nil, err
 	}
 	return globalClusterAgentClient, nil
@@ -149,6 +149,8 @@ func getClusterAgentEndpoint() (string, error) {
 
 	return u.String(), nil
 }
+
+// GetClusterAgentVersion fetches the version of the Cluster Agent. Used in the agent status command.
 func (c *DCAClient) GetClusterAgentVersion() (string, error) {
 	const dcaVersionPath = "/version"
 	var version string
@@ -165,6 +167,7 @@ func (c *DCAClient) GetClusterAgentVersion() (string, error) {
 	}
 
 	resp, err := c.clusterAgentAPIClient.Do(req)
+	defer resp.Body.Close()
 	if err != nil {
 		return version, err
 	}
