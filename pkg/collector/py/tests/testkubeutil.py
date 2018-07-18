@@ -14,3 +14,13 @@ class TestCheck(AgentCheck):
             self.warning("Found kubelet at " + creds.get("url"))
         else:
             self.warning("Kubelet not found")
+        if creds.get("verify_tls") == "false":
+            self.warning("no tls verification")
+        if creds.get("ca_cert"):
+            self.warning("ca_cert:" + creds.get("ca_cert"))
+        if creds.get("client_crt"):
+            self.warning("client_crt:" + creds.get("client_crt"))
+        if creds.get("client_key"):
+            self.warning("client_key:" + creds.get("client_key"))
+        if creds.get("token"):
+            self.warning("token:" + creds.get("token"))

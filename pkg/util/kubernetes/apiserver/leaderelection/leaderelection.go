@@ -92,7 +92,7 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 	}
 	err := globalLeaderEngine.initRetry.TriggerRetry()
 	if err != nil {
-		log.Debugf("Init error: %s", err)
+		log.Debugf("Leader Election init error: %s", err)
 		return nil, err
 	}
 	return globalLeaderEngine, nil

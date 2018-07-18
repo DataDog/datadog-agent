@@ -19,7 +19,9 @@ func init() {
 
 // diagnose the API server availability
 func diagnose() error {
+	isConnectVerbose = true
 	_, err := GetAPIClient()
+	isConnectVerbose = false
 	if err != nil {
 		log.Error(err)
 	}

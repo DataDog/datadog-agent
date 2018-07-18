@@ -85,7 +85,7 @@ func GetKubeUtil() (*KubeUtil, error) {
 	}
 	err := globalKubeUtil.initRetry.TriggerRetry()
 	if err != nil {
-		log.Debugf("Init error: %s", err)
+		log.Debugf("Kube util init error: %s", err)
 		return nil, err
 	}
 	return globalKubeUtil, nil

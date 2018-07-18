@@ -37,7 +37,12 @@ func TestGetKubeletConnectionInfoNotFound(t *testing.T) {
 
 func TestGetKubeletConnectionInfoFromCache(t *testing.T) {
 	dummyCreds := map[string]string{
-		"url": "https://10.0.0.1:10250",
+		"url":        "https://10.0.0.1:10250",
+		"verify_tls": "false",
+		"ca_cert":    "/path/ca_cert",
+		"client_crt": "/path/client_crt",
+		"client_key": "/path/client_key",
+		"token":      "random-token",
 	}
 	cache.Cache.Set(kubeletCacheKey, dummyCreds, 5*time.Minute)
 
@@ -46,6 +51,11 @@ func TestGetKubeletConnectionInfoFromCache(t *testing.T) {
 	assert.Nil(t, err)
 
 	warnings := check.GetWarnings()
-	require.Len(t, warnings, 1)
+	require.Len(t, warnings, 6)
 	assert.Equal(t, "Found kubelet at https://10.0.0.1:10250", warnings[0].Error())
+	assert.Equal(t, "no tls verification", warnings[1].Error())
+	assert.Equal(t, "ca_cert:/path/ca_cert", warnings[2].Error())
+	assert.Equal(t, "client_crt:/path/client_crt", warnings[3].Error())
+	assert.Equal(t, "client_key:/path/client_key", warnings[4].Error())
+	assert.Equal(t, "token:random-token", warnings[5].Error())
 }

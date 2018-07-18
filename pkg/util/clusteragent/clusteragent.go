@@ -59,7 +59,7 @@ func GetClusterAgentClient() (*DCAClient, error) {
 		})
 	}
 	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {
-		log.Debugf("Init error: %s", err)
+		log.Debugf("Cluster Agent init error: %s", err)
 		return nil, err
 	}
 	return globalClusterAgentClient, nil
