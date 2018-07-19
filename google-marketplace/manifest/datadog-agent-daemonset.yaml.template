@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: apikey-secret
 type: Opaque
 data:
-  apiKey: "$apiKey"
+  apiKey: "$apiKeyEncoded"
 ---
 apiVersion: apps/v1
 kind: DaemonSet
