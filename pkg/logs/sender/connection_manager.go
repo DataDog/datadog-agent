@@ -31,8 +31,7 @@ type ConnectionManager struct {
 	devModeNoSSL  bool
 	proxyAddress  string
 	mutex         sync.Mutex
-	retries       int
-	firstConn     bool
+	firstConn     sync.Once
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
@@ -42,7 +41,6 @@ func NewConnectionManager(serverName string, serverPort int, devModeNoSSL bool, 
 		serverAddress: fmt.Sprintf("%s:%d", serverName, serverPort),
 		proxyAddress:  proxyAddress,
 		devModeNoSSL:  devModeNoSSL,
-		firstConn:     true,
 	}
 }
 
@@ -52,17 +50,16 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
+	cm.firstConn.Do(func() {
+		if cm.proxyAddress != "" {
+			log.Infof("Connecting to the backend: %v, via socks5: %v", cm.serverAddress, cm.proxyAddress)
+		} else {
+			log.Infof("Connecting to the backend: %v", cm.serverAddress)
+		}
+	})
+
 	var retries int
 	for {
-		if cm.firstConn {
-			if cm.proxyAddress != "" {
-				log.Info("Connecting to the backend: ", cm.serverAddress, " via socks5: ", cm.proxyAddress)
-			} else {
-				log.Info("Connecting to the backend: ", cm.serverAddress)
-			}
-			cm.firstConn = false
-		}
-
 		if retries > 0 {
 			cm.backoff(retries)
 		}
