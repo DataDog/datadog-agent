@@ -54,7 +54,7 @@ func trimLeft(a []bin, maxBucketCap int) []bin {
 	//
 	// (1) Remove closest buckets
 	// (2) re-gamma (kinda like hdr histogram)
-	if len(a) <= maxBucketCap {
+	if maxBucketCap == 0 || len(a) <= maxBucketCap {
 		return a
 	}
 
@@ -65,17 +65,15 @@ func trimLeft(a []bin, maxBucketCap int) []bin {
 		overflow []bin
 	)
 
-	/*
-		TODO|PROD: Benchmark a better overflow scheme.
-		In theory, if we always have the smaller overflow in the lower bucket, we
-		can guarantee that only 1 extra bin is needed for overflow.
-		For example:
+	// TODO|PROD: Benchmark a better overflow scheme.
+	// In theory, if we always have the smaller overflow in the lower bucket, we
+	// can guarantee that only 1 extra bin is needed for overflow.
+	// For example:
 
-		fmt = (<k>:<n>[ <k>:<num overflow>])
-															   NEW        CURRENT
-		1) (0:1) + (0:max*2)       = (0:1 0:2)  (0:1 0:max 0:max)
-		2) (0:1 0:max) + (0:max-1) = (0:0 0:2)  (0:max 0:max)
-	*/
+	// fmt = (<k>:<n>[ <k>:<num overflow>])
+	//                               NEW        CURRENT
+	// 1) (0:1) + (0:max*2)       = (0:1 0:2)  (0:1 0:max 0:max)
+	// 2) (0:1 0:max) + (0:max-1) = (0:0 0:2)  (0:max 0:max)
 	for i := 0; i < nRemove; i++ {
 		missing += int(a[i].n)
 
@@ -90,14 +88,8 @@ func trimLeft(a []bin, maxBucketCap int) []bin {
 	}
 
 	missing = a[nRemove].incrSafe(missing)
-	// a[nRemove].n + missing > maxBinWidth
 	if missing > 0 {
 		overflow = appendSafe(overflow, a[nRemove].k, missing)
-	}
-
-	// TODO: Can trimming ever be larger than before?
-	if len(overflow) > nRemove {
-		panic("overflow > nRemove")
 	}
 
 	copy(a, overflow)
