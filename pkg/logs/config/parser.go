@@ -6,8 +6,9 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
+
+	json "github.com/json-iterator/go"
 )
 
 // Parse returns a new logs-configuration parsing the jsonString,

@@ -8,7 +8,6 @@
 package custommetrics
 
 import (
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"strings"
@@ -16,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	json "github.com/json-iterator/go"
+
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
