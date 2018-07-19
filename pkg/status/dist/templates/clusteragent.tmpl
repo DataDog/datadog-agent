@@ -1,0 +1,18 @@
+
+=====================
+Datadog Cluster Agent
+=====================
+{{ if .DetectionError }}
+  - Could not detect the Datadog Cluster Agent's endpoint: {{ .DetectionError }}
+{{ else }}
+  - Datadog Cluster Agent endpoint detected: {{ .Endpoint }}
+{{- end }}
+{{- if .ConnectionError }}
+  - Could not reach the Datadog Cluster Agent: {{ .ConnectionError }}
+{{- end }}
+{{-  if not .Version }}
+  - Could not retrieve the version of the Datadog Cluster Agent.
+{{ else }}
+  Successfully connected to the Datadog Cluster Agent.
+  - Running: {{ .Version }}
+{{- end }}

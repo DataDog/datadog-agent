@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
 
@@ -29,4 +30,23 @@ func getLeaderElectionDetails() map[string]string {
 	leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", record.LeaderTransitions)
 	leaderElectionStats["status"] = "Running"
 	return leaderElectionStats
+}
+
+func getDCAStatus() map[string]string {
+	clusterAgentDetails := make(map[string]string)
+
+	dcaCl, err := clusteragent.GetClusterAgentClient()
+	if err != nil {
+		clusterAgentDetails["DetectionError"] = err.Error()
+		return clusterAgentDetails
+	}
+	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint
+
+	ver, err := dcaCl.GetVersion()
+	if err != nil {
+		clusterAgentDetails["ConnectionError"] = err.Error()
+		return clusterAgentDetails
+	}
+	clusterAgentDetails["Version"] = ver
+	return clusterAgentDetails
 }

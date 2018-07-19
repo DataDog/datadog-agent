@@ -15,3 +15,8 @@ func getLeaderElectionDetails() map[string]string {
 	log.Info("Not implemented")
 	return nil
 }
+
+func getDCAStatus() map[string]string {
+	log.Info("Not implemented")
+	return nil
+}

@@ -106,7 +106,7 @@ type clusterAgentSuite struct {
 }
 
 const (
-	clusterAgentServiceName = "DATADOG-CLUSTER-AGENT"
+	clusterAgentServiceName = "DATADOG_CLUSTER_AGENT"
 	clusterAgentServiceHost = clusterAgentServiceName + "_SERVICE_HOST"
 	clusterAgentServicePort = clusterAgentServiceName + "_SERVICE_PORT"
 	clusterAgentTokenValue  = "01234567890123456789012345678901"
