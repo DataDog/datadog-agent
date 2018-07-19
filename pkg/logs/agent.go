@@ -43,6 +43,7 @@ func NewAgent(sources *config.LogSources) *Agent {
 		config.LogsAgent.GetString("logs_config.dd_url"),
 		config.LogsAgent.GetInt("logs_config.dd_port"),
 		config.LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
+		config.LogsAgent.GetString("logs_config.socks5_proxy_address"),
 	)
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
