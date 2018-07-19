@@ -101,6 +101,7 @@ func (sl *stickyLock) getPythonError() (string, error) {
 	if ptraceback != nil && ptraceback.GetCPointer() != nil {
 		// There's a traceback, try to format it nicely
 		traceback := python.PyImport_ImportModule("traceback")
+		defer traceback.DecRef()
 		formatExcFn := traceback.GetAttrString("format_exception")
 		if formatExcFn != nil {
 			defer formatExcFn.DecRef()
