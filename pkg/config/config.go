@@ -82,7 +82,7 @@ func init() {
 	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
 	Datadog.SetDefault("app_key", "")
 	Datadog.SetDefault("proxy", nil)
-	Datadog.SetDefault("skip_ssl_validation", false)
+	BindEnvAndSetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("tags", []string{})
 	Datadog.SetDefault("conf_path", ".")
