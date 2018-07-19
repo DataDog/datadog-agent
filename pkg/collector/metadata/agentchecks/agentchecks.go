@@ -8,13 +8,12 @@ package agentchecks
 import (
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,7 +43,7 @@ func GetPayload() *Payload {
 		}
 	}
 
-	loaderErrors := autodiscovery.GetLoaderErrors()
+	loaderErrors := collector.GetLoaderErrors()
 
 	for check, errs := range loaderErrors {
 		jsonErrs, err := json.Marshal(errs)

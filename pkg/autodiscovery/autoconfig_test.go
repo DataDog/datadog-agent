@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,12 +36,6 @@ type MockProvider2 struct {
 	MockProvider
 }
 
-type MockLoader struct{}
-
-func (l *MockLoader) Load(config integration.Config) ([]check.Check, error) {
-	return []check.Check{}, nil
-}
-
 type MockListener struct {
 	ListenCount  int
 	stopReceived bool
@@ -51,7 +45,7 @@ func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) { l.Liste
 func (l *MockListener) Stop()                                          { l.stopReceived = true }
 
 func TestAddProvider(t *testing.T) {
-	ac := NewAutoConfig(nil)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.StartPolling()
 	assert.Len(t, ac.providers, 0)
 	mp := &MockProvider{}
@@ -65,16 +59,8 @@ func TestAddProvider(t *testing.T) {
 	assert.True(t, ac.providers[1].poll)
 }
 
-func TestAddLoader(t *testing.T) {
-	ac := NewAutoConfig(nil)
-	assert.Len(t, ac.loaders, 0)
-	ac.AddLoader(&MockLoader{})
-	ac.AddLoader(&MockLoader{}) // noop
-	assert.Len(t, ac.loaders, 1)
-}
-
 func TestAddListener(t *testing.T) {
-	ac := NewAutoConfig(nil)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	assert.Len(t, ac.listeners, 0)
 	ml := &MockListener{}
 	ac.AddListener(ml)
@@ -92,7 +78,7 @@ func TestContains(t *testing.T) {
 }
 
 func TestStop(t *testing.T) {
-	ac := NewAutoConfig(nil)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.StartPolling() // otherwise Stop would block
 
 	ml := &MockListener{}

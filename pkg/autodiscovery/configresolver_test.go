@@ -15,24 +15,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
 
 func TestNewConfigResolver(t *testing.T) {
-	cr := newConfigResolver(nil, nil, nil)
+	cr := newConfigResolver(nil, nil)
 	assert.NotNil(t, cr)
 }
 
 func TestResolveTemplate(t *testing.T) {
-	ac := NewAutoConfig(nil)
-	// setup the go checks loader
-	l, _ := corechecks.NewGoCheckLoader()
-	ac.AddLoader(l)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	tc := NewTemplateCache()
-	cr := newConfigResolver(nil, ac, tc)
+	cr := newConfigResolver(ac, tc)
 	tpl := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
@@ -413,7 +410,7 @@ func TestResolve(t *testing.T) {
 	ac := &AutoConfig{
 		store: newStore(),
 	}
-	cr := newConfigResolver(nil, ac, NewTemplateCache())
+	cr := newConfigResolver(ac, NewTemplateCache())
 	validTemplates := 0
 
 	for i, tc := range testCases {

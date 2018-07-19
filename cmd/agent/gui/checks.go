@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -67,7 +68,7 @@ func sendRunningChecks(w http.ResponseWriter, r *http.Request) {
 func runCheck(w http.ResponseWriter, r *http.Request) {
 	// Fetch the desired check
 	name := mux.Vars(r)["name"]
-	instances := common.AC.GetChecksByName(name)
+	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
 
 	for _, ch := range instances {
 		common.Coll.RunCheck(ch)
@@ -81,7 +82,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 	response := make(map[string]string)
 	// Fetch the desired check
 	name := mux.Vars(r)["name"]
-	instances := common.AC.GetChecksByName(name)
+	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
 	if len(instances) == 0 {
 		html, e := renderError(name)
 		if e != nil {
@@ -134,7 +135,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 // Reloads a running check
 func reloadCheck(w http.ResponseWriter, r *http.Request) {
 	name := html.EscapeString(mux.Vars(r)["name"])
-	instances := common.AC.GetChecksByName(name)
+	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
 	if len(instances) == 0 {
 		log.Errorf("Can't reload " + name + ": check has no new instances.")
 		w.Write([]byte("Can't reload " + name + ": check has no new instances"))

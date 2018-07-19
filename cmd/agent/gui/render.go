@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
@@ -37,7 +38,7 @@ const (
 // Data is a struct used for filling templates
 type Data struct {
 	Name       string
-	LoaderErrs map[string]autodiscovery.LoaderErrors
+	LoaderErrs map[string]map[string]string
 	ConfigErrs map[string]string
 	Stats      map[string]interface{}
 	CheckStats []*check.Stats
@@ -62,7 +63,7 @@ func renderRunningChecks() (string, error) {
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
 	json.Unmarshal(runnerStatsJSON, &runnerStats)
-	loaderErrs := autodiscovery.GetLoaderErrors()
+	loaderErrs := collector.GetLoaderErrors()
 	configErrs := autodiscovery.GetConfigErrors()
 
 	data := Data{LoaderErrs: loaderErrs, ConfigErrs: configErrs, Stats: runnerStats}
@@ -87,7 +88,7 @@ func renderCheck(name string, stats []*check.Stats) (string, error) {
 func renderError(name string) (string, error) {
 	var b = new(bytes.Buffer)
 
-	loaderErrs := autodiscovery.GetLoaderErrors()
+	loaderErrs := collector.GetLoaderErrors()
 	configErrs := autodiscovery.GetConfigErrors()
 
 	data := Data{Name: name, LoaderErrs: loaderErrs, ConfigErrs: configErrs}
