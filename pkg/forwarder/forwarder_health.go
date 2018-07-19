@@ -22,12 +22,19 @@ var (
 	apiKeyValid         = expvar.String{}
 
 	validateAPIKeyTimeout = 10 * time.Second
+
+	apiKeyStatus = expvar.Map{}
 )
 
 func init() {
 	apiKeyStatusUnknown.Set("Unable to validate API Key")
 	apiKeyInvalid.Set("API Key invalid")
 	apiKeyValid.Set("API Key valid")
+}
+
+func initForwarderHealthExpvars() {
+	apiKeyStatus.Init()
+	forwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is

@@ -8,6 +8,7 @@ package forwarder
 import (
 	"bytes"
 	"context"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +18,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var (
+	transactionsRetryQueueSize = expvar.Int{}
+	transactionsSuccessful     = expvar.Int{}
+	transactionsDroppedOnInput = expvar.Int{}
+	transactionsErrors         = expvar.Int{}
+)
+
+func initTransactionExpvars() {
+	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
+	transactionsExpvars.Set("Success", &transactionsSuccessful)
+	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
+	transactionsExpvars.Set("Errors", &transactionsErrors)
+}
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {

@@ -20,34 +20,22 @@ import (
 )
 
 var (
-	forwarderExpvars           = expvar.NewMap("forwarder")
-	transactionsExpvars        = expvar.Map{}
-	transactionsRetryQueueSize = expvar.Int{}
-	transactionsSuccessful     = expvar.Int{}
-	transactionsDroppedOnInput = expvar.Int{}
-	transactionsSeries         = expvar.Int{}
-	transactionsEvents         = expvar.Int{}
-	transactionsServiceChecks  = expvar.Int{}
-	transactionsSketchSeries   = expvar.Int{}
-	transactionsHostMetadata   = expvar.Int{}
-	transactionsMetadata       = expvar.Int{}
-	transactionsTimeseriesV1   = expvar.Int{}
-	transactionsCheckRunsV1    = expvar.Int{}
-	transactionsIntakeV1       = expvar.Int{}
-	transactionsRetried        = expvar.Int{}
-	transactionsDropped        = expvar.Int{}
-	transactionsRequeued       = expvar.Int{}
-	transactionsErrors         = expvar.Int{}
-
-	apiKeyStatus = expvar.Map{}
+	forwarderExpvars          = expvar.NewMap("forwarder")
+	transactionsExpvars       = expvar.Map{}
+	transactionsSeries        = expvar.Int{}
+	transactionsEvents        = expvar.Int{}
+	transactionsServiceChecks = expvar.Int{}
+	transactionsSketchSeries  = expvar.Int{}
+	transactionsHostMetadata  = expvar.Int{}
+	transactionsMetadata      = expvar.Int{}
+	transactionsTimeseriesV1  = expvar.Int{}
+	transactionsCheckRunsV1   = expvar.Int{}
+	transactionsIntakeV1      = expvar.Int{}
 )
 
 func init() {
 	transactionsExpvars.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
-	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
-	transactionsExpvars.Set("Success", &transactionsSuccessful)
-	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
 	transactionsExpvars.Set("Series", &transactionsSeries)
 	transactionsExpvars.Set("Events", &transactionsEvents)
 	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
@@ -57,13 +45,9 @@ func init() {
 	transactionsExpvars.Set("TimeseriesV1", &transactionsTimeseriesV1)
 	transactionsExpvars.Set("CheckRunsV1", &transactionsCheckRunsV1)
 	transactionsExpvars.Set("IntakeV1", &transactionsIntakeV1)
-	transactionsExpvars.Set("Retried", &transactionsRetried)
-	transactionsExpvars.Set("Dropped", &transactionsDropped)
-	transactionsExpvars.Set("Requeued", &transactionsRequeued)
-	transactionsExpvars.Set("Requeued", &transactionsErrors)
-
-	apiKeyStatus.Init()
-	forwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
+	initDomainForwarderExpvars()
+	initTransactionExpvars()
+	initForwarderHealthExpvars()
 }
 
 const (

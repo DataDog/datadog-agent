@@ -6,6 +6,7 @@
 package forwarder
 
 import (
+	"expvar"
 	"fmt"
 	"sort"
 	"sync"
@@ -18,7 +19,17 @@ import (
 var (
 	chanBufferSize = 100
 	flushInterval  = 5 * time.Second
+
+	transactionsRetried  = expvar.Int{}
+	transactionsDropped  = expvar.Int{}
+	transactionsRequeued = expvar.Int{}
 )
+
+func initDomainForwarderExpvars() {
+	transactionsExpvars.Set("Retried", &transactionsRetried)
+	transactionsExpvars.Set("Dropped", &transactionsDropped)
+	transactionsExpvars.Set("Requeued", &transactionsRequeued)
+}
 
 // domainForwarder is in charge of sending Transactions to Datadog backend over
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
