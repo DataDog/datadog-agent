@@ -13,7 +13,7 @@ crd/uninstall:
 # Installs the RBAC objects (ServiceAccount, ClusterRole, ClusterRoleBinding) on the cluster.
 .PHONY: rbac/install
 rbac/install:
-	cat manifest/datadog-agent-rbac.yaml.template | envsubst > $(makefile_dir)rbac-expanded.yaml
+	cat cmdline_rbac/datadog-agent-rbac.yaml.template | envsubst > $(makefile_dir)rbac-expanded.yaml
 	kubectl apply -f $(makefile_dir)rbac-expanded.yaml
 
 # Uninstalls the Datadog-related RBAC objects from the cluster.
