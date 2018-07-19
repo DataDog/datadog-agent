@@ -1,13 +1,13 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  generateName: argo-datadog-cluster-agent-hpa
+  generateName: argo-datadog-cluster-agent-
 spec:
   entrypoint: main
   #onExit: delete # call argo submit --entrypoint delete instead
   arguments:
     parameters:
-    - name: cluster-agent-rbac-cluster-role
+    - name: cluster-agent-rbac
       value: |
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRole
@@ -40,6 +40,7 @@ spec:
           - configmaps
           resourceNames:
           - datadogtoken
+          - datadog-leader-election
           verbs:
           - get
           - update
@@ -51,31 +52,27 @@ spec:
           - get
           - update
           - create
-
-    - name: cluster-agent-rbac-sa
-      value: |
-        kind: ServiceAccount
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: dca
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: dca
+        subjects:
+        - kind: ServiceAccount
+          name: dca
+          namespace: default
+        ---
         apiVersion: v1
+        kind: ServiceAccount
         metadata:
           name: dca
           namespace: default
 
-    - name: cluster-agent-rbac-cluster-role-binding
-      value: |
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: ClusterRoleBinding
-          metadata:
-            name: dca
-          roleRef:
-            apiGroup: rbac.authorization.k8s.io
-            kind: ClusterRole
-            name: dca
-          subjects:
-          - kind: ServiceAccount
-            name: dca
-            namespace: default
-
-    - name: external-custom-metric-rbac
+    - name: custom-metrics-server-rbac
       value: |
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRoleBinding
@@ -146,6 +143,23 @@ spec:
           name: horizontal-pod-autoscaler
           namespace: kube-system
 
+    - name: cluster-agent-configmap
+      value: |
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: datadog-cluster
+          namespace: default
+        data:
+          datadog.yaml: |
+            dd_url: "http://fake-datadog.default.svc.cluster.local"
+            kubernetes_apiserver_poll_freq: 20
+            leader_election: true
+            cluster_agent:
+              auth_token: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
+            external_metrics_provider:
+              enabled: true
+
     - name: cluster-agent-deployment
       value: |
         apiVersion: extensions/v1beta1
@@ -164,24 +178,16 @@ spec:
               containers:
               - name: datadog-cluster-agent
                 image: datadog/cluster-agent-dev:master
-                imagePullPolicy: IfNotPresent
+                imagePullPolicy: Always
                 env:
                 - name: DD_API_KEY
                   value: "123er"
                 - name: DD_APP_KEY
                   value: "123er1"
-                - name: DATADOG_HOST
-                  value: "http://fake-datadog.default.svc.cluster.local"
-                - name: DD_DD_URL
+                - name: DATADOG_HOST # used by https://github.com/zorkian/go-datadog-api
                   value: "http://fake-datadog.default.svc.cluster.local"
                 - name: DD_LOG_LEVEL
                   value: "debug"
-                - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-                  value: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
-                - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
-                  value: "true"
-                - name: DD_LEADER_ELECTION
-                  value: "true"
                 livenessProbe:
                   exec:
                     command:
@@ -196,6 +202,14 @@ spec:
                     - status
                   failureThreshold: 5
                   initialDelaySeconds: 20
+                volumeMounts:
+                - name: datadog-config
+                  mountPath: /etc/datadog-agent/datadog.yaml
+                  subPath: datadog.yaml
+              volumes:
+              - name: datadog-config
+                configMap:
+                  name: datadog-cluster
 
     - name: cluster-agent-svc
       value: |
@@ -207,7 +221,7 @@ spec:
            app: datadog-cluster-agent
         spec:
          ports:
-         - port: 5001
+         - port: 5005
            protocol: TCP
          selector:
            app: datadog-cluster-agent
@@ -226,7 +240,7 @@ spec:
             port: 443
             targetPort: 443
 
-    - name: hpa-manifest
+    - name: nginx-hpa
       value: |
         apiVersion: autoscaling/v2beta1
         kind: HorizontalPodAutoscaler
@@ -288,6 +302,10 @@ spec:
 
         ---
         apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: nginxconfig
+          namespace: default
         data:
           nginx.conf: |+
             worker_processes  5;
@@ -310,11 +328,6 @@ spec:
                     }
                 }
             }
-
-        kind: ConfigMap
-        metadata:
-          name: nginxconfig
-          namespace: default
         ---
         apiVersion: v1
         kind: Service
@@ -330,15 +343,7 @@ spec:
             port: 8090
             targetPort: 80
 
-    - name: agent-service-account
-      value: |
-        kind: ServiceAccount
-        apiVersion: v1
-        metadata:
-          name: datadog-agent
-          namespace: default
-
-    - name: agent-cluster-role
+    - name: agent-rbac
       value: |
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRole
@@ -353,9 +358,7 @@ spec:
           - nodes/proxy
           verbs:
           - get
-
-    - name: agent-cluster-role-binding
-      value: |
+        ---
         apiVersion: rbac.authorization.k8s.io/v1
         kind: ClusterRoleBinding
         metadata:
@@ -366,6 +369,12 @@ spec:
           name: datadog-agent
         subjects:
         - kind: ServiceAccount
+          name: datadog-agent
+          namespace: default
+        ---
+        kind: ServiceAccount
+        apiVersion: v1
+        metadata:
           name: datadog-agent
           namespace: default
 
@@ -380,6 +389,11 @@ spec:
           datadog.yaml: |
             api_key: "123er"
             dd_url: "http://fake-datadog.default.svc.cluster.local"
+            kubernetes_metadata_tag_update_freq: 20
+            cluster_agent:
+              enabled: true
+              kubernetes_service_name: "dca"
+              auth_token: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
             listeners:
             - name: kubelet
             config_providers:
@@ -412,6 +426,7 @@ spec:
               containers:
               - name: agent
                 image: datadog/agent-dev:master # TODO provide the ECR PR image
+                imagePullPolicy: Always
                 command:
                 - /opt/datadog-agent/bin/agent/agent
                 - start
@@ -457,7 +472,6 @@ spec:
                 - name: dockersocket
                   mountPath: /var/run/docker.sock
                   readOnly: true
-
               volumes:
               - name: datadog-config
                 configMap:
@@ -524,20 +538,17 @@ spec:
       parameters:
       - name: nginx
       - name: agent-configmap
-      - name: agent-service-account
-      - name: agent-cluster-role
-      - name: agent-cluster-role-binding
+      - name: agent-rbac
       - name: agent-daemonset
-      - name: external-custom-metric-rbac
-      - name: cluster-agent-rbac-cluster-role
-      - name: cluster-agent-rbac-sa
-      - name: cluster-agent-rbac-cluster-role-binding
+      - name: cluster-agent-configmap
+      - name: cluster-agent-rbac
       - name: cluster-agent-deployment
-      - name: cluster-agent-hpa-svc
       - name: cluster-agent-svc
-      - name: hpa-manifest
+      - name: cluster-agent-hpa-svc
+      - name: custom-metrics-server-rbac
       - name: fake-datadog-deployment
       - name: fake-datadog-service
+      - name: nginx-hpa
     steps:
     - - name: fake-dd-setup
         template: manifest
@@ -565,6 +576,22 @@ spec:
     - - name: fake-dd-reset
         template: fake-dd-reset
 
+    - - name: cluster-agent-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.cluster-agent-configmap}}"
+        - "{{inputs.parameters.cluster-agent-rbac}}"
+        - "{{inputs.parameters.cluster-agent-deployment}}"
+        - "{{inputs.parameters.cluster-agent-svc}}"
+        - "{{inputs.parameters.cluster-agent-hpa-svc}}"
+        - "{{inputs.parameters.custom-metrics-server-rbac}}"
+
     - - name: agent-setup
         template: manifest
         arguments:
@@ -575,12 +602,10 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.agent-configmap}}"
-        - "{{inputs.parameters.agent-service-account}}"
-        - "{{inputs.parameters.agent-cluster-role}}"
-        - "{{inputs.parameters.agent-cluster-role-binding}}"
+        - "{{inputs.parameters.agent-rbac}}"
         - "{{inputs.parameters.agent-daemonset}}"
 
-    - - name: cluster-agent-setup
+    - - name: nginx-hpa-setup
         template: manifest
         arguments:
           parameters:
@@ -589,24 +614,7 @@ spec:
           - name: manifest
             value: "{{item}}"
         withItems:
-        - "{{inputs.parameters.cluster-agent-rbac-cluster-role}}"
-        - "{{inputs.parameters.cluster-agent-rbac-sa}}"
-        - "{{inputs.parameters.cluster-agent-rbac-cluster-role-binding}}"
-        - "{{inputs.parameters.cluster-agent-deployment}}"
-        - "{{inputs.parameters.cluster-agent-svc}}"
-        - "{{inputs.parameters.cluster-agent-hpa-svc}}"
-
-    - - name: hpa
-        template: manifest
-        arguments:
-          parameters:
-          - name: action
-            value: "apply"
-          - name: manifest
-            value: "{{item}}"
-        withItems:
-        - "{{inputs.parameters.external-custom-metric-rbac}}"
-        - "{{inputs.parameters.hpa-manifest}}"
+        - "{{inputs.parameters.nginx-hpa}}"
 
     - - name: find-metrics-nginx
         template: find-metrics-nginx
@@ -631,36 +639,22 @@ spec:
     - - name: no-more-nginx
         template: no-more-metrics-nginx
 
-  - name: query-job
-    activeDeadlineSeconds: 120
-    inputs:
-      parameters:
-      - name: manifest
-    resource:
-      action: create
-      successCondition: status.succeeded > 0
-      failureCondition: status.failed > 10
-      manifest: "{{inputs.parameters.manifest}}"
-
   - name: delete
     inputs:
       parameters:
       - name: nginx
       - name: agent-configmap
-      - name: agent-service-account
-      - name: agent-cluster-role
-      - name: agent-cluster-role-binding
+      - name: agent-rbac
       - name: agent-daemonset
       - name: fake-datadog-deployment
       - name: fake-datadog-service
-      - name: external-custom-metric-rbac
-      - name: cluster-agent-rbac-cluster-role
-      - name: cluster-agent-rbac-sa
-      - name: cluster-agent-rbac-cluster-role-binding
+      - name: cluster-agent-configmap
+      - name: cluster-agent-rbac
       - name: cluster-agent-deployment
       - name: cluster-agent-hpa-svc
       - name: cluster-agent-svc
-      - name: hpa-manifest
+      - name: custom-metrics-server-rbac
+      - name: nginx-hpa
 
     steps:
     - - name: delete-manifest
@@ -674,19 +668,17 @@ spec:
         withItems:
         - "{{inputs.parameters.nginx}}"
         - "{{inputs.parameters.agent-configmap}}"
-        - "{{inputs.parameters.agent-service-account}}"
-        - "{{inputs.parameters.agent-cluster-role}}"
-        - "{{inputs.parameters.agent-cluster-role-binding}}"
+        - "{{inputs.parameters.agent-rbac}}"
         - "{{inputs.parameters.agent-daemonset}}"
         - "{{inputs.parameters.fake-datadog-service}}"
         - "{{inputs.parameters.fake-datadog-deployment}}"
-        - "{{inputs.parameters.cluster-agent-rbac-cluster-role}}"
-        - "{{inputs.parameters.cluster-agent-rbac-sa}}"
-        - "{{inputs.parameters.cluster-agent-rbac-cluster-role-binding}}"
+        - "{{inputs.parameters.cluster-agent-configmap}}"
+        - "{{inputs.parameters.cluster-agent-rbac}}"
         - "{{inputs.parameters.cluster-agent-deployment}}"
         - "{{inputs.parameters.cluster-agent-svc}}"
         - "{{inputs.parameters.cluster-agent-hpa-svc}}"
-        - "{{inputs.parameters.hpa-manifest}}"
+        - "{{inputs.parameters.custom-metrics-server-rbac}}"
+        - "{{inputs.parameters.nginx-hpa}}"
 
     - - name: remove-maps
         template: delete-cm-datadog-hpa
@@ -709,7 +701,7 @@ spec:
         set -x
         set -o pipefail
 
-        # Verify the DCA has written in the CM
+        # Verify the DCA has written in the configmap
         until kubectl get cm datadog-hpa -o json -n default | jq -re .data[]
         do
          sleep 1
@@ -767,7 +759,7 @@ spec:
         while (1) {
           var nb = db.series.find({
             metric: {$regex: "nginx*"},
-            tags: {$all: ["image_name:nginx"]}
+            tags: {$all: ["image_name:nginx", "kube_service:nginx"]}
           }).count();
           print("find: " + nb)
           if (nb != 0) {

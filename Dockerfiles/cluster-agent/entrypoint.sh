@@ -9,7 +9,7 @@
 ##### Core config #####
 
 if [[ -z "$DD_API_KEY" ]]; then
-    echo "You must set an DD_API_KEY environment variable to run the Datadog Agent container"
+    echo "You must set an DD_API_KEY environment variable to run the Datadog Cluster Agent container"
     exit 1
 fi
 

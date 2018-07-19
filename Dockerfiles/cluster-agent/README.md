@@ -1,4 +1,4 @@
-# Datadog Cluster Agent | Containerized environments 
+# Datadog Cluster Agent | Containerized environments
 
 This is how the official Datadog Cluster Agent (also known as `DCA`) image, available [here](https://hub.docker.com/r/datadog/cluster-agent/), is built.
 
@@ -6,13 +6,13 @@ This is how the official Datadog Cluster Agent (also known as `DCA`) image, avai
 
 The following environment variables are supported:
 
-- `DD_API_KEY` - **required** - your [Datadog API key][https://app.datadoghq.com/account/settings#api].
+- `DD_API_KEY` - **required** - your [Datadog API key](https://app.datadoghq.com/account/settings#api).
 - `DD_HOSTNAME`: hostname to use for the DCA.
 - `DD_CLUSTER_AGENT_CMD_PORT`: port for the DCA to serve, default is `5005`.
 - `DD_USE_METADATA_MAPPER`: enables the cluster level metadata mapping, default is `true`.
 - `DD_COLLECT_KUBERNETES_EVENTS` - configures the agent to collect Kubernetes events. Default to `false`. See the [Event collection section](#event-collection) for more details.
 - `DD_LEADER_ELECTION`: activates the [leader election](#leader-election). You must set `DD_COLLECT_KUBERNETES_EVENTS` to `true` to activate this feature. Default value is `false`.
-- `DD_LEADER_LEASE_DURATION`: used only if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds, is 60 by default. 
+- `DD_LEADER_LEASE_DURATION`: used only if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds, is 60 by default.
 - `DD_CLUSTER_AGENT_AUTH_TOKEN`: 32 characters long token that needs to be shared between the node agent and the DCA.
 - `DD_KUBE_RESOURCES_NAMESPACE`: configures the namespace where the Cluster Agent creates the configmaps required for the Leader Election, the Event Collection (optional) and the Horizontal Pod Autoscaling.
 - `DD_KUBERNETES_APISERVER_POLL_FREQ`: frequency in second at which the DCA will query the API Server to refresh the cluster metadata map.
@@ -34,10 +34,10 @@ Then from the current folder, run `inv -e cluster-agent.image-build`.
 ### Security premise
 <a name="security-premise"></a>
 
-You should create the secret that is be used for your Agents to communicate with the DCA. 
+You should create the secret that is be used for your Agents to communicate with the DCA.
 You must modify the value in [the dca-secret.yaml](/manifests/cluster-agent/dca-secret.yaml) then create it:
 
-`kubectl create -f manifests/cluster-agent/dca-secret.yaml` 
+`kubectl create -f manifests/cluster-agent/dca-secret.yaml`
 
 Will yield:
 
@@ -143,7 +143,7 @@ You can disable the kubernetes metadata tag collection with `DD_KUBERNETES_COLLE
 
 #### HPA
 
-To enable the HPA: 
+To enable the HPA:
 - Set `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` to `true` in the Deployment of the DCA.
 - Configure the `<DD_APP_KEY>` as well as the `<DD_API_KEY>` in the Deployment of the DCA.
 - Create a service exposing the port 443 and register it as an APIService for External Metrics.
