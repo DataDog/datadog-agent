@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -26,7 +27,7 @@ func TestNewConfigResolver(t *testing.T) {
 }
 
 func TestResolveTemplate(t *testing.T) {
-	ac := NewAutoConfig()
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	tc := NewTemplateCache()
 	cr := newConfigResolver(ac, tc)
 	tpl := integration.Config{

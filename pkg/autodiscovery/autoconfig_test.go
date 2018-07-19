@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +45,7 @@ func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) { l.Liste
 func (l *MockListener) Stop()                                          { l.stopReceived = true }
 
 func TestAddProvider(t *testing.T) {
-	ac := NewAutoConfig()
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.StartPolling()
 	assert.Len(t, ac.providers, 0)
 	mp := &MockProvider{}
@@ -59,7 +60,7 @@ func TestAddProvider(t *testing.T) {
 }
 
 func TestAddListener(t *testing.T) {
-	ac := NewAutoConfig()
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	assert.Len(t, ac.listeners, 0)
 	ml := &MockListener{}
 	ac.AddListener(ml)
@@ -77,7 +78,7 @@ func TestContains(t *testing.T) {
 }
 
 func TestStop(t *testing.T) {
-	ac := NewAutoConfig()
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.StartPolling() // otherwise Stop would block
 
 	ml := &MockListener{}

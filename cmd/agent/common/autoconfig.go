@@ -32,11 +32,14 @@ func SetupAutoConfig(confdPath string) {
 	// NOTICE: this will also setup the Python environment, if available
 	Coll = collector.NewCollector(GetPythonPaths()...)
 
+	// creating the meta scheduler
+	metaScheduler := scheduler.NewMetaScheduler()
+
 	// registering the check scheduler
-	scheduler.Register("check", collector.InitCheckScheduler(Coll))
+	metaScheduler.Register("check", collector.InitCheckScheduler(Coll))
 
 	// create the Autoconfig instance
-	AC = autodiscovery.NewAutoConfig()
+	AC = autodiscovery.NewAutoConfig(metaScheduler)
 
 	// Add the configuration providers
 	// File Provider is hardocded and always enabled

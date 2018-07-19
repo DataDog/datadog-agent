@@ -49,8 +49,8 @@ type providerDescriptor struct {
 	poll     bool
 }
 
-// AutoConfig is responsible to collect checks configurations from
-// different sources and then create, update or destroy check instances.
+// AutoConfig is responsible to collect integrations configurations from
+// different sources and then schedule or unschedule them.
 // It owns and orchestrates several key modules:
 //  - it owns a reference to the `collector.Collector` that it uses to schedule checks when template or container updates warrant them
 //  - it holds a list of `providers.ConfigProvider`s and poll them according to their policy
@@ -59,14 +59,14 @@ type providerDescriptor struct {
 //  - it runs the `ConfigResolver` that resolves a configuration template to an actual configuration based on data it extracts from a service that matches it the template
 //
 // Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
-// meaning that you cannot use it to schedule check instances directly.
+// meaning that you cannot use it to schedule integrations instances directly.
 type AutoConfig struct {
 	providers         []*providerDescriptor
 	templateCache     *TemplateCache
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	scheduler         scheduler.MetaScheduler
+	scheduler         scheduler.Scheduler
 	stop              chan bool
 	pollerActive      bool
 	health            *health.Handle
@@ -75,14 +75,14 @@ type AutoConfig struct {
 }
 
 // NewAutoConfig creates an AutoConfig instance.
-func NewAutoConfig() *AutoConfig {
+func NewAutoConfig(scheduler scheduler.Scheduler) *AutoConfig {
 	ac := &AutoConfig{
 		providers:     make([]*providerDescriptor, 0, 5),
 		templateCache: NewTemplateCache(),
 		stop:          make(chan bool),
 		store:         newStore(),
 		health:        health.Register("ad-autoconfig"),
-		scheduler:     scheduler.MetaScheduler{},
+		scheduler:     scheduler,
 	}
 	ac.configResolver = newConfigResolver(ac, ac.templateCache)
 	return ac
@@ -153,9 +153,9 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	ac.providers = append(ac.providers, pd)
 }
 
-// LoadAndRun loads all of the configs it can find and schedules the corresponding
-// Check instances. Should always be run once so providers that don't need
-// polling will be queried at least once
+// LoadAndRun loads all of the integration configs it can find
+// and schedules them. Should always be run once so providers
+// that don't need polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun() {
 	resolvedConfigs := ac.GetAllConfigs()
 	ac.schedule(resolvedConfigs)
@@ -211,7 +211,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	return resolvedConfigs
 }
 
-// schedule takes a slice of checks and schedule them
+// schedule takes a slice of configs and schedule them
 func (ac *AutoConfig) schedule(configs []integration.Config) {
 	ac.scheduler.Schedule(configs)
 }
