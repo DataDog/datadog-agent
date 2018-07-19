@@ -181,8 +181,9 @@ def lint_releasenote(ctx):
         while True:
             res = requests.get(url)
             files = res.json()
-            if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
-                break
+            for notesdir in ["releasenotes/notes/", "releasenotes-dca/notes/"]:
+                if any([f['filename'].startswith(notesdir) for f in files]):
+                    break
 
             if 'next' in res.links:
                 url = res.links['next']['url']
@@ -207,8 +208,9 @@ def lint_releasenote(ctx):
                 while True:
                     res = requests.get(url)
                     files = res.json().get("files", {})
-                    if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
-                        break
+                    for notesdir in ["releasenotes/notes/", "releasenotes-dca/notes/"]:
+                        if any([f['filename'].startswith(notesdir) for f in files]):
+                            break
 
                     if 'next' in res.links:
                         url = res.links['next']['url']
