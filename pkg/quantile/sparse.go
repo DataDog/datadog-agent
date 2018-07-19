@@ -38,7 +38,6 @@ func (s *Sketch) MemSize() (used, allocated int) {
 // InsertMany values into the sketch.
 func (s *Sketch) InsertMany(c *Config, values []float64) {
 	keys := getKeyList()
-	keys = keys[:0]
 
 	for _, v := range values {
 		s.Basic.Insert(v)

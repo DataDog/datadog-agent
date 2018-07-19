@@ -43,6 +43,8 @@ func (s *sparseStore) MemSize() (used, allocated int) {
 	return
 }
 
+// trimLeft ensures that len(a) <= maxBucketCap. We set maxBucketCap rather high
+// by default to avoid trimming as much as possible.
 func trimLeft(a []bin, maxBucketCap int) []bin {
 	// XXX:
 	// 1. Work through overflow cause

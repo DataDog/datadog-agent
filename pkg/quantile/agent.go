@@ -18,9 +18,9 @@ func (a *Agent) IsEmpty() bool {
 	return a.Sketch.Basic.Cnt == 0 && len(a.Buf) == 0
 }
 
-// Finish flushes and pending inserts and returns a deep copy of the sketch.
+// Finish flushes any pending inserts and returns a deep copy of the sketch.
 func (a *Agent) Finish() *Sketch {
-	a.Flush()
+	a.flush()
 
 	if a.IsEmpty() {
 		return nil
@@ -29,8 +29,8 @@ func (a *Agent) Finish() *Sketch {
 	return a.Sketch.Copy()
 }
 
-// Flush buffered values into the sketch.
-func (a *Agent) Flush() {
+// flush buffered values into the sketch.
+func (a *Agent) flush() {
 	if len(a.Buf) == 0 {
 		return
 	}
@@ -54,5 +54,5 @@ func (a *Agent) Insert(v float64) {
 		return
 	}
 
-	a.Flush()
+	a.flush()
 }
