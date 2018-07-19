@@ -47,14 +47,6 @@ func TestStore(t *testing.T) {
 	})
 
 	t.Run("merge", func(t *testing.T) {
-		type mergeTest struct {
-			s *sparseStore
-			o *sparseStore
-
-			exp *sparseStore
-			c   *Config
-		}
-
 		type mt struct {
 			s, o, exp string
 			binLimit  int
@@ -90,6 +82,60 @@ func TestStore(t *testing.T) {
 
 				// TODO|TEST: check that o is not mutated.
 				s.merge(c, o)
+
+				if exp.count != s.count {
+					t.Errorf("s.count=%d, want %d", s.count, exp.count)
+				}
+
+				if nsum := s.bins.nSum(); exp.count != nsum {
+					t.Errorf("nSum=%d, want %d", nsum, exp.count)
+				}
+
+				require.Equal(t, exp.bins.String(), s.bins.String())
+				require.EqualValues(t, exp, s)
+			})
+		}
+
+	})
+
+	t.Run("trimLeft", func(t *testing.T) {
+		for _, tt := range []struct {
+			s, e string
+			b    int
+		}{
+			{},
+			{s: "1:1", e: "1:1"},
+			{s: "1:1", e: "1:1", b: 1},
+			{
+				// TODO: if the trimmed size is the same as before trimming adds error
+				// with no benefit.
+				s: "1:max 2:max 3:max",
+				e: "2:max 2:max 3:max",
+				b: 2,
+			},
+			{
+				s: "1:max 1:max 1:1 2:max 3:1 4:1",
+				e: "1:65535 1:65535 2:1 2:65535 3:1 4:1",
+				b: 3,
+			},
+			{
+				s: "1:max-1 2:max-1 3:1",
+				e: "1:max-1 2:max-1 3:1",
+				b: 3,
+			},
+		} {
+
+			t.Run("", func(t *testing.T) {
+				var (
+					c   = Default()
+					s   = buildStore(t, tt.s)
+					exp = buildStore(t, tt.e)
+				)
+
+				if tt.b != 0 {
+					c.binLimit = tt.b
+				}
+				s.bins = trimLeft(s.bins, tt.b)
 
 				if exp.count != s.count {
 					t.Errorf("s.count=%d, want %d", s.count, exp.count)
