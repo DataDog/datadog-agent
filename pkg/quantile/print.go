@@ -62,7 +62,8 @@ func printSketch(w io.Writer, s *Sketch, c *Config) {
 		float64(used)/float64(allocated)*100,
 	)
 	fmt.Fprint(w, "\n")
-	iprintf("len=%d cap=%d", len(s.bins), cap(s.bins))
+	iprintf("len=%d cap=%d",
+		s.bins.Len(), s.bins.Cap())
 	fmt.Fprint(w, "\n")
 
 	// stats

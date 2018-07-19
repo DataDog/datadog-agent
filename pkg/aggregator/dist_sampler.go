@@ -116,7 +116,7 @@ func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
 	s, ok := byCtx[ck]
 	if !ok {
 		s = &quantile.Agent{}
-		byCtx[ck] = s
+		m[ts][ck] = s
 	}
 
 	return s

@@ -36,8 +36,7 @@ func TestMerge(t *testing.T) {
 	sInsertMany.InsertMany(c, values)
 	s1.Merge(c, s2)
 	require.Len(t, sInsert.bins, len(values))
-	for _, s := range []*Sketch{s1} { //, sInsertMany, sInsert} {
-		t.Log(s)
+	for _, s := range []*Sketch{s1, sInsertMany, sInsert} {
 		require.EqualValues(t, 0, s.Quantile(c, .50))
 		require.EqualValues(t, sInsert.Quantile(c, .99), -sInsert.Quantile(c, .01))
 		for p := 0; p < 50; p++ {
@@ -48,7 +47,6 @@ func TestMerge(t *testing.T) {
 				t.Errorf("Quantile(%g) = %g Quantile(%g) = %g", .50+q, pos, .50-q, neg)
 			}
 
-			// require.InDelta(t, s.Quantile(c, .50+q), -s.Quantile(c, .50-q), 1e-6, "%g", q)
 		}
 		require.EqualValues(t, sInsert.bins, s.bins) // make sure they all have the same bins
 	}

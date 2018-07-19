@@ -1,7 +1,11 @@
 package quantile
 
 import (
+	"reflect"
 	"testing"
+	"unsafe"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAgent(t *testing.T) {
@@ -29,7 +33,7 @@ func TestAgent(t *testing.T) {
 		}
 
 		if tt.flush {
-			a.Flush()
+			a.flush()
 		}
 	}
 
@@ -72,4 +76,37 @@ func TestAgent(t *testing.T) {
 		setup(t, tt)
 		check(t, tt)
 	}
+}
+
+func TestAgentFinish(t *testing.T) {
+	t.Run("DeepCopy", func(t *testing.T) {
+		var (
+			binsptr = func(s *Sketch) uintptr {
+				hdr := (*reflect.SliceHeader)(unsafe.Pointer(&s.bins))
+				return hdr.Data
+			}
+
+			checkDeepCopy = func(a *Agent, s *Sketch) {
+				if binsptr(&a.Sketch) == binsptr(s) {
+					t.Fatal("finished sketch should not share the same bin array")
+				}
+
+				if !a.Sketch.Equals(s) {
+					t.Fatal("sketches should be equal")
+				}
+				require.Equal(t, a.Sketch, *s)
+			}
+
+			aSketch = &Agent{}
+		)
+
+		aSketch.Insert(1)
+		finished := aSketch.Finish()
+		checkDeepCopy(aSketch, finished)
+	})
+
+	t.Run("Empty", func(t *testing.T) {
+		a := &Agent{}
+		require.Nil(t, a.Finish())
+	})
 }
