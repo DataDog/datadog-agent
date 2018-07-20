@@ -68,7 +68,8 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
 
     if static:
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
-        #env["CGO_ENABLED"] = "0"
+        # Disable cgo in order to allow running on musl
+        env["CGO_ENABLED"] = "0"
     elif use_embedded_libs:
         embedded_lib_path = ctx.run("pkg-config --variable=libdir python-2.7",
                                     env=env, hide=True).stdout.strip()
