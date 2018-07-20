@@ -152,3 +152,7 @@
 [[constraint]]
   name = "github.com/clbanning/mxj"
   version = "1.8.0"
+
+[[constraint]]
+  name = "github.com/fsnotify/fsnotify"
+  version = "~v1.4.7"
