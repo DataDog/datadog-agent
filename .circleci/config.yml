@@ -78,7 +78,8 @@ jobs:
           name: run integration tests
           command: inv  -e integration-tests --race --remote-docker
 
-  # general linting for PR health
+  # general linting for PR health  These checks are so short there doesn't seem
+  # to be a point in spinning up separate images to run them
   pr_linting:
     <<: *job_template
     steps:
