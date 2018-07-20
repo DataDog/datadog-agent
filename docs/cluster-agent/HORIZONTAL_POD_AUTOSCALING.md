@@ -1,6 +1,6 @@
-# Datadog Cluster Agent - DCA | Horizontal Pod Autoscaling
+# Datadog Cluster Agent | Horizontal Pod Autoscaling
 
-The DCA is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
+The Datadog Cluster Agent is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
 
 ## Introduction
 
@@ -12,7 +12,7 @@ As of Kubernetes v1.10, support for external metrics was introduced so users can
 
 The custom and external metric provider, as opposed to the metrics server, are resources that have to be implemented and registered by the user.
 
-As of v1.0.0, the DCA implements the External Metrics Provider interface.
+As of v1.0.0, the Datadog Cluster Agent implements the External Metrics Provider interface.
 This walkthrough explains how to set it up and how to autoscale your Kubernetes workload based off of your Datadog metrics.
 
 ## Requirements
@@ -28,14 +28,14 @@ Autoscaling over External Custom Metrics does not require the Node Agent to be r
 
 If you want to proceed further, we are assuming that:
 1. You have Node Agents running (ideally from a DaemonSet) with the Autodiscovery process enabled and functional.
-2. Agents are configured to securely (see [the security premise section](/Dockerfiles/cluster-agent/README.md#security-premise) of the official documentation) communicate with the DCA.
+2. Agents are configured to securely (see [the security premise section](/Dockerfiles/cluster-agent/README.md#security-premise) of the official documentation) communicate with the Datadog Cluster Agent.
 
 The second point is not mandatory, but it enables the enrichment of the metadata collected by the Node Agents. 
 
-### Spinning up the DCA
+### Spinning up the Datadog Cluster Agent
 
-In order to spin up the DCA, create the appropriate RBAC rules.
-The DCA is acting as a proxy between the API Server and the node Agent, to this extent it needs to have access to some cluster level resources.
+In order to spin up the Datadog Cluster Agent, create the appropriate RBAC rules.
+The Datadog Cluster Agent is acting as a proxy between the API Server and the node Agent, to this extent it needs to have access to some cluster level resources.
 
 `kubectl apply -f manifests/cluster-agent/rbac-cluster-agent.yaml`
 
@@ -45,8 +45,8 @@ clusterrolebinding.rbac.authorization.k8s.io "dca" created
 serviceaccount "dca" created
 ```
 
-Then create the DCA and its services.
-Start by adding your <API_KEY> and <APP_KEY> in the Deployment manifest of the DCA.
+Then create the Datadog Cluster Agent and its services.
+Start by adding your <API_KEY> and <APP_KEY> in the Deployment manifest of the Datadog Cluster Agent.
 Then enable the HPA Processing by setting the `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` variable to true.
 Finally, spin up the resources:
 
@@ -54,7 +54,7 @@ Finally, spin up the resources:
 `kubectl apply -f manifests/cluster-agent/datadog-cluster-agent_service.yaml`
 `kubectl apply -f manifests/cluster-agent/hpa-example/cluster-agent-hpa-svc.yaml`
 
-Note that the first service is used for the communication between the Node Agents and the DCA but the second is used by Kubernetes to register the External Metrics Provider.
+Note that the first service is used for the communication between the Node Agents and the Datadog Cluster Agent but the second is used by Kubernetes to register the External Metrics Provider.
 
 At this point you should be having:
 
@@ -74,7 +74,7 @@ default       datadog-cluster-agent           ClusterIP   192.168.254.197   <non
 
 ### Register the External Metrics Provider
 
-Once the DCA is up and running, register it as an External Metrics Provider, via the service exposing the port 443.
+Once the Datadog Cluster Agent is up and running, register it as an External Metrics Provider, via the service exposing the port 443.
 
 To do so, apply the following RBAC rules:
 
@@ -88,10 +88,10 @@ clusterrole.rbac.authorization.k8s.io "external-metrics-reader" created
 clusterrolebinding.rbac.authorization.k8s.io "external-metrics-reader" created
 ```
  
-Once you have the DCA running and the service registered, create an HPA manifest and let the DCA pull metrics from Datadog.
+Once you have the Datadog Cluster Agent running and the service registered, create an HPA manifest and let the Datadog Cluster Agent pull metrics from Datadog.
 The following part of the walkthrough explains how you can set up your Agents in order to collect metrics from the applications running on your cluster.
-Those metrics will then be available for you to autoscale the resources of your cluster, via the DCA.
-If your Agents are already instrumented and configured to communicate with the DCA, you should directly jump to the [running the HPA](#running-the-hpa) section.
+Those metrics will then be available for you to autoscale the resources of your cluster, via the Datadog Cluster Agent.
+If your Agents are already instrumented and configured to communicate with the Datadog Cluster Agent, you should directly jump to the [running the HPA](#running-the-hpa) section.
 
 
 ## Running the HPA
@@ -115,7 +115,7 @@ Now is time to create a Horizontal Pod Autoscaler manifest. If you take a look a
 - The maximum number of replicas created is 5 and the minimum is 1
 - The metric used is `nginx.net.request_per_s` and the scope is `kube_container_name: nginx`. Note that this metric format corresponds to the Datadog one.
 
-Every 30 seconds (this can be configured) Kubernetes queries the DCA to get the value of this metric and autoscales proportionally if necessary.
+Every 30 seconds (this can be configured) Kubernetes queries the Datadog Cluster Agent to get the value of this metric and autoscales proportionally if necessary.
 For advanced use cases, it is possible to have several metrics in the same HPA, as you can see [in the Kubernetes horizontal pod autoscale documentation](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#support-for-multiple-metrics) the largest of the proposed value will be the one chosen.
 
 Now, let's create the NGINX deployment:
@@ -146,8 +146,8 @@ Reading: 0 Writing: 1 Waiting: 0
 Behind the scenes, the number of request per second also increased. 
 This metric is being collected by the Node Agent, as it autodiscovered the NGINX pod through its annotations (for more information on how autodiscovery works, see our [autodiscovery documentation](https://docs.datadoghq.com/agent/autodiscovery/#template-source-kubernetes-pod-annotations)).
 Therefore, if you stress it, you should see the uptick in your Datadog app.
-As you referenced this metric in your HPA manifest, the DCA is also pulling its latest value every 20 seconds.
-Then, as Kubernetes queries the DCA to get this value, it notices that the number is going above the threshold and autoscales accordingly.
+As you referenced this metric in your HPA manifest, the Datadog Cluster Agent is also pulling its latest value every 20 seconds.
+Then, as Kubernetes queries the Datadog Cluster Agent to get this value, it notices that the number is going above the threshold and autoscales accordingly.
 
 Let's do it!
 
@@ -177,13 +177,13 @@ Voilà.
 
 - Make sure you have the Aggregation layer and the certificates set up as per the requirements section.
 - Always make sure the metrics you want to autoscale on are available.
-As you create the HPA, the DCA parses the manifest and queries Datadog to try to fetch the metric.
+As you create the HPA, the Datadog Cluster Agent parses the manifest and queries Datadog to try to fetch the metric.
 If there is a typographic issue with your metric name or if the metric does not exist within your Datadog application the following error is raised:
 ```
 2018-07-03 13:47:56 UTC | ERROR | (datadogexternal.go:45 in queryDatadogExternal) | Returned series slice empty
 ```
-You can check in the ConfigMap used to store and share the HPA state by the DCA:
-`kubectl get cm datadog-hpa -o yaml`
+You can check in the ConfigMap used to store and share the HPA state by the Datadog Cluster Agent:
+`kubectl get cm datadog-custom-metrics -o yaml`
 yields:
 ```
 apiVersion: v1
@@ -192,7 +192,7 @@ data:
 kind: ConfigMap
 metadata:
   creationTimestamp: 2018-07-03T13:40:50Z
-  name: datadog-hpa
+  name: datadog-custom-metrics
   namespace: default
   resourceVersion: "1742"
 ```
@@ -222,7 +222,7 @@ autoscaling/v2beta1
 [...]
 external.metrics.k8s.io/v1beta1 
 ```
-The latter will show up if the DCA properly registers as an External Metrics Provider—and if you have the same service name referenced in the APIService for the External Metrics Provider, as well as the one for the DCA on port 443.
+The latter will show up if the Datadog Cluster Agent properly registers as an External Metrics Provider—and if you have the same service name referenced in the APIService for the External Metrics Provider, as well as the one for the Datadog Cluster Agent on port 443.
 Also make sure you have created the RBAC from the Register the External Metrics Provider step.
 
 - If you see
@@ -231,19 +231,19 @@ Also make sure you have created the RBAC from the Register the External Metrics 
   Warning  FailedComputeMetricsReplicas  3s (x2 over 33s)  horizontal-pod-autoscaler  failed to get nginx.net.request_per_s external metric: unable to get external metric default/nginx.net.request_per_s/&LabelSelector{MatchLabels:map[string]string{kube_container_name: nginx,},MatchExpressions:[],}: unable to fetch metrics from external metrics API: the server is currently unable to handle the request (get nginx.net.request_per_s.external.metrics.k8s.io)
 ```
 
-Make sure the DCA is running, and the service exposing the port 443 which name is registered in the APIService are up.
+Make sure the Datadog Cluster Agent is running, and the service exposing the port 443 which name is registered in the APIService are up.
 
-- If you are not collecting the service tag from the DCA
-Make sure the service map is available by exec'ing into the DCA pod and run:
+- If you are not collecting the service tag from the Datadog Cluster Agent
+Make sure the service map is available by exec'ing into the Datadog Cluster Agent pod and run:
 `datadog-cluster-agent metamap`
-Then, make sure you have the same secret (or a 32 characters long) token referenced in the Agent and in the DCA.
-The best way to do this is to check the environment variables (just type `env` when in the Agent or the DCA pod).
+Then, make sure you have the same secret (or a 32 characters long) token referenced in the Agent and in the Datadog Cluster Agent.
+The best way to do this is to check the environment variables (just type `env` when in the Agent or the Datadog Cluster Agent pod).
 Then make sure you have the `DD_CLUSTER_AGENT_ENABLED` option turned on in the Node Agent's manifest.
 
 - Why am I not seeing the same value in Datadog and in Kubernetes?
 
 As Kubernetes autoscales your resources the current target is weighted by the number of replicas of the scaled Deployment.
-So the value returned by the DCA is fetched from Datadog and should be proportionally equal to the current target times the number of replicas. 
+So the value returned by the Datadog Cluster Agent is fetched from Datadog and should be proportionally equal to the current target times the number of replicas. 
 Example:
 ```
 data:
@@ -256,6 +256,6 @@ default     nginxext   Deployment/nginx   824/9 (avg)   1         3         3   
 ```
 And indeed 824 * 3 replicas = 2472.
 
-*Disclaimer*: The DCA processes the metrics set in different HPA manifests and queries Datadog to get values every 20 seconds. Kubernetes queries the DCA every 30 seconds.
+*Disclaimer*: The Datadog Cluster Agent processes the metrics set in different HPA manifests and queries Datadog to get values every 20 seconds. Kubernetes queries the Datadog Cluster Agent every 30 seconds.
 Both frequencies are configurable.
 As this process is done asynchronously, you should not expect to see the above rule verified at all times, especially if the metric varies.
