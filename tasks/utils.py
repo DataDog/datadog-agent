@@ -153,7 +153,7 @@ def query_version(ctx, git_sha_length=7):
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     described_version = ctx.run("git describe --tags", hide=True).stdout.strip()
     # For the tag 6.0.0-beta.0, this will match 6.0.0
-    version_match = re.findall(r"^v?(\d+\.\d+\.\d+)", described_version)
+    version_match = re.findall(r"^(?:dca)?-?v?(\d+\.\d+\.\d+)", described_version)
 
     if version_match and version_match[0]:
         version = version_match[0]
@@ -174,9 +174,9 @@ def query_version(ctx, git_sha_length=7):
     # if there have been no commits since, it will be just 6.0.0-beta.0,
     # and it will match beta.0
     if commits_since_version == 0:
-        pre_regex = r"^v?\d+\.\d+\.\d+(?:-|\.)([0-9A-Za-z.-]+)$"
+        pre_regex = r"^(?:dca)?-?v?\d+\.\d+\.\d+(?:-|\.)([0-9A-Za-z.-]+)$"
     else:
-        pre_regex = r"^v?\d+\.\d+\.\d+(?:-|\.)([0-9A-Za-z.-]+)-\d+-g[0-9a-f]+$"
+        pre_regex = r"^(?:dca)?-?v?\d+\.\d+\.\d+(?:-|\.)([0-9A-Za-z.-]+)-\d+-g[0-9a-f]+$"
 
     pre_match = re.findall(pre_regex, described_version)
     pre = ""
