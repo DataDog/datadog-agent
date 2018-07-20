@@ -7,6 +7,7 @@ package scheduler
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"sync"
 	"time"
@@ -18,8 +19,8 @@ import (
 )
 
 const (
-	oCHAN = 0
-	hCHAN = 1
+	stopChannel   = 0
+	healthChannel = 1
 )
 
 type jobBucket struct {
@@ -85,10 +86,12 @@ type jobQueue struct {
 	stop            chan bool // to stop this queue
 	stopped         chan bool // signals that this queue has stopped
 	buckets         []*jobBucket
+	sparseStep      uint
 	nextBucket      uint
 	bucketScheduled uint
 	running         bool
 	health          *health.Handle
+	rand            *rand.Rand
 	mu              sync.RWMutex // to protect critical sections in struct's fields
 }
 
@@ -99,6 +102,7 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		stop:     make(chan bool),
 		stopped:  make(chan bool),
 		health:   health.Register("collector-queue"),
+		rand:     rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 
 	var nb int
@@ -112,6 +116,20 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		jq.buckets = append(jq.buckets, bucket)
 	}
 
+	// compute step for sparse scheduling
+	switch nb % 2 {
+	case 0:
+		step := nb / 2
+		switch step % 2 {
+		case 0:
+			jq.sparseStep = uint(step - 1)
+		case 1:
+			jq.sparseStep = uint(step - 2)
+		}
+	case 1:
+		jq.sparseStep = uint(nb / 2)
+	}
+
 	return jq
 }
 
@@ -122,7 +140,7 @@ func (jq *jobQueue) addJob(c check.Check) {
 
 	// Checks scheduled to buckets scheduled in round-robin
 	jq.buckets[jq.nextBucket].addJob(c)
-	jq.nextBucket = (jq.nextBucket + 1) % uint(len(jq.buckets))
+	jq.nextBucket = (jq.nextBucket + jq.sparseStep) % uint(len(jq.buckets))
 }
 
 func (jq *jobQueue) removeJob(id check.ID) error {
@@ -171,11 +189,11 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 
 	go func() {
 		cases := make([]reflect.SelectCase, 2+len(jq.buckets))
-		cases[oCHAN] = reflect.SelectCase{
+		cases[stopChannel] = reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
 			Chan: reflect.ValueOf(jq.stop),
 		}
-		cases[hCHAN] = reflect.SelectCase{
+		cases[healthChannel] = reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
 			Chan: reflect.ValueOf(jq.health.C),
 		}
@@ -222,6 +240,17 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 	}()
 }
 
+// stopBuckets Stop all buckets in a job queue. Should be thread-safe in the context of the jobQueue.
+func (jq *jobQueue) stopBuckets() {
+	jq.mu.RLock()
+	defer jq.mu.RUnlock()
+
+	for _, bucket := range jq.buckets {
+		bucket.stop()
+	}
+	jq.health.Deregister()
+}
+
 // waitForTicks enqueues the checks at a tick, and returns whether the queue
 // should listen to the following tick (or stop)
 func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Check) bool {
@@ -234,18 +263,14 @@ func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Che
 		return true
 	}
 
-	switch chosen {
-	case oCHAN:
-		// someone asked to stop this queue
-		jq.mu.RLock()
-		defer jq.mu.RUnlock()
+	deadline := time.After(time.Second)
 
-		for _, bucket := range jq.buckets {
-			bucket.stop()
-		}
-		jq.health.Deregister()
+	switch chosen {
+	case stopChannel:
+		// someone asked to stop this queue
+		jq.stopBuckets()
 		return false
-	case hCHAN:
+	case healthChannel:
 	default:
 		// normal case, (re)schedule the queue
 		idx := chosen - 2
@@ -254,22 +279,22 @@ func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Che
 		bucket := jq.buckets[idx]
 		bucket.mu.RLock()
 
-		for _, check := range bucket.jobs {
+		bIdx := jq.rand.Intn(len(bucket.jobs))
+		jobs := append(bucket.jobs[bIdx:len(bucket.jobs)], bucket.jobs[0:bIdx]...)
+
+		for _, check := range jobs {
 			// sending to `out` is blocking, we need to constantly check that someone
 			// isn't asking to stop this queue
 			select {
 			case <-jq.stop:
 				bucket.mu.RUnlock()
-				jq.mu.RLock()
-				defer jq.mu.RUnlock()
 
-				for _, bucket := range jq.buckets {
-					bucket.stop()
-				}
-				jq.health.Deregister()
+				jq.stopBuckets()
 				return false
 			case out <- check:
 				log.Debugf("Enqueuing check %s for queue %s", check, jq.interval)
+			case <-deadline:
+				break
 			}
 		}
 		bucket.mu.RUnlock()
