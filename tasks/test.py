@@ -157,6 +157,30 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
 
 
 @task
+def lint_teamassignment(ctx):
+    """
+    Make sure PRs are assigned a team label
+    """
+    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    if pr_url:
+        import requests
+        pr_id = pr_url.rsplit('/')[-1]
+
+        # first check 'noreno' label
+        res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
+        issue = res.json()
+        if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
+            print("Team Assignment: %s" % l['name'])
+            return
+
+        print("PR %s requires team assignment" % pr_url)
+        raise Exit(code=1)
+
+    # The PR has not been created yet
+    else:
+        print("PR not yet created, skipping check for team assignment")
+        
+@task
 def lint_releasenote(ctx):
     """
     Lint release notes with Reno

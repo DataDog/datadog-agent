@@ -78,15 +78,17 @@ jobs:
           name: run integration tests
           command: inv  -e integration-tests --race --remote-docker
 
-  reno_linting:
+  # general linting for PR health
+  pr_linting:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
       - run:
-          name: run reno linting
+          name: run PR linting
           command: inv -e lint-releasenote
+          command: inv -e lint-teamassignment
 
   filename_linting:
     <<: *job_template
@@ -146,7 +148,7 @@ workflows:
       - integration_tests:
           requires:
             - dependencies
-      - reno_linting:
+      - pr_linting:
           requires:
             - dependencies
       - filename_linting:
