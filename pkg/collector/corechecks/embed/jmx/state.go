@@ -84,6 +84,7 @@ func GetScheduledConfigsModificationTimestamp() int64 {
 	return state.getScheduledConfigsModificationTimestamp()
 }
 
+// StopJmxfetch stops the jmxfetch process if it is running
 func StopJmxfetch() {
 	err := state.runner.stopRunner()
 	if err != nil {
