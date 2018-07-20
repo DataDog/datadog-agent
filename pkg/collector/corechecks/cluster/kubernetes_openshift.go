@@ -20,16 +20,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	oapiClusterQuotaEndpoint     = "/oapi/v1/clusterresourcequotas/"
+	apiGroupClusterQuotaEndpoint = "/apis/quota.openshift.io/v1/clusterresourcequotas/"
+)
+
 // retrieveOShiftClusterQuotas lists and unmarshalls Openshift
 // ClusterResourceQuota objects from the APIserver
 func (k *KubeASCheck) retrieveOShiftClusterQuotas() ([]osq.ClusterResourceQuota, error) {
 	var url string
 	switch k.oshiftAPILevel {
 	case apiserver.OpenShiftAPIGroup:
-		url = "/apis/quota.openshift.io/v1/clusterresourcequotas/"
+		url = apiGroupClusterQuotaEndpoint
 		break
 	case apiserver.OpenShiftOAPI:
-		url = "/oapi/v1/clusterresourcequotas/"
+		url = oapiClusterQuotaEndpoint
 		break
 	default:
 		return nil, errors.New("OpenShift APIs unavailable")
