@@ -22,9 +22,9 @@ whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
-PIPTOOLS_VERSION "2.0.2"
-PYMPLER_VERSION "0.5"
-WHEELS_VERSION "0.30.0"
+PIPTOOLS_VERSION = "2.0.2"
+PYMPLER_VERSION = "0.5"
+WHEELS_VERSION = "0.30.0"
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
