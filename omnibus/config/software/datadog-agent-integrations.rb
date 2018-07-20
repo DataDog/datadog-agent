@@ -31,6 +31,7 @@ default_version integrations_core_version
 
 blacklist = [
   'datadog_checks_base',  # namespacing package for wheels (NOT AN INTEGRATION)
+  'datadog_checks_dev',   # Development package, (NOT AN INTEGRATION)
   'agent_metrics',
   'docker_daemon',
   'kubernetes',
@@ -48,13 +49,6 @@ build do
 
   # Install the checks and generate the global requirements file
   block do
-    all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
-    # FIX THIS these dependencies have to be grabbed from somewhere
-    all_reqs_file.puts "pympler==0.5 --hash=sha256:7d16c4285f01dcc647f69fb6ed4635788abc7a7cb7caa0065d763f4ce3d21c0f"
-    all_reqs_file.puts "wheel==0.30.0 --hash=sha256:e721e53864f084f956f40f96124a74da0631ac13fbbd1ba99e8e2b5e9cafdf64"\
-        " --hash=sha256:9515fe0a94e823fd90b08d22de45d7bde57c90edce705b22f5e1ecf7e1b653c8"
-
-    all_reqs_file.close
 
     # required by TUF for meta
     if windows?
@@ -83,47 +77,36 @@ build do
       copy windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{tuf_repo_meta}/current/root.json")
     end
 
-    # Install all the requirements
+    # Install all the build requirements
     if windows?
-      pip_args = "install  -r #{project_dir}/check_requirements.txt"
+      pip_args = "install wheel==0.30.0 pympler==0.5 pip-tools==2.0.2"
       command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
-      pip "install -r #{project_dir}/check_requirements.txt", :env => build_env
+      pip "install wheel==0.30.0 pympler==0.5 pip-tools==2.0.2", :env => build_env
     end
-
-    # Set frozen requirements
-    pip "freeze > #{install_dir}/agent_requirements.txt"
 
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
-    python_pip = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt #{windows_safe_path(project_dir)}"
-    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\agent_requirements.txt -r #{windows_safe_path(project_dir)}"
+    python_pip_no_deps = "pip install --no-deps #{windows_safe_path(project_dir)}"
+    python_pip_req = "pip install --require-hashes -r #{windows_safe_path(project_dir)}"
 
-    pinned_requirements = "#{project_dir}/datadog_checks_base/requirements.in"
     if windows?
-      command("#{python_bin} -m #{python_pip}\\datadog_checks_base")
-      if File.exist? pinned_requirements
-        command("#{python_bin} -m #{python_pip_req}\\datadog_checks_base\\requirements.in")
-      end
+      command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
+      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\agent_requirements.in")
+      command("#{python_bin} -m #{python_pip_req}\\#{windows_safe_path(project_dir)}\\static_requirements.txt")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
-      pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      if File.exist? pinned_requirements
-        pip "install -c #{install_dir}/agent_requirements.txt -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      end
+      pip "install --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/agent_requirements.in")
+      pip "install --require-hashes -r #{project_dir}/static_requirements.txt"
     end
-
-    # Set frozen requirements post `datadog_checks_base` - constraints file will be used by
-    # pip to ensure all other integrations dependency sanity.
-    pip "freeze > #{install_dir}/agent_requirements.txt"
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
       check = check_dir.split('/').last
@@ -177,21 +160,14 @@ build do
       end
 
       File.file?("#{check_dir}/setup.py") || next
-      pinned_requirements = "#{check_dir}/requirements.in"
       if windows?
-        command("#{python_bin} -m #{python_pip}\\#{check}")
-        if File.exist? pinned_requirements
-          command("#{python_bin} -m #{python_pip_req}\\#{check}\\requirements.in")
-        end
+        command("#{python_bin} -m #{python_pip_no_deps}\\#{check}")
       else
         build_env = {
           "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
           "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
         }
-        pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/#{check}"
-        if File.exist? pinned_requirements
-          pip "install -c #{install_dir}/agent_requirements.txt *.whl -rrequirements.in", :env => build_env, :cwd => "#{project_dir}/#{check}"
-        end
+        pip "install --no-deps .", :env => build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
   end
