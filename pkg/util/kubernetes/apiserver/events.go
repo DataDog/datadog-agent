@@ -11,7 +11,6 @@ package apiserver
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -21,10 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-var (
-	expectedType = reflect.TypeOf(v1.Event{})
 )
 
 // LatestEvents retrieves all the cluster events happening after a given token.
@@ -44,11 +39,11 @@ func (c *APIClient) LatestEvents(since string, eventReadTimeout time.Duration) (
 		since = "0"
 	}
 
-	log.Tracef("Starting watch of %v with resourceVersion %s", expectedType, since)
+	log.Tracef("Starting watch of events with resourceVersion %s", since)
 
 	eventWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
 	if err != nil {
-		return nil, nil, "0", fmt.Errorf("Failed to watch %v: %v", expectedType, err)
+		return nil, nil, "0", fmt.Errorf("Failed to watch events: %v", err)
 	}
 	defer eventWatcher.Stop()
 
@@ -81,7 +76,7 @@ func (c *APIClient) LatestEvents(since string, eventReadTimeout time.Duration) (
 
 			currEvent, ok := rcvdEv.Object.(*v1.Event)
 			if !ok {
-				log.Debugf("The event object cannot be safely converted to %v: %v", expectedType, rcvdEv.Object)
+				log.Debugf("The event object cannot be safely converted to event: %v", rcvdEv.Object)
 				continue
 			}
 
