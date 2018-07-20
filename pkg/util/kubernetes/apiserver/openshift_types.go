@@ -7,12 +7,12 @@
 
 package apiserver
 
-// OpenShiftApiLevel describes what level of OpenShift APIs are available on the apiserver
-type OpenShiftApiLevel string
+// OpenShiftAPILevel describes what level of OpenShift APIs are available on the apiserver
+type OpenShiftAPILevel string
 
+// Responses for DetectOpenShiftAPILevel()
 const (
-	OpenShiftAPIGroup OpenShiftApiLevel = "OpenShift new API is available"
-	OpenShiftOApi                       = "OpenShift legacy oapi is available"
-	NotOpenShift                        = "OpenShift not detected"
-	OpenShiftUnknown                    = "OpenShift status unknown"
+	OpenShiftAPIGroup OpenShiftAPILevel = "new apiGroups"
+	OpenShiftOAPI                       = "legacy OAPI"
+	NotOpenShift                        = "no API"
 )

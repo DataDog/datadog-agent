@@ -52,7 +52,6 @@ type APIClient struct {
 	Cl               kubernetes.Interface
 	timeoutSeconds   int64
 	metadataPollIntl time.Duration
-	isOpenShift      OpenShiftApiLevel
 }
 
 // GetAPIClient returns the shared ApiClient instance.
@@ -61,7 +60,6 @@ func GetAPIClient() (*APIClient, error) {
 		globalAPIClient = &APIClient{
 			timeoutSeconds:   config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
 			metadataPollIntl: time.Duration(config.Datadog.GetInt64("kubernetes_apiserver_poll_freq")) * time.Second,
-			isOpenShift:      OpenShiftUnknown,
 		}
 		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
 			Name:          "apiserver",

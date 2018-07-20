@@ -8,58 +8,28 @@
 package apiserver
 
 import (
-	"errors"
-
-	osq "github.com/openshift/api/quota/v1"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var ErrNotOpenShift = errors.New("not an OpenShift cluster")
-
-// IsOpenShift detects available endpoints to determine of OpenShift APIs are available
-func (c *APIClient) IsOpenShift() OpenShiftApiLevel {
-	if c.isOpenShift != OpenShiftUnknown {
-		return c.isOpenShift
-	}
+// DetectOpenShiftAPILevel looks at known endpoints to detect if OpenShift
+// APIs are available on this apiserver. OpenShift transitioned from a
+// non-standard `/oapi` URL prefix to standard api groups under the `/apis`
+// prefix in 3.6. Detecting both, with a preference for the new prefix.
+func (c *APIClient) DetectOpenShiftAPILevel() OpenShiftAPILevel {
 	err := c.Cl.CoreV1().RESTClient().Get().AbsPath("/apis/quota.openshift.io").Do().Error()
 	if err == nil {
-		c.isOpenShift = OpenShiftAPIGroup
-		return c.isOpenShift
+		log.Debugf("Found %s", OpenShiftAPIGroup)
+		return OpenShiftAPIGroup
 	}
-	log.Debugf("Cannot access new OpenShift API: %s", err)
+	log.Debugf("Cannot access %s: %s", OpenShiftAPIGroup, err)
 
 	err = c.Cl.CoreV1().RESTClient().Get().AbsPath("/oapi").Do().Error()
 	if err == nil {
-		c.isOpenShift = OpenShiftOApi
-		return c.isOpenShift
+		log.Debugf("Found %s", OpenShiftOAPI)
+		return OpenShiftOAPI
 	}
-	log.Debugf("Cannot access old OpenShift OAPI: %s", err)
+	log.Debugf("Cannot access %s: %s", OpenShiftOAPI, err)
 
 	// Fallback to NotOpenShift
-	c.isOpenShift = NotOpenShift
-	return c.isOpenShift
-}
-
-// ListOShiftClusterQuotas retrieves Openshift ClusterResourceQuota objects
-// from the APIserver, returns ErrNotOpenShift if called on a non-Openshift cluster
-func (c *APIClient) ListOShiftClusterQuotas() ([]osq.ClusterResourceQuota, error) {
-	var url string
-	switch c.IsOpenShift() {
-	case NotOpenShift:
-		return nil, ErrNotOpenShift
-	case OpenShiftAPIGroup:
-		url = "/apis/quota.openshift.io/v1/clusterresourcequotas/"
-		break
-	case OpenShiftOApi:
-		url = "/oapi/v1/clusterresourcequotas/"
-		break
-	}
-
-	list := &osq.ClusterResourceQuotaList{}
-	err := c.GetRESTObject(url, list)
-	if err != nil {
-		return nil, err
-	}
-	return list.Items, nil
+	return NotOpenShift
 }

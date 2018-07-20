@@ -25,6 +25,6 @@ func diagnose() error {
 		log.Error(err)
 		return err
 	}
-	log.Infof("Detecting OpenShift APIs: %s", c.IsOpenShift())
+	log.Infof("Detecting OpenShift APIs: %s available", c.DetectOpenShiftAPILevel())
 	return nil
 }

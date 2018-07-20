@@ -49,6 +49,7 @@ type KubeASCheck struct {
 	latestEventToken      string
 	configMapAvailable    bool
 	ac                    *apiserver.APIClient
+	oshiftAPILevel        apiserver.OpenShiftAPILevel
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -90,7 +91,6 @@ func (k *KubeASCheck) Run() error {
 		k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
-
 	errLeader := k.runLeaderElection()
 	if errLeader != nil {
 		if errLeader == apiserver.ErrNotLeader {
@@ -100,12 +100,18 @@ func (k *KubeASCheck) Run() error {
 		return err
 	}
 
+	// API Server client initialisation on first run
 	if k.ac == nil {
 		// We start the API Server Client.
 		k.ac, err = apiserver.GetAPIClient()
 		if err != nil {
 			k.Warn("Could not connect to apiserver: %s", err)
 			return err
+		}
+
+		// We detect OpenShift presence for quota collection
+		if k.instance.CollectOShiftQuotas {
+			k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()
 		}
 	}
 
@@ -121,8 +127,8 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	// Running OpenShift ClusterResourceQuota collection if available
-	if k.instance.CollectOShiftQuotas && k.ac.IsOpenShift() != apiserver.NotOpenShift {
-		quotas, err := k.ac.ListOShiftClusterQuotas()
+	if k.instance.CollectOShiftQuotas && k.oshiftAPILevel != apiserver.NotOpenShift {
+		quotas, err := k.retrieveOShiftClusterQuotas()
 		if err != nil {
 			k.Warnf("Could not collect OpenShift cluster quotas: %s", err.Error())
 		} else {

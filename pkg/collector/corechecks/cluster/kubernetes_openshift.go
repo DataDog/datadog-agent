@@ -8,6 +8,7 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 
 	osq "github.com/openshift/api/quota/v1"
@@ -15,8 +16,32 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// retrieveOShiftClusterQuotas lists and unmarshalls Openshift
+// ClusterResourceQuota objects from the APIserver
+func (k *KubeASCheck) retrieveOShiftClusterQuotas() ([]osq.ClusterResourceQuota, error) {
+	var url string
+	switch k.oshiftAPILevel {
+	case apiserver.OpenShiftAPIGroup:
+		url = "/apis/quota.openshift.io/v1/clusterresourcequotas/"
+		break
+	case apiserver.OpenShiftOAPI:
+		url = "/oapi/v1/clusterresourcequotas/"
+		break
+	default:
+		return nil, errors.New("OpenShift APIs unavailable")
+	}
+
+	list := &osq.ClusterResourceQuotaList{}
+	err := k.ac.GetRESTObject(url, list)
+	if err != nil {
+		return nil, err
+	}
+	return list.Items, nil
+}
 
 // reportClusterQuotas reports metrics on OpenShift ClusterResourceQuota objects
 func (k *KubeASCheck) reportClusterQuotas(quotas []osq.ClusterResourceQuota, sender aggregator.Sender) {
@@ -34,7 +59,6 @@ func (k *KubeASCheck) reportClusterQuotas(quotas []osq.ClusterResourceQuota, sen
 			k.reportQuota(nsQuota.Status.Used, "openshift.appliedclusterquota", "used", nsTags, sender)
 			k.reportQuota(remaining, "openshift.appliedclusterquota", "remaining", nsTags, sender)
 		}
-
 	}
 }
 
