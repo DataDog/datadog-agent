@@ -46,13 +46,12 @@ type KubeASConfig struct {
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
-	instance               *KubeASConfig
-	KubeAPIServerHostname  string
-	latestEventToken       string
-	configMapAvailable     bool
-	ac                     *apiserver.APIClient
-	oshiftAPILevel         apiserver.OpenShiftAPILevel
-	eventCollectionTimeout time.Duration
+	instance              *KubeASConfig
+	KubeAPIServerHostname string
+	latestEventToken      string
+	configMapAvailable    bool
+	ac                    *apiserver.APIClient
+	oshiftAPILevel        apiserver.OpenShiftAPILevel
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -72,7 +71,6 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data) error {
 		log.Error("could not parse the config for the API server")
 		return err
 	}
-	k.eventCollectionTimeout = time.Duration(k.instance.EventCollectionTimeoutMs) * time.Millisecond
 
 	log.Debugf("Running config %s", config)
 	return nil
@@ -224,7 +222,9 @@ func (k *KubeASCheck) eventCollectionInit() {
 }
 
 func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
-	newEvents, modifiedEvents, versionToken, err := k.ac.LatestEvents(k.latestEventToken, k.eventCollectionTimeout)
+	timeout := time.Duration(k.instance.EventCollectionTimeoutMs) * time.Millisecond
+
+	newEvents, modifiedEvents, versionToken, err := k.ac.LatestEvents(k.latestEventToken, timeout)
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error())
 		return nil, nil, err
@@ -232,7 +232,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 
 	if versionToken == "0" {
 		// API server cache expired or no recent events to process. Resetting the Resversion token.
-		_, _, versionToken, err = k.ac.LatestEvents("0", k.eventCollectionTimeout)
+		_, _, versionToken, err = k.ac.LatestEvents("0", timeout)
 		if err != nil {
 			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
 			return nil, nil, err
