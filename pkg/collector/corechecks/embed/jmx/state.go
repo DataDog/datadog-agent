@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type jmxState struct {
@@ -81,4 +82,12 @@ func GetScheduledConfigs() map[string]integration.Config {
 // the list of scheduled configuration got updated.
 func GetScheduledConfigsModificationTimestamp() int64 {
 	return state.getScheduledConfigsModificationTimestamp()
+}
+
+// StopJmxfetch stops the jmxfetch process if it is running
+func StopJmxfetch() {
+	err := state.runner.stopRunner()
+	if err != nil {
+		log.Errorf("failure to kill jmxfetch process: %s", err)
+	}
 }
