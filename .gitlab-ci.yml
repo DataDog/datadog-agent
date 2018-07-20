@@ -89,6 +89,14 @@ before_script:
     variables:
       - $RELEASE_VERSION == "nightly"
 
+# run job only when a new tag is pushed for the DCA.
+
+.run_on_dca_tag: &run_on_dca_tag
+  only:
+    refs:
+      - tags
+      - ^dca([\d.-]|rc)+$
+
 #
 # source_test
 #
@@ -990,10 +998,7 @@ latest_release:
 
 dca_tag_release:
   <<: *docker_tag_job_definition
-  only:
-    refs:
-      - tags
-      - ^dca([\d.-]|rc)+$
+  <<: *run_on_dca_tag
   stage: deploy
   when: manual
   variables:
@@ -1003,10 +1008,7 @@ dca_tag_release:
 
 dca_latest_release:
   <<: *docker_tag_job_definition
-  only:
-    refs:
-      - tags
-      - ^dca([\d.-]|rc)+$
+  <<: *run_on_dca_tag
   stage: deploy
   when: manual
   variables:
