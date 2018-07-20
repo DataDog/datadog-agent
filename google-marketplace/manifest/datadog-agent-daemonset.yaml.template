@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: datadog-api-key
+  name: $name-api-key
   labels:
     app.kubernetes.io/name: "$name"
     app.kubernetes.io/component: apikey-secret
@@ -47,7 +47,7 @@ spec:
         - name: DD_API_KEY
           valueFrom:
             secretKeyRef:
-              name: datadog-api-key
+              name: $name-api-key
               key: apiKey
         - name: KUBERNETES
           value: "yes"

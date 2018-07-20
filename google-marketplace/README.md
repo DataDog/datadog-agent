@@ -130,7 +130,6 @@ Create a ClusterRole in your target Kubernetes cluster, a service account in the
 
 ```shell
 export serviceAccount=datadog-agent-sa
-export clusterRole=datadog-agent-cr
 make rbac/install  # from the datadog-agent/google-marketplace folder
 ```
 
@@ -169,4 +168,6 @@ Or if you followed the command line instructions, by running the following comma
 ```shell
 make app/uninstall
 make rbac/uninstall
+export serviceAccount=datadog-agent-sa
+make rbac/install  # from the datadog-agent/google-marketplace folder
 ```
