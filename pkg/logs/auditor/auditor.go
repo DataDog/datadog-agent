@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -98,6 +99,7 @@ func (a *Auditor) run() {
 		a.done <- struct{}{}
 	}()
 
+	var fileError sync.Once
 	for {
 		select {
 		case msg, isOpen := <-a.inputChan:
@@ -114,7 +116,13 @@ func (a *Auditor) run() {
 			// saves current registry into disk
 			err := a.flushRegistry()
 			if err != nil {
-				log.Warn(err)
+				if os.IsPermission(err) || os.IsNotExist(err) {
+					fileError.Do(func() {
+						log.Warn(err)
+					})
+				} else {
+					log.Warn(err)
+				}
 			}
 		}
 	}
