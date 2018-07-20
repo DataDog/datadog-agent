@@ -248,6 +248,7 @@ func init() {
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 	BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now
