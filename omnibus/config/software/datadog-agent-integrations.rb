@@ -100,7 +100,7 @@ build do
 
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
-      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\agent_requirements.in")
+      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
       command("#{python_bin} -m #{python_pip_req}\\#{windows_safe_path(project_dir)}\\static_requirements.txt")
     else
       build_env = {
@@ -108,7 +108,7 @@ build do
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
       pip "install --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/agent_requirements.in")
+      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
       pip "install --require-hashes -r #{project_dir}/static_requirements.txt"
     end
 
