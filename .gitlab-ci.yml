@@ -227,6 +227,7 @@ cluster_agent-build:
 
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
+  <<: *skip_on_cluster_agent_ref
   stage: integration_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -556,6 +557,7 @@ deploy_windows_testing:
 
 # run dd-agent-testing on windows
 kitchen_windows:
+  <<: *skip_on_cluster_agent_ref
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
@@ -583,6 +585,7 @@ kitchen_windows:
 
 # run dd-agent-testing on centos
 kitchen_centos:
+  <<: *skip_on_cluster_agent_ref
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
@@ -608,6 +611,7 @@ kitchen_centos:
 
 # run dd-agent-testing on ubuntu (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
 kitchen_ubuntu:
+  <<: *skip_on_cluster_agent_ref
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
@@ -634,6 +638,7 @@ kitchen_ubuntu:
 
 # run dd-agent-testing on suse
 kitchen_suse:
+  <<: *skip_on_cluster_agent_ref
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
@@ -659,6 +664,7 @@ kitchen_suse:
 
 # run dd-agent-testing on debian (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
 kitchen_debian:
+  <<: *skip_on_cluster_agent_ref
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
@@ -684,6 +690,7 @@ kitchen_debian:
 
 # run dd-agent-testing
 testkitchen_cleanup_s3:
+  <<: *skip_on_cluster_agent_ref
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   only:
@@ -706,6 +713,7 @@ testkitchen_cleanup_s3:
 
 # run dd-agent-testing
 testkitchen_cleanup_azure:
+  <<: *skip_on_cluster_agent_ref
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
