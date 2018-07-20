@@ -170,7 +170,7 @@ func TestSubmitV1Intake(t *testing.T) {
 // per component.
 func TestForwarderEndtoEnd(t *testing.T) {
 	// reseting DroppedOnInput
-	droppedOnInput.Set(0)
+	transactionsDroppedOnInput.Set(0)
 
 	requests := int64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

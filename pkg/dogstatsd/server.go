@@ -24,8 +24,23 @@ import (
 )
 
 var (
-	dogstatsdExpvar = expvar.NewMap("dogstatsd")
+	dogstatsdExpvars                 = expvar.NewMap("dogstatsd")
+	dogstatsdServiceCheckParseErrors = expvar.Int{}
+	dogstatsdServiceCheckPackets     = expvar.Int{}
+	dogstatsdEventParseErrors        = expvar.Int{}
+	dogstatsdEventPackets            = expvar.Int{}
+	dogstatsdMetricParseErrors       = expvar.Int{}
+	dogstatsdMetricPackets           = expvar.Int{}
 )
+
+func init() {
+	dogstatsdExpvars.Set("ServiceCheckParseErrors", &dogstatsdServiceCheckParseErrors)
+	dogstatsdExpvars.Set("ServiceCheckPackets", &dogstatsdServiceCheckPackets)
+	dogstatsdExpvars.Set("EventParseErrors", &dogstatsdEventParseErrors)
+	dogstatsdExpvars.Set("EventPackets", &dogstatsdEventPackets)
+	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
+	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
+}
 
 // Server represent a Dogstatsd server
 type Server struct {
@@ -202,37 +217,37 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					serviceCheck, err := parseServiceCheckMessage(message)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing service check: %s", err)
-						dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
+						dogstatsdServiceCheckParseErrors.Add(1)
 						continue
 					}
 					if len(originTags) > 0 {
 						serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
 					}
-					dogstatsdExpvar.Add("ServiceCheckPackets", 1)
+					dogstatsdServiceCheckPackets.Add(1)
 					serviceCheckOut <- *serviceCheck
 				} else if bytes.HasPrefix(message, []byte("_e")) {
 					event, err := parseEventMessage(message)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing event: %s", err)
-						dogstatsdExpvar.Add("EventParseErrors", 1)
+						dogstatsdEventParseErrors.Add(1)
 						continue
 					}
 					if len(originTags) > 0 {
 						event.Tags = append(event.Tags, originTags...)
 					}
-					dogstatsdExpvar.Add("EventPackets", 1)
+					dogstatsdEventPackets.Add(1)
 					eventOut <- *event
 				} else {
 					sample, err := parseMetricMessage(message, s.metricPrefix, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing metrics: %s", err)
-						dogstatsdExpvar.Add("MetricParseErrors", 1)
+						dogstatsdMetricParseErrors.Add(1)
 						continue
 					}
 					if len(originTags) > 0 {
 						sample.Tags = append(sample.Tags, originTags...)
 					}
-					dogstatsdExpvar.Add("MetricPackets", 1)
+					dogstatsdMetricPackets.Add(1)
 					metricOut <- sample
 					if s.histToDist && sample.Mtype == metrics.HistogramType {
 						distSample := sample.Copy()
