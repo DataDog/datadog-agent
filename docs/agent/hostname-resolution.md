@@ -1,4 +1,4 @@
-Edit: The behavior change is delayed until 6.5 to let us more time to make sure the transition is smooth.
+Edit: The behavior change is delayed until 6.5 to give users more time to take the change into account.
 
 # Difference in hostname resolution between Agent v5 and Agent v6 (<v6.5)
 
