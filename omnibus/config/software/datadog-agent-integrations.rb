@@ -22,6 +22,10 @@ whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
+PIPTOOLS_VERSION "2.0.2"
+PYMPLER_VERSION "0.5"
+WHEELS_VERSION "0.30.0"
+
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
   integrations_core_version = 'master'
@@ -79,14 +83,14 @@ build do
 
     # Install all the build requirements
     if windows?
-      pip_args = "install wheel==0.30.0 pympler==0.5 pip-tools==2.0.2"
+      pip_args = "install wheel==#{WHEELS_VERSION} pympler==#{PYMPLER_VERSION} pip-tools==#{PIPTOOLS_VERSION}"
       command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
-      pip "install wheel==0.30.0 pympler==0.5 pip-tools==2.0.2", :env => build_env
+      pip "install wheel==#{WHEELS_VERSION} pympler==#{PYMPLER_VERSION} pip-tools==#{PIPTOOLS_VERSION}", :env => build_env
     end
 
     # Windows pip workaround to support globs
