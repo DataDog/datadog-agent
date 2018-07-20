@@ -45,7 +45,7 @@ func (c *JMXCheck) Run() error {
 	case <-state.runnerError:
 		return fmt.Errorf("jmxfetch exited, stopping %s : %s", c.name, err)
 	case <-c.stop:
-		log.Debugf("jmx check %s stopped", c.name)
+		log.Infof("jmx check %s stopped", c.name)
 	}
 
 	return nil
