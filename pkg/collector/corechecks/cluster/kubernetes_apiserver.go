@@ -10,6 +10,7 @@ package cluster
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	yaml "gopkg.in/yaml.v2"
 	"k8s.io/api/core/v1"
@@ -35,27 +36,30 @@ const (
 
 // KubeASConfig is the config of the API server.
 type KubeASConfig struct {
-	Tags                []string `yaml:"tags"`
-	CollectEvent        bool     `yaml:"collect_events"`
-	CollectOShiftQuotas bool     `yaml:"collect_openshift_clusterquotas"`
-	FilteredEventType   []string `yaml:"filtered_event_types"`
+	Tags                     []string `yaml:"tags"`
+	CollectEvent             bool     `yaml:"collect_events"`
+	CollectOShiftQuotas      bool     `yaml:"collect_openshift_clusterquotas"`
+	FilteredEventType        []string `yaml:"filtered_event_types"`
+	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
 }
 
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
-	instance              *KubeASConfig
-	KubeAPIServerHostname string
-	latestEventToken      string
-	configMapAvailable    bool
-	ac                    *apiserver.APIClient
-	oshiftAPILevel        apiserver.OpenShiftAPILevel
+	instance               *KubeASConfig
+	KubeAPIServerHostname  string
+	latestEventToken       string
+	configMapAvailable     bool
+	ac                     *apiserver.APIClient
+	oshiftAPILevel         apiserver.OpenShiftAPILevel
+	eventCollectionTimeout time.Duration
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
 	// default values
 	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
+	c.EventCollectionTimeoutMs = 100
 
 	return yaml.Unmarshal(data, c)
 }
@@ -113,6 +117,7 @@ func (k *KubeASCheck) Run() error {
 		if k.instance.CollectOShiftQuotas {
 			k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()
 		}
+		k.eventCollectionTimeout = time.Duration(k.instance.EventCollectionTimeoutMs) * time.Millisecond
 	}
 
 	// Running the Control Plane status check.
@@ -219,7 +224,7 @@ func (k *KubeASCheck) eventCollectionInit() {
 }
 
 func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
-	newEvents, modifiedEvents, versionToken, err := k.ac.LatestEvents(k.latestEventToken)
+	newEvents, modifiedEvents, versionToken, err := k.ac.LatestEvents(k.latestEventToken, k.eventCollectionTimeout)
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error())
 		return nil, nil, err
@@ -227,7 +232,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 
 	if versionToken == "0" {
 		// API server cache expired or no recent events to process. Resetting the Resversion token.
-		_, _, versionToken, err = k.ac.LatestEvents("0")
+		_, _, versionToken, err = k.ac.LatestEvents("0", k.eventCollectionTimeout)
 		if err != nil {
 			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
 			return nil, nil, err

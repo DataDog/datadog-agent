@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	setupTimeout = 10 * time.Second
+	setupTimeout     = 10 * time.Second
+	eventReadTimeout = 500 * time.Millisecond
 )
 
 type testSuite struct {
@@ -75,7 +76,7 @@ func (suite *testSuite) SetupTest() {
 			}
 			// Confirm that we can query the kube-apiserver's resources
 			log.Debugf("trying to get LatestEvents")
-			_, _, resV, err := suite.apiClient.LatestEvents("0")
+			_, _, resV, err := suite.apiClient.LatestEvents("0", eventReadTimeout)
 			if err == nil {
 				log.Debugf("successfully get LatestEvents: %s", resV)
 				return
@@ -90,24 +91,24 @@ func (suite *testSuite) TestKubeEvents() {
 	config.Datadog.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
 	c, err := apiserver.GetAPIClient()
 
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	core := c.Cl.CoreV1()
 	require.NotNil(suite.T(), core)
 
 	// Ignore potential startup events
-	_, _, initresversion, err := suite.apiClient.LatestEvents("0")
-	require.Nil(suite.T(), err)
+	_, _, initresversion, err := suite.apiClient.LatestEvents("0", eventReadTimeout)
+	require.NoError(suite.T(), err)
 
 	// Create started event
 	testReference := createObjectReference("default", "integration_test", "event_test")
 	startedEvent := createEvent("default", "test_started", "started", *testReference)
 	_, err = core.Events("default").Create(startedEvent)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	// Test we get the new started event
-	added, modified, resversion, err := suite.apiClient.LatestEvents(initresversion)
-	require.Nil(suite.T(), err)
+	added, modified, resversion, err := suite.apiClient.LatestEvents(initresversion, eventReadTimeout)
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 1)
 	assert.Len(suite.T(), modified, 0)
 	assert.Equal(suite.T(), "started", added[0].Reason)
@@ -115,11 +116,11 @@ func (suite *testSuite) TestKubeEvents() {
 	// Create tick event
 	tickEvent := createEvent("default", "test_tick", "tick", *testReference)
 	_, err = core.Events("default").Create(tickEvent)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	// Test we get the new tick event
-	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion)
-	require.Nil(suite.T(), err)
+	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion, eventReadTimeout)
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 1)
 	assert.Len(suite.T(), modified, 0)
 	assert.Equal(suite.T(), "tick", added[0].Reason)
@@ -129,17 +130,17 @@ func (suite *testSuite) TestKubeEvents() {
 	tickEvent2 := added[0]
 	tickEvent2.Count = pointer2
 	tickEvent3, err := core.Events("default").Update(tickEvent2)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	// Update tick event a second time
 	pointer3 := int32(3)
 	tickEvent3.Count = pointer3
 	_, err = core.Events("default").Update(tickEvent3)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	// Test we get the two modified test events
-	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion)
-	require.Nil(suite.T(), err)
+	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion, eventReadTimeout)
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 0)
 	assert.Len(suite.T(), modified, 2)
 	assert.Equal(suite.T(), "tick", modified[0].Reason)
@@ -149,22 +150,22 @@ func (suite *testSuite) TestKubeEvents() {
 	assert.EqualValues(suite.T(), modified[0].InvolvedObject.UID, modified[1].InvolvedObject.UID)
 
 	// We should get nothing new now
-	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion)
-	require.Nil(suite.T(), err)
+	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion, eventReadTimeout)
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 0)
 	assert.Len(suite.T(), modified, 0)
 
 	// We should get 2+0 events from initresversion
 	// apiserver does not send updates to objects if the add is in the same bucket
-	added, modified, _, err = suite.apiClient.LatestEvents(initresversion)
-	require.Nil(suite.T(), err)
+	added, modified, _, err = suite.apiClient.LatestEvents(initresversion, eventReadTimeout)
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 2)
 	assert.Len(suite.T(), modified, 0)
 }
 
 func (suite *testSuite) TestServiceMapper() {
 	client, err := apiserver.GetAPIClient()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	c := client.Cl.CoreV1()
 	require.NotNil(suite.T(), c)
@@ -203,7 +204,7 @@ func (suite *testSuite) TestServiceMapper() {
 	}
 	node.Name = "ip-172-31-119-125"
 	_, err = c.Nodes().Create(node)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -222,7 +223,7 @@ func (suite *testSuite) TestServiceMapper() {
 	pod.Name = "nginx"
 	pod.Labels = map[string]string{"app": "nginx"}
 	pendingPod, err := c.Pods("default").Create(pod)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	pendingPod.Status = v1.PodStatus{
 		Phase:  "Running",
@@ -245,7 +246,7 @@ func (suite *testSuite) TestServiceMapper() {
 		},
 	}
 	_, err = c.Pods("default").UpdateStatus(pendingPod)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	svc := &v1.Service{
 		Spec: v1.ServiceSpec{
@@ -257,7 +258,7 @@ func (suite *testSuite) TestServiceMapper() {
 	}
 	svc.Name = "nginx-1"
 	_, err = c.Services("default").Create(svc)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	ep := &v1.Endpoints{
 		Subsets: []v1.EndpointSubset{
@@ -286,32 +287,32 @@ func (suite *testSuite) TestServiceMapper() {
 	}
 	ep.Name = "nginx-1"
 	_, err = c.Endpoints("default").Create(ep)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	apiClient, err := apiserver.GetAPIClient()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	err = apiClient.ClusterMetadataMapping()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	metadataNames, err := apiserver.GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), metadataNames, 1)
 	assert.Contains(suite.T(), metadataNames, "kube_service:nginx-1")
 
 	// Add a new service/endpoint on the nginx Pod
 	svc.Name = "nginx-2"
 	_, err = c.Services("default").Create(svc)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	ep.Name = "nginx-2"
 	_, err = c.Endpoints("default").Create(ep)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	err = apiClient.ClusterMetadataMapping()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 
 	metadataNames, err = apiserver.GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), metadataNames, 2)
 	assert.Contains(suite.T(), metadataNames, "kube_service:nginx-1")
 	assert.Contains(suite.T(), metadataNames, "kube_service:nginx-2")
