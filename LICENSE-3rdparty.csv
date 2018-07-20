@@ -14,7 +14,6 @@ core,github.com/docker/distribution,Apache-2.0
 core,github.com/docker/docker,Apache-2.0
 core,github.com/docker/go-connections,Apache-2.0
 core,github.com/docker/go-units,Apache-2.0
-core,github.com/ericchiang/k8s,Apache-2.0
 core,github.com/kubernetes,Apache-2.0
 core,github.com/kubernetes-incubator/custom-metrics-apiserver,Apache-2.0
 core,github.com/json-iterator/go,MIT
@@ -61,6 +60,7 @@ core,github.com/hashicorp/hcl,MPL-2.0
 core,github.com/hectane/go-acl,MIT
 core,github.com/inconshreveable/mousetrap,Apache-2.0
 core,github.com/jquery/jquery,MIT
+core,github.com/juju/ratelimit,LGPL-3+exception
 core,github.com/k-sone/snmpgo,MIT
 core,github.com/lxn/win,BSD-3-Clause
 core,github.com/kardianos/osext,BSD-3-Clause
@@ -69,6 +69,7 @@ core,github.com/mholt/archiver,MIT
 core,github.com/Microsoft/go-winio,MIT
 core,github.com/mitchellh/mapstructure,MIT
 core,github.com/mitchellh/reflectwalk,MIT
+core,github.com/openshift/api,Apache-2.0
 core,github.com/patrickmn/go-cache,MIT
 core,github.com/pelletier/go-toml,MIT
 core,github.com/pkg/errors,BSD-2-Clause
