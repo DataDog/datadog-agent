@@ -72,6 +72,7 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data) error {
 		log.Error("could not parse the config for the API server")
 		return err
 	}
+	k.eventCollectionTimeout = time.Duration(k.instance.EventCollectionTimeoutMs) * time.Millisecond
 
 	log.Debugf("Running config %s", config)
 	return nil
@@ -117,7 +118,6 @@ func (k *KubeASCheck) Run() error {
 		if k.instance.CollectOShiftQuotas {
 			k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()
 		}
-		k.eventCollectionTimeout = time.Duration(k.instance.EventCollectionTimeoutMs) * time.Millisecond
 	}
 
 	// Running the Control Plane status check.
