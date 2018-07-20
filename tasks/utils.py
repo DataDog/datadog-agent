@@ -67,7 +67,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
 
     if static:
-        ldflags += "-s -w -linkmode=external '-extldflags=-static' "
+        ldflags += "-s -w '-extldflags=-static' "
         # Disable cgo in order to allow running on musl
         env["CGO_ENABLED"] = "0"
     elif use_embedded_libs:
