@@ -101,7 +101,7 @@ build do
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
       command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
-      command("#{python_bin} -m #{python_pip_req}\\#{windows_safe_path(project_dir)}\\static_requirements.txt")
+      command("#{python_bin} -m #{python_pip_req}\\static_requirements.txt")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
