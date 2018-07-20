@@ -78,7 +78,7 @@ func (k *KubeASCheck) Run() error {
 		return err
 	}
 
-	if config.Datadog.GetBool("cluster_agent") {
+	if config.Datadog.GetBool("cluster_agent.enabled") {
 		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}

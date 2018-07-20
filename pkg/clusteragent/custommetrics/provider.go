@@ -10,6 +10,7 @@ package custommetrics
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -19,9 +20,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type externalMetric struct {
@@ -36,16 +34,16 @@ type datadogProvider struct {
 	values          map[provider.CustomMetricInfo]int64
 	externalMetrics []externalMetric
 	resVersion      string
-	hpaClient       *hpa.HPAWatcherClient
+	store           Store
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
-func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper, hpaCl *hpa.HPAWatcherClient) provider.MetricsProvider {
+func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
 	return &datadogProvider{
-		client:    client,
-		mapper:    mapper,
-		values:    make(map[provider.CustomMetricInfo]int64),
-		hpaClient: hpaCl,
+		client: client,
+		mapper: mapper,
+		values: make(map[provider.CustomMetricInfo]int64),
+		store:  store,
 	}
 }
 
@@ -80,7 +78,11 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	var externalMetricsInfoList []provider.ExternalMetricInfo
 	var externalMetricsList []externalMetric
 
-	rawMetrics := p.hpaClient.ReadConfigMap()
+	rawMetrics, err := p.store.ListAllExternalMetricValues()
+	if err != nil {
+		log.Errorf("Could not list the external metrics in the store: %s", err.Error())
+		return externalMetricsInfoList
+	}
 
 	for _, metric := range rawMetrics {
 		// Only metrics that exist in Datadog and available are eligible to be evaluated in the HPA process.
@@ -89,18 +91,18 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 		}
 		var extMetric externalMetric
 		extMetric.info = provider.ExternalMetricInfo{
-			Metric: metric.Name,
+			Metric: metric.MetricName,
 			Labels: metric.Labels,
 		}
 		extMetric.value = external_metrics.ExternalMetricValue{
-			MetricName:   metric.Name,
+			MetricName:   metric.MetricName,
 			MetricLabels: metric.Labels,
 			Value:        *resource.NewQuantity(metric.Value, resource.DecimalSI),
 		}
 		externalMetricsList = append(externalMetricsList, extMetric)
 
 		externalMetricsInfoList = append(externalMetricsInfoList, provider.ExternalMetricInfo{
-			Metric: metric.Name,
+			Metric: metric.MetricName,
 			Labels: metric.Labels,
 		})
 	}

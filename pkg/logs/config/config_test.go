@@ -6,7 +6,6 @@
 package config
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +20,8 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.dev_mode_no_ssl"))
 	assert.Equal(t, true, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
 	assert.Equal(t, 100, LogsAgent.GetInt("logs_config.open_files_limit"))
+	assert.Equal(t, 9000, LogsAgent.GetInt("logs_config.frame_size"))
+	assert.Equal(t, -1, LogsAgent.GetInt("logs_config.tcp_forward_port"))
 }
 
 func TestBuildLogsSources(t *testing.T) {
@@ -30,27 +31,25 @@ func TestBuildLogsSources(t *testing.T) {
 	var err error
 
 	// should return an error
-	logsSources, err = buildLogSources(ddconfdPath, false)
+	logsSources, err = buildLogSources(ddconfdPath, false, -1)
 	assert.NotNil(t, err)
 
 	// should return the default tail all containers source
-	logsSources, err = buildLogSources(ddconfdPath, true)
+	logsSources, err = buildLogSources(ddconfdPath, true, -1)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(logsSources.GetValidSources()))
-
 	source = logsSources.GetValidSources()[0]
 	assert.Equal(t, "container_collect_all", source.Name)
+	assert.Equal(t, DockerType, source.Config.Type)
 	assert.Equal(t, "docker", source.Config.Service)
 	assert.Equal(t, "docker", source.Config.Source)
 
-	// default tail all containers source should be the last element of the list
-	ddconfdPath = filepath.Join("tests", "any_docker_integration.d")
-	logsSources, err = buildLogSources(ddconfdPath, true)
+	// should return the tcp forward source
+	logsSources, err = buildLogSources(ddconfdPath, false, 1234)
 	assert.Nil(t, err)
-	assert.Equal(t, 3, len(logsSources.GetValidSources()))
-
-	source = logsSources.GetValidSources()[2]
-	assert.Equal(t, "container_collect_all", source.Name)
-	assert.Equal(t, "docker", source.Config.Service)
-	assert.Equal(t, "docker", source.Config.Source)
+	assert.Equal(t, 1, len(logsSources.GetValidSources()))
+	source = logsSources.GetValidSources()[0]
+	assert.Equal(t, "tcp_forward", source.Name)
+	assert.Equal(t, TCPType, source.Config.Type)
+	assert.Equal(t, 1234, source.Config.Port)
 }

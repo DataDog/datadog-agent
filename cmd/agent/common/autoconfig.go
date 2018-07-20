@@ -11,8 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,14 +32,14 @@ func SetupAutoConfig(confdPath string) {
 	// NOTICE: this will also setup the Python environment, if available
 	Coll = collector.NewCollector(GetPythonPaths()...)
 
-	// create the Autoconfig instance
-	AC = autodiscovery.NewAutoConfig(Coll)
+	// creating the meta scheduler
+	metaScheduler := scheduler.NewMetaScheduler()
 
-	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog() {
-		AC.AddLoader(loader)
-		log.Debugf("Added %s to AutoConfig", loader)
-	}
+	// registering the check scheduler
+	metaScheduler.Register("check", collector.InitCheckScheduler(Coll))
+
+	// create the Autoconfig instance
+	AC = autodiscovery.NewAutoConfig(metaScheduler)
 
 	// Add the configuration providers
 	// File Provider is hardocded and always enabled

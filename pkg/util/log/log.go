@@ -313,7 +313,7 @@ func formatError(v ...interface{}) error {
 
 //Trace logs at the trace level
 func Trace(v ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
 		s := buildLogEntry(v...)
 		logger.trace(logger.scrub(s))
 	}
@@ -321,7 +321,7 @@ func Trace(v ...interface{}) {
 
 //Debug logs at the debug level
 func Debug(v ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
 		s := buildLogEntry(v...)
 		logger.debug(logger.scrub(s))
 	}
@@ -329,7 +329,7 @@ func Debug(v ...interface{}) {
 
 //Info logs at the info level
 func Info(v ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		s := buildLogEntry(v...)
 		logger.info(logger.scrub(s))
 	}
@@ -337,7 +337,7 @@ func Info(v ...interface{}) {
 
 //Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
 		s := buildLogEntry(v...)
 		return logger.warn(logger.scrub(s))
 	}
@@ -346,7 +346,7 @@ func Warn(v ...interface{}) error {
 
 //Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		s := buildLogEntry(v...)
 		return logger.error(logger.scrub(s))
 	}
@@ -357,7 +357,7 @@ func Error(v ...interface{}) error {
 
 //Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		s := buildLogEntry(v...)
 		return logger.critical(logger.scrub(s))
 	}
@@ -375,28 +375,28 @@ func Flush() {
 
 //Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
 		logger.tracef(format, params...)
 	}
 }
 
 //Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
 		logger.debugf(format, params...)
 	}
 }
 
 //Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		logger.infof(format, params...)
 	}
 }
 
 //Warnf logs with format at the warn level and returns an error containing the formated log message
 func Warnf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
 		return logger.warnf(format, params...)
 	}
 	return formatErrorf(format, params...)
@@ -404,7 +404,7 @@ func Warnf(format string, params ...interface{}) error {
 
 //Errorf logs with format at the error level and returns an error containing the formated log message
 func Errorf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		return logger.errorf(format, params...)
 	}
 	err := formatErrorf(format, params...)
@@ -414,7 +414,7 @@ func Errorf(format string, params ...interface{}) error {
 
 //Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
-	if logger != nil && logger.inner != nil {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		return logger.criticalf(format, params...)
 	}
 	err := formatErrorf(format, params...)

@@ -20,7 +20,7 @@ import (
 var (
 	stopCmd = &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the Agent",
+		Short: "Stops a running Agent",
 		Long:  ``,
 		RunE:  stop,
 	}

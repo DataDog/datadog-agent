@@ -38,7 +38,7 @@ instances:
   # The following instance pulls the go_expvar metrics of the running datadog-agent
   # Feel free to comment out the instance if you're not interested in these metrics
   - expvar_url: http://localhost:5000/debug/vars  # if you've defined `expvar_port` in datadog.yaml, change the port here to that value
-    namespace: datadog
+    namespace: datadog.agent
     metrics:
       # datadog-agent forwarder monitoring
       - path: forwarder/Transactions/Series

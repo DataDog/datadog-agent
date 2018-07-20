@@ -58,6 +58,10 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
+	if config.Datadog.GetBool("cluster_agent.enabled") {
+		stats["clusterAgentStatus"] = getDCAStatus()
+	}
+
 	return stats, nil
 }
 
@@ -124,6 +128,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
+	stats["hpaExternal"] = GetHorizontalPodAutoscalingStatus()
 
 	return stats, nil
 }

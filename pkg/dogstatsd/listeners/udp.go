@@ -17,8 +17,13 @@ import (
 )
 
 var (
-	udpExpvar = expvar.NewMap("dogstatsd-udp")
+	udpExpvars             = expvar.NewMap("dogstatsd-udp")
+	udpPacketReadingErrors = expvar.Int{}
 )
+
+func init() {
+	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
+}
 
 // UDPListener implements the StatsdListener interface for UDP protocol.
 // It listens to a given UDP address and sends back packets ready to be
@@ -77,7 +82,7 @@ func (l *UDPListener) Listen() {
 			}
 
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
-			udpExpvar.Add("PacketReadingErrors", 1)
+			udpPacketReadingErrors.Add(1)
 			continue
 		}
 

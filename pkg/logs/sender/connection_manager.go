@@ -13,37 +13,34 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/proxy"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	backoffSleepTimeUnit = 2  // in seconds
-	maxBackoffSleepTime  = 30 // in seconds
-	timeout              = 20 * time.Second
+	backoffUnit = 2 * time.Second
+	backoffMax  = 30 * time.Second
+	timeout     = 20 * time.Second
 )
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	connectionString string
-	serverName       string
-	devModeNoSSL     bool
-
-	mutex   sync.Mutex
-	retries int
-
-	firstConn bool
+	serverName    string
+	serverAddress string
+	devModeNoSSL  bool
+	proxyAddress  string
+	mutex         sync.Mutex
+	firstConn     sync.Once
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(serverName string, serverPort int, devModeNoSSL bool) *ConnectionManager {
+func NewConnectionManager(serverName string, serverPort int, devModeNoSSL bool, proxyAddress string) *ConnectionManager {
 	return &ConnectionManager{
-		connectionString: fmt.Sprintf("%s:%d", serverName, serverPort),
-		serverName:       serverName,
-		devModeNoSSL:     devModeNoSSL,
-
-		mutex: sync.Mutex{},
-
-		firstConn: true,
+		serverName:    serverName,
+		serverAddress: fmt.Sprintf("%s:%d", serverName, serverPort),
+		proxyAddress:  proxyAddress,
+		devModeNoSSL:  devModeNoSSL,
 	}
 }
 
@@ -53,37 +50,54 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
-	for {
-		if cm.firstConn {
-			log.Info("Connecting to the backend: ", cm.connectionString)
-			cm.firstConn = false
+	cm.firstConn.Do(func() {
+		if cm.proxyAddress != "" {
+			log.Infof("Connecting to the backend: %v, via socks5: %v", cm.serverAddress, cm.proxyAddress)
+		} else {
+			log.Infof("Connecting to the backend: %v", cm.serverAddress)
 		}
+	})
 
-		cm.retries++
-		outConn, err := net.DialTimeout("tcp", cm.connectionString, timeout)
+	var retries int
+	for {
+		if retries > 0 {
+			cm.backoff(retries)
+		}
+		retries++
+
+		var conn net.Conn
+		var err error
+
+		if cm.proxyAddress != "" {
+			var dialer proxy.Dialer
+			dialer, err = proxy.SOCKS5("tcp", cm.proxyAddress, nil, proxy.Direct)
+			if err != nil {
+				log.Warn(err)
+				continue
+			}
+			conn, err = dialer.Dial("tcp", cm.serverAddress)
+		} else {
+			conn, err = net.DialTimeout("tcp", cm.serverAddress, timeout)
+		}
 		if err != nil {
 			log.Warn(err)
-			cm.backoff()
 			continue
 		}
 
 		if !cm.devModeNoSSL {
-			config := &tls.Config{
+			sslConn := tls.Client(conn, &tls.Config{
 				ServerName: cm.serverName,
-			}
-			sslConn := tls.Client(outConn, config)
+			})
 			err = sslConn.Handshake()
 			if err != nil {
 				log.Warn(err)
-				cm.backoff()
 				continue
 			}
-			outConn = sslConn
+			conn = sslConn
 		}
 
-		cm.retries = 0
-		go cm.handleServerClose(outConn)
-		return outConn
+		go cm.handleServerClose(conn)
+		return conn
 	}
 }
 
@@ -108,12 +122,11 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 	}
 }
 
-// backoff lets the connection mananger sleep a bit
-func (cm *ConnectionManager) backoff() {
-	backoffDuration := backoffSleepTimeUnit * cm.retries
-	if backoffDuration > maxBackoffSleepTime {
-		backoffDuration = maxBackoffSleepTime
+// backoff lets the connection manager sleep a bit
+func (cm *ConnectionManager) backoff(retries int) {
+	backoffDuration := backoffUnit * time.Duration(retries)
+	if backoffDuration > backoffMax {
+		backoffDuration = backoffMax
 	}
-	timer := time.NewTimer(time.Second * time.Duration(backoffDuration))
-	<-timer.C
+	time.Sleep(backoffDuration)
 }

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
@@ -39,6 +40,7 @@ func FormatStatus(data []byte) (string, error) {
 	aggregatorStats := stats["aggregatorStats"]
 	jmxStats := stats["JMXStatus"]
 	logsStats := stats["logsStats"]
+	dcaStats := stats["clusterAgentStatus"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
@@ -47,6 +49,9 @@ func FormatStatus(data []byte) (string, error) {
 	renderForwarderStatus(b, forwarderStats)
 	renderLogsStatus(b, logsStats)
 	renderDogstatsdStatus(b, aggregatorStats)
+	if config.Datadog.GetBool("cluster_agent.enabled") {
+		renderDatadogClusterAgentStatus(b, dcaStats)
+	}
 
 	return b.String(), nil
 }
@@ -66,6 +71,15 @@ func FormatDCAStatus(data []byte) (string, error) {
 	renderChecksStats(b, runnerStats, autoConfigStats, "")
 	renderForwarderStatus(b, forwarderStats)
 
+	return b.String(), nil
+}
+
+// FormatHPAStatus takes a json bytestring and prints out the formatted statuspage
+func FormatHPAStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats)
+	renderHPAStats(b, stats)
 	return b.String(), nil
 }
 
@@ -102,6 +116,22 @@ func renderDogstatsdStatus(w io.Writer, aggregatorStats interface{}) {
 func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
 	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "forwarder.tmpl")))
 	err := t.Execute(w, forwarderStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderDatadogClusterAgentStatus(w io.Writer, dcaStats interface{}) {
+	t := template.Must(template.New("clusteragent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "clusteragent.tmpl")))
+	err := t.Execute(w, dcaStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderHPAStats(w io.Writer, hpaStats interface{}) {
+	t := template.Must(template.New("custommetricsprovider.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "custommetricsprovider.tmpl")))
+	err := t.Execute(w, hpaStats)
 	if err != nil {
 		fmt.Println(err)
 	}

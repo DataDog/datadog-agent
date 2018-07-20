@@ -23,7 +23,7 @@ func TestAvailableIntegrationConfigs(t *testing.T) {
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	allSources, err := buildLogSources(ddconfdPath, false)
+	allSources, err := buildLogSources(ddconfdPath, false, -1)
 
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(allSources.GetSources())-len(allSources.GetValidSources()))
@@ -98,23 +98,23 @@ func TestCompileProcessingRules(t *testing.T) {
 	var err error
 
 	rules = []LogsProcessingRule{{Pattern: "(?=abf)", Type: IncludeAtMatch}}
-	err = CompileProcessingRules(rules)
+	err = compileProcessingRules(rules)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 
 	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}", Type: IncludeAtMatch}}
-	err = CompileProcessingRules(rules)
+	err = compileProcessingRules(rules)
 	assert.Nil(t, err)
 	assert.NotNil(t, rules[0].Reg)
 	assert.True(t, rules[0].Reg.MatchString("abcde"))
 
 	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}"}}
-	err = CompileProcessingRules(rules)
+	err = compileProcessingRules(rules)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 
 	rules = []LogsProcessingRule{{Pattern: "", Type: IncludeAtMatch}}
-	err = CompileProcessingRules(rules)
+	err = compileProcessingRules(rules)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 }
@@ -123,23 +123,23 @@ func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	var ddconfdPath string
 	var err error
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
-	_, err = buildLogSources(ddconfdPath, false)
+	_, err = buildLogSources(ddconfdPath, false, -1)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_2", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false)
+	_, err = buildLogSources(ddconfdPath, false, -1)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_3", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false)
+	_, err = buildLogSources(ddconfdPath, false, -1)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false)
+	_, err = buildLogSources(ddconfdPath, false, -1)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false)
+	_, err = buildLogSources(ddconfdPath, false, -1)
 	assert.NotNil(t, err)
 }
 

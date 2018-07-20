@@ -92,7 +92,7 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 	}
 	err := globalLeaderEngine.initRetry.TriggerRetry()
 	if err != nil {
-		log.Debugf("Init error: %s", err)
+		log.Debugf("Leader Election init error: %s", err)
 		return nil, err
 	}
 	return globalLeaderEngine, nil
@@ -111,11 +111,9 @@ func (le *LeaderEngine) init() error {
 	log.Debugf("Init LeaderEngine with HolderIdentity: %q", le.HolderIdentity)
 
 	leaseDuration := config.Datadog.GetInt("leader_lease_duration")
-	if leaseDuration != 0 {
+	if leaseDuration > 0 {
 		le.LeaseDuration = time.Duration(leaseDuration) * time.Second
-	}
-
-	if le.LeaseDuration == 0 {
+	} else {
 		le.LeaseDuration = defaultLeaderLeaseDuration
 	}
 	log.Debugf("LeaderLeaseDuration: %s", le.LeaseDuration.String())
@@ -135,7 +133,7 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	le.leaderElector, err = le.newElection(le.LeaseName, le.LeaderNamespace, le.LeaseDuration)
+	le.leaderElector, err = le.newElection()
 	if err != nil {
 		log.Errorf("Could not initialize the Leader Election process: %s", err)
 		return err

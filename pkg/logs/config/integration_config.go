@@ -129,7 +129,7 @@ func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 				log.Error(err)
 				continue
 			}
-			err := CompileProcessingRules(config.ProcessingRules)
+			err := compileProcessingRules(config.ProcessingRules)
 			if err != nil {
 				source.Status.Error(err)
 				log.Errorf("invalid processing rules %s", err)
@@ -208,12 +208,12 @@ func validateConfig(config LogsConfig) error {
 	case config.Type == UDPType && config.Port == 0:
 		return fmt.Errorf("A udp source must have a port")
 	default:
-		return ValidateProcessingRules(config.ProcessingRules)
+		return validateProcessingRules(config.ProcessingRules)
 	}
 }
 
-// ValidateProcessingRules checks the rules and raises errors if one is misconfigured
-func ValidateProcessingRules(rules []LogsProcessingRule) error {
+// validateProcessingRules checks the rules and raises errors if one is misconfigured
+func validateProcessingRules(rules []LogsProcessingRule) error {
 	for _, rule := range rules {
 		if rule.Name == "" {
 			return fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
@@ -230,8 +230,8 @@ func ValidateProcessingRules(rules []LogsProcessingRule) error {
 	return nil
 }
 
-// CompileProcessingRules compiles all processing rules regular expression
-func CompileProcessingRules(rules []LogsProcessingRule) error {
+// compileProcessingRules compiles all processing rules regular expression
+func compileProcessingRules(rules []LogsProcessingRule) error {
 	for i, rule := range rules {
 		if rule.Pattern == "" {
 			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)

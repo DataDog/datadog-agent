@@ -19,8 +19,16 @@ import (
 )
 
 var (
-	socketExpvar = expvar.NewMap("dogstatsd-uds")
+	udsExpvars               = expvar.NewMap("dogstatsd-uds")
+	udsOriginDetectionErrors = expvar.Int{}
+	udsPacketReadingErrors   = expvar.Int{}
 )
+
+func init() {
+	udsExpvars.Set("OriginDetectionErrors", &udsOriginDetectionErrors)
+	udsExpvars.Set("PacketReadingErrors", &udsPacketReadingErrors)
+
+}
 
 // UDSListener implements the StatsdListener interface for Unix Domain
 // Socket datagram protocol. It listens to a given socket path and sends
@@ -106,7 +114,7 @@ func (l *UDSListener) Listen() {
 			container, taggingErr := processUDSOrigin(oob[:oobn])
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
-				socketExpvar.Add("OriginDetectionErrors", 1)
+				udsOriginDetectionErrors.Add(1)
 			} else {
 				packet.Origin = container
 			}
@@ -124,7 +132,7 @@ func (l *UDSListener) Listen() {
 			}
 
 			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
-			socketExpvar.Add("PacketReadingErrors", 1)
+			udsPacketReadingErrors.Add(1)
 			continue
 		}
 

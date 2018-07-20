@@ -7,19 +7,12 @@ package autodiscovery
 
 import (
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
-
-// LoaderErrors is just an alias for a loader->error map
-type LoaderErrors map[string]string
 
 // loaderErrorStats holds the error objects
 type acErrorStats struct {
-	config  map[string]string       // config file name -> error
-	loader  map[string]LoaderErrors // check name -> LoaderErrors
-	run     map[check.ID]string     // check ID -> error
-	resolve map[string][]string     // config file name -> errors
+	config  map[string]string   // config file name -> error
+	resolve map[string][]string // config file name -> errors
 	m       sync.RWMutex
 }
 
@@ -27,8 +20,6 @@ type acErrorStats struct {
 func newAcErrorStats() *acErrorStats {
 	return &acErrorStats{
 		config:  make(map[string]string),
-		loader:  make(map[string]LoaderErrors),
-		run:     make(map[check.ID]string),
 		resolve: make(map[string][]string),
 	}
 }
@@ -60,70 +51,6 @@ func (es *acErrorStats) getConfigErrors() map[string]string {
 	}
 
 	return configCopy
-}
-
-// setLoaderError will safely set the error for that check and loader to the LoaderErrorStats
-func (es *acErrorStats) setLoaderError(checkName string, loaderName string, err string) {
-	es.m.Lock()
-	defer es.m.Unlock()
-
-	_, found := es.loader[checkName]
-	if !found {
-		es.loader[checkName] = make(LoaderErrors)
-	}
-
-	es.loader[checkName][loaderName] = err
-}
-
-// removeLoaderErrors removes the errors for a check (usually when successfully loaded)
-func (es *acErrorStats) removeLoaderErrors(checkName string) {
-	es.m.Lock()
-	defer es.m.Unlock()
-
-	delete(es.loader, checkName)
-}
-
-// getLoaderErrors will safely get the errors regarding loaders
-func (es *acErrorStats) getLoaderErrors() map[string]LoaderErrors {
-	es.m.RLock()
-	defer es.m.RUnlock()
-
-	errorsCopy := make(map[string]LoaderErrors)
-
-	for check, loaderErrors := range es.loader {
-		errorsCopy[check] = make(LoaderErrors)
-		for loader, loaderError := range loaderErrors {
-			errorsCopy[check][loader] = loaderError
-		}
-	}
-
-	return errorsCopy
-}
-
-func (es *acErrorStats) setRunError(checkID check.ID, err string) {
-	es.m.Lock()
-	defer es.m.Unlock()
-
-	es.run[checkID] = err
-}
-
-func (es *acErrorStats) removeRunError(checkID check.ID) {
-	es.m.Lock()
-	defer es.m.Unlock()
-
-	delete(es.run, checkID)
-}
-
-func (es *acErrorStats) getRunErrors() map[check.ID]string {
-	es.m.RLock()
-	defer es.m.RUnlock()
-
-	runCopy := make(map[check.ID]string)
-	for k, v := range es.run {
-		runCopy[k] = v
-	}
-
-	return runCopy
 }
 
 // setResolveWarning will safely set the error for a check configuration file

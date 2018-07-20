@@ -10,9 +10,8 @@ type Startable interface {
 	Start()
 }
 
-// Start starts all components in series
-func Start(components ...Startable) {
-	for _, component := range components {
-		component.Start()
-	}
+// Starter starts a group of startable objects from a data pipeline
+type Starter interface {
+	Startable
+	Add(components ...Startable)
 }

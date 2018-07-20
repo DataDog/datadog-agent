@@ -101,11 +101,11 @@ Cluster level features are now handled by the cluster agent, and you will find a
 Please refer to the dedicated section about the [Kubernetes integration](#kubernetes) for more details.
 
 - `DD_KUBERNETES_COLLECT_METADATA_TAGS`: configures the agent to collect Kubernetes metadata (service names) as tags.
-- `DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ`: set the collection frequency in seconds for the Kubernetes metadata (service names).
+- `DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ`: set the collection frequency in seconds for the Kubernetes metadata (service names) from the API Server (or the Datadog Cluster Agent if enabled).
 - `DD_COLLECT_KUBERNETES_EVENTS` [DCA]: configures the cluster agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
 - `DD_LEADER_ELECTION` [DCA]: activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to `true`. The expected value is a bool: true/false.
 - `DD_LEADER_LEASE_DURATION` [DCA]: only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
-- `DD_KUBE_RESOURCES_NAMESPACE` [DCA]: can be used to configure the namespace where the configmaps of the Leader Election and the Event Collection live.
+- `DD_KUBE_RESOURCES_NAMESPACE` [DCA]: configures the namespace where the Cluster Agent creates the configmaps required for the Leader Election, the Event Collection (optional) and the Horizontal Pod Autoscaling.
 
 #### Others
 

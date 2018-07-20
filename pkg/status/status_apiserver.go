@@ -9,9 +9,11 @@ package status
 
 import (
 	"fmt"
-	"time"
-
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"time"
 )
 
 func getLeaderElectionDetails() map[string]string {
@@ -29,4 +31,49 @@ func getLeaderElectionDetails() map[string]string {
 	leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", record.LeaderTransitions)
 	leaderElectionStats["status"] = "Running"
 	return leaderElectionStats
+}
+
+func getDCAStatus() map[string]string {
+	clusterAgentDetails := make(map[string]string)
+
+	dcaCl, err := clusteragent.GetClusterAgentClient()
+	if err != nil {
+		clusterAgentDetails["DetectionError"] = err.Error()
+		return clusterAgentDetails
+	}
+	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint
+
+	ver, err := dcaCl.GetVersion()
+	if err != nil {
+		clusterAgentDetails["ConnectionError"] = err.Error()
+		return clusterAgentDetails
+	}
+	clusterAgentDetails["Version"] = ver
+	return clusterAgentDetails
+}
+
+// GetHorizontalPodAutoscalingStatus fetches the content of the ConfigMap storing the state of the HPA metrics provider
+func GetHorizontalPodAutoscalingStatus() map[string]interface{} {
+	horizontalPodAutoscalingStatus := make(map[string]interface{})
+
+	apiCl, err := apiserver.GetAPIClient()
+	if err != nil {
+		horizontalPodAutoscalingStatus["Error"] = err.Error()
+		return horizontalPodAutoscalingStatus
+	}
+
+	datadogHPAConfigMap := custommetrics.GetHPAConfigmapName()
+	horizontalPodAutoscalingStatus["Cmname"] = datadogHPAConfigMap
+
+	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, apiserver.GetResourcesNamespace(), datadogHPAConfigMap)
+	externalMetrics, err := store.ListAllExternalMetricValues()
+	if err != nil {
+		horizontalPodAutoscalingStatus["ErrorStore"] = err.Error()
+		return horizontalPodAutoscalingStatus
+	}
+
+	horizontalPodAutoscalingStatus["Number"] = len(externalMetrics)
+	horizontalPodAutoscalingStatus["Metrics"] = externalMetrics
+
+	return horizontalPodAutoscalingStatus
 }

@@ -27,10 +27,11 @@ import (
 )
 
 var (
-	globalAPIClient *APIClient
-	ErrNotFound     = errors.New("entity not found")
-	ErrOutdated     = errors.New("entity is outdated")
-	ErrNotLeader    = errors.New("not Leader")
+	globalAPIClient  *APIClient
+	ErrNotFound      = errors.New("entity not found")
+	ErrOutdated      = errors.New("entity is outdated")
+	ErrNotLeader     = errors.New("not Leader")
+	isConnectVerbose = false
 )
 
 const (
@@ -68,7 +69,7 @@ func GetAPIClient() (*APIClient, error) {
 	}
 	err := globalAPIClient.initRetry.TriggerRetry()
 	if err != nil {
-		log.Debugf("init error: %s", err)
+		log.Debugf("API Server init error: %s", err)
 		return nil, err
 	}
 	return globalAPIClient, nil
@@ -97,14 +98,14 @@ func getK8sConfig() (*rest.Config, error) {
 	if cfgPath == "" {
 		k8sConfig, err = rest.InClusterConfig()
 		if err != nil {
-			log.Debug("Can't create a config for the official client from the service account's token: %s", err)
+			log.Debugf("Can't create a config for the official client from the service account's token: %s", err)
 			return nil, err
 		}
 	} else {
 		// use the current context in kubeconfig
 		k8sConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
 		if err != nil {
-			log.Debug("Can't create a config for the official client from the configured path to the kubeconfig: %s, ", cfgPath, err)
+			log.Debugf("Can't create a config for the official client from the configured path to the kubeconfig: %s, %s", cfgPath, err)
 			return nil, err
 		}
 	}
@@ -177,7 +178,7 @@ func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) er
 	return nil
 }
 
-// ClusterMetadataMapping queries the Kubernetes apiserver to get the following resources:
+// ClusterMetadataMapping is run by the Cluster Agent. It queries the Kubernetes apiserver to get the following resources:
 // - all nodes
 // - all endpoints of all namespaces
 // - all pods of all namespaces
@@ -257,10 +258,11 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 	}
 }
 
-// StartMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
+// StartClusterMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
 // The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
-func (c *APIClient) StartMetadataMapping() {
+func (c *APIClient) StartClusterMetadataMapping() {
 	tickerSvcProcess := time.NewTicker(c.metadataPollIntl)
+	log.Infof("Starting the cluster level metadata mapping, polling every %s", c.metadataPollIntl.String())
 	go func() {
 		for {
 			select {
@@ -285,26 +287,33 @@ func aggregateCheckResourcesErrors(errorMessages []string) error {
 func (c *APIClient) checkResourcesAuth() error {
 	var errorMessages []string
 
-	resourceTimeoutSeconds := int64(2)
-
 	// We always want to collect events
-	_, err := c.Cl.CoreV1().Events("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err := c.Cl.CoreV1().Events("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
+		if !isConnectVerbose {
+			return aggregateCheckResourcesErrors(errorMessages)
+		}
 	}
 
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
-	_, err = c.Cl.CoreV1().Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Cl.CoreV1().Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
+		if !isConnectVerbose {
+			return aggregateCheckResourcesErrors(errorMessages)
+		}
 	}
-	_, err = c.Cl.CoreV1().Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Cl.CoreV1().Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
+		if !isConnectVerbose {
+			return aggregateCheckResourcesErrors(errorMessages)
+		}
 	}
-	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
+	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))

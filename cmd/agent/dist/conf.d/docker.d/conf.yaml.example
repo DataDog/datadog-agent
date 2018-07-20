@@ -29,6 +29,9 @@ instances:
     # Defaults to false.
     #
     # collect_container_size: true
+    #
+    # Set the frequency of collection of disk user per container metrics, default is once every 5 check runs
+    # collect_container_size_frequency: 5
 
     # Collect images stats
     # Number of available active images and intermediate images as gauges.

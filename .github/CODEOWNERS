@@ -35,7 +35,7 @@
 
 /pkg/logs/                              @DataDog/ramen-intake
 
-/pkg/metrics/percentile/                @DataDog/sandwich
-
 /pkg/metadata/ecs/                      @DataDog/burrito
 /pkg/metadata/kubernetes/               @DataDog/burrito
+
+/pkg/quantile                           @DataDog/metrics-aggregation

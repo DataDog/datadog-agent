@@ -102,6 +102,13 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		return "", err
 	}
 
+	if config.Datadog.GetBool("external_metrics_provider.enabled") {
+		err = zipHPAStatus(tempDir, hostname)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
 	if err != nil {
 		return "", err
@@ -152,14 +159,8 @@ func zipMetadataMap(tempDir, hostname string) error {
 		log.Infof("Error while marshalling the cluster level metadata: %q", err)
 		return err
 	}
-	// Clean it up
-	cleanedMetaBytes, err := log.CredentialsCleanerBytes(metaBytes)
-	if err != nil {
-		log.Infof("Error redacting the log files: %q", err)
-		return err
-	}
 
-	str, err := status.FormatMetadataMapCLI(cleanedMetaBytes)
+	str, err := status.FormatMetadataMapCLI(metaBytes)
 	if err != nil {
 		log.Infof("Error while rendering the cluster level metadata: %q", err)
 		return err
@@ -168,6 +169,37 @@ func zipMetadataMap(tempDir, hostname string) error {
 	sByte := []byte(str)
 	f := filepath.Join(tempDir, hostname, "cluster-agent-metadatamapper.log")
 	log.Infof("Flare metadata mapper made at %s", tempDir)
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(f, sByte, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+func zipHPAStatus(tempDir, hostname string) error {
+	// Grab the full content of the HPA configmap
+	stats := make(map[string]interface{})
+	stats["hpaExternal"] = status.GetHorizontalPodAutoscalingStatus()
+	statsBytes, err := json.Marshal(stats)
+	if err != nil {
+		log.Infof("Error while marshalling the cluster level metadata: %q", err)
+		return err
+	}
+
+	str, err := status.FormatHPAStatus(statsBytes)
+	if err != nil {
+		return err
+	}
+	sByte := []byte(str)
+
+	f := filepath.Join(tempDir, hostname, "custommetricsprovider.log")
+	log.Infof("Flare hpa status made at %s", tempDir)
+
 	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err

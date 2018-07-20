@@ -20,23 +20,34 @@ import (
 )
 
 var (
-	forwarderExpvar        = expvar.NewMap("forwarder")
-	transactionsExpvar     = expvar.Map{}
-	retryQueueSize         = expvar.Int{}
-	successfulTransactions = expvar.Int{}
-	droppedOnInput         = expvar.Int{}
-	apiKeyStatus           = expvar.Map{}
+	forwarderExpvars          = expvar.NewMap("forwarder")
+	transactionsExpvars       = expvar.Map{}
+	transactionsSeries        = expvar.Int{}
+	transactionsEvents        = expvar.Int{}
+	transactionsServiceChecks = expvar.Int{}
+	transactionsSketchSeries  = expvar.Int{}
+	transactionsHostMetadata  = expvar.Int{}
+	transactionsMetadata      = expvar.Int{}
+	transactionsTimeseriesV1  = expvar.Int{}
+	transactionsCheckRunsV1   = expvar.Int{}
+	transactionsIntakeV1      = expvar.Int{}
 )
 
 func init() {
-	transactionsExpvar.Init()
-	forwarderExpvar.Set("Transactions", &transactionsExpvar)
-	transactionsExpvar.Set("RetryQueueSize", &retryQueueSize)
-	transactionsExpvar.Set("Success", &successfulTransactions)
-	transactionsExpvar.Set("DroppedOnInput", &droppedOnInput)
-
-	apiKeyStatus.Init()
-	forwarderExpvar.Set("APIKeyStatus", &apiKeyStatus)
+	transactionsExpvars.Init()
+	forwarderExpvars.Set("Transactions", &transactionsExpvars)
+	transactionsExpvars.Set("Series", &transactionsSeries)
+	transactionsExpvars.Set("Events", &transactionsEvents)
+	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
+	transactionsExpvars.Set("SketchSeries", &transactionsSketchSeries)
+	transactionsExpvars.Set("HostMetadata", &transactionsHostMetadata)
+	transactionsExpvars.Set("Metadata", &transactionsMetadata)
+	transactionsExpvars.Set("TimeseriesV1", &transactionsTimeseriesV1)
+	transactionsExpvars.Set("CheckRunsV1", &transactionsCheckRunsV1)
+	transactionsExpvars.Set("IntakeV1", &transactionsIntakeV1)
+	initDomainForwarderExpvars()
+	initTransactionExpvars()
+	initForwarderHealthExpvars()
 }
 
 const (
@@ -220,42 +231,42 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 // SubmitSeries will send a series type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	transactionsExpvar.Add("Series", 1)
+	transactionsSeries.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra)
-	transactionsExpvar.Add("Events", 1)
+	transactionsEvents.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitServiceChecks will send a service check type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(serviceChecksEndpoint, payload, false, extra)
-	transactionsExpvar.Add("ServiceChecks", 1)
+	transactionsServiceChecks.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extra)
-	transactionsExpvar.Add("SketchSeries", 1)
+	transactionsSketchSeries.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
-	transactionsExpvar.Add("HostMetadata", 1)
+	transactionsHostMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, extra)
-	transactionsExpvar.Add("Metadata", 1)
+	transactionsMetadata.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -263,7 +274,7 @@ func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) e
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra)
-	transactionsExpvar.Add("TimeseriesV1", 1)
+	transactionsTimeseriesV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -271,7 +282,7 @@ func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) e
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
-	transactionsExpvar.Add("CheckRunsV1", 1)
+	transactionsCheckRunsV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -284,6 +295,6 @@ func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) e
 		t.Headers.Set("Content-Type", "application/json")
 	}
 
-	transactionsExpvar.Add("IntakeV1", 1)
+	transactionsIntakeV1.Add(1)
 	return f.sendHTTPTransactions(transactions)
 }

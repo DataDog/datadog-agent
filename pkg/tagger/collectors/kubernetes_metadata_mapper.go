@@ -46,7 +46,7 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 
 		tagList := utils.NewTagList()
-		if !config.Datadog.GetBool("cluster_agent") {
+		if !config.Datadog.GetBool("cluster_agent.enabled") {
 			metadataNames, err = apiserver.GetPodMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
 			if err != nil {
 				log.Errorf("Could not fetch cluster level tags for the pod %s: %s", po.Metadata.Name, err.Error())
@@ -55,8 +55,13 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		} else {
 			metadataNames, err = c.dcaClient.GetKubernetesMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
 			if err != nil {
-				log.Tracef("Could not pull the metadata map of po %s on node %s from the Datadog Cluster Agent: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
+				log.Debugf("Could not pull the metadata map of po %s on node %s from the Datadog Cluster Agent: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
+				continue
 			}
+		}
+		if len(metadataNames) == 0 {
+			log.Tracef("No cluster metadata for the pod %s on node %s", po.Metadata.Name, po.Spec.NodeName)
+			continue
 		}
 		for _, tagDCA := range metadataNames {
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)

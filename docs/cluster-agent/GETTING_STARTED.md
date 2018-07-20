@@ -112,7 +112,7 @@ Those can be found in the [Datadog Agent RBAC](../../Dockerfiles/manifests/clust
 To do so, add the following environment variables to the agent's manifest:
 
 ```yaml
-          - name: DD_CLUSTER_AGENT
+          - name: DD_CLUSTER_AGENT_ENABLED
             value: 'true'
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN
             valueFrom:
