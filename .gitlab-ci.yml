@@ -990,24 +990,29 @@ latest_release:
 
 dca_tag_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
+  only:
+    refs:
+      - tags
+      - ^dca([\d.-]|rc)+$
   stage: deploy
   when: manual
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_TAG}
-
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:${CI_COMMIT_TAG}
 
 dca_latest_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
+  only:
+    refs:
+      - tags
+      - ^dca([\d.-]|rc)+$
   stage: deploy
   when: manual
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:latest
+    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:latest
 
 # invalidate cloudfront cache
 deploy_cloudfront_invalidate:
