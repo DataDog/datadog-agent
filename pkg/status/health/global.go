@@ -5,6 +5,11 @@
 
 package health
 
+import (
+	"errors"
+	"time"
+)
+
 var globalCatalog = newCatalog()
 
 // Register a component with the default 30 seconds timeout, returns a token
@@ -20,4 +25,22 @@ func Deregister(handle *Handle) error {
 // GetStatus allows to query the health status of the agent
 func GetStatus() Status {
 	return globalCatalog.getStatus()
+}
+
+// GetStatusNonBlocking allows to query the health status of the agent
+// and is guaranteed to return under 100ms.
+func GetStatusNonBlocking() (Status, error) {
+	// Run the health status in a goroutine
+	ch := make(chan Status, 1)
+	go func() {
+		ch <- GetStatus()
+	}()
+
+	// Only wait 100ms before returning
+	select {
+	case status := <-ch:
+		return status, nil
+	case <-time.After(100 * time.Millisecond):
+		return Status{}, errors.New("timeout when getting health status")
+	}
 }

@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -183,6 +183,10 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
 	h := health.GetStatus()
+
+	if len(h.Unhealthy) > 0 {
+		log.Debugf("Healthcheck failed on: %v", h.Unhealthy)
+	}
 
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {
