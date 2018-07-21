@@ -25,7 +25,7 @@ source git: 'https://github.com/DataDog/integrations-core.git'
 PIPTOOLS_VERSION = "2.0.2"
 PYMPLER_VERSION = "0.5"
 WHEELS_VERSION = "0.30.0"
-UNINSTALL_PIPTOOLS_DEPS = ['first', 'click', 'pip-tools']
+UNINSTALL_PIPTOOLS_DEPS = ['first', 'click', 'six', 'pip-tools']
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
@@ -103,12 +103,13 @@ build do
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
       command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
-      command("#{python_bin} -m #{python_pip_req}\\static_requirements.txt")
 
       # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
       for dep in UNINSTALL_PIPTOOLS_DEPS
         command("#{python_bin} -m #{python_pip_uninstall} dep")
       end
+
+      command("#{python_bin} -m #{python_pip_req}\\static_requirements.txt")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
@@ -121,6 +122,7 @@ build do
       for dep in UNINSTALL_PIPTOOLS_DEPS
         pip "uninstall #{dep}"
       end
+      
       pip "install --require-hashes -r #{project_dir}/static_requirements.txt"
     end
 
