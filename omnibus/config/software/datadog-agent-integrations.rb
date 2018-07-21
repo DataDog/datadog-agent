@@ -98,7 +98,7 @@ build do
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
     python_pip_no_deps = "pip install --no-deps #{windows_safe_path(project_dir)}"
     python_pip_req = "pip install --require-hashes -r #{windows_safe_path(project_dir)}"
-    python_pip_uninstall = "pip uninstall"
+    python_pip_uninstall = "pip uninstall -y"
 
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
@@ -120,7 +120,7 @@ build do
 
       # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
       for dep in UNINSTALL_PIPTOOLS_DEPS
-        pip "uninstall #{dep}"
+        pip "uninstall -y #{dep}"
       end
 
       pip "install --require-hashes -r #{project_dir}/static_requirements.txt"
