@@ -106,7 +106,7 @@ build do
 
       # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
       for dep in UNINSTALL_PIPTOOLS_DEPS
-        command("#{python_bin} -m #{python_pip_uninstall} dep")
+        command("#{python_bin} -m #{python_pip_uninstall} #{dep}")
       end
 
       command("#{python_bin} -m #{python_pip_req}\\static_requirements.txt")
@@ -122,7 +122,7 @@ build do
       for dep in UNINSTALL_PIPTOOLS_DEPS
         pip "uninstall #{dep}"
       end
-      
+
       pip "install --require-hashes -r #{project_dir}/static_requirements.txt"
     end
 
