@@ -79,17 +79,20 @@ jobs:
           command: inv  -e integration-tests --race --remote-docker
 
   # general linting for PR health  These checks are so short there doesn't seem
-  # to be a point in spinning up separate images to run them
-  pr_linting:
+  # to be a point in spinning up separate images to run them.  Leave it named
+  # `reno_linting`, as that's what the github job expects.
+  reno_linting:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
       - run:
-          name: run PR linting
           command: inv -e lint-releasenote
+          name: run PR check for release note
+      - run:
           command: inv -e lint-teamassignment
+          name: run PR check for team assignment
 
   filename_linting:
     <<: *job_template
@@ -149,7 +152,7 @@ workflows:
       - integration_tests:
           requires:
             - dependencies
-      - pr_linting:
+      - reno_linting:
           requires:
             - dependencies
       - filename_linting:
