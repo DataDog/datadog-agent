@@ -149,4 +149,4 @@ To enable the HPA:
 - Configure the `<DD_APP_KEY>` as well as the `<DD_API_KEY>` in the Deployment of the Datadog Cluster Agent.
 - Create a service exposing the port 443 and register it as an APIService for External Metrics.
 
-Refer to [the dedicated guide](/docs/cluster-agent/HORIZONTAL_POD_AUTOSCALING.md) to configure the HPA and get more details about this feature.
+Refer to [the dedicated guide](/docs/cluster-agent/CUSTOM_METRICS_PROVIDER.md) to configure the HPA and get more details about this feature.
