@@ -280,23 +280,26 @@ func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Che
 		bucket.mu.RLock()
 
 		// randomize job scheduling to avoid job starvation
-		jIdx := jq.rand.Intn(len(bucket.jobs))
-		jobs := append(bucket.jobs[jIdx:len(bucket.jobs)], bucket.jobs[0:jIdx]...)
+		nJobs := len(bucket.jobs)
+		if nJobs > 0 {
+			jIdx := jq.rand.Intn(nJobs)
+			jobs := append(bucket.jobs[jIdx:nJobs], bucket.jobs[0:jIdx]...)
 
-		for _, check := range jobs {
-			// sending to `out` is blocking, we need to constantly check that someone
-			// isn't asking to stop this queue
-			select {
-			case <-jq.stop:
-				bucket.mu.RUnlock()
+			for _, check := range jobs {
+				// sending to `out` is blocking, we need to constantly check that someone
+				// isn't asking to stop this queue
+				select {
+				case <-jq.stop:
+					bucket.mu.RUnlock()
 
-				jq.stopBuckets()
-				return false
-			case out <- check:
-				log.Debugf("Enqueuing check %s for queue %s", check, jq.interval)
-			case <-deadline:
-				log.Infof("Bucket[%d] deadline reached not enough runners were available - skipping runs", idx)
-				break
+					jq.stopBuckets()
+					return false
+				case out <- check:
+					log.Debugf("Enqueuing check %s for queue %s", check, jq.interval)
+				case <-deadline:
+					log.Infof("Bucket[%d] deadline reached not enough runners were available - skipping runs", idx)
+					break
+				}
 			}
 		}
 		bucket.mu.RUnlock()
