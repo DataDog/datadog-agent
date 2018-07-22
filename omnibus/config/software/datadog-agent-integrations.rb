@@ -94,10 +94,13 @@ build do
       pip "install wheel==#{WHEELS_VERSION} pympler==#{PYMPLER_VERSION} pip-tools==#{PIPTOOLS_VERSION}", :env => build_env
     end
 
+    # Set frozen requirements
+    pip "freeze > #{install_dir}/check_requirements.txt"
+
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
-    python_pip_no_deps = "pip install --no-deps #{windows_safe_path(project_dir)}"
-    python_pip_req = "pip install --require-hashes -r #{windows_safe_path(project_dir)}"
+    python_pip_no_deps = "pip install -c #{windows_safe_path(install_dir)}\\check_requirements.txt --no-deps #{windows_safe_path(project_dir)}"
+    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\check_requirements.txt --require-hashes -r #{windows_safe_path(project_dir)}"
     python_pip_uninstall = "pip uninstall -y"
 
     if windows?
@@ -115,7 +118,7 @@ build do
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
-      pip "install --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      pip "install -c #{install_dir}/check_requirements.txt --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
 
       # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
@@ -123,7 +126,7 @@ build do
         pip "uninstall -y #{dep}"
       end
 
-      pip "install --require-hashes -r #{project_dir}/static_requirements.txt"
+      pip "install -c #{install_dir}/check_requirements.txt--require-hashes -r #{project_dir}/static_requirements.txt"
     end
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
