@@ -80,7 +80,7 @@ build do
       copy windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{tuf_repo_meta}/current/root.json")
     end
 
-    ll_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
+    all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
     # FIX THIS these dependencies have to be grabbed from somewhere
     all_reqs_file.puts "pympler==0.5 --hash=sha256:7d16c4285f01dcc647f69fb6ed4635788abc7a7cb7caa0065d763f4ce3d21c0f"
     all_reqs_file.puts "wheel==0.30.0 --hash=sha256:e721e53864f084f956f40f96124a74da0631ac13fbbd1ba99e8e2b5e9cafdf64"\
