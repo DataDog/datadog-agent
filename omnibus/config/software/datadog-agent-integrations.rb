@@ -94,8 +94,20 @@ build do
       pip "install wheel==#{WHEELS_VERSION} pympler==#{PYMPLER_VERSION} pip-tools==#{PIPTOOLS_VERSION}", :env => build_env
     end
 
-    # Set frozen requirements
+    # Set frozen requirements without pip-tools 
     pip "freeze > #{install_dir}/check_requirements.txt"
+
+    # Install all the build requirements
+    if windows?
+      pip_args = "install pip-tools==#{PIPTOOLS_VERSION}"
+      command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
+    else
+      build_env = {
+        "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
+        "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
+      }
+      pip "install pip-tools==#{PIPTOOLS_VERSION}", :env => build_env
+    end
 
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
