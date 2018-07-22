@@ -23,8 +23,6 @@ whitelist_file "embedded/lib/python2.7"
 source git: 'https://github.com/DataDog/integrations-core.git'
 
 PIPTOOLS_VERSION = "2.0.2"
-PYMPLER_VERSION = "0.5"
-WHEELS_VERSION = "0.30.0"
 UNINSTALL_PIPTOOLS_DEPS = ['first', 'click', 'six', 'pip-tools']
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
@@ -82,20 +80,29 @@ build do
       copy windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{tuf_repo_meta}/current/root.json")
     end
 
+    ll_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
+    # FIX THIS these dependencies have to be grabbed from somewhere
+    all_reqs_file.puts "pympler==0.5 --hash=sha256:7d16c4285f01dcc647f69fb6ed4635788abc7a7cb7caa0065d763f4ce3d21c0f"
+    all_reqs_file.puts "wheel==0.30.0 --hash=sha256:e721e53864f084f956f40f96124a74da0631ac13fbbd1ba99e8e2b5e9cafdf64"\
+    " --hash=sha256:9515fe0a94e823fd90b08d22de45d7bde57c90edce705b22f5e1ecf7e1b653c8"
+    
+    all_reqs_file.close
+
+    # Install all the requirements
     # Install all the build requirements
-    if windows?
-      pip_args = "install wheel==#{WHEELS_VERSION} pympler==#{PYMPLER_VERSION}"
-      command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
-    else
-      build_env = {
-        "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-        "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-      }
-      pip "install wheel==#{WHEELS_VERSION} pympler==#{PYMPLER_VERSION}", :env => build_env
-    end
+     if windows?
+       pip_args = "install --require-hashes -r #{project_dir}/check_requirements.txt"
+       command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
+     else
+       build_env = {
+         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
+         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
+       }
+       pip "install --require-hashes -r #{project_dir}/check_requirements.txt", :env => build_env
+     end
 
     # Set frozen requirements without pip-tools 
-    pip "freeze > #{install_dir}/check_requirements.txt"
+    pip "freeze > #{install_dir}/constraint_requirements.txt"
 
     # Install all the build requirements
     if windows?
@@ -111,8 +118,8 @@ build do
 
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
-    python_pip_no_deps = "pip install -c #{windows_safe_path(install_dir)}\\check_requirements.txt --no-deps #{windows_safe_path(project_dir)}"
-    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\check_requirements.txt --require-hashes -r #{windows_safe_path(project_dir)}"
+    python_pip_no_deps = "pip install -c #{windows_safe_path(install_dir)}\\constraint_requirements.txt --no-deps #{windows_safe_path(project_dir)}"
+    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\constraint_requirements.txt --require-hashes -r #{windows_safe_path(project_dir)}"
     python_pip_uninstall = "pip uninstall -y"
 
     if windows?
@@ -130,7 +137,7 @@ build do
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
-      pip "install -c #{install_dir}/check_requirements.txt --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      pip "install -c #{install_dir}/constraint_requirements.txt --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
 
       # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
@@ -138,7 +145,7 @@ build do
         pip "uninstall -y #{dep}"
       end
 
-      pip "install -c #{install_dir}/check_requirements.txt--require-hashes -r #{project_dir}/static_requirements.txt"
+      pip "install -c #{install_dir}/constraint_requirements.txt--require-hashes -r #{project_dir}/static_requirements.txt"
     end
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
