@@ -3,6 +3,7 @@ Golang related tasks go here
 """
 from __future__ import print_function
 import os
+import shutil
 import sys
 
 from invoke import task
@@ -200,6 +201,16 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         tool = deps.get(dependency)
         process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
 
+    if android:
+        ndkhome = os.environ.get('ANDROID_NDK_HOME')
+        if not ndkhome:
+            print("set ANDROID_NDK_HOME to build android")
+            raise Exit(code=1)
+
+        cmd = "gomobile init -ndk {}". format(ndkhome)
+        print("gomobile command {}". format(cmd))
+        ctx.run(cmd)
+
     # source level deps
     ctx.run("dep ensure{}".format(verbosity))
     # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
@@ -207,7 +218,6 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
     if not android and sys.platform == 'win32':
         print("Removing PSUTIL on Windows")
         ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
-
 
     if not no_checks:
         verbosity = 'v' if verbose else 'q'
