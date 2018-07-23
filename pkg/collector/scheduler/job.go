@@ -285,6 +285,7 @@ func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Che
 			jIdx := jq.rand.Intn(nJobs)
 			jobs := append(bucket.jobs[jIdx:nJobs], bucket.jobs[0:jIdx]...)
 
+		jobloop:
 			for _, check := range jobs {
 				// sending to `out` is blocking, we need to constantly check that someone
 				// isn't asking to stop this queue
@@ -298,7 +299,7 @@ func (jq *jobQueue) waitForTick(cases []reflect.SelectCase, out chan<- check.Che
 					log.Debugf("Enqueuing check %s for queue %s", check, jq.interval)
 				case <-deadline:
 					log.Infof("Bucket[%d] deadline reached not enough runners were available - skipping runs", idx)
-					break
+					break jobloop
 				}
 			}
 		}
