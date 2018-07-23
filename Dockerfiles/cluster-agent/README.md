@@ -1,6 +1,6 @@
 # Datadog Cluster Agent | Containerized environments
 
-This is how the official Datadog Cluster Agent image, available [here](https://hub.docker.com/r/datadog/cluster-agent/), is built.
+This is the technical documentation for the Datadog Cluster Agent image, available [here](https://hub.docker.com/r/datadog/cluster-agent/).
 
 ## How to run it
 
@@ -12,22 +12,19 @@ The following environment variables are supported:
 - `DD_USE_METADATA_MAPPER`: enables the cluster level metadata mapping, default is `true`.
 - `DD_COLLECT_KUBERNETES_EVENTS` - configures the agent to collect Kubernetes events. Default to `false`. See the [Event collection section](#event-collection) for more details.
 - `DD_LEADER_ELECTION`: activates the [leader election](#leader-election). You must set `DD_COLLECT_KUBERNETES_EVENTS` to `true` to activate this feature. Default value is `false`.
-- `DD_LEADER_LEASE_DURATION`: used only if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds, is 60 by default.
+- `DD_LEADER_LEASE_DURATION`: used only if the leader election is activated. See the details [here](#leader-election-lease). Value in seconds, 60 by default.
 - `DD_CLUSTER_AGENT_AUTH_TOKEN`: 32 characters long token that needs to be shared between the node agent and the Datadog Cluster Agent.
 - `DD_KUBE_RESOURCES_NAMESPACE`: configures the namespace where the Cluster Agent creates the configmaps required for the Leader Election, the Event Collection (optional) and the Horizontal Pod Autoscaling.
 - `DD_KUBERNETES_INFORMERS_RESYNC_PERIOD`: frequency in seconds to query the API Server to reprocess the cluster metadata. The default is 5 minutes.
 - `DD_EXPVAR_PORT`: change the port for fetching [expvar](https://golang.org/pkg/expvar/) public variables from the Datadog Cluster Agent. The default is port 5000.
 
-For a more detailed usage please [refer to the official Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/) documentation.
-
 ## How to build it
 
-### Dockerized Agent
+### Containerized Agent
 
 The Datadog Cluster Agent is designed to be used in a containerized ecosystem.
-Therefore, you need to have docker installed on your system.
 
-Start by creating the binary by running `inv -e cluster-agent.build`. This will add a binary in `./bin/datadog-cluster-agent/`
+Start by creating the binary by running `inv -e cluster-agent.build` from the `datadog-agent` [package](../../../datadog-agent). This will add a binary in `./bin/datadog-cluster-agent/`
 Then from the current folder, run `inv -e cluster-agent.image-build`.
 
 ## Running the Datadog Cluster Agent with Kubernetes
@@ -35,12 +32,12 @@ Then from the current folder, run `inv -e cluster-agent.image-build`.
 ### Security premise
 <a name="security-premise"></a>
 
-You should create the secret that is be used for your Agents to communicate with the Datadog Cluster Agent.
-You must modify the value in [the dca-secret.yaml](/manifests/cluster-agent/dca-secret.yaml) then create it:
+We strongly recommend the usage of a secret to authenticate your Agents when communicating with the Datadog Cluster Agent.
+You must modify the value of the secret in [the dca-secret.yaml](/manifests/cluster-agent/dca-secret.yaml) then create it:
 
 `kubectl create -f manifests/cluster-agent/dca-secret.yaml`
 
-Will yield:
+yields:
 
 ```
 kubectl get secret datadog-auth-token
@@ -49,8 +46,29 @@ datadog-auth-token   Opaque    1         16s
 
 ```
 
+## Pre-requisites for the Datadog Cluster Agent to interact with the API server.
+
+Review the RBAC files in [the manifests folder](/manifests/rbac) to get the full scope of the requirements.
+These manifests will create a Service Account, a Cluster Role with a restricted scope and actions detailed below and a Cluster Role Binding as well.
+
+### The Datadog Cluster Agent needs:
+
+- `get`, `list` and `watch` of `Componenentstatuses` to produce the controle plane service checks.
+- `get` and `update` of the `Configmaps` named `eventtokendca` to update and query the most up to date version token corresponding to the latest event stored in ETCD.
+- `watch` the `Services` to perform the Autodiscovery based off of services activity
+- `get`, `list` and `watch` of the `Pods`
+- `get`, `list` and `watch`  of the `Nodes`
+- `get`, `list` and `watch`  of the `Endpoints` to run cluster level health checks.
+
+The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace (unless configured otherwise with `DD_KUBE_RESOURCES_NAMESPACE`) and be named `configmapdcatoken`
+One can simply run `kubectl create configmap configmapdcatoken --from-literal="event.tokenKey"="0"` .
+NB: you can set any resversion here, make sure it's not set to a value superior to the actual curent resversion.
+
+You can also set the `event.tokenTimestamp`, if not present, it will be automatically set.
+
 ### Spin up the Datadog Cluster Agent
-To run the Datadog Cluster Agent in Kubernetes, you can simply run `kubectl create -f dca_deploy.yaml` and use the following manifest
+
+Run the Datadog Cluster Agent in Kubernetes using the following manifest:
 
 ```
 apiVersion: extensions/v1beta1
@@ -78,36 +96,16 @@ spec:
           - name: DD_COLLECT_KUBERNETES_EVENTS
             value: "true"
 ```
-And use the RBAC below to get the best out of it.
-
-## Pre-requisites for the Datadog Cluster Agent to interact with the API server.
-
-For the Datadog Cluster Agent to produce events, service checks and run checks one needs to enable it to perform a few actions.
-Please find the minimum RBAC listed in [the manifests](/manifests/rbac) to get the full scope of features.
-These manifests will create a Service Account, a Cluster Role with a restricted scope and actions detailed below and a Cluster Role Binding as well.
-
-### The Datadog Cluster Agent needs:
-
-- `get`, `list` and `watch` of `Componenentstatuses` to produce the controle plane service checks.
-- `get` and `update` of the `Configmaps` named `eventtokendca` to update and query the most up to date version token corresponding to the latest event stored in ETCD.
-- `watch` the `Services` to perform the Autodiscovery based off of services activity
-- `get`, `list` and `watch` of the `Pods`
-- `get`, `list` and `watch`  of the `Nodes`
-- `get`, `list` and `watch`  of the `Endpoints` to run cluster level health checks.
-
-The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace and be named `configmapdcatoken`
-One can simply run `kubectl create configmap configmapdcatoken --from-literal="event.tokenKey"="0"` .
-NB: you can set any resversion here, make sure it's not set to a value superior to the actual curent resversion.
-
-You can also set the `event.tokenTimestamp`, if not present, it will be automatically set.
+Apply the manifest:
+`kubectl create -f dca_deploy.yaml`
 
 ### Command line interface of the Cluster Agent
 
 The available commands for the Cluster Agents are:
-- `datadog-cluster-agent status`: This will give you an overview of the components of the agent and their health.
-- `datadog-cluster-agent metamap [nodeName]`: Will query the local cache of the mapping between the pods living on `nodeName`
+- `datadog-cluster-agent status`: Gives an overview of the components of the agent and their health.
+- `datadog-cluster-agent metamap [nodeName]`: Queries the local cache of the mapping between the pods living on `nodeName`
     and the cluster level metadata it's associated with (endpoints ...).
-    One can also not specify the `nodeName` to run the mapper on all the nodes of the cluster.
+    Not specifying the `nodeName` will run the mapper on all the nodes of the cluster.
 - `datadog-cluster-agent flare [caseID]`: Similarly to the node agent, the cluster agent can aggregate the logs and the configurations used
     and forward an archive to the support team or be deflated and used locally.
 
@@ -115,7 +113,7 @@ The available commands for the Cluster Agents are:
 ### Communication with the Datadog Node Agent.
 
 For the Datadog Cluster Agent to communicate with the Node Agent, you need to share an authentication token between the two agents.
-The Token needs to be longer than 32 characters and should only have upper case or lower case letters and numbers.
+The token needs to be longer than 32 characters and should only have upper case or lower case letters and numbers.
 You can pass the token as an environment variable: `DD_CLUSTER_AGENT_AUTH_TOKEN`.
 
 ### Enabling Features
@@ -133,12 +131,13 @@ Enabling the leader election will ensure that only one agent collects the events
 
 #### Cluster metadata provider
 
-You need to ensure the Node Agents and the Datadog Cluster Agent can properly communicate.
-Create a service in front of the Datadog Cluster Agent (see /manifests/datadog-cluster-agent_service.yaml)
+Ensure the Node Agents and the Datadog Cluster Agent can properly communicate.
+Create a [service](../manifests/cluster-agent/datadog-cluster-agent_service.yaml) in front of the Datadog Cluster Agent.
 Ensure an auth_token is properly shared between the agents.
-Confirm the RBAC rules are properly set (see /manifests/rbac/).
+Confirm the [RBAC rules](../manifests/rbac) are properly set.
 
-In the Node Agent, make sure the `DD_CLUSTER_AGENT` env var is set to true.
+In the Node Agent, set the env var `DD_CLUSTER_AGENT` to true.
+
 The env var `DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ` can be set to specify how often the Node Agents hit the Datadog Cluster Agent.
 You can disable the kubernetes metadata tag collection with `DD_KUBERNETES_COLLECT_METADATA_TAGS`.
 
@@ -147,6 +146,6 @@ You can disable the kubernetes metadata tag collection with `DD_KUBERNETES_COLLE
 To enable the HPA:
 - Set `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` to `true` in the Deployment of the Datadog Cluster Agent.
 - Configure the `<DD_APP_KEY>` as well as the `<DD_API_KEY>` in the Deployment of the Datadog Cluster Agent.
-- Create a service exposing the port 443 and register it as an APIService for External Metrics.
+- Create a [service exposing the port 443](../manifests/cluster-agent/hpa-example/cluster-agent-hpa-svc.yaml) and [register it as an APIService for External Metrics](../manifests/cluster-agent/hpa-example/rbac-hpa.yaml).
 
 Refer to [the dedicated guide](/docs/cluster-agent/CUSTOM_METRICS_PROVIDER.md) to configure the HPA and get more details about this feature.
