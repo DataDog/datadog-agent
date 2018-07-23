@@ -127,7 +127,7 @@ build do
       command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
 
       # Uninstall pip
-      freeze_file = File.read("#{windows_safe_path(project_dir)}\\agent_requirements.txt")
+      freeze_file = File.read("#{windows_safe_path(project_dir)}\\constraint_requirements.txt")
       UNINSTALL_PIPTOOLS_DEPS.each do |dep|
         if not freeze_file.include? dep
           pip "uninstall -y #{dep}"
@@ -144,7 +144,7 @@ build do
       command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
       
       # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
-      freeze_file = File.read("#{project_dir}/agent_requirements.txt")
+      freeze_file = File.read("#{project_dir}/constraint_requirements.txt")
       UNINSTALL_PIPTOOLS_DEPS.each do |dep|
         if not freeze_file.include? dep
            pip "uninstall -y #{dep}"
