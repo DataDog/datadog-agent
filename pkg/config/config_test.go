@@ -236,8 +236,56 @@ func TestLoadProxyEnvOnly(t *testing.T) {
 	Datadog.Set("proxy", nil)
 }
 
+func TestLoadProxyDDPrefixedEnvOnly(t *testing.T) {
+	os.Setenv("DD_HTTP_PROXY", "http_url")
+	os.Setenv("DD_HTTPS_PROXY", "https_url")
+	os.Setenv("DD_NO_PROXY", "a,b,c")
+
+	loadProxyFromEnv()
+
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "http_url",
+			HTTPS:   "https_url",
+			NoProxy: []string{"a", "b", "c"}},
+		proxies)
+
+	os.Unsetenv("DD_HTTP_PROXY")
+	os.Unsetenv("DD_HTTPS_PROXY")
+	os.Unsetenv("DD_NO_PROXY")
+	Datadog.Set("proxy", nil)
+}
+
+func TestLoadProxyDDPrefixedEnvPrecedenceOverEnv(t *testing.T) {
+	os.Setenv("DD_HTTP_PROXY", "dd_http_url")
+	os.Setenv("DD_HTTPS_PROXY", "dd_https_url")
+	os.Setenv("DD_NO_PROXY", "a,b,c")
+	os.Setenv("HTTP_PROXY", "env_http_url")
+	os.Setenv("HTTPS_PROXY", "env_https_url")
+	os.Setenv("NO_PROXY", "d,e,f")
+
+	loadProxyFromEnv()
+
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "dd_http_url",
+			HTTPS:   "dd_https_url",
+			NoProxy: []string{"a", "b", "c"}},
+		proxies)
+
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("DD_HTTP_PROXY")
+	os.Unsetenv("DD_HTTPS_PROXY")
+	os.Unsetenv("DD_NO_PROXY")
+	Datadog.Set("proxy", nil)
+}
+
 func TestLoadProxyEnvAndConf(t *testing.T) {
-	os.Setenv("HTTP", "http_env")
+	os.Setenv("HTTP_PROXY", "http_env")
 	Datadog.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	Datadog.Set("proxy.http", "http_conf")
 	defer os.Unsetenv("HTTP")
@@ -247,7 +295,24 @@ func TestLoadProxyEnvAndConf(t *testing.T) {
 	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
-			HTTP:    "http_conf",
+			HTTP:    "http_env",
+			HTTPS:   "",
+			NoProxy: []string{"d", "e", "f"}},
+		proxies)
+}
+
+func TestLoadProxyDDPrefixedEnvAndConf(t *testing.T) {
+	os.Setenv("DD_HTTP_PROXY", "http_env")
+	Datadog.Set("proxy.no_proxy", []string{"d", "e", "f"})
+	Datadog.Set("proxy.http", "http_conf")
+	defer os.Unsetenv("DD_HTTP_PROXY")
+	defer Datadog.Set("proxy", nil)
+
+	loadProxyFromEnv()
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "http_env",
 			HTTPS:   "",
 			NoProxy: []string{"d", "e", "f"}},
 		proxies)

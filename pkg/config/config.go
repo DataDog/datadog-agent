@@ -369,6 +369,16 @@ func loadProxyFromEnv() {
 		return os.Getenv(strings.ToLower(key))
 	}
 
+	// getEnvDDPrecedence pulls the value of the `DD_`-prefixed env var first, and
+	// if not found or empty, the value of the env var without the prefix (case-insensitive)
+	getEnvDDPrecedence := func(key string) string {
+		value := os.Getenv("DD_" + key)
+		if value == "" {
+			value = getEnvCaseInsensitive(key)
+		}
+		return value
+	}
+
 	var isSet bool
 	p := &Proxy{}
 	if isSet = Datadog.IsSet("proxy"); isSet {
@@ -378,15 +388,15 @@ func loadProxyFromEnv() {
 		}
 	}
 
-	if HTTP := getEnvCaseInsensitive("HTTP_PROXY"); HTTP != "" {
+	if HTTP := getEnvDDPrecedence("HTTP_PROXY"); HTTP != "" {
 		isSet = true
 		p.HTTP = HTTP
 	}
-	if HTTPS := getEnvCaseInsensitive("HTTPS_PROXY"); HTTPS != "" {
+	if HTTPS := getEnvDDPrecedence("HTTPS_PROXY"); HTTPS != "" {
 		isSet = true
 		p.HTTPS = HTTPS
 	}
-	if noProxy := getEnvCaseInsensitive("NO_PROXY"); noProxy != "" {
+	if noProxy := getEnvDDPrecedence("NO_PROXY"); noProxy != "" {
 		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",")
 	}
