@@ -48,13 +48,12 @@ func NewAgent(sources *config.LogSources) *Agent {
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
 	// setup the inputs
-	validSources := sources.GetValidSources()
 	inputs := []restart.Restartable{
-		docker.NewScanner(validSources, pipelineProvider, auditor),
-		listener.New(validSources, pipelineProvider),
-		file.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		journald.New(validSources, pipelineProvider, auditor),
-		windowsevent.New(validSources, pipelineProvider, auditor),
+		docker.NewScanner(sources, pipelineProvider, auditor),
+		listener.New(sources, pipelineProvider),
+		file.New(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		journald.New(sources, pipelineProvider, auditor),
+		windowsevent.New(sources, pipelineProvider, auditor),
 	}
 
 	return &Agent{

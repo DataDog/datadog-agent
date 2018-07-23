@@ -14,11 +14,11 @@ import (
 )
 
 func TestSourceAreGroupedByIntegrations(t *testing.T) {
-	sources := []*config.LogSource{
+	sources := config.NewLogSources([]*config.LogSource{
 		config.NewLogSource("foo", &config.LogsConfig{}),
 		config.NewLogSource("bar", &config.LogsConfig{}),
 		config.NewLogSource("foo", &config.LogsConfig{}),
-	}
+	})
 	Initialize(sources)
 	status := Get()
 	assert.Equal(t, true, status.IsRunning)

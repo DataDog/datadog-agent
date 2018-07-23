@@ -23,8 +23,8 @@ func TestAvailableIntegrationConfigs(t *testing.T) {
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	allSources, err := buildLogSources(ddconfdPath, false, -1)
 
+	allSources, err := buildLogSources(ddconfdPath, false, -1)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(allSources.GetSources())-len(allSources.GetValidSources()))
 
@@ -122,6 +122,7 @@ func TestCompileProcessingRules(t *testing.T) {
 func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	var ddconfdPath string
 	var err error
+
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
 	_, err = buildLogSources(ddconfdPath, false, -1)
 	assert.NotNil(t, err)

@@ -33,7 +33,7 @@ func Start() error {
 	agent.Start()
 
 	// setup the status
-	status.Initialize(sources.GetSources())
+	status.Initialize(sources)
 
 	isRunning = true
 

@@ -28,18 +28,18 @@ import (
 
 // A UDPListener opens a new UDP connection, keeps it alive and delegates the read operations to a tailer.
 type UDPListener struct {
-	pp        pipeline.Provider
-	source    *config.LogSource
-	frameSize int
-	tailer    *Tailer
+	pipelineProvider pipeline.Provider
+	source           *config.LogSource
+	frameSize        int
+	tailer           *Tailer
 }
 
 // NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pp pipeline.Provider, source *config.LogSource, frameSize int) *UDPListener {
+func NewUDPListener(pipelineProvider pipeline.Provider, source *config.LogSource, frameSize int) *UDPListener {
 	return &UDPListener{
-		pp:        pp,
-		source:    source,
-		frameSize: frameSize,
+		pipelineProvider: pipelineProvider,
+		source:           source,
+		frameSize:        frameSize,
 	}
 }
 
@@ -67,7 +67,7 @@ func (l *UDPListener) startNewTailer() error {
 	if err != nil {
 		return err
 	}
-	l.tailer = NewTailer(l.source, conn, l.pp.NextPipelineChan(), l.read)
+	l.tailer = NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
 	l.tailer.Start()
 	return nil
 }

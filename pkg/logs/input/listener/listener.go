@@ -22,34 +22,32 @@ type Listener interface {
 
 // Listeners summons different protocol specific listeners based on configuration
 type Listeners struct {
-	pp        pipeline.Provider
-	sources   []*config.LogSource
-	listeners []Listener
+	pipelineProvider pipeline.Provider
+	sources          *config.LogSources
+	listeners        []Listener
 }
 
 // New returns an initialized Listeners
-func New(sources []*config.LogSource, pp pipeline.Provider) *Listeners {
-	listeners := []Listener{}
-	for _, source := range sources {
-		switch source.Config.Type {
-		case config.TCPType:
-			listeners = append(listeners, NewTCPListener(pp, source, defaultFrameSize))
-		case config.UDPType:
-			listeners = append(listeners, NewUDPListener(pp, source, defaultFrameSize))
-		}
-	}
+func New(sources *config.LogSources, pipelineProvider pipeline.Provider) *Listeners {
 	return &Listeners{
-		pp:        pp,
-		sources:   sources,
-		listeners: listeners,
+		pipelineProvider: pipelineProvider,
+		sources:          sources,
 	}
 }
 
 // Start starts all listeners
 func (l *Listeners) Start() {
-	for _, l := range l.listeners {
-		l.Start()
+	var listeners []Listener
+	for _, source := range l.sources.GetValidSourcesWithType(config.TCPType) {
+		listeners = append(listeners, NewTCPListener(l.pipelineProvider, source, defaultFrameSize))
 	}
+	for _, source := range l.sources.GetValidSourcesWithType(config.UDPType) {
+		listeners = append(listeners, NewUDPListener(l.pipelineProvider, source, defaultFrameSize))
+	}
+	for _, listener := range listeners {
+		listener.Start()
+	}
+	l.listeners = listeners
 }
 
 // Stop stops all listeners

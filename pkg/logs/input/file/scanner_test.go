@@ -32,16 +32,16 @@ type ScannerTestSuite struct {
 	testRotatedPath string
 	testRotatedFile *os.File
 
-	outputChan     chan message.Message
-	pp             pipeline.Provider
-	sources        []*config.LogSource
-	openFilesLimit int
-	s              *Scanner
+	outputChan       chan message.Message
+	pipelineProvider pipeline.Provider
+	sources          []*config.LogSource
+	openFilesLimit   int
+	s                *Scanner
 }
 
 func (suite *ScannerTestSuite) SetupTest() {
-	suite.pp = mock.NewMockProvider()
-	suite.outputChan = suite.pp.NextPipelineChan()
+	suite.pipelineProvider = mock.NewMockProvider()
+	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 
 	var err error
 	suite.testDir, err = ioutil.TempDir("", "log-scanner-test-")
@@ -60,7 +60,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.openFilesLimit = 100
 	suite.sources = []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})}
 	sleepDuration := 20 * time.Millisecond
-	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil, ""), sleepDuration)
+	suite.s = New(config.NewLogSources(suite.sources), suite.openFilesLimit, suite.pipelineProvider, auditor.New(nil, ""), sleepDuration)
 	suite.s.setup()
 }
 
@@ -209,7 +209,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
+	scanner := New(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
 
 	// setup scanner
 	scanner.setup()
@@ -261,7 +261,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
+	scanner := New(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
 
 	// test at setup
 	scanner.setup()

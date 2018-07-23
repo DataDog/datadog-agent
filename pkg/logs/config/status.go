@@ -10,18 +10,26 @@ import (
 	"sync"
 )
 
+type status int
+
+const (
+	isPending status = iota
+	isSuccess
+	isError
+)
+
 // LogStatus tracks errors and success.
 type LogStatus struct {
-	pending bool
-	error   string
-	mu      *sync.Mutex
+	status status
+	err    string
+	mu     *sync.Mutex
 }
 
 // NewLogStatus creates a new log status.
 func NewLogStatus() *LogStatus {
 	return &LogStatus{
-		pending: true,
-		mu:      &sync.Mutex{},
+		status: isPending,
+		mu:     &sync.Mutex{},
 	}
 }
 
@@ -29,42 +37,34 @@ func NewLogStatus() *LogStatus {
 func (s *LogStatus) Success() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.pending = false
-	s.error = ""
+	s.status = isSuccess
+	s.err = ""
 }
 
-// Error records the given error.
+// Error records the given error and invalidates the source.
 func (s *LogStatus) Error(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.pending = false
-	s.error = fmt.Sprintf("Error: %s", err.Error())
+	s.status = isError
+	s.err = fmt.Sprintf("Error: %s", err.Error())
 }
 
 // IsPending returns whether the current status is not yet determined.
 func (s *LogStatus) IsPending() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.pending
+	return s.status == isPending
 }
 
 // IsSuccess returns whether the current status is a success.
 func (s *LogStatus) IsSuccess() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return !s.pending && s.error == ""
+	return s.status == isSuccess
 }
 
 // IsError returns whether the current status is an error.
 func (s *LogStatus) IsError() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.error != ""
+	return s.status == isError
 }
 
 // GetError returns the error.
 func (s *LogStatus) GetError() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.error
+	return s.err
 }
