@@ -23,7 +23,7 @@ whitelist_file "embedded/lib/python2.7"
 source git: 'https://github.com/DataDog/integrations-core.git'
 
 PIPTOOLS_VERSION = "2.0.2"
-UNINSTALL_PIPTOOLS_DEPS = ['pip-tools']
+UNINSTALL_PIPTOOLS_DEPS = ['click', 'six', 'pip-tools']
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
@@ -126,13 +126,9 @@ build do
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
       command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
 
-      # Uninstall pip
-
-      freeze_file = File.read(File.readlink("#{windows_safe_path(install_dir)}\\constraint_requirements.txt"))
-      UNINSTALL_PIPTOOLS_DEPS.each do |dep|
-        if not freeze_file.include? dep
-          pip "uninstall -y #{dep}"
-        end
+      # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
+      for dep in UNINSTALL_PIPTOOLS_DEPS
+        command("#{python_bin} -m #{python_pip_uninstall} #{dep}")
       end
 
       command("#{python_bin} -m #{python_pip_req} #{windows_safe_path(project_dir)}\\static_requirements.txt")
@@ -145,11 +141,8 @@ build do
       command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
       
       # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
-      freeze_file = File.read(File.readlink("#{install_dir}/constraint_requirements.txt"))
-      UNINSTALL_PIPTOOLS_DEPS.each do |dep|
-        if not freeze_file.include? dep
-           pip "uninstall -y #{dep}"
-        end
+      for dep in UNINSTALL_PIPTOOLS_DEPS
+        pip "uninstall -y #{dep}"
       end
 
       pip "install -c #{install_dir}/constraint_requirements.txt --require-hashes -r #{project_dir}/static_requirements.txt"
