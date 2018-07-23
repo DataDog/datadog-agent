@@ -230,7 +230,7 @@ root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent status
 You can check the status of the Datadog Cluster Agent while running the status command of the agent:
 `agent status`
 
-If the Datadog Cluster Agent is enabled, you will see:
+If the Datadog Cluster Agent is enabled, you should see:
 
 ```
 [...]

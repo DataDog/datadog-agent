@@ -24,7 +24,7 @@ This walkthrough explains how to set it up and how to autoscale your Kubernetes 
 
 ### Preliminary disclaimer
 
-Autoscaling over External Metrics does not require the Node Agent to be running, you just need the metrics to be available in your Datadog account. Nevertheless, for this walkthrough, we autoscale an NGINX Deployment based off of NGINX metrics, collected by a Node Agent.
+Autoscaling over External Metrics does not require the Node Agent to be running, you only need the metrics to be available in your Datadog account. Nevertheless, for this walkthrough, we autoscale an NGINX Deployment based off of NGINX metrics, collected by a Node Agent.
 
 If you want to proceed further, we are assuming that:
 1. You have Node Agents running (ideally from a DaemonSet) with the Autodiscovery process enabled and functional.
@@ -46,7 +46,7 @@ serviceaccount "dca" created
 ```
 
 Then create the Datadog Cluster Agent and its services.
-Start by adding your <API_KEY> and <APP_KEY> in the Deployment manifest of the Datadog Cluster Agent.
+Start by adding your `<API_KEY>` and `<APP_KEY>` in the Deployment manifest of the Datadog Cluster Agent.
 Then enable the HPA Processing by setting the `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` variable to true.
 Finally, spin up the resources:
 
@@ -207,10 +207,10 @@ You can run the `datadog-cluster-agent status` command to see the status of the 
     ConfigMap name: datadog-hpa
     Number of external metrics detected: 2
 ```
-If there is an error you will see it here.
-If you want a more verbose output, you can run the flare command:
+Note: Errors with the External Metrics Provider process are displayed with this command.
+If you want a more verbose output, run the flare command:
 `datadog-cluster-agent flare`.
-This will generate a zip file containing the `custom-metrics-provider.log` where you can see an output as follows:
+The flare command generates a zip file containing the `custom-metrics-provider.log` where you can see an output as follows:
 ```
   Custom Metrics Provider
   =======================

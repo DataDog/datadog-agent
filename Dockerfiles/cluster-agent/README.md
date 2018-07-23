@@ -49,22 +49,22 @@ datadog-auth-token   Opaque    1         16s
 ## Pre-requisites for the Datadog Cluster Agent to interact with the API server.
 
 Review the RBAC files in [the manifests folder](/manifests/rbac) to get the full scope of the requirements.
-These manifests will create a Service Account, a Cluster Role with a restricted scope and actions detailed below and a Cluster Role Binding as well.
+These manifests create a Service Account, a Cluster Role with a restricted scope and actions detailed below and a Cluster Role Binding as well.
 
 ### The Datadog Cluster Agent needs:
 
 - `get`, `list` and `watch` of `Componenentstatuses` to produce the controle plane service checks.
 - `get` and `update` of the `Configmaps` named `eventtokendca` to update and query the most up to date version token corresponding to the latest event stored in ETCD.
-- `watch` the `Services` to perform the Autodiscovery based off of services activity
-- `get`, `list` and `watch` of the `Pods`
-- `get`, `list` and `watch`  of the `Nodes`
+- `watch` the `Services` to perform the Autodiscovery based off of services activity.
+- `get`, `list` and `watch` of the `Pods`.
+- `get`, `list` and `watch`  of the `Nodes`.
 - `get`, `list` and `watch`  of the `Endpoints` to run cluster level health checks.
 
-The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace (unless configured otherwise with `DD_KUBE_RESOURCES_NAMESPACE`) and be named `configmapdcatoken`
-One can simply run `kubectl create configmap configmapdcatoken --from-literal="event.tokenKey"="0"` .
-NB: you can set any resversion here, make sure it's not set to a value superior to the actual curent resversion.
+To store the `event.tokenKey` and the `event.tokenTimestamp`, deploy your ConfigMap in the `default` namespace with the name `configmapdcatoken`, unless configured otherwise with `DD_KUBE_RESOURCES_NAMESPACE`.
+For this, run `kubectl create configmap configmapdcatoken --from-literal="event.tokenKey"="0"` .
+NB:Set any resversion here, make sure it's not set to a value superior to the actual current resversion.
 
-You can also set the `event.tokenTimestamp`, if not present, it will be automatically set.
+If not present, set the `event.tokenTimestamp`, it is automatically set.
 
 ### Spin up the Datadog Cluster Agent
 
