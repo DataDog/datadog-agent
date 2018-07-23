@@ -240,13 +240,7 @@ func (r *Runner) work() {
 		}
 		r.m.Unlock()
 
-		doLog, lastLog := shouldLog(check.ID())
-
-		if doLog {
-			log.Infof("Running check %s", check)
-		} else {
-			log.Debugf("Running check %s", check)
-		}
+		log.Debugf("Running check %s", check)
 
 		// run the check
 		var err error
@@ -301,15 +295,7 @@ func (r *Runner) work() {
 			addWorkStats(check, time.Since(t0), err, warnings, mStats)
 		}
 
-		l := "Done running check %s"
-		if doLog {
-			if lastLog {
-				l = l + fmt.Sprintf(", next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
-			}
-			log.Infof(l, check)
-		} else {
-			log.Debugf(l, check)
-		}
+		log.Debugf("Done running check %s", check)
 
 		if check.Interval() == 0 {
 			log.Infof("Check %v one-time's execution has finished", check)
@@ -318,27 +304,6 @@ func (r *Runner) work() {
 	}
 
 	log.Debug("Finished processing checks.")
-}
-
-func shouldLog(id check.ID) (doLog bool, lastLog bool) {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
-
-	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
-
-	s, found := checkStats.Stats[id]
-	// this is the first time we see the check, log it
-	if !found {
-		doLog = true
-		lastLog = false
-		return
-	}
-
-	// we log the first firstRunSeries times, then every loggingFrequency times
-	doLog = s.TotalRuns <= firstRunSeries || s.TotalRuns%loggingFrequency == 0
-	// we print a special message when we change logging frequency
-	lastLog = s.TotalRuns == firstRunSeries
-	return
 }
 
 func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats map[string]int64) {
