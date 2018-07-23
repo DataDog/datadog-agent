@@ -100,6 +100,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		// container tags
 		for _, container := range pod.Status.Containers {
 			lowC := append(low, fmt.Sprintf("kube_container_name:%s", container.Name))
+			highC := append(high, fmt.Sprintf("container_id:%s", kubelet.TrimRuntimeFromCID(container.ID)))
+			// TODO: search for an alternative
+			//highC = append(highC, fmt.Sprintf("container_name:%s-%s", pod.Metadata.Name, container.Name))
 			// check image tag in spec
 			for _, containerSpec := range pod.Spec.Containers {
 				if containerSpec.Name == container.Name {
@@ -122,7 +125,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			info := &TagInfo{
 				Source:       kubeletCollectorName,
 				Entity:       container.ID,
-				HighCardTags: high,
+				HighCardTags: highC,
 				LowCardTags:  lowC,
 			}
 			output = append(output, info)

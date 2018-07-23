@@ -50,7 +50,7 @@ func initContainers() {
 // Separated to unit testing
 func initContainerFilter() {
 	var err error
-	filter, err = containers.NewFilterFromConfig()
+	filter, err = containers.GetSharedFilter()
 	if err != nil {
 		log.Errorf("Error initializing container filtering: %s", err)
 	}

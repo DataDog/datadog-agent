@@ -82,31 +82,6 @@ type Config struct {
 	filter *containers.Filter
 }
 
-// Expose module-level functions that will interact with a the globalDockerUtil singleton.
-// These are to be deprecated in favor or directly calling the DockerUtil methods.
-
-type ContainerListConfig struct {
-	IncludeExited bool
-	FlagExcluded  bool
-}
-
-func (cfg *ContainerListConfig) GetCacheKey() string {
-	cacheKey := "dockerutil.containers"
-	if cfg.IncludeExited {
-		cacheKey += ".with_exited"
-	} else {
-		cacheKey += ".without_exited"
-	}
-
-	if cfg.FlagExcluded {
-		cacheKey += ".with_excluded"
-	} else {
-		cacheKey += ".without_excluded"
-	}
-
-	return cacheKey
-}
-
 // IsContainerized returns True if we're running in the docker-dd-agent container.
 func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") == "yes"

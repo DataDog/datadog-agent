@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -48,6 +49,7 @@ type KubeUtil struct {
 	kubeletApiRequestHeaders *http.Header
 	rawConnectionInfo        map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration     time.Duration
+	filter                   *containers.Filter
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -68,6 +70,7 @@ func newKubeUtil() *KubeUtil {
 		rawConnectionInfo:        make(map[string]string),
 		podListCacheDuration:     10 * time.Second,
 	}
+
 	return ku
 }
 
@@ -467,6 +470,12 @@ func (ku *KubeUtil) init() error {
 	if err != nil {
 		return err
 	}
+
+	ku.filter, err = containers.GetSharedFilter()
+	if err != nil {
+		return err
+	}
+
 	return ku.setupKubeletApiEndpoint()
 }
 

@@ -163,7 +163,7 @@ func (d *DockerCheck) Run() error {
 		d.Warnf("Error initialising check: %s", err)
 		return err
 	}
-	cList, err := du.Containers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
+	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
 		d.Warnf("Error collecting containers: %s", err)
