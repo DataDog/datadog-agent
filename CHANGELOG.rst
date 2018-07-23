@@ -217,8 +217,8 @@ Upgrade Notes
 
 .. _Release Notes_6.3.0_Deprecations Notes:
 
-Deprecations Notes
-------------------
+Deprecation Notes
+-----------------
 
 - The core Agent check Python code is no longer duplicated here and is instead
   pulled from integrations-core. The code now resides in the `datadog_checks`
