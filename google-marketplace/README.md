@@ -4,31 +4,31 @@
 
 Datadog provides infrastructure monitoring, application performance monitoring, and log management in a single-pane-of-glass view so teams can scale rapidly and maintain operational excellence.
 
-Installing the Datadog package via Google Cloud Launcher deploys the Datadog agent on every node in your Kubernetes cluster, and configures it with a secure, RBAC-based authentication and authorization model.
+Installing the Datadog package via Google Cloud Launcher deploys the Datadog Agent on every node in your Kubernetes cluster, and configures it with a secure, RBAC-based authentication and authorization model.
 
 ## Installation
 
 ### Quick install with Google Cloud Marketplace
 
-Get up and running with a few clicks! Install the Datadog agent daemonset to a
+Get up and running with a few clicks! Install the Datadog Agent daemonset to a
 Google Kubernetes Engine cluster using Google Cloud Marketplace.
 
 Prior to that:
 
 - Create a Datadog [account](https://www.datadoghq.com/)
-- Get your Datadog API key [here](https://app.datadoghq.com/account/settings#api)
+- [Get your Datadog API key](https://app.datadoghq.com/account/settings#api)
 
 Then follow the [on-screen instructions](https://console.cloud.google.com/marketplace/details/datadog-saas/datadog).
 
 ### Command line instructions
 
-Follow these instructions to install the Datadog agent from the command line.
+Follow these instructions to install the Datadog Agent from the command line.
 
 #### Prerequisites (one time setup)
 
 ##### Command-line tools
 
-You'll need the following tools in your development environment:
+Your development environment should contain the following tools:
 
 - [gcloud](https://cloud.google.com/sdk/gcloud/)
 - [kubectl](https://kubernetes.io/docs/reference/kubectl/overview/)
@@ -37,7 +37,7 @@ You'll need the following tools in your development environment:
 ##### Create a Datadog account
 
 - Create a Datadog [account](https://www.datadoghq.com/)
-- Get your Datadog API key [here](https://app.datadoghq.com/account/settings#api)
+- [Get your Datadog API key](https://app.datadoghq.com/account/settings#api)
 
 ##### Create a Google Kubernetes Engine cluster
 
@@ -91,7 +91,7 @@ Navigate to the `google-marketplace` folder:
 cd datadog-agent/google-marketplace
 ```
 
-##### Configure the app with environment variables
+##### Configure the application with environment variables
 
 Choose an instance name and
 [namespace](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/)
@@ -123,10 +123,10 @@ export apiKeyEncoded=$(echo YOUR_DATADOG_API_KEY | base64)
 
 ##### Configure the service account
 
-The Datadog agent needs a service account in the target namespace with cluster wide
+The Datadog Agent needs a service account in the target namespace with cluster wide
 permissions to inspect Kubernetes resources.
 
-Create a ClusterRole in your target Kubernetes cluster, a service account in the namespace specified earlier, and a ClusterRoleBinding to tie them together:
+Create a `ClusterRole` in your target Kubernetes cluster, a `ServiceAccount` in the namespace specified earlier, and a `ClusterRoleBinding` to tie them together:
 
 ```shell
 export serviceAccount=datadog-agent-sa
@@ -135,19 +135,19 @@ make rbac/install  # from the datadog-agent/google-marketplace folder
 
 ##### Install the Datadog application
 
-Install the Datadog agent with the following command:
+Install the Datadog Agent with the following command:
 
 ```bash
 make app/install
 ```
 
-This will expand the templates located in the `datadog-agent/google-marketplace/manifest` folder with the parameters given previously, and apply them, creating a Secret for the API key, and a DaemonSet tied to the service account previously created.
+This expands the templates located in the `datadog-agent/google-marketplace/manifest` folder with the parameters given previously, and apply them, creating a Secret for the API key, and a DaemonSet tied to the service account previously created.
 
 ## Basic Usage
 
-Once the application is installed, your Kubernetes nodes will show up in https://app.datadoghq.com/infrastructure/map and metrics will start flowing to your Datadog account!
+Once the application is installed, your Kubernetes nodes show up in your [Datadog Infrastructure Map](https://app.datadoghq.com/infrastructure/map) and metrics start [flowing to your Datadog account](https://app.datadoghq.com/metric/summary)!
 
-To further configure your agents, and setup your account, refer to [the documentation](https://docs.datadoghq.com/).
+To further configure your agents, and setup your account, refer to [the Datadog documentation](https://docs.datadoghq.com/).
 
 ## Backup and restore
 
