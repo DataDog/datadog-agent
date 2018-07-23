@@ -23,7 +23,7 @@ whitelist_file "embedded/lib/python2.7"
 source git: 'https://github.com/DataDog/integrations-core.git'
 
 PIPTOOLS_VERSION = "2.0.2"
-UNINSTALL_PIPTOOLS_DEPS = ['first', 'click', 'pip-tools']
+UNINSTALL_PIPTOOLS_DEPS = ['pip-tools']
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
@@ -119,19 +119,22 @@ build do
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
     python_pip_no_deps = "pip install -c #{windows_safe_path(install_dir)}\\constraint_requirements.txt --no-deps #{windows_safe_path(project_dir)}"
-    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\constraint_requirements.txt --require-hashes -r #{windows_safe_path(project_dir)}"
+    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\constraint_requirements.txt --require-hashes -r"
     python_pip_uninstall = "pip uninstall -y"
 
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
       command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
 
-      # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
-      for dep in UNINSTALL_PIPTOOLS_DEPS
-        command("#{python_bin} -m #{python_pip_uninstall} #{dep}")
+      # Uninstall pip
+      freeze_file = File.read("#{windows_safe_path(project_dir)}\\agent_requirements.txt")
+      UNINSTALL_PIPTOOLS_DEPS.each do |dep|
+        if not freeze_file.include? dep
+          pip "uninstall -y #{dep}"
+        end
       end
 
-      command("#{python_bin} -m #{python_pip_req}\\static_requirements.txt")
+      command("#{python_bin} -m #{python_pip_req} #{windows_safe_path(project_dir)}\\static_requirements.txt")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
@@ -139,10 +142,13 @@ build do
       }
       pip "install -c #{install_dir}/constraint_requirements.txt --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
-
+      
       # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
-      for dep in UNINSTALL_PIPTOOLS_DEPS
-        pip "uninstall -y #{dep}"
+      freeze_file = File.read("#{project_dir}/agent_requirements.txt")
+      UNINSTALL_PIPTOOLS_DEPS.each do |dep|
+        if not freeze_file.include? dep
+           pip "uninstall -y #{dep}"
+        end
       end
 
       pip "install -c #{install_dir}/constraint_requirements.txt --require-hashes -r #{project_dir}/static_requirements.txt"
