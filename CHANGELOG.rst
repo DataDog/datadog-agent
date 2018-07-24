@@ -111,8 +111,12 @@ Bug Fixes
   churn on the tag potentially affecting dashboards and monitors.
 
 
+.. _Release Notes_6.3.0:
+
 6.3.0
 =====
+
+.. _Release Notes_6.3.0_Prelude:
 
 Prelude
 -------
@@ -126,9 +130,16 @@ Release on: 2018-06-20
 
 - Please refer to the `6.3.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.3.0>`_
   for the list of changes on the Process Agent.
-  
+
+
+.. _Release Notes_6.3.0_New Features:
+
 New Features
 ------------
+
+- Add docker memory soft limit metric.
+
+- Added a host tag for docker swarm node role.
 
 - The import command now support multiple dd_url and API keys.
 
@@ -137,13 +148,32 @@ New Features
 
 - Add support for port names in template vars for autodiscovery.
 
+- Add a new "tagger-list" command that outputs the tagger content of a running agent.
+
+- Adding Azure pause containers to the default image exclusion list
+
 - Add flag `histogram_copy_to_distribution` to send histogram metric values
   as distributions automatically. Note that the distributions feature is in
   beta. An additional flag `histogram_copy_to_distribution_prefix` modifies
   the existing histogram metric name by adding a prefix, e.g. `dist.`, to
   better distinguish between these values.
 
+- Add docker & swarm information to host metadata
+
+- "[BETA] Encrypted passwords in configurations can now be fetched from a
+  secrets manager."
+
 - Add `docker ps -a` output to the flare.
+
+- Introduces a new redacting writer that will make sure anything written into
+  the flare is scrubbed from credentials and sensitive information.
+
+- The agent now supports setting/overriding proxy URLs through environment
+  variables (HTTP_PROXY, HTTPS_PROXY and NO_PROXY).
+
+- Created a new journald integration to collect logs from systemd. It's only available on debian distributions for now.
+
+- Add kubelet version to container metadata.
 
 - Adds support for windows event logs collection
 
@@ -151,9 +181,14 @@ New Features
   in containerized environments. The override will affect python checks and
   will result in psutil using the overriding path.
 
+- The fowarder will now spaw specific workers per domain to avoid slow down when one domain is down.
+
 - ALPHA - Adding new tooling to securely upgrade integration packages/wheels
   from our private TUF repository. Please note any third party dependencies will
   still be downloaded from PyPI with no additional security validation.
+
+
+.. _Release Notes_6.3.0_Upgrade Notes:
 
 Upgrade Notes
 -------------
@@ -167,6 +202,33 @@ Upgrade Notes
   security of the data sent to Datadog, since the payloads are always secured with
   HTTPS between your Agents and Datadog whatever ``proxy`` configuration you may use.
 
+- Docker image: we moved the default configuration from the docker image's default
+  environment variables to the `datadog-*.yaml` files. This allows users to easily
+  mount a custom `datadog.yaml` configuration file to set all options.
+  If you already did so, you will need to update your `datadog.yaml` to include
+  these new defaults. If you only used envvars, no change is needed.
+
+- The agent now supports the environment variables "HTTP_PROXY", "HTTPS_PROXY" and
+  "NO_PROXY". If set these variables will override the setting in
+  datadog.yaml.
+
+- Moves away from the community library for the kubernetes client in favor of the official one.
+
+
+.. _Release Notes_6.3.0_Deprecations Notes:
+
+Deprecation Notes
+-----------------
+
+- The core Agent check Python code is no longer duplicated here and is instead
+  pulled from integrations-core. The code now resides in the `datadog_checks`
+  namespace, though the old `checks`, `utils`, etc. paths are still supported.
+  Please update your custom checks accordingly. For more information, see
+  https://github.com/DataDog/datadog-agent/blob/master/docs/agent/changes.md#python-modules
+
+
+.. _Release Notes_6.3.0_Bug Fixes:
+
 Bug Fixes
 ---------
 
@@ -178,6 +240,11 @@ Bug Fixes
 
 - Decrease epsilon and increase incoming buffer size for improved accuracy of
   distribution metrics.
+
+- Better handling of docker return values to avoid errors
+
+- Fix log format when no log file is specified which cause the log date to
+  not be correctly displayed.
 
 - Configurations of unscheduled checks are now properly removed from the configcheck command display.
 
@@ -197,6 +264,9 @@ Bug Fixes
 
 - Fix a possible panic in the kubernetes event watcher.
 
+- Fix panics within the agent when using non thread safe method from Viper
+  library (Unmarshall).
+
 - On RHEL/SUSE, stop the Agent properly in the pre-install RPM script on systems where
   ``/lib`` is not a symlink to ``/usr/lib``.
 
@@ -212,11 +282,19 @@ Bug Fixes
 
 - Fixed parsing issue with logs processing rules in autodiscovery.
 
+- Prevent logs agent from submitting protocol buffer payloads with invalid UTF-8.
+
 - Fixes JMXFetch on Windows when the ``custom_jar_paths`` and/or ``tools_jar_path`` options are set,
   by using a semicolon as the path separator on Windows.
 
 - Prevent an empty response body from being marked as a "successfull call to the GCE metadata api".
   Fixes a bug where hostnames became an empty string when using docker swarm and a non GCE environment.
+
+- Config option specified in `syslog_pem` if syslog logging is enabled with
+  TLS should be a path to the certificate, not a textual certificate in the
+  configuration.
+
+- Changes the hostname used for Docker events to be the hostname of the agent.
 
 - Removes use of gopsutil on Windows.  Gopsutil relies heavily on WMI;
   because the go runtime doesn't lock goroutines to system threads, the
@@ -224,6 +302,8 @@ Bug Fixes
   Solves the problem where metadata and various system checks can't
   initialize properly
 
+
+.. _Release Notes_6.3.0_Other Notes:
 
 Other Notes
 -----------
@@ -238,6 +318,13 @@ Other Notes
 
 - The scripts of the Linux packages now don't exit with errors when no supported init system is detected,
   and only print warnings instead
+
+- On the status and check command outputs, rename checks' ``Metrics`` to ``Metric Samples``
+  to reflect that the number represents the number of samples submitted by the check, not
+  the number of metrics after aggregation.
+
+- Scrub all logging output from credentials. Should prevent leakage of
+  credentials in logs from 3rd-party code or code added in the future.
 
 
 6.2.1
