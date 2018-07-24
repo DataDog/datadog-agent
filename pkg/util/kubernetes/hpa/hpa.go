@@ -199,7 +199,7 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 	if len(added) == 0 {
 		return
 	}
-	externalMetrics, podsMetrics, objectMetrics := parseHPAs(added)
+	externalMetrics, podsMetrics, objectMetrics := parseHPAs(added...)
 
 	// We can query Datadog immediately for external metric values since they do not
 	// originate from within the cluster.
@@ -209,6 +209,7 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 		if err != nil {
 			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %v", metric.MetricName, err)
 		}
+		metric.Timestamp = metav1.Now().Unix()
 		// We still need to update the valid flag if there is an error querying the value for the metric.
 		externalMetrics[i] = metric
 	}
@@ -252,7 +253,7 @@ func (c *HPAWatcherClient) Stop() {
 }
 
 // parseHPAs inspects hpas and returns descriptors for external, pods, and object metrics.
-func parseHPAs(hpas []*autoscalingv2.HorizontalPodAutoscaler) (
+func parseHPAs(hpas ...*autoscalingv2.HorizontalPodAutoscaler) (
 	externalMetrics []custommetrics.ExternalMetricValue,
 	podsMetrics []custommetrics.PodsMetricDescriptor,
 	objectMetrics []custommetrics.ObjectMetricDescriptor) {
@@ -267,7 +268,6 @@ func parseHPAs(hpas []*autoscalingv2.HorizontalPodAutoscaler) (
 			case autoscalingv2.ExternalMetricSourceType:
 				externalMetrics = append(externalMetrics, custommetrics.ExternalMetricValue{
 					MetricName: metricSpec.External.MetricName,
-					Timestamp:  metav1.Now().Unix(),
 					HPARef:     hpaRef,
 					Labels:     metricSpec.External.MetricSelector.MatchLabels,
 				})
@@ -281,7 +281,7 @@ func parseHPAs(hpas []*autoscalingv2.HorizontalPodAutoscaler) (
 					MetricName: metricSpec.Object.MetricName,
 					HPARef:     hpaRef,
 					DescribedObject: custommetrics.ObjectReference{
-						Name:      hpa.Name,
+						Name:      metricSpec.Object.Target.Name,
 						Namespace: hpa.Namespace,
 					},
 				})

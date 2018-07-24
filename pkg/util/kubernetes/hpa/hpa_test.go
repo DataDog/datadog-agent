@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	"k8s.io/api/autoscaling/v2beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -39,17 +39,17 @@ func newFakeConfigMapStore(t *testing.T, ns, name string, metrics []custommetric
 	return store
 }
 
-func newMockHPAExternalMetricSource(name, ns, metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
-	return &v2beta1.HorizontalPodAutoscaler{
+func newMockHPAExternalMetricSource(name, ns, metricName string, labels map[string]string) *autoscalingv2.HorizontalPodAutoscaler {
+	return &autoscalingv2.HorizontalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 		},
-		Spec: v2beta1.HorizontalPodAutoscalerSpec{
-			Metrics: []v2beta1.MetricSpec{
+		Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+			Metrics: []autoscalingv2.MetricSpec{
 				{
-					Type: v2beta1.ExternalMetricSourceType,
-					External: &v2beta1.ExternalMetricSource{
+					Type: autoscalingv2.ExternalMetricSourceType,
+					External: &autoscalingv2.ExternalMetricSource{
 						MetricName: metricName,
 						MetricSelector: &metav1.LabelSelector{
 							MatchLabels: labels,
@@ -65,7 +65,7 @@ func TestHPAWatcherRemoveEntryFromStore(t *testing.T) {
 	testCases := []struct {
 		caseName string
 		metrics  []custommetrics.ExternalMetricValue
-		hpa      *v2beta1.HorizontalPodAutoscaler
+		hpa      *autoscalingv2.HorizontalPodAutoscaler
 		expected []custommetrics.ExternalMetricValue
 	}{
 		{
@@ -116,7 +116,7 @@ func TestHPAWatcherRemoveEntryFromStore(t *testing.T) {
 			store := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
 			hpaCl := &HPAWatcherClient{store: store}
 
-			err := hpaCl.removeEntryFromStore([]*v2beta1.HorizontalPodAutoscaler{testCase.hpa})
+			err := hpaCl.removeEntryFromStore([]*autoscalingv2.HorizontalPodAutoscaler{testCase.hpa})
 			require.NoError(t, err)
 
 			allMetrics, err := store.ListAllExternalMetricValues()
@@ -189,4 +189,77 @@ func TestHPAWatcherUpdateExternalMetrics(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, strippedTs)
 		})
 	}
+}
+
+func TestParseHPAs(t *testing.T) {
+	test := struct {
+		hpa             *autoscalingv2.HorizontalPodAutoscaler
+		externalMetrics []custommetrics.ExternalMetricValue
+		podsMetrics     []custommetrics.PodsMetricDescriptor
+		objectMetrics   []custommetrics.ObjectMetricDescriptor
+	}{
+		&autoscalingv2.HorizontalPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "foo",
+				Namespace: "default",
+			},
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+				Metrics: []autoscalingv2.MetricSpec{
+					{
+						Type: autoscalingv2.ExternalMetricSourceType,
+						External: &autoscalingv2.ExternalMetricSource{
+							MetricName: "requests_per_s",
+							MetricSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"availability_zone": "us-east-1"},
+							},
+						},
+					},
+					{
+						Type: autoscalingv2.PodsMetricSourceType,
+						Pods: &autoscalingv2.PodsMetricSource{
+							MetricName: "conn_opened_per_s",
+						},
+					},
+					{
+						Type: autoscalingv2.ObjectMetricSourceType,
+						Object: &autoscalingv2.ObjectMetricSource{
+							MetricName: "connections",
+							Target: autoscalingv2.CrossVersionObjectReference{
+								Kind: "Deployment",
+								Name: "nginx",
+							},
+						},
+					},
+				},
+			},
+		},
+		[]custommetrics.ExternalMetricValue{
+			{
+				MetricName: "requests_per_s",
+				Labels:     map[string]string{"availability_zone": "us-east-1"},
+				HPARef:     custommetrics.ObjectReference{Name: "foo", Namespace: "default"},
+			},
+		},
+		[]custommetrics.PodsMetricDescriptor{
+			{
+				MetricName: "conn_opened_per_s",
+				HPARef:     custommetrics.ObjectReference{Name: "foo", Namespace: "default"},
+			},
+		},
+		[]custommetrics.ObjectMetricDescriptor{
+			{
+				MetricName: "connections",
+				HPARef:     custommetrics.ObjectReference{Name: "foo", Namespace: "default"},
+				DescribedObject: custommetrics.ObjectReference{
+					Name:      "nginx",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+
+	externalMetrics, podsMetrics, objectMetrics := parseHPAs(test.hpa)
+	assert.ElementsMatch(t, externalMetrics, test.externalMetrics)
+	assert.ElementsMatch(t, podsMetrics, test.podsMetrics)
+	assert.ElementsMatch(t, objectMetrics, test.objectMetrics)
 }

@@ -15,7 +15,7 @@ External Metrics
   {{- end -}}
   {{ range $metric := .hpaExternal.Metrics }}
   {{ range $name, $value := $metric}}
-  {{- if or (eq $name "hpa") (eq $name "labels")}}
+  {{- if or (eq $name "hpaRef") (eq $name "labels")}}
   {{$name}}:
   {{- range $k, $v := $value}}
   - {{$k}}: {{$v}}
