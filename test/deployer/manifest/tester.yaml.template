@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "${name}-tester"
+  labels:
+    app.kubernetes.io/name: "${name}"
+  annotations:
+    marketplace.cloud.google.com/verification: test
+spec:
+  containers:
+  - name: tester
+    image: "${imageTester}"
+    volumeMounts:
+    - name: config-volume
+      mountPath: /tester
+    command: ["bash"]
+    args: ["/tester/run.sh"]
+  restartPolicy: Never
+  volumes:
+  - name: config-volume
+    configMap:
+      name: "${name}-test"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "${name}-test"
+  labels:
+    app.kubernetes.io/name: "${name}"
+  annotations:
+    marketplace.cloud.google.com/verification: test
+data:
+  run.sh: |-
+    set -x
+    endpoint="http://${name}-wordpress-svc"
+    echo GET $endpoint
+    http_status_code=$(curl -o /dev/null -s -w "%{http_code}\n" $endpoint)
+    echo "Expected http status code: 302"
+    echo "Actual http status code: $http_status_code"
+    if [[ "$http_status_code" == "302" ]]; then
+      echo SUCCESS
+    else
+      echo FAILURE
+      exit 1
+    fi

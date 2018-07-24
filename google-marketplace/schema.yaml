@@ -1,0 +1,47 @@
+application_api_version: v1beta1
+properties:
+  name:
+    type: string
+    x-google-marketplace:
+      type: NAME
+  namespace:
+    type: string
+    x-google-marketplace:
+      type: NAMESPACE
+  datadogAgentImage:
+    type: string
+    default: 'gcr.io/datadog-public/datadog:6'
+    x-google-marketplace:
+      type: IMAGE
+  apiKey:
+    title: Datadog API key
+    description: Get your Datadog API key at https://app.datadoghq.com/account/settings#api
+    type: string
+    maxLength: 45
+    x-google-marketplace:
+      type: STRING
+      string:
+        generatedProperties:
+          base64Encoded: apiKeyEncoded
+  serviceAccount:
+    title: Datadog Service Account
+    description: >-
+      Name of a service account in the target namespace that
+      has all permissions required by the Datadog Agent. Please create a ClusterRole
+      with the required permissions first.
+      See the full list at https://docs.datadoghq.com/integrations/faq/using-rbac-permission-with-your-kubernetes-integration/
+    type: string
+    x-google-marketplace:
+      type: SERVICE_ACCOUNT
+      serviceAccount:
+        roles:
+        - type: ClusterRole
+          rulesType: PREDEFINED
+          rulesFromRoleName: cluster-admin
+
+required:
+- name
+- namespace
+- datadogAgentImage
+- apiKey
+- serviceAccount
