@@ -317,3 +317,30 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 			NoProxy: []string{"d", "e", "f"}},
 		proxies)
 }
+
+func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
+	os.Setenv("DD_PROXY_HTTP", "")
+	os.Setenv("DD_PROXY_NO_PROXY", "a,b,c")
+	os.Setenv("HTTP_PROXY", "env_http_url")
+	os.Setenv("HTTPS_PROXY", "")
+	os.Setenv("NO_PROXY", "")
+	Datadog.Set("proxy.https", "https_conf")
+
+	loadProxyFromEnv()
+
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "",
+			HTTPS:   "",
+			NoProxy: []string{"a", "b", "c"}},
+		proxies)
+
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+	Datadog.Set("proxy", nil)
+}

@@ -361,22 +361,27 @@ func loadProxyFromEnv() {
 	// the conf files, overwrite them with the env variables and reset
 	// everything.
 
-	getEnvCaseInsensitive := func(key string) string {
+	lookupEnvCaseInsensitive := func(key string) (string, bool) {
 		value, found := os.LookupEnv(key)
 		if found {
-			return value
+			return value, found
 		}
-		return os.Getenv(strings.ToLower(key))
+		return os.LookupEnv(strings.ToLower(key))
 	}
 
-	// getEnvDDPrecedence pulls the value of the DD-specific proxy env var first (case-sensitive), and
-	// if not found or empty, the value of the standard env var (case-insensitive)
-	getEnvDDPrecedence := func(DDkey, standardKey string) string {
-		value := os.Getenv(DDkey)
-		if value == "" {
-			value = getEnvCaseInsensitive(standardKey)
+	// lookupEnvDDPrecedence pulls the value of the DD-specific proxy env var first (case-sensitive), and
+	// if not found, the value of the standard env var (case-insensitive)
+	lookupEnvDDPrecedence := func(DDkey, standardKey string) (string, bool) {
+		value, found := os.LookupEnv(DDkey)
+		if !found {
+			value, found = lookupEnvCaseInsensitive(standardKey)
+			if found {
+				log.Infof("Found '%v' env var, using it for the Agent proxy settings", standardKey)
+			}
+		} else {
+			log.Infof("Found '%v' env var, using it for the Agent proxy settings", DDkey)
 		}
-		return value
+		return value, found
 	}
 
 	var isSet bool
@@ -388,15 +393,15 @@ func loadProxyFromEnv() {
 		}
 	}
 
-	if HTTP := getEnvDDPrecedence("DD_PROXY_HTTP", "HTTP_PROXY"); HTTP != "" {
+	if HTTP, found := lookupEnvDDPrecedence("DD_PROXY_HTTP", "HTTP_PROXY"); found {
 		isSet = true
 		p.HTTP = HTTP
 	}
-	if HTTPS := getEnvDDPrecedence("DD_PROXY_HTTPS", "HTTPS_PROXY"); HTTPS != "" {
+	if HTTPS, found := lookupEnvDDPrecedence("DD_PROXY_HTTPS", "HTTPS_PROXY"); found {
 		isSet = true
 		p.HTTPS = HTTPS
 	}
-	if noProxy := getEnvDDPrecedence("DD_PROXY_NO_PROXY", "NO_PROXY"); noProxy != "" {
+	if noProxy, found := lookupEnvDDPrecedence("DD_PROXY_NO_PROXY", "NO_PROXY"); found {
 		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",")
 	}
