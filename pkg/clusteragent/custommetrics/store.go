@@ -30,10 +30,10 @@ type Store interface {
 	SetExternalMetricValues([]ExternalMetricValue) error
 	SetMetricDescriptors([]PodsMetricDescriptor, []ObjectMetricDescriptor) error
 
-	Purge([]ObjectReference) error
-
 	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
 	ListAllMetricDescriptors() ([]PodsMetricDescriptor, []ObjectMetricDescriptor, error)
+
+	Purge([]ObjectReference) error
 }
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.
@@ -126,7 +126,7 @@ func (c *configMapStore) SetMetricDescriptors(podsMetrics []PodsMetricDescriptor
 	return c.updateConfigMap()
 }
 
-// Purge purges all data in the configmap that refer to any of the given object references.
+// Purge deletes all data in the configmap that refers to any of the given object references.
 func (c *configMapStore) Purge(deleted []ObjectReference) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
