@@ -369,12 +369,12 @@ func loadProxyFromEnv() {
 		return os.Getenv(strings.ToLower(key))
 	}
 
-	// getEnvDDPrecedence pulls the value of the `DD_`-prefixed env var first, and
-	// if not found or empty, the value of the env var without the prefix (case-insensitive)
-	getEnvDDPrecedence := func(key string) string {
-		value := os.Getenv("DD_" + key)
+	// getEnvDDPrecedence pulls the value of the DD-specific proxy env var first (case-sensitive), and
+	// if not found or empty, the value of the standard env var (case-insensitive)
+	getEnvDDPrecedence := func(DDkey, standardKey string) string {
+		value := os.Getenv(DDkey)
 		if value == "" {
-			value = getEnvCaseInsensitive(key)
+			value = getEnvCaseInsensitive(standardKey)
 		}
 		return value
 	}
@@ -388,15 +388,15 @@ func loadProxyFromEnv() {
 		}
 	}
 
-	if HTTP := getEnvDDPrecedence("HTTP_PROXY"); HTTP != "" {
+	if HTTP := getEnvDDPrecedence("DD_PROXY_HTTP", "HTTP_PROXY"); HTTP != "" {
 		isSet = true
 		p.HTTP = HTTP
 	}
-	if HTTPS := getEnvDDPrecedence("HTTPS_PROXY"); HTTPS != "" {
+	if HTTPS := getEnvDDPrecedence("DD_PROXY_HTTPS", "HTTPS_PROXY"); HTTPS != "" {
 		isSet = true
 		p.HTTPS = HTTPS
 	}
-	if noProxy := getEnvDDPrecedence("NO_PROXY"); noProxy != "" {
+	if noProxy := getEnvDDPrecedence("DD_PROXY_NO_PROXY", "NO_PROXY"); noProxy != "" {
 		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",")
 	}
