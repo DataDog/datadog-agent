@@ -9,11 +9,12 @@ package status
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
-	"time"
 )
 
 func getLeaderElectionDetails() map[string]string {
@@ -54,26 +55,37 @@ func getDCAStatus() map[string]string {
 
 // GetHorizontalPodAutoscalingStatus fetches the content of the ConfigMap storing the state of the HPA metrics provider
 func GetHorizontalPodAutoscalingStatus() map[string]interface{} {
-	horizontalPodAutoscalingStatus := make(map[string]interface{})
+	status := make(map[string]interface{})
 
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
-		horizontalPodAutoscalingStatus["Error"] = err.Error()
-		return horizontalPodAutoscalingStatus
+		status["Error"] = err.Error()
+		return status
 	}
 
 	datadogHPAConfigMap := custommetrics.GetHPAConfigmapName()
-	horizontalPodAutoscalingStatus["Cmname"] = datadogHPAConfigMap
+	status["ConfigMapName"] = datadogHPAConfigMap
 
 	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, apiserver.GetResourcesNamespace(), datadogHPAConfigMap)
+
+	status["External"] := make(map[string]interface{})
 	externalMetrics, err := store.ListAllExternalMetricValues()
 	if err != nil {
-		horizontalPodAutoscalingStatus["ErrorStore"] = err.Error()
-		return horizontalPodAutoscalingStatus
+		externalStatus["ErrorStore"] = err.Error()
+		return status
 	}
+	status["External"]["Number"] = len(externalMetrics)
+	status["External"]["Metrics"] = externalMetrics
 
-	horizontalPodAutoscalingStatus["Number"] = len(externalMetrics)
-	horizontalPodAutoscalingStatus["Metrics"] = externalMetrics
+	status["Descriptors"] := make(map[string]interface{})
+	podsDescs, objectDescs, err := store.ListAllMetricDescriptors()
+	if err != nil {
+		status["Descriptors"]["ErrorStore"] = err.Error()
+		return status
+	}
+	status["Descriptors"]["Number"] = len(podsDescs) + len(objectDescs)
+	status["Descriptors"]["Pods"] = podsDescs
+	status["Descriptors"]["Object"] = objectDescs
 
-	return horizontalPodAutoscalingStatus
+	return status
 }

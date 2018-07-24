@@ -199,7 +199,11 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 	if len(added) == 0 {
 		return
 	}
-	externalMetrics, podsMetrics, objectMetrics := parseHPAs(added...)
+	externalMetrics, podsDescs, objectDescs := parseHPAs(added...)
+
+	if err = c.store.SetMetricDescriptors(podsDescs, objectDescs); err != nil {
+		log.Errorf("Could not store metric descriptors: %v", err)
+	}
 
 	// We can query Datadog immediately for external metric values since they do not
 	// originate from within the cluster.
@@ -215,9 +219,6 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 	}
 	if err = c.store.SetExternalMetricValues(externalMetrics); err != nil {
 		log.Errorf("Could not store external metrics: %v", err)
-	}
-	if err = c.store.SetMetricDescriptors(podsMetrics, objectMetrics); err != nil {
-		log.Errorf("Could not store metric descriptors: %v", err)
 	}
 }
 
@@ -255,8 +256,8 @@ func (c *HPAWatcherClient) Stop() {
 // parseHPAs inspects hpas and returns descriptors for external, pods, and object metrics.
 func parseHPAs(hpas ...*autoscalingv2.HorizontalPodAutoscaler) (
 	externalMetrics []custommetrics.ExternalMetricValue,
-	podsMetrics []custommetrics.PodsMetricDescriptor,
-	objectMetrics []custommetrics.ObjectMetricDescriptor) {
+	podsDescs []custommetrics.PodsMetricDescriptor,
+	objectDescs []custommetrics.ObjectMetricDescriptor) {
 
 	for _, hpa := range hpas {
 		hpaRef := custommetrics.ObjectReference{
@@ -272,12 +273,12 @@ func parseHPAs(hpas ...*autoscalingv2.HorizontalPodAutoscaler) (
 					Labels:     metricSpec.External.MetricSelector.MatchLabels,
 				})
 			case autoscalingv2.PodsMetricSourceType:
-				podsMetrics = append(podsMetrics, custommetrics.PodsMetricDescriptor{
+				podsDescs = append(podsDescs, custommetrics.PodsMetricDescriptor{
 					MetricName: metricSpec.Pods.MetricName,
 					HPARef:     hpaRef,
 				})
 			case autoscalingv2.ObjectMetricSourceType:
-				objectMetrics = append(objectMetrics, custommetrics.ObjectMetricDescriptor{
+				objectDescs = append(objectDescs, custommetrics.ObjectMetricDescriptor{
 					MetricName: metricSpec.Object.MetricName,
 					HPARef:     hpaRef,
 					DescribedObject: custommetrics.ObjectReference{

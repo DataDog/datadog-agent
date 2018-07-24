@@ -30,10 +30,10 @@ type Store interface {
 	SetExternalMetricValues([]ExternalMetricValue) error
 	SetMetricDescriptors([]PodsMetricDescriptor, []ObjectMetricDescriptor) error
 
+	Purge([]ObjectReference) error
+
 	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
 	ListAllMetricDescriptors() ([]PodsMetricDescriptor, []ObjectMetricDescriptor, error)
-
-	Purge([]ObjectReference) error
 }
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.

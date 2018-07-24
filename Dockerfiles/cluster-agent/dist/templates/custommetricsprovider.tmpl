@@ -1,19 +1,19 @@
 Custom Metrics Provider
 =======================
-External Metrics
-================
+  ConfigMap name: {{ .hpaExternal.ConfigMapName }}
   {{- if .hpaExternal -}}
   {{- if .hpaExternal.Error }}
-  Error while trying to serve external metrics: {{ .hpaExternal.Error }}
+  Error while trying to list external metrics: {{ .hpaExternal.Error }}
   {{ else }}
-  {{- if .hpaExternal.ErrorStore }}
-  Internal Error while processing the External Metrics : {{ .hpaExternal.ErrorStore }}
+
+  External Metrics
+  ================
+  {{- if .hpaExternal.External.ErrorStore }}
+  Error while processing external metrics: {{ .hpaExternal.External.ErrorStore }}
   {{ else }}
-  ConfigMap name: {{ .hpaExternal.Cmname }}
-  Number of external metrics detected: {{ .hpaExternal.Number }}
-  {{- end -}}
-  {{- end -}}
-  {{ range $metric := .hpaExternal.Metrics }}
+  Number of external metrics detected: {{ .hpaExternal.External.Number }}
+
+  {{ range $metric := .hpaExternal.External.Metrics }}
   {{ range $name, $value := $metric}}
   {{- if or (eq $name "hpaRef") (eq $name "labels")}}
   {{$name}}:
@@ -24,7 +24,49 @@ External Metrics
   {{$name}}: {{$value}}
   {{- end }}
   {{- end }}
+  {{- end }}
+
   {{- end -}}
+
+  Descriptors
+  ============
+    {{- if .hpaExternal.Descriptors.ErrorStore }}
+    Error while processing descriptors: {{ .hpaExternal.Descriptors.ErrorStore }}
+    {{ else }}
+    Number of descriptors detected: {{ .hpaExternal.Descriptors.Number }}
+
+    Pods
+    ====
+    {{ range $metric := .hpaExternal.Descriptors.Pods }}
+    {{ range $name, $value := $metric}}
+    {{- if (eq $name "hpaRef")}}
+    {{$name}}:
+    {{- range $k, $v := $value}}
+    - {{$k}}: {{$v}}
+    {{- end -}}
+    {{else}}
+    {{$name}}: {{$value}}
+    {{- end }}
+    {{- end }}
+    {{- end -}}
+
+    Object
+    ======
+    {{ range $metric := .hpaExternal.Descriptors.Object }}
+    {{ range $name, $value := $metric}}
+    {{- if (eq $name "hpaRef")}}
+    {{$name}}:
+    {{- range $k, $v := $value}}
+    - {{$k}}: {{$v}}
+    {{- end -}}
+    {{else}}
+    {{$name}}: {{$value}}
+    {{- end }}
+    {{- end }}
+    {{- end -}}
+
+    {{- end -}}
+
   {{ else }}
-  The External Metrics Provider is not enabled
+  The Custom Metrics Provider is not enabled.
   {{- end -}}
