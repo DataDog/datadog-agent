@@ -56,24 +56,24 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 		},
@@ -83,24 +83,24 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 		},
@@ -110,19 +110,19 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 			},
 		},
@@ -143,10 +143,10 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 
 			objectRefs := make([]ObjectReference, 0)
 			for _, m := range tt.metrics {
-				objectRefs = append(objectRefs, m.HPA)
+				objectRefs = append(objectRefs, m.HPARef)
 			}
 
-			err = store.Delete(objectRefs)
+			err = store.Purge(objectRefs)
 			require.NoError(t, err)
 			assert.Zero(t, len(store.(*configMapStore).cm.Data))
 		})

@@ -7,31 +7,28 @@
 
 package custommetrics
 
-import "k8s.io/apimachinery/pkg/types"
-
 type ExternalMetricValue struct {
 	MetricName string            `json:"metricName"`
 	Labels     map[string]string `json:"labels"`
 	Timestamp  int64             `json:"ts"`
-	HPA        ObjectReference   `json:"hpa"`
+	HPARef     ObjectReference   `json:"hpaRef"`
 	Value      int64             `json:"value"`
 	Valid      bool              `json:"valid"`
 }
 
 // ObjectReference contains enough information to let you identify the referred resource.
 type ObjectReference struct {
-	Name      string    `json:"name"`
-	Namespace string    `json:"namespace"`
-	UID       types.UID `json:"uid"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 type PodsMetricDescriptor struct {
 	MetricName string          `json:"metricName"`
-	HPA        ObjectReference `json:"hpa"`
+	HPARef     ObjectReference `json:"hpaRef"`
 }
 
 type ObjectMetricDescriptor struct {
 	MetricName      string          `json:"metricName"`
-	HPA             ObjectReference `json:"hpa"`
+	HPARef          ObjectReference `json:"hpaRef"`
 	DescribedObject ObjectReference `json:"describedObject"`
 }

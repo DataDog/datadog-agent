@@ -143,11 +143,8 @@ func (c *HPAWatcherClient) Start() {
 				if res != resversion && res != "" {
 					resversion = res
 
-					var err error
-					if err = c.processHPAs(added, modified); err != nil {
-						log.Errorf("Could not update the external metrics in the store: %s", err.Error())
-					}
-					if err = c.removeEntryFromStore(deleted); err != nil {
+					c.processHPAs(added, modified)
+					if err := c.removeEntryFromStore(deleted); err != nil {
 						log.Errorf("Could not delete the external metrics in the store: %s", err.Error())
 					}
 				}
@@ -178,8 +175,7 @@ func (c *HPAWatcherClient) updateExternalMetrics() {
 		return
 	}
 
-	var updated []custommetrics.ExternalMetricValue
-	for _, em := range emList {
+	for i, em := range emList {
 		if metav1.Now().Unix()-em.Timestamp <= maxAge && em.Valid {
 			continue
 		}
@@ -190,60 +186,53 @@ func (c *HPAWatcherClient) updateExternalMetrics() {
 			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
 		}
 		log.Debugf("Updated the external metric %#v", em)
-		updated = append(updated, em)
+		emList[i] = em
 	}
-	if err = c.store.SetExternalMetricValues(updated); err != nil {
+	if err = c.store.SetExternalMetricValues(emList); err != nil {
 		log.Errorf("Could not update the external metrics in the store: %s", err.Error())
 	}
 }
 
 // processHPAs transforms HPA data into structures to be stored upon validation that the metrics are available in Datadog
-func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.HorizontalPodAutoscaler) error {
+func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.HorizontalPodAutoscaler) {
 	added = append(added, modified...)
 	if len(added) == 0 {
-		return nil
+		return
 	}
-	var externalMetrics []custommetrics.ExternalMetricValue
+	externalMetrics, podsMetrics, objectMetrics := parseHPAs(added)
+
+	// We can query Datadog immediately for external metric values since they do not
+	// originate from within the cluster.
 	var err error
-	for _, hpa := range added {
-		for _, metricSpec := range hpa.Spec.Metrics {
-			switch metricSpec.Type {
-			case autoscalingv2.ExternalMetricSourceType:
-				m := custommetrics.ExternalMetricValue{
-					MetricName: metricSpec.External.MetricName,
-					Timestamp:  metav1.Now().Unix(),
-					HPA: custommetrics.ObjectReference{
-						Name:      hpa.Name,
-						Namespace: hpa.Namespace,
-					},
-					Labels: metricSpec.External.MetricSelector.MatchLabels,
-				}
-				m.Value, m.Valid, err = c.validateExternalMetric(m.MetricName, m.Labels)
-				if err != nil {
-					log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", m.MetricName, err)
-				}
-				externalMetrics = append(externalMetrics, m)
-			default:
-				log.Debugf("Unsupported metric type %s", metricSpec.Type)
-			}
+	for i, metric := range externalMetrics {
+		metric.Value, metric.Valid, err = c.validateExternalMetric(metric.MetricName, metric.Labels)
+		if err != nil {
+			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %v", metric.MetricName, err)
 		}
+		// We still need to update the valid flag if there is an error querying the value for the metric.
+		externalMetrics[i] = metric
 	}
-	return c.store.SetExternalMetricValues(externalMetrics)
+	if err = c.store.SetExternalMetricValues(externalMetrics); err != nil {
+		log.Errorf("Could not store external metrics: %v", err)
+	}
+	if err = c.store.SetMetricDescriptors(podsMetrics, objectMetrics); err != nil {
+		log.Errorf("Could not store metric descriptors: %v", err)
+	}
 }
 
 func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.HorizontalPodAutoscaler) error {
 	if len(deleted) == 0 {
 		return nil
 	}
-	objectRefs := []custommetrics.ObjectReference{}
+	hpaRefs := []custommetrics.ObjectReference{}
 	for _, hpa := range deleted {
-		objectRef := custommetrics.ObjectReference{
+		hpaRef := custommetrics.ObjectReference{
 			Name:      hpa.Name,
 			Namespace: hpa.Namespace,
 		}
-		objectRefs = append(objectRefs, objectRef)
+		hpaRefs = append(hpaRefs, hpaRef)
 	}
-	return c.store.Delete(objectRefs)
+	return c.store.Purge(hpaRefs)
 }
 
 // validateExternalMetric queries Datadog to validate the availability of an external metric
@@ -260,4 +249,46 @@ func (c *HPAWatcherClient) validateExternalMetric(metricName string, labels map[
 func (c *HPAWatcherClient) Stop() {
 	c.pollItl.Stop()
 	c.refreshItl.Stop()
+}
+
+// parseHPAs inspects hpas and returns descriptors for external, pods, and object metrics.
+func parseHPAs(hpas []*autoscalingv2.HorizontalPodAutoscaler) (
+	externalMetrics []custommetrics.ExternalMetricValue,
+	podsMetrics []custommetrics.PodsMetricDescriptor,
+	objectMetrics []custommetrics.ObjectMetricDescriptor) {
+
+	for _, hpa := range hpas {
+		hpaRef := custommetrics.ObjectReference{
+			Name:      hpa.Name,
+			Namespace: hpa.Namespace,
+		}
+		for _, metricSpec := range hpa.Spec.Metrics {
+			switch metricSpec.Type {
+			case autoscalingv2.ExternalMetricSourceType:
+				externalMetrics = append(externalMetrics, custommetrics.ExternalMetricValue{
+					MetricName: metricSpec.External.MetricName,
+					Timestamp:  metav1.Now().Unix(),
+					HPARef:     hpaRef,
+					Labels:     metricSpec.External.MetricSelector.MatchLabels,
+				})
+			case autoscalingv2.PodsMetricSourceType:
+				podsMetrics = append(podsMetrics, custommetrics.PodsMetricDescriptor{
+					MetricName: metricSpec.Pods.MetricName,
+					HPARef:     hpaRef,
+				})
+			case autoscalingv2.ObjectMetricSourceType:
+				objectMetrics = append(objectMetrics, custommetrics.ObjectMetricDescriptor{
+					MetricName: metricSpec.Object.MetricName,
+					HPARef:     hpaRef,
+					DescribedObject: custommetrics.ObjectReference{
+						Name:      hpa.Name,
+						Namespace: hpa.Namespace,
+					},
+				})
+			default:
+				log.Debugf("Unsupported metric type %s", metricSpec.Type)
+			}
+		}
+	}
+	return
 }
