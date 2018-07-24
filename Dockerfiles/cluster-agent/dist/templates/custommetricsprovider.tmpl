@@ -1,10 +1,10 @@
 Custom Metrics Provider
 =======================
-  ConfigMap name: {{ .hpaExternal.ConfigMapName }}
-  {{- if .hpaExternal -}}
   {{- if .hpaExternal.Error }}
   Error while trying to list external metrics: {{ .hpaExternal.Error }}
   {{ else }}
+  ConfigMap name: {{ .hpaExternal.ConfigMapName }}
+  {{- end -}}
 
   External Metrics
   ================
@@ -13,6 +13,8 @@ Custom Metrics Provider
   {{ else }}
   Number of external metrics detected: {{ .hpaExternal.External.Number }}
 
+  Values
+  ------
   {{ range $metric := .hpaExternal.External.Metrics }}
   {{ range $name, $value := $metric}}
   {{- if or (eq $name "hpaRef") (eq $name "labels")}}
@@ -28,15 +30,15 @@ Custom Metrics Provider
 
   {{- end -}}
 
-  Descriptors
-  ============
+  Detected Metrics
+  ================
     {{- if .hpaExternal.Descriptors.ErrorStore }}
     Error while processing descriptors: {{ .hpaExternal.Descriptors.ErrorStore }}
     {{ else }}
     Number of descriptors detected: {{ .hpaExternal.Descriptors.Number }}
 
-    Pods
-    ====
+    Pods Metrics
+    ------------
     {{ range $metric := .hpaExternal.Descriptors.Pods }}
     {{ range $name, $value := $metric}}
     {{- if (eq $name "hpaRef")}}
@@ -50,8 +52,8 @@ Custom Metrics Provider
     {{- end }}
     {{- end -}}
 
-    Object
-    ======
+    Object Metrics
+    --------------
     {{ range $metric := .hpaExternal.Descriptors.Object }}
     {{ range $name, $value := $metric}}
     {{- if (eq $name "hpaRef")}}
@@ -66,7 +68,3 @@ Custom Metrics Provider
     {{- end -}}
 
     {{- end -}}
-
-  {{ else }}
-  The Custom Metrics Provider is not enabled.
-  {{- end -}}

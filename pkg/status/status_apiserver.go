@@ -68,24 +68,28 @@ func GetHorizontalPodAutoscalingStatus() map[string]interface{} {
 
 	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, apiserver.GetResourcesNamespace(), datadogHPAConfigMap)
 
-	status["External"] := make(map[string]interface{})
+	externalStatus := make(map[string]interface{})
 	externalMetrics, err := store.ListAllExternalMetricValues()
 	if err != nil {
 		externalStatus["ErrorStore"] = err.Error()
 		return status
 	}
-	status["External"]["Number"] = len(externalMetrics)
-	status["External"]["Metrics"] = externalMetrics
+	externalStatus["Number"] = len(externalMetrics)
+	externalStatus["Metrics"] = externalMetrics
 
-	status["Descriptors"] := make(map[string]interface{})
+	status["External"] = externalStatus
+
+	descStatus := make(map[string]interface{})
 	podsDescs, objectDescs, err := store.ListAllMetricDescriptors()
 	if err != nil {
-		status["Descriptors"]["ErrorStore"] = err.Error()
+		descStatus["ErrorStore"] = err.Error()
 		return status
 	}
-	status["Descriptors"]["Number"] = len(podsDescs) + len(objectDescs)
-	status["Descriptors"]["Pods"] = podsDescs
-	status["Descriptors"]["Object"] = objectDescs
+	descStatus["Number"] = len(podsDescs) + len(objectDescs)
+	descStatus["Pods"] = podsDescs
+	descStatus["Object"] = objectDescs
+
+	status["Descriptors"] = descStatus
 
 	return status
 }

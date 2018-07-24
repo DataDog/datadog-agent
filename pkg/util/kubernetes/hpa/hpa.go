@@ -201,13 +201,14 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 	}
 	externalMetrics, podsDescs, objectDescs := parseHPAs(added...)
 
+	var err error
+
 	if err = c.store.SetMetricDescriptors(podsDescs, objectDescs); err != nil {
 		log.Errorf("Could not store metric descriptors: %v", err)
 	}
 
 	// We can query Datadog immediately for external metric values since they do not
 	// originate from within the cluster.
-	var err error
 	for i, metric := range externalMetrics {
 		metric.Value, metric.Valid, err = c.validateExternalMetric(metric.MetricName, metric.Labels)
 		if err != nil {
