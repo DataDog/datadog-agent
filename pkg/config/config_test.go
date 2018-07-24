@@ -239,7 +239,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	os.Setenv("DD_PROXY_HTTP", "http_url")
 	os.Setenv("DD_PROXY_HTTPS", "https_url")
-	os.Setenv("DD_PROXY_NO_PROXY", "a,b,c")
+	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
 
 	loadProxyFromEnv()
 
@@ -260,7 +260,7 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	os.Setenv("DD_PROXY_HTTP", "dd_http_url")
 	os.Setenv("DD_PROXY_HTTPS", "dd_https_url")
-	os.Setenv("DD_PROXY_NO_PROXY", "a,b,c")
+	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
 	os.Setenv("HTTP_PROXY", "env_http_url")
 	os.Setenv("HTTPS_PROXY", "env_https_url")
 	os.Setenv("NO_PROXY", "d,e,f")
@@ -320,7 +320,7 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 
 func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Setenv("DD_PROXY_HTTP", "")
-	os.Setenv("DD_PROXY_NO_PROXY", "a,b,c")
+	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
 	os.Setenv("HTTP_PROXY", "env_http_url")
 	os.Setenv("HTTPS_PROXY", "")
 	os.Setenv("NO_PROXY", "")

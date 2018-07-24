@@ -363,23 +363,19 @@ func loadProxyFromEnv() {
 
 	lookupEnvCaseInsensitive := func(key string) (string, bool) {
 		value, found := os.LookupEnv(key)
-		if found {
-			return value, found
+		if !found {
+			value, found = os.LookupEnv(strings.ToLower(key))
 		}
-		return os.LookupEnv(strings.ToLower(key))
+		if found {
+			log.Infof("Found '%v' env var, using it for the Agent proxy settings", key)
+		}
+		return value, found
 	}
 
-	// lookupEnvDDPrecedence pulls the value of the DD-specific proxy env var first (case-sensitive), and
-	// if not found, the value of the standard env var (case-insensitive)
-	lookupEnvDDPrecedence := func(DDkey, standardKey string) (string, bool) {
-		value, found := os.LookupEnv(DDkey)
-		if !found {
-			value, found = lookupEnvCaseInsensitive(standardKey)
-			if found {
-				log.Infof("Found '%v' env var, using it for the Agent proxy settings", standardKey)
-			}
-		} else {
-			log.Infof("Found '%v' env var, using it for the Agent proxy settings", DDkey)
+	lookupEnv := func(key string) (string, bool) {
+		value, found := os.LookupEnv(key)
+		if found {
+			log.Infof("Found '%v' env var, using it for the Agent proxy settings", key)
 		}
 		return value, found
 	}
@@ -393,17 +389,28 @@ func loadProxyFromEnv() {
 		}
 	}
 
-	if HTTP, found := lookupEnvDDPrecedence("DD_PROXY_HTTP", "HTTP_PROXY"); found {
+	if HTTP, found := lookupEnv("DD_PROXY_HTTP"); found {
+		isSet = true
+		p.HTTP = HTTP
+	} else if HTTP, found := lookupEnvCaseInsensitive("HTTP_PROXY"); found {
 		isSet = true
 		p.HTTP = HTTP
 	}
-	if HTTPS, found := lookupEnvDDPrecedence("DD_PROXY_HTTPS", "HTTPS_PROXY"); found {
+
+	if HTTPS, found := lookupEnv("DD_PROXY_HTTPS"); found {
+		isSet = true
+		p.HTTPS = HTTPS
+	} else if HTTPS, found := lookupEnvCaseInsensitive("HTTPS_PROXY"); found {
 		isSet = true
 		p.HTTPS = HTTPS
 	}
-	if noProxy, found := lookupEnvDDPrecedence("DD_PROXY_NO_PROXY", "NO_PROXY"); found {
+
+	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
 		isSet = true
-		p.NoProxy = strings.Split(noProxy, ",")
+		p.NoProxy = strings.Split(noProxy, " ") // space-separated list, consistent with viper
+	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
+		isSet = true
+		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
 	// We have to set each value individually so both Datadog.Get("proxy")
