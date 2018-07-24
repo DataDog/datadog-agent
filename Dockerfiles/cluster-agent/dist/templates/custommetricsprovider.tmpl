@@ -1,41 +1,18 @@
 Custom Metrics Provider
 =======================
+  {{- if .hpaExternal -}}
   {{- if .hpaExternal.Error }}
   Error while trying to list external metrics: {{ .hpaExternal.Error }}
   {{ else }}
   ConfigMap name: {{ .hpaExternal.ConfigMapName }}
-  {{- end -}}
-
-  External Metrics
-  ================
-  {{- if .hpaExternal.External.ErrorStore }}
-  Error while processing external metrics: {{ .hpaExternal.External.ErrorStore }}
-  {{ else }}
-  Number of external metrics detected: {{ .hpaExternal.External.Number }}
-
-  Values
-  ------
-  {{ range $metric := .hpaExternal.External.Metrics }}
-  {{ range $name, $value := $metric}}
-  {{- if or (eq $name "hpaRef") (eq $name "labels")}}
-  {{$name}}:
-  {{- range $k, $v := $value}}
-  - {{$k}}: {{$v}}
-  {{- end -}}
-  {{else}}
-  {{$name}}: {{$value}}
-  {{- end }}
-  {{- end }}
-  {{- end }}
-
-  {{- end -}}
 
   Detected Metrics
-  ================
+  ----------------
     {{- if .hpaExternal.Descriptors.ErrorStore }}
-    Error while processing descriptors: {{ .hpaExternal.Descriptors.ErrorStore }}
+    Internal Error while processing descriptors: {{ .hpaExternal.Descriptors.ErrorStore }}
     {{ else }}
     Number of descriptors detected: {{ .hpaExternal.Descriptors.Number }}
+    {{- end -}}
 
     Pods Metrics
     ------------
@@ -48,9 +25,9 @@ Custom Metrics Provider
     {{- end -}}
     {{else}}
     {{$name}}: {{$value}}
-    {{- end }}
-    {{- end }}
     {{- end -}}
+    {{- end -}}
+    {{- end }}
 
     Object Metrics
     --------------
@@ -63,8 +40,30 @@ Custom Metrics Provider
     {{- end -}}
     {{else}}
     {{$name}}: {{$value}}
-    {{- end }}
-    {{- end }}
     {{- end -}}
+    {{- end -}}
+    {{- end }}
 
+  External Metrics
+  ----------------
+    {{- if .hpaExternal.External.ErrorStore }}
+    Internal Error while processing the External Metrics: {{ .hpaExternal.External.ErrorStore }}
+    {{ else }}
+    Number of external metrics detected: {{ .hpaExternal.External.Number }}
     {{- end -}}
+    {{ range $metric := .hpaExternal.External.Metrics }}
+    {{ range $name, $value := $metric}}
+    {{- if (eq $name "hpaRef")}}
+    {{$name}}:
+    {{- range $k, $v := $value}}
+    - {{$k}}: {{$v}}
+    {{- end -}}
+    {{else}}
+    {{$name}}: {{$value}}
+    {{- end -}}
+    {{- end -}}
+    {{- end }}
+  {{- end -}}
+  {{ else }}
+  The Custom Metrics Provider is not enabled.
+  {{ end }}

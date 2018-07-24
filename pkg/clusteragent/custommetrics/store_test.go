@@ -148,6 +148,7 @@ func TestConfigMapStorePurge(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	store, err := NewConfigMapStore(client, "default", "bag-o-things")
+	require.NoError(t, err)
 
 	fooRef := ObjectReference{
 		Namespace: "foo",
