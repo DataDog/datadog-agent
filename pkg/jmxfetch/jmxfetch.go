@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -226,14 +227,35 @@ func (j *JMXFetch) Start() error {
 	return j.cmd.Start()
 }
 
-// Kill kills the JMXFetch process
-func (j *JMXFetch) Kill() error {
+// Stop stops the JMXFetch process
+func (j *JMXFetch) Stop() error {
 	if j.JmxExitFile == "" {
+		graceTimer := time.NewTimer(500 * time.Millisecond)
+		defer graceTimer.Stop()
+
+		stopped := make(chan struct{})
+
 		// Unix
-		err := j.cmd.Process.Signal(os.Kill)
+		err := j.cmd.Process.Signal(syscall.SIGTERM)
 		if err != nil {
 			return err
 		}
+
+		go func() {
+			j.Wait()
+			close(stopped)
+		}()
+
+		select {
+		case <-graceTimer.C:
+			log.Warnf("Jmxfetch did not exit during it's grace period, killing it")
+			err = j.cmd.Process.Signal(os.Kill)
+			if err != nil {
+				return err
+			}
+		case <-stopped:
+		}
+
 	} else {
 		// Windows
 		if err := ioutil.WriteFile(j.exitFilePath, nil, 0644); err != nil {
