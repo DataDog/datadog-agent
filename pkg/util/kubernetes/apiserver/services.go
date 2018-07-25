@@ -120,7 +120,8 @@ func (m ServicesMapper) mapOnRef(_ string, pods v1.PodList, endpointList v1.Endp
 					continue
 				}
 
-				// Check if the referenced pod is from the local pod list we received from the kubelet.
+				// Check if the referenced pod is from the pod list we received from the
+				// kubelet (or apiserver for the DCA).
 				if _, ok := podUIDs[ref.UID]; !ok {
 					continue
 				}
