@@ -14,7 +14,7 @@ stages:
   - e2e
 
 variables:
-  SRC_PATH: /src/github.com/DataDog/datadog-agent
+  SRC_PATH: /src/github.com/StackVista/stackstate-agent
   OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
   OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   # make sure the types of RPM packages are kept separate
@@ -118,9 +118,9 @@ run_security_scan_test:
   before_script:
     # this image isn't built in the datadog-agent-builders repo
     # it doesn't have invoke so we install the dependencies without invoke
-    - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
-    - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
-    - cd $GOPATH/src/github.com/DataDog/datadog-agent
+    - mkdir -p $GOPATH/src/github.com/StackVista/stackstate-agent
+    - rsync -azr --delete ./ $GOPATH/src/github.com/StackVista/stackstate-agent
+    - cd $GOPATH/src/github.com/StackVista/stackstate-agent
     - pip install invoke
     - inv deps
   script:
@@ -321,10 +321,10 @@ build_windows_msi_x64:
     - if exist .omnibus rd /s/q .omnibus
     - if exist \omnibus-ruby rd /s/q \omnibus-ruby
     - if exist \opt\datadog-agent rd /s/q \opt\datadog-agent
-    - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
-    - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
-    - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
-    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    - if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
+    - mkdir %GOPATH%\src\github.com\StackVista\stackstate-agent
+    - xcopy /q/h/e/s * %GOPATH%\src\github.com\StackVista\stackstate-agent
+    - cd %GOPATH%\src\github.com\StackVista\stackstate-agent
     - inv -e deps
   stage: package_build
   variables:
@@ -334,7 +334,7 @@ build_windows_msi_x64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf .omnibus/pkg/
-    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    - cd %GOPATH%\src\github.com\StackVista\stackstate-agent
     - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache
   artifacts:
     expire_in: 2 weeks

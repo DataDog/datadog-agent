@@ -16,7 +16,7 @@ templates:
       - image: datadog/datadog-agent-runner-circle:latest
         environment:
           USE_SYSTEM_LIBS: "1"
-    working_directory: /go/src/github.com/DataDog/datadog-agent
+    working_directory: /go/src/github.com/StackVista/stackstate-agent
   step_templates:
     - restore_cache: &restore_source
         keys:
@@ -38,7 +38,7 @@ jobs:
       - save_cache:
           key: v2-repo-{{ .Revision }}
           paths:
-            - /go/src/github.com/DataDog/datadog-agent
+            - /go/src/github.com/StackVista/stackstate-agent
 
   dependencies:
     <<: *job_template
@@ -54,7 +54,7 @@ jobs:
       - save_cache:
           key: v2-godeps-{{ .Branch }}-{{ .Revision }}
           paths:
-            - /go/src/github.com/DataDog/datadog-agent/vendor
+            - /go/src/github.com/StackVista/stackstate-agent/vendor
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
