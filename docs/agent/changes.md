@@ -101,7 +101,8 @@ environment variables:
 
 The standard environment variables `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` are
 supported in both the Agent 5 and the Agent 6. However, with the Agent 6, using the new
-`DD_PROXY_*` environment variables listed above is recommended.
+`DD_PROXY_*` environment variables listed above is recommended, and they have precedence over
+the standard environment variables.
 
 **The precedence order of the Agent 6 proxy options is different from Agent 5**:
 
