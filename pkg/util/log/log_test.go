@@ -45,6 +45,34 @@ func TestBasicLogging(t *testing.T) {
 	assert.Equal(t, strings.Count(b.String(), "bar"), 5)
 }
 
+func TestLogBuffer(t *testing.T) {
+	// reset buffer state
+	logsBuffer = []func(){}
+	bufferLogsBeforeInit = true
+	logger = nil
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+
+	Tracef("%s", "foo")
+	Debugf("%s", "foo")
+	Infof("%s", "foo")
+	Warnf("%s", "foo")
+	Errorf("%s", "foo")
+	Criticalf("%s", "foo")
+
+	SetupDatadogLogger(l, "debug")
+	assert.NotNil(t, logger)
+
+	w.Flush()
+
+	// Trace will not be logged, Error and Critical will directly be logged to Stderr
+	assert.Equal(t, strings.Count(b.String(), "foo"), 5)
+}
+
 func TestCredentialScrubbingLogging(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
