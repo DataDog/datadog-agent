@@ -29,6 +29,8 @@ type ObjectMetricDescriptor struct {
 
 // ObjectReference contains enough information to let you identify the referred resource.
 type ObjectReference struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Kind       string `json:"kind"`
+	Name       string `json:"name"`
+	Namespace  string `json:"namespace"`
+	APIVersion string `json:"apiVersion"`
 }

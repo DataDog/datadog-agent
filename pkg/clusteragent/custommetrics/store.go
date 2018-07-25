@@ -23,6 +23,7 @@ import (
 
 const (
 	keyDelimeter = "-"
+	numKeyParts  = 5
 )
 
 // Store is an interface for persistent storage of custom and external metrics.
@@ -114,14 +115,14 @@ func (c *configMapStore) SetMetricDescriptors(podsMetrics []PodsMetricDescriptor
 		if err = c.set(key, desc); err == nil {
 			continue
 		}
-		log.Debugf("Could not marshal the pods metric descriptor %v: %s", desc, err)
+		log.Debugf("Could not marshal the pods metric descriptor %v: %v", desc, err)
 	}
 	for _, desc := range objectMetrics {
 		key := strings.Join([]string{"descriptor", "object", desc.HPARef.Namespace, desc.HPARef.Name, desc.MetricName}, keyDelimeter)
 		if err = c.set(key, desc); err == nil {
 			continue
 		}
-		log.Debugf("Could not marshal the object metric descriptor %v: %s", desc, err)
+		log.Debugf("Could not marshal the object metric descriptor %v: %v", desc, err)
 	}
 	return c.updateConfigMap()
 }
@@ -138,7 +139,7 @@ func (c *configMapStore) Purge(deleted []ObjectReference) error {
 		// Delete all metrics from the configmap that reference this object.
 		for k := range c.cm.Data {
 			parts := strings.Split(k, keyDelimeter)
-			if len(parts) < 5 {
+			if len(parts) < numKeyParts {
 				log.Debugf("Deleting malformed key %s", k)
 				delete(c.cm.Data, k)
 				continue
@@ -160,7 +161,7 @@ func (c *configMapStore) ListAllExternalMetricValues() (externalMetrics []Extern
 	}
 	for k, v := range c.cm.Data {
 		parts := strings.Split(k, keyDelimeter)
-		if len(parts) < 4 {
+		if len(parts) < numKeyParts {
 			continue
 		}
 		if parts[0] != "value" && parts[1] != "external" {
@@ -183,7 +184,7 @@ func (c *configMapStore) ListAllMetricDescriptors() (podsMetrics []PodsMetricDes
 	}
 	for k, v := range c.cm.Data {
 		parts := strings.Split(k, keyDelimeter)
-		if len(parts) < 4 {
+		if len(parts) < numKeyParts {
 			continue
 		}
 		if parts[0] != "descriptor" {

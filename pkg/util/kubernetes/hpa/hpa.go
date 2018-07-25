@@ -230,8 +230,10 @@ func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.Horizon
 	hpaRefs := []custommetrics.ObjectReference{}
 	for _, hpa := range deleted {
 		hpaRef := custommetrics.ObjectReference{
-			Name:      hpa.Name,
-			Namespace: hpa.Namespace,
+			Kind:       hpa.Kind,
+			Name:       hpa.Name,
+			Namespace:  hpa.Namespace,
+			APIVersion: hpa.APIVersion,
 		}
 		hpaRefs = append(hpaRefs, hpaRef)
 	}
@@ -262,8 +264,10 @@ func parseHPAs(hpas ...*autoscalingv2.HorizontalPodAutoscaler) (
 
 	for _, hpa := range hpas {
 		hpaRef := custommetrics.ObjectReference{
-			Name:      hpa.Name,
-			Namespace: hpa.Namespace,
+			Kind:       hpa.Kind,
+			Name:       hpa.Name,
+			Namespace:  hpa.Namespace,
+			APIVersion: hpa.APIVersion,
 		}
 		for _, metricSpec := range hpa.Spec.Metrics {
 			switch metricSpec.Type {
@@ -283,8 +287,10 @@ func parseHPAs(hpas ...*autoscalingv2.HorizontalPodAutoscaler) (
 					MetricName: metricSpec.Object.MetricName,
 					HPARef:     hpaRef,
 					DescribedObject: custommetrics.ObjectReference{
-						Name:      metricSpec.Object.Target.Name,
-						Namespace: hpa.Namespace,
+						Kind:       metricSpec.Object.Target.Kind,
+						Name:       metricSpec.Object.Target.Name,
+						Namespace:  hpa.Namespace,
+						APIVersion: metricSpec.Object.Target.APIVersion,
 					},
 				})
 			default:
