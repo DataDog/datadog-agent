@@ -219,6 +219,13 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         print("Removing PSUTIL on Windows")
         ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
 
+    # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
+    # because we use it, and there's no way to exclude; however, we must use
+    # the version from $GOPATH
+    if os.path.exists('vendor/golang.org/x/mobile'):
+        print("Removing vendored golang.org/x/mobile")
+        shutil.rmtree('vendor/golang.org/x/mobile')
+
     if not no_checks:
         verbosity = 'v' if verbose else 'q'
         core_dir = core_dir or os.getenv('DD_CORE_DIR')
