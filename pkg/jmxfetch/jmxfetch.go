@@ -251,7 +251,7 @@ func (j *JMXFetch) Stop() error {
 			log.Warnf("Jmxfetch did not exit during it's grace period, killing it")
 			err = j.cmd.Process.Signal(os.Kill)
 			if err != nil {
-				return err
+				log.Warnf("Could not kill jmxfetch: %v", err)
 			}
 		case <-stopped:
 		}
