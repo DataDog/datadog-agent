@@ -367,6 +367,7 @@ func loadProxyFromEnv() {
 			value, found = os.LookupEnv(strings.ToLower(key))
 		}
 		if found {
+			// FIXME: this doesn't log anything because the logger isn't initialized yet
 			log.Infof("Found '%v' env var, using it for the Agent proxy settings", key)
 		}
 		return value, found
@@ -375,6 +376,7 @@ func loadProxyFromEnv() {
 	lookupEnv := func(key string) (string, bool) {
 		value, found := os.LookupEnv(key)
 		if found {
+			// FIXME: this doesn't log anything because the logger isn't initialized yet
 			log.Infof("Found '%v' env var, using it for the Agent proxy settings", key)
 		}
 		return value, found
@@ -385,6 +387,7 @@ func loadProxyFromEnv() {
 	if isSet = Datadog.IsSet("proxy"); isSet {
 		if err := Datadog.UnmarshalKey("proxy", p); err != nil {
 			isSet = false
+			// FIXME: this doesn't log anything because the logger isn't initialized yet
 			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 		}
 	}
