@@ -243,6 +243,8 @@ func TestMapServices(t *testing.T) {
 								nodeName:    "firstNode",
 								targetPodId: "5555",
 							},
+							// This endpoint references a pod the is not in the local pod list we
+							// would receive from a kubelet (or apiserver for the DCA).
 							{
 								ip:          "1.1.1.1",
 								nodeName:    "firstNode",

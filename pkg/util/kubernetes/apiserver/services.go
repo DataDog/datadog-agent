@@ -95,9 +95,14 @@ func (m ServicesMapper) mapOnIp(nodeName string, pods v1.PodList, endpointList v
 }
 
 // mapOnRef matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.3+
-func (m ServicesMapper) mapOnRef(nodeName string, endpointList v1.EndpointsList) error {
+func (m ServicesMapper) mapOnRef(_ string, pods v1.PodList, endpointList v1.EndpointsList) error {
 	uidToPod := make(map[types.UID]v1.ObjectReference)
 	uidToServices := make(map[types.UID][]string)
+
+	podUIDs := make(map[types.UID]string)
+	for _, pod := range pods.Items {
+		podUIDs[pod.UID] = ""
+	}
 
 	for _, svc := range endpointList.Items {
 		for _, endpointsSubsets := range svc.Subsets {
@@ -114,11 +119,18 @@ func (m ServicesMapper) mapOnRef(nodeName string, endpointList v1.EndpointsList)
 					log.Debugf("Incomplete reference for object %s on service %s, skipping", ref.UID, svc.Name)
 					continue
 				}
+
+				// Check if the referenced pod is from the local pod list we received from the kubelet.
+				if _, ok := podUIDs[ref.UID]; !ok {
+					continue
+				}
+
 				uidToPod[ref.UID] = ref
 				uidToServices[ref.UID] = append(uidToServices[ref.UID], svc.Name)
 			}
 		}
 	}
+
 	for uid, svcs := range uidToServices {
 		pod, ok := uidToPod[uid]
 		if !ok {
@@ -139,7 +151,7 @@ func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.Pod
 	if metaBundle.mapOnIP {
 		err = metaBundle.Services.mapOnIp(nodeName, pods, endpointList)
 	} else { // Default behaviour
-		err = metaBundle.Services.mapOnRef(nodeName, endpointList)
+		err = metaBundle.Services.mapOnRef(nodeName, pods, endpointList)
 	}
 	if err != nil {
 		return err
