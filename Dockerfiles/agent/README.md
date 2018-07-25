@@ -29,14 +29,12 @@ The agent is highly customizable, here are the most used environment variables:
 
 #### Proxies
 
-The agent proxy settings can be overridden with the standard `*_PROXY`
+Starting with Agent v6.4.0, the agent proxy settings can be overridden with the following
 environment variables:
 
-- `HTTP_PROXY`: an http URL to use as a proxy for `http` requests.
-- `HTTPS_PROXY`: an http URL to use as a proxy for `https` requests.
-- `NO_PROXY`: a comma-separated list of URLs for which no proxy should be used.
-
-Notice: these variables don't use the `DD_` prefix.
+- `DD_PROXY_HTTP`: an http URL to use as a proxy for `http` requests.
+- `DD_PROXY_HTTPS`: an http URL to use as a proxy for `https` requests.
+- `DD_PROXY_NO_PROXY`: a space-separated list of URLs for which no proxy should be used.
 
 For more information: https://docs.datadoghq.com/agent/proxy/#agent-v6
 

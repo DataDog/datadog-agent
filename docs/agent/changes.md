@@ -92,25 +92,27 @@ To not miss some specific configuration details, if you are currently using envi
 
 #### Proxies
 
-The agent proxy settings can be overridden with the standard `*_PROXY`
+Starting with v6.4.0, the agent proxy settings can be overridden with the following
 environment variables:
 
-- `HTTP_PROXY`: an http URL to use as a proxy for `http` requests.
-- `HTTPS_PROXY`: an http URL to use as a proxy for `https` requests.
-- `NO_PROXY`: a comma-separated list of URLs for which no proxy should be used.
+- `DD_PROXY_HTTP`: an http URL to use as a proxy for `http` requests.
+- `DD_PROXY_HTTPS`: an http URL to use as a proxy for `https` requests.
+- `DD_PROXY_NO_PROXY`: a space-separated list of URLs for which no proxy should be used.
 
-Notice: these variables don't use the `DD_` prefix.
+The standard environment variables `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` are
+supported in both the Agent 5 and the Agent 6. However, with the Agent 6, using the new
+`DD_PROXY_*` environment variables listed above is recommended.
 
-**The behaviour of the Agent 6 is different from Agent 5**:
+**The precedence order of the Agent 6 proxy options is different from Agent 5**:
 
-The Agent 6 will first use the environment variables and the configuration file
+The Agent 6 will first use the environment variables and then the configuration file
 (as for every other setting available through environment variables). This is
 the opposite of Agent 5, which would always use the proxy from the configuration
 file if set.
 
 For proxies, the Agent 6 will override the values from the configuration file
-with the ones in the environment. This means that if both a `HTTP` and `HTTPS`
-proxy are set in the configuration file but only the `HTTPS_PROXY` is set in
+with the ones in the environment. This means that if both `proxy.http` and `proxy.https`
+are set in the configuration file but only `DD_PROXY_HTTPS` is set in
 the environment, the agent will use the `HTTPS` value from the environment and
 the `HTTP` value from the configuration file.
 
