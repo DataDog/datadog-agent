@@ -16,7 +16,19 @@ import (
 	"github.com/cihub/seelog"
 )
 
-var logger *DatadogLogger
+var (
+	logger *DatadogLogger
+
+	// This buffer holds log lines sent to the logger before its
+	// initialization. Even if initializing the logger is one of the first
+	// things the agent does, we still: load the conf, resolve secrets inside,
+	// compute the final proxy settings, ...
+	//
+	// This buffer should be very short lived.
+	logsBuffer           = []func(){}
+	bufferLogsBeforeInit = true
+	bufferMutex          sync.Mutex
+)
 
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
@@ -47,6 +59,22 @@ func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	// theoretical refactor to avoid duplication in the functions
 	// below cannot be performed.
 	logger.inner.SetAdditionalStackDepth(2)
+
+	// Flushing logs since the logger is now initialized
+	bufferMutex.Lock()
+	bufferLogsBeforeInit = false
+	defer bufferMutex.Unlock()
+	for _, logLine := range logsBuffer {
+		logLine()
+	}
+	logsBuffer = []func(){}
+}
+
+func addLogToBuffer(logHandle func()) {
+	bufferMutex.Lock()
+	defer bufferMutex.Unlock()
+
+	logsBuffer = append(logsBuffer, logHandle)
 }
 
 func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
@@ -316,6 +344,8 @@ func Trace(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
 		s := buildLogEntry(v...)
 		logger.trace(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Trace(v...) })
 	}
 }
 
@@ -324,6 +354,8 @@ func Debug(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
 		s := buildLogEntry(v...)
 		logger.debug(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Debug(v...) })
 	}
 }
 
@@ -332,6 +364,8 @@ func Info(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		s := buildLogEntry(v...)
 		logger.info(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Info(v...) })
 	}
 }
 
@@ -340,6 +374,8 @@ func Warn(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
 		s := buildLogEntry(v...)
 		return logger.warn(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Warn(v...) })
 	}
 	return formatError(v...)
 }
@@ -349,7 +385,10 @@ func Error(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		s := buildLogEntry(v...)
 		return logger.error(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Error(v...) })
 	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatError(v...)
 	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 	return err
@@ -360,7 +399,10 @@ func Critical(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		s := buildLogEntry(v...)
 		return logger.critical(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Critical(v...) })
 	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatError(v...)
 	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
 	return err
@@ -377,6 +419,8 @@ func Flush() {
 func Tracef(format string, params ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
 		logger.tracef(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Tracef(format, params...) })
 	}
 }
 
@@ -384,6 +428,8 @@ func Tracef(format string, params ...interface{}) {
 func Debugf(format string, params ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
 		logger.debugf(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Debugf(format, params...) })
 	}
 }
 
@@ -391,6 +437,8 @@ func Debugf(format string, params ...interface{}) {
 func Infof(format string, params ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		logger.infof(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Infof(format, params...) })
 	}
 }
 
@@ -398,6 +446,8 @@ func Infof(format string, params ...interface{}) {
 func Warnf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
 		return logger.warnf(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Warnf(format, params...) })
 	}
 	return formatErrorf(format, params...)
 }
@@ -406,7 +456,10 @@ func Warnf(format string, params ...interface{}) error {
 func Errorf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		return logger.errorf(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Errorf(format, params...) })
 	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatErrorf(format, params...)
 	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 	return err
@@ -416,7 +469,10 @@ func Errorf(format string, params ...interface{}) error {
 func Criticalf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		return logger.criticalf(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Criticalf(format, params...) })
 	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatErrorf(format, params...)
 	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
 	return err
