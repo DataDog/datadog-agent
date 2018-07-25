@@ -199,7 +199,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	// uppercase
 	os.Setenv("HTTP_PROXY", "http_url")
 	os.Setenv("HTTPS_PROXY", "https_url")
-	os.Setenv("NO_PROXY", "a,b,c")
+	os.Setenv("NO_PROXY", "a,b,c") // comma-separated list
 
 	loadProxyFromEnv()
 
@@ -219,7 +219,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	// lowercase
 	os.Setenv("http_proxy", "http_url2")
 	os.Setenv("https_proxy", "https_url2")
-	os.Setenv("no_proxy", "1,2,3")
+	os.Setenv("no_proxy", "1,2,3") // comma-separated list
 
 	loadProxyFromEnv()
 	proxies = GetProxies()
@@ -239,7 +239,7 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	os.Setenv("DD_PROXY_HTTP", "http_url")
 	os.Setenv("DD_PROXY_HTTPS", "https_url")
-	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
+	os.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
 
 	loadProxyFromEnv()
 
