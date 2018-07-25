@@ -10,7 +10,7 @@ package v5
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/StackVista/stackstate-agent/pkg/serializer/marshaler"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload

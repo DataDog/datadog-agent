@@ -8,8 +8,8 @@ package windowsevent
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 	log "github.com/cihub/seelog"
 	"github.com/clbanning/mxj"
 )

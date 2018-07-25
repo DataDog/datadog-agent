@@ -8,7 +8,7 @@
 package gui
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
+	"github.com/StackVista/stackstate-agent/pkg/collector/py"
 )
 
 func getPythonChecks() ([]string, error) {

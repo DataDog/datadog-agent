@@ -14,7 +14,7 @@ package agent
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const noJMXErrorString = "jmx is not compiled in this agent"

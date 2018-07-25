@@ -15,7 +15,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 )
 
 type ComposeConf struct {

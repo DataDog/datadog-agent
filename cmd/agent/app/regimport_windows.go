@@ -6,7 +6,7 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 	"github.com/spf13/cobra"
 )
 

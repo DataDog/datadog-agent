@@ -16,7 +16,7 @@ import (
 	osq "github.com/openshift/api/quota/v1"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 )
 
 func TestReportClusterQuotas(t *testing.T) {

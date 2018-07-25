@@ -3,7 +3,7 @@ package py
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+	"github.com/StackVista/stackstate-agent/pkg/metadata/externalhost"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

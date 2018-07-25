@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	pipeline "github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
+	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	pipeline "github.com/StackVista/stackstate-agent/pkg/logs/pipeline/mock"
 )
 
 func TestShouldStartOnlyOneTailerPerJournal(t *testing.T) {

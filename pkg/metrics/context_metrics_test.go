@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	// 3p
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/ckey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

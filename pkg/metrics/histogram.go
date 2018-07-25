@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // weightSample represent a sample with its weight in the histogram (deduce from SampleRate)

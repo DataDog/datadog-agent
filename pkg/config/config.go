@@ -17,10 +17,10 @@ import (
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/secrets"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/StackVista/stackstate-agent/pkg/secrets"
+	"github.com/StackVista/stackstate-agent/pkg/version"
 )
 
 // DefaultForwarderRecoveryInterval is the default recovery interval, also used if

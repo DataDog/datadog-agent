@@ -8,7 +8,7 @@ package message
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 )
 
 // Origin represents the Origin of a message

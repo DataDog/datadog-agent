@@ -8,7 +8,7 @@
 package apiserver
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // DetectOpenShiftAPILevel looks at known endpoints to detect if OpenShift

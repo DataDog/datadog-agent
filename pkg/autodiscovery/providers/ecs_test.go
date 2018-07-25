@@ -8,7 +8,7 @@ package providers
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/StackVista/stackstate-agent/pkg/util/ecs"
 	"github.com/stretchr/testify/assert"
 )
 

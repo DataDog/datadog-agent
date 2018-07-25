@@ -6,7 +6,7 @@
 package decoder
 
 import (
-	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
+	parser "github.com/StackVista/stackstate-agent/pkg/logs/docker"
 )
 
 // LineUnwrapper removes all the extra information that were added to the original log

@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"runtime"
 
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/winutil"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 )
 
 // For testing purpose

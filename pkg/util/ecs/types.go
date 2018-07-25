@@ -5,7 +5,7 @@
 
 package ecs
 
-import "github.com/DataDog/datadog-agent/pkg/util/retry"
+import "github.com/StackVista/stackstate-agent/pkg/util/retry"
 
 // TaskMetadata is the info returned by the ECS task metadata API
 type TaskMetadata struct {

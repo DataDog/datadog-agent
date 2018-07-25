@@ -10,9 +10,9 @@ package collectors
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/errors"
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/StackVista/stackstate-agent/pkg/errors"
+	taggerutil "github.com/StackVista/stackstate-agent/pkg/tagger/utils"
+	"github.com/StackVista/stackstate-agent/pkg/util/ecs"
 )
 
 const (

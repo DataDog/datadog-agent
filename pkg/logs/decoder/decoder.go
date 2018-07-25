@@ -8,7 +8,7 @@ package decoder
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 )
 
 // contentLenLimit represents the length limit above which we want to truncate the output content

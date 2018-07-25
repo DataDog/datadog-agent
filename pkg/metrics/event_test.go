@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 func TestMarshal(t *testing.T) {

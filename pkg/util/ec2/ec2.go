@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/ecs"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing

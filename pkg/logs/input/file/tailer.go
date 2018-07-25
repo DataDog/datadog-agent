@@ -12,13 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 )
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received

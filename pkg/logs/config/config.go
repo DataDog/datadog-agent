@@ -7,7 +7,7 @@ package config
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 // LogsAgent is the global configuration object

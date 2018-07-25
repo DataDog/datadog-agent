@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	ddapp "github.com/DataDog/datadog-agent/cmd/agent/app"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	ddapp "github.com/StackVista/stackstate-agent/cmd/agent/app"
+	"github.com/StackVista/stackstate-agent/pkg/status"
 	"golang.org/x/mobile/asset"
 	yaml "gopkg.in/yaml.v2"
 )

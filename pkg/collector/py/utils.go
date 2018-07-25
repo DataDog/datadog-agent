@@ -16,7 +16,7 @@ import (
 
 	"github.com/sbinet/go-python"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // #include <Python.h>

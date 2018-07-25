@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 )
 
 // TemplateCache is a data structure to store configuration templates

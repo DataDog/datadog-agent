@@ -5,7 +5,7 @@
 
 package autodiscovery
 
-import "github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+import "github.com/StackVista/stackstate-agent/pkg/autodiscovery/listeners"
 
 type dummyService struct {
 	ID            listeners.ID

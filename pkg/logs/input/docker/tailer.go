@@ -14,15 +14,15 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/tagger"
+	dockerutil "github.com/StackVista/stackstate-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
+	parser "github.com/StackVista/stackstate-agent/pkg/logs/docker"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"

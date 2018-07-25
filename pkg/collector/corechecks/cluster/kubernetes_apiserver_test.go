@@ -16,9 +16,9 @@ import (
 	"k8s.io/api/core/v1"
 	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
+	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"k8s.io/apimachinery/pkg/types"
 )
 

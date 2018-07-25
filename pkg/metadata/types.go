@@ -5,7 +5,7 @@
 
 package metadata
 
-import "github.com/DataDog/datadog-agent/pkg/serializer"
+import "github.com/StackVista/stackstate-agent/pkg/serializer"
 
 // Collector is anything capable to collect and send metadata payloads
 // through the forwarder.

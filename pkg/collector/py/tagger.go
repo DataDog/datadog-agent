@@ -14,7 +14,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/StackVista/stackstate-agent/pkg/tagger"
 )
 
 // GetTags queries the agent6 tagger and returns a string array containing

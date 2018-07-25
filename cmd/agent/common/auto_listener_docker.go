@@ -8,7 +8,7 @@
 package common
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 )
 
 // isDockerRunning check if docker is running

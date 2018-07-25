@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 // FromAgentConfig reads the old agentConfig configuration, converts and merges

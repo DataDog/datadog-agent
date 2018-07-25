@@ -9,10 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/StackVista/stackstate-agent/pkg/metadata/common"
+	"github.com/StackVista/stackstate-agent/pkg/metadata/externalhost"
+	"github.com/StackVista/stackstate-agent/pkg/metadata/host"
+	"github.com/StackVista/stackstate-agent/pkg/serializer/marshaler"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload

@@ -6,7 +6,7 @@
 package scheduler
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 )
 
 // Scheduler is the interface that should be implemented if you want to schedule and

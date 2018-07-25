@@ -8,9 +8,9 @@
 package py
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 )
 
 // #cgo pkg-config: python-2.7

@@ -5,7 +5,7 @@
 
 package container
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import "github.com/StackVista/stackstate-agent/pkg/util/log"
 
 // Catalog holds available metadata providers
 type Catalog map[string]MetadataProvider
