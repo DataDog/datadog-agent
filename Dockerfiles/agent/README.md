@@ -36,6 +36,10 @@ environment variables:
 - `DD_PROXY_HTTPS`: an http URL to use as a proxy for `https` requests.
 - `DD_PROXY_NO_PROXY`: a space-separated list of URLs for which no proxy should be used.
 
+Note: At the moment, the trace-agent only supports setting a proxy in `datadog.yaml`, and does not
+support these proxy environment variables. If you wish to set a proxy for trace-agent, please refer
+to the [section on mounting a custom datadog.yaml](#others).
+
 For more information: https://docs.datadoghq.com/agent/proxy/#agent-v6
 
 #### Optional collection agents
