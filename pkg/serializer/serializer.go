@@ -89,7 +89,7 @@ type Serializer struct {
 
 // NewSerializer returns a new Serializer initialized
 func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
-	return &Serializer{
+	s := &Serializer{
 		Forwarder:            forwarder,
 		enableEvents:         config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:         config.Datadog.GetBool("enable_payloads.series"),
@@ -97,6 +97,24 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 		enableSketches:       config.Datadog.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake: config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
 	}
+
+	if !s.enableEvents {
+		log.Warn("event payloads are disabled: all events will be dropped")
+	}
+	if !s.enableSeries {
+		log.Warn("series payloads are disabled: all series will be dropped")
+	}
+	if !s.enableServiceChecks {
+		log.Warn("service_checks payloads are disabled: all service_checks will be dropped")
+	}
+	if !s.enableSketches {
+		log.Warn("sketches payloads are disabled: all sketches will be dropped")
+	}
+	if !s.enableJSONToV1Intake {
+		log.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
+	}
+
+	return s
 }
 
 func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
@@ -131,6 +149,7 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 	if !s.enableEvents {
+		log.Debug("events payloads are disabled: dropping it")
 		return nil
 	}
 
@@ -151,6 +170,7 @@ func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 	if !s.enableServiceChecks {
+		log.Debug("service_checks payloads are disabled: dropping it")
 		return nil
 	}
 
@@ -171,6 +191,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 	if !s.enableSeries {
+		log.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
 
@@ -191,6 +212,7 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 	if !s.enableSketches {
+		log.Debug("sketches payloads are disabled: dropping it")
 		return nil
 	}
 
@@ -226,6 +248,7 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 // arbitrary payload the v1 API.
 func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 	if !s.enableJSONToV1Intake {
+		log.Debug("JSON to V1 intake endpoint payloads are disabled: dropping it")
 		return nil
 	}
 
