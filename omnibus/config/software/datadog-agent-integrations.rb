@@ -23,7 +23,7 @@ whitelist_file "embedded/lib/python2.7"
 source git: 'https://github.com/DataDog/integrations-core.git'
 
 PIPTOOLS_VERSION = "2.0.2"
-UNINSTALL_PIPTOOLS_DEPS = ['click', 'first', 'pip-tools']
+UNINSTALL_PIPTOOLS_DEPS = ['six', 'click', 'first', 'pip-tools']
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
@@ -40,6 +40,9 @@ blacklist = [
   'kubernetes',
   'ntp',  # provided as a go check by the core agent
 ]
+
+core_constraints_file = 'core_constraints.txt'
+agent_requirements_file = 'agent_requirements.txt'
 
 build do
   # The dir for the confs
@@ -101,8 +104,17 @@ build do
        pip "install --require-hashes -r #{project_dir}/check_requirements.txt", :env => build_env
      end
 
-    # Set frozen requirements without pip-tools 
-    pip "freeze > #{install_dir}/constraint_requirements.txt"
+    # Set frozen requirements (save to var, and to file)
+    # HACK: we need to do this like this due to the well known issues with omnibus 
+    # runtime requirements.  
+    if windows?
+      freeze_mixin = shellout!("#{windows_safe_path(install_dir)}\\embedded\\Scripts\\pip.exe freeze")
+      frozen_agent_reqs = freeze_mixin.stdout
+    else
+      freeze_mixin = shellout!("#{install_dir}/embedded/bin/pip freeze")
+      frozen_agent_reqs = freeze_mixin.stdout
+    end
+    pip "freeze > #{project_dir}/#{core_constraints_file}"
 
     # Install all the build requirements
     if windows?
@@ -118,36 +130,43 @@ build do
 
     # Windows pip workaround to support globs
     python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
-    python_pip_no_deps = "pip install -c #{windows_safe_path(install_dir)}\\constraint_requirements.txt --no-deps #{windows_safe_path(project_dir)}"
-    python_pip_req = "pip install -c #{windows_safe_path(install_dir)}\\constraint_requirements.txt --require-hashes -r"
+    python_pip_no_deps = "pip install -c #{windows_safe_path(project_dir)}\\#{core_constraints_file} --no-deps #{windows_safe_path(project_dir)}"
+    python_pip_req = "pip install -c #{windows_safe_path(project_dir)}\\#{core_constraints_file} --no-deps --require-hashes -r"
     python_pip_uninstall = "pip uninstall -y"
 
+    # Install the static environment requirements that the Agent and all checks will use
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
-      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(project_dir)}\\static_requirements.txt #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
-
-      # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
-      for dep in UNINSTALL_PIPTOOLS_DEPS
-        command("#{python_bin} -m #{python_pip_uninstall} #{dep}")
-      end
-
-      command("#{python_bin} -m #{python_pip_req} #{windows_safe_path(project_dir)}\\static_requirements.txt")
+      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
-      pip "install -c #{install_dir}/constraint_requirements.txt --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{project_dir}/static_requirements.txt #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
-      
-      # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
-      for dep in UNINSTALL_PIPTOOLS_DEPS
-        pip "uninstall -y #{dep}"
-      end
-
-      pip "install -c #{install_dir}/constraint_requirements.txt --require-hashes -r #{project_dir}/static_requirements.txt"
+      pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
     end
 
+    # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
+    UNINSTALL_PIPTOOLS_DEPS.each do |dep|
+      re = Regexp.new("^#{dep}==").freeze
+      if not re.match frozen_agent_reqs
+        if windows?
+          command("#{python_bin} -m #{python_pip_uninstall} #{dep}")
+        else
+          pip "uninstall -y #{dep}"
+        end
+      end
+    end
+
+    # install static-environment requirements
+    if windows?
+      command("#{python_bin} -m #{python_pip_req} #{windows_safe_path(install_dir)}\\#{agent_requirements_file}")
+    else
+      pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}"
+    end
+
+    # install integrations
     Dir.glob("#{project_dir}/*").each do |check_dir|
       check = check_dir.split('/').last
 
