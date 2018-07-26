@@ -36,7 +36,7 @@ func NewStats(sz uint32) (*Stats, error) {
 		last:       time.Now(),
 		stopped:    make(chan struct{}),
 		incoming:   make(chan int64, sz),
-		Aggregated: make(chan Stat, 3),
+		Aggregated: make(chan Stat, 2),
 	}
 
 	return s, nil
