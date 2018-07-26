@@ -98,10 +98,10 @@ func (m ServicesMapper) mapOnIp(nodeName string, pods v1.PodList, endpointList v
 func (m ServicesMapper) mapOnRef(_ string, pods v1.PodList, endpointList v1.EndpointsList) error {
 	uidToPod := make(map[types.UID]v1.ObjectReference)
 	uidToServices := make(map[types.UID][]string)
+	localPodUIDs := make(map[types.UID]struct{}) // set of pod UIDs for pods from the kubelet (or apiserver for the DCA)
 
-	podUIDs := make(map[types.UID]struct{})
 	for _, pod := range pods.Items {
-		podUIDs[pod.UID] = struct{}{}
+		localPodUIDs[pod.UID] = struct{}{}
 	}
 
 	for _, svc := range endpointList.Items {
@@ -120,9 +120,7 @@ func (m ServicesMapper) mapOnRef(_ string, pods v1.PodList, endpointList v1.Endp
 					continue
 				}
 
-				// Check if the referenced pod is from the pod list we received from the
-				// kubelet (or apiserver for the DCA).
-				if _, ok := podUIDs[ref.UID]; !ok {
+				if _, ok := localPodUIDs[ref.UID]; !ok {
 					continue
 				}
 

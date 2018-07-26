@@ -13,269 +13,152 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-type podTestDef struct {
-	uid       string
-	ip        string
-	name      string
-	namespace string
-}
+func TestServicesMapper(t *testing.T) {
+	pod1 := newFakePod(
+		"foo",
+		"pod1_name",
+		"1111",
+		"1.1.1.1",
+	)
 
-type endPointTestDef struct {
-	name    string
-	subsets [][]addressTestDef
-}
+	pod2 := newFakePod(
+		"foo",
+		"pod2_name",
+		"2222",
+		"2.2.2.2",
+	)
 
-type addressTestDef struct {
-	ip          string
-	nodeName    string
-	targetPodId string
-}
+	pod3 := newFakePod(
+		"foo",
+		"pod3_name",
+		"3333",
+		"3.3.3.3",
+	)
 
-func mapPodTestDef(defs []podTestDef) map[string]podTestDef {
-	mapped := make(map[string]podTestDef)
-	for _, d := range defs {
-		mapped[d.uid] = d
-	}
-	return mapped
-}
+	// These pods have the same name but are in different namespaces.
+	defaultPod := newFakePod(
+		"default",
+		"pod_name",
+		"1111",
+		"1.1.1.1",
+	)
+	otherPod := newFakePod(
+		"other",
+		"pod_name",
+		"2222",
+		"2.2.2.2",
+	)
 
-func createEndpointList(nodeName string, defs []endPointTestDef, pods []podTestDef, noNodeName bool) v1.EndpointsList {
-	var list v1.EndpointsList
-	podsMap := mapPodTestDef(pods)
-
-	for _, epDef := range defs {
-		ep := v1.Endpoints{}
-		ep.Name = epDef.name
-		for _, subsetDef := range epDef.subsets {
-			subset := v1.EndpointSubset{}
-			for _, addrDef := range subsetDef {
-				a := v1.EndpointAddress{}
-				a.IP = addrDef.ip
-				if !noNodeName { // Kubernetes 1.3.x does not list the nodeName
-					a.NodeName = &addrDef.nodeName
-				}
-				pod, found := podsMap[addrDef.targetPodId]
-				if found {
-					a.TargetRef = &v1.ObjectReference{
-						Kind:      "Pod",
-						Namespace: pod.namespace,
-						Name:      pod.name,
-						UID:       types.UID(pod.uid),
-					}
-				}
-				subset.Addresses = append(subset.Addresses, a)
-			}
-			ep.Subsets = append(ep.Subsets, subset)
-		}
-		list.Items = append(list.Items, ep)
-	}
-	return list
-}
-
-func createPodList(listPodStructs []podTestDef) v1.PodList {
-	var podlist v1.PodList
-	for _, ps := range listPodStructs {
-		var pod v1.Pod
-		pod.Status = v1.PodStatus{}
-		pod.ObjectMeta = metav1.ObjectMeta{Namespace: ps.namespace}
-		pod.Status.PodIP = ps.ip
-		pod.Name = ps.name
-		pod.UID = types.UID(ps.uid)
-		podlist.Items = append(podlist.Items, pod)
-	}
-
-	return podlist
-}
-
-func createNode(nodeName string) v1.Node {
-	var node v1.Node
-
-	node.ObjectMeta = metav1.ObjectMeta{}
-	node.Name = nodeName
-	return node
-}
-
-type serviceMapTestCase struct {
-	caseName        string
-	node            v1.Node
-	pods            []podTestDef
-	endpoints       []endPointTestDef
-	expectedMapping ServicesMapper
-}
-
-func TestMapServices(t *testing.T) {
-	testCases := []serviceMapTestCase{
+	tests := []struct {
+		desc            string
+		nodeName        string
+		pods            []v1.Pod
+		endpoints       []v1.Endpoints
+		expectedMapping ServicesMapper
+	}{
 		{
-			caseName: "1 node, 1 pod, 1 service",
-			node:     createNode("firstNode"),
-			pods: []podTestDef{
+			"1 node, 1 pod, 1 service",
+			"myNode",
+			[]v1.Pod{pod1},
+			[]v1.Endpoints{
 				{
-					uid:       "1111",
-					ip:        "1.1.1.1",
-					name:      "pod1_name",
-					namespace: "foo",
-				},
-			},
-			endpoints: []endPointTestDef{
-				{
-					name: "svc1",
-					subsets: [][]addressTestDef{
+					ObjectMeta: metav1.ObjectMeta{Name: "svc1"},
+					Subsets: []v1.EndpointSubset{
 						{
-							{
-								ip:          "1.1.1.1",
-								nodeName:    "firstNode",
-								targetPodId: "1111",
+							Addresses: []v1.EndpointAddress{
+								newFakeEndpointAddress("myNode", pod1),
 							},
 						},
 					},
 				},
 			},
-			expectedMapping: ServicesMapper{
+			ServicesMapper{
 				"foo": {"pod1_name": {"svc1"}},
 			},
 		},
 		{
-			caseName: "1 node, 2 pods with same name, 2 services",
-			node:     createNode("firstNode"),
-			pods: []podTestDef{
+			"1 node, 2 pods with same name, 2 services",
+			"myNode",
+			[]v1.Pod{defaultPod, otherPod},
+			[]v1.Endpoints{
 				{
-					uid:       "1111",
-					ip:        "1.1.1.1",
-					name:      "pod_name",
-					namespace: "foo",
-				},
-				{
-					uid:       "2222",
-					ip:        "2.2.2.2",
-					name:      "pod_name",
-					namespace: "bar",
-				},
-			},
-			endpoints: []endPointTestDef{
-				{
-					name: "svc1",
-					subsets: [][]addressTestDef{
+					ObjectMeta: metav1.ObjectMeta{Name: "svc1"},
+					Subsets: []v1.EndpointSubset{
 						{
-							{
-								ip:          "1.1.1.1",
-								nodeName:    "firstNode",
-								targetPodId: "1111",
+							Addresses: []v1.EndpointAddress{
+								newFakeEndpointAddress("myNode", defaultPod),
 							},
 						},
 					},
 				},
 				{
-					name: "svc2",
-					subsets: [][]addressTestDef{
+					ObjectMeta: metav1.ObjectMeta{Name: "svc2"},
+					Subsets: []v1.EndpointSubset{
 						{
-							{
-								ip:          "2.2.2.2",
-								nodeName:    "firstNode",
-								targetPodId: "2222",
+							Addresses: []v1.EndpointAddress{
+								newFakeEndpointAddress("myNode", otherPod),
 							},
 						},
 					},
 				},
 			},
-			expectedMapping: ServicesMapper{
-				"foo": {"pod_name": {"svc1"}},
-				"bar": {"pod_name": {"svc2"}},
+			ServicesMapper{
+				"default": {"pod_name": {"svc1"}},
+				"other":   {"pod_name": {"svc2"}},
 			},
 		},
 		{
-			caseName: "3 nodes, 4 pods, 3 services",
-			node:     createNode("firstNode"),
-			pods: []podTestDef{
+			"endpoint for pod on different node",
+			"myNode",
+			[]v1.Pod{pod1, pod3},
+			[]v1.Endpoints{
 				{
-					uid:       "2222",
-					ip:        "2.2.2.2",
-					name:      "pod2_name",
-					namespace: "foo",
-				},
-				{
-					uid:       "3333",
-					ip:        "3.3.3.3",
-					name:      "pod3_name",
-					namespace: "foo",
-				},
-				{
-					uid:       "4444",
-					ip:        "4.4.4.4",
-					name:      "pod4_name",
-					namespace: "foo",
-				},
-				{
-					uid:       "5555",
-					ip:        "5.5.5.5",
-					name:      "pod5_name",
-					namespace: "foo",
-				},
-			},
-			endpoints: []endPointTestDef{
-				{
-					name: "svc2",
-					subsets: [][]addressTestDef{
+					ObjectMeta: metav1.ObjectMeta{Name: "svc1"},
+					Subsets: []v1.EndpointSubset{
 						{
-							{
-								ip:          "2.2.2.2",
-								nodeName:    "firstNode",
-								targetPodId: "2222",
+							Addresses: []v1.EndpointAddress{
+								newFakeEndpointAddress("myNode", pod1),
+								// This pod is running on a different node and should not be
+								// included in the expected mapping.
+								newFakeEndpointAddress("otherNode", pod2),
 							},
 						},
 					},
 				},
 				{
-					name: "svc3",
-					subsets: [][]addressTestDef{
+					ObjectMeta: metav1.ObjectMeta{Name: "svc2"},
+					Subsets: []v1.EndpointSubset{
 						{
-							{
-								ip:          "2.2.2.2",
-								nodeName:    "firstNode",
-								targetPodId: "2222",
-							},
-							{
-								ip:          "5.5.5.5",
-								nodeName:    "firstNode",
-								targetPodId: "5555",
-							},
-							// This endpoint references a pod the is not in the pod list we
-							// would receive from a kubelet (or apiserver for the DCA).
-							{
-								ip:          "1.1.1.1",
-								nodeName:    "firstNode",
-								targetPodId: "1111",
+							Addresses: []v1.EndpointAddress{
+								newFakeEndpointAddress("myNode", pod3),
 							},
 						},
 					},
 				},
 				{
-					name: "svc4",
-					subsets: [][]addressTestDef{
+					ObjectMeta: metav1.ObjectMeta{Name: "svc3"},
+					Subsets: []v1.EndpointSubset{
 						{
-							{
-								ip:          "2.2.2.2",
-								nodeName:    "firstNode",
-								targetPodId: "2222",
-							},
-							{
-								ip:          "3.3.3.3",
-								nodeName:    "firstNode",
-								targetPodId: "3333",
+							Addresses: []v1.EndpointAddress{
+								newFakeEndpointAddress("myNode", pod1),
+								// This pod is running on a different node and should not be
+								// included in the expected mapping.
+								newFakeEndpointAddress("otherNode", pod2),
 							},
 						},
 					},
 				},
 			},
-			expectedMapping: ServicesMapper{
+			ServicesMapper{
 				"foo": {
-					"pod2_name": {"svc2", "svc3", "svc4"},
-					"pod3_name": {"svc4"},
-					"pod5_name": {"svc3"},
+					"pod1_name": {"svc1", "svc3"},
+					"pod3_name": {"svc2"},
 				},
 			},
 		},
@@ -283,54 +166,117 @@ func TestMapServices(t *testing.T) {
 
 	// Test the final state after all cases run to make
 	// sure mapping does not affect unlisted services
-	expectedAllPodNameToService := ServicesMapper{
+	expectedAggregatedMapping := ServicesMapper{
 		"foo": {
-			"pod_name":  {"svc1"},
-			"pod1_name": {"svc1"},
-			"pod2_name": {"svc2", "svc3", "svc4"},
-			"pod3_name": {"svc4"},
-			"pod5_name": {"svc3"},
+			"pod1_name": {"svc1", "svc3"},
+			"pod3_name": {"svc2"},
 		},
-		"bar": {
+		"default": {
+			"pod_name": {"svc1"},
+		},
+		"other": {
 			"pod_name": {"svc2"},
 		},
 	}
-	allCasesBundle := newMetadataMapperBundle()
-	allBundleMu := &sync.RWMutex{}
 
-	runCase := func(t *testing.T, tc serviceMapTestCase, noNodeName bool) {
-		podList := createPodList(tc.pods)
-		nodeName := tc.node.Name
-		epList := createEndpointList(nodeName, tc.endpoints, tc.pods, noNodeName)
+	mu := sync.RWMutex{}
+	var aggregatedBundle *MetadataMapperBundle
 
-		if !noNodeName { // byIP would fail without the nodeName field, skipping
-			byIPBundle := newMetadataMapperBundle()
-			byIPBundle.mapOnIP = true
-			byIPBundle.mapServices(nodeName, podList, epList)
-			assert.Equal(t, tc.expectedMapping, byIPBundle.Services)
+	aggregatedBundle = newMetadataMapperBundle()
+	for i, tt := range tests {
+		podList := v1.PodList{Items: tt.pods}
+		endpointsList := v1.EndpointsList{Items: tt.endpoints}
+
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			runServicesMapperTest(t, tt.nodeName, podList, endpointsList, tt.expectedMapping)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			err := aggregatedBundle.mapServices(tt.nodeName, podList, endpointsList)
+			require.NoError(t, err)
+		})
+	}
+
+	mu.RLock()
+	assert.Equal(t, expectedAggregatedMapping, aggregatedBundle.Services)
+	mu.RUnlock()
+
+	// Run the tests again for legacy versions of Kubernetes
+	aggregatedBundle = newMetadataMapperBundle()
+	for i, tt := range tests {
+		// Kubernetes 1.3.x does not include `NodeName`
+		var legacyEndpoints []v1.Endpoints
+		for _, endpoint := range tt.endpoints {
+			for _, subset := range endpoint.Subsets {
+				for _, address := range subset.Addresses {
+					address.NodeName = nil
+				}
+			}
+			legacyEndpoints = append(legacyEndpoints, endpoint)
 		}
 
-		byRefBundle := newMetadataMapperBundle()
-		byRefBundle.mapOnIP = false
-		byRefBundle.mapServices(nodeName, podList, epList)
-		assert.Equal(t, tc.expectedMapping, byRefBundle.Services)
+		podList := v1.PodList{Items: tt.pods}
+		endpointsList := v1.EndpointsList{Items: legacyEndpoints}
 
-		allBundleMu.Lock()
-		allCasesBundle.mapServices(nodeName, podList, epList)
-		allBundleMu.Unlock()
-	}
+		t.Run(fmt.Sprintf("#%d %s/legacy", i, tt.desc), func(t *testing.T) {
+			runServicesMapperTest(t, tt.nodeName, podList, endpointsList, tt.expectedMapping)
 
-	for i, tc := range testCases {
-		t.Run(fmt.Sprintf("#%d %s - mapOnIp", i, tc.caseName), func(t *testing.T) {
-			runCase(t, tc, false)
-		})
-		t.Run(fmt.Sprintf("#%d %s - mapOnRef", i, tc.caseName), func(t *testing.T) {
-			runCase(t, tc, true)
+			mu.Lock()
+			defer mu.Unlock()
+
+			err := aggregatedBundle.mapServices(tt.nodeName, podList, endpointsList)
+			require.NoError(t, err)
 		})
 	}
-	t.Run("Final state", func(t *testing.T) {
-		allBundleMu.RLock()
-		defer allBundleMu.RUnlock()
-		assert.Equal(t, expectedAllPodNameToService, allCasesBundle.Services)
+
+	mu.RLock()
+	assert.Equal(t, expectedAggregatedMapping, aggregatedBundle.Services)
+	mu.RUnlock()
+}
+
+func runServicesMapperTest(t *testing.T, nodeName string, podList v1.PodList, endpointsList v1.EndpointsList, expectedMapping ServicesMapper) {
+	var bundle *MetadataMapperBundle
+	var err error
+
+	t.Run("mapOnIP", func(t *testing.T) {
+		bundle = newMetadataMapperBundle()
+		bundle.mapOnIP = true
+		err = bundle.mapServices(nodeName, podList, endpointsList)
+		require.NoError(t, err)
+		assert.Equal(t, expectedMapping, bundle.Services)
 	})
+
+	t.Run("mapOnRef", func(t *testing.T) {
+		bundle = newMetadataMapperBundle()
+		bundle.mapOnIP = false
+		err = bundle.mapServices(nodeName, podList, endpointsList)
+		require.NoError(t, err)
+		assert.Equal(t, expectedMapping, bundle.Services)
+	})
+}
+
+func newFakePod(namespace, name, uid, ip string) v1.Pod {
+	return v1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			UID:       types.UID(uid),
+		},
+		Status: v1.PodStatus{PodIP: ip},
+	}
+}
+
+func newFakeEndpointAddress(nodeName string, pod v1.Pod) v1.EndpointAddress {
+	return v1.EndpointAddress{
+		IP:       pod.Status.PodIP,
+		NodeName: &nodeName,
+		TargetRef: &v1.ObjectReference{
+			Kind:      pod.Kind,
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			UID:       pod.UID,
+		},
+	}
 }
