@@ -20,7 +20,7 @@ description "generates a version manifest file"
 default_version "0.0.1"
 
 license "Apache-2.0"
-license_file "../datadog-dogstatsd/src/github.com/DataDog/datadog-agent/LICENSE"
+license_file "../datadog-dogstatsd/src/github.com/StackVista/stackstate-agent/LICENSE"
 skip_transitive_dependency_licensing true
 
 build do
