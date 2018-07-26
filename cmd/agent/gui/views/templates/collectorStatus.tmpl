@@ -8,10 +8,10 @@
         {{end -}}
 
         {{- range .Checks}}
-          <span class="stat_subtitle">{{.CheckName}}</span>
+          <span class="stat_subtitle">{{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}</span>
           <span class="stat_subdata">
               Total Runs: {{.TotalRuns}}<br>
-              Metrics: {{.MetricSamples}}, Total: {{humanizeF .TotalMetricSamples}}<br>
+              Metric Samples: {{.MetricSamples}}, Total: {{humanizeF .TotalMetricSamples}}<br>
               Events: {{.Events}}, Total: {{humanizeF .TotalEvents}}<br>
               Service Checks: {{.ServiceChecks}}, Total: {{humanizeF .TotalServiceChecks}}<br>
               Average Execution Time : {{.AverageExecutionTime}}ms<br>
