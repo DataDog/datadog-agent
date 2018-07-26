@@ -31,7 +31,7 @@ type Scanner struct {
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources) (*Scanner, error) {
 	// initialize a pod provider to retrieve added and deleted pods.
-	podProvider, err := NewPodProvider(config.LogsAgent.GetBool("logs_config.dev_mode_use_inotify"))
+	podProvider, err := NewPodProvider()
 	if err != nil {
 		return nil, err
 	}
@@ -106,10 +106,10 @@ func (s *Scanner) removeSources(pod *kubelet.Pod) {
 	}
 }
 
-// kubernetesIntegration represents the name of the integration
+// kubernetesIntegration represents the name of the integration.
 const kubernetesIntegration = "kubernetes"
 
-// getSource returns a new source for the container in pod
+// getSource returns a new source for the container in pod.
 func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
 	if annotation := s.getAnnotation(pod, container); annotation != "" {
