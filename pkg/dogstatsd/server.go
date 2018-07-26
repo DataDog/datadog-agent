@@ -41,7 +41,6 @@ func init() {
 	dogstatsdExpvars.Set("EventPackets", &dogstatsdEventPackets)
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
-	dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 }
 
 // Server represent a Dogstatsd server
@@ -70,6 +69,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 			log.Errorf("Dogstatsd: unable to start statistics facilities")
 		}
 		stats = s
+		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
 
 	packetChannel := make(chan *listeners.Packet, 100)
