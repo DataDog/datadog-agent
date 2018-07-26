@@ -473,8 +473,8 @@ func getDomainPrefix(app string) string {
 	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
 }
 
-// addAgentVersionToDomain prefix the domain with the agent version: X-Y-Z.domain
-func addAgentVersionToDomain(domain string, app string) (string, error) {
+// AddAgentVersionToDomain prefix the domain with the agent version: X-Y-Z.domain
+func AddAgentVersionToDomain(domain string, app string) (string, error) {
 	u, err := url.Parse(domain)
 	if err != nil {
 		return "", err
@@ -495,13 +495,15 @@ func addAgentVersionToDomain(domain string, app string) (string, error) {
 // getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
 func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	ddURL := config.GetString("dd_url")
-	updatedDDUrl, err := addAgentVersionToDomain(ddURL, "app")
+
+	// Validating domain
+	_, err := url.Parse(ddURL)
 	if err != nil {
 		return nil, fmt.Errorf("Could not parse 'dd_url': %s", err)
 	}
 
 	keysPerDomain := map[string][]string{
-		updatedDDUrl: {
+		ddURL: {
 			config.GetString("api_key"),
 		},
 	}
@@ -514,17 +516,19 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 
 	// merge additional endpoints into keysPerDomain
 	for domain, apiKeys := range additionalEndpoints {
-		updatedDomain, err := addAgentVersionToDomain(domain, "app")
+
+		// Validating domain
+		_, err := url.Parse(domain)
 		if err != nil {
 			return nil, fmt.Errorf("Could not parse url from 'additional_endpoints' %s: %s", domain, err)
 		}
 
-		if _, ok := keysPerDomain[updatedDomain]; ok {
+		if _, ok := keysPerDomain[domain]; ok {
 			for _, apiKey := range apiKeys {
-				keysPerDomain[updatedDomain] = append(keysPerDomain[updatedDomain], apiKey)
+				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
 			}
 		} else {
-			keysPerDomain[updatedDomain] = apiKeys
+			keysPerDomain[domain] = apiKeys
 		}
 	}
 

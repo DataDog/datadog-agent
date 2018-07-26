@@ -113,12 +113,13 @@ func NewDefaultForwarder(keysPerDomains map[string][]string) *DefaultForwarder {
 		domainForwarders: map[string]*domainForwarder{},
 		keysPerDomains:   map[string][]string{},
 		internalState:    Stopped,
-		healthChecker:    &forwarderHealth{},
+		healthChecker:    &forwarderHealth{keysPerDomains: keysPerDomains},
 	}
 	numWorkers := config.Datadog.GetInt("forwarder_num_workers")
 	retryQueueMaxSize := config.Datadog.GetInt("forwarder_retry_queue_max_size")
 
 	for domain, keys := range keysPerDomains {
+		domain, _ := config.AddAgentVersionToDomain(domain, "app")
 		if keys == nil || len(keys) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
@@ -153,7 +154,7 @@ func (f *DefaultForwarder) Start() error {
 	log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
-	f.healthChecker.Start(f.keysPerDomains)
+	f.healthChecker.Start()
 	f.internalState = Started
 	return nil
 }
