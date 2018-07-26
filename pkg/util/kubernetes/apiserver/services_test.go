@@ -188,7 +188,8 @@ func TestServicesMapper(t *testing.T) {
 		endpointsList := v1.EndpointsList{Items: tt.endpoints}
 
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			runServicesMapperTest(t, tt.nodeName, podList, endpointsList, tt.expectedMapping)
+			runMapOnIPTest(t, tt.nodeName, podList, endpointsList, tt.expectedMapping)
+			runMapOnRefTest(t, tt.nodeName, podList, endpointsList, tt.expectedMapping)
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -208,10 +209,12 @@ func TestServicesMapper(t *testing.T) {
 		// Kubernetes 1.3.x does not include `NodeName`
 		var legacyEndpoints []v1.Endpoints
 		for _, endpoint := range tt.endpoints {
-			for _, subset := range endpoint.Subsets {
-				for _, address := range subset.Addresses {
+			for i, subset := range endpoint.Subsets {
+				for i, address := range subset.Addresses {
 					address.NodeName = nil
+					subset.Addresses[i] = address
 				}
+				endpoint.Subsets[i] = subset
 			}
 			legacyEndpoints = append(legacyEndpoints, endpoint)
 		}
@@ -220,7 +223,7 @@ func TestServicesMapper(t *testing.T) {
 		endpointsList := v1.EndpointsList{Items: legacyEndpoints}
 
 		t.Run(fmt.Sprintf("#%d %s/legacy", i, tt.desc), func(t *testing.T) {
-			runServicesMapperTest(t, tt.nodeName, podList, endpointsList, tt.expectedMapping)
+			runMapOnRefTest(t, tt.nodeName, podList, endpointsList, tt.expectedMapping)
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -235,22 +238,23 @@ func TestServicesMapper(t *testing.T) {
 	mu.RUnlock()
 }
 
-func runServicesMapperTest(t *testing.T, nodeName string, podList v1.PodList, endpointsList v1.EndpointsList, expectedMapping ServicesMapper) {
-	var bundle *MetadataMapperBundle
-	var err error
+func runMapOnRefTest(t *testing.T, nodeName string, podList v1.PodList, endpointsList v1.EndpointsList, expectedMapping ServicesMapper) {
+	runMapServicesTest(t, nodeName, podList, endpointsList, expectedMapping, false)
+}
 
-	t.Run("mapOnIP", func(t *testing.T) {
-		bundle = newMetadataMapperBundle()
-		bundle.mapOnIP = true
-		err = bundle.mapServices(nodeName, podList, endpointsList)
-		require.NoError(t, err)
-		assert.Equal(t, expectedMapping, bundle.Services)
-	})
+func runMapOnIPTest(t *testing.T, nodeName string, podList v1.PodList, endpointsList v1.EndpointsList, expectedMapping ServicesMapper) {
+	runMapServicesTest(t, nodeName, podList, endpointsList, expectedMapping, true)
+}
 
-	t.Run("mapOnRef", func(t *testing.T) {
-		bundle = newMetadataMapperBundle()
-		bundle.mapOnIP = false
-		err = bundle.mapServices(nodeName, podList, endpointsList)
+func runMapServicesTest(t *testing.T, nodeName string, podList v1.PodList, endpointsList v1.EndpointsList, expectedMapping ServicesMapper, mapOnIP bool) {
+	testName := "mapOnRef"
+	if mapOnIP {
+		testName = "mapOnIP"
+	}
+	t.Run(testName, func(t *testing.T) {
+		bundle := newMetadataMapperBundle()
+		bundle.mapOnIP = mapOnIP
+		err := bundle.mapServices(nodeName, podList, endpointsList)
 		require.NoError(t, err)
 		assert.Equal(t, expectedMapping, bundle.Services)
 	})
