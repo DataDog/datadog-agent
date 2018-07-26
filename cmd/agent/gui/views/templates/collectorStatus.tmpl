@@ -44,6 +44,8 @@
         </span>
       </div>
     {{- end}}
+  {{- end}}
+  {{- with .checkSchedulerStats }}
     {{- if .LoaderErrors}}
       <div class="stat">
         <span class="stat_title">Loading Errors</span>

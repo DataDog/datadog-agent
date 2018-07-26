@@ -189,6 +189,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats)
 	stats["autoConfigStats"] = autoConfigStats
 
+	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
+	checkSchedulerStats := make(map[string]interface{})
+	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats)
+	stats["checkSchedulerStats"] = checkSchedulerStats
+
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)

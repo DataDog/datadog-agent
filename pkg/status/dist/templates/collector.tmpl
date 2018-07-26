@@ -44,7 +44,9 @@ Collector
       {{ configError $error }}
     {{- end }}
   {{- end}}
+{{- end }}
 
+{{- with .CheckSchedulerStats }}
   {{- if .LoaderErrors}}
   Loading Errors
   ==============
