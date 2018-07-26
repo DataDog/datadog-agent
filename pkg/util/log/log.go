@@ -406,6 +406,13 @@ func Warnf(format string, params ...interface{}) error {
 func Errorf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		return logger.errorf(format, params...)
+	} else if logger == nil || logger.inner == nil {
+		// We're currently trying to log an error before initializing
+		// the log module. This meant a early error while starting the
+		// agent. We should not silence such error.
+		err := fmt.Errorf(format, params...)
+		fmt.Fprintf(os.Stderr, "Error: %s", err)
+		return err
 	}
 	err := formatErrorf(format, params...)
 	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
@@ -416,6 +423,13 @@ func Errorf(format string, params ...interface{}) error {
 func Criticalf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		return logger.criticalf(format, params...)
+	} else if logger == nil || logger.inner == nil {
+		// We're currently trying to log an error before initializing
+		// the log module. This meant a early error while starting the
+		// agent. We should not silence such error.
+		err := fmt.Errorf(format, params...)
+		fmt.Fprintf(os.Stderr, "Critical: %s", err)
+		return err
 	}
 	err := formatErrorf(format, params...)
 	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
