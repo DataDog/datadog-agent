@@ -99,9 +99,9 @@ func (m ServicesMapper) mapOnRef(_ string, pods v1.PodList, endpointList v1.Endp
 	uidToPod := make(map[types.UID]v1.ObjectReference)
 	uidToServices := make(map[types.UID][]string)
 
-	podUIDs := make(map[types.UID]string)
+	podUIDs := make(map[types.UID]struct{})
 	for _, pod := range pods.Items {
-		podUIDs[pod.UID] = ""
+		podUIDs[pod.UID] = struct{}{}
 	}
 
 	for _, svc := range endpointList.Items {
