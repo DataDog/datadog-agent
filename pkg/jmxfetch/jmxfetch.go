@@ -230,9 +230,6 @@ func (j *JMXFetch) Start() error {
 // Stop stops the JMXFetch process
 func (j *JMXFetch) Stop() error {
 	if j.JmxExitFile == "" {
-		graceTimer := time.NewTimer(500 * time.Millisecond)
-		defer graceTimer.Stop()
-
 		stopped := make(chan struct{})
 
 		// Unix
@@ -247,7 +244,7 @@ func (j *JMXFetch) Stop() error {
 		}()
 
 		select {
-		case <-graceTimer.C:
+		case <-time.After(time.Millisecond * 500):
 			log.Warnf("Jmxfetch did not exit during it's grace period, killing it")
 			err = j.cmd.Process.Signal(os.Kill)
 			if err != nil {
