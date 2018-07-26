@@ -7,8 +7,6 @@ package util
 
 import (
 	"expvar"
-	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,9 +21,9 @@ type Stat struct {
 // Stats type structure enabling statting facilities.
 type Stats struct {
 	size       uint32
-	running    uint32
 	valExpvar  *expvar.Int
 	last       time.Time
+	stopped    chan struct{}
 	incoming   chan int64
 	Aggregated chan Stat
 }
@@ -34,9 +32,9 @@ type Stats struct {
 func NewStats(sz uint32) (*Stats, error) {
 	s := &Stats{
 		size:       sz,
-		running:    0,
 		valExpvar:  expvar.NewInt("pktsec"),
 		last:       time.Now(),
+		stopped:    make(chan struct{}),
 		incoming:   make(chan int64, sz),
 		Aggregated: make(chan Stat, 3),
 	}
@@ -50,44 +48,50 @@ func (s *Stats) StatEvent(v int64) {
 	case s.incoming <- v:
 		return
 	default:
-		log.Debugf("dropping last second stasts, buffer full")
+		log.Debugf("dropping last second stats, buffer full")
 	}
 }
 
 // Process call to start processing statistics
 func (s *Stats) Process() {
 	tickChan := time.NewTicker(time.Second).C
-	atomic.StoreUint32(&s.running, 1)
 	for {
 		select {
 		case v := <-s.incoming:
 			s.valExpvar.Add(v)
 		case <-tickChan:
-			// once we're fully on 1.8 get rid of this nonesense and use Value()
-			pkts, err := strconv.ParseInt(s.valExpvar.String(), 10, 64)
-			if err != nil {
-				log.Debugf("error converting metric: %s", err)
-				continue
-			}
-
 			select {
 			case s.Aggregated <- Stat{
-				Val: pkts,
+				Val: s.valExpvar.Value(),
 				Ts:  s.last,
 			}:
 			default:
-				log.Debugf("dropping last second stasts, buffer full")
+				log.Debugf("dropping last second stats, buffer full")
 			}
+
 			s.valExpvar.Set(0)
 			s.last = time.Now()
-			if atomic.LoadUint32(&s.running) == 0 {
-				break
-			}
+		case <-s.stopped:
+			return
+		}
+	}
+}
+
+// Update update the expvar parameter with the last aggregated value
+func (s *Stats) Update(expStat *expvar.Int) {
+	tickChan := time.NewTicker(time.Second).C
+	for {
+		select {
+		case <-tickChan:
+			last := <-s.Aggregated
+			expStat.Set(last.Val)
+		case <-s.stopped:
+			return
 		}
 	}
 }
 
 // Stop call to stop processing statistics
 func (s *Stats) Stop() {
-	atomic.StoreUint32(&s.running, 0)
+	close(s.stopped)
 }

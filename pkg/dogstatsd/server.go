@@ -31,6 +31,7 @@ var (
 	dogstatsdEventPackets            = expvar.Int{}
 	dogstatsdMetricParseErrors       = expvar.Int{}
 	dogstatsdMetricPackets           = expvar.Int{}
+	dogstatsdPacketsLastSec          = expvar.Int{}
 )
 
 func init() {
@@ -40,6 +41,7 @@ func init() {
 	dogstatsdExpvars.Set("EventPackets", &dogstatsdEventPackets)
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
+	dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 }
 
 // Server represent a Dogstatsd server
@@ -152,6 +154,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
+		go s.Statistics.Update(&dogstatsdPacketsLastSec)
 	}
 
 	for _, l := range s.listeners {
