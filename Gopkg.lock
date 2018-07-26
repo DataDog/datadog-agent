@@ -795,15 +795,6 @@
 
 [[projects]]
   branch = "master"
-  name = "golang.org/x/mobile"
-  packages = [
-    "asset",
-    "internal/mobileinit"
-  ]
-  revision = "371a4e8cb797fc2ab3793091822fda6179a73102"
-
-[[projects]]
-  branch = "master"
   name = "golang.org/x/net"
   packages = [
     "context",
