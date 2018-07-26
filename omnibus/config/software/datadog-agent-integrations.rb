@@ -33,8 +33,9 @@ default_version integrations_core_version
 
 
 blacklist = [
-  'datadog_checks_base',  # namespacing package for wheels (NOT AN INTEGRATION)
-  'datadog_checks_dev',   # Development package, (NOT AN INTEGRATION)
+  'datadog_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
+  'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
+  'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
   'agent_metrics',
   'docker_daemon',
   'kubernetes',
