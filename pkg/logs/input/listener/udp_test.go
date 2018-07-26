@@ -84,13 +84,6 @@ func TestUDPShoulDropTooBigMessages(t *testing.T) {
 	assert.Equal(t, strings.Repeat("a", 65535-100), string(msg.Content()))
 
 	fmt.Fprintf(conn, strings.Repeat("a", 65535+100)+"\n")
-	select {
-	case <-msgChan:
-		assert.Fail(t, "expected message to be dropped")
-	default:
-		break
-	}
-
 	fmt.Fprintf(conn, strings.Repeat("a", 65535-200)+"\n")
 	msg = <-msgChan
 	assert.Equal(t, strings.Repeat("a", 65535-200), string(msg.Content()))
