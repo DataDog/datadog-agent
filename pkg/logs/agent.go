@@ -38,12 +38,22 @@ func NewAgent(sources *config.LogSources) *Agent {
 	messageChan := make(chan message.Message, config.ChanSize)
 	auditor := auditor.New(messageChan, config.LogsAgent.GetString("logs_config.run_path"))
 
+	var serverConfig sender.ServerConfig
+	if config.LogsAgent.GetString("logs_config.proxy_endpoint") != "" {
+		serverConfig = sender.NewServerConfig(
+			config.LogsAgent.GetString("logs_config.proxy_endpoint"),
+			config.LogsAgent.GetInt("logs_config.proxy_port"),
+			!config.LogsAgent.GetBool("logs_config.proxy_no_ssl"),
+		)
+	} else {
+		serverConfig = sender.NewServerConfig(
+			config.LogsAgent.GetString("logs_config.dd_url"),
+			config.LogsAgent.GetInt("logs_config.dd_port"),
+			config.LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
+		)
+	}
+
 	// setup the pipeline provider that provides pairs of processor and sender
-	serverConfig := sender.NewServerConfig(
-		config.LogsAgent.GetString("logs_config.dd_url"),
-		config.LogsAgent.GetInt("logs_config.dd_port"),
-		!config.LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
-	)
 	connectionManager := sender.NewConnectionManager(serverConfig, config.LogsAgent.GetString("logs_config.socks5_proxy_address"))
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 

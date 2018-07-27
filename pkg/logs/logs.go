@@ -26,6 +26,7 @@ func Start() error {
 		// could not parse the configuration
 		return err
 	}
+
 	log.Info("Starting logs-agent")
 
 	// setup and start the agent
@@ -36,7 +37,6 @@ func Start() error {
 	status.Initialize(sources)
 
 	isRunning = true
-
 	return nil
 }
 

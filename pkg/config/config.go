@@ -253,15 +253,18 @@ func init() {
 	BindEnvAndSetDefault("logs_enabled", false)
 	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	BindEnvAndSetDefault("logset", "")
-
 	BindEnvAndSetDefault("logs_config.dd_url", "agent-intake.logs.datadoghq.com")
 	BindEnvAndSetDefault("logs_config.dd_port", 10516)
-	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
-	BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
+	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
+
+	Datadog.BindEnv("logs_config.proxy_endpoint")
+	Datadog.BindEnv("logs_config.proxy_port")
+	Datadog.BindEnv("logs_config.proxy_no_ssl")
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now
