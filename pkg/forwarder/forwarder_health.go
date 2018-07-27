@@ -113,10 +113,10 @@ func (fh *forwarderHealth) healthCheckLoop(keysPerDomains map[string][]string) {
 }
 
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
-	obfuscatedKey := fmt.Sprintf("%s,*************************", domain)
 	if len(apiKey) > 5 {
-		obfuscatedKey += apiKey[len(apiKey)-5:]
+		apiKey = apiKey[len(apiKey)-5:]
 	}
+	obfuscatedKey := fmt.Sprintf("API key ending by %s on endpoint %s", apiKey, domain)
 	apiKeyStatus.Set(obfuscatedKey, status)
 }
 
