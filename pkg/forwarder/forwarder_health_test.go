@@ -33,9 +33,9 @@ func TestHasValidAPIKey(t *testing.T) {
 	fh.init(keysPerDomains)
 	assert.True(t, fh.hasValidAPIKey(keysPerDomains))
 
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("domain1,*************************_key1"))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("domain1,*************************_key2"))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("domain2,*************************"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending by _key1 on endpoint domain1"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending by _key2 on endpoint domain1"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending by key3 on endpoint domain2"))
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
@@ -63,7 +63,7 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	fh.init(keysPerDomains)
 	assert.True(t, fh.hasValidAPIKey(keysPerDomains))
 
-	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("domain1,*************************_key1"))
-	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get("domain1,*************************_key2"))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("domain2,*************************"))
+	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending by _key1 on endpoint domain1"))
+	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get("API key ending by _key2 on endpoint domain1"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending by key3 on endpoint domain2"))
 }
