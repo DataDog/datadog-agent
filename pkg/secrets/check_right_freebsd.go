@@ -3,9 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows,!freebsd
+// +build freebsd
 
 package secrets
+
+// temporary fix until go gets S_IRWXG and S_IRWXO
+
+/*
+#include <sys/stat.h>
+*/
+import "C"
 
 import (
 	"fmt"
@@ -20,7 +27,7 @@ func checkRights(path string) error {
 	}
 
 	// checking that group and others don't have any rights
-	if stat.Mode&(syscall.S_IRWXG|syscall.S_IRWXO) != 0 {
+	if stat.Mode&(C.S_IRWXG|C.S_IRWXO) != 0 {
 		return fmt.Errorf("invalid executable '%s', 'groups' or 'others' have rights on it", path)
 	}
 
