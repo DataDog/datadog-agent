@@ -49,18 +49,16 @@ const (
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
 	// used to setup the APIClient
-	initRetry        retry.Retrier
-	Cl               kubernetes.Interface
-	timeoutSeconds   int64
-	metadataPollIntl time.Duration
+	initRetry      retry.Retrier
+	Cl             kubernetes.Interface
+	timeoutSeconds int64
 }
 
 // GetAPIClient returns the shared ApiClient instance.
 func GetAPIClient() (*APIClient, error) {
 	if globalAPIClient == nil {
 		globalAPIClient = &APIClient{
-			timeoutSeconds:   config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
-			metadataPollIntl: time.Duration(config.Datadog.GetInt64("kubernetes_apiserver_poll_freq")) * time.Second,
+			timeoutSeconds: config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
 		}
 		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
 			Name:          "apiserver",
