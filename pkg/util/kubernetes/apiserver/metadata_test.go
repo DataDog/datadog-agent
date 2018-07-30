@@ -99,12 +99,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 				},
 			},
 			map[string]ServicesMapper{
-				"node1": ServicesMapper{
+				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
 					},
 				},
-				"node2": ServicesMapper{
+				"node2": {
 					"default": {
 						"pod2_name": sets.NewString("svc1"),
 					},
@@ -127,7 +127,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 				},
 			},
 			map[string]ServicesMapper{
-				"node1": ServicesMapper{
+				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
 					},
@@ -135,7 +135,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 						"pod3_name": sets.NewString("svc1"),
 					},
 				},
-				"node2": ServicesMapper{
+				"node2": {
 					"default": {
 						"pod2_name": sets.NewString("svc1"),
 					},
@@ -158,7 +158,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 				},
 			},
 			map[string]ServicesMapper{
-				"node1": ServicesMapper{
+				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1", "svc2"),
 					},
@@ -166,7 +166,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 						"pod3_name": sets.NewString("svc1"),
 					},
 				},
-				"node2": ServicesMapper{
+				"node2": {
 					"default": {
 						"pod2_name": sets.NewString("svc1"),
 					},
@@ -183,7 +183,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 				},
 			},
 			map[string]ServicesMapper{
-				"node1": ServicesMapper{
+				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc2"),
 					},
