@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -44,7 +45,7 @@ type MetadataController struct {
 	// Endpoints that need to be added to services mapping.
 	queue workqueue.RateLimitingInterface
 
-	// used in unit tests for keys that are removed from the queue
+	// used in unit tests to wait until endpoints are synced
 	endpoints chan interface{}
 }
 
@@ -180,7 +181,7 @@ func (m *MetadataController) syncEndpoints(key string) error {
 }
 
 func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
-	nodeToPods := make(map[string]map[string]string)
+	nodeToPods := make(map[string]map[string]sets.String)
 
 	// Loop over the subsets to create a mapping of nodes to pods running on the node.
 	for _, subset := range endpoints.Subsets {
@@ -210,14 +211,18 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 			nodeName := *address.NodeName
 
 			if _, ok := nodeToPods[nodeName]; !ok {
-				nodeToPods[nodeName] = make(map[string]string)
+				nodeToPods[nodeName] = make(map[string]sets.String)
 			}
-			nodeToPods[nodeName][namespace] = podName
+			if _, ok := nodeToPods[nodeName][namespace]; !ok {
+				nodeToPods[nodeName][namespace] = sets.NewString()
+			}
+			nodeToPods[nodeName][namespace].Insert(podName)
 		}
 	}
 
 	svc := endpoints.Name
-	for nodeName, pods := range nodeToPods {
+	namespace := endpoints.Namespace
+	for nodeName, ns := range nodeToPods {
 		metaBundle, err := getMetadataMapBundle(nodeName)
 		if err != nil {
 			log.Tracef("Could not get metadata for node %s", nodeName)
@@ -225,14 +230,15 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 		}
 
 		metaBundle.m.Lock()
-		for namespace, podName := range pods {
-			metaBundle.Services.Set(namespace, podName, svc)
+		metaBundle.Services.Delete(namespace, svc) // cleanup pods deleted from the service
+		for _, pods := range ns {
+			for podName := range pods {
+				metaBundle.Services.Set(namespace, podName, svc)
+			}
 		}
 		metaBundle.m.Unlock()
 
-		cacheKey := utilcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-
-		utilcache.Cache.Set(cacheKey, metaBundle, m.metadataMapExpire)
+		setMetadataMapBundle(metaBundle, nodeName, m.metadataMapExpire)
 	}
 
 	return nil
@@ -256,13 +262,7 @@ func (m *MetadataController) mapDeletedEndpoints(namespace, svc string) error {
 		metaBundle.Services.Delete(namespace, svc)
 		metaBundle.m.Unlock()
 
-		cacheKey := utilcache.BuildAgentKey(metadataMapperCachePrefix, node.Name)
-
-		if len(metaBundle.Services) == 0 {
-			utilcache.Cache.Delete(cacheKey)
-			continue
-		}
-		utilcache.Cache.Set(cacheKey, metaBundle, m.metadataMapExpire)
+		setMetadataMapBundle(metaBundle, node.Name, m.metadataMapExpire)
 	}
 	return nil
 }
