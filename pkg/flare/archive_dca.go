@@ -148,8 +148,14 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 }
 
 func zipMetadataMap(tempDir, hostname string) error {
+	cl, err := apiserver.GetAPIClient()
+	if err != nil {
+		log.Infof("Can't create client to query the API Server: %v", err)
+		return err
+	}
+
 	// Grab the metadata map for all nodes.
-	metaList, err := apiserver.GetMetadataMapBundleOnAllNodes()
+	metaList, err := apiserver.GetMetadataMapBundleOnAllNodes(cl)
 	if err != nil {
 		log.Infof("Error while collecting the cluster level metadata: %q", err)
 	}
