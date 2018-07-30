@@ -109,6 +109,6 @@ func StartServer() error {
 // stops listening to new commands.
 func StopServer() {
 	if stopCh != nil {
-		stopCh <- struct{}{}
+		close(stopCh)
 	}
 }

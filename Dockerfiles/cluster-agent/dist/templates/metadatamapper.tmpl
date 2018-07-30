@@ -16,9 +16,9 @@ Node detected: {{ $index -}}
 {{- range $m := $meta_type }}
   {{ range $ns, $pods := $m }}
   - Namespace: {{ $ns -}}
-    {{- range $pod, $svc := $pods }}
+    {{- range $pod, $svcs := $pods }}
       - Pod: {{ $pod }}
-        Services: {{ $svc -}}
+        Services: {{toList $svcs}}
     {{ end }}
   {{ end -}}
 {{- end -}}

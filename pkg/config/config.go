@@ -223,7 +223,6 @@ func init() {
 	Datadog.SetDefault("cluster_agent.auth_token", "")
 	Datadog.SetDefault("cluster_agent.url", "")
 	Datadog.SetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
-	Datadog.BindEnv("external_metrics_provider.enabled")
 
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
@@ -316,9 +315,11 @@ func init() {
 	Datadog.BindEnv("cluster_agent.kubernetes_service_name")
 	BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	BindEnvAndSetDefault("hpa_configmap_name", "datadog-hpa")
+	BindEnvAndSetDefault("external_metrics_provider.enabled", false)
 	BindEnvAndSetDefault("external_metrics_provider.polling_freq", 30)
 	BindEnvAndSetDefault("external_metrics_provider.max_age", 60)
 	BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)
+	BindEnvAndSetDefault("kubernetes_metadata_resync_period", 60)
 
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
