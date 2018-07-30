@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	utilcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -30,7 +29,7 @@ const (
 	numWorkers = 3
 )
 
-// MetadataController is responsible for synchronizing Endpoints objects from the Kubernetes
+// MetadataController is responsible for synchronizing objects from the Kubernetes
 // apiserver to build and cache cluster metadata (like service tags) for each node.
 // This controller only supports Kubernetes 1.4+.
 type MetadataController struct {
@@ -40,7 +39,7 @@ type MetadataController struct {
 	endpointsLister       corelisters.EndpointsLister
 	endpointsListerSynced cache.InformerSynced
 
-	metadataMapExpire time.Duration // must be greater than the endpoints `resyncPeriod`
+	metadataMapExpire time.Duration
 
 	// Endpoints that need to be added to services mapping.
 	queue workqueue.RateLimitingInterface
@@ -49,24 +48,19 @@ type MetadataController struct {
 	endpoints chan interface{}
 }
 
-func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
-	resyncPeriod := time.Duration(config.Datadog.GetInt64("kubernetes_metadata_resync_period")) * time.Second
-
+func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer, metadataMapExpire time.Duration) *MetadataController {
 	m := &MetadataController{
-		metadataMapExpire: 2 * resyncPeriod,
+		metadataMapExpire: metadataMapExpire,
 		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "metadata"),
 	}
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
 
-	endpointsInformer.Informer().AddEventHandlerWithResyncPeriod(
-		cache.ResourceEventHandlerFuncs{
-			AddFunc:    m.addEndpoints,
-			UpdateFunc: m.updateEndpoints,
-			DeleteFunc: m.deleteEndpoints,
-		},
-		resyncPeriod, // delay for re-listing endpoints
-	)
+	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    m.addEndpoints,
+		UpdateFunc: m.updateEndpoints,
+		DeleteFunc: m.deleteEndpoints,
+	})
 	m.endpointsLister = endpointsInformer.Lister()
 	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
 

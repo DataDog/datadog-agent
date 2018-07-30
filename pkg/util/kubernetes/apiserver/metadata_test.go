@@ -420,6 +420,7 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 	metaController := NewMetadataController(
 		informerFactory.Core().V1().Nodes(),
 		informerFactory.Core().V1().Endpoints(),
+		0,
 	)
 	metaController.nodeListerSynced = alwaysReady
 	metaController.endpointsListerSynced = alwaysReady
