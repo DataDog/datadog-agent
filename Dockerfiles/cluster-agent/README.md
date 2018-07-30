@@ -15,7 +15,7 @@ The following environment variables are supported:
 - `DD_LEADER_LEASE_DURATION`: used only if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds, is 60 by default.
 - `DD_CLUSTER_AGENT_AUTH_TOKEN`: 32 characters long token that needs to be shared between the node agent and the DCA.
 - `DD_KUBE_RESOURCES_NAMESPACE`: configures the namespace where the Cluster Agent creates the configmaps required for the Leader Election, the Event Collection (optional) and the Horizontal Pod Autoscaling.
-- `DD_KUBERNETES_APISERVER_POLL_FREQ`: frequency in second at which the DCA will query the API Server to refresh the cluster metadata map.
+- `DD_KUBERNETES_METADATA_RESYNC_PERIOD`: frequency in seconds to query the API Server to reprocess the cluster metadata.
 
 For a more detailed usage please [refer to the official Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/) documentation.
 

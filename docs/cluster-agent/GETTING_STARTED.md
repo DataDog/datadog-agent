@@ -38,9 +38,9 @@ If you are using the secret:
                 key: token
 
 ```
- 
+
 Or otherwise:
- 
+
 ```yaml
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN
             value: "<32_CHARACTERS_LONG_TOKEN>"
@@ -71,7 +71,7 @@ Create the ConfigMap accordingly:
 
 **Step 4** - Once the secret is created, create the DCA along with its service.
 Don't forget to add your `<DD_API_KEY>` in the manifest of the DCA. Both manifests can be found in the [manifest/cluster-agent directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
-Run: 
+Run:
 
 `kubectl apply -f Dockerfiles/manifests/cluster-agent/datadog-cluster-agent_service.yaml`
 
@@ -118,15 +118,13 @@ To do so, add the following environment variables to the agent's manifest:
             valueFrom:
               secretKeyRef:
                 name: datadog-auth-token
-                key: token 
-#            value: "<32_CHARACTERS_LONG_TOKEN>" # If you are not using the secret, just set the string.                
-          - name: DD_KUBERNETES_APISERVER_POLL_FREQ # Optional
-            value: '60'
+                key: token
+#            value: "<32_CHARACTERS_LONG_TOKEN>" # If you are not using the secret, just set the string.
 ```
 
 **Step 8** - Create the Daemonsets for your agents:
 
-`kubectl apply -f Dockerfiles/manifests/agent.yaml` 
+`kubectl apply -f Dockerfiles/manifests/agent.yaml`
 
 You should be seeing:
 
@@ -149,7 +147,7 @@ Then, Kubernetes events should start to flow in your Datadog accounts, and relev
 
 To execute the following commands, you will first need to be inside the pod of the Cluster Agent or the Node Agent.
 You can use `kubectl exec -it <datadog-cluster-agent pod name> bash`
-  
+
 #### On the DCA side
 
 To see what cluster level metadata is served by the DCA exec in the pod and run:
@@ -162,7 +160,7 @@ Metadata Mapper
 ===============
 
 Node detected: gke-test-default-pool-068cb9c0-sf1w
-  
+
   - Namespace: kube-system
       - Pod: kube-dns-788979dc8f-hzbj5
         Services: [kube-dns]
@@ -170,13 +168,13 @@ Node detected: gke-test-default-pool-068cb9c0-sf1w
         Services: [kube-state-metrics]
       - Pod: kubernetes-dashboard-598d75cb96-5khmj
         Services: [kubernetes-dashboard]
-  
+
 Node detected: gke-test-default-pool-068cb9c0-wntj
-  
+
   - Namespace: default
       - Pod: datadog-cluster-agent-8568545574-x9tc9
         Services: [datadog-custom-metrics-server dca]
-  
+
   - Namespace: kube-system
       - Pod: heapster-v1.5.2-6d59ff54cf-g7q4h
         Services: [heapster]
@@ -196,7 +194,7 @@ root@datadog-cluster-agent-8568545574-x9tc9:/# tail -f /var/log/datadog/cluster-
 2018-06-11 09:37:20 UTC | DEBUG | (metadata.go:40 in GetPodMetadataNames) | CacheKey: agent/KubernetesMetadataMapping/ip-192-168-226-77.ec2.internal, with 1 services
 ```
 
-If you are not collecting events properly, make sure to have those environment variables set to true: 
+If you are not collecting events properly, make sure to have those environment variables set to true:
 - The leader election `DD_LEADER_ELECTION`
 - The event collection `DD_COLLECT_KUBERNETES_EVENTS`
 
@@ -215,7 +213,7 @@ root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent status
     Last Acquisition of the lease: Mon, 11 Jun 2018 06:38:53 UTC
     Renewed leadership: Mon, 11 Jun 2018 09:41:34 UTC
     Number of leader transitions: 2 transitions
-[...]    
+[...]
   Running Checks
   ==============
     kubernetes_apiserver
@@ -223,7 +221,7 @@ root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent status
       Total Runs: 736
       Metrics: 0, Total Metrics: 0
       Events: 0, Total Events: 100
-      Service Checks: 3, Total Service Checks: 2193    
+      Service Checks: 3, Total Service Checks: 2193
 [...]
 ```
 

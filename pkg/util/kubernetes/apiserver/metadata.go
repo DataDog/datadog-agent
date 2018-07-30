@@ -31,7 +31,7 @@ const (
 )
 
 // MetadataController is responsible for synchronizing Endpoints objects from the Kubernetes
-// apiserver to build and cache the MetadataMapperBundle for each node.
+// apiserver to build and cache cluster metadata (like service tags) for each node.
 // This controller only supports Kubernetes 1.4+.
 type MetadataController struct {
 	nodeLister       corelisters.NodeLister
@@ -50,7 +50,7 @@ type MetadataController struct {
 }
 
 func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
-	resyncPeriod := time.Duration(config.Datadog.GetInt("kubernetes_metadata_resync_period")) * time.Second
+	resyncPeriod := time.Duration(config.Datadog.GetInt64("kubernetes_metadata_resync_period")) * time.Second
 
 	m := &MetadataController{
 		metadataMapExpire: 2 * resyncPeriod,
