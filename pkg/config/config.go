@@ -332,6 +332,9 @@ func init() {
 	Datadog.BindEnv("kube_resources_namespace")
 
 	Datadog.BindEnv("collect_ec2_tags")
+
+	afs := NewAssetFs()
+	Datadog.SetFs(afs)
 }
 
 // BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding
