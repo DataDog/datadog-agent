@@ -218,10 +218,12 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 // StartClusterMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
 // The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
 func (c *APIClient) StartClusterMetadataMapping(stopCh chan struct{}) {
-	informerFactory := informers.NewSharedInformerFactory(c.Cl, 30*time.Second)
+	resyncPeriod := time.Duration(config.Datadog.GetInt64("kubernetes_metadata_resync_period")) * time.Second
+	informerFactory := informers.NewSharedInformerFactory(c.Cl, resyncPeriod)
 	metaController := NewMetadataController(
 		informerFactory.Core().V1().Nodes(),
 		informerFactory.Core().V1().Endpoints(),
+		2*resyncPeriod, // must be greater than resyncPeriod
 	)
 	informerFactory.Start(stopCh)
 	go metaController.Run(stopCh)
