@@ -410,6 +410,15 @@ func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
 	return metaBundle.(*MetadataMapperBundle), nil
 }
 
+func setMetadataMapBundle(metaBundle *MetadataMapperBundle, nodeName string, d time.Duration) {
+	cacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+	if len(metaBundle.Services) == 0 {
+		cache.Cache.Delete(cacheKey)
+		return
+	}
+	cache.Cache.Set(cacheKey, metaBundle, d)
+}
+
 func getNodeList(cl *APIClient) ([]v1.Node, error) {
 	nodes, err := cl.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &cl.timeoutSeconds})
 	if err != nil {

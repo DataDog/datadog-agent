@@ -52,7 +52,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	)
 
 	pod3 := newFakePod(
-		"datadog-system",
+		"default",
 		"pod3_name",
 		"3333",
 		"3.3.3.3",
@@ -74,26 +74,26 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// The side effects of each test case is cumulative on the cache.
+	// The side effects of each test case is cumulative on the cache. This simulates a
+	// stream of changes to endpoints in the cluster and asserts the cluster metadata
+	// after each change.
 	tests := []struct {
 		desc            string
 		delete          bool // whether to add or delete endpoints
-		endpoints       []*v1.Endpoints
+		endpoints       *v1.Endpoints
 		expectedBundles map[string]ServicesMapper
 	}{
-		// Add
+		// Add/Update
 		{
 			"one service on multiple nodes",
 			false,
-			[]*v1.Endpoints{
-				{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
-					Subsets: []v1.EndpointSubset{
-						{
-							Addresses: []v1.EndpointAddress{
-								newFakeEndpointAddress("node1", pod1),
-								newFakeEndpointAddress("node2", pod2),
-							},
+			&v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							newFakeEndpointAddress("node1", pod1),
+							newFakeEndpointAddress("node2", pod2),
 						},
 					},
 				},
@@ -112,16 +112,16 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			},
 		},
 		{
-			"pod added to existing service and node",
+			"pod added to service",
 			false,
-			[]*v1.Endpoints{
-				{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
-					Subsets: []v1.EndpointSubset{
-						{
-							Addresses: []v1.EndpointAddress{
-								newFakeEndpointAddress("node1", pod3),
-							},
+			&v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							newFakeEndpointAddress("node1", pod1),
+							newFakeEndpointAddress("node2", pod2),
+							newFakeEndpointAddress("node1", pod3),
 						},
 					},
 				},
@@ -130,8 +130,6 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
-					},
-					"datadog-system": {
 						"pod3_name": sets.NewString("svc1"),
 					},
 				},
@@ -143,16 +141,41 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			},
 		},
 		{
-			"add service to existing node and pod",
+			"pod deleted from service",
 			false,
-			[]*v1.Endpoints{
-				{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc2"},
-					Subsets: []v1.EndpointSubset{
-						{
-							Addresses: []v1.EndpointAddress{
-								newFakeEndpointAddress("node1", pod1),
-							},
+			&v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							newFakeEndpointAddress("node1", pod1),
+							newFakeEndpointAddress("node2", pod2),
+						},
+					},
+				},
+			},
+			map[string]ServicesMapper{
+				"node1": {
+					"default": {
+						"pod1_name": sets.NewString("svc1"),
+					},
+				},
+				"node2": {
+					"default": {
+						"pod2_name": sets.NewString("svc1"),
+					},
+				},
+			},
+		},
+		{
+			"add service for existing pod",
+			false,
+			&v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc2"},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							newFakeEndpointAddress("node1", pod1),
 						},
 					},
 				},
@@ -161,9 +184,6 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1", "svc2"),
-					},
-					"datadog-system": {
-						"pod3_name": sets.NewString("svc1"),
 					},
 				},
 				"node2": {
@@ -177,46 +197,40 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{
 			"delete service with pods on multiple nodes",
 			true,
-			[]*v1.Endpoints{
-				{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
-				},
+			&v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
 			},
 			map[string]ServicesMapper{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc2"),
 					},
-					"datadog-system": {
-						"pod3_name": sets.NewString("svc1"),
-					},
 				},
 			},
 		},
 	}
-	for _, tt := range tests {
-		for _, endpoints := range tt.endpoints {
-			indexer := informerFactory.
-				Core().
-				V1().
-				Endpoints().
-				Informer().
-				GetIndexer()
 
-			var err error
-			if tt.delete {
-				err = indexer.Delete(endpoints)
-			} else {
-				err = indexer.Add(endpoints)
-			}
-			require.NoError(t, err)
+	for i, tt := range tests {
+		indexer := informerFactory.
+			Core().
+			V1().
+			Endpoints().
+			Informer().
+			GetIndexer()
 
-			key, err := cache.MetaNamespaceKeyFunc(endpoints)
-			require.NoError(t, err)
-
-			err = metaController.syncEndpoints(key)
-			require.NoError(t, err)
+		var err error
+		if tt.delete {
+			err = indexer.Delete(tt.endpoints)
+		} else {
+			err = indexer.Add(tt.endpoints)
 		}
+		require.NoError(t, err)
+
+		key, err := cache.MetaNamespaceKeyFunc(tt.endpoints)
+		require.NoError(t, err)
+
+		err = metaController.syncEndpoints(key)
+		require.NoError(t, err)
 
 		for nodeName, expectedMapper := range tt.expectedBundles {
 			cacheKey := utilcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
@@ -225,7 +239,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			metaBundle, ok := v.(*MetadataMapperBundle)
 			require.True(t, ok)
 
-			assert.Equal(t, expectedMapper, metaBundle.Services)
+			assert.Equal(t, expectedMapper, metaBundle.Services, "%d %s", i, tt.desc)
 		}
 	}
 }
