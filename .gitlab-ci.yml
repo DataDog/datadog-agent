@@ -176,7 +176,6 @@ build_agent6_jmx:
 
 dev_branch_docker_hub:
   <<: *docker_tag_job_definition
-  when: manual
   except:
     - master
   variables:
@@ -185,54 +184,6 @@ dev_branch_docker_hub:
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_REF_SLUG}
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
 
-dev_master_docker_hub:
-  <<: *docker_tag_job_definition
-  only:
-    - master
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
-
-dca_dev_branch_docker_hub:
-  <<: *docker_tag_job_definition
-  when: manual
-  except:
-    - master
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
-
-dca_dev_master_docker_hub:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
-
-# deploys to quay
-# docker images are mirrored on quay.io
-# to run security scans on them
-dev_master_quay:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
-  variables:
-    <<: *quay_variables
-  script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} quay.io/datawhale/agent-dev:master
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx quay.io/datawhale/agent-dev:master-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
-
-#
-# Check Deploy
-
-
-#
-# end to end
-#
 
 .pupernetes_template: &pupernetes_template
   stage: e2e
@@ -248,17 +199,3 @@ pupernetes-dev:
   except:
     - master
     - tags
-
-pupernetes-master:
-  <<: *pupernetes_template
-  only:
-    - master
-  script:
-  - inv -e e2e-tests --image=datadog/agent-dev:master
-
-pupernetes-tags:
-  <<: *pupernetes_template
-  <<: *run_when_triggered_on_tag
-  script:
-  # note: it's not the agent-dev
-  - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
