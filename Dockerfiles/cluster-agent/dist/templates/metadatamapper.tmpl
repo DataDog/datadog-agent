@@ -18,7 +18,7 @@ Node detected: {{ $index -}}
   - Namespace: {{ $ns -}}
     {{- range $pod, $svcs := $pods }}
       - Pod: {{ $pod }}
-        Services: {{ toList $svcs -}}
+        Services: {{ toUnsortedList $svcs -}}
     {{ end }}
   {{ end -}}
 {{- end -}}
