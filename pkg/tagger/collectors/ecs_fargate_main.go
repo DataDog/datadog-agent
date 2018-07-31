@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -58,7 +59,7 @@ func (c *ECSFargateCollector) Pull() error {
 	if err != nil {
 		return err
 	}
-	updates, deadCo, err := c.pullMetadata(meta)
+	updates, deadCo, err := c.parseMetadata(meta)
 	if err != nil {
 		return err
 	}
@@ -85,8 +86,8 @@ func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, error
 		return []string{}, []string{}, err
 	}
 
-	// since we download the metadata anyway might as well do a Pull refresh
-	updates, deadCo, err := c.pullMetadata(meta)
+	// since we download the metadata anyway might as well update all containers
+	updates, deadCo, err := c.parseMetadata(meta)
 	if err != nil {
 		return []string{}, []string{}, err
 	}
@@ -100,7 +101,15 @@ func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, error
 	c.infoOut <- expiries
 	c.lastExpire = time.Now()
 
-	return c.fetchMetadata(meta, container)
+	// Fish for the desired container in the updates
+	for _, info := range updates {
+		if info.Entity == container {
+			return info.LowCardTags, info.HighCardTags, nil
+		}
+	}
+
+	// entity not found in updates
+	return []string{}, []string{}, errors.NewNotFound(container)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects
