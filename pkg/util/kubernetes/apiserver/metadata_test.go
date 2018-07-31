@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	utilcache "github.com/DataDog/datadog-agent/pkg/util/cache"
+	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,16 +73,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// The side effects of each test case is cumulative on the cache. This simulates a
-	// stream of changes to endpoints in the cluster and asserts the cluster metadata
-	// after each change.
 	tests := []struct {
 		desc            string
 		delete          bool // whether to add or delete endpoints
 		endpoints       *v1.Endpoints
 		expectedBundles map[string]ServicesMapper
 	}{
-		// Add/Update
 		{
 			"one service on multiple nodes",
 			false,
@@ -192,7 +188,6 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 				},
 			},
 		},
-		// Delete
 		{
 			"delete service with pods on multiple nodes",
 			true,
@@ -207,9 +202,59 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 				},
 			},
 		},
+		{
+			"add endpoints for leader election",
+			false,
+			&v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "leader-election",
+					Annotations: map[string]string{
+						"control-plane.alpha.kubernetes.io/leader": `{"holderIdentity":"foo"}`,
+					},
+				},
+			},
+			map[string]ServicesMapper{ // no changes to cluster metadata
+				"node1": {
+					"default": {
+						"pod1_name": sets.NewString("svc2"),
+					},
+				},
+			},
+		},
+		{
+			"update endpoints for leader election",
+			false,
+			&v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "leader-election",
+					Annotations: map[string]string{
+						"control-plane.alpha.kubernetes.io/leader": `{"holderIdentity":"bar"}`,
+					},
+				},
+			},
+			map[string]ServicesMapper{ // no changes to cluster metadata
+				"node1": {
+					"default": {
+						"pod1_name": sets.NewString("svc2"),
+					},
+				},
+			},
+		},
+		{
+			"delete every service",
+			true,
+			&v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc2"},
+			},
+			map[string]ServicesMapper{},
+		},
 	}
 
 	for i, tt := range tests {
+		t.Logf("Running %d %s", i, tt.desc)
+
 		indexer := informerFactory.
 			Core().
 			V1().
@@ -232,13 +277,13 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		require.NoError(t, err)
 
 		for nodeName, expectedMapper := range tt.expectedBundles {
-			cacheKey := utilcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-			v, ok := utilcache.Cache.Get(cacheKey)
+			cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+			v, ok := agentcache.Cache.Get(cacheKey)
 			require.True(t, ok, "No meta bundle for %s", nodeName)
 			metaBundle, ok := v.(*MetadataMapperBundle)
 			require.True(t, ok)
 
-			assert.Equal(t, expectedMapper, metaBundle.Services, "%d %s", i, tt.desc)
+			assert.Equal(t, expectedMapper, metaBundle.Services)
 		}
 	}
 }

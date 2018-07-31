@@ -41,7 +41,7 @@ const (
 // avoid missing data any amount of time.
 //
 // The controller ignores updates from the apiserver to endpoints with subsets that are unchanged
-// and the cluster metadata does not expire. The controller must take care to garbage collect
+// and the cluster metadata does not expire. The controller takes care to garbage collect
 // any data while processing updates/deletes so that the cache does not grow unbounded.
 type MetadataController struct {
 	nodeLister       corelisters.NodeLister
@@ -213,7 +213,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 			namespace := address.TargetRef.Namespace
 			podName := address.TargetRef.Name
 			if podName == "" || namespace == "" {
-				log.Debugf("Incomplete reference for object %s/%s on service %s/%s, skipping",
+				log.Tracef("Incomplete reference for object %s/%s on service %s/%s, skipping",
 					address.TargetRef.UID, endpoints.Namespace, endpoints.Name)
 				continue
 			}
