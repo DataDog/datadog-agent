@@ -42,7 +42,7 @@ template: |
 sections:
   # The prelude section is implicitly included.
   - [features, New Features]
-  - [enhancements, Enhancements Notes]
+  - [enhancements, Enhancement Notes]
   - [issues, Known Issues]
   - [upgrade, Upgrade Notes]
   - [deprecations, Deprecation Notes]

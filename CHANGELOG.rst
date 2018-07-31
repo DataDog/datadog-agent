@@ -12,9 +12,6 @@ Release Notes
 Prelude
 -------
 
-Defer process orchestration to the operating system where supported.
-
-
 Release on: 2018-07-31
 
 - Please refer to the `6.4.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.0>`_ for the list of changes on the Core Checks.
@@ -52,17 +49,12 @@ New Features
 - OpenShift ClusterResourceQuotas metrics are now collected by the kube_apiserver check,
   under the openshift.clusterquota.* and openshift.appliedclusterquota.* names.
 
-- Adds support for OS-level process orchestration of the agents on linux.
-  Specifically, this adds support for upstart on systemd which should cover
-  most modern debian/rhel based distros. Changes enable a more resilient 
-  process management for the infrastructure, process and trace agents.
-
 - Display the version for Python checks on the status page.
 
 
 .. _Release Notes_6.4.0_Enhancements Notes:
 
-Enhancements Notes
+Enhancement Notes
 ------------------
 
 - Adding DD_EXPVAR_PORT to the configuration environment variables.
