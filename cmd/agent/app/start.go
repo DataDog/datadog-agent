@@ -75,6 +75,7 @@ func StartAgent() error {
 	// Global Agent configuration
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
+		log.Errorf("Failed to setup config %v", err)
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 

@@ -23,7 +23,14 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 from .agent import DEFAULT_BUILD_TAGS
 
-
+ANDROID_CORECHECKS = [
+    "cpu",
+    "io",
+    "load",
+    "memory",
+    "uptime",
+]
+CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
         use_embedded_libs=False, development=True, precompile_only=False,
@@ -121,4 +128,17 @@ def clean(ctx):
 
     # remove the bin/agent folder
     print("Remove agent binary folder")
-    ctx.run("rm -rf ./bin/agent")
+    shutil.rmtree("./bin/agent")
+
+    shutil.rmtree(CORECHECK_CONFS_DIR)
+
+@task
+def assetconfigs(cts):
+    pwd = os.getcwd()
+    print ("CWD %s" % pwd)
+    # move the core check config
+    os.makedirs(CORECHECK_CONFS_DIR)
+    for check in ANDROID_CORECHECKS:
+        srcfile = "cmd/agent/dist/conf.d/{}.d/conf.yaml.default".format(check)
+        tgtfile = "{}/{}.yaml".format(CORECHECK_CONFS_DIR, check)
+        shutil.copyfile(srcfile, tgtfile)

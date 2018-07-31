@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build linux freebsd netbsd openbsd solaris dragonfly 
+// +build linux freebsd netbsd openbsd solaris dragonfly
 // +build !android
 
 package config

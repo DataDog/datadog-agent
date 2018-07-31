@@ -55,6 +55,7 @@ last-change
 *.jar
 .idea
 .gradle
+cmd/agent/android/app/src/main/assets/conf.d
 
 # android studio
 cmd/agent/android/local.properties

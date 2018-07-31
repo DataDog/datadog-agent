@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/mobile/asset"
 )
 
 type configFormat struct {
@@ -68,7 +69,7 @@ func (c *FileConfigProvider) Collect() ([]integration.Config, error) {
 	for _, path := range c.paths {
 		log.Infof("%v: searching for configuration files at: %s", c, path)
 
-		entries, err := ioutil.ReadDir(path)
+		entries, err := asset.ReadDir(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -247,7 +248,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := ioutil.ReadFile(fpath)
+	yamlFile, err := asset.ReadFile(fpath)
 	if err != nil {
 		return config, err
 	}

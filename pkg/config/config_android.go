@@ -7,11 +7,11 @@ package config
 
 import (
 	"errors"
+	"github.com/spf13/afero"
+	"golang.org/x/mobile/asset"
+	"log"
 	"os"
 	"time"
-	"golang.org/x/mobile/asset"
-	"github.com/spf13/afero"
-	
 )
 
 const (
@@ -29,17 +29,14 @@ const (
 type AssetFs struct{}
 
 func NewAssetFs() AssetFs {
+	log.Printf("Returning new assetfs")
 	return AssetFs{}
 }
-
 
 type AssetFile struct {
 	asset.File
 	FileName string
-
 }
-
-
 
 func (AssetFs) Name() string { return "AssetFs" }
 
@@ -59,15 +56,22 @@ func (AssetFs) MkdirAll(path string, perm os.FileMode) error {
 }
 
 func (AssetFs) Open(name string) (afero.File, error) {
-    f, err := asset.Open(name)
-    if err != nil {
-        return nil, err
-    }
-    return AssetFile{asset.File: f, FileName: name}, nil
+	log.Printf("assetfs open %s", name)
+	f, err := asset.Open(name)
+	if err != nil {
+		log.Printf("assetfs open %s failed %v", name, err)
+		return nil, err
+	}
+	return AssetFile{File: f, FileName: name}, nil
 }
 
 func (AssetFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
-	return AssetFs.Open(name)
+	log.Printf("assetfs open %s", name)
+	f, err := asset.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return AssetFile{File: f, FileName: name}, nil
 }
 
 func (AssetFs) Remove(name string) error {
@@ -83,6 +87,7 @@ func (AssetFs) Rename(oldname, newname string) error {
 }
 
 func (AssetFs) Stat(name string) (os.FileInfo, error) {
+	log.Printf("Returning error for stat %s", name)
 	return nil, errors.New("Invalid Operation: Can't stat file in asset")
 }
 
@@ -99,7 +104,6 @@ func (AssetFs) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return fi, true, err
 }
 
-
 func (f AssetFile) Name() string {
 	return f.FileName
 }
@@ -113,22 +117,23 @@ func (f AssetFile) ReadAt(b []byte, off int64) (n int, err error) {
 	return 0, errors.New("Invalid Operation: Can't readat asset")
 }
 
-func (f AssetFile)Readdir(count int) ([]os.FileInfo, error){
+func (f AssetFile) Readdir(count int) ([]os.FileInfo, error) {
 	return nil, errors.New("Invalid Operation: Can't readat asset")
 }
 
-func (f AssetFile)Readdirnames(n int) ([]string, error){
+func (f AssetFile) Readdirnames(n int) ([]string, error) {
 	return nil, errors.New("Invalid Operation: Can't readat asset")
 }
 
 func (f AssetFile) Stat() (os.FileInfo, error) {
+
 	return nil, errors.New("Invalid Operation: Can't readat asset")
 }
 
-func (f AssetFile)Sync() error{
+func (f AssetFile) Sync() error {
 	return errors.New("Invalid Operation: Can't readat asset")
 }
-func (f AssetFile)Truncate(size int64) error{
+func (f AssetFile) Truncate(size int64) error {
 	return errors.New("Invalid Operation: Can't readat asset")
 }
 
@@ -144,7 +149,6 @@ func (f AssetFile) Write(b []byte) (n int, err error) {
 func (f AssetFile) WriteString(s string) (n int, err error) {
 	return f.Write([]byte(s))
 }
-
 
 // WriteAt writes len(b) bytes to the File starting at byte offset off.
 // It returns the number of bytes written and an error, if any.

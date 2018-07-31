@@ -53,17 +53,30 @@ func readAsset(name string) ([]byte, error) {
 }
 
 func AndroidMain() {
-	readAsset("android.yaml")
+	//readAsset("android.yaml")
+	if _, err := readAsset("datadog.yaml"); err != nil {
+		log.Printf("Failed to read datadog yaml asset %v", err)
+	} else {
+		log.Printf("Read datadog.yaml asset")
+	}
+
+	files, err := asset.ListAssets("")
+	if err != nil {
+		log.Printf("Error listing assets")
+	} else {
+		log.Printf("Assets: %v", files)
+	}
+
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
 
 	var ae androidEnv
 	ae.read()
 	if len(ae.Cfgpath) != 0 {
-		log.Printf("Setting config path to %s", ae.Cfgpath)
-		ddapp.SetCfgPath(ae.Cfgpath)
+		log.Printf("would have set config path to %s", ae.Cfgpath)
+		//ddapp.SetCfgPath(ae.Cfgpath)
 	}
-	//ddapp.SetCfgPath("/data/datadog-agent")
+	ddapp.SetCfgPath("datadog.yaml")
 	ddapp.StartAgent()
 }
 
