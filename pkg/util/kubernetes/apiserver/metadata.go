@@ -33,16 +33,12 @@ const (
 
 // MetadataController is responsible for synchronizing objects from the Kubernetes
 // apiserver to build and cache cluster metadata (like service tags) for each node.
+//
+// The controller ignores updates from the apiserver to endpoints with subsets that are
+// unchanged. The controller takes care to garbage collect any data while processing
+// updates/deletes so that the cache does not contain data for deleted pods/services.
+//
 // This controller only supports Kubernetes 1.4+.
-//
-// The cluster metadata uses the `kubernetes_metadata_resync_period` to determine how often
-// to reprocess objects from the apiserver to sync the cluster metadata. As a direct result of
-// using a watch to sync the cluster metadata, we cannot expire the cached cluster metadata to
-// avoid missing data any amount of time.
-//
-// The controller ignores updates from the apiserver to endpoints with subsets that are unchanged
-// and the cluster metadata does not expire. The controller takes care to garbage collect
-// any data while processing updates/deletes so that the cache does not grow unbounded.
 type MetadataController struct {
 	nodeLister       corelisters.NodeLister
 	nodeListerSynced cache.InformerSynced
