@@ -189,7 +189,7 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
 
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deledte key. Then compute again.
+		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deleted key. Then compute again.
 		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
 
 		if !found {
@@ -223,7 +223,6 @@ func (c *APIClient) StartClusterMetadataMapping(stopCh chan struct{}) {
 	metaController := NewMetadataController(
 		informerFactory.Core().V1().Nodes(),
 		informerFactory.Core().V1().Endpoints(),
-		2*resyncPeriod, // must be greater than resyncPeriod
 	)
 	informerFactory.Start(stopCh)
 	go metaController.Run(stopCh)
@@ -408,15 +407,6 @@ func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
 		return nil, fmt.Errorf("the key %s was not found in the cache", nodeNameCacheKey)
 	}
 	return metaBundle.(*MetadataMapperBundle), nil
-}
-
-func setMetadataMapBundle(metaBundle *MetadataMapperBundle, nodeName string, d time.Duration) {
-	cacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-	if len(metaBundle.Services) == 0 {
-		cache.Cache.Delete(cacheKey)
-		return
-	}
-	cache.Cache.Set(cacheKey, metaBundle, d)
 }
 
 func getNodeList(cl *APIClient) ([]v1.Node, error) {

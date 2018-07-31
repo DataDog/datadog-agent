@@ -11,10 +11,11 @@ import (
 	"fmt"
 	"time"
 
-	utilcache "github.com/DataDog/datadog-agent/pkg/util/cache"
+	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -33,14 +34,21 @@ const (
 // MetadataController is responsible for synchronizing objects from the Kubernetes
 // apiserver to build and cache cluster metadata (like service tags) for each node.
 // This controller only supports Kubernetes 1.4+.
+//
+// The cluster metadata uses the `kubernetes_metadata_resync_period` to determine how often
+// to reprocess objects from the apiserver to sync the cluster metadata. As a direct result of
+// using a watch to sync the cluster metadata, we cannot expire the cached cluster metadata to
+// avoid missing data any amount of time.
+//
+// The controller ignores updates from the apiserver to endpoints with subsets that are unchanged
+// and the cluster metadata does not expire. The controller must take care to garbage collect
+// any data while processing updates/deletes so that the cache does not grow unbounded.
 type MetadataController struct {
 	nodeLister       corelisters.NodeLister
 	nodeListerSynced cache.InformerSynced
 
 	endpointsLister       corelisters.EndpointsLister
 	endpointsListerSynced cache.InformerSynced
-
-	metadataMapExpire time.Duration
 
 	// Endpoints that need to be added to services mapping.
 	queue workqueue.RateLimitingInterface
@@ -49,10 +57,9 @@ type MetadataController struct {
 	endpoints chan interface{}
 }
 
-func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer, metadataMapExpire time.Duration) *MetadataController {
+func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
-		metadataMapExpire: metadataMapExpire,
-		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "metadata"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "metadata"),
 	}
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
@@ -127,8 +134,15 @@ func (m *MetadataController) addEndpoints(obj interface{}) {
 	m.enqueue(obj)
 }
 
-func (m *MetadataController) updateEndpoints(_, new interface{}) {
+func (m *MetadataController) updateEndpoints(old, new interface{}) {
+	oldEndpoints := old.(*corev1.Endpoints)
 	newEndpoints := new.(*corev1.Endpoints)
+
+	if apiequality.Semantic.DeepEqual(oldEndpoints.Subsets, newEndpoints.Subsets) {
+		log.Tracef("Endpoints subsets are equal for %s/%s, skipping update", newEndpoints.Namespace, newEndpoints.Name)
+		return
+	}
+
 	log.Tracef("Updating endpoints %s/%s", newEndpoints.Namespace, newEndpoints.Name)
 	m.enqueue(new)
 }
@@ -239,7 +253,12 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 		}
 		metaBundle.m.Unlock()
 
-		setMetadataMapBundle(metaBundle, nodeName, m.metadataMapExpire)
+		cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+		if len(metaBundle.Services) == 0 {
+			agentcache.Cache.Delete(cacheKey)
+			continue
+		}
+		agentcache.Cache.Set(cacheKey, metaBundle, agentcache.NoExpiration)
 	}
 
 	return nil
@@ -263,7 +282,12 @@ func (m *MetadataController) mapDeletedEndpoints(namespace, svc string) error {
 		metaBundle.Services.Delete(namespace, svc)
 		metaBundle.m.Unlock()
 
-		setMetadataMapBundle(metaBundle, node.Name, m.metadataMapExpire)
+		cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, node.Name)
+		if len(metaBundle.Services) == 0 {
+			agentcache.Cache.Delete(cacheKey)
+			continue
+		}
+		agentcache.Cache.Set(cacheKey, metaBundle, agentcache.NoExpiration)
 	}
 	return nil
 }
@@ -271,9 +295,9 @@ func (m *MetadataController) mapDeletedEndpoints(namespace, svc string) error {
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.
 func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	var metaList []string
-	cacheKey := utilcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
-	metaBundleInterface, found := utilcache.Cache.Get(cacheKey)
+	metaBundleInterface, found := agentcache.Cache.Get(cacheKey)
 	if !found {
 		log.Tracef("no metadata was found for the pod %s on node %s", podName, nodeName)
 		return nil, nil
