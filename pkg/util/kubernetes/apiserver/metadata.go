@@ -180,6 +180,7 @@ func (m *MetadataController) syncEndpoints(key string) error {
 	return err
 }
 
+// mapEndpoints matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.4+.
 func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 	nodeToPods := make(map[string]map[string]sets.String)
 
