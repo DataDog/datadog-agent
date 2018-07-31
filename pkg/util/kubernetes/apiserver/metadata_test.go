@@ -58,7 +58,6 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		"3.3.3.3",
 	)
 
-	// Bootstrap informer with all test nodes.
 	for _, node := range []*v1.Node{
 		{ObjectMeta: metav1.ObjectMeta{Name: "node1"}},
 		{ObjectMeta: metav1.ObjectMeta{Name: "node2"}},

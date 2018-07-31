@@ -37,7 +37,7 @@ func (m ServicesMapper) Get(namespace, podName string) ([]string, bool) {
 	if _, ok := m[namespace][podName]; !ok {
 		return nil, false
 	}
-	return m[namespace][podName].List(), true
+	return m[namespace][podName].UnsortedList(), true
 }
 
 // Set updates services for a given namespace and pod name.

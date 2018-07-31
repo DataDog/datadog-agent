@@ -27,7 +27,7 @@ func init() {
 		"printDashes":        printDashes,
 		"formatUnixTime":     FormatUnixTime,
 		"humanize":           MkHuman,
-		"toList":             toList,
+		"toUnsortedList":     toUnsortedList,
 	}
 }
 
@@ -99,12 +99,12 @@ func printDashes(s string, dash string) string {
 	return strings.Repeat(dash, stringLength(s))
 }
 
-func toList(set map[string]interface{}) string {
-	list := []string{}
-	for item := range set {
-		list = append(list, item)
+func toUnsortedList(s map[string]interface{}) string {
+	res := make([]string, 0, len(s))
+	for key := range s {
+		res = append(res, key)
 	}
-	return fmt.Sprintf("%s", list)
+	return fmt.Sprintf("%s", res)
 }
 
 // MkHuman makes large numbers more readable
