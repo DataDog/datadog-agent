@@ -82,7 +82,8 @@ func StartAgent() error {
 	}
 	// if we're on android, allow some of the settings to be overridden
 	// by the android service (variables to be passedin via Intents)
-	if runtime.GOOS != "android" {
+	if runtime.GOOS == "android" {
+		log.Debugf("OS is android, checking OS vars")
 		if overrideVars != nil && len(overrideVars) != 0 {
 			if val, ok := overrideVars["apikey"]; ok {
 				config.Datadog.Set("api_key", val)
@@ -313,9 +314,9 @@ func StopAgent() {
 	log.Flush()
 }
 
-// SetCfgPath provides an externally accessible method for
-// overriding the config path.  Used by Android to set
-// the cfgpath from the APK config
+// SetOverrides provides an externally accessible method for
+// overriding config variables.  Used by Android to set
+// the various config options from intent extras
 func SetOverrides(vars map[string]string) {
 	confFilePath = "datadog.yaml"
 	overrideVars = vars

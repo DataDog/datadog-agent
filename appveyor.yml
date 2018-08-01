@@ -28,6 +28,7 @@ install:
   - set PATH=C:\deps\bin;%GOPATH%\bin;%GOROOT%\bin;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;%PATH%
   - go version
   - pip install invoke
+  - pip install pyyaml
 
 cache:
   - '%GOPATH%\bin'

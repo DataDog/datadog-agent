@@ -12,18 +12,18 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"time"
 	"path/filepath"
+	"time"
 
 	//"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/mobile/asset"
-    yaml "gopkg.in/yaml.v2"
-
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
 	assetFileName = "directory_manifest.yaml"
 )
+
 /*
  There is an outstanding PR for handling the listing of assets for the go/mobile
  project.  However, it will not be merged in a timely enough fashion.
@@ -32,7 +32,7 @@ var (
  that we're interested in, and return the list of files as a slice of os.FileInfos
  so that the return is as close to the expected as possible, and requires as little
  change in the main code as possible.
- */
+*/
 
 // ReadFile reads an entire asset file into a byte slice.
 func ReadFile(name string) ([]byte, error) {
@@ -53,7 +53,7 @@ func ReadFile(name string) ([]byte, error) {
 	log.Printf("ReadFile len %d", len(buf))
 	return buf, nil
 }
- 
+
 // A fileStat is the implementation of FileInfo returned by Stat and Lstat.
 type assetFileStat struct {
 	name    string
@@ -71,7 +71,7 @@ func (fs *assetFileStat) IsDir() bool        { return false }
 func (fs *assetFileStat) Name() string       { return fs.name }
 
 type directoryManifest struct {
-	Files	[]string `yaml:"files"`
+	Files []string `yaml:"files"`
 }
 
 // ReadDir returns a list of files present in an asset directory.
@@ -103,11 +103,11 @@ func ReadDir(dirname string) ([]os.FileInfo, error) {
 	}
 	for _, f := range manifest.Files {
 		ret = append(ret, &assetFileStat{
-			name: f,
-			size: 1, // don't know the size, for now...
-			mode: 0444,
+			name:    f,
+			size:    1, // don't know the size, for now...
+			mode:    0444,
 			modTime: time.Now(),
-			sys: nil,
+			sys:     nil,
 		})
 
 	}

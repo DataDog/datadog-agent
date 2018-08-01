@@ -333,8 +333,7 @@ func init() {
 
 	Datadog.BindEnv("collect_ec2_tags")
 
-	afs := NewAssetFs()
-	Datadog.SetFs(afs)
+	setAssetFs()
 }
 
 // BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding

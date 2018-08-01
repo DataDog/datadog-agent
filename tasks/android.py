@@ -37,15 +37,18 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         use_embedded_libs=False, development=True, precompile_only=False,
           skip_assets=False):
     """
-    Build the agent. If the bits to include in the build are not specified,
+    Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=snmp,systemd
+        inv android.build 
     """
     # ensure BIN_PATH exists
     if not os.path.exists(BIN_PATH):
         os.makedirs(BIN_PATH)
+
+    # put the check confs in place
+    assetconfigs(ctx)
 
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -136,7 +139,12 @@ def clean(ctx):
 @task
 def assetconfigs(ctx):
     # move the core check config
-    shutil.rmtree(CORECHECK_CONFS_DIR)
+    try:
+        shutil.rmtree(CORECHECK_CONFS_DIR)
+    except:
+        ## it's ok if the dir is not there
+        pass
+
     files = {}
     files_list = []
     os.makedirs(CORECHECK_CONFS_DIR)
@@ -164,10 +172,10 @@ def launchservice(ctx, api_key, hostname=None, tags=None):
         print("Setting tags to owner:db,env:local,role:windows")
         tags="owner:db,env:local,role:windows"
 
-    cmd = "adb shell am startservice org.datadog.agent/.DDService -e api_key {} -e hostname {} -e tags {}".format(api_key, hostname, tags)
+    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(api_key, hostname, tags)
     ctx.run(cmd)
 
-@task
+@task   
 def stopservice(ctx):
     cmd = "adb shell am force-stop org.datadog.agent"
     ctx.run(cmd)

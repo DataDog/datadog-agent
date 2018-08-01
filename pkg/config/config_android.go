@@ -22,6 +22,11 @@ const (
 	defaultGuiPort              = "5002"
 )
 
+func setAssetFs() {
+	afs := NewAssetFs()
+	Datadog.SetFs(afs)
+}
+
 // AssetFs is a Fs implementation that uses functions provided by the os package.
 //
 // For details in any method, check the documentation of the os package

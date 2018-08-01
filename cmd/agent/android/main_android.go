@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/DataDog/datadog-agent/pkg/util/androidasset"
 	ddapp "github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/util/androidasset"
 )
 
 func AndroidMain(apikey string, hostname string, tags string) {
@@ -33,7 +33,6 @@ func AndroidMain(apikey string, hostname string, tags string) {
 	} else {
 		log.Printf("Read datadog.yaml asset")
 	}
-
 
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
