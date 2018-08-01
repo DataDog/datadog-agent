@@ -22,7 +22,7 @@ import (
 )
 
 // Zookeeper represents the name of the config provider
-const Zookeeper = "zookeeper"
+const Zookeeper = "Zookeeper"
 
 const sessionTimeout = 1 * time.Second
 

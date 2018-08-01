@@ -46,6 +46,6 @@ func NewCPCache() *ProviderCache {
 // IsUpToDate checks the local cache of the CP and returns accordingly.
 type ConfigProvider interface {
 	Collect() ([]integration.Config, error)
-	// String() string
+	String() string
 	IsUpToDate() (bool, error)
 }

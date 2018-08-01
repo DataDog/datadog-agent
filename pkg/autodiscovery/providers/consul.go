@@ -22,7 +22,7 @@ import (
 )
 
 // Consul represents the name of the config provider
-const Consul = "consul"
+const Consul = "Consul"
 
 // Abstractions for testing
 type consulKVBackend interface {
