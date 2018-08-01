@@ -82,9 +82,6 @@ COPY s6-services /etc/services.d/
 COPY entrypoint /etc/cont-init.d/
 COPY probe.sh initlog.sh /
 
-# Override the exit script by ours to fix --pid=host operations
-COPY init-stage3 /etc/s6/init/init-stage3
-
 # Extract s6-overlay
 # Done in 2 steps to avoid overriding the /bin --> /usr/bin symlink
 # FIXME: copying it from the extract stage does not work
@@ -100,6 +97,9 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod 755 /probe.sh /initlog.sh
+
+# Override the exit script by ours to fix --pid=host operations
+COPY init-stage3 /etc/s6/init/init-stage3
 
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
