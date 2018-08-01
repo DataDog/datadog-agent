@@ -32,6 +32,8 @@ import (
 	"github.com/fatih/color"
 )
 
+var stopCh chan struct{}
+
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
@@ -153,12 +155,14 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Errorf("Could not start the Cluster Agent Process.")
 
 	}
+
 	// Start the Service Mapper.
 	asc, err := apiserver.GetAPIClient()
 	if err != nil {
 		log.Errorf("Could not instantiate the API Server Client: %s", err.Error())
 	} else {
-		asc.StartClusterMetadataMapping()
+		stopCh = make(chan struct{})
+		asc.StartClusterMetadataMapping(stopCh)
 	}
 
 	// Setup a channel to catch OS signals
@@ -189,6 +193,9 @@ func start(cmd *cobra.Command, args []string) error {
 		custommetrics.StopServer()
 	}
 	clusterAgent.Stop()
+	if stopCh != nil {
+		close(stopCh)
+	}
 	log.Info("See ya!")
 	log.Flush()
 	return nil
