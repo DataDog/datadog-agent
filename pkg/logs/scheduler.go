@@ -6,10 +6,7 @@
 package logs
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -66,25 +63,11 @@ func (s *Scheduler) isLogConfig(config integration.Config) bool {
 // toSources creates a new logs-source,
 // if the parsing failed, returns an error.
 func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.LogSource, error) {
-	configs, err := parse(logsConfigString)
-	if err != nil {
-		return nil, err
-	}
-	var sources []*config.LogSource
-	for _, cfg := range configs {
-		sources = append(sources, config.NewLogSource(integrationConfig.Name, cfg))
-	}
-	return sources, nil
-}
-
-// toSources creates a new logs-source,
-// if the parsing failed, returns an error.
-func (s *Scheduler) parse(cfg integration.Config) ([]*config.LogsConfig, error) {
 	var configs []*config.LogsConfig
 	var err error
 	switch config.Provider {
 	case providers.File:
-		configs, err = config.ParseYaml(cfg.LogsConfig)
+		configs, err = config.ParseYaml(integrationConfig.LogsConfig)
 	case providers.Docker, providers.Kubernetes:
 		configs, err = config.ParseJSON(cfg.LogsConfig)
 	default:
@@ -92,6 +75,18 @@ func (s *Scheduler) parse(cfg integration.Config) ([]*config.LogsConfig, error) 
 	}
 	if err != nil {
 		return nil, err
+	}
+	var validConfigs []*config.LogsConfig
+	for _, cfg := range configs {
+		if isValid, err := config.Validate(cfg); !isValid {
+			log.Warn(err)
+			continue
+		}
+		if err := config.Compile(cfg); err != nil {
+			log.Warn(err)
+			continue
+		}
+		validConfigs = append(validConfigs, cfg)
 	}
 	var sources []*config.LogSource
 	for _, cfg := range configs {

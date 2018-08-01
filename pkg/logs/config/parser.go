@@ -14,7 +14,7 @@ import (
 )
 
 func ParseJSON(data []byte) ([]*LogsConfig, error) {
-	return parse([]byte(jsonString), json.Unmarshal)
+	return parse(data, json.Unmarshal)
 }
 
 func ParseYaml(data []byte) ([]*LogsConfig, error) {
@@ -22,24 +22,11 @@ func ParseYaml(data []byte) ([]*LogsConfig, error) {
 }
 
 func parse(data []byte, unmarshal func(data []byte, v interface{}) error) ([]*LogsConfig, error) {
-	var configs []LogsConfig
+	var configs []*LogsConfig
 	var err error
 	err = unmarshal(data, &configs)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse logs config, invalid format: %v", jsonString)
+		return nil, fmt.Errorf("could not parse logs config, invalid format: %v", err)
 	}
-	var validConfigs []*LogsConfig
-	for _, config := range configs {
-		err = validateProcessingRules(config.ProcessingRules)
-		if err != nil {
-			log.Errorf("Invalid processing rules: %v", err)
-			continue
-		}
-		err = compileProcessingRules(config.ProcessingRules)
-		if err != nil {
-			log.Errorf("Could not compile processing rules: %v", err)
-		}
-		validConfigs = append(validConfigs, &config)
-	}
-	return validConfigs, nil
+	return configs, nil
 }

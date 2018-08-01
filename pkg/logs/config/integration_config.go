@@ -123,16 +123,14 @@ func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 			source := NewLogSource(integrationName, &config)
 			sources = append(sources, source)
 			// Mis-configured sources are also tracked to report configuration errors
-			err = validateConfig(config)
-			if err != nil {
+			if isValid, err := Validate(&config); !isValid {
 				source.Status.Error(err)
 				log.Error(err)
 				continue
 			}
-			err := compileProcessingRules(config.ProcessingRules)
-			if err != nil {
+			if err := Compile(&config); err != nil {
 				source.Status.Error(err)
-				log.Errorf("invalid processing rules %s", err)
+				log.Errorf("could not compile config: %v", err)
 				continue
 			}
 		}
@@ -191,47 +189,41 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 	return integrationConfigFiles
 }
 
-// validateConfig returns an error if the config is misconfigured
-func validateConfig(config LogsConfig) error {
-	switch config.Type {
-	case FileType, DockerType, TCPType, UDPType, JournaldType, WindowsEventType:
-		break
-	default:
-		return fmt.Errorf("A source must have a valid type (got %s)", config.Type)
-	}
-
+// Validate returns an error if the config is misconfigured
+func Validate(config *LogsConfig) (bool, error) {
 	switch {
 	case config.Type == FileType && config.Path == "":
-		return fmt.Errorf("A file source must have a path")
+		return false, fmt.Errorf("A file source must have a path")
 	case config.Type == TCPType && config.Port == 0:
-		return fmt.Errorf("A tcp source must have a port")
+		return false, fmt.Errorf("A tcp source must have a port")
 	case config.Type == UDPType && config.Port == 0:
-		return fmt.Errorf("A udp source must have a port")
+		return false, fmt.Errorf("A udp source must have a port")
 	default:
 		return validateProcessingRules(config.ProcessingRules)
 	}
 }
 
 // validateProcessingRules checks the rules and raises errors if one is misconfigured
-func validateProcessingRules(rules []LogsProcessingRule) error {
+func validateProcessingRules(rules []LogsProcessingRule) (bool, error) {
 	for _, rule := range rules {
 		if rule.Name == "" {
-			return fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
+			return false, fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
 		}
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
 			continue
 		case "":
-			return fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
+			return false, fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
 		default:
-			return fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
+			return false, fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // compileProcessingRules compiles all processing rules regular expression
-func compileProcessingRules(rules []LogsProcessingRule) error {
+func Compile(config *LogsConfig) error {
+	rules := config.ProcessingRules
 	for i, rule := range rules {
 		if rule.Pattern == "" {
 			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)

@@ -37,6 +37,14 @@ func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 			return nil
 		}
 		cfg := configs[0]
+		if isValid, err := config.Validate(cfg); !isValid {
+			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
+			return nil
+		}
+		if err := config.Compile(cfg); err != nil {
+			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
+			return nil
+		}
 		cfg.Type = config.DockerType
 		return config.NewLogSource(c.getSourceName(), cfg)
 	}
