@@ -31,6 +31,6 @@ Shell into the environment and run the code.
 ```
 $ kubectl exec kubedev -c node -i -t -- bash
 
-root@kubedev:/go/src# cd github.com/DataDog/datadog-agent/pkg/metadata/kubernetes/
+root@kubedev:/go/src# cd github.com/StackVista/stackstate-agent/pkg/metadata/kubernetes/
 root@kubedev:/go/src# go test
 ```
