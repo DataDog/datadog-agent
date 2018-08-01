@@ -6,120 +6,101 @@
 package logs
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
 // Scheduler registers to autodiscovery to schedule/unschedule log-collection.
 type Scheduler struct {
-	inputs map[string]input.Input
+	// activeSources map[string]*config.LogSource
 }
 
 // NewScheduler returns a new scheduler.
-func NewScheduler(inputs map[string]input.Input) *Scheduler {
-	return &Scheduler{
-		inputs: inputs,
-	}
+func NewScheduler() *Scheduler {
+	return &Scheduler{}
 }
 
-// Start starts all inputs
-func (s *Scheduler) Start() {
-	restart.Start(s.inputs...)
-}
+// Start does nothing
+func (s *Scheduler) Start() {}
 
-// Stop stops all inputs
-func (s *Scheduler) Stop() {
-	stopper := restart.NewParallelStopper()
-	for _, input := range s.inputs {
-		stopper.Add(input)
-	}
-	stopper.Stop()
-}
+// Stop does nothing
+func (s *Scheduler) Stop() {}
 
-// Schedule handles new configurations, transforms them to log-sources and pass them
-// along to the right inputs to start collecting logs.
+// Schedule creates new log-sources from configs.
 func (s *Scheduler) Schedule(configs []integration.Config) {
-	for _, cfg := range configs {
-		if !s.isLogConfig(cfg) {
+	for _, config := range configs {
+		if !s.isLogConfig(config) {
 			continue
 		}
-		input, err := s.getInput(config)
-		if err != nil {
-			log.Debugf("Invalid input: %v", err)
-			continue
-		}
-		source, err := s.toSource(cfg)
-		if err != nil {
-			log.Warnf("Invalid configuration: %v", err)
-			continue
-		}
-		input.Add(source)
+		log.Infof("Received new logs-config for integration: %v", config.Name)
+		// sources, err := s.toSources(config)
+		// if err != nil {
+		// 	log.Warnf("Invalid configuration: %v", err)
+		// 	continue
+		// }
+		// configId, err := s.getConfigIdentifier(config)
+		// if err != nil {
+		// 	log.Warnf("Invalid configuration: %v", err)
+		// 	continue
+		// }
+		// for _, source := range sources {
+		// 	log.Infof("Adding source with id: %v", configId)
+		// 	s.activeSources[configId] = source
+		// }
 	}
 }
 
-// Unschedule retrieve the log-sources for the configurations and pass them along to the right inputs
-// to stop collecting logs.
+// Unschedule invalidates all the log-sources coresponding to the configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
-	for _, cfg := range configs {
-		if !s.isLogConfig(cfg) {
+	for _, config := range configs {
+		if !s.isLogConfig(config) {
 			continue
 		}
-		input, err := s.getInput(config)
-		if err != nil {
-			// config not supported by the logs-agent yet.
-			continue
-		}
-		source, err := s.getSource(cfg)
-		if err != nil {
-			// parsing failed.
-			continue
-		}
-		input.Remove(source)
+		log.Infof("Must invalidate logs-config for integration: %v", config.Name)
+		// configId, err := s.getConfigIdentifier(config)
+		// if err != nil {
+		// 	continue
+		// }
+		// source, exists := s.activeSources[configId]
+		// if !exists {
+		// 	// this config has not been processed in the past.
+		// 	continue
+		// }
+		// log.Infof("Removing source with id: %v", configId)
+		// delete(s.activeSources, configId)
 	}
 }
 
-// isLogConfig returns true if config contains a logs config
-func (s *Scheduler) isLogConfig(config []integration.Config) {
+// isLogConfig returns true if config contains a logs config.
+func (s *Scheduler) isLogConfig(config integration.Config) bool {
 	return config.LogsConfig != nil
 }
 
-// getInput returns the right input to collect logs for the config.
-func (s *Scheduler) getInput(config []integration.Config) (input.Input, error) {
-	inputName, err := s.toInputName(cfg.Provider)
-	if err != nil {
-		return nil, fmt.Errorf("provider not supported yet: %v", cfg.Provider)
-	}
-	input, exists := s.inputs[inputName]
-	if !exists {
-		return nil, fmt.Errorf("input not plugged to autodiscovery yet: %v", inputName)
-	}
-	return input, nil
-}
-
-// toInputName returns the name of the input able to collect logs for the config,
-// if the config is not supported by the logs-agent yet, returns an error.
-func (s *Scheduler) toInputName(config integration.Config) (string, error) {
-	// not implemented
-	return config.Provider, nil
-}
-
-// toSource creates a new logs-source from the config,
+// toSources creates a new logs-source,
 // if the parsing failed, returns an error.
-func (s *Scheduler) toSource(config integration.Config) (*config.LogSource, error) {
-	// not implemented
-	return nil, nil
+func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.LogSource, error) {
+	logsConfigString := string(integrationConfig.LogsConfig)
+	configs, err := config.Parse(logsConfigString)
+	if err != nil {
+		return nil, err
+	}
+	var sources []*config.LogSource
+	for _, cfg := range configs {
+		sources = append(sources, config.NewLogSource(integrationConfig.Name, cfg))
+	}
+	return sources, nil
 }
 
-// getSource returns the source matching the config,
-// if none is found, returns an error.
-func (s *Scheduler) getSource(config integration.Config) (*config.LogSource, error) {
-	// not implemented
-	return nil, nil
+// getConfigIdentifier returns the unique identifier of the configuration.
+func (s *Scheduler) getConfigIdentifier(config integration.Config) (string, error) {
+	identifiers := config.ADIdentifiers
+	if len(identifiers) < 1 {
+		// this should never occur
+		return "", fmt.Errorf("no identifiers provided in config: %v", config.Name)
+	}
+	return identifiers[0], nil
 }

@@ -31,11 +31,12 @@ func NewContainer(container types.Container) *Container {
 // if no source is found return nil
 func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 	if label := c.getLabel(); label != "" {
-		cfg, err := config.Parse(label)
-		if err != nil {
+		configs, err := config.Parse(label)
+		if err != nil || len(configs) == 0 {
 			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
 			return nil
 		}
+		cfg := configs[0]
 		cfg.Type = config.DockerType
 		return config.NewLogSource(c.getSourceName(), cfg)
 	}

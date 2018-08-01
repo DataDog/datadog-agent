@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseJSONStringWithInvalidFormatShouldSucceed(t *testing.T) {
+func TestParseJSONStringWithValidFormatShouldSucceed(t *testing.T) {
 	var config *LogsConfig
 	var err error
 
