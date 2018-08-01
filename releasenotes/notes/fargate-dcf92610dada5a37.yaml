@@ -5,3 +5,4 @@ features:
     - Make the ``cluster_name`` tag shorter
     - Add the ``short_image`` and ``container_id`` tags
     - Remove some noisy tags
+    - Fix a lifecycle issue that caused missing tags

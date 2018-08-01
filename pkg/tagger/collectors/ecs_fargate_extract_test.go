@@ -94,14 +94,25 @@ func TestParseMetadata(t *testing.T) {
 		},
 	}
 
+	// Diff parsing should show 2 containers
 	updates, err := collector.parseMetadata(meta, false)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 
+	// One container expires
 	expires, err := collector.expire.ComputeExpires()
 	assert.NoError(t, err)
-
 	assert.Equal(t, []string{"unknownID"}, expires)
+
+	// Diff parsing should show 0 containers
+	updates, err = collector.parseMetadata(meta, false)
+	assert.NoError(t, err)
+	assert.Len(t, updates, 0)
+
+	// Full parsing should show 3 containers
+	updates, err = collector.parseMetadata(meta, false)
+	assert.NoError(t, err)
+	assert.Len(t, updates, 3)
 }
 
 func TestParseExpires(t *testing.T) {
