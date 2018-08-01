@@ -146,9 +146,9 @@ workflows:
       - integration_tests:
           requires:
             - dependencies
-      - reno_linting:
-          requires:
-            - dependencies
+#      - reno_linting:
+#          requires:
+#            - dependencies
       - filename_linting:
           requires:
             - dependencies
