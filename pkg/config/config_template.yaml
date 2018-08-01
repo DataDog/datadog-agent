@@ -97,6 +97,9 @@ api_key:
 
 # Collect AWS EC2 custom tags as agent tags
 # collect_ec2_tags: false
+
+# Collect Google Cloud Engine metadata as agent tags
+# collect_gce_tags: true
 {{ end }}
 {{- if .Agent }}
 # The path containing check configuration files

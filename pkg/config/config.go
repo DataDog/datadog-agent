@@ -236,6 +236,9 @@ func init() {
 	BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	BindEnvAndSetDefault("collect_ec2_tags", false)
 
+	// GCE
+	BindEnvAndSetDefault("collect_gce_tags", true)
+
 	// Cloud Foundry
 	BindEnvAndSetDefault("cloud_foundry", false)
 	BindEnvAndSetDefault("bosh_id", "")
