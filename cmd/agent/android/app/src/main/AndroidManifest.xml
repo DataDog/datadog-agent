@@ -19,7 +19,9 @@
         android:icon="@mipmap/ic_launcher">
         <service
             android:name=".DDService" 
+            android:exported="true"
             android:singleUser="true" />
+            <!--
         <activity
             android:name=".MainActivity"
             android:label="DatadogAgent" >
@@ -28,7 +30,7 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity> -->
     </application>
 
 </manifest>

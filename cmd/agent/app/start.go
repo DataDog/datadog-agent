@@ -8,6 +8,7 @@ package app
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
@@ -54,6 +55,7 @@ var (
 		Deprecated: "Use \"run\" instead to start the Agent",
 		RunE:       start,
 	}
+	overrideVars = map[string]string{}
 )
 
 func init() {
@@ -77,6 +79,21 @@ func StartAgent() error {
 	if err != nil {
 		log.Errorf("Failed to setup config %v", err)
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+	// if we're on android, allow some of the settings to be overridden
+	// by the android service (variables to be passedin via Intents)
+	if runtime.GOOS != "android" {
+		if overrideVars != nil && len(overrideVars) != 0 {
+			if val, ok := overrideVars["apikey"]; ok {
+				config.Datadog.Set("api_key", val)
+			}
+			if val, ok := overrideVars["hostname"]; ok {
+				config.Datadog.Set("hostname", val)
+			}
+			if val, ok := overrideVars["tags"]; ok {
+				config.Datadog.Set("tags", strings.Split(val, ","))
+			}
+		}
 	}
 
 	// Setup logger
@@ -299,6 +316,7 @@ func StopAgent() {
 // SetCfgPath provides an externally accessible method for
 // overriding the config path.  Used by Android to set
 // the cfgpath from the APK config
-func SetCfgPath(cfp string) {
-	confFilePath = cfp
+func SetOverrides(vars map[string]string) {
+	confFilePath = "datadog.yaml"
+	overrideVars = vars
 }

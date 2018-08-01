@@ -3,6 +3,7 @@ Android namespaced tasks
 """
 from __future__ import print_function
 import glob
+import yaml
 import os
 import shutil
 import sys
@@ -133,12 +134,40 @@ def clean(ctx):
     shutil.rmtree(CORECHECK_CONFS_DIR)
 
 @task
-def assetconfigs(cts):
-    pwd = os.getcwd()
-    print ("CWD %s" % pwd)
+def assetconfigs(ctx):
     # move the core check config
+    shutil.rmtree(CORECHECK_CONFS_DIR)
+    files = {}
+    files_list = []
     os.makedirs(CORECHECK_CONFS_DIR)
     for check in ANDROID_CORECHECKS:
         srcfile = "cmd/agent/dist/conf.d/{}.d/conf.yaml.default".format(check)
         tgtfile = "{}/{}.yaml".format(CORECHECK_CONFS_DIR, check)
         shutil.copyfile(srcfile, tgtfile)
+        files_list.append("{}.yaml".format(check))
+    files["files"] = files_list
+
+    with open("{}/directory_manifest.yaml".format(CORECHECK_CONFS_DIR), 'w') as outfile:
+        yaml.dump(files, outfile, default_flow_style=False)
+
+@task
+def launchservice(ctx, api_key, hostname=None, tags=None):
+    if api_key is None:
+        print("must supply api key")
+        return
+    
+    if hostname is None:
+        print("Setting hostname to android-tablet")
+        hostname="android-tablet"
+    
+    if tags is None:
+        print("Setting tags to owner:db,env:local,role:windows")
+        tags="owner:db,env:local,role:windows"
+
+    cmd = "adb shell am startservice org.datadog.agent/.DDService -e api_key {} -e hostname {} -e tags {}".format(api_key, hostname, tags)
+    ctx.run(cmd)
+
+@task
+def stopservice(ctx):
+    cmd = "adb shell am force-stop org.datadog.agent"
+    ctx.run(cmd)

@@ -21,7 +21,7 @@ public class DDService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         // Let it continue running until it is stopped.
         Log.d("testservice", "started");
-        Ddandroid.androidMain();
+        Ddandroid.androidMain(intent.getStringExtra("api_key"), intent.getStringExtra("hostname"), intent.getStringExtra("tags"));
         return START_STICKY;
     }
 

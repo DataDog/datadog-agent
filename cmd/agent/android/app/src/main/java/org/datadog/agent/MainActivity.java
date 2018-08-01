@@ -36,7 +36,12 @@ public class MainActivity extends Activity {
         // String greetings = Hello.greetings("Android and Gopher");
         //String greetings = "Test build";
         //mTextView.setText(greetings);
-        startService(new Intent(getBaseContext(), DDService.class));
+        Intent i = new Intent(getBaseContext(), DDService.class);
+
+        //i.putExtra("api_key", "some api key");
+        i.putExtra("hostname", "android-tablet");
+        i.putExtra("tags", "owner:db,env:local,role:windows");
+        startService(i);
 
         String initialText = "Waiting to get status";
         mTextView.setText(initialText);
