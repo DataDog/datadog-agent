@@ -16,10 +16,10 @@ import (
 	"strconv"
 	"unsafe"
 
+	"github.com/DataDog/gohai/cpu"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
-	"github.com/DataDog/gohai/cpu"
 	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows"
 
