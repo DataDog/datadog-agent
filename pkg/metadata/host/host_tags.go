@@ -75,12 +75,15 @@ func getHostTags() *tags {
 		hostTags = appendToHostTags(hostTags, dockerTags)
 	}
 
-	rawGceTags, err := gce.GetTags()
-	if err != nil {
-		log.Debugf("No GCE host tags %v", err)
+	gceTags := []string{}
+	if config.Datadog.GetBool("collect_gce_tags") {
+		rawGceTags, err := gce.GetTags()
+		if err != nil {
+			log.Debugf("No GCE host tags %v", err)
+		} else {
+			gceTags = appendToHostTags(gceTags, rawGceTags)
+		}
 	}
-	var gceTags []string
-	gceTags = appendToHostTags(gceTags, rawGceTags)
 
 	return &tags{
 		System:              hostTags,
