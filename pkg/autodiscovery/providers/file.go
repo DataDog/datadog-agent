@@ -18,6 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// File represents the name of the config provider
+const File = "File"
+
 type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
 	InitConfig    interface{} `yaml:"init_config"`
@@ -133,7 +136,7 @@ func (c *FileConfigProvider) IsUpToDate() (bool, error) {
 
 // String returns a string representation of the FileConfigProvider
 func (c *FileConfigProvider) String() string {
-	return "File Configuration Provider"
+	return File
 }
 
 // collectEntry collects a file entry and return it's configuration if valid

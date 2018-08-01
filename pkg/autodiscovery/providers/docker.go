@@ -18,6 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
+// Docker represents the name of the config provider
+const Docker = "Docker"
+
 const (
 	dockerADLabelPrefix = "com.datadoghq.ad."
 )
@@ -39,7 +42,7 @@ func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the DockerConfigProvider
 func (d *DockerConfigProvider) String() string {
-	return "Docker container labels"
+	return Docker
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.

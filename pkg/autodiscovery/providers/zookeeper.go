@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// Zookeeper represents the name of the config provider
+const Zookeeper = "zookeeper"
+
 const sessionTimeout = 1 * time.Second
 
 type zkBackend interface {
@@ -54,7 +57,7 @@ func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the ZookeeperConfigProvider
 func (z *ZookeeperConfigProvider) String() string {
-	return "zookeeper Configuration Provider"
+	return Zookeeper
 }
 
 // Collect retrieves templates from Zookeeper, builds Config objects and returns them
