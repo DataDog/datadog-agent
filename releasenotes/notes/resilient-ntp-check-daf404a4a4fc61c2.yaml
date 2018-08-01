@@ -8,4 +8,7 @@
 ---
 enhancements:
   - |
-    The ntp check is now more resilient to npt servers returning wrong offsets
+    The ntp check will now query multiple servers by default to be more
+    resilient to servers returning wrong offsets. A now config option ``hosts``
+    is now available in the ntp check configuration file to allow users to change
+    the list of ntp servers.
