@@ -153,6 +153,7 @@ spec:
         data:
           datadog.yaml: |
             dd_url: "http://fake-datadog.default.svc.cluster.local"
+            kubernetes_apiserver_poll_freq: 20
             leader_election: true
             cluster_agent:
               auth_token: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"

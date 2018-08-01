@@ -17,31 +17,9 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestServicesMapper(t *testing.T) {
-	mapper := ServicesMapper{}
-
-	mapper.Set("default", "pod1", "svc1")
-	mapper.Set("default", "pod2", "svc1")
-	mapper.Set("default", "pod3", "svc2")
-
-	require.Equal(t, 3, len(mapper["default"]))
-	assert.Equal(t, sets.NewString("svc1"), mapper["default"]["pod1"])
-
-	mapper.Delete("default", "svc1")
-	require.Equal(t, 1, len(mapper["default"]))
-	assert.Equal(t, sets.NewString("svc2"), mapper["default"]["pod3"])
-
-	mapper.Delete("default", "svc2")
-
-	// No more pods in default namespace.
-	_, ok := mapper["default"]
-	require.False(t, ok, "default namespace still exists")
-}
-
-func TestMapServices(t *testing.T) {
 	pod1 := newFakePod(
 		"foo",
 		"pod1_name",
@@ -101,7 +79,7 @@ func TestMapServices(t *testing.T) {
 				},
 			},
 			ServicesMapper{
-				"foo": {"pod1_name": sets.NewString("svc1")},
+				"foo": {"pod1_name": {"svc1"}},
 			},
 		},
 		{
@@ -131,8 +109,8 @@ func TestMapServices(t *testing.T) {
 				},
 			},
 			ServicesMapper{
-				"default": {"pod_name": sets.NewString("svc1")},
-				"other":   {"pod_name": sets.NewString("svc2")},
+				"default": {"pod_name": {"svc1"}},
+				"other":   {"pod_name": {"svc2"}},
 			},
 		},
 		{
@@ -179,8 +157,8 @@ func TestMapServices(t *testing.T) {
 			},
 			ServicesMapper{
 				"foo": {
-					"pod1_name": sets.NewString("svc1", "svc3"),
-					"pod3_name": sets.NewString("svc2"),
+					"pod1_name": {"svc1", "svc3"},
+					"pod3_name": {"svc2"},
 				},
 			},
 		},
@@ -190,14 +168,14 @@ func TestMapServices(t *testing.T) {
 	// sure mapping does not affect unlisted services
 	expectedAggregatedMapping := ServicesMapper{
 		"foo": {
-			"pod1_name": sets.NewString("svc1", "svc3"),
-			"pod3_name": sets.NewString("svc2"),
+			"pod1_name": {"svc1", "svc3"},
+			"pod3_name": {"svc2"},
 		},
 		"default": {
-			"pod_name": sets.NewString("svc1"),
+			"pod_name": {"svc1"},
 		},
 		"other": {
-			"pod_name": sets.NewString("svc2"),
+			"pod_name": {"svc2"},
 		},
 	}
 
