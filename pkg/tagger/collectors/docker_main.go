@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
@@ -45,19 +44,9 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	c.infoOut = out
 
 	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
-	labelsList := config.Datadog.GetStringMapString("docker_labels_as_tags")
-	for label, value := range labelsList {
-		delete(labelsList, label)
-		labelsList[strings.ToLower(label)] = value
-	}
-	c.labelsAsTags = labelsList
+	c.labelsAsTags = retrieveMappingFromConfig("docker_labels_as_tags")
+	c.envAsTags = retrieveMappingFromConfig("docker_env_as_tags")
 
-	envList := config.Datadog.GetStringMapString("docker_env_as_tags")
-	for env, value := range envList {
-		delete(envList, env)
-		envList[strings.ToLower(env)] = value
-	}
-	c.envAsTags = envList
 	// TODO: list and inspect existing containers once docker utils are merged
 
 	return StreamCollection, nil

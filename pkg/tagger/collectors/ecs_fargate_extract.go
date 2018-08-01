@@ -14,19 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// ignore these container labels as we already have them in task metadata
-var isBlacklisted = map[string]bool{
-	"com.amazonaws.ecs.cluster":                 true,
-	"com.amazonaws.ecs.container-name":          true,
-	"com.amazonaws.ecs.task-arn":                true,
-	"com.amazonaws.ecs.task-definition-family":  true,
-	"com.amazonaws.ecs.task-definition-version": true,
-	"com.datadoghq.ad.instances":                true,
-	"com.datadoghq.ad.check_names":              true,
-	"com.datadoghq.ad.init_configs":             true,
-}
 
 // parseMetadata parses the the task metadata, and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
@@ -52,26 +41,26 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, 
 
 			// container
 			tags.AddLow("ecs_container_name", ctr.Name)
+			tags.AddHigh("container_id", ctr.DockerID)
 			tags.AddHigh("container_name", ctr.DockerName)
 
 			// container image
-			image := ctr.Image
-			tags.AddLow("docker_image", image)
-			imageSplit := strings.Split(image, ":")
-			imageName := strings.Join(imageSplit[:len(imageSplit)-1], ":")
-			tags.AddLow("image_name", imageName)
-			if len(imageSplit) > 1 {
-				imageTag := imageSplit[len(imageSplit)-1]
+			tags.AddLow("docker_image", ctr.Image)
+			imageName, shortImage, imageTag, err := docker.SplitImageName(ctr.Image)
+			if err != nil {
+				log.Debugf("Cannot split %s: %s", ctr.Image, err)
+			} else {
+				tags.AddLow("image_name", imageName)
+				tags.AddLow("short_image", shortImage)
+				if imageTag == "" {
+					imageTag = "latest"
+				}
 				tags.AddLow("image_tag", imageTag)
 			}
 
-			// container labels
-			for k, v := range ctr.Labels {
-				if !isBlacklisted[k] {
-					// We currently add all non-blacklisted labels as high cardinality
-					// TODO: implement a low-card whitelisting if required
-					// before we trigger the full-card mode
-					tags.AddHigh(k, v)
+			for labelName, labelValue := range ctr.Labels {
+				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
+					tags.AddAuto(tagName, labelValue)
 				}
 			}
 
@@ -99,7 +88,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, 
 
 // parseECSClusterName allows to handle user-friendly values and arn values
 func parseECSClusterName(value string) string {
-	if strings.HasPrefix(value, "arn:") {
+	if strings.Contains(value, "/") {
 		parts := strings.Split(value, "/")
 		return parts[len(parts)-1]
 	} else {

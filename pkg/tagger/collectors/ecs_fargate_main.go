@@ -24,11 +24,12 @@ const (
 
 // ECSFargateCollector polls the ecs metadata api.
 type ECSFargateCollector struct {
-	infoOut    chan<- []*TagInfo
-	expire     *taggerutil.Expire
-	lastExpire time.Time
-	lastSeen   map[string]interface{}
-	expireFreq time.Duration
+	infoOut      chan<- []*TagInfo
+	expire       *taggerutil.Expire
+	lastExpire   time.Time
+	lastSeen     map[string]interface{}
+	expireFreq   time.Duration
+	labelsAsTags map[string]string
 }
 
 // Detect tries to connect to the ECS metadata API
@@ -39,8 +40,8 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 		c.infoOut = out
 		c.lastExpire = time.Now()
 		c.expireFreq = ecsFargateExpireFreq
-
 		c.expire, err = taggerutil.NewExpire(ecsFargateExpireFreq)
+		c.labelsAsTags = retrieveMappingFromConfig("docker_labels_as_tags")
 
 		if err != nil {
 			return FetchOnlyCollection, fmt.Errorf("Failed to instantiate the container expiring process")

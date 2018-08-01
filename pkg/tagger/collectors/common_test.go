@@ -42,3 +42,10 @@ func assertTagInfoEqual(t *testing.T, expected *TagInfo, item *TagInfo) bool {
 
 	return assert.Equal(t, expected, item)
 }
+
+func assertTagInfoListEqual(t *testing.T, expectedUpdates []*TagInfo, updates []*TagInfo) {
+	assert.Equal(t, len(expectedUpdates), len(updates))
+	for i := 0; i < len(expectedUpdates); i++ {
+		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
+	}
+}
