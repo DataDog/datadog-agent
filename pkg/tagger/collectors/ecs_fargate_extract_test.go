@@ -11,10 +11,12 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
@@ -38,15 +40,16 @@ func TestParseMetadata(t *testing.T) {
 	require.Len(t, meta.Containers, 3)
 
 	collector := &ECSFargateCollector{
-		lastSeen: map[string]interface{}{
-			"3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c": nil,
-			"unknownID": nil,
-		},
 		labelsAsTags: map[string]string{
 			"highlabel": "+hightag",
 			"mylabel":   "lowtag",
 		},
 	}
+	collector.expire, err = taggerutil.NewExpire(ecsFargateExpireFreq)
+	require.NoError(t, err)
+
+	collector.expire.Update("3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c", time.Now())
+	collector.expire.Update("unknownID", time.Now().Add(-10*time.Minute))
 
 	expectedUpdates := []*TagInfo{
 		{
@@ -91,15 +94,40 @@ func TestParseMetadata(t *testing.T) {
 		},
 	}
 
-	updates, deadCo, err := collector.parseMetadata(meta)
+	updates, err := collector.parseMetadata(meta)
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"unknownID"}, deadCo)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 
-	expectedLastSeen := map[string]interface{}{
-		"3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c": nil,
-		"1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4": nil,
-		"0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280": nil,
+	expires, err := collector.expire.ComputeExpires()
+	assert.NoError(t, err)
+
+	assert.Equal(t, []string{"unknownID"}, expires)
+}
+
+func TestParseExpires(t *testing.T) {
+	collector := &ECSFargateCollector{
+		lastSeen: map[string]interface{}{},
 	}
-	assert.Equal(t, expectedLastSeen, collector.lastSeen)
+
+	dead := []string{
+		"1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+		"0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+	}
+
+	expected := []*TagInfo{
+		{
+			Source:       "ecs_fargate",
+			Entity:       "docker://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			DeleteEntity: true,
+		},
+		{
+			Source:       "ecs_fargate",
+			Entity:       "docker://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			DeleteEntity: true,
+		},
+	}
+
+	out, err := collector.parseExpires(dead)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, out)
 }

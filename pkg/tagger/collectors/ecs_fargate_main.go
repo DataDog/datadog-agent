@@ -52,64 +52,38 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 	return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 }
 
-// Pull triggers a container-list refresh and sends new info. It also triggers
-// container deletion computation every 'expireFreq'
-func (c *ECSFargateCollector) Pull() error {
-	// Compute new/updated containers
-	meta, err := ecsutil.GetTaskMetadata()
-	if err != nil {
-		return err
-	}
-	updates, deadCo, err := c.parseMetadata(meta)
-	if err != nil {
-		return err
-	}
-	c.infoOut <- updates
-
-	// Throttle deletion computations
-	if time.Now().Sub(c.lastExpire) < c.expireFreq {
-		return nil
-	}
-
-	expiries, err := c.parseExpires(deadCo)
-	if err != nil {
-		return err
-	}
-	c.infoOut <- expiries
-	c.lastExpire = time.Now()
-	return nil
-}
-
 // Fetch fetches ECS tags for a container on demand
 func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, error) {
 	meta, err := ecsutil.GetTaskMetadata()
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-
-	// since we download the metadata anyway might as well update all containers
-	updates, deadCo, err := c.parseMetadata(meta)
+	updates, err := c.parseMetadata(meta)
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-
 	c.infoOut <- updates
 
-	expiries, err := c.parseExpires(deadCo)
-	if err != nil {
-		return nil, nil, err
+	// Throttle deletion computations
+	if time.Now().After(c.lastExpire.Add(c.expireFreq)) {
+		expireList, err := c.expire.ComputeExpires()
+		if err != nil {
+			return []string{}, []string{}, err
+		}
+		expiries, err := c.parseExpires(expireList)
+		if err != nil {
+			return []string{}, []string{}, err
+		}
+		c.infoOut <- expiries
+		c.lastExpire = time.Now()
 	}
-	c.infoOut <- expiries
-	c.lastExpire = time.Now()
 
-	// Fish for the desired container in the updates
 	for _, info := range updates {
 		if info.Entity == container {
 			return info.LowCardTags, info.HighCardTags, nil
 		}
 	}
-
-	// entity not found in updates
+	// container not found in updates
 	return []string{}, []string{}, errors.NewNotFound(container)
 }
 

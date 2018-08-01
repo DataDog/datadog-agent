@@ -10,6 +10,7 @@ package collectors
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -19,17 +20,16 @@ import (
 
 // parseMetadata parses the the task metadata, and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
-func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, []string, error) {
+func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, error) {
 	var output []*TagInfo
-	seen := make(map[string]interface{}, len(meta.Containers))
+	now := time.Now()
 
 	if meta.KnownStatus != "RUNNING" {
-		return output, nil, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
+		return output, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
 	}
 
 	for _, ctr := range meta.Containers {
-		seen[ctr.DockerID] = nil
-		if _, found := c.lastSeen[ctr.DockerID]; !found {
+		if c.expire.Update(ctr.DockerID, now) {
 			tags := utils.NewTagList()
 
 			// cluster
@@ -75,15 +75,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, 
 		}
 	}
 
-	// compute containers that disappeared
-	deadContainers := []string{}
-	for ctr := range c.lastSeen {
-		if _, found := seen[ctr]; !found {
-			deadContainers = append(deadContainers, ctr)
-		}
-	}
-	c.lastSeen = seen
-	return output, deadContainers, nil
+	return output, nil
 }
 
 // parseECSClusterName allows to handle user-friendly values and arn values
