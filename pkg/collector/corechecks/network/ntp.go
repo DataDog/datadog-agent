@@ -189,11 +189,11 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	var median float64
 
 	sort.Float64s(offsets)
-	lenght := len(offsets)
-	if lenght%2 == 0 {
-		median = (offsets[lenght/2-1] + offsets[lenght/2]) / 2.0
+	length := len(offsets)
+	if length%2 == 0 {
+		median = (offsets[length/2-1] + offsets[length/2]) / 2.0
 	} else {
-		median = offsets[lenght/2]
+		median = offsets[length/2]
 	}
 
 	return median, nil
