@@ -31,7 +31,7 @@ func NewContainer(container types.Container) *Container {
 // if no source is found return nil
 func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 	if label := c.getLabel(); label != "" {
-		configs, err := config.ParseJSONString(label)
+		configs, err := config.ParseJSON([]byte(label))
 		if err != nil || len(configs) == 0 {
 			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
 			return nil

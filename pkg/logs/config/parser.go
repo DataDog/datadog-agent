@@ -7,17 +7,24 @@ package config
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	json "github.com/json-iterator/go"
 )
 
-// ParseJSONString returns a new logs-configuration parsing the jsonString,
-// if the parsing failed or the configuration is invalid, returns an error.
-func ParseJSONString(jsonString string) ([]*LogsConfig, error) {
+func ParseJSON(data []byte) ([]*LogsConfig, error) {
+	return parse([]byte(jsonString), json.Unmarshal)
+}
+
+func ParseYaml(data []byte) ([]*LogsConfig, error) {
+	return parse(data, yaml.Unmarshal)
+}
+
+func parse(data []byte, unmarshal func(data []byte, v interface{}) error) ([]*LogsConfig, error) {
 	var configs []LogsConfig
 	var err error
-	err = json.Unmarshal([]byte(jsonString), &configs)
+	err = unmarshal(data, &configs)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse logs config, invalid format: %v", jsonString)
 	}

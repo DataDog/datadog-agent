@@ -15,16 +15,16 @@ func TestParseJSONStringWithValidFormatShouldSucceed(t *testing.T) {
 	var config *LogsConfig
 	var err error
 
-	config, err = ParseJSONString(`[{}]`)
+	config, err = ParseJSON([]byte(`[{}]`))
 	assert.Nil(t, err)
 	assert.NotNil(t, config)
 
-	config, err = ParseJSONString(`[{"source":"any_source","service":"any_service"}]`)
+	config, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service"}]`))
 	assert.Nil(t, err)
 	assert.Equal(t, "any_source", config.Source)
 	assert.Equal(t, "any_service", config.Service)
 
-	config, err = ParseJSONString(`[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`)
+	config, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`))
 	assert.Nil(t, err)
 	assert.Equal(t, "any_source", config.Source)
 	assert.Equal(t, "any_service", config.Service)
@@ -41,15 +41,15 @@ func TestParseJSONStringWithInvalidFormatShouldFail(t *testing.T) {
 	var config *LogsConfig
 	var err error
 
-	config, err = ParseJSONString(``)
+	config, err = ParseJSON([]byte(``))
 	assert.NotNil(t, err)
 	assert.Nil(t, config)
 
-	config, err = ParseJSONString(`{}`)
+	config, err = ParseJSON([]byte(`{}`))
 	assert.NotNil(t, err)
 	assert.Nil(t, config)
 
-	config, err = ParseJSONString(`{\"source\":\"any_source\",\"service\":\"any_service\"}`)
+	config, err = ParseJSON([]byte(`{\"source\":\"any_source\",\"service\":\"any_service\"}`))
 	assert.NotNil(t, err)
 	assert.Nil(t, config)
 }
