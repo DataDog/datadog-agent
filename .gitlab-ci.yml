@@ -3,6 +3,7 @@ stages:
   - binary_build
   - integration_test
   - package_build
+  - check_deploy
   - testkitchen_deploy
   - testkitchen_testing
   - testkitchen_cleanup
@@ -339,6 +340,37 @@ build_windows_msi_x64:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
+
+
+# build Agent package for android
+agent_android_apk:
+  allow_failure: true
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:v538460-2b07be3
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
+    # GOPATH to the project folder would be too complex (we'd need to replicate the `src/github/project` scheme).
+    # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
+    - echo running default before_script
+    - rsync -azr --delete ./ $SRC_PATH
+    - cd $SRC_PATH
+    - pip install -U pip
+    - inv -e deps --android
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # for now do the steps manually.  Should eventually move this to an invoke
+    # task
+    - inv -e android.build
+    - mkdir -p $CI_PROJECT_DIR/apk
+    - cp ./bin/agent/ddagent-release-unsigned.apk $CI_PROJECT_DIR/apk
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/apk
 
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
@@ -809,9 +841,25 @@ dev_master_quay:
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} quay.io/datawhale/dogstatsd-dev:master
 
 #
-# deploy
+# Check Deploy
 #
 
+# Check that the current version hasn't already been deployed (we don't want to
+# overwrite a public package). To update a erroneous package, first remove it
+# from our S3 bucket.
+check_already_deployed_version:
+  <<: *run_when_triggered
+  stage: check_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+
+#
+# deploy
+#
 
 # deploy debian packages to apt staging repo
 deploy_deb:
@@ -834,9 +882,6 @@ deploy_deb:
 
     - echo "$APT_SIGNING_KEY_ID"
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
-
-    # Check if each artifact is already in the shared APT pool. If it is, re-release the one in the pool instead of the new artifact.
-    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/check_apt_pool.sh && cd -
 
     # Release the artifacts to the "6" component
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb

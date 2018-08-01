@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -78,25 +79,36 @@ func StartAgent() error {
 	}
 
 	// Setup logger
-	syslogURI := config.GetSyslogURI()
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
+	if runtime.GOOS != "android" {
+		syslogURI := config.GetSyslogURI()
+		logFile := config.Datadog.GetString("log_file")
+		if logFile == "" {
+			logFile = common.DefaultLogFile
+		}
 
-	if config.Datadog.GetBool("disable_file_logging") {
-		// this will prevent any logging on file
-		logFile = ""
-	}
+		if config.Datadog.GetBool("disable_file_logging") {
+			// this will prevent any logging on file
+			logFile = ""
+		}
 
-	err = config.SetupLogger(
-		config.Datadog.GetString("log_level"),
-		logFile,
-		syslogURI,
-		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("log_to_console"),
-		config.Datadog.GetBool("log_format_json"),
-	)
+		err = config.SetupLogger(
+			config.Datadog.GetString("log_level"),
+			logFile,
+			syslogURI,
+			config.Datadog.GetBool("syslog_rfc"),
+			config.Datadog.GetBool("log_to_console"),
+			config.Datadog.GetBool("log_format_json"),
+		)
+	} else {
+		err = config.SetupLogger(
+			config.Datadog.GetString("log_level"),
+			"", // no log file on android
+			"", // no syslog on android,
+			false,
+			true,  // always log to console
+			false, // not in json
+		)
+	}
 	if err != nil {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
 	}
@@ -129,8 +141,10 @@ func StartAgent() error {
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
+	if runtime.GOOS != "android" {
+		if err = api.StartServer(); err != nil {
+			return log.Errorf("Error while starting api server, exiting: %v", err)
+		}
 	}
 
 	// start the GUI server
@@ -152,7 +166,7 @@ func StartAgent() error {
 	log.Debugf("Forwarder started")
 
 	// setup the aggregator
-	s := &serializer.Serializer{Forwarder: common.Forwarder}
+	s := serializer.NewSerializer(common.Forwarder)
 	agg := aggregator.InitAggregator(s, hostname)
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
@@ -270,6 +284,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	api.StopServer()
+	jmx.StopJmxfetch()
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
@@ -278,4 +293,11 @@ func StopAgent() {
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()
+}
+
+// SetCfgPath provides an externally accessible method for
+// overriding the config path.  Used by Android to set
+// the cfgpath from the APK config
+func SetCfgPath(cfp string) {
+	confFilePath = cfp
 }

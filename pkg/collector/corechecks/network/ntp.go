@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -32,15 +33,17 @@ var (
 // NTPCheck only has sender and config
 type NTPCheck struct {
 	core.CheckBase
-	cfg *ntpConfig
+	cfg            *ntpConfig
+	lastCollection time.Time
 }
 
 type ntpInstanceConfig struct {
-	OffsetThreshold int    `yaml:"offset_threshold"`
-	Host            string `yaml:"host"`
-	Port            string `yaml:"port"`
-	Timeout         int    `yaml:"timeout"`
-	Version         int    `yaml:"version"`
+	OffsetThreshold       int    `yaml:"offset_threshold"`
+	Host                  string `yaml:"host"`
+	Port                  string `yaml:"port"`
+	Timeout               int    `yaml:"timeout"`
+	Version               int    `yaml:"version"`
+	MinCollectionInterval int    `yaml:"min_collection_interval"`
 }
 
 type ntpInitConfig struct{}
@@ -61,6 +64,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	defaultTimeout := 1
 	defaultPort := "ntp"
 	defaultOffsetThreshold := 60
+	defaultMinCollectionInterval := 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
 		return err
@@ -86,6 +90,9 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	if c.instance.OffsetThreshold == 0 {
 		c.instance.OffsetThreshold = defaultOffsetThreshold
 	}
+	if c.instance.MinCollectionInterval == 0 {
+		c.instance.MinCollectionInterval = defaultMinCollectionInterval
+	}
 	c.initConf = initConf
 
 	return nil
@@ -108,6 +115,11 @@ func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data)
 
 // Run runs the check
 func (c *NTPCheck) Run() error {
+	if time.Now().Before(c.lastCollection.Add(time.Second * time.Duration(c.cfg.instance.MinCollectionInterval))) {
+		log.Debugf("Skipping this check run, last run was less than %vs ago", c.cfg.instance.MinCollectionInterval)
+		return nil
+	}
+
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -136,6 +148,8 @@ func (c *NTPCheck) Run() error {
 	}
 
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
+
+	c.lastCollection = time.Now()
 
 	sender.Commit()
 

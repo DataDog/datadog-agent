@@ -2,11 +2,194 @@
 Release Notes
 =============
 
+.. _Release Notes_6.4.0:
+
+6.4.0
+=====
+
+.. _Release Notes_6.4.0_Prelude:
+
+Prelude
+-------
+
+Defer process orchestration to the operating system where supported.
+
+
+Release on: 2018-07-31
+
+- Please refer to the `6.4.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.0>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.4.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.4.0>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.4.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.4.0>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.4.0_New Features:
+
+New Features
+------------
+
+- Create packaging for google cloud launcher integration.
+
+- Add options to exclude specific payloads from being sent to Datadog. In
+  some environments, some of the gathered information is considered too
+  sensitive to be sent to Datadog (i.e. IP addresses in events or service
+  checks). This feature adds to option to exclude specific payload types from
+  being sent to the backend.
+
+- Collect container disk metrics less often in the docker check, decreasing its effect on performance when enabled.
+
+- Autodiscovery now supports the %%hostname%% tag on the docker listener
+  This tag will resolve to the containers' hostname value if present in
+  the container inspect. It is useful if the container IP is not available
+  or erroneous.
+
+- Dogstatsd origin detection now supports container tagging for Kubernetes clusters
+  running containerd or cri-o, in addition to the existing docker support
+
+- This release ships full support of Kubernetes 1.3+
+
+- OpenShift ClusterResourceQuotas metrics are now collected by the kube_apiserver check,
+  under the openshift.clusterquota.* and openshift.appliedclusterquota.* names.
+
+- Adds support for OS-level process orchestration of the agents on linux.
+  Specifically, this adds support for upstart on systemd which should cover
+  most modern debian/rhel based distros. Changes enable a more resilient 
+  process management for the infrastructure, process and trace agents.
+
+- Display the version for Python checks on the status page.
+
+
+.. _Release Notes_6.4.0_Enhancements Notes:
+
+Enhancements Notes
+------------------
+
+- Adding DD_EXPVAR_PORT to the configuration environment variables.
+
+- On Windows, Specifically log to both the log file and the event viewer 
+  what initiated an agent shutdown.  Also logs specific startup errors
+  to both the log file and event viewer.
+
+- The embedded Python has been bumped from 2.7.14 to 2.7.15
+
+- Agent expvar metrics now have default values. Metrics like the number of
+  packets dropped by the agent or errors were previously not reported until a
+  first event occurred. This should make it easier to use the expvar
+  configuration ``agent_stats.yaml``.
+
+- Proxy settings can be configured through the environment variables ``DD_PROXY_HTTP``,
+  ``DD_PROXY_HTTPS`` and ``DD_PROXY_NO_PROXY``. These environment variables take precedence over
+  the ``proxy`` options configured in ``datadog.yaml``, and behave exactly the same way as these
+  options. The standard ``HTTP_PROXY``, ``HTTPS_PROXY`` and ``NO_PROXY`` are still honored but have
+  known side effects on integrations, for simplicity we recommended using the new environment variables.
+  For more information, please refer to our `proxy docs`_
+  
+  .. _proxy docs: https://docs.datadoghq.com/agent/proxy/
+
+- Update to distribution metrics algorithm with improved accuracy
+
+- Added ECS pause containers to the default docker exclusion list
+
+- Adding logging for when the agent fails to detect the origin of a packet in dogstatsd socket mode because of namespace issues.
+
+- The ``skip_ssl_validation`` configuration option can now be set through the related ``DD_SKIP_SSL_VALIDATION`` env var
+
+- The Agent will log failed healthchecks on query and during exit
+
+- On Windows, provides installation parameter to set the `cmd_port`, 
+  the port on which the agent command interface runs.  To be used if
+  the default (5001) is already used by another program.
+
+- The `kube_service` tag is now collected on Kubernetes 1.3.x versions. The matching uses
+  a new logic. If it were to fail, reverting to the previous logic is possible by setting
+  the kubernetes_map_services_on_ip option to true.
+
+- The Kubernetes event collection timeout is now configurable
+
+- Logs Agent: Added SOCKS5 proxy support. Use ``logs_config: socks5_proxy_address: fqdn.example.com:port`` to set the proxy.
+
+- The diagnose output is now sorted by the diagnosis name
+
+- Adding the status of the DCA (If enabled) in the Agent status command.
+
+
+.. _Release Notes_6.4.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- If the environment variables that can be used to configure a proxy (``DD_PROXY_HTTP``, ``DD_PROXY_HTTPS``,
+  ``DD_PROXY_NO_PROXY``, ``HTTP_PROXY``, ``HTTPS_PROXY`` and ``NO_PROXY``) are present with an empty value
+  (e.g. ``HTTP_PROXY=""``), the Agent now uses this empty value instead of ignoring it and using
+  lower-precedence options.
+
+
+.. _Release Notes_6.4.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Begin deprecating "Agent start" command.  It is being replaced by "run".  The "start"
+  command will continue to function, with a deprecation notice
+
+
+.. _Release Notes_6.4.0_Security Issues:
+
+Security Issues
+---------------
+
+- 'app_key' value from the configuration is now redacted when creating a
+  flare with the agent.
+
+
+.. _Release Notes_6.4.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes presence of invalid UTF-8 characters when docker log message is greater than 16Kb
+
+- Fix a possible agent crash due to a race condition in the auto discovery.
+
+- Fixed an issue with jmxfetch not being killed on agent exit.
+
+- Errors logged before the agent initialized the log module are now printed
+  on STDERR instead of being silenced.
+
+- Detect and handle Docker messages without header.
+
+- Fixes installation, packaging scripts for OpenSUSE LEAP and greater.
+
+- In the event of being unable to lock the `dd-agent` user (eg. `dd-agent` 
+  is an LDAP user) during installation, do not fail; print relevant warning.
+
+- The leader election process is now restarted if the leader stops leading.
+
+- Avoid Linux package installation failures when both the ``initctl`` and
+  ``systemctl`` commands are present but upstart is used as the init system
+
+
+.. _Release Notes_6.4.0_Other Notes:
+
+Other Notes
+-----------
+
+- The system information collected from gohai no longer includes network information
+  when the agent is running in a container since the network information is for the
+  the container and not the host itself.
+
+- The ntp check now runs every 15 minutes by default to avoid over-loading
+  the NTP server pools
+
+- Added new command "run" to the agent.  This command replaces the "start"
+  command, to reduce ambiguity with the service lifecycle commands
+
+
 .. _Release Notes_6.3.3:
 
 6.3.3
 =====
-2018-07-17
 
 .. _Release Notes_6.3.3_Prelude:
 
@@ -52,7 +235,6 @@ Bug Fixes
 
 6.3.2
 =====
-2018-07-05
 
 Prelude
 -------
@@ -80,7 +262,6 @@ Bug Fixes
 
 6.3.1
 =====
-2018-06-27
 
 Prelude
 -------
@@ -114,12 +295,16 @@ Bug Fixes
   churn on the tag potentially affecting dashboards and monitors.
 
 
+.. _Release Notes_6.3.0:
+
 6.3.0
 =====
-2018-06-20
+
+.. _Release Notes_6.3.0_Prelude:
 
 Prelude
 -------
+Release on: 2018-06-20
 
 - Please refer to the `6.3.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.0>`_
   for the list of changes on the Core Checks.
@@ -129,9 +314,16 @@ Prelude
 
 - Please refer to the `6.3.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.3.0>`_
   for the list of changes on the Process Agent.
-  
+
+
+.. _Release Notes_6.3.0_New Features:
+
 New Features
 ------------
+
+- Add docker memory soft limit metric.
+
+- Added a host tag for docker swarm node role.
 
 - The import command now support multiple dd_url and API keys.
 
@@ -140,13 +332,32 @@ New Features
 
 - Add support for port names in template vars for autodiscovery.
 
+- Add a new "tagger-list" command that outputs the tagger content of a running agent.
+
+- Adding Azure pause containers to the default image exclusion list
+
 - Add flag `histogram_copy_to_distribution` to send histogram metric values
   as distributions automatically. Note that the distributions feature is in
   beta. An additional flag `histogram_copy_to_distribution_prefix` modifies
   the existing histogram metric name by adding a prefix, e.g. `dist.`, to
   better distinguish between these values.
 
+- Add docker & swarm information to host metadata
+
+- "[BETA] Encrypted passwords in configurations can now be fetched from a
+  secrets manager."
+
 - Add `docker ps -a` output to the flare.
+
+- Introduces a new redacting writer that will make sure anything written into
+  the flare is scrubbed from credentials and sensitive information.
+
+- The agent now supports setting/overriding proxy URLs through environment
+  variables (HTTP_PROXY, HTTPS_PROXY and NO_PROXY).
+
+- Created a new journald integration to collect logs from systemd. It's only available on debian distributions for now.
+
+- Add kubelet version to container metadata.
 
 - Adds support for windows event logs collection
 
@@ -154,9 +365,14 @@ New Features
   in containerized environments. The override will affect python checks and
   will result in psutil using the overriding path.
 
+- The fowarder will now spaw specific workers per domain to avoid slow down when one domain is down.
+
 - ALPHA - Adding new tooling to securely upgrade integration packages/wheels
   from our private TUF repository. Please note any third party dependencies will
   still be downloaded from PyPI with no additional security validation.
+
+
+.. _Release Notes_6.3.0_Upgrade Notes:
 
 Upgrade Notes
 -------------
@@ -170,6 +386,33 @@ Upgrade Notes
   security of the data sent to Datadog, since the payloads are always secured with
   HTTPS between your Agents and Datadog whatever ``proxy`` configuration you may use.
 
+- Docker image: we moved the default configuration from the docker image's default
+  environment variables to the `datadog-*.yaml` files. This allows users to easily
+  mount a custom `datadog.yaml` configuration file to set all options.
+  If you already did so, you will need to update your `datadog.yaml` to include
+  these new defaults. If you only used envvars, no change is needed.
+
+- The agent now supports the environment variables "HTTP_PROXY", "HTTPS_PROXY" and
+  "NO_PROXY". If set these variables will override the setting in
+  datadog.yaml.
+
+- Moves away from the community library for the kubernetes client in favor of the official one.
+
+
+.. _Release Notes_6.3.0_Deprecations Notes:
+
+Deprecation Notes
+-----------------
+
+- The core Agent check Python code is no longer duplicated here and is instead
+  pulled from integrations-core. The code now resides in the `datadog_checks`
+  namespace, though the old `checks`, `utils`, etc. paths are still supported.
+  Please update your custom checks accordingly. For more information, see
+  https://github.com/DataDog/datadog-agent/blob/master/docs/agent/changes.md#python-modules
+
+
+.. _Release Notes_6.3.0_Bug Fixes:
+
 Bug Fixes
 ---------
 
@@ -181,6 +424,11 @@ Bug Fixes
 
 - Decrease epsilon and increase incoming buffer size for improved accuracy of
   distribution metrics.
+
+- Better handling of docker return values to avoid errors
+
+- Fix log format when no log file is specified which cause the log date to
+  not be correctly displayed.
 
 - Configurations of unscheduled checks are now properly removed from the configcheck command display.
 
@@ -200,6 +448,9 @@ Bug Fixes
 
 - Fix a possible panic in the kubernetes event watcher.
 
+- Fix panics within the agent when using non thread safe method from Viper
+  library (Unmarshall).
+
 - On RHEL/SUSE, stop the Agent properly in the pre-install RPM script on systems where
   ``/lib`` is not a symlink to ``/usr/lib``.
 
@@ -215,11 +466,19 @@ Bug Fixes
 
 - Fixed parsing issue with logs processing rules in autodiscovery.
 
+- Prevent logs agent from submitting protocol buffer payloads with invalid UTF-8.
+
 - Fixes JMXFetch on Windows when the ``custom_jar_paths`` and/or ``tools_jar_path`` options are set,
   by using a semicolon as the path separator on Windows.
 
 - Prevent an empty response body from being marked as a "successfull call to the GCE metadata api".
   Fixes a bug where hostnames became an empty string when using docker swarm and a non GCE environment.
+
+- Config option specified in `syslog_pem` if syslog logging is enabled with
+  TLS should be a path to the certificate, not a textual certificate in the
+  configuration.
+
+- Changes the hostname used for Docker events to be the hostname of the agent.
 
 - Removes use of gopsutil on Windows.  Gopsutil relies heavily on WMI;
   because the go runtime doesn't lock goroutines to system threads, the
@@ -227,6 +486,8 @@ Bug Fixes
   Solves the problem where metadata and various system checks can't
   initialize properly
 
+
+.. _Release Notes_6.3.0_Other Notes:
 
 Other Notes
 -----------
@@ -241,6 +502,13 @@ Other Notes
 
 - The scripts of the Linux packages now don't exit with errors when no supported init system is detected,
   and only print warnings instead
+
+- On the status and check command outputs, rename checks' ``Metrics`` to ``Metric Samples``
+  to reflect that the number represents the number of samples submitted by the check, not
+  the number of metrics after aggregation.
+
+- Scrub all logging output from credentials. Should prevent leakage of
+  credentials in logs from 3rd-party code or code added in the future.
 
 
 6.2.1

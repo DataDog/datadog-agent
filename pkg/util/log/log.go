@@ -16,9 +16,21 @@ import (
 	"github.com/cihub/seelog"
 )
 
-var logger *DatadogLogger
+var (
+	logger *DatadogLogger
 
-//DatadogLogger wrapper structure for seelog
+	// This buffer holds log lines sent to the logger before its
+	// initialization. Even if initializing the logger is one of the first
+	// things the agent does, we still: load the conf, resolve secrets inside,
+	// compute the final proxy settings, ...
+	//
+	// This buffer should be very short lived.
+	logsBuffer           = []func(){}
+	bufferLogsBeforeInit = true
+	bufferMutex          sync.Mutex
+)
+
+// DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
 	inner seelog.LoggerInterface
 	level seelog.LogLevel
@@ -26,7 +38,7 @@ type DatadogLogger struct {
 	l     sync.Mutex
 }
 
-//SetupDatadogLogger configure logger singleton with seelog interface
+// SetupDatadogLogger configure logger singleton with seelog interface
 func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	logger = &DatadogLogger{
 		inner: l,
@@ -39,14 +51,30 @@ func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	}
 	logger.level = lvl
 
-	//We're not going to call DatadogLogger directly, but using the
-	//exported functions, that will give us two frames in the stack
-	//trace that should be skipped to get to the original caller.
+	// We're not going to call DatadogLogger directly, but using the
+	// exported functions, that will give us two frames in the stack
+	// trace that should be skipped to get to the original caller.
 	//
-	//The fact we need a constant "additional depth" means some
-	//theoretical refactor to avoid duplication in the functions
-	//below cannot be performed.
+	// The fact we need a constant "additional depth" means some
+	// theoretical refactor to avoid duplication in the functions
+	// below cannot be performed.
 	logger.inner.SetAdditionalStackDepth(2)
+
+	// Flushing logs since the logger is now initialized
+	bufferMutex.Lock()
+	bufferLogsBeforeInit = false
+	defer bufferMutex.Unlock()
+	for _, logLine := range logsBuffer {
+		logLine()
+	}
+	logsBuffer = []func(){}
+}
+
+func addLogToBuffer(logHandle func()) {
+	bufferMutex.Lock()
+	defer bufferMutex.Unlock()
+
+	logsBuffer = append(logsBuffer, logHandle)
 }
 
 func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
@@ -114,7 +142,7 @@ func (sw *DatadogLogger) scrub(s string) string {
 	return s
 }
 
-//trace logs at the trace level
+// trace logs at the trace level
 func (sw *DatadogLogger) trace(s string) {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -127,7 +155,7 @@ func (sw *DatadogLogger) trace(s string) {
 	}
 }
 
-//debug logs at the debug level
+// debug logs at the debug level
 func (sw *DatadogLogger) debug(s string) {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -140,7 +168,7 @@ func (sw *DatadogLogger) debug(s string) {
 	}
 }
 
-//info logs at the info level
+// info logs at the info level
 func (sw *DatadogLogger) info(s string) {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -153,7 +181,7 @@ func (sw *DatadogLogger) info(s string) {
 	}
 }
 
-//warn logs at the warn level
+// warn logs at the warn level
 func (sw *DatadogLogger) warn(s string) error {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -168,7 +196,7 @@ func (sw *DatadogLogger) warn(s string) error {
 	return err
 }
 
-//error logs at the error level
+// error logs at the error level
 func (sw *DatadogLogger) error(s string) error {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -183,7 +211,7 @@ func (sw *DatadogLogger) error(s string) error {
 	return err
 }
 
-//critical logs at the critical level
+// critical logs at the critical level
 func (sw *DatadogLogger) critical(s string) error {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -198,7 +226,7 @@ func (sw *DatadogLogger) critical(s string) error {
 	return err
 }
 
-//tracef logs with format at the trace level
+// tracef logs with format at the trace level
 func (sw *DatadogLogger) tracef(format string, params ...interface{}) {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -211,7 +239,7 @@ func (sw *DatadogLogger) tracef(format string, params ...interface{}) {
 	}
 }
 
-//debugf logs with format at the debug level
+// debugf logs with format at the debug level
 func (sw *DatadogLogger) debugf(format string, params ...interface{}) {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -224,7 +252,7 @@ func (sw *DatadogLogger) debugf(format string, params ...interface{}) {
 	}
 }
 
-//infof logs with format at the info level
+// infof logs with format at the info level
 func (sw *DatadogLogger) infof(format string, params ...interface{}) {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -237,7 +265,7 @@ func (sw *DatadogLogger) infof(format string, params ...interface{}) {
 	}
 }
 
-//warnf logs with format at the warn level
+// warnf logs with format at the warn level
 func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -252,7 +280,7 @@ func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
 	return err
 }
 
-//errorf logs with format at the error level
+// errorf logs with format at the error level
 func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -267,7 +295,7 @@ func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
 	return err
 }
 
-//criticalf logs with format at the critical level
+// criticalf logs with format at the critical level
 func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
 	sw.l.Lock()
 	defer sw.l.Unlock()
@@ -311,118 +339,146 @@ func formatError(v ...interface{}) error {
 	return errors.New(msg)
 }
 
-//Trace logs at the trace level
+// Trace logs at the trace level
 func Trace(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
 		s := buildLogEntry(v...)
 		logger.trace(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Trace(v...) })
 	}
 }
 
-//Debug logs at the debug level
+// Debug logs at the debug level
 func Debug(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
 		s := buildLogEntry(v...)
 		logger.debug(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Debug(v...) })
 	}
 }
 
-//Info logs at the info level
+// Info logs at the info level
 func Info(v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		s := buildLogEntry(v...)
 		logger.info(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Info(v...) })
 	}
 }
 
-//Warn logs at the warn level and returns an error containing the formated log message
+// Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
 		s := buildLogEntry(v...)
 		return logger.warn(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Warn(v...) })
 	}
 	return formatError(v...)
 }
 
-//Error logs at the error level and returns an error containing the formated log message
+// Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		s := buildLogEntry(v...)
 		return logger.error(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Error(v...) })
 	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatError(v...)
 	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 	return err
 }
 
-//Critical logs at the critical level and returns an error containing the formated log message
+// Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		s := buildLogEntry(v...)
 		return logger.critical(logger.scrub(s))
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Critical(v...) })
 	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatError(v...)
 	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
 	return err
 }
 
-//Flush flushes the underlying inner log
+// Flush flushes the underlying inner log
 func Flush() {
 	if logger != nil && logger.inner != nil {
 		logger.inner.Flush()
 	}
 }
 
-//Tracef logs with format at the trace level
+// Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.TraceLvl) {
 		logger.tracef(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Tracef(format, params...) })
 	}
 }
 
-//Debugf logs with format at the debug level
+// Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.DebugLvl) {
 		logger.debugf(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Debugf(format, params...) })
 	}
 }
 
-//Infof logs with format at the info level
+// Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
 		logger.infof(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Infof(format, params...) })
 	}
 }
 
-//Warnf logs with format at the warn level and returns an error containing the formated log message
+// Warnf logs with format at the warn level and returns an error containing the formated log message
 func Warnf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.WarnLvl) {
 		return logger.warnf(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Warnf(format, params...) })
 	}
 	return formatErrorf(format, params...)
 }
 
-//Errorf logs with format at the error level and returns an error containing the formated log message
+// Errorf logs with format at the error level and returns an error containing the formated log message
 func Errorf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		return logger.errorf(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Errorf(format, params...) })
 	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatErrorf(format, params...)
 	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 	return err
 }
 
-//Criticalf logs with format at the critical level and returns an error containing the formated log message
+// Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.CriticalLvl) {
 		return logger.criticalf(format, params...)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Criticalf(format, params...) })
 	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatErrorf(format, params...)
 	fmt.Fprintf(os.Stderr, "Critical: %s\n", err.Error())
 	return err
 }
 
-//ReplaceLogger allows replacing the internal logger, returns old logger
+// ReplaceLogger allows replacing the internal logger, returns old logger
 func ReplaceLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
 	if logger != nil && logger.inner != nil {
 		return logger.replaceInnerLogger(l)
@@ -431,7 +487,7 @@ func ReplaceLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
 	return nil
 }
 
-//RegisterAdditionalLogger registers an additional logger for logging
+// RegisterAdditionalLogger registers an additional logger for logging
 func RegisterAdditionalLogger(n string, l seelog.LoggerInterface) error {
 	if logger != nil && logger.inner != nil {
 		return logger.registerAdditionalLogger(n, l)
@@ -440,7 +496,7 @@ func RegisterAdditionalLogger(n string, l seelog.LoggerInterface) error {
 	return errors.New("cannot register: logger not initialized")
 }
 
-//UnregisterAdditionalLogger unregisters additional logger with name n
+// UnregisterAdditionalLogger unregisters additional logger with name n
 func UnregisterAdditionalLogger(n string) error {
 	if logger != nil && logger.inner != nil {
 		return logger.unregisterAdditionalLogger(n)

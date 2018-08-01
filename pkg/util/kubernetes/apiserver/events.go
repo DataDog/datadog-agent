@@ -11,21 +11,15 @@ package apiserver
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
-)
 
-var (
-	eventReadTimeout = 100 * time.Millisecond
-	expectedType     = reflect.TypeOf(v1.Event{})
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LatestEvents retrieves all the cluster events happening after a given token.
@@ -33,7 +27,7 @@ var (
 // If the `since` parameter is empty, we query the apiserver's cache to avoid
 // overloading it.
 // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#watch-list-289
-func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string, error) {
+func (c *APIClient) LatestEvents(since string, eventReadTimeout time.Duration) ([]*v1.Event, []*v1.Event, string, error) {
 	var added, modified []*v1.Event
 
 	// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
@@ -45,15 +39,16 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 		since = "0"
 	}
 
-	log.Tracef("Starting watch of %v with resourceVersion %s", expectedType, since)
+	log.Tracef("Starting watch of events with resourceVersion %s", since)
 
 	eventWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(metav1.ListOptions{Watch: true, ResourceVersion: since})
 	if err != nil {
-		return nil, nil, "0", fmt.Errorf("Failed to watch %v: %v", expectedType, err)
+		return nil, nil, "0", fmt.Errorf("Failed to watch events: %v", err)
 	}
 	defer eventWatcher.Stop()
 
-	watcherTimeout := time.NewTimer(eventReadTimeout)
+	// To account for slow starts, wait longer for the first event
+	watcherTimeout := time.NewTimer(eventReadTimeout * 2)
 	for {
 		select {
 		case rcvdEv, ok := <-eventWatcher.ResultChan():
@@ -81,7 +76,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 
 			currEvent, ok := rcvdEv.Object.(*v1.Event)
 			if !ok {
-				log.Debugf("The event object cannot be safely converted to %v: %v", expectedType, rcvdEv.Object)
+				log.Debugf("The event object cannot be safely converted to event: %v", rcvdEv.Object)
 				continue
 			}
 

@@ -8,9 +8,8 @@
 package apiserver
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -20,10 +19,12 @@ func init() {
 // diagnose the API server availability
 func diagnose() error {
 	isConnectVerbose = true
-	_, err := GetAPIClient()
+	c, err := GetAPIClient()
 	isConnectVerbose = false
 	if err != nil {
 		log.Error(err)
+		return err
 	}
-	return err
+	log.Infof("Detecting OpenShift APIs: %s available", c.DetectOpenShiftAPILevel())
+	return nil
 }

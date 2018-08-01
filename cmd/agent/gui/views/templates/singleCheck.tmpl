@@ -1,10 +1,10 @@
 <div id="check_run_results">
-  <span class="stat_title">{{formatTitle .Name}} run result: </span>
+  <span class="stat_title">{{formatTitle .Name}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }} run result: </span>
   {{- range $i, $e := .CheckStats}}
   <span class="stat_subtitle">Instance {{add $i 1}}</span>
     <span class="stat_data">
         Total Runs: {{.TotalRuns}}<br>
-        Metrics: {{.MetricSamples}}, Total: {{humanizeI .TotalMetricSamples}}<br>
+        Metric Samples: {{.MetricSamples}}, Total: {{humanizeI .TotalMetricSamples}}<br>
         Events: {{.Events}}, Total: {{humanizeI .TotalEvents}}<br>
         Service Checks: {{.ServiceChecks}}, Total: {{humanizeI .TotalServiceChecks}}<br>
       {{- if .LastError}}

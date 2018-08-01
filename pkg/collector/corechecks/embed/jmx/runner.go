@@ -108,3 +108,10 @@ func (r *runner) configureRunner(instance, initConfig integration.Data) error {
 
 	return nil
 }
+
+func (r *runner) stopRunner() error {
+	if r.jmxfetch != nil && r.started {
+		return r.jmxfetch.Kill()
+	}
+	return nil
+}

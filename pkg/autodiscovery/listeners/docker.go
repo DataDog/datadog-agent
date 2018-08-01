@@ -46,6 +46,7 @@ type DockerService struct {
 	Ports         []ContainerPort
 	Pid           int
 	Hostname      string
+	sync.RWMutex
 }
 
 func init() {
@@ -344,6 +345,9 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 
 // GetHosts returns the container's hosts
 func (s *DockerService) GetHosts() (map[string]string, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	if s.Hosts != nil {
 		return s.Hosts, nil
 	}

@@ -17,10 +17,13 @@ import invoke
 ORG_PATH = "github.com/DataDog"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
 
-def bin_name(name):
+def bin_name(name, android=False):
     """
     Generate platform dependent names for binaries
     """
+    if android:
+        return "{}.aar".format(name)
+
     if sys.platform == 'win32':
         return "{}.exe".format(name)
     return name

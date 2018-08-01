@@ -52,6 +52,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=snmp,systemd
     """
+
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
@@ -94,12 +95,13 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         build_tags = get_build_tags(build_include, build_exclude)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
+
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
+        "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android=False)),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,

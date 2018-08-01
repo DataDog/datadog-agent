@@ -15,15 +15,17 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 var (
@@ -110,7 +112,6 @@ func getK8sConfig() (*rest.Config, error) {
 		}
 	}
 	k8sConfig.Timeout = 2 * time.Second
-
 	return k8sConfig, nil
 }
 
@@ -483,4 +484,14 @@ func GetResourcesNamespace() string {
 	}
 	log.Errorf("There was an error fetching the namespace from the context, using default")
 	return "default"
+}
+
+// GetRESTObject allows to retrive a custom resource from the APIserver
+func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
+	result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do()
+	if result.Error() != nil {
+		return result.Error()
+	}
+
+	return result.Into(output)
 }

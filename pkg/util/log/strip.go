@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-//Replacer structure to store regex matching and replacement functions
+// Replacer structure to store regex matching and replacement functions
 type Replacer struct {
 	Regex    *regexp.Regexp
 	Hints    []string // If any of these hints do not exist in the line, then we know the regex wont match either
@@ -68,7 +68,7 @@ func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
 }
 
-//CredentialsCleanerFile scrubs credentials from file in path
+// CredentialsCleanerFile scrubs credentials from file in path
 func CredentialsCleanerFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	defer file.Close()
@@ -78,7 +78,7 @@ func CredentialsCleanerFile(filePath string) ([]byte, error) {
 	return credentialsCleaner(file)
 }
 
-//CredentialsCleanerBytes scrubs credentials from slice of bytes
+// CredentialsCleanerBytes scrubs credentials from slice of bytes
 func CredentialsCleanerBytes(file []byte) ([]byte, error) {
 	r := bytes.NewReader(file)
 	return credentialsCleaner(r)

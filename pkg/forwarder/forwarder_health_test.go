@@ -6,65 +6,64 @@
 package forwarder
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestHasValidAPIKey(t *testing.T) {
-	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts1.Close()
-	defer ts2.Close()
+	ddURL := config.Datadog.Get("dd_url")
+	config.Datadog.Set("dd_url", ts.URL)
+	defer ts.Close()
+	defer func() { config.Datadog.Set("dd_url", ddURL) }()
 
 	keysPerDomains := map[string][]string{
-		ts1.URL: {"api_key1", "api_key2"},
-		ts2.URL: {"api_key3"},
+		"domain1": {"api_key1", "api_key2"},
+		"domain2": {"key3"},
 	}
 
 	fh := forwarderHealth{}
 	fh.init(keysPerDomains)
 	assert.True(t, fh.hasValidAPIKey(keysPerDomains))
 
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get(ts1.URL+",*************************_key1"))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get(ts1.URL+",*************************_key2"))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get(ts2.URL+",*************************_key3"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("domain1,*************************_key1"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("domain1,*************************_key2"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("domain2,*************************"))
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
-	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		if r.Form.Get("api_key") == "api_key1" {
 			w.WriteHeader(http.StatusForbidden)
 		} else if r.Form.Get("api_key") == "api_key2" {
 			w.WriteHeader(http.StatusNotFound)
 		} else {
-			assert.Fail(t, fmt.Sprintf("Unknown api key received: %v", r.Form.Get("api_key")))
+			w.WriteHeader(http.StatusOK)
 		}
 	}))
-	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts1.Close()
-	defer ts2.Close()
+	ddURL := config.Datadog.Get("dd_url")
+	config.Datadog.Set("dd_url", ts.URL)
+	defer ts.Close()
+	defer func() { config.Datadog.Set("dd_url", ddURL) }()
 
 	keysPerDomains := map[string][]string{
-		ts1.URL: {"api_key1", "api_key2"},
-		ts2.URL: {"api_key3"},
+		"domain1": {"api_key1", "api_key2"},
+		"domain2": {"key3"},
 	}
 
 	fh := forwarderHealth{}
 	fh.init(keysPerDomains)
 	assert.True(t, fh.hasValidAPIKey(keysPerDomains))
 
-	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get(ts1.URL+",*************************_key1"))
-	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get(ts1.URL+",*************************_key2"))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get(ts2.URL+",*************************_key3"))
+	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("domain1,*************************_key1"))
+	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get("domain1,*************************_key2"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("domain2,*************************"))
 }

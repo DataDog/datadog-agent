@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -27,6 +28,7 @@ type DockerKubeletService struct {
 	kubeUtil *kubelet.KubeUtil
 	Hosts    map[string]string
 	Ports    []ContainerPort
+	sync.RWMutex
 }
 
 // getPod wraps KubeUtil init and pod lookup for both public methods.
@@ -44,6 +46,9 @@ func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
 
 // GetHosts returns the container's hosts
 func (s *DockerKubeletService) GetHosts() (map[string]string, error) {
+	s.Lock()
+	defer s.Unlock()
+
 	if s.Hosts != nil {
 		return s.Hosts, nil
 	}

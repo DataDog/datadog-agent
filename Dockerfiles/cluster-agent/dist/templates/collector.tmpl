@@ -10,8 +10,8 @@ Collector
   {{end -}}
 
   {{- range .Checks}}
-    {{.CheckName}}
-    {{printDashes .CheckName "-"}}
+    {{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}
+    {{printDashes .CheckName "-"}}{{- if .CheckVersion }}{{printDashes .CheckVersion "-"}}---{{ end }}
       Total Runs: {{.TotalRuns}}
       Metrics: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
       Events: {{.Events}}, Total: {{humanize .TotalEvents}}
@@ -38,7 +38,9 @@ Collector
       {{ configError $error }}
     {{- end }}
   {{- end}}
+{{- end }}
 
+{{- with .CheckSchedulerStats }}
   {{- if .LoaderErrors}}
   Loading Errors
   ==============

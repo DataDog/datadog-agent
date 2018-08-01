@@ -11,8 +11,8 @@ api_key:
 # disabled). You can use the 'no_proxy' list to specify hosts that should
 # bypass the proxy. These settings might impact your checks requests, please
 # refer to the specific check documentation for more details. Environment
-# variables HTTP_PROXY, HTTPS_PROXY and NO_PROXY (coma-separated string) will
-# override the values set here. See https://docs.datadoghq.com/agent/proxy/.
+# variables DD_PROXY_HTTP, DD_PROXY_HTTPS and DD_PROXY_NO_PROXY (space-separated string)
+# will override the values set here. See https://docs.datadoghq.com/agent/proxy/.
 #
 # proxy:
 #   http: http://user:password@proxy_for_http:port

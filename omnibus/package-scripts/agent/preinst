@@ -10,7 +10,7 @@ LOG_DIR=/var/log/datadog
 SERVICE_NAME=datadog-agent
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
-DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || uname -s)
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 # Linux installation
 if [ "$DISTRIBUTION" != "Darwin" ]; then
@@ -48,7 +48,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         getent passwd dd-agent >/dev/null || \
             useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin \
                 -c "Datadog Agent" dd-agent && \
-            usermod -L dd-agent
+                { usermod -L dd-agent || echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"; }
 
         # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
         if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
@@ -56,7 +56,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
         fi
     else
-        echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+        echo "[ FAILED ]\tYour system is currently not supported by this script.";
         exit 1;
     fi
 else
