@@ -76,7 +76,6 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 		return err
 	}
 
-	// TODO : test merging logic
 	c.instance = instance
 	if c.instance.Host != "" {
 		if c.instance.Hosts == nil {
