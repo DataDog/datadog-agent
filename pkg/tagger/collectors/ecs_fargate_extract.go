@@ -20,7 +20,7 @@ import (
 
 // parseMetadata parses the the task metadata, and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
-func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, error) {
+func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 
@@ -29,7 +29,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, 
 	}
 
 	for _, ctr := range meta.Containers {
-		if c.expire.Update(ctr.DockerID, now) {
+		if c.expire.Update(ctr.DockerID, now) || parseAll {
 			tags := utils.NewTagList()
 
 			// cluster

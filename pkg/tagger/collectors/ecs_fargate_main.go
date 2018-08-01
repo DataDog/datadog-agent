@@ -27,7 +27,6 @@ type ECSFargateCollector struct {
 	infoOut      chan<- []*TagInfo
 	expire       *taggerutil.Expire
 	lastExpire   time.Time
-	lastSeen     map[string]interface{}
 	expireFreq   time.Duration
 	labelsAsTags map[string]string
 }
@@ -44,38 +43,56 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 		c.labelsAsTags = retrieveMappingFromConfig("docker_labels_as_tags")
 
 		if err != nil {
-			return FetchOnlyCollection, fmt.Errorf("Failed to instantiate the container expiring process")
+			return PullCollection, fmt.Errorf("Failed to instantiate the container expiring process")
 		}
-		return FetchOnlyCollection, nil
+		return PullCollection, nil
 	}
 
 	return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 }
 
-// Fetch fetches ECS tags for a container on demand
+// Pull looks for new containers and computes deletions
+func (c *ECSFargateCollector) Pull() error {
+	meta, err := ecsutil.GetTaskMetadata()
+	if err != nil {
+		return err
+	}
+	// Only parse new containers
+	updates, err := c.parseMetadata(meta, false)
+	if err != nil {
+		return err
+	}
+	c.infoOut <- updates
+
+	// Throttle deletions
+	if time.Now().Before(c.lastExpire.Add(c.expireFreq)) {
+		return nil
+	}
+
+	expireList, err := c.expire.ComputeExpires()
+	if err != nil {
+		return err
+	}
+	expiries, err := c.parseExpires(expireList)
+	if err != nil {
+		return err
+	}
+	c.infoOut <- expiries
+	c.lastExpire = time.Now()
+	return nil
+}
+
+// Fetch parses tags for a container on cache miss. We avoid races with Pull,
+// we re-parse the whole list, but don't send updates on other containers.
 func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, error) {
 	meta, err := ecsutil.GetTaskMetadata()
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-	updates, err := c.parseMetadata(meta)
+	// Force a full parse to avoid missing the container in a race with Pull
+	updates, err := c.parseMetadata(meta, true)
 	if err != nil {
 		return []string{}, []string{}, err
-	}
-	c.infoOut <- updates
-
-	// Throttle deletion computations
-	if time.Now().After(c.lastExpire.Add(c.expireFreq)) {
-		expireList, err := c.expire.ComputeExpires()
-		if err != nil {
-			return []string{}, []string{}, err
-		}
-		expiries, err := c.parseExpires(expireList)
-		if err != nil {
-			return []string{}, []string{}, err
-		}
-		c.infoOut <- expiries
-		c.lastExpire = time.Now()
 	}
 
 	for _, info := range updates {

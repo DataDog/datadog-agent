@@ -94,7 +94,7 @@ func TestParseMetadata(t *testing.T) {
 		},
 	}
 
-	updates, err := collector.parseMetadata(meta)
+	updates, err := collector.parseMetadata(meta, false)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 
@@ -105,9 +105,7 @@ func TestParseMetadata(t *testing.T) {
 }
 
 func TestParseExpires(t *testing.T) {
-	collector := &ECSFargateCollector{
-		lastSeen: map[string]interface{}{},
-	}
+	collector := &ECSFargateCollector{}
 
 	dead := []string{
 		"1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
