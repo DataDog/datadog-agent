@@ -94,27 +94,32 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 }
 
 func TestCompileProcessingRules(t *testing.T) {
+	var config *LogsConfig
 	var rules []LogsProcessingRule
 	var err error
 
 	rules = []LogsProcessingRule{{Pattern: "(?=abf)", Type: IncludeAtMatch}}
-	err = compileProcessingRules(rules)
+	config = &LogsConfig{ProcessingRules: rules}
+	err = Compile(config)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 
 	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}", Type: IncludeAtMatch}}
-	err = compileProcessingRules(rules)
+	config = &LogsConfig{ProcessingRules: rules}
+	err = Compile(config)
 	assert.Nil(t, err)
 	assert.NotNil(t, rules[0].Reg)
 	assert.True(t, rules[0].Reg.MatchString("abcde"))
 
 	rules = []LogsProcessingRule{{Pattern: "[[:alnum:]]{5}"}}
-	err = compileProcessingRules(rules)
+	config = &LogsConfig{ProcessingRules: rules}
+	err = Compile(config)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 
 	rules = []LogsProcessingRule{{Pattern: "", Type: IncludeAtMatch}}
-	err = compileProcessingRules(rules)
+	config = &LogsConfig{ProcessingRules: rules}
+	err = Compile(config)
 	assert.NotNil(t, err)
 	assert.Nil(t, rules[0].Reg)
 }
@@ -136,10 +141,6 @@ func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
-	_, err = buildLogSources(ddconfdPath, false, -1)
-	assert.NotNil(t, err)
-
-	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
 	_, err = buildLogSources(ddconfdPath, false, -1)
 	assert.NotNil(t, err)
 }

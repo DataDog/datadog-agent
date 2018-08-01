@@ -12,20 +12,24 @@ import (
 )
 
 func TestParseJSONStringWithValidFormatShouldSucceed(t *testing.T) {
+	var configs []*LogsConfig
 	var config *LogsConfig
 	var err error
 
-	config, err = ParseJSON([]byte(`[{}]`))
+	configs, err = ParseJSON([]byte(`[{}]`))
 	assert.Nil(t, err)
+	config = configs[0]
 	assert.NotNil(t, config)
 
-	config, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service"}]`))
+	configs, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service"}]`))
 	assert.Nil(t, err)
+	config = configs[0]
 	assert.Equal(t, "any_source", config.Source)
 	assert.Equal(t, "any_service", config.Service)
 
-	config, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`))
+	configs, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`))
 	assert.Nil(t, err)
+	config = configs[0]
 	assert.Equal(t, "any_source", config.Source)
 	assert.Equal(t, "any_service", config.Service)
 	assert.Equal(t, 1, len(config.ProcessingRules))
@@ -33,23 +37,21 @@ func TestParseJSONStringWithValidFormatShouldSucceed(t *testing.T) {
 	rule := config.ProcessingRules[0]
 	assert.Equal(t, "multi_line", rule.Type)
 	assert.Equal(t, "numbers", rule.Name)
-	assert.True(t, rule.Reg.MatchString("123"))
-	assert.False(t, rule.Reg.MatchString("a123"))
 }
 
 func TestParseJSONStringWithInvalidFormatShouldFail(t *testing.T) {
-	var config *LogsConfig
+	var configs []*LogsConfig
 	var err error
 
-	config, err = ParseJSON([]byte(``))
+	configs, err = ParseJSON([]byte(``))
 	assert.NotNil(t, err)
-	assert.Nil(t, config)
+	assert.Nil(t, configs)
 
-	config, err = ParseJSON([]byte(`{}`))
+	configs, err = ParseJSON([]byte(`{}`))
 	assert.NotNil(t, err)
-	assert.Nil(t, config)
+	assert.Nil(t, configs)
 
-	config, err = ParseJSON([]byte(`{\"source\":\"any_source\",\"service\":\"any_service\"}`))
+	configs, err = ParseJSON([]byte(`{\"source\":\"any_source\",\"service\":\"any_service\"}`))
 	assert.NotNil(t, err)
-	assert.Nil(t, config)
+	assert.Nil(t, configs)
 }

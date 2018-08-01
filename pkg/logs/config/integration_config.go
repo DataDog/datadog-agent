@@ -221,7 +221,7 @@ func validateProcessingRules(rules []LogsProcessingRule) (bool, error) {
 	return true, nil
 }
 
-// compileProcessingRules compiles all processing rules regular expression
+// Compile compiles all processing rules regular expression
 func Compile(config *LogsConfig) error {
 	rules := config.ProcessingRules
 	for i, rule := range rules {

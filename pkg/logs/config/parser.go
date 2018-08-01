@@ -13,18 +13,21 @@ import (
 	json "github.com/json-iterator/go"
 )
 
+// ParseJSON parses the data formatted in JSON
 func ParseJSON(data []byte) ([]*LogsConfig, error) {
 	return parse(data, json.Unmarshal)
 }
 
+// ParseYaml parses the data formatted in Yaml.
 func ParseYaml(data []byte) ([]*LogsConfig, error) {
 	return parse(data, yaml.Unmarshal)
 }
 
+// parse parses the data to return an array of logs-config,
+// if the parsing failed, return an error.
 func parse(data []byte, unmarshal func(data []byte, v interface{}) error) ([]*LogsConfig, error) {
 	var configs []*LogsConfig
-	var err error
-	err = unmarshal(data, &configs)
+	err := unmarshal(data, &configs)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse logs config, invalid format: %v", err)
 	}
