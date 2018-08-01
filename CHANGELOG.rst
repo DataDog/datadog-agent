@@ -2,26 +2,26 @@
 Release Notes
 =============
 
-.. _Release Notes_6.4.0:
+.. _Release Notes_6.4.1:
 
-6.4.0
+6.4.1
 =====
 
-.. _Release Notes_6.4.0_Prelude:
+.. _Release Notes_6.4.1_Prelude:
 
 Prelude
 -------
 
-Release on: Unreleased
+Release on: 2018-08-01
 
-- Please refer to the `6.4.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.0>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.4.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.1>`_ for the list of changes on the Core Checks.
 
-- Please refer to the `6.4.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.4.0>`_ for the list of changes on the Trace Agent.
+- Please refer to the `6.4.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.4.1>`_ for the list of changes on the Trace Agent.
 
-- Please refer to the `6.4.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.4.0>`_ for the list of changes on the Process Agent.
+- Please refer to the `6.4.1 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.4.1>`_ for the list of changes on the Process Agent.
 
 
-.. _Release Notes_6.4.0_New Features:
+.. _Release Notes_6.4.1_New Features:
 
 New Features
 ------------
@@ -52,7 +52,7 @@ New Features
 - Display the version for Python checks on the status page.
 
 
-.. _Release Notes_6.4.0_Enhancements Notes:
+.. _Release Notes_6.4.1_Enhancements Notes:
 
 Enhancement Notes
 ------------------
@@ -106,7 +106,7 @@ Enhancement Notes
 - Adding the status of the DCA (If enabled) in the Agent status command.
 
 
-.. _Release Notes_6.4.0_Upgrade Notes:
+.. _Release Notes_6.4.1_Upgrade Notes:
 
 Upgrade Notes
 -------------
@@ -117,7 +117,7 @@ Upgrade Notes
   lower-precedence options.
 
 
-.. _Release Notes_6.4.0_Deprecation Notes:
+.. _Release Notes_6.4.1_Deprecation Notes:
 
 Deprecation Notes
 -----------------
@@ -126,7 +126,7 @@ Deprecation Notes
   command will continue to function, with a deprecation notice
 
 
-.. _Release Notes_6.4.0_Security Issues:
+.. _Release Notes_6.4.1_Security Issues:
 
 Security Issues
 ---------------
@@ -135,7 +135,7 @@ Security Issues
   flare with the agent.
 
 
-.. _Release Notes_6.4.0_Bug Fixes:
+.. _Release Notes_6.4.1_Bug Fixes:
 
 Bug Fixes
 ---------
@@ -162,7 +162,7 @@ Bug Fixes
   ``systemctl`` commands are present but upstart is used as the init system
 
 
-.. _Release Notes_6.4.0_Other Notes:
+.. _Release Notes_6.4.1_Other Notes:
 
 Other Notes
 -----------
