@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2018-07-31
+Release on: Unreleased
 
 - Please refer to the `6.4.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.0>`_ for the list of changes on the Core Checks.
 
