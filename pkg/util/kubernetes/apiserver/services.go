@@ -12,7 +12,6 @@ import (
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,46 +26,27 @@ import (
 // 		"pod": [ "svc1", "svc2", "svc3" ]
 // 	}
 // }
-type ServicesMapper map[string]map[string]sets.String
+type ServicesMapper map[string]map[string][]string
 
 // Get returns the list of services for a given namespace and pod name.
-func (m ServicesMapper) Get(namespace, podName string) ([]string, bool) {
-	if _, ok := m[namespace]; !ok {
+func (m ServicesMapper) Get(ns, podName string) ([]string, bool) {
+	pods, ok := m[ns]
+	if !ok {
 		return nil, false
 	}
-	if _, ok := m[namespace][podName]; !ok {
+	svcs, ok := pods[podName]
+	if !ok {
 		return nil, false
 	}
-	return m[namespace][podName].UnsortedList(), true
+	return svcs, true
 }
 
-// Set updates services for a given namespace and pod name.
-func (m ServicesMapper) Set(namespace, podName string, svcs ...string) {
-	if _, ok := m[namespace]; !ok {
-		m[namespace] = make(map[string]sets.String)
+// Set updates the list of services for a given namespace and pod name.
+func (m ServicesMapper) Set(ns, podName string, svcs []string) {
+	if _, ok := m[ns]; !ok {
+		m[ns] = make(map[string][]string)
 	}
-	if _, ok := m[namespace][podName]; !ok {
-		m[namespace][podName] = sets.NewString()
-	}
-	m[namespace][podName].Insert(svcs...)
-}
-
-// Delete deletes services for a given namespace.
-func (m ServicesMapper) Delete(namespace string, svcs ...string) {
-	if _, ok := m[namespace]; !ok {
-		// Nothing to delete.
-		return
-	}
-	for podName, svcSet := range m[namespace] {
-		svcSet.Delete(svcs...)
-
-		if svcSet.Len() == 0 {
-			delete(m[namespace], podName)
-		}
-	}
-	if len(m[namespace]) == 0 {
-		delete(m, namespace)
-	}
+	m[ns][podName] = svcs
 }
 
 // mapOnIp matches pods to services via IP. It supports Kubernetes 1.4+
@@ -107,7 +87,7 @@ func (m ServicesMapper) mapOnIp(nodeName string, pods v1.PodList, endpointList v
 	for ns, pods := range podToIp {
 		for name, ip := range pods {
 			if svcs, found := ipToEndpoints[ip]; found {
-				m.Set(ns, name, svcs...)
+				m.Set(ns, name, svcs)
 			}
 		}
 	}
@@ -155,7 +135,7 @@ func (m ServicesMapper) mapOnRef(_ string, pods v1.PodList, endpointList v1.Endp
 		if !ok {
 			continue
 		}
-		m.Set(pod.Namespace, pod.Name, svcs...)
+		m.Set(pod.Namespace, pod.Name, svcs)
 	}
 	return nil
 }

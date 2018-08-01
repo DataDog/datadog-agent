@@ -132,13 +132,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
 	log.Info("Computing metadata map on all nodes")
-	cl, err := as.GetAPIClient()
-	if err != nil {
-		log.Errorf("Can't create client to query the API Server: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes(cl)
+	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes()
 	// If we hit an error at this point, it is because we don't have access to the API server.
 	if errAPIServer != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
