@@ -6,8 +6,6 @@
 package logs
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -16,7 +14,6 @@ import (
 
 // Scheduler registers to autodiscovery to schedule/unschedule log-collection.
 type Scheduler struct {
-	// activeSources map[string]*config.LogSource
 }
 
 // NewScheduler returns a new scheduler.
@@ -37,20 +34,14 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			continue
 		}
 		log.Infof("Received new logs-config for integration: %v", config.Name)
-		// sources, err := s.toSources(config)
-		// if err != nil {
-		// 	log.Warnf("Invalid configuration: %v", err)
-		// 	continue
-		// }
-		// configId, err := s.getConfigIdentifier(config)
-		// if err != nil {
-		// 	log.Warnf("Invalid configuration: %v", err)
-		// 	continue
-		// }
-		// for _, source := range sources {
-		// 	log.Infof("Adding source with id: %v", configId)
-		// 	s.activeSources[configId] = source
-		// }
+		sources, err := s.toSources(config)
+		if err != nil {
+			log.Warnf("Invalid configuration: %v", err)
+			continue
+		}
+		for _, source := range sources {
+			log.Infof("Adding source: %v", source)
+		}
 	}
 }
 
@@ -61,17 +52,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			continue
 		}
 		log.Infof("Must invalidate logs-config for integration: %v", config.Name)
-		// configId, err := s.getConfigIdentifier(config)
-		// if err != nil {
-		// 	continue
-		// }
-		// source, exists := s.activeSources[configId]
-		// if !exists {
-		// 	// this config has not been processed in the past.
-		// 	continue
-		// }
-		// log.Infof("Removing source with id: %v", configId)
-		// delete(s.activeSources, configId)
 	}
 }
 
@@ -83,7 +63,6 @@ func (s *Scheduler) isLogConfig(config integration.Config) bool {
 // toSources creates a new logs-source,
 // if the parsing failed, returns an error.
 func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.LogSource, error) {
-	logsConfigString := string(integrationConfig.LogsConfig)
 	configs, err := config.Parse(logsConfigString)
 	if err != nil {
 		return nil, err
@@ -95,12 +74,22 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 	return sources, nil
 }
 
-// getConfigIdentifier returns the unique identifier of the configuration.
-func (s *Scheduler) getConfigIdentifier(config integration.Config) (string, error) {
-	identifiers := config.ADIdentifiers
-	if len(identifiers) < 1 {
-		// this should never occur
-		return "", fmt.Errorf("no identifiers provided in config: %v", config.Name)
+// toSources creates a new logs-source,
+// if the parsing failed, returns an error.
+func (s *Scheduler) parse(cfg integration.Config) ([]*config.LogsConfig, error) {
+	var configs []*config.LogsConfig
+	switch config.Provider {
+	case "":
+	default:
+		break
 	}
-	return identifiers[0], nil
+	// configs, err := config.Parse(logsConfigString)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// var sources []*config.LogSource
+	// for _, cfg := range configs {
+	// 	sources = append(sources, config.NewLogSource(integrationConfig.Name, cfg))
+	// }
+	// return sources, nil
 }

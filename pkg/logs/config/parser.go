@@ -12,9 +12,9 @@ import (
 	json "github.com/json-iterator/go"
 )
 
-// Parse returns a new logs-configuration parsing the jsonString,
+// ParseJSONString returns a new logs-configuration parsing the jsonString,
 // if the parsing failed or the configuration is invalid, returns an error.
-func Parse(jsonString string) ([]*LogsConfig, error) {
+func ParseJSONString(jsonString string) ([]*LogsConfig, error) {
 	var configs []LogsConfig
 	var err error
 	err = json.Unmarshal([]byte(jsonString), &configs)
