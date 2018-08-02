@@ -16,6 +16,7 @@ The following environment variables are supported:
 - `DD_CLUSTER_AGENT_AUTH_TOKEN`: 32 characters long token that needs to be shared between the node agent and the DCA.
 - `DD_KUBE_RESOURCES_NAMESPACE`: configures the namespace where the Cluster Agent creates the configmaps required for the Leader Election, the Event Collection (optional) and the Horizontal Pod Autoscaling.
 - `DD_KUBERNETES_METADATA_RESYNC_PERIOD`: frequency in seconds to query the API Server to reprocess the cluster metadata. The default is 5 minutes.
+- `DD_EXPVAR_PORT`: change the port for fetching [expvar](https://golang.org/pkg/expvar/) public variables from the Datadog Cluster Agent. The default is port 5000.
 
 For a more detailed usage please [refer to the official Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/) documentation.
 
