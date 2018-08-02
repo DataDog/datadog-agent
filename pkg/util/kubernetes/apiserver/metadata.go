@@ -125,20 +125,27 @@ func (m *MetadataController) processNextWorkItem() bool {
 }
 
 func (m *MetadataController) addEndpoints(obj interface{}) {
-	endpoints := obj.(*corev1.Endpoints)
+	endpoints, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		return
+	}
 	log.Tracef("Adding endpoints %s/%s", endpoints.Namespace, endpoints.Name)
 	m.enqueue(obj)
 }
 
 func (m *MetadataController) updateEndpoints(old, cur interface{}) {
-	oldEndpoints := old.(*corev1.Endpoints)
-	newEndpoints := cur.(*corev1.Endpoints)
-
+	oldEndpoints, ok := old.(*corev1.Endpoints)
+	if !ok {
+		return
+	}
+	newEndpoints, ok := cur.(*corev1.Endpoints)
+	if !ok {
+		return
+	}
 	if apiequality.Semantic.DeepEqual(oldEndpoints.Subsets, newEndpoints.Subsets) {
 		log.Tracef("Endpoints subsets are equal for %s/%s, skipping update", newEndpoints.Namespace, newEndpoints.Name)
 		return
 	}
-
 	log.Tracef("Updating endpoints %s/%s", newEndpoints.Namespace, newEndpoints.Name)
 	m.enqueue(cur)
 }
