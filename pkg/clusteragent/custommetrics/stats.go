@@ -27,8 +27,8 @@ func getStoreStats() interface{} {
 	if !ok {
 		return stats
 	}
-	stats.External.Total = externalStatus["Total"].(int)
-	stats.External.Valid = externalStatus["Valid"].(int)
+	stats.External.Total, _ = externalStatus["Total"].(int)
+	stats.External.Valid, _ = externalStatus["Valid"].(int)
 	return stats
 }
 
