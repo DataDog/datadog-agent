@@ -40,18 +40,15 @@ func TestParseJSONStringWithValidFormatShouldSucceed(t *testing.T) {
 }
 
 func TestParseJSONStringWithInvalidFormatShouldFail(t *testing.T) {
-	var configs []*LogsConfig
-	var err error
+	invalidFormats := []string{
+		"``",
+		`{}`,
+		`{\"source\":\"any_source\",\"service\":\"any_service\"}`,
+	}
 
-	configs, err = ParseJSON([]byte(``))
-	assert.NotNil(t, err)
-	assert.Nil(t, configs)
-
-	configs, err = ParseJSON([]byte(`{}`))
-	assert.NotNil(t, err)
-	assert.Nil(t, configs)
-
-	configs, err = ParseJSON([]byte(`{\"source\":\"any_source\",\"service\":\"any_service\"}`))
-	assert.NotNil(t, err)
-	assert.Nil(t, configs)
+	for _, format := range invalidFormats {
+		configs, err := ParseJSON([]byte(format))
+		assert.NotNil(t, err)
+		assert.Nil(t, configs)
+	}
 }

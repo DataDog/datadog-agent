@@ -1,9 +1,0 @@
-logs:
-  # docker with image filter
-  - type: docker
-    image: any_image
-    service: any_service
-  # docker with label filter
-  - type: docker
-    label: any_label
-    source: any_source
