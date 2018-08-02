@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -40,20 +40,15 @@ func SetupHandlers(r *mux.Router) {
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the status. Making status.")
-	s, err := status.GetDCAStatus()
+	status := clusteragent.GetStatus()
 	w.Header().Set("Content-Type", "application/json")
+	jsonStatus, err := json.Marshal(status)
 	if err != nil {
-		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
+		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, status)
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
 	}
-	jsonStats, err := json.Marshal(s)
-	if err != nil {
-		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
-		return
-	}
-	w.Write(jsonStats)
+	w.Write(jsonStatus)
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {

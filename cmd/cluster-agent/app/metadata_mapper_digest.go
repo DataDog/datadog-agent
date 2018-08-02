@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
 func init() {
@@ -79,7 +79,7 @@ func getMetadataMap(nodeName string) error {
 	} else if jsonStatus {
 		s = string(r)
 	} else {
-		formattedMetadataMap, err := status.FormatMetadataMapCLI(r)
+		formattedMetadataMap, err := clusteragent.FormatMetadataMap(r)
 		if err != nil {
 			return err
 		}

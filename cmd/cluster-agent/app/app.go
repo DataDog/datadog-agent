@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -150,12 +149,6 @@ func start(cmd *cobra.Command, args []string) error {
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
 
-	clusterAgent, err := clusteragent.Run(aggregatorInstance.GetChannels())
-	if err != nil {
-		log.Errorf("Could not start the Cluster Agent Process.")
-
-	}
-
 	// Start the Service Mapper.
 	asc, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -192,7 +185,7 @@ func start(cmd *cobra.Command, args []string) error {
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		custommetrics.StopServer()
 	}
-	clusterAgent.Stop()
+	api.StopServer()
 	if stopCh != nil {
 		close(stopCh)
 	}

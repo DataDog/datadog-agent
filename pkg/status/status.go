@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/render"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -22,12 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var timeFormat = "2006-01-02 15:04:05.000000 UTC"
-
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
+	stats, err := AddExpvarStats(stats)
 	if err != nil {
 		log.Errorf("Error Getting ExpVar Stats: %v", err)
 	}
@@ -52,14 +52,14 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
+	stats["time"] = now.Format(render.TimeFormat)
 
 	stats["JMXStatus"] = GetJMXStatus()
 
 	stats["logsStats"] = logs.GetStatus()
 
 	if config.Datadog.GetBool("cluster_agent.enabled") {
-		stats["clusterAgentStatus"] = getDCAStatus()
+		stats["clusterAgentStatus"] = clusteragent.GetStatus()
 	}
 
 	return stats, nil
@@ -107,61 +107,6 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	return []byte(st), nil
 }
 
-// GetDCAStatus grabs the status from expvar and puts it into a map
-func GetDCAStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
-	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
-	}
-	stats["config"] = getDCAPartialConfig()
-	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-	stats["version"] = version.DCAVersion
-	stats["pid"] = os.Getpid()
-	hostname, err := util.GetHostname()
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache("unknown")
-	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostname)
-	}
-	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
-	stats["leaderelection"] = getLeaderElectionDetails()
-	stats["hpaExternal"] = GetHorizontalPodAutoscalingStatus()
-
-	return stats, nil
-}
-
-// GetAndFormatDCAStatus gets and formats the DCA status all in one go.
-func GetAndFormatDCAStatus() ([]byte, error) {
-	s, err := GetDCAStatus()
-	if err != nil {
-		log.Infof("Error while getting status %q", err)
-		return nil, err
-	}
-	statusJSON, err := json.Marshal(s)
-	if err != nil {
-		log.Infof("Error while marshalling %q", err)
-		return nil, err
-	}
-	st, err := FormatDCAStatus(statusJSON)
-	if err != nil {
-		log.Infof("Error formatting the status %q", err)
-		return nil, err
-	}
-	return []byte(st), nil
-}
-
-// getDCAPartialConfig returns config parameters of interest for the status page.
-func getDCAPartialConfig() map[string]string {
-	conf := make(map[string]string)
-	conf["log_file"] = config.Datadog.GetString("log_file")
-	conf["log_level"] = config.Datadog.GetString("log_level")
-	conf["confd_path"] = config.Datadog.GetString("confd_path")
-	return conf
-}
-
 // getPartialConfig returns config parameters of interest for the status page
 func getPartialConfig() map[string]string {
 	conf := make(map[string]string)
@@ -172,7 +117,8 @@ func getPartialConfig() map[string]string {
 	return conf
 }
 
-func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
+// AddExpvarStats adds expvar stats for the Datadog Agent to the status info.
+func AddExpvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})

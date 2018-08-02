@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
 var (
@@ -89,7 +89,7 @@ func requestStatus() error {
 	} else if jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := status.FormatDCAStatus(r)
+		formattedStatus, err := clusteragent.FormatStatus(r)
 		if err != nil {
 			return err
 		}

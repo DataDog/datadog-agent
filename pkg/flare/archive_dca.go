@@ -13,11 +13,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mholt/archiver"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -120,7 +121,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 func zipDCAStatusFile(tempDir, hostname string) error {
 	// Grab the status
 	log.Infof("Zipping the status at %s for %s", tempDir, hostname)
-	s, err := status.GetAndFormatDCAStatus()
+	s, err := clusteragent.GetAndFormatStatus()
 	if err != nil {
 		log.Infof("Error zipping the status: %q", err)
 		return err
@@ -166,7 +167,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 		return err
 	}
 
-	str, err := status.FormatMetadataMapCLI(metaBytes)
+	str, err := clusteragent.FormatMetadataMap(metaBytes)
 	if err != nil {
 		log.Infof("Error while rendering the cluster level metadata: %q", err)
 		return err
@@ -190,14 +191,14 @@ func zipMetadataMap(tempDir, hostname string) error {
 func zipHPAStatus(tempDir, hostname string) error {
 	// Grab the full content of the HPA configmap
 	stats := make(map[string]interface{})
-	stats["hpaExternal"] = status.GetHorizontalPodAutoscalingStatus()
+	stats["custommetrics"] = custommetrics.GetStatus()
 	statsBytes, err := json.Marshal(stats)
 	if err != nil {
 		log.Infof("Error while marshalling the cluster level metadata: %q", err)
 		return err
 	}
 
-	str, err := status.FormatHPAStatus(statsBytes)
+	str, err := clusteragent.FormatHPAStatus(statsBytes)
 	if err != nil {
 		return err
 	}
