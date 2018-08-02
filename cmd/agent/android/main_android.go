@@ -10,6 +10,7 @@ package ddandroid
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 
 	ddapp "github.com/StackVista/stackstate-agent/cmd/agent/app"
 	"github.com/StackVista/stackstate-agent/pkg/status"
@@ -52,19 +53,17 @@ func readAsset(name string) ([]byte, error) {
 }
 
 func AndroidMain() {
-	//readAsset("android.yaml")
+	readAsset("android.yaml")
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
 
-	/*
-		var ae androidEnv
-		ae.read()
-		if len(ae.Cfgpath) != 0 {
-			log.Printf("Setting config path to %s", ae.Cfgpath)
-			ddapp.SetCfgPath(ae.Cfgpath)
-		}
-	*/
-	ddapp.SetCfgPath("/data/datadog-agent")
+	var ae androidEnv
+	ae.read()
+	if len(ae.Cfgpath) != 0 {
+		log.Printf("Setting config path to %s", ae.Cfgpath)
+		ddapp.SetCfgPath(ae.Cfgpath)
+	}
+	//ddapp.SetCfgPath("/data/datadog-agent")
 	ddapp.StartAgent()
 }
 

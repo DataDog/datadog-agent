@@ -29,14 +29,16 @@ The agent is highly customizable, here are the most used environment variables:
 
 #### Proxies
 
-The agent proxy settings can be overridden with the standard `*_PROXY`
+Starting with Agent v6.4.0, the agent proxy settings can be overridden with the following
 environment variables:
 
-- `HTTP_PROXY`: an http URL to use as a proxy for `http` requests.
-- `HTTPS_PROXY`: an http URL to use as a proxy for `https` requests.
-- `NO_PROXY`: a comma-separated list of URLs for which no proxy should be used.
+- `DD_PROXY_HTTP`: an http URL to use as a proxy for `http` requests.
+- `DD_PROXY_HTTPS`: an http URL to use as a proxy for `https` requests.
+- `DD_PROXY_NO_PROXY`: a space-separated list of URLs for which no proxy should be used.
 
-Notice: these variables don't use the `DD_` prefix.
+Note: At the moment, the trace-agent only supports setting a proxy in `datadog.yaml`, and does not
+support these proxy environment variables. If you wish to set a proxy for trace-agent, please refer
+to the [section on mounting a custom datadog.yaml](#others).
 
 For more information: https://docs.datadoghq.com/agent/proxy/#agent-v6
 

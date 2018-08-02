@@ -104,8 +104,8 @@ def install(ctx, rebuild=False, race=False, build_include=None, build_exclude=No
     """
     if not skip_build:
         build(ctx, rebuild, race, build_include, build_exclude)
-        sign_apk(ctx)
 
+    sign_apk(ctx)
     cmd = "adb install -r bin/agent/ddagent-release-signed.apk"
     ctx.run(cmd)
 

@@ -33,8 +33,9 @@ default_version integrations_core_version
 
 
 blacklist = [
-  'datadog_checks_base',  # namespacing package for wheels (NOT AN INTEGRATION)
-  'datadog_checks_dev',   # Development package, (NOT AN INTEGRATION)
+  'datadog_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
+  'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
+  'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
   'agent_metrics',
   'docker_daemon',
   'kubernetes',
@@ -88,7 +89,7 @@ build do
     all_reqs_file.puts "pympler==0.5 --hash=sha256:7d16c4285f01dcc647f69fb6ed4635788abc7a7cb7caa0065d763f4ce3d21c0f"
     all_reqs_file.puts "wheel==0.30.0 --hash=sha256:e721e53864f084f956f40f96124a74da0631ac13fbbd1ba99e8e2b5e9cafdf64"\
     " --hash=sha256:9515fe0a94e823fd90b08d22de45d7bde57c90edce705b22f5e1ecf7e1b653c8"
-    
+
     all_reqs_file.close
 
     # Install all the requirements
@@ -105,8 +106,8 @@ build do
      end
 
     # Set frozen requirements (save to var, and to file)
-    # HACK: we need to do this like this due to the well known issues with omnibus 
-    # runtime requirements.  
+    # HACK: we need to do this like this due to the well known issues with omnibus
+    # runtime requirements.
     if windows?
       freeze_mixin = shellout!("#{windows_safe_path(install_dir)}\\embedded\\Scripts\\pip.exe freeze")
       frozen_agent_reqs = freeze_mixin.stdout
@@ -184,7 +185,6 @@ build do
       manifest['supported_os'].include?(os) || next
 
       check_conf_dir = "#{conf_dir}/#{check}.d"
-      mkdir check_conf_dir unless File.exist? check_conf_dir
 
       # For each conf file, if it already exists, that means the `datadog-agent` software def
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
@@ -192,6 +192,7 @@ build do
       # Copy the check config to the conf directories
       conf_file_example = "#{check_dir}/datadog_checks/#{check}/data/conf.yaml.example"
       if File.exist? conf_file_example
+        mkdir check_conf_dir
         copy conf_file_example, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
       end
 

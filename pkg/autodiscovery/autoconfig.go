@@ -332,6 +332,9 @@ func (ac *AutoConfig) pollConfigs() {
 			case <-ac.health.C:
 			case <-ac.configsPollTicker.C:
 				// check if services tags are up to date
+				var servicesToRefresh []listeners.Service
+				// locking the configresolver to loop on services
+				ac.configResolver.m.Lock()
 				for _, service := range ac.configResolver.services {
 					previousHash := ac.store.getTagsHashForService(service.GetID())
 					// TODO: harmonize service & entities ID
@@ -341,11 +344,15 @@ func (ac *AutoConfig) pollConfigs() {
 					}
 					currentHash := tagger.GetEntityHash(entityName)
 					if currentHash != previousHash {
-						log.Debugf("Tags changed for service %s, rescheduling associated checks", string(service.GetID()))
-						ac.configResolver.processDelService(service)
-						ac.configResolver.processNewService(service)
+						servicesToRefresh = append(servicesToRefresh, service)
 						ac.store.setTagsHashForService(service.GetID(), currentHash)
 					}
+				}
+				ac.configResolver.m.Unlock()
+				for _, service := range servicesToRefresh {
+					log.Debugf("Tags changed for service %s, rescheduling associated checks", string(service.GetID()))
+					ac.configResolver.processDelService(service)
+					ac.configResolver.processNewService(service)
 				}
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
