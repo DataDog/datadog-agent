@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseJSONStringWithValidFormatShouldSucceed(t *testing.T) {
+func TestParseJSONWithValidFormatShouldSucceed(t *testing.T) {
 	var configs []*LogsConfig
 	var config *LogsConfig
 	var err error
@@ -21,11 +21,12 @@ func TestParseJSONStringWithValidFormatShouldSucceed(t *testing.T) {
 	config = configs[0]
 	assert.NotNil(t, config)
 
-	configs, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service"}]`))
+	configs, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service","tags":["a","b:d"]}]`))
 	assert.Nil(t, err)
 	config = configs[0]
 	assert.Equal(t, "any_source", config.Source)
 	assert.Equal(t, "any_service", config.Service)
+	assert.Equal(t, []string{"a", "b:d"}, config.Tags)
 
 	configs, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`))
 	assert.Nil(t, err)
@@ -39,7 +40,7 @@ func TestParseJSONStringWithValidFormatShouldSucceed(t *testing.T) {
 	assert.Equal(t, "numbers", rule.Name)
 }
 
-func TestParseJSONStringWithInvalidFormatShouldFail(t *testing.T) {
+func TestParseJSONWithInvalidFormatShouldFail(t *testing.T) {
 	invalidFormats := []string{
 		"``",
 		`{}`,

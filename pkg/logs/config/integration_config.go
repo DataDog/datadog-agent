@@ -84,6 +84,9 @@ func validateProcessingRules(rules []LogsProcessingRule) (bool, error) {
 		if rule.Name == "" {
 			return false, fmt.Errorf("all processing rules must have a name")
 		}
+		if rule.Pattern == "" {
+			return false, fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+		}
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
 			continue
@@ -100,9 +103,6 @@ func validateProcessingRules(rules []LogsProcessingRule) (bool, error) {
 func Compile(config *LogsConfig) error {
 	rules := config.ProcessingRules
 	for i, rule := range rules {
-		if rule.Pattern == "" {
-			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
-		}
 		re, err := regexp.Compile(rule.Pattern)
 		if err != nil {
 			return err
