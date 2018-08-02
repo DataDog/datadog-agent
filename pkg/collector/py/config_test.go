@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"

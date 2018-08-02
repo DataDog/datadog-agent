@@ -8,8 +8,8 @@
 package collector
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/collector/py"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	python "github.com/sbinet/go-python"
 )
 

@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 )
 
 // Message represents a docker message

@@ -9,8 +9,8 @@ package ecs
 
 import (
 	payload "github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/StackVista/stackstate-agent/pkg/metadata"
+	"github.com/StackVista/stackstate-agent/pkg/util/ecs"
 )
 
 // GetPayload returns a payload.ECSMetadataPayload with metadata about the state

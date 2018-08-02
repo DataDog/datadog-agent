@@ -9,8 +9,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // LoaderFactory helps to defer actual instantiation of Check Loaders,

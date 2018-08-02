@@ -13,10 +13,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/StackVista/stackstate-agent/cmd/agent/common/signals"
+	"github.com/StackVista/stackstate-agent/pkg/util/executable"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	python "github.com/sbinet/go-python"
 )
 

@@ -20,8 +20,8 @@ import (
 	"github.com/fatih/color"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/legacy"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/legacy"
 )
 
 // ImportConfig imports the agent5 configuration into the agent6 yaml config

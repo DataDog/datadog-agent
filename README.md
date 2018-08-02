@@ -1,14 +1,11 @@
-# Datadog Agent
+# StackState Agent
 
-[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/master.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/master)
-[![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/master?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/master)
-[![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
-[![Go Report Card](https://goreportcard.com/badge/github.com/DataDog/datadog-agent)](https://goreportcard.com/report/github.com/DataDog/datadog-agent)
+[![CircleCI](https://circleci.com/gh/StackVista/stackstate-agent/tree/master.svg?style=svg)](https://circleci.com/gh/StackVista/stackstate-agent/tree/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/master?svg=true)](https://ci.appveyor.com/project/StackVista/stackstate-agent/branch/master)
+[![GoDoc](https://godoc.org/github.com/StackVista/stackstate-agent?status.svg)](https://godoc.org/github.com/StackVista/stackstate-agent)
+[![Go Report Card](https://goreportcard.com/badge/github.com/StackVista/stackstate-agent)](https://goreportcard.com/report/github.com/StackVista/stackstate-agent)
 
-The present repository contains the source code of the Datadog Agent version 6. Please refer to the [Agent user documentation](docs/agent) for information about differences between Agent 5 and Agent 6. Additionally, we provide a list of prepackaged binaries for an easy install process [here](https://app.datadoghq.com/account/settings#agent)
-
-**Note:** the source code of Datadog Agent 5 is located in the
-[dd-agent](https://github.com/DataDog/dd-agent) repository.
+The present repository contains the source code of the StackState Agent version 6.
 
 ## Documentation
 
@@ -29,8 +26,8 @@ to see the available tasks.
 
 To start working on the Agent, you can build the `master` branch:
 
-1. checkout the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
-2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
+1. checkout the repo: `git clone https://github.com/StackVista/stackstate-agent.git $GOPATH/src/github.com/StackVista/stackstate-agent`.
+2. cd into the project folder: `cd $GOPATH/src/github.com/StackVista/stackstate-agent`.
 3. install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
 4. build the whole project with `invoke agent.build --build-exclude=snmp,systemd`

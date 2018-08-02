@@ -13,13 +13,13 @@ import (
 	"net/http"
 	"os"
 
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster"
+	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/network"
+	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/system"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/app"
+	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/app"
 )
 
 func main() {

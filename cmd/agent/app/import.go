@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

@@ -65,3 +65,5 @@ cmd/agent/android/app/build
 
 # local copy of device signing cert
 platform.pk8
+
+p-env/

@@ -6,8 +6,8 @@
 package mock
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
 )
 
 // mockProvider mocks pipeline providing logic

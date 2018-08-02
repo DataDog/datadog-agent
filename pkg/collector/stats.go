@@ -8,7 +8,7 @@ package collector
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 )
 
 // collectorErrors holds the error objects

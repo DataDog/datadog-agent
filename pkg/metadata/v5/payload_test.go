@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
+	"github.com/StackVista/stackstate-agent/pkg/metadata/gohai"
 	"github.com/stretchr/testify/require"
 )
 

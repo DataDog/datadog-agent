@@ -14,7 +14,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/StackVista/stackstate-agent/pkg/serializer/marshaler"
 )
 
 // ServiceCheckStatus represents the status associated with a service check

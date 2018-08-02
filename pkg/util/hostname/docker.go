@@ -7,7 +7,7 @@
 
 package hostname
 
-import "github.com/DataDog/datadog-agent/pkg/util/docker"
+import "github.com/StackVista/stackstate-agent/pkg/util/docker"
 
 func init() {
 	RegisterHostnameProvider("docker", docker.HostnameProvider)

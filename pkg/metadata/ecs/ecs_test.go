@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	payload "github.com/DataDog/agent-payload/gogen"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	ecsutil "github.com/StackVista/stackstate-agent/pkg/util/ecs"
 	"github.com/stretchr/testify/assert"
 )
 

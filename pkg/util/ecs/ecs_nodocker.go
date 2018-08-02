@@ -7,7 +7,7 @@
 
 package ecs
 
-import "github.com/DataDog/datadog-agent/pkg/util/docker"
+import "github.com/StackVista/stackstate-agent/pkg/util/docker"
 
 // GetUtil returns an ECS util
 func GetUtil() (*Util, error) {

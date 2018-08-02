@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
 )
 

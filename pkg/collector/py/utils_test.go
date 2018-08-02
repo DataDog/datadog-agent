@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 )
 
 // Setup the test module

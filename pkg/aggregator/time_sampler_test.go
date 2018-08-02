@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	// project
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/ckey"
+	"github.com/StackVista/stackstate-agent/pkg/metrics"
 )
 
 type OrderedSeries struct {

@@ -6,17 +6,17 @@
 package logs
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/windowsevent"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/docker"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/file"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/journald"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/listener"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/windowsevent"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
+	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
+	"github.com/StackVista/stackstate-agent/pkg/logs/sender"
 )
 
 // Agent represents the data pipeline that collects, decodes,

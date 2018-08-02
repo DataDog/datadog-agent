@@ -8,7 +8,7 @@ package agentchecks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+	"github.com/StackVista/stackstate-agent/pkg/metadata/externalhost"
 	"github.com/stretchr/testify/assert"
 )
 

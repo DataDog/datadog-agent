@@ -11,7 +11,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
+	"github.com/StackVista/stackstate-agent/pkg/collector/py"
 	python "github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 )

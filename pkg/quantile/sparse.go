@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
+	"github.com/StackVista/stackstate-agent/pkg/quantile/summary"
 )
 
 // A Sketch for tracking quantiles

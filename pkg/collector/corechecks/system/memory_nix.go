@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/mem"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator"
+	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 )
 
 // For testing purpose

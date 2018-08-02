@@ -8,9 +8,9 @@ package tagger
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/StackVista/stackstate-agent/cmd/agent/api/response"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
 )
 
 // defaultTagger is the shared tagger instance backing the global Tag and Init functions

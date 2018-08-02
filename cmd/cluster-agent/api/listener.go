@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 // getListener returns a listening connection

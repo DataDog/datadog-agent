@@ -13,9 +13,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
 )
 
 // setup sets up the file tailer

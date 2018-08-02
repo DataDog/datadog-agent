@@ -13,7 +13,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/integration/utils"
+	"github.com/StackVista/stackstate-agent/test/integration/utils"
 )
 
 const (

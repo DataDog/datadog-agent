@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	taggerutil "github.com/StackVista/stackstate-agent/pkg/tagger/utils"
+	ecsutil "github.com/StackVista/stackstate-agent/pkg/util/ecs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

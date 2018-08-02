@@ -8,8 +8,8 @@ package sender
 import (
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // A Sender sends messages from an inputChan to datadog's intake,
