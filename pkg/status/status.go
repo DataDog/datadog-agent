@@ -12,6 +12,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/render"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,8 +30,7 @@ import (
 // GetStatus returns status info for the Datadog Agent.
 func GetStatus() (map[string]interface{}, error) {
 	status := make(map[string]interface{})
-	status = SetExpvarStats(status)
-
+	status = expvarStats(status)
 	status["version"] = version.AgentVersion
 	hostname, err := util.GetHostname()
 	if err != nil {
@@ -114,27 +116,11 @@ func getPartialConfig() map[string]string {
 	return conf
 }
 
-// SetExpvarStats sets expvar stats info for the Datadog Agent.
-func SetExpvarStats(stats map[string]interface{}) map[string]interface{} {
-	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
-	forwarderStats := make(map[string]interface{})
-	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
-	stats["forwarderStats"] = forwarderStats
-
-	runnerStatsJSON := []byte(expvar.Get("runner").String())
-	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats)
-	stats["runnerStats"] = runnerStats
-
-	autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
-	autoConfigStats := make(map[string]interface{})
-	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats)
-	stats["autoConfigStats"] = autoConfigStats
-
-	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
-	checkSchedulerStats := make(map[string]interface{})
-	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats)
-	stats["checkSchedulerStats"] = checkSchedulerStats
+func expvarStats(stats map[string]interface{}) map[string]interface{} {
+	stats["forwarderStats"] = forwarder.GetStatus()
+	stats["runnerStats"] = collector.GetRunnerStatus()
+	stats["autoConfigStats"] = autodiscovery.GetAutoConfigStatus()
+	stats["checkSchedulerStats"] = collector.GetCheckSchedulerStatus()
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})

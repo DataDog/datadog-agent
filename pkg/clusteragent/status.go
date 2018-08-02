@@ -5,11 +5,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/render"
-	agentstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,7 +21,10 @@ import (
 // GetStatus returns status info for the Datadog Cluster Agent.
 func GetStatus() map[string]interface{} {
 	status := make(map[string]interface{})
-	status = agentstatus.SetExpvarStats(status)
+	status["forwarderStats"] = forwarder.GetStatus()
+	status["runnerStats"] = collector.GetRunnerStatus()
+	status["autoConfigStats"] = autodiscovery.GetAutoConfigStatus()
+	status["checkSchedulerStats"] = collector.GetCheckSchedulerStatus()
 	status["config"] = getPartialConfig()
 	status["conf_file"] = config.Datadog.ConfigFileUsed()
 	status["version"] = version.DCAVersion
