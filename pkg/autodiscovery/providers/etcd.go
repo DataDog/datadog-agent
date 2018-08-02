@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// Etcd represents the name of the config provider
+const Etcd = "etcd"
+
 type etcdBackend interface {
 	Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error)
 }
@@ -187,7 +190,7 @@ func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 
 // String returns a string representation of the EtcdConfigProvider
 func (p *EtcdConfigProvider) String() string {
-	return "etcd Configuration Provider"
+	return Etcd
 }
 
 // hasTemplateFields verifies that a node array contains

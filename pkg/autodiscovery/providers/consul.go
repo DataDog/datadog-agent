@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// Consul represents the name of the config provider
+const Consul = "Consul"
+
 // Abstractions for testing
 type consulKVBackend interface {
 	Keys(prefix, separator string, q *consul.QueryOptions) ([]string, *consul.QueryMeta, error)
@@ -99,7 +102,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the ConsulConfigProvider
 func (p *ConsulConfigProvider) String() string {
-	return "consul Configuration Provider"
+	return Consul
 }
 
 // Collect retrieves templates from consul, builds Config objects and returns them

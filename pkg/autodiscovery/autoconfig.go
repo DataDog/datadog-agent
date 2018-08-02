@@ -169,7 +169,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	for _, pd := range ac.providers {
 		cfgs, err := pd.provider.Collect()
 		if err != nil {
-			log.Debugf("Unexpected error returned when collecting provider %s: %v", pd.provider.String(), err)
+			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
 		}
 
 		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
@@ -364,10 +364,10 @@ func (ac *AutoConfig) pollConfigs() {
 					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outdated.
 					upToDate, err := pd.provider.IsUpToDate()
 					if err != nil {
-						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
+						log.Errorf("cache processing of %v configuration provider failed: %v", pd.provider, err)
 					}
 					if upToDate == true {
-						log.Debugf("No modifications in the templates stored in %q ", pd.provider.String())
+						log.Debugf("No modifications in the templates stored in %v configuration provider", pd.provider)
 						continue
 					}
 
