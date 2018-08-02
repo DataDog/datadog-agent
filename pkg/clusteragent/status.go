@@ -19,10 +19,7 @@ import (
 // GetStatus returns status info for the Datadog Cluster Agent.
 func GetStatus() map[string]interface{} {
 	status := make(map[string]interface{})
-	status, err := agentstatus.AddExpvarStats(status)
-	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
-	}
+	status = agentstatus.SetExpvarStats(status)
 	status["config"] = getPartialConfig()
 	status["conf_file"] = config.Datadog.ConfigFileUsed()
 	status["version"] = version.DCAVersion

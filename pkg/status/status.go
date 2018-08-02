@@ -24,45 +24,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// GetStatus grabs the status from expvar and puts it into a map
+// GetStatus returns status info for the Datadog Agent.
 func GetStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := AddExpvarStats(stats)
-	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
-	}
+	status := make(map[string]interface{})
+	status = SetExpvarStats(status)
 
-	stats["version"] = version.AgentVersion
+	status["version"] = version.AgentVersion
 	hostname, err := util.GetHostname()
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache("unknown")
+		status["metadata"] = host.GetPayloadFromCache("unknown")
 	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostname)
+		status["metadata"] = host.GetPayloadFromCache(hostname)
 	}
 
-	stats["config"] = getPartialConfig()
-	stats["conf_file"] = config.Datadog.ConfigFileUsed()
+	status["config"] = getPartialConfig()
+	status["conf_file"] = config.Datadog.ConfigFileUsed()
 
 	platformPayload, err := getPlatformPayload()
 	if err != nil {
 		return nil, err
 	}
-	stats["pid"] = os.Getpid()
-	stats["platform"] = platformPayload
-	stats["hostinfo"] = host.GetStatusInformation()
+	status["pid"] = os.Getpid()
+	status["platform"] = platformPayload
+	status["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
-	stats["time"] = now.Format(render.TimeFormat)
+	status["time"] = now.Format(render.TimeFormat)
 
-	stats["JMXStatus"] = GetJMXStatus()
+	status["JMXStatus"] = GetJMXStatus()
 
-	stats["logsStats"] = logs.GetStatus()
+	status["logsStats"] = logs.GetStatus()
 
 	if config.Datadog.GetBool("cluster_agent.enabled") {
-		stats["clusterAgentStatus"] = clusteragent.GetStatus()
+		status["clusterAgentStatus"] = clusteragent.GetStatus()
 	}
 
-	return stats, nil
+	return status, nil
 }
 
 // GetAndFormatStatus gets and formats the status all in one go
@@ -117,9 +114,8 @@ func getPartialConfig() map[string]string {
 	return conf
 }
 
-// AddExpvarStats adds expvar stats for the Datadog Agent to the status info.
-func AddExpvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
-	var err error
+// SetExpvarStats sets expvar stats info for the Datadog Agent.
+func SetExpvarStats(stats map[string]interface{}) map[string]interface{} {
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
@@ -155,9 +151,13 @@ func AddExpvarStats(stats map[string]interface{}) (map[string]interface{}, error
 		stats["pyLoaderStats"] = nil
 	}
 
+	var err error
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
+		if err != nil {
+			log.Errorf("Error Getting ExpVar Stats: %v", err)
+		}
 	}
 
-	return stats, err
+	return stats
 }

@@ -39,7 +39,7 @@ func FormatTemplate(data []byte, tmplFile string) (string, error) {
 	return buf.String(), nil
 }
 
-// Template compiles and executes the specified go template with the status info.
+// Template renders the specified go template with the status info.
 func Template(w io.Writer, tmplFile string, status interface{}) {
 	t := template.Must(template.New(tmplFile).Funcs(fmap).ParseFiles(filepath.Join(templateFolder, tmplFile)))
 	err := t.Execute(w, status)
@@ -48,7 +48,7 @@ func Template(w io.Writer, tmplFile string, status interface{}) {
 	}
 }
 
-// ChecksStats compiles and executes the specified go template with the check stats info.
+// ChecksStats renders the collector template with the check stats info.
 func ChecksStats(w io.Writer, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
