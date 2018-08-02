@@ -8,11 +8,11 @@
 package cluster
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"testing"
 
+	json "github.com/json-iterator/go"
 	osq "github.com/openshift/api/quota/v1"
 	"github.com/stretchr/testify/require"
 
