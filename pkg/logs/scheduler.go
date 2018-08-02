@@ -6,7 +6,10 @@
 package logs
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -14,17 +17,20 @@ import (
 
 // Scheduler registers to autodiscovery to schedule/unschedule log-collection.
 type Scheduler struct {
+	sources *config.LogSources
 }
 
 // NewScheduler returns a new scheduler.
-func NewScheduler() *Scheduler {
-	return &Scheduler{}
+func NewScheduler(sources *config.LogSources) *Scheduler {
+	return &Scheduler{
+		sources: sources,
+	}
 }
 
-// Start does nothing
+// Start does nothing.
 func (s *Scheduler) Start() {}
 
-// Stop does nothing
+// Stop does nothing.
 func (s *Scheduler) Stop() {}
 
 // Schedule creates new log-sources from configs.
@@ -40,57 +46,54 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			continue
 		}
 		for _, source := range sources {
-			log.Infof("Adding source: %v", source)
+			s.sources.AddSource(source)
 		}
 	}
 }
 
-// Unschedule invalidates all the log-sources coresponding to the configs.
-func (s *Scheduler) Unschedule(configs []integration.Config) {
-	for _, config := range configs {
-		if !s.isLogConfig(config) {
-			continue
-		}
-		log.Infof("Must invalidate logs-config for integration: %v", config.Name)
-	}
-}
+// Unschedule does nothing.
+func (s *Scheduler) Unschedule(configs []integration.Config) {}
 
 // isLogConfig returns true if config contains a logs config.
 func (s *Scheduler) isLogConfig(config integration.Config) bool {
 	return config.LogsConfig != nil
 }
 
-// toSources creates a new logs-source,
-// if the parsing failed, returns an error.
+// toSources creates new logs-sources from an integration config,
+// returns an error if the parsing failed.
 func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.LogSource, error) {
 	var configs []*config.LogsConfig
 	var err error
-	switch config.Provider {
+
+	switch integrationConfig.Provider {
 	case providers.File:
 		configs, err = config.ParseYaml(integrationConfig.LogsConfig)
 	case providers.Docker, providers.Kubernetes:
-		configs, err = config.ParseJSON(cfg.LogsConfig)
+		configs, err = config.ParseJSON(integrationConfig.LogsConfig)
 	default:
-		return nil, fmt.Errorf("parsing logs-config from provider %v is not supported yet.", config.Provider)
+		return nil, fmt.Errorf("parsing logs-config from %v is not supported yet.", integrationConfig.Provider)
 	}
 	if err != nil {
 		return nil, err
 	}
+
 	var validConfigs []*config.LogsConfig
 	for _, cfg := range configs {
 		if isValid, err := config.Validate(cfg); !isValid {
-			log.Warn(err)
+			log.Warnf("Invalid logs configuration: %v", err)
 			continue
 		}
 		if err := config.Compile(cfg); err != nil {
-			log.Warn(err)
+			log.Warnf("Could not compile logs configuration: %v", err)
 			continue
 		}
 		validConfigs = append(validConfigs, cfg)
 	}
+
 	var sources []*config.LogSource
 	for _, cfg := range configs {
 		sources = append(sources, config.NewLogSource(integrationConfig.Name, cfg))
 	}
+
 	return sources, nil
 }

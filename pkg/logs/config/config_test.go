@@ -29,23 +29,17 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.logs_no_ssl"))
 }
 
-func TestBuildLogsSources(t *testing.T) {
+func TestBuild(t *testing.T) {
 	var sources *LogSources
 	var source *LogSource
-	var err error
 
 	// should return an error
-	sources, err = buildLogSources("", false, -1)
-	assert.NotNil(t, err)
-
-	// should not return an error
-	sources, err = buildLogSources("", true, -1)
-	assert.Nil(t, err)
+	sources, _, _ = Build()
 	assert.Equal(t, 0, len(sources.GetValidSources()))
 
 	// should return the tcp forward source
-	sources, err = buildLogSources("", false, 1234)
-	assert.Nil(t, err)
+	LogsAgent.Set("logs_config.tcp_forward_port", 1234)
+	sources = Build()
 	assert.Equal(t, 1, len(sources.GetValidSources()))
 	source = sources.GetValidSources()[0]
 	assert.Equal(t, "tcp_forward", source.Name)
