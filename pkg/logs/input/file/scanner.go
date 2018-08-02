@@ -24,7 +24,7 @@ const scanPeriod = 10 * time.Second
 // Scanner checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Scanner struct {
-	pp                  pipeline.Provider
+	pipelineProvider    pipeline.Provider
 	tailingLimit        int
 	fileProvider        *Provider
 	tailers             map[string]*Tailer
@@ -34,19 +34,11 @@ type Scanner struct {
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor, tailerSleepDuration time.Duration) *Scanner {
-	tailSources := []*config.LogSource{}
-	for _, source := range sources {
-		switch source.Config.Type {
-		case config.FileType:
-			tailSources = append(tailSources, source)
-		default:
-		}
-	}
+func New(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, auditor *auditor.Auditor, tailerSleepDuration time.Duration) *Scanner {
 	return &Scanner{
-		pp:                  pp,
+		pipelineProvider:    pipelineProvider,
 		tailingLimit:        tailingLimit,
-		fileProvider:        NewProvider(tailSources, tailingLimit),
+		fileProvider:        NewProvider(sources, tailingLimit),
 		tailers:             make(map[string]*Tailer),
 		auditor:             auditor,
 		tailerSleepDuration: tailerSleepDuration,
@@ -90,7 +82,7 @@ func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tai
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise
 func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
-	tailer := s.createTailer(file, s.pp.NextPipelineChan())
+	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
 	offset := s.auditor.GetLastCommittedOffset(tailer.Identifier())
 	value, err := strconv.ParseInt(offset, 10, 64)
 	if err != nil {

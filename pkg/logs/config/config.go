@@ -53,9 +53,10 @@ func buildLogSources(ddconfdPath string, collectAllLogsFromContainers bool, tcpF
 		sources = append(sources, tcpForwardSource)
 	}
 
-	logSources := &LogSources{sources}
+	logSources := NewLogSources(sources)
 	if len(logSources.GetValidSources()) == 0 {
 		return nil, fmt.Errorf("could not find any valid logs configuration")
 	}
+
 	return logSources, nil
 }

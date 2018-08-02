@@ -23,23 +23,23 @@ const defaultTimeout = time.Minute
 
 // A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
 type TCPListener struct {
-	pp        pipeline.Provider
-	source    *config.LogSource
-	frameSize int
-	listener  net.Listener
-	tailers   []*Tailer
-	mu        sync.Mutex
-	stop      chan struct{}
+	pipelineProvider pipeline.Provider
+	source           *config.LogSource
+	frameSize        int
+	listener         net.Listener
+	tailers          []*Tailer
+	mu               sync.Mutex
+	stop             chan struct{}
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pp pipeline.Provider, source *config.LogSource, frameSize int) *TCPListener {
+func NewTCPListener(pipelineProvider pipeline.Provider, source *config.LogSource, frameSize int) *TCPListener {
 	return &TCPListener{
-		pp:        pp,
-		source:    source,
-		frameSize: frameSize,
-		tailers:   []*Tailer{},
-		stop:      make(chan struct{}, 1),
+		pipelineProvider: pipelineProvider,
+		source:           source,
+		frameSize:        frameSize,
+		tailers:          []*Tailer{},
+		stop:             make(chan struct{}, 1),
 	}
 }
 
@@ -128,7 +128,7 @@ func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
 func (l *TCPListener) startNewTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tailer := NewTailer(l.source, conn, l.pp.NextPipelineChan(), l.read)
+	tailer := NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
 	l.tailers = append(l.tailers, tailer)
 	tailer.Start()
 }
