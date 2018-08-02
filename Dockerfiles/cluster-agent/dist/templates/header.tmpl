@@ -28,6 +28,14 @@
     {{$name}}: {{$value}}
     {{- end }}
   {{- end }}
+      hostname provider: {{.hostnameStats.provider}}
+  {{- range $name, $value := .hostnameStats.errors -}}
+    {{- if ne $name "all" }}
+    error: {{$name}}: {{$value}}
+    {{- else }}
+    error: {{$value}}
+    {{- end}}
+  {{- end }}
 
   Leader Election
   ===============
