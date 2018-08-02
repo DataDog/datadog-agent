@@ -132,6 +132,14 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 				log.Errorf("'%s' python wheel attribute '__version__' has the wrong type (%s) instead of 'string'", config.Name, typeName)
 			}
 		} else {
+			// GetAttrString will set an error in the interpreter
+			// if __version__ doesn't exist. We purge it here.
+			pyErr, err = glock.getPythonError()
+			if err != nil {
+				log.Errorf("An error occurred while retrieving the python check version and couldn't be formatted: %v", err)
+			} else {
+				log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, errors.New(pyErr))
+			}
 			log.Infof("python check '%s' doesn't have a '__version__' attribute", config.Name)
 		}
 	}

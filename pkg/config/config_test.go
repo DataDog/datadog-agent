@@ -166,7 +166,7 @@ func TestEnvNestedConfig(t *testing.T) {
 	os.Unsetenv("DD_FOO_BAR_NESTED")
 }
 
-func TestLoadProxyFromEnvNoValue(t *testing.T) {
+func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
 	// circleCI set some proxy setting
 	ciValue := os.Getenv("NO_PROXY")
 	os.Unsetenv("NO_PROXY")
@@ -195,11 +195,11 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	assert.Equal(t, p, proxies)
 }
 
-func TestLoadProxyEnvOnly(t *testing.T) {
+func TestLoadProxyStdEnvOnly(t *testing.T) {
 	// uppercase
 	os.Setenv("HTTP_PROXY", "http_url")
 	os.Setenv("HTTPS_PROXY", "https_url")
-	os.Setenv("NO_PROXY", "a,b,c")
+	os.Setenv("NO_PROXY", "a,b,c") // comma-separated list
 
 	loadProxyFromEnv()
 
@@ -219,7 +219,7 @@ func TestLoadProxyEnvOnly(t *testing.T) {
 	// lowercase
 	os.Setenv("http_proxy", "http_url2")
 	os.Setenv("https_proxy", "https_url2")
-	os.Setenv("no_proxy", "1,2,3")
+	os.Setenv("no_proxy", "1,2,3") // comma-separated list
 
 	loadProxyFromEnv()
 	proxies = GetProxies()
@@ -236,8 +236,56 @@ func TestLoadProxyEnvOnly(t *testing.T) {
 	Datadog.Set("proxy", nil)
 }
 
-func TestLoadProxyEnvAndConf(t *testing.T) {
-	os.Setenv("HTTP", "http_env")
+func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
+	os.Setenv("DD_PROXY_HTTP", "http_url")
+	os.Setenv("DD_PROXY_HTTPS", "https_url")
+	os.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
+
+	loadProxyFromEnv()
+
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "http_url",
+			HTTPS:   "https_url",
+			NoProxy: []string{"a", "b", "c"}},
+		proxies)
+
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+	Datadog.Set("proxy", nil)
+}
+
+func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
+	os.Setenv("DD_PROXY_HTTP", "dd_http_url")
+	os.Setenv("DD_PROXY_HTTPS", "dd_https_url")
+	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
+	os.Setenv("HTTP_PROXY", "env_http_url")
+	os.Setenv("HTTPS_PROXY", "env_https_url")
+	os.Setenv("NO_PROXY", "d,e,f")
+
+	loadProxyFromEnv()
+
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "dd_http_url",
+			HTTPS:   "dd_https_url",
+			NoProxy: []string{"a", "b", "c"}},
+		proxies)
+
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+	Datadog.Set("proxy", nil)
+}
+
+func TestLoadProxyStdEnvAndConf(t *testing.T) {
+	os.Setenv("HTTP_PROXY", "http_env")
 	Datadog.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	Datadog.Set("proxy.http", "http_conf")
 	defer os.Unsetenv("HTTP")
@@ -247,8 +295,52 @@ func TestLoadProxyEnvAndConf(t *testing.T) {
 	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
-			HTTP:    "http_conf",
+			HTTP:    "http_env",
 			HTTPS:   "",
 			NoProxy: []string{"d", "e", "f"}},
 		proxies)
+}
+
+func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
+	os.Setenv("DD_PROXY_HTTP", "http_env")
+	Datadog.Set("proxy.no_proxy", []string{"d", "e", "f"})
+	Datadog.Set("proxy.http", "http_conf")
+	defer os.Unsetenv("DD_PROXY_HTTP")
+	defer Datadog.Set("proxy", nil)
+
+	loadProxyFromEnv()
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "http_env",
+			HTTPS:   "",
+			NoProxy: []string{"d", "e", "f"}},
+		proxies)
+}
+
+func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
+	os.Setenv("DD_PROXY_HTTP", "")
+	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
+	os.Setenv("HTTP_PROXY", "env_http_url")
+	os.Setenv("HTTPS_PROXY", "")
+	os.Setenv("NO_PROXY", "")
+	Datadog.Set("proxy.https", "https_conf")
+
+	loadProxyFromEnv()
+
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:    "",
+			HTTPS:   "",
+			NoProxy: []string{"a", "b", "c"}},
+		proxies)
+
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+	Datadog.Set("proxy", nil)
 }

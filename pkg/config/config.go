@@ -361,12 +361,23 @@ func loadProxyFromEnv() {
 	// the conf files, overwrite them with the env variables and reset
 	// everything.
 
-	getEnvCaseInsensitive := func(key string) string {
+	lookupEnvCaseInsensitive := func(key string) (string, bool) {
+		value, found := os.LookupEnv(key)
+		if !found {
+			value, found = os.LookupEnv(strings.ToLower(key))
+		}
+		if found {
+			log.Infof("Found '%v' env var, using it for the Agent proxy settings", key)
+		}
+		return value, found
+	}
+
+	lookupEnv := func(key string) (string, bool) {
 		value, found := os.LookupEnv(key)
 		if found {
-			return value
+			log.Infof("Found '%v' env var, using it for the Agent proxy settings", key)
 		}
-		return os.Getenv(strings.ToLower(key))
+		return value, found
 	}
 
 	var isSet bool
@@ -378,17 +389,28 @@ func loadProxyFromEnv() {
 		}
 	}
 
-	if HTTP := getEnvCaseInsensitive("HTTP_PROXY"); HTTP != "" {
+	if HTTP, found := lookupEnv("DD_PROXY_HTTP"); found {
+		isSet = true
+		p.HTTP = HTTP
+	} else if HTTP, found := lookupEnvCaseInsensitive("HTTP_PROXY"); found {
 		isSet = true
 		p.HTTP = HTTP
 	}
-	if HTTPS := getEnvCaseInsensitive("HTTPS_PROXY"); HTTPS != "" {
+
+	if HTTPS, found := lookupEnv("DD_PROXY_HTTPS"); found {
+		isSet = true
+		p.HTTPS = HTTPS
+	} else if HTTPS, found := lookupEnvCaseInsensitive("HTTPS_PROXY"); found {
 		isSet = true
 		p.HTTPS = HTTPS
 	}
-	if noProxy := getEnvCaseInsensitive("NO_PROXY"); noProxy != "" {
+
+	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
 		isSet = true
-		p.NoProxy = strings.Split(noProxy, ",")
+		p.NoProxy = strings.Split(noProxy, " ") // space-separated list, consistent with viper
+	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
+		isSet = true
+		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
 	// We have to set each value individually so both Datadog.Get("proxy")
