@@ -5,6 +5,10 @@ Cluster Agent tasks
 import os
 import glob
 import shutil
+import sys
+import re
+
+from datetime import date
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -123,3 +127,38 @@ def image_build(ctx):
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
+
+
+@task
+def add_prelude(ctx, new_version):
+    """
+    Add prelude releasenote for a new minor version of the Datadog Cluster Agent.
+    """
+    res = ctx.run("""echo 'prelude:
+    |
+    Release on: {1}'\
+    | EDITOR=tee reno -d releasenotes/cluster-agent new prelude-release-{0} --edit""".format(new_version, date.today()))
+
+    new_releasenote = re.search(r"(releasenotes/cluster-agent/notes/prelude-release-{0}-[\w]+.yaml)".format(new_version), res.stdout).groups()[0]
+    ctx.run("git add {}".format(new_releasenote))
+    ctx.run("git commit -m \"Add prelude for {} release\"".format(new_version))
+
+
+@task
+def update_changelog(ctx, new_version):
+    """
+    Update CHANGELOG for a new minor version of the Datadog Cluster Agent.
+    """
+    # let's check that the tag for the new version is present (needed by reno)
+    try:
+        ctx.run("git tag --list | grep {}".format(new_version))
+    except:
+        print("Missing '{}' git tag: mandatory to use 'reno'".format(new_version))
+        return
+
+    ctx.run("reno -d releasenotes/cluster-agent report \
+            --ignore-cache \
+            --no-show-source > CHANGELOG-DCA.rst")
+
+    ctx.run("git add CHANGELOG-DCA.rst")
+    ctx.run("git commit -m \"Update CHANGELOG for {} release\"".format(new_version))
