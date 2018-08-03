@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -142,10 +141,6 @@ func (m *MetadataController) updateEndpoints(old, cur interface{}) {
 	if !ok {
 		return
 	}
-	if apiequality.Semantic.DeepEqual(oldEndpoints.Subsets, newEndpoints.Subsets) {
-		log.Tracef("Endpoints subsets are equal for %s/%s, skipping update", newEndpoints.Namespace, newEndpoints.Name)
-		return
-	}
 	log.Tracef("Updating endpoints %s/%s", newEndpoints.Namespace, newEndpoints.Name)
 	m.enqueue(cur)
 }
@@ -257,7 +252,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 		metaBundle.m.Unlock()
 
 		cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-		if len(metaBundle.Services) == 0 {
+		if metaBundle.Empty() {
 			agentcache.Cache.Delete(cacheKey)
 			continue
 		}
@@ -286,7 +281,7 @@ func (m *MetadataController) mapDeletedEndpoints(namespace, svc string) error {
 		metaBundle.m.Unlock()
 
 		cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, node.Name)
-		if len(metaBundle.Services) == 0 {
+		if metaBundle.Empty() {
 			agentcache.Cache.Delete(cacheKey)
 			continue
 		}
