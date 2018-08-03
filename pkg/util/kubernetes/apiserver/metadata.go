@@ -130,10 +130,6 @@ func (m *MetadataController) addEndpoints(obj interface{}) {
 }
 
 func (m *MetadataController) updateEndpoints(old, cur interface{}) {
-	oldEndpoints, ok := old.(*corev1.Endpoints)
-	if !ok {
-		return
-	}
 	newEndpoints, ok := cur.(*corev1.Endpoints)
 	if !ok {
 		return
