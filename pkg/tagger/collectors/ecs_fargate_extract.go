@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,7 +47,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 
 			// container image
 			tags.AddLow("docker_image", ctr.Image)
-			imageName, shortImage, imageTag, err := docker.SplitImageName(ctr.Image)
+			imageName, shortImage, imageTag, err := containers.SplitImageName(ctr.Image)
 			if err != nil {
 				log.Debugf("Cannot split %s: %s", ctr.Image, err)
 			} else {
