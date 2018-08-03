@@ -66,37 +66,37 @@ type LogsConfig struct {
 }
 
 // Validate returns an error if the config is misconfigured
-func Validate(config *LogsConfig) (bool, error) {
+func Validate(config *LogsConfig) error {
 	switch {
 	case config.Type == FileType && config.Path == "":
-		return false, fmt.Errorf("file source must have a path")
+		return fmt.Errorf("file source must have a path")
 	case config.Type == TCPType && config.Port == 0:
-		return false, fmt.Errorf("tcp source must have a port")
+		return fmt.Errorf("tcp source must have a port")
 	case config.Type == UDPType && config.Port == 0:
-		return false, fmt.Errorf("udp source must have a port")
+		return fmt.Errorf("udp source must have a port")
 	}
 	return validateProcessingRules(config.ProcessingRules)
 }
 
 // validateProcessingRules checks the rules and raises errors if one is misconfigured
-func validateProcessingRules(rules []LogsProcessingRule) (bool, error) {
+func validateProcessingRules(rules []LogsProcessingRule) error {
 	for _, rule := range rules {
 		if rule.Name == "" {
-			return false, fmt.Errorf("all processing rules must have a name")
+			return fmt.Errorf("all processing rules must have a name")
 		}
 		if rule.Pattern == "" {
-			return false, fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
 		}
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
 			continue
 		case "":
-			return false, fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
+			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
 		default:
-			return false, fmt.Errorf("type %s is unsupported for processing rule `%s`", rule.Type, rule.Name)
+			return fmt.Errorf("type %s is unsupported for processing rule `%s`", rule.Type, rule.Name)
 		}
 	}
-	return true, nil
+	return nil
 }
 
 // Compile compiles all processing rules regular expression.

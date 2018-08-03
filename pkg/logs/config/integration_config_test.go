@@ -23,9 +23,8 @@ func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 	}
 
 	for _, config := range validConfigs {
-		isValid, err := Validate(config)
+		err := Validate(config)
 		assert.Nil(t, err)
-		assert.True(t, isValid)
 	}
 }
 
@@ -44,8 +43,7 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 	}
 
 	for _, config := range invalidConfigs {
-		isValid, err := Validate(config)
-		assert.False(t, isValid)
+		err := Validate(config)
 		assert.NotNil(t, err)
 	}
 }

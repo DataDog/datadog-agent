@@ -19,7 +19,7 @@ var (
 	isRunning bool
 	// logs-agent
 	agent *Agent
-	// logs-config scheduler
+	// scheduler is plugged to autodiscovery to collect integration configs and schedule log collection for different kind of inputs
 	scheduler *Scheduler
 )
 

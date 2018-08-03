@@ -33,16 +33,16 @@ func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 	if label := c.getLabel(); label != "" {
 		configs, err := config.ParseJSON([]byte(label))
 		if err != nil || len(configs) == 0 {
-			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
+			log.Errorf("Could not parse docker label for container %v: %v", c.Container.ID, err)
 			return nil
 		}
 		cfg := configs[0]
-		if isValid, err := config.Validate(cfg); !isValid {
+		if err := config.Validate(cfg); err != nil {
 			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
 			return nil
 		}
 		if err := config.Compile(cfg); err != nil {
-			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
+			log.Errorf("Could not compile docker label for container %v: %v", c.Container.ID, err)
 			return nil
 		}
 		cfg.Type = config.DockerType

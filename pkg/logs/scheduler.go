@@ -39,7 +39,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		if !s.isLogConfig(config) {
 			continue
 		}
-		log.Infof("Received new logs-config for integration: %v", config.Name)
+		log.Infof("Received new logs config for integration: %v", config.Name)
 		sources, err := s.toSources(config)
 		if err != nil {
 			log.Warnf("Invalid configuration: %v", err)
@@ -71,7 +71,7 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 	case providers.Docker, providers.Kubernetes:
 		configs, err = config.ParseJSON(integrationConfig.LogsConfig)
 	default:
-		return nil, fmt.Errorf("parsing logs-config from %v is not supported yet.", integrationConfig.Provider)
+		err = fmt.Errorf("parsing logs config from %v is not supported yet", integrationConfig.Provider)
 	}
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 
 	var validConfigs []*config.LogsConfig
 	for _, cfg := range configs {
-		if isValid, err := config.Validate(cfg); !isValid {
+		if err := config.Validate(cfg); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
 			continue
 		}
