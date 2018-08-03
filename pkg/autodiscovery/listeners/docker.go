@@ -17,6 +17,8 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-connections/nat"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -54,11 +56,10 @@ func init() {
 }
 
 // NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
-// TODO: TLS support
 func NewDockerListener() (ServiceListener, error) {
 	d, err := docker.GetDockerUtil()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Docker, auto discovery will not work: %s", err)
+		return nil, err
 	}
 	return &DockerListener{
 		dockerUtil: d,
