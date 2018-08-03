@@ -1,0 +1,114 @@
+{
+  "Cluster": "arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate",
+  "TaskARN": "arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+  "Family": "redis-datadog",
+  "Revision": "3",
+  "DesiredStatus": "RUNNING",
+  "KnownStatus": "RUNNING",
+  "Containers": [
+    {
+      "DockerId": "3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
+      "Name": "~internal~ecs~pause",
+      "DockerName": "ecs-redis-datadog-3-internalecspause-da86ad89d2bee7ba8501",
+      "Image": "fg-proxy:tinyproxy",
+      "ImageID": "",
+      "Labels": {
+        "com.amazonaws.ecs.cluster": "arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate",
+        "com.amazonaws.ecs.container-name": "~internal~ecs~pause",
+        "com.amazonaws.ecs.task-arn": "arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+        "com.amazonaws.ecs.task-definition-family": "redis-datadog",
+        "com.amazonaws.ecs.task-definition-version": "3"
+      },
+      "DesiredStatus": "RESOURCES_PROVISIONED",
+      "KnownStatus": "RESOURCES_PROVISIONED",
+      "Limits": {
+        "CPU": 0,
+        "Memory": 0
+      },
+      "CreatedAt": "2018-07-31T16:31:37.961080859Z",
+      "StartedAt": "2018-07-31T16:31:38.582607461Z",
+      "Type": "CNI_PAUSE",
+      "Networks": [
+        {
+          "NetworkMode": "awsvpc",
+          "IPv4Addresses": [
+            "172.31.4.112"
+          ]
+        }
+      ]
+    },
+    {
+      "DockerId": "1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+      "Name": "datadog-agent",
+      "DockerName": "ecs-redis-datadog-3-datadog-agent-c2a8fffa8ee8d1f6a801",
+      "Image": "datadog/agent-dev:xvello-process-kubelet",
+      "ImageID": "sha256:1a641e70ca2b8f86aaf6c4cb0e524f3f437fc13066bd37f76993561fbd99b54d",
+      "Labels": {
+        "com.amazonaws.ecs.cluster": "arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate",
+        "com.amazonaws.ecs.container-name": "datadog-agent",
+        "com.amazonaws.ecs.task-arn": "arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+        "com.amazonaws.ecs.task-definition-family": "redis-datadog",
+        "com.amazonaws.ecs.task-definition-version": "3"
+      },
+      "DesiredStatus": "RUNNING",
+      "KnownStatus": "RUNNING",
+      "Limits": {
+        "CPU": 0,
+        "Memory": 0
+      },
+      "CreatedAt": "2018-07-31T16:32:36.659054539Z",
+      "StartedAt": "2018-07-31T16:32:40.186173569Z",
+      "Type": "NORMAL",
+      "Networks": [
+        {
+          "NetworkMode": "awsvpc",
+          "IPv4Addresses": [
+            "172.31.4.112"
+          ]
+        }
+      ]
+    },
+    {
+      "DockerId": "0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+      "Name": "redis",
+      "DockerName": "ecs-redis-datadog-3-redis-f6eedfd8b18a8fbe1d00",
+      "Image": "redis:latest",
+      "ImageID": "sha256:f06a5773f01e1f77eb4487acb3333649716f45b3c32aad038765dc0ab0337bd4",
+      "Labels": {
+        "com.amazonaws.ecs.cluster": "arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate",
+        "com.amazonaws.ecs.container-name": "redis",
+        "com.amazonaws.ecs.task-arn": "arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+        "com.amazonaws.ecs.task-definition-family": "redis-datadog",
+        "com.amazonaws.ecs.task-definition-version": "3",
+        "com.datadoghq.ad.check_names": "[\"redisdb\"]",
+        "com.datadoghq.ad.init_configs": "[{}]",
+        "com.datadoghq.ad.instances": "[{\"host\": \"%%host%%\", \"port\": 6379}]",
+        "highlabel": "value2",
+        "mylabel": "myvalue"
+      },
+      "DesiredStatus": "RUNNING",
+      "KnownStatus": "RUNNING",
+      "Limits": {
+        "CPU": 0,
+        "Memory": 0
+      },
+      "CreatedAt": "2018-07-31T16:32:46.142603607Z",
+      "StartedAt": "2018-07-31T16:32:48.371568585Z",
+      "Type": "NORMAL",
+      "Networks": [
+        {
+          "NetworkMode": "awsvpc",
+          "IPv4Addresses": [
+            "172.31.4.112"
+          ]
+        }
+      ]
+    }
+  ],
+  "Limits": {
+    "CPU": 0.25,
+    "Memory": 512
+  },
+  "PullStartedAt": "2018-07-31T16:31:38.886779279Z",
+  "PullStoppedAt": "2018-07-31T16:32:54.107116743Z"
+}
