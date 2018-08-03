@@ -9,23 +9,28 @@ Collector
     No checks have run yet
   {{end -}}
 
-  {{- range .Checks}}
-    {{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}
-    {{printDashes .CheckName "-"}}{{- if .CheckVersion }}{{printDashes .CheckVersion "-"}}---{{ end }}
-      Total Runs: {{.TotalRuns}}
-      Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
-      Events: {{.Events}}, Total: {{humanize .TotalEvents}}
-      Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
-      Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
-      {{if .LastError -}}
-      Error: {{lastErrorMessage .LastError}}
-      {{lastErrorTraceback .LastError -}}
-      {{- end }}
-      {{- if .LastWarnings -}}
-        {{- range .LastWarnings }}
-      Warning: {{.}}
-        {{ end -}}
-      {{- end }}
+  {{- range $CheckName, $CheckSlice := .Checks}}
+      {{- with index $CheckSlice 0}}
+      {{.CheckName}} {{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}
+      {{printDashes .CheckName "-"}}{{- if .CheckVersion }}{{printDashes .CheckVersion "-"}}---{{ end }}
+    {{ end }}
+    {{- range $CheckSlice }}
+        Instance: {{- if eq (len $CheckSlice) 1 }} {{ $CheckName}}{{else}} {{.CheckID}}{{end}}
+        Total Runs: {{.TotalRuns}}
+        Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
+        Events: {{.Events}}, Total: {{humanize .TotalEvents}}
+        Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
+        Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
+        {{if .LastError -}}
+        Error: {{lastErrorMessage .LastError}}
+        {{lastErrorTraceback .LastError -}}
+        {{- end }}
+        {{- if .LastWarnings -}}
+          {{- range .LastWarnings }}
+        Warning: {{.}}
+          {{ end -}}
+        {{- end }}
+    {{ end }}
   {{ end }}
 {{- end }}
 
