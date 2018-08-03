@@ -27,9 +27,6 @@ func NewScheduler(sources *config.LogSources) *Scheduler {
 	}
 }
 
-// Start does nothing.
-func (s *Scheduler) Start() {}
-
 // Stop does nothing.
 func (s *Scheduler) Stop() {}
 

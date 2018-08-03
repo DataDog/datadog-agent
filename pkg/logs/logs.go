@@ -6,8 +6,6 @@
 package logs
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -56,6 +54,11 @@ func Stop() {
 	}
 }
 
+// IsAgentRunning returns true if the logs-agent is running.
+func IsAgentRunning() bool {
+	return isRunning
+}
+
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
 	if !isRunning {
@@ -64,11 +67,7 @@ func GetStatus() status.Status {
 	return status.Get()
 }
 
-// GetScheduler returns the logs-config scheduler if logs-agent is enabled,
-// returns an error otherwise.
-func GetScheduler() (*Scheduler, error) {
-	if !isRunning {
-		return nil, fmt.Errorf("could not return the logs-config scheduler, the logs-agent is not running")
-	}
-	return scheduler, nil
+// GetScheduler returns the logs-config scheduler if set.
+func GetScheduler() *Scheduler {
+	return scheduler
 }

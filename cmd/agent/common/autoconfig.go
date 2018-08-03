@@ -39,8 +39,8 @@ func SetupAutoConfig(confdPath string) {
 	metaScheduler.Register("check", collector.InitCheckScheduler(Coll))
 
 	// registering the logs scheduler
-	if scheduler, err := logs.GetScheduler(); err == nil {
-		metaScheduler.Register("logs", scheduler)
+	if logs.IsAgentRunning() {
+		metaScheduler.Register("logs", logs.GetScheduler())
 	}
 
 	// create the Autoconfig instance
