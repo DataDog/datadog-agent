@@ -76,6 +76,11 @@ func TestFilter(t *testing.T) {
 			Name:  "k8s_POD_AZURE_pause",
 			Image: "gcrio.azureedge.net/google_containers/pause-amd64",
 		},
+		{
+			ID:    "13",
+			Name:  "k8s_POD_rancher_pause",
+			Image: "rancher/pause-amd64:3.0",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -84,25 +89,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"},
 		},
 		{
 			blacklist:   []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"},
 		},
 		{
 			blacklist:   []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"},
 		},
 		{
 			whitelist:   []string{},
 			blacklist:   []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13"},
 		},
 		{
 			whitelist:   []string{"name:mysql"},
 			blacklist:   []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13"},
 		},
 		// Test kubernetes defaults
 		{
@@ -111,6 +116,7 @@ func TestFilter(t *testing.T) {
 				pauseContainerOpenshift,
 				pauseContainerKubernetes,
 				pauseContainerAzure,
+				pauseContainerRancher,
 			},
 			expectedIDs: []string{"1", "2", "3", "4", "5", "6"},
 		},
@@ -144,6 +150,7 @@ func TestNewFilterFromConfig(t *testing.T) {
 	assert.False(t, f.IsExcluded("dd-152462", "apache:latest"))
 	assert.False(t, f.IsExcluded("dummy", "dummy"))
 	assert.True(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1"))
+	assert.True(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1"))
 
 	config.Datadog.SetDefault("exclude_pause_container", false)
 	f, err = NewFilterFromConfig()
