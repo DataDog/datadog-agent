@@ -27,6 +27,27 @@ func init() {
 	templateFolder = filepath.Join(common.GetDistPath(), "templates")
 }
 
+// FormatRunnerStats changes to structure of runner stats to be displayed on the status pages
+func FormatRunnerStats(runnerStats interface{}) {
+
+	RunnerStatsMap := runnerStats.(map[string]interface{})
+	checks := RunnerStatsMap["Checks"].(map[string]interface{})
+
+	formattedChecks := make(map[string][]interface{})
+	RunnerStatsMap["Checks"] = formattedChecks
+
+	for _, check := range checks {
+		name := check.(map[string]interface{})["CheckName"].(string)
+		checkSlice, found := formattedChecks[name]
+		if found {
+			formattedChecks[name] = append(checkSlice, check)
+		} else {
+			formattedChecks[name] = []interface{}{check}
+		}
+	}
+
+}
+
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
