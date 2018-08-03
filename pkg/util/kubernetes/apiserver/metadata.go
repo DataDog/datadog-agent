@@ -27,7 +27,6 @@ import (
 
 const (
 	maxRetries = 15
-	numWorkers = 3
 )
 
 // MetadataController is responsible for synchronizing objects from the Kubernetes
@@ -80,9 +79,7 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	for i := 0; i < numWorkers; i++ {
-		go wait.Until(m.worker, time.Second, stopCh)
-	}
+	go wait.Until(m.worker, time.Second, stopCh)
 
 	<-stopCh
 }
