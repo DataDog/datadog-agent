@@ -74,9 +74,12 @@ func SetupAutoConfig(confdPath string) {
 	// for now, no need to implement a registry of available listeners since we
 	// have only docker
 	var listeners []config.Listeners
-	if err = config.Datadog.UnmarshalKey("listeners", &listeners); err == nil {
+	err = config.Datadog.UnmarshalKey("listeners", &listeners)
+	if err == nil {
 		listeners = AutoAddListeners(listeners)
 		AC.AddListeners(listeners)
+	} else {
+		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
 }
 
