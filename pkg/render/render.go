@@ -27,6 +27,12 @@ func init() {
 	templateFolder = filepath.Join(common.GetDistPath(), "templates")
 }
 
+// SetTemplateFolder overrides the template folder used to render templates.
+// It is should only be used for tests.
+func SetTemplateFolder(folder string) {
+	templateFolder = folder
+}
+
 // FormatTemplate renders the specified go template using the json data.
 func FormatTemplate(data []byte, tmplFile string) (string, error) {
 	buf := new(bytes.Buffer)

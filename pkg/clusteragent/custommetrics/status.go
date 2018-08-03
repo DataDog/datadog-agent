@@ -23,7 +23,7 @@ func GetStatus() map[string]interface{} {
 
 	store, err := NewConfigMapStore(apiCl.Cl, apiserver.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
-		status["ErrorStore"] = err.Error()
+		status["StoreError"] = err.Error()
 		return status
 	}
 

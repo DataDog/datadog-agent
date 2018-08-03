@@ -4,8 +4,8 @@ Custom Metrics Provider
   Error: {{ .custommetrics.Error }}
   {{ else }}
   ConfigMap name: {{ .custommetrics.Cmname }}
-  {{ if .custommetrics.ErrorStore }}
-  Error: {{ .custommetrics.ErrorStore }}
+  {{ if .custommetrics.StoreError }}
+  Error: {{ .custommetrics.StoreError }}
   {{ else }}
   External Metrics
   ----------------
@@ -15,17 +15,17 @@ Custom Metrics Provider
     Total: {{ .custommetrics.External.Total }}
     Valid: {{ .custommetrics.External.Valid }}
     {{ range $metric := .custommetrics.External.Metrics }}
-    {{- range $name, $value := $metric}}
-    {{- if or (eq $name "hpa") (eq $name "labels")}}
+    {{- range $name, $value := $metric }}
+    {{- if or (eq $name "hpa") (eq $name "labels") }}
     {{$name}}:
-    {{- range $k, $v := $value}}
+    {{- range $k, $v := $value }}
     - {{$k}}: {{$v}}
     {{- end -}}
     {{else}}
     {{$name}}: {{$value}}
     {{- end }}
     {{- end }}
-    {{- end }}
+    {{ end }}
     {{- end }}
   {{- end }}
   {{- end }}

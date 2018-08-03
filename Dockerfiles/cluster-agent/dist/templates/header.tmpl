@@ -49,8 +49,8 @@
     Error: {{ .custommetrics.Error }}
     {{ else }}
     ConfigMap name: {{ .custommetrics.Cmname }}
-    {{ if .custommetrics.ErrorStore }}
-    Error: {{ .custommetrics.ErrorStore }}
+    {{ if .custommetrics.StoreError }}
+    Error: {{ .custommetrics.StoreError }}
     {{ else }}
     External Metrics
     ----------------
@@ -59,7 +59,7 @@
       {{ else }}
       Total: {{ .custommetrics.External.Total }}
       Valid: {{ .custommetrics.External.Valid }}
-      {{- end -}}
+      {{ end -}}
     {{- end }}
     {{- end }}
 {{/* this line intentionally left blank */}}
