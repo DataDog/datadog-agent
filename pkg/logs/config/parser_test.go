@@ -6,6 +6,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,5 +52,74 @@ func TestParseJSONWithInvalidFormatShouldFail(t *testing.T) {
 		configs, err := ParseJSON([]byte(format))
 		assert.NotNil(t, err)
 		assert.Nil(t, configs)
+	}
+}
+
+func TestParseYamlWithValidFormatShouldSucceed(t *testing.T) {
+	data := []byte(`
+logs:
+  - type: file
+    path: /var/log/app.log
+    tags: a, b:c
+  - type: udp
+    source: foo
+    service: bar
+  - type: docker
+    log_processing_rules:
+      - type: include_at_match
+        name: numbers
+        pattern: ^[0-9]+$
+`)
+
+	configs, err := ParseYaml(data)
+	assert.Nil(t, err)
+	assert.Equal(t, 3, len(configs))
+
+	var config *LogsConfig
+	var tag string
+	var rule LogsProcessingRule
+
+	config = configs[0]
+	assert.Equal(t, FileType, config.Type)
+	assert.Equal(t, "/var/log/app.log", config.Path)
+	assert.Equal(t, 2, len(config.Tags))
+
+	tag = config.Tags[0]
+	assert.Equal(t, "a", strings.TrimSpace(tag))
+
+	tag = config.Tags[1]
+	assert.Equal(t, "b:c", strings.TrimSpace(tag))
+
+	config = configs[1]
+	assert.Equal(t, UDPType, config.Type)
+	assert.Equal(t, "foo", config.Source)
+	assert.Equal(t, "bar", config.Service)
+
+	config = configs[2]
+	assert.Equal(t, DockerType, config.Type)
+	assert.Equal(t, 1, len(config.ProcessingRules))
+
+	rule = config.ProcessingRules[0]
+	assert.Equal(t, IncludeAtMatch, rule.Type)
+	assert.Equal(t, "numbers", rule.Name)
+	assert.Equal(t, "^[0-9]+$", rule.Pattern)
+}
+
+func TestParseYamlWithInvalidFormatShouldFail(t *testing.T) {
+	invalidFormats := []string{`
+foo:
+  - type: file
+    path: /var/log/app.log
+    tags: a, b:c
+`, `
+- type: file
+  path: /var/log/app.log
+  tags: a, b:c
+`, `
+`}
+
+	for _, format := range invalidFormats {
+		configs, _ := ParseYaml([]byte(format))
+		assert.Equal(t, 0, len(configs))
 	}
 }

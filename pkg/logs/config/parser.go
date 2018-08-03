@@ -6,30 +6,41 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
-	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	json "github.com/json-iterator/go"
+	"github.com/spf13/viper"
 )
 
 // ParseJSON parses the data formatted in JSON
+// returns an error if the parsing failed.
 func ParseJSON(data []byte) ([]*LogsConfig, error) {
-	return parse(data, json.Unmarshal)
-}
-
-// ParseYaml parses the data formatted in Yaml.
-func ParseYaml(data []byte) ([]*LogsConfig, error) {
-	return parse(data, yaml.Unmarshal)
-}
-
-// parse parses the data to return an array of logs-config,
-// if the parsing failed, return an error.
-func parse(data []byte, unmarshal func(data []byte, v interface{}) error) ([]*LogsConfig, error) {
 	var configs []*LogsConfig
-	err := unmarshal(data, &configs)
+	err := json.Unmarshal(data, &configs)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse logs config, invalid format: %v", err)
+		return nil, fmt.Errorf("could not parse JSON logs config: %v", err)
+	}
+	return configs, nil
+}
+
+const yaml = "yaml"
+const logsPath = "logs"
+
+// ParseYaml parses the data formatted in Yaml,
+// returns an error if the parsing failed.
+func ParseYaml(data []byte) ([]*LogsConfig, error) {
+	var configs []*LogsConfig
+	var err error
+	v := viper.New()
+	v.SetConfigType(yaml)
+	err = v.ReadConfig(bytes.NewBuffer(data))
+	if err != nil {
+		return nil, fmt.Errorf("could not decode YAML logs config: %v", err)
+	}
+	err = v.UnmarshalKey(logsPath, &configs)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse YAML logs config: %v", err)
 	}
 	return configs, nil
 }
