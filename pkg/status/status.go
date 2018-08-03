@@ -30,7 +30,10 @@ import (
 // GetStatus returns status info for the Datadog Agent.
 func GetStatus() (map[string]interface{}, error) {
 	status := make(map[string]interface{})
-	status = expvarStats(status)
+	status, err := expvarStats(status)
+	if err != nil {
+		log.Errorf("Error Getting ExpVar Stats: %v", err)
+	}
 	status["version"] = version.AgentVersion
 	hostname, err := util.GetHostname()
 	if err != nil {
@@ -116,7 +119,7 @@ func getPartialConfig() map[string]string {
 	return conf
 }
 
-func expvarStats(stats map[string]interface{}) map[string]interface{} {
+func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	stats["forwarderStats"] = forwarder.GetStatus()
 	stats["runnerStats"] = collector.GetRunnerStatus()
 	stats["autoConfigStats"] = autodiscovery.GetAutoConfigStatus()
@@ -140,10 +143,7 @@ func expvarStats(stats map[string]interface{}) map[string]interface{} {
 	var err error
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
-		if err != nil {
-			log.Errorf("Error Getting ExpVar Stats: %v", err)
-		}
 	}
 
-	return stats
+	return stats, err
 }

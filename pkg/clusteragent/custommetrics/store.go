@@ -28,7 +28,7 @@ const (
 
 var (
 	storeStats    = expvar.NewMap("custommetrics")
-	externalStats = &expvar.Map{}
+	externalStats = new(expvar.Map).Init()
 	externalTotal = &expvar.Int{}
 	externalValid = &expvar.Int{}
 )

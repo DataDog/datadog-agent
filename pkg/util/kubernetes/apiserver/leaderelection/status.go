@@ -9,7 +9,8 @@ package leaderelection
 
 import (
 	"fmt"
-	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/render"
 )
 
 // GetStatus returns status info for leader election.
@@ -22,8 +23,8 @@ func GetStatus() map[string]interface{} {
 		return status
 	}
 	status["leaderName"] = record.HolderIdentity
-	status["acquiredTime"] = record.AcquireTime.Format(time.RFC1123)
-	status["renewedTime"] = record.RenewTime.Format(time.RFC1123)
+	status["acquiredTime"] = record.AcquireTime.Format(render.TimeFormat)
+	status["renewedTime"] = record.RenewTime.Format(render.TimeFormat)
 	status["transitions"] = fmt.Sprintf("%d transitions", record.LeaderTransitions)
 	status["status"] = "Running"
 	return status
