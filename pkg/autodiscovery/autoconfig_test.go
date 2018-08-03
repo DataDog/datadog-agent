@@ -228,6 +228,7 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 		{Name: "noerr"},
 		{Name: "fail"},
 		{Name: "retry"},
+		{Name: "invalid"},
 	}
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	assert.Nil(suite.T(), ac.listenerRetryStop)
@@ -277,10 +278,11 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	// Wait for retryListenerCandidates to close listenerRetryStop and return
 	for i := 0; i < 10; i++ {
 		ac.m.Lock()
-		if ac.listenerRetryStop == nil {
+		nilled := (ac.listenerRetryStop == nil)
+		ac.m.Unlock()
+		if nilled {
 			break
 		}
-		ac.m.Unlock()
 		time.Sleep(10 * time.Millisecond)
 	}
 	ac.m.Lock()
