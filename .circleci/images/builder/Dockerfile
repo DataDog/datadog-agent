@@ -64,6 +64,7 @@ RUN set -ex \
 	&& apt-get purge -y --auto-remove $buildDeps \
 	&& cd / \
 	&& gem update --system "$RUBYGEMS_VERSION" \
+	&& gem install deb-s3 \
 	&& rm -r /usr/src/ruby
 
 ENV BUNDLER_VERSION 1.15.3
