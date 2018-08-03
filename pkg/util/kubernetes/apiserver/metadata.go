@@ -25,10 +25,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const (
-	maxRetries = 15
-)
-
 // MetadataController is responsible for synchronizing objects from the Kubernetes
 // apiserver to build and cache cluster metadata (like service tags) for each node.
 //
@@ -97,22 +93,10 @@ func (m *MetadataController) processNextWorkItem() bool {
 	defer m.queue.Done(key)
 
 	err := m.syncEndpoints(key.(string))
-	if err == nil {
-		m.queue.Forget(key)
-		if m.endpoints != nil {
-			m.endpoints <- key
-		}
-		return true
-	}
-
-	if m.queue.NumRequeues(key) < maxRetries {
+	if err != nil {
 		log.Debugf("Error syncing endpoints %v: %v", key, err)
-		m.queue.AddRateLimited(key)
-		return true
 	}
 
-	log.Debugf("Dropping endpoints %q out of the queue: %v", key, err)
-	m.queue.Forget(key)
 	if m.endpoints != nil {
 		m.endpoints <- key
 	}
