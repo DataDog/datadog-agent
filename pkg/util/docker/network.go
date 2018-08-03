@@ -18,10 +18,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type dockerNetwork struct {
@@ -95,44 +96,17 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 		interfaces[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
-	// Read contents of file. Handle missing or unreadable file in case container was stopped.
-	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "route")
-	if !pathExists(procNetFile) {
-		log.Debugf("Missing %s for container %s", procNetFile, containerID)
-		return nil
-	}
-	lines, err := readLines(procNetFile)
+	destinations, err := metrics.DetectNetworkDestinations(pid)
 	if err != nil {
-		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
-		return nil
-	}
-	if len(lines) < 1 {
-		log.Errorf("empty network file, unable to get docker networks: %s", procNetFile)
+		log.Warnf("Cannot list interfaces for container id %s: %s, skipping", containerID, err)
 		return nil
 	}
 
 	networks := make([]dockerNetwork, 0)
-	for _, line := range lines[1:] {
-		fields := strings.Fields(line)
-		if len(fields) < 8 {
-			continue
-		}
-		if fields[1] == "00000000" {
-			continue
-		}
-		dest, err := strconv.ParseUint(fields[1], 16, 32)
-		if err != nil {
-			log.Debugf("Cannot parse destination %q: %v", fields[1], err)
-			continue
-		}
-		mask, err := strconv.ParseUint(fields[7], 16, 32)
-		if err != nil {
-			log.Debugf("Cannot parse mask %q: %v", fields[7], err)
-			continue
-		}
+	for _, d := range destinations {
 		for n, ip := range interfaces {
-			if ip&mask == dest {
-				networks = append(networks, dockerNetwork{iface: fields[0], dockerName: n})
+			if ip&d.Mask == d.Subnet {
+				networks = append(networks, dockerNetwork{iface: d.Interface, dockerName: n})
 			}
 		}
 	}

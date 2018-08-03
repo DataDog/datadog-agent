@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -103,7 +103,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			// check image tag in spec
 			for _, containerSpec := range pod.Spec.Containers {
 				if containerSpec.Name == container.Name {
-					imageName, shortImage, imageTag, err := docker.SplitImageName(containerSpec.Image)
+					imageName, shortImage, imageTag, err := containers.SplitImageName(containerSpec.Image)
 					if err != nil {
 						log.Debugf("Cannot split %s: %s", containerSpec.Image, err)
 						break

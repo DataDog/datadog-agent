@@ -12,9 +12,12 @@ package containers
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/shirou/gopsutil/process"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
 // Return values per container runtime
@@ -37,6 +40,29 @@ const (
 
 // ErrNoRuntimeMatch is returned when no container runtime can be matched
 var ErrNoRuntimeMatch = errors.New("cannot match a container runtime")
+
+// ErrNoContainerMatch is returned when no container ID can be matched
+var ErrNoContainerMatch = errors.New("cannot match a container ID")
+
+// EntityForPID returns the entity ID for a given PID. It can return
+// either ErrNoRuntimeMatch or ErrNoContainerMatch if no match its
+// found for the PID.
+func EntityForPID(pid int32) (string, error) {
+	cID, err := metrics.ContainerIDForPID(int(pid))
+	if err != nil {
+		return "", err
+	}
+	if cID == "" {
+		return "", ErrNoContainerMatch
+	}
+
+	runtime, err := GetRuntimeForPID(pid)
+	if err != nil {
+		return "", err
+	}
+	value := fmt.Sprintf("%s://%s", runtime, cID)
+	return value, nil
+}
 
 // GetRuntimeForPID inspects a PID's parents to detect a container runtime.
 // For now, this assumes we are running on hostPID, as gopsutil looks-up

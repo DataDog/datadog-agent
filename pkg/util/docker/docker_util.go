@@ -22,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -64,7 +66,7 @@ func (d *DockerUtil) init() error {
 		CacheDuration:  10 * time.Second,
 	}
 
-	cfg.filter, err = NewFilterFromConfig()
+	cfg.filter, err = containers.NewFilterFromConfig()
 	if err != nil {
 		return err
 	}
@@ -142,18 +144,18 @@ func (d *DockerUtil) CountVolumes() (int, int, error) {
 // dockerContainers returns a list of Docker info for active containers using the
 // Docker API. This requires the running user to be in the "docker" user group
 // or have access to /tmp/docker.sock.
-func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, error) {
+func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.Container, error) {
 	if cfg == nil {
 		return nil, errors.New("configuration is nil")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	defer cancel()
-	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{All: cfg.IncludeExited})
+	cList, err := d.cli.ContainerList(ctx, types.ContainerListOptions{All: cfg.IncludeExited})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
-	ret := make([]*Container, 0, len(containers))
-	for _, c := range containers {
+	ret := make([]*containers.Container, 0, len(cList))
+	for _, c := range cList {
 		if d.cfg.CollectNetwork {
 			// FIXME: We might need to invalidate this cache if a containers networks are changed live.
 			d.Lock()
@@ -174,23 +176,25 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			log.Warnf("Can't resolve image name %s: %s", c.Image, err)
 		}
 
+		excluded := d.cfg.filter.IsExcluded(c.Names[0], image)
+		if excluded && !cfg.FlagExcluded {
+			continue
+		}
+
 		entityID := fmt.Sprintf("docker://%s", c.ID)
-		container := &Container{
+		container := &containers.Container{
 			Type:     "Docker",
-			ID:       entityID[9:],
+			ID:       c.ID,
 			EntityID: entityID,
 			Name:     c.Names[0],
 			Image:    image,
 			ImageID:  c.ImageID,
 			Created:  c.Created,
 			State:    c.State,
+			Excluded: excluded,
 			Health:   parseContainerHealth(c.Status),
 		}
 
-		container.Excluded = d.cfg.filter.IsExcluded(container.Name, container.Image)
-		if container.Excluded && !cfg.FlagExcluded {
-			continue
-		}
 		ret = append(ret, container)
 	}
 
@@ -203,7 +207,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 	}
 
 	if d.lastInvalidate.Add(invalidationInterval).After(time.Now()) {
-		d.invalidateCaches(containers)
+		d.invalidateCaches(cList)
 	}
 
 	return ret, nil
@@ -211,35 +215,32 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 
 // Containers gets a list of all containers on the current node using a mix of
 // the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
-func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) {
+func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*containers.Container, error) {
 	cacheKey := cfg.GetCacheKey()
 
 	// Get the containers either from our cache or with API queries.
-	var containers []*Container
+	var cList []*containers.Container
 	cached, hit := cache.Cache.Get(cacheKey)
 	if hit {
 		var ok bool
-		containers, ok = cached.([]*Container)
+		cList, ok = cached.([]*containers.Container)
 		if !ok {
 			log.Errorf("Invalid container list cache format, forcing a cache miss")
 			hit = false
 		}
 	}
 	if !hit {
-		var cgByContainer map[string]*ContainerCgroup
-		var err error
-
-		cgByContainer, err = ScrapeAllCgroups()
+		cgByContainer, err := metrics.ScrapeAllCgroups()
 		if err != nil {
 			return nil, fmt.Errorf("could not get cgroups: %s", err)
 		}
 
-		containers, err = d.dockerContainers(cfg)
+		cList, err = d.dockerContainers(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not get docker containers: %s", err)
 		}
 
-		for _, container := range containers {
+		for _, container := range cList {
 			if container.Excluded {
 				continue
 			}
@@ -247,87 +248,52 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 			if !ok {
 				continue
 			}
-			container.cgroup = cgroup
-			container.CPULimit, err = cgroup.CPULimit()
+			container.SetCgroups(cgroup)
+			err = container.FillCgroupLimits()
 			if err != nil {
-				log.Debugf("Cgroup cpu limit: %s", err)
-			}
-			container.MemLimit, err = cgroup.MemLimit()
-			if err != nil {
-				log.Debugf("Cgroup mem limit: %s", err)
-			}
-			container.SoftMemLimit, err = cgroup.SoftMemLimit()
-			if err != nil {
-				log.Debugf("Cgroup soft mem limit: %s", err)
+				log.Debugf("Cannot get limits for container %s: %s, skipping", container.ID[:12], err)
+				continue
 			}
 		}
-		cache.Cache.Set(cacheKey, containers, d.cfg.CacheDuration)
+		cache.Cache.Set(cacheKey, cList, d.cfg.CacheDuration)
 	}
 
 	// Fill in the latest statistics from the cgroups
 	// Creating a new list of containers with copies so we don't lose
 	// the previous state for calculations (e.g. last cpu).
 	var err error
-	newContainers := make([]*Container, 0, len(containers))
-	for _, lastContainer := range containers {
-		if (cfg.IncludeExited && lastContainer.State == ContainerExitedState) || lastContainer.Excluded {
+	newContainers := make([]*containers.Container, 0, len(cList))
+	for _, lastContainer := range cList {
+		if (cfg.IncludeExited && lastContainer.State == containers.ContainerExitedState) || lastContainer.Excluded {
 			newContainers = append(newContainers, lastContainer)
 			continue
 		}
 
-		container := &Container{}
+		container := &containers.Container{}
 		*container = *lastContainer
 
-		cgroup := container.cgroup
-		if cgroup == nil {
-			log.Debugf("Container id %s has an empty cgroup, skipping", container.ID[:12])
-			continue
-		}
-
-		container.Memory, err = cgroup.Mem()
+		err = container.FillCgroupMetrics()
 		if err != nil {
-			log.Debugf("Cgroup memory: %s", err)
-			continue
-		}
-		container.CPU, err = cgroup.CPU()
-		if err != nil {
-			log.Debugf("Cgroup cpu: %s", err)
-			continue
-		}
-		container.CPUNrThrottled, err = cgroup.CPUNrThrottled()
-		if err != nil {
-			log.Debugf("Cgroup cpuNrThrottled: %s", err)
-			continue
-		}
-		container.IO, err = cgroup.IO()
-		if err != nil {
-			log.Debugf("Cgroup i/o: %s", err)
+			log.Debugf("Cannot get metrics for container %s: %s", container.ID[:12], err)
 			continue
 		}
 
 		if d.cfg.CollectNetwork {
 			d.Lock()
-			networks, ok := d.networkMappings[cgroup.ContainerID]
+			networks := d.networkMappings[container.ID]
 			d.Unlock()
-			if ok && len(cgroup.Pids) > 0 {
-				netStat, err := collectNetworkStats(cgroup.ContainerID, int(cgroup.Pids[0]), networks)
-				if err != nil {
-					log.Debugf("Could not collect network stats for container %s: %s", container.ID, err)
-					continue
-				}
-				container.Network = netStat
-			}
-		} else {
-			container.Network = NullContainer.Network
-		}
 
-		startedAt, err := cgroup.ContainerStartTime()
-		if err != nil {
-			log.Debugf("Failed to get container start time: %s", err)
-			continue
+			nwByIface := make(map[string]string)
+			for _, nw := range networks {
+				nwByIface[nw.iface] = nw.dockerName
+			}
+
+			err = container.FillNetworkMetrics(nwByIface)
+			if err != nil {
+				log.Debugf("Cannot get network stats for container %s: %s", container.ID, err)
+				continue
+			}
 		}
-		container.StartedAt = startedAt
-		container.Pids = cgroup.Pids
 
 		newContainers = append(newContainers, container)
 	}
@@ -435,7 +401,7 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 
 // Inspect detect the container ID we are running in and returns the inspect contents.
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	cID, _, err := readCgroupPaths("/proc/self/cgroup")
+	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup")
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}

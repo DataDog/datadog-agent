@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -19,18 +20,6 @@ import (
 var (
 	globalDockerUtil     *DockerUtil
 	invalidationInterval = 5 * time.Minute
-	lastErr              string
-
-	// NullContainer is an empty container object that has
-	// default values for all fields including sub-fields.
-	// If new sub-structs are added to Container this must
-	// be updated.
-	NullContainer = &Container{
-		CPU:     &CgroupTimesStat{},
-		Memory:  &CgroupMemStat{},
-		IO:      &CgroupIOStat{},
-		Network: ContainerNetStats{},
-	}
 )
 
 // GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
@@ -90,7 +79,7 @@ type Config struct {
 	Blacklist []string
 
 	// internal use only
-	filter *Filter
+	filter *containers.Filter
 }
 
 // Expose module-level functions that will interact with a the globalDockerUtil singleton.
