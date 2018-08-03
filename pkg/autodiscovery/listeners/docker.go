@@ -17,8 +17,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-connections/nat"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
