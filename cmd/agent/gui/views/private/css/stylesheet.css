@@ -317,6 +317,7 @@ a {
 #main #general_status .stat .stat_subdata, #main #collector_status .stat .stat_subdata {
   display: block;
   padding-left: 20px;
+  padding-bottom: 20px;
 }
 #main #general_status .stat .error, #main #collector_status .stat .error {
   color: red;

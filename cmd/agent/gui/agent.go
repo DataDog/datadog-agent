@@ -44,13 +44,14 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	statusType := mux.Vars(r)["type"]
 
-	status, e := status.GetStatus()
+	s, e := status.GetStatus()
+	status.FormatRunnerStats(s["runnerStats"])
 	if e != nil {
 		log.Errorf("Error getting status: " + e.Error())
 		w.Write([]byte("Error getting status: " + e.Error()))
 		return
 	}
-	json, _ := json.Marshal(status)
+	json, _ := json.Marshal(s)
 	html, e := renderStatus(json, statusType)
 	if e != nil {
 		w.Write([]byte("Error generating status html: " + e.Error()))

@@ -3,6 +3,7 @@
   {{- range $i, $e := .CheckStats}}
   <span class="stat_subtitle">Instance {{add $i 1}}</span>
     <span class="stat_data">
+        ID: {{.CheckID}}<br>
         Total Runs: {{.TotalRuns}}<br>
         Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
         Events: {{.Events}}, Total: {{humanize .TotalEvents}}<br>
