@@ -209,6 +209,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["pyLoaderStats"] = nil
 	}
 
+	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
+	hostnameStats := make(map[string]interface{})
+	json.Unmarshal(hostnameStatsJSON, &hostnameStats)
+	stats["hostnameStats"] = hostnameStats
+
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}

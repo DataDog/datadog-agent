@@ -52,6 +52,17 @@
             {{end -}}
           {{- end -}}
         {{- end}}
+        Hostname Provider: {{.hostnameStats.provider}}<br>
+        {{- if .hostnameStats.error }}
+          <span class="error">Error</span>: {{.hostnameStats.error}}<br>
+        {{- end }}
+        {{- range $name, $value := .hostnameStats.errors -}}
+          {{- if ne $name "all" }}
+          <span class="error">Error</span>: {{$name}}: {{$value}}<br>
+          {{- else }}
+          <span class="error">Error</span>: {{$value}}<br>
+          {{- end}}
+        {{- end }}
       </span>
     </span>
   </div>
