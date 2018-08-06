@@ -254,7 +254,7 @@ func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
 	var container *Container
-	var rule config.LogsProcessingRule
+	var rule config.ProcessingRule
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{}]`}
 	container = NewContainer(types.Container{Labels: labels, Image: "any_image"})

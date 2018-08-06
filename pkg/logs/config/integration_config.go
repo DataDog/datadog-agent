@@ -28,9 +28,9 @@ const (
 	MultiLine      = "multi_line"
 )
 
-// LogsProcessingRule defines an exclusion or a masking rule to
+// ProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
-type LogsProcessingRule struct {
+type ProcessingRule struct {
 	Type               string
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
@@ -62,46 +62,56 @@ type LogsConfig struct {
 	Source          string
 	SourceCategory  string
 	Tags            []string
-	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+	ProcessingRules []ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 }
 
 // Validate returns an error if the config is misconfigured
-func Validate(config *LogsConfig) error {
+func (c *LogsConfig) Validate() error {
 	switch {
-	case config.Type == FileType && config.Path == "":
+	case c.Type == FileType && c.Path == "":
 		return fmt.Errorf("file source must have a path")
-	case config.Type == TCPType && config.Port == 0:
+	case c.Type == TCPType && c.Port == 0:
 		return fmt.Errorf("tcp source must have a port")
-	case config.Type == UDPType && config.Port == 0:
+	case c.Type == UDPType && c.Port == 0:
 		return fmt.Errorf("udp source must have a port")
 	}
-	return validateProcessingRules(config.ProcessingRules)
+	return c.validateProcessingRules()
 }
 
-// validateProcessingRules checks the rules and raises errors if one is misconfigured
-func validateProcessingRules(rules []LogsProcessingRule) error {
-	for _, rule := range rules {
+// validateProcessingRules validates the rules and raises an error if one is misconfigured.
+// All sources must have:
+// - a valid name
+// - a valid type
+// - a valid pattern that compiles
+func (c *LogsConfig) validateProcessingRules() error {
+	for _, rule := range c.ProcessingRules {
 		if rule.Name == "" {
 			return fmt.Errorf("all processing rules must have a name")
 		}
-		if rule.Pattern == "" {
-			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
-		}
+
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
-			continue
+			break
 		case "":
 			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
 		default:
-			return fmt.Errorf("type %s is unsupported for processing rule `%s`", rule.Type, rule.Name)
+			return fmt.Errorf("type %s is not supported for processing rule `%s`", rule.Type, rule.Name)
+		}
+
+		if rule.Pattern == "" {
+			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+		}
+		_, err := regexp.Compile(rule.Pattern)
+		if err != nil {
+			return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
 		}
 	}
 	return nil
 }
 
-// Compile compiles all processing rules regular expression.
-func Compile(config *LogsConfig) error {
-	rules := config.ProcessingRules
+// Compile compiles all processing rule regular expressions.
+func (c *LogsConfig) Compile() error {
+	rules := c.ProcessingRules
 	for i, rule := range rules {
 		re, err := regexp.Compile(rule.Pattern)
 		if err != nil {
@@ -118,8 +128,6 @@ func Compile(config *LogsConfig) error {
 			if err != nil {
 				return err
 			}
-		default:
-			return fmt.Errorf("invalid type for rule %s: %s", rule.Name, rule.Type)
 		}
 	}
 	return nil

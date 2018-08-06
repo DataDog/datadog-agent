@@ -6,7 +6,6 @@
 package config
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,34 +40,28 @@ func TestGetSources(t *testing.T) {
 }
 
 func TestGetValidSources(t *testing.T) {
-	source1 := NewLogSource("foo", nil)
-	source2 := NewLogSource("bar", nil)
+	source1 := NewLogSource("foo", &LogsConfig{Type: FileType})
+	source2 := NewLogSource("bar", &LogsConfig{Type: DockerType})
 	sources := NewLogSources([]*LogSource{source1, source2})
-	assert.Equal(t, 2, len(sources.GetValidSources()))
-	source1.Status.Error(errors.New("invalid"))
 	assert.Equal(t, 1, len(sources.GetValidSources()))
-	source1.Status.Success()
-	assert.Equal(t, 2, len(sources.GetValidSources()))
 }
 
 func TestGetSourcesWithType(t *testing.T) {
 	source1 := NewLogSource("foo", nil)
 	source2 := NewLogSource("bar", &LogsConfig{})
-	source3 := NewLogSource("baz", &LogsConfig{Type: "foo"})
-	source4 := NewLogSource("qux", &LogsConfig{Type: "foo"})
-	source4.Status.Error(errors.New("test"))
+	source3 := NewLogSource("baz", &LogsConfig{Type: FileType, Path: "foo"})
+	source4 := NewLogSource("qux", &LogsConfig{Type: FileType})
 	sources := NewLogSources([]*LogSource{source1, source2, source3, source4})
-	assert.Equal(t, 2, len(sources.GetSourcesWithType("foo")))
+	assert.Equal(t, 2, len(sources.GetSourcesWithType(FileType)))
 }
 
 func TestGetValidSourcesWithType(t *testing.T) {
 	source1 := NewLogSource("foo", nil)
 	source2 := NewLogSource("bar", &LogsConfig{})
-	source3 := NewLogSource("baz", &LogsConfig{Type: "foo"})
-	source4 := NewLogSource("qux", &LogsConfig{Type: "foo"})
-	source4.Status.Error(errors.New("test"))
+	source3 := NewLogSource("baz", &LogsConfig{Type: FileType, Path: "foo"})
+	source4 := NewLogSource("qux", &LogsConfig{Type: FileType})
 	sources := NewLogSources([]*LogSource{source1, source2, source3, source4})
-	assert.Equal(t, 1, len(sources.GetValidSourcesWithType("foo")))
+	assert.Equal(t, 1, len(sources.GetValidSourcesWithType(FileType)))
 }
 
 // NewEmptyLogSources creates a new log sources with no initial entries.

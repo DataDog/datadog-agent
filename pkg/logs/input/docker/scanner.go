@@ -113,7 +113,7 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 
 	// monitor new containers, and restart tailers if needed
 	for _, container := range runningContainers {
-		source := NewContainer(container).findSource(s.sources.GetSourcesWithType(config.DockerType))
+		source := NewContainer(container).findSource(s.sources.GetValidSourcesWithType(config.DockerType))
 		if source == nil {
 			continue
 		}

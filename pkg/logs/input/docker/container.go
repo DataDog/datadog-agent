@@ -37,11 +37,11 @@ func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 			return nil
 		}
 		cfg := configs[0]
-		if err := config.Validate(cfg); err != nil {
+		if err := cfg.Validate(); err != nil {
 			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
 			return nil
 		}
-		if err := config.Compile(cfg); err != nil {
+		if err := cfg.Compile(); err != nil {
 			log.Errorf("Could not compile docker label for container %v: %v", c.Container.ID, err)
 			return nil
 		}

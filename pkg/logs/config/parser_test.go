@@ -77,7 +77,7 @@ logs:
 
 	var config *LogsConfig
 	var tag string
-	var rule LogsProcessingRule
+	var rule ProcessingRule
 
 	config = configs[0]
 	assert.Equal(t, FileType, config.Type)
