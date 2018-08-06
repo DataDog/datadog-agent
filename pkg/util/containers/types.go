@@ -36,19 +36,6 @@ const (
 	ContainerUnhealthy             = "unhealthy"
 )
 
-var (
-	// NullContainer is an empty container object that has
-	// default values for all fields including sub-fields.
-	// If new sub-structs are added to Container this must
-	// be updated.
-	NullContainer = &Container{
-		CPU:     &metrics.CgroupTimesStat{},
-		Memory:  &metrics.CgroupMemStat{},
-		IO:      &metrics.CgroupIOStat{},
-		Network: metrics.ContainerNetStats{},
-	}
-)
-
 // Container represents a single container on a machine
 // and includes Cgroup-level statistics about the container.
 type Container struct {
