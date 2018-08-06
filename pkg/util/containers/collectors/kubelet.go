@@ -16,7 +16,7 @@ const (
 	kubeletCollectorName = "kubelet"
 )
 
-// KubeletCollector lists containers from the docker socket and populates
+// KubeletCollector lists containers from the kubelet podlist and populates
 // performance metric from the linux cgroups
 type KubeletCollector struct {
 	kubeUtil *kubelet.KubeUtil
