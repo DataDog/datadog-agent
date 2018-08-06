@@ -66,13 +66,12 @@ func (d *Detector) GetPreferred() (Collector, string, error) {
 	}
 	if d.candidates == nil {
 		return nil, "", ErrPermaFail
-	} else {
-		d.detectCandidates()
 	}
-	if d.preferredCollector != nil {
-		return d.preferredCollector, d.preferredName, nil
+	d.detectCandidates()
+	if d.preferredCollector == nil {
+		return nil, "", ErrNothingYet
 	}
-	return nil, "", ErrNothingYet
+	return d.preferredCollector, d.preferredName, nil
 }
 
 func (d *Detector) detectCandidates() {
