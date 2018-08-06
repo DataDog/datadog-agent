@@ -25,6 +25,7 @@ type Listeners struct {
 	pipelineProvider pipeline.Provider
 	sources          *config.LogSources
 	listeners        []Listener
+	stop             chan struct{}
 }
 
 // NewListener returns an initialized Listeners
@@ -32,26 +33,36 @@ func NewListener(sources *config.LogSources, pipelineProvider pipeline.Provider)
 	return &Listeners{
 		pipelineProvider: pipelineProvider,
 		sources:          sources,
+		stop:             make(chan struct{}),
 	}
 }
 
-// Start starts all listeners
+// Start starts the listener.
 func (l *Listeners) Start() {
-	var listeners []Listener
-	for _, source := range l.sources.GetValidSourcesWithType(config.TCPType) {
-		listeners = append(listeners, NewTCPListener(l.pipelineProvider, source, defaultFrameSize))
+	go l.run()
+}
+
+// run starts new network listeners.
+func (l *Listeners) run() {
+	for {
+		select {
+		case source := <-l.sources.GetSourceStreamForType(config.TCPType):
+			listener := NewTCPListener(l.pipelineProvider, source, defaultFrameSize)
+			listener.Start()
+			l.listeners = append(l.listeners, listener)
+		case source := <-l.sources.GetSourceStreamForType(config.UDPType):
+			listener := NewUDPListener(l.pipelineProvider, source, defaultFrameSize)
+			listener.Start()
+			l.listeners = append(l.listeners, listener)
+		case <-l.stop:
+			return
+		}
 	}
-	for _, source := range l.sources.GetValidSourcesWithType(config.UDPType) {
-		listeners = append(listeners, NewUDPListener(l.pipelineProvider, source, defaultFrameSize))
-	}
-	for _, listener := range listeners {
-		listener.Start()
-	}
-	l.listeners = listeners
 }
 
 // Stop stops all listeners
 func (l *Listeners) Stop() {
+	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, l := range l.listeners {
 		stopper.Add(l)

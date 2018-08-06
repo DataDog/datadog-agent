@@ -21,6 +21,7 @@ type Launcher struct {
 	pipelineProvider pipeline.Provider
 	registry         auditor.Registry
 	tailers          map[string]*Tailer
+	stop             chan struct{}
 }
 
 // New returns a new Launcher.
@@ -30,28 +31,40 @@ func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider,
 		pipelineProvider: pipelineProvider,
 		registry:         registry,
 		tailers:          make(map[string]*Tailer),
+		stop:             make(chan struct{}),
 	}
 }
 
-// Start starts new tailers.
+// Start starts the launcher.
 func (l *Launcher) Start() {
-	for _, source := range l.sources.GetValidSourcesWithType(config.JournaldType) {
-		identifier := source.Config.Path
-		if _, exists := l.tailers[identifier]; exists {
-			// set up only one tailer per journal
-			continue
-		}
-		tailer, err := l.setupTailer(source)
-		if err != nil {
-			log.Warn("Could not set up journald tailer: ", err)
-		} else {
-			l.tailers[identifier] = tailer
+	go l.run()
+}
+
+// run starts new tailers.
+func (l *Launcher) run() {
+	for {
+		select {
+		case source := <-l.sources.GetSourceStreamForType(config.JournaldType):
+			identifier := source.Config.Path
+			if _, exists := l.tailers[identifier]; exists {
+				// set up only one tailer per journal
+				continue
+			}
+			tailer, err := l.setupTailer(source)
+			if err != nil {
+				log.Warn("Could not set up journald tailer: ", err)
+			} else {
+				l.tailers[identifier] = tailer
+			}
+		case <-l.stop:
+			return
 		}
 	}
 }
 
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
+	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for identifier, tailer := range l.tailers {
 		stopper.Add(tailer)

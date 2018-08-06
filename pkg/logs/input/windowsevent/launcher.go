@@ -18,6 +18,7 @@ type Launcher struct {
 	sources          *config.LogSources
 	pipelineProvider pipeline.Provider
 	tailers          map[string]*Tailer
+	stop             chan struct{}
 }
 
 // NewLauncher returns a new Launcher.
@@ -26,10 +27,11 @@ func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider)
 		sources:          sources,
 		pipelineProvider: pipelineProvider,
 		tailers:          make(map[string]*Tailer),
+		stop:             make(chan struct{}),
 	}
 }
 
-// Start starts new tailers.
+// Start starts the launcher.
 func (l *Launcher) Start() {
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
@@ -37,24 +39,34 @@ func (l *Launcher) Start() {
 	} else {
 		log.Debug("Found available windows event log channels: ", availableChannels)
 	}
+	go l.run()
+}
 
-	for _, source := range l.sources.GetValidSourcesWithType(config.WindowsEventType) {
-		identifier := Identifier(source.Config.ChannelPath, source.Config.Query)
-		if _, exists := l.tailers[identifier]; exists {
-			// tailer already setup
-			continue
-		}
-		tailer, err := l.setupTailer(source)
-		if err != nil {
-			log.Info("Could not set up windows event log tailer: ", err)
-		} else {
-			l.tailers[identifier] = tailer
+// run starts new tailers.
+func (l *Launcher) run() {
+	for {
+		select {
+		case source := <-l.sources.GetSourceStreamForType(config.WindowsEventType):
+			identifier := Identifier(source.Config.ChannelPath, source.Config.Query)
+			if _, exists := l.tailers[identifier]; exists {
+				// tailer already setup
+				continue
+			}
+			tailer, err := l.setupTailer(source)
+			if err != nil {
+				log.Info("Could not set up windows event log tailer: ", err)
+			} else {
+				l.tailers[identifier] = tailer
+			}
+		case <-l.stop:
+			return
 		}
 	}
 }
 
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
+	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)

@@ -11,14 +11,16 @@ import (
 
 // LogSources stores a list of log sources.
 type LogSources struct {
-	sources []*LogSource
-	mu      sync.Mutex
+	sources      []*LogSource
+	mu           sync.Mutex
+	streamByType map[string]chan *LogSource
 }
 
 // NewLogSources creates a new log sources.
 func NewLogSources(sources []*LogSource) *LogSources {
 	return &LogSources{
-		sources: sources,
+		sources:      sources,
+		streamByType: make(map[string]chan *LogSource),
 	}
 }
 
@@ -27,6 +29,19 @@ func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sources = append(s.sources, source)
+
+	if source.Config == nil || source.Config.Validate() != nil {
+		return
+	}
+	switch source.Config.Type {
+	case FileType, DockerType:
+		// file and docker inputs are not plugged to source stream yet.
+		// FIXME: only consume sources through a stream.
+		break
+	default:
+		stream := s.GetSourceStreamForType(source.Config.Type)
+		stream <- source
+	}
 }
 
 // RemoveSource removes a source.
@@ -39,6 +54,16 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 			break
 		}
 	}
+}
+
+// GetSourceStreamForType returns the stream of valid sources matching the provided type.
+func (s *LogSources) GetSourceStreamForType(sourceType string) chan *LogSource {
+	stream, exists := s.streamByType[sourceType]
+	if !exists {
+		stream = make(chan *LogSource)
+		s.streamByType[sourceType] = stream
+	}
+	return stream
 }
 
 // GetSources returns all the sources currently held.
