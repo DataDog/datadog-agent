@@ -28,9 +28,8 @@ import (
 // MetadataController is responsible for synchronizing objects from the Kubernetes
 // apiserver to build and cache cluster metadata (like service tags) for each node.
 //
-// The controller ignores updates from the apiserver to endpoints with subsets that are
-// unchanged. The controller takes care to garbage collect any data while processing
-// updates/deletes so that the cache does not contain data for deleted pods/services.
+// The controller takes care to garbage collect any data while processing updates/deletes
+// so that the cache does not contain data for deleted pods/services.
 //
 // This controller only supports Kubernetes 1.4+.
 type MetadataController struct {
