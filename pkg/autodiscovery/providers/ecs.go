@@ -17,9 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ECS represents the name of the config provider
-const ECS = "ECS"
-
 const (
 	ecsADLabelPrefix        = "com.datadoghq.ad."
 	metadataURL      string = "http://169.254.170.2/v2/metadata"

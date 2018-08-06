@@ -18,9 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-// Docker represents the name of the config provider
-const Docker = "Docker"
-
 const (
 	dockerADLabelPrefix = "com.datadoghq.ad."
 )

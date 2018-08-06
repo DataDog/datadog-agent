@@ -21,9 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// Consul represents the name of the config provider
-const Consul = "Consul"
-
 // Abstractions for testing
 type consulKVBackend interface {
 	Keys(prefix, separator string, q *consul.QueryOptions) ([]string, *consul.QueryMeta, error)

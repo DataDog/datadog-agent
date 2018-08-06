@@ -18,9 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// Kubernetes represents the name of the config provider
-const Kubernetes = "Kubernetes"
-
 const (
 	newPodAnnotationPrefix    = "ad.datadoghq.com/"
 	newPodAnnotationFormat    = newPodAnnotationPrefix + "%s."

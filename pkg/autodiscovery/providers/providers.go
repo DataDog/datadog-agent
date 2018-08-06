@@ -10,6 +10,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const (
+	Consul     = "Consul"
+	Docker     = "Docker"
+	ECS        = "ECS"
+	Etcd       = "etcd"
+	File       = "File"
+	Kubernetes = "Kubernetes"
+	Zookeeper  = "Zookeeper"
+)
+
 // ProviderCatalog keeps track of config providers by name
 var ProviderCatalog = make(map[string]ConfigProviderFactory)
 

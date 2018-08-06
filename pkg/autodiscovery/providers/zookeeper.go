@@ -21,9 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// Zookeeper represents the name of the config provider
-const Zookeeper = "Zookeeper"
-
 const sessionTimeout = 1 * time.Second
 
 type zkBackend interface {
