@@ -22,10 +22,17 @@ import (
 )
 
 var (
-	transactionsRetryQueueSize = expvar.Int{}
-	transactionsSuccessful     = expvar.Int{}
-	transactionsDroppedOnInput = expvar.Int{}
-	transactionsErrors         = expvar.Int{}
+	transactionsRetryQueueSize     = expvar.Int{}
+	transactionsSuccessful         = expvar.Int{}
+	transactionsDroppedOnInput     = expvar.Int{}
+	transactionsErrors             = expvar.Int{}
+	transactionsErrorsByType       = expvar.Map{}
+	transactionsDNSErrors          = expvar.Int{}
+	transactionsTLSErrors          = expvar.Int{}
+	transactionsConnectionErrors   = expvar.Int{}
+	transactionsWroteRequestErrors = expvar.Int{}
+	transactionsSentRequestErrors  = expvar.Int{}
+	transactionsHTTPErrors         = expvar.Int{}
 )
 
 var trace = &httptrace.ClientTrace{
@@ -56,10 +63,18 @@ var trace = &httptrace.ClientTrace{
 }
 
 func initTransactionExpvars() {
+	transactionsErrorsByType.Init()
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("Success", &transactionsSuccessful)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
 	transactionsExpvars.Set("Errors", &transactionsErrors)
+	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
+	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
+	transactionsErrorsByType.Set("TLSErrors", &transactionsTLSErrors)
+	transactionsErrorsByType.Set("ConnectionErrors", &transactionsConnectionErrors)
+	transactionsErrorsByType.Set("WroteRequestErrors", &transactionsWroteRequestErrors)
+	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
+	transactionsErrorsByType.Set("HTTPErrors", &transactionsHTTPErrors)
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -115,6 +130,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
+		transactionsSentRequestErrors.Add(1)
 		return nil
 	}
 	req = req.WithContext(ctx)
@@ -149,6 +165,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
+		transactionsHTTPErrors.Add(1)
 		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 

@@ -3,7 +3,14 @@ Forwarder
 =========
 {{ if .Transactions }}
   {{- range $key, $value := .Transactions }}
+  {{- if eq $key "ErrorsByType"}}
+  {{$key}}:
+    {{- range $type, $count := $value }}
+    {{$type}}: {{$count}}
+    {{- end}}
+  {{- else}}
   {{$key}}: {{humanize $value}}
+  {{- end}}
   {{- end }}
   {{- if .Transactions.DroppedOnInput }}
 
