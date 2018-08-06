@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package status
+package render
 
 import (
 	"encoding/json"
@@ -15,6 +15,9 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 )
+
+// TimeFormat is the format string to use for timestamps in status output.
+const TimeFormat = "2006-01-02 15:04:05.000000 UTC"
 
 func init() {
 	fmap = template.FuncMap{
@@ -79,7 +82,7 @@ func FormatUnixTime(unixTime float64) string {
 		nsec, _ = strconv.ParseInt(secs[1], 10, 64)
 	}
 	t := time.Unix(sec, nsec)
-	return t.Format(timeFormat)
+	return t.Format(TimeFormat)
 }
 
 func printDashes(s string, dash string) string {
