@@ -67,7 +67,7 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 // a provided list of Container objects
 func (d *DockerUtil) UpdateContainerMetrics(cList []*containers.Container) error {
 	for _, container := range cList {
-		if container.State == containers.ContainerExitedState || container.Excluded {
+		if container.State != containers.ContainerRunningState || container.Excluded {
 			continue
 		}
 
@@ -110,7 +110,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 	}
 	ret := make([]*containers.Container, 0, len(cList))
 	for _, c := range cList {
-		if d.cfg.CollectNetwork {
+		if d.cfg.CollectNetwork && c.State == containers.ContainerRunningState {
 			// FIXME: We might need to invalidate this cache if a containers networks are changed live.
 			d.Lock()
 			if _, ok := d.networkMappings[c.ID]; !ok {
