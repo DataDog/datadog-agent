@@ -28,7 +28,7 @@ type JSONMap map[string]interface{}
 
 // Config is a generic container for configuration files
 type Config struct {
-	Name          string   `json:"check_name"`     // the name of the check
+	Name          string   `json:"check_name"`     // the name of the integration
 	Instances     []Data   `json:"instances"`      // array of Yaml configurations
 	InitConfig    Data     `json:"init_config"`    // the init_config in Yaml (python check only)
 	MetricConfig  Data     `json:"metric_config"`  // the metric config in Yaml (jmx check only)
