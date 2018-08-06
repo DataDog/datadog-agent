@@ -61,27 +61,32 @@ func NewDetector(configuredName string) *Detector {
 // constant when all collectors are either ok or PermaFail.
 // Users should keep calling this method instead of caching the first result.
 func (d *Detector) GetPreferred() (Collector, string, error) {
-	if d.preferredCollector != nil {
+	if d.candidates == nil {
+		// Detection rounds finished, exit fast
+		if d.preferredCollector == nil {
+			return nil, "", ErrPermaFail
+		}
 		return d.preferredCollector, d.preferredName, nil
 	}
-	if d.candidates == nil {
-		return nil, "", ErrPermaFail
-	}
-	d.detectCandidates()
-	if d.preferredCollector == nil {
-		return nil, "", ErrNothingYet
-	}
-	return d.preferredCollector, d.preferredName, nil
-}
 
-func (d *Detector) detectCandidates() {
+	d.detectCandidates()
 	// Stop detection when all candidates are tested
 	if len(d.candidates) == 0 {
 		d.candidates = nil
 		d.detected = nil
-		return
 	}
 
+	if d.preferredCollector == nil {
+		if d.candidates == nil {
+			return nil, "", ErrPermaFail
+		}
+		return nil, "", ErrNothingYet
+	}
+
+	return d.preferredCollector, d.preferredName, nil
+}
+
+func (d *Detector) detectCandidates() {
 	foundNew := false
 	// Retry all remaining candidates
 	for name, c := range d.candidates {
@@ -136,5 +141,5 @@ func isPrefered(name, current string) bool {
 		return false
 	}
 	// Alphabetic order to stay stable
-	return strings.Compare(current, name) > 1
+	return strings.Compare(current, name) == 1
 }
