@@ -184,48 +184,64 @@ func (d *DockerCheck) Run() error {
 		}
 		tags = append(tags, d.instance.Tags...)
 
-		sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
-		sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
-		sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
-		sender.Gauge("docker.cpu.shares", float64(c.CPU.Shares), "", tags)
-		sender.Rate("docker.cpu.throttled", float64(c.CPUNrThrottled), "", tags)
-		sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
-		sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
-		if c.Memory.SwapPresent == true {
-			sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
+		if c.CPU != nil {
+			sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
+			sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
+			sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
+			sender.Gauge("docker.cpu.shares", float64(c.CPU.Shares), "", tags)
+			sender.Rate("docker.cpu.throttled", float64(c.CPUNrThrottled), "", tags)
+		} else {
+			log.Debugf("Empty CPU metrics for container %s", c.ID[:12])
 		}
-
-		if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
-			sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
-			if c.Memory.HierarchicalMemoryLimit != 0 {
-				sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
+		if c.Memory != nil {
+			sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
+			sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
+			if c.Memory.SwapPresent == true {
+				sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
 			}
-		}
 
-		if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
-			sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
-			if c.Memory.HierarchicalMemSWLimit != 0 {
-				sender.Gauge("docker.mem.sw_in_use",
-					float64(c.Memory.Swap+c.Memory.RSS)/float64(c.Memory.HierarchicalMemSWLimit), "", tags)
+			if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
+				sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
+				if c.Memory.HierarchicalMemoryLimit != 0 {
+					sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
+				}
 			}
+
+			if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
+				sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
+				if c.Memory.HierarchicalMemSWLimit != 0 {
+					sender.Gauge("docker.mem.sw_in_use",
+						float64(c.Memory.Swap+c.Memory.RSS)/float64(c.Memory.HierarchicalMemSWLimit), "", tags)
+				}
+			}
+
+			if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
+				sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
+			}
+		} else {
+			log.Debugf("Empty memory metrics for container %s", c.ID[:12])
 		}
 
-		if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
-			sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
+		if c.IO != nil {
+			sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
+			sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
+		} else {
+			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
-
-		sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
-		sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
 
 		if c.Network != nil {
-			for _, netStat := range c.Network {
-				if netStat.NetworkName == "" {
-					log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
-					continue
+			if c.Network != nil {
+				for _, netStat := range c.Network {
+					if netStat.NetworkName == "" {
+						log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+						continue
+					}
+					ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
+					sender.Rate("docker.net.bytes_sent", float64(netStat.BytesSent), "", ifaceTags)
+					sender.Rate("docker.net.bytes_rcvd", float64(netStat.BytesRcvd), "", ifaceTags)
 				}
-				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
-				sender.Rate("docker.net.bytes_sent", float64(netStat.BytesSent), "", ifaceTags)
-				sender.Rate("docker.net.bytes_rcvd", float64(netStat.BytesRcvd), "", ifaceTags)
+			} else {
+				log.Debugf("Empty network metrics for container %s", c.ID[:12])
 			}
 		}
 

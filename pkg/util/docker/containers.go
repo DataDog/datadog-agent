@@ -44,7 +44,7 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 	}
 
 	for _, container := range cList {
-		if container.State == containers.ContainerExitedState || container.Excluded {
+		if container.State != containers.ContainerRunningState || container.Excluded {
 			continue
 		}
 		cgroup, ok := cgByContainer[container.ID]
