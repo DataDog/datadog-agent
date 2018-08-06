@@ -8,10 +8,12 @@ package forwarder
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptrace"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,6 +27,33 @@ var (
 	transactionsDroppedOnInput = expvar.Int{}
 	transactionsErrors         = expvar.Int{}
 )
+
+var trace = &httptrace.ClientTrace{
+	DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
+		if dnsInfo.Err != nil {
+			transactionsDNSErrors.Add(1)
+			log.Debugf("DNS Lookup failure: %s", dnsInfo.Err)
+		}
+	},
+	WroteRequest: func(wroteInfo httptrace.WroteRequestInfo) {
+		if wroteInfo.Err != nil {
+			transactionsWroteRequestErrors.Add(1)
+			log.Debugf("Request writing failure: %s", wroteInfo.Err)
+		}
+	},
+	ConnectDone: func(network, addr string, err error) {
+		if err != nil {
+			transactionsConnectionErrors.Add(1)
+			log.Debugf("Connection failure: %s", err)
+		}
+	},
+	TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
+		if err != nil {
+			transactionsTLSErrors.Add(1)
+			log.Errorf("TLS Handshake failure: %s", err)
+		}
+	},
+}
 
 func initTransactionExpvars() {
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
