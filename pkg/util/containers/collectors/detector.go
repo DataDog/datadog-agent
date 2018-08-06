@@ -13,12 +13,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-// ErrNothing is returned when no collector is currently available.
+// ErrNothingYet is returned when no collector is currently detected.
 // This might change in the future if new collectors are valid.
-var ErrNothing = errors.New("No collector available")
+var ErrNothingYet = &retry.Error{
+	LogicError:    errors.New("No collector detected"),
+	RessourceName: "detector",
+	RetryStatus:   retry.FailWillRetry,
+}
 
-// Detector holds the logic to initialise collectors,
-// with retries, and selecting the most appropriate
+// ErrPermaFail is returned when all candidates have permanently failed.
+var ErrPermaFail = &retry.Error{
+	LogicError:    errors.New("No collector available"),
+	RessourceName: "detector",
+	RetryStatus:   retry.PermaFail,
+}
+
+// Detector holds the logic to initialise collectors, with retries,
+// and selecting the most appropriate among available collectors
 type Detector struct {
 	candidates         map[string]Collector
 	detected           map[string]Collector
@@ -53,10 +64,15 @@ func (d *Detector) GetPreferred() (Collector, string, error) {
 	if d.preferredCollector != nil {
 		return d.preferredCollector, d.preferredName, nil
 	}
-	if d.candidates != nil {
+	if d.candidates == nil {
+		return nil, "", ErrPermaFail
+	} else {
 		d.detectCandidates()
 	}
-	return nil, "", ErrNothing
+	if d.preferredCollector != nil {
+		return d.preferredCollector, d.preferredName, nil
+	}
+	return nil, "", ErrNothingYet
 }
 
 func (d *Detector) detectCandidates() {
