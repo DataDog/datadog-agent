@@ -25,7 +25,8 @@ const (
 	// pauseContainerAzure regex matches:
 	// - k8s-gcrio.azureedge.net/pause-amd64
 	// - gcrio.azureedge.net/google_containers/pause-amd64
-	pauseContainerAzure = `image:(.*)azureedge\.net(/google_containers/|/)pause(.*)`
+	pauseContainerAzure   = `image:(.*)azureedge\.net(/google_containers/|/)pause(.*)`
+	pauseContainerRancher = `image:rancher/pause(.*)`
 )
 
 // Filter holds the state for the container filtering logic
@@ -95,6 +96,7 @@ func NewFilterFromConfig() (*Filter, error) {
 			pauseContainerKubernetes,
 			pauseContainerAzure,
 			pauseContainerECS,
+			pauseContainerRancher,
 		)
 	}
 	return NewFilter(whitelist, blacklist)
