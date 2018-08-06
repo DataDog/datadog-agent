@@ -11,15 +11,14 @@ import (
 
 // LogSources stores a list of log sources.
 type LogSources struct {
-	sources      []*LogSource
 	mu           sync.Mutex
+	sources      []*LogSource
 	streamByType map[string]chan *LogSource
 }
 
 // NewLogSources creates a new log sources.
-func NewLogSources(sources []*LogSource) *LogSources {
+func NewLogSources() *LogSources {
 	return &LogSources{
-		sources:      sources,
 		streamByType: make(map[string]chan *LogSource),
 	}
 }
@@ -34,13 +33,13 @@ func (s *LogSources) AddSource(source *LogSource) {
 		return
 	}
 	switch source.Config.Type {
-	case FileType, DockerType:
+	case UDPType, TCPType, JournaldType, WindowsEventType:
+		stream := s.GetSourceStreamForType(source.Config.Type)
+		stream <- source
+	default:
 		// file and docker inputs are not plugged to source stream yet.
 		// FIXME: only consume sources through a stream.
 		break
-	default:
-		stream := s.GetSourceStreamForType(source.Config.Type)
-		stream <- source
 	}
 }
 

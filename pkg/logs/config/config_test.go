@@ -29,19 +29,15 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.logs_no_ssl"))
 }
 
-func TestBuild(t *testing.T) {
-	var sources *LogSources
+func TestDefaultSources(t *testing.T) {
+	var sources []*LogSource
 	var source *LogSource
-
-	// should return an error
-	sources, _, _ = Build()
-	assert.Equal(t, 0, len(sources.GetValidSources()))
 
 	// should return the tcp forward source
 	LogsAgent.Set("logs_config.tcp_forward_port", 1234)
-	sources = Build()
-	assert.Equal(t, 1, len(sources.GetValidSources()))
-	source = sources.GetValidSources()[0]
+	sources = DefaultSources()
+	assert.Equal(t, 1, len(sources))
+	source = sources[0]
 	assert.Equal(t, "tcp_forward", source.Name)
 	assert.Equal(t, TCPType, source.Config.Type)
 	assert.Equal(t, 1234, source.Config.Port)
@@ -51,7 +47,7 @@ func TestBuildServerConfigShouldSucceedWithDefaultAndValidOverride(t *testing.T)
 	var serverConfig *ServerConfig
 	var err error
 
-	serverConfig, err = buildServerConfig()
+	serverConfig, err = BuildServerConfig()
 	assert.Nil(t, err)
 	assert.Equal(t, "agent-intake.logs.datadoghq.com", serverConfig.Name)
 	assert.Equal(t, 10516, serverConfig.Port)
@@ -68,7 +64,7 @@ func TestBuildServerConfigShouldSucceedWithDefaultAndValidOverride(t *testing.T)
 
 	LogsAgent.Set("logs_config.logs_dd_url", "host:1234")
 	LogsAgent.Set("logs_config.logs_no_ssl", true)
-	serverConfig, err = buildServerConfig()
+	serverConfig, err = BuildServerConfig()
 	assert.Nil(t, err)
 	assert.Equal(t, "host", serverConfig.Name)
 	assert.Equal(t, 1234, serverConfig.Port)
@@ -77,7 +73,7 @@ func TestBuildServerConfigShouldSucceedWithDefaultAndValidOverride(t *testing.T)
 
 	LogsAgent.Set("logs_config.logs_dd_url", ":1234")
 	LogsAgent.Set("logs_config.logs_no_ssl", false)
-	serverConfig, err = buildServerConfig()
+	serverConfig, err = BuildServerConfig()
 	assert.Nil(t, err)
 	assert.Equal(t, "", serverConfig.Name)
 	assert.Equal(t, 1234, serverConfig.Port)
@@ -93,7 +89,7 @@ func TestBuildServerConfigShouldFailWithInvalidOverride(t *testing.T) {
 
 	for _, url := range invalidURLs {
 		LogsAgent.Set("logs_config.logs_dd_url", url)
-		_, err := buildServerConfig()
+		_, err := BuildServerConfig()
 		assert.NotNil(t, err)
 	}
 }

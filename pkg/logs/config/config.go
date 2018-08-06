@@ -17,13 +17,8 @@ import (
 // LogsAgent is the global configuration object
 var LogsAgent = config.Datadog
 
-// Build returns logs-agent sources
-func Build() (*LogSources, *ServerConfig, error) {
-	serverConfig, err := buildServerConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-
+// DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
+func DefaultSources() []*LogSource {
 	var sources []*LogSource
 	tcpForwardPort := LogsAgent.GetInt("logs_config.tcp_forward_port")
 	if tcpForwardPort > 0 {
@@ -34,12 +29,11 @@ func Build() (*LogSources, *ServerConfig, error) {
 		})
 		sources = append(sources, tcpForwardSource)
 	}
-
-	return NewLogSources(sources), serverConfig, nil
+	return sources
 }
 
-// buildServerConfig returns the server config to send logs to.
-func buildServerConfig() (*ServerConfig, error) {
+// BuildServerConfig returns the server config to send logs to.
+func BuildServerConfig() (*ServerConfig, error) {
 	if LogsAgent.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 func TestAddSource(t *testing.T) {
-	sources := NewEmptyLogSources()
+	sources := NewLogSources()
 	assert.Equal(t, 0, len(sources.GetSources()))
 	sources.AddSource(NewLogSource("foo", nil))
 	assert.Equal(t, 1, len(sources.GetSources()))
@@ -21,9 +21,11 @@ func TestAddSource(t *testing.T) {
 }
 
 func TestRemoveSource(t *testing.T) {
+	sources := NewLogSources()
 	source1 := NewLogSource("foo", nil)
+	sources.AddSource(source1)
 	source2 := NewLogSource("bar", nil)
-	sources := NewLogSources([]*LogSource{source1, source2})
+	sources.AddSource(source2)
 	assert.Equal(t, 2, len(sources.GetSources()))
 	sources.RemoveSource(source1)
 	assert.Equal(t, 1, len(sources.GetSources()))
@@ -33,38 +35,43 @@ func TestRemoveSource(t *testing.T) {
 }
 
 func TestGetSources(t *testing.T) {
-	sources := NewEmptyLogSources()
+	sources := NewLogSources()
 	assert.Equal(t, 0, len(sources.GetSources()))
 	sources.AddSource(NewLogSource("", nil))
 	assert.Equal(t, 1, len(sources.GetSources()))
 }
 
 func TestGetValidSources(t *testing.T) {
+	sources := NewLogSources()
 	source1 := NewLogSource("foo", &LogsConfig{Type: FileType})
+	sources.AddSource(source1)
 	source2 := NewLogSource("bar", &LogsConfig{Type: DockerType})
-	sources := NewLogSources([]*LogSource{source1, source2})
+	sources.AddSource(source2)
 	assert.Equal(t, 1, len(sources.GetValidSources()))
 }
 
 func TestGetSourcesWithType(t *testing.T) {
+	sources := NewLogSources()
 	source1 := NewLogSource("foo", nil)
+	sources.AddSource(source1)
 	source2 := NewLogSource("bar", &LogsConfig{})
+	sources.AddSource(source2)
 	source3 := NewLogSource("baz", &LogsConfig{Type: FileType, Path: "foo"})
+	sources.AddSource(source3)
 	source4 := NewLogSource("qux", &LogsConfig{Type: FileType})
-	sources := NewLogSources([]*LogSource{source1, source2, source3, source4})
+	sources.AddSource(source4)
 	assert.Equal(t, 2, len(sources.GetSourcesWithType(FileType)))
 }
 
 func TestGetValidSourcesWithType(t *testing.T) {
+	sources := NewLogSources()
 	source1 := NewLogSource("foo", nil)
+	sources.AddSource(source1)
 	source2 := NewLogSource("bar", &LogsConfig{})
+	sources.AddSource(source2)
 	source3 := NewLogSource("baz", &LogsConfig{Type: FileType, Path: "foo"})
+	sources.AddSource(source3)
 	source4 := NewLogSource("qux", &LogsConfig{Type: FileType})
-	sources := NewLogSources([]*LogSource{source1, source2, source3, source4})
+	sources.AddSource(source4)
 	assert.Equal(t, 1, len(sources.GetValidSourcesWithType(FileType)))
-}
-
-// NewEmptyLogSources creates a new log sources with no initial entries.
-func NewEmptyLogSources() *LogSources {
-	return NewLogSources(make([]*LogSource, 0))
 }
