@@ -76,6 +76,12 @@ func GetSharedFilter() (*Filter, error) {
 	return f, nil
 }
 
+// ResetSharedFilter is only to be used in unit tests: it resets the global
+// filter instance to force re-parsing of the configuration.
+func ResetSharedFilter() {
+	sharedFilter = nil
+}
+
 // NewFilter creates a new container filter from a two slices of
 // regexp patterns for a whitelist and blacklist. Each pattern should have
 // the following format: "field:pattern" where field can be: [image, name].
