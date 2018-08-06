@@ -10,6 +10,8 @@
       "google-compute-enable-pcid": "true",
       "instance-template": "projects/111111111111/global/instanceTemplates/gke-test-cluster-default-pool-0012834b",
       "kube-env": "LOREM: IPSUM",
+      "ssh-keys": "user:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAFI351Jv+RHprovV+fJ+uXLWIaE/tmktoywWl+OT88FL3xng+ovxqxkS3eLZ9ZfiFNfU3yGQwNiSJDBP/PmJR5YHeI/jHtVlg21Yo1QBPrDTNmOvWvWxuVqgSR3ebMhKir7FOGgDhSaaT+47e40tSJ46YXnV6HnuJ1RJKHMifhjXT1+Ls4dKp+pF9TCnQFzmrJ423FM5lUMSRlI43bko5TJhDEG0h4WEQ0d9kusbkjsEZBGMP2u6JJWkI5qNwQjqdEopODWprqgOqZECJrQ/LdD/+xfyd1YKHidqhQ0Ne//dwFyIEwBui8ZwQ49nEHg9as6oZIXsD6r5gyCQgzHUlrk= user@user-MacBook-Pro.local",
+      "sshKeys": "user:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAFI351Jv+RHprovV+fJ+uXLWIaE/tmktoywWl+OT88FL3xng+ovxqxkS3eLZ9ZfiFNfU3yGQwNiSJDBP/PmJR5YHeI/jHtVlg21Yo1QBPrDTNmOvWvWxuVqgSR3ebMhKir7FOGgDhSaaT+47e40tSJ46YXnV6HnuJ1RJKHMifhjXT1+Ls4dKp+pF9TCnQFzmrJ423FM5lUMSRlI43bko5TJhDEG0h4WEQ0d9kusbkjsEZBGMP2u6JJWkI5qNwQjqdEopODWprqgOqZECJrQ/LdD/+xfyd1YKHidqhQ0Ne//dwFyIEwBui8ZwQ49nEHg9as6oZIXsD6r5gyCQgzHUlrk= user@user-MacBook-Pro.local",
       "user-data": "somedata"
     },
     "cpuPlatform": "Intel Haswell",
@@ -67,7 +69,9 @@
   "oslogin": {},
   "project": {
     "attributes": {
-      "gke-user-test-cluster-0000000f-cidr": "default:10.1.0.0/14"
+      "gke-user-test-cluster-0000000f-cidr": "default:10.1.0.0/14",
+      "ssh-keys": "user:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAFI351Jv+RHprovV+fJ+uXLWIaE/tmktoywWl+OT88FL3xng+ovxqxkS3eLZ9ZfiFNfU3yGQwNiSJDBP/PmJR5YHeI/jHtVlg21Yo1QBPrDTNmOvWvWxuVqgSR3ebMhKir7FOGgDhSaaT+47e40tSJ46YXnV6HnuJ1RJKHMifhjXT1+Ls4dKp+pF9TCnQFzmrJ423FM5lUMSRlI43bko5TJhDEG0h4WEQ0d9kusbkjsEZBGMP2u6JJWkI5qNwQjqdEopODWprqgOqZECJrQ/LdD/+xfyd1YKHidqhQ0Ne//dwFyIEwBui8ZwQ49nEHg9as6oZIXsD6r5gyCQgzHUlrk= google-ssh {\"userName\":\"user@datadoghq.com\",\"expireOn\":\"2018-08-01T08:23:58+0000\"}\nuser:ecdsa-sha2-nistp256 AAAAB3NzaC1yc2EAAAADAQABAAABAFI351Jv+RHprouV+fJ+uXLWIaE/tmktoywWl+OTy8FL3xng+ovxqxkS3eLZ9ZfiFNfU3yGQwNiSJDBP/PmJR5YHeI/jHtVlg21Yo1QBPrDTNmOvWvWxuVqgSR3ebMhKir7FOGgDhSaaT+47e40tSJ46YXnV6HnuJ1RJKHMifhjXT1+Ls4dKp+pF9TCnQFzmrJ423FM5lUMSRlI43bko5TJhDEG0h4WEQ0d9kusbkjsEZBGMP2u6JJWkI5qNwQjqdEopODWprqgOqZECJrQ/LdD/+xfyd1YKHidqhQ0Ne//dwFyIEwBui8ZwQ49nEHg9as6oZIXsD6r5gyCQgzHUlrk= google-ssh {\"userName\":\"user@datadoghq.com\",\"expireOn\":\"2018-08-01T08:23:52+0000\"}\n",
+      "sshKeys": "user:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAFI351Jv+RHprovV+fJ+uXLWIaE/tmktoywWl+OT88FL3xng+ovxqxkS3eLZ9ZfiFNfU3yGQwNiSJDBP/PmJR5YHeI/jHtVlg21Yo1QBPrDTNmOvWvWxuVqgSR3ebMhKir7FOGgDhSaaT+47e40tSJ46YXnV6HnuJ1RJKHMifhjXT1+Ls4dKp+pF9TCnQFzmrJ423FM5lUMSRlI43bko5TJhDEG0h4WEQ0d9kusbkjsEZBGMP2u6JJWkI5qNwQjqdEopODWprqgOqZECJrQ/LdD/+xfyd1YKHidqhQ0Ne//dwFyIEwBui8ZwQ49nEHg9as6oZIXsD6r5gyCQgzHUlrk= user@user-MacBook-Pro.local"
     },
     "numericProjectId": 111111111111,
     "projectId": "test-project"
