@@ -18,9 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// File represents the name of the config provider
-const File = "File"
-
 type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
 	InitConfig    interface{} `yaml:"init_config"`

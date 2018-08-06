@@ -21,9 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// Etcd represents the name of the config provider
-const Etcd = "etcd"
-
 type etcdBackend interface {
 	Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error)
 }
