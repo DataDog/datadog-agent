@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -26,17 +25,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const (
-	maxRetries = 15
-	numWorkers = 3
-)
-
 // MetadataController is responsible for synchronizing objects from the Kubernetes
 // apiserver to build and cache cluster metadata (like service tags) for each node.
 //
-// The controller ignores updates from the apiserver to endpoints with subsets that are
-// unchanged. The controller takes care to garbage collect any data while processing
-// updates/deletes so that the cache does not contain data for deleted pods/services.
+// The controller takes care to garbage collect any data while processing updates/deletes
+// so that the cache does not contain data for deleted pods/services.
 //
 // This controller only supports Kubernetes 1.4+.
 type MetadataController struct {
@@ -81,9 +74,7 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	for i := 0; i < numWorkers; i++ {
-		go wait.Until(m.worker, time.Second, stopCh)
-	}
+	go wait.Until(m.worker, time.Second, stopCh)
 
 	<-stopCh
 }
@@ -101,22 +92,10 @@ func (m *MetadataController) processNextWorkItem() bool {
 	defer m.queue.Done(key)
 
 	err := m.syncEndpoints(key.(string))
-	if err == nil {
-		m.queue.Forget(key)
-		if m.endpoints != nil {
-			m.endpoints <- key
-		}
-		return true
-	}
-
-	if m.queue.NumRequeues(key) < maxRetries {
+	if err != nil {
 		log.Debugf("Error syncing endpoints %v: %v", key, err)
-		m.queue.AddRateLimited(key)
-		return true
 	}
 
-	log.Debugf("Dropping endpoints %q out of the queue: %v", key, err)
-	m.queue.Forget(key)
 	if m.endpoints != nil {
 		m.endpoints <- key
 	}
@@ -134,16 +113,8 @@ func (m *MetadataController) addEndpoints(obj interface{}) {
 }
 
 func (m *MetadataController) updateEndpoints(old, cur interface{}) {
-	oldEndpoints, ok := old.(*corev1.Endpoints)
-	if !ok {
-		return
-	}
 	newEndpoints, ok := cur.(*corev1.Endpoints)
 	if !ok {
-		return
-	}
-	if apiequality.Semantic.DeepEqual(oldEndpoints.Subsets, newEndpoints.Subsets) {
-		log.Tracef("Endpoints subsets are equal for %s/%s, skipping update", newEndpoints.Namespace, newEndpoints.Name)
 		return
 	}
 	log.Tracef("Updating endpoints %s/%s", newEndpoints.Namespace, newEndpoints.Name)
@@ -257,7 +228,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 		metaBundle.m.Unlock()
 
 		cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-		if len(metaBundle.Services) == 0 {
+		if metaBundle.Empty() {
 			agentcache.Cache.Delete(cacheKey)
 			continue
 		}
@@ -286,7 +257,7 @@ func (m *MetadataController) mapDeletedEndpoints(namespace, svc string) error {
 		metaBundle.m.Unlock()
 
 		cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, node.Name)
-		if len(metaBundle.Services) == 0 {
+		if metaBundle.Empty() {
 			agentcache.Cache.Delete(cacheKey)
 			continue
 		}

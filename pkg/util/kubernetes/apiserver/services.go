@@ -187,3 +187,10 @@ func (metaBundle *MetadataMapperBundle) ServicesForPod(ns, podName string) ([]st
 
 	return metaBundle.Services.Get(ns, podName)
 }
+
+func (metaBundle *MetadataMapperBundle) Empty() bool {
+	metaBundle.m.RLock()
+	defer metaBundle.m.RUnlock()
+
+	return len(metaBundle.Services) == 0
+}
