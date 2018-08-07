@@ -23,15 +23,18 @@ import (
 
 const (
 	keyDelimeter = "-"
+	numKeyParts  = 5
 )
 
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
 	SetExternalMetricValues([]ExternalMetricValue) error
+	SetMetricDescriptors([]PodsMetricDescriptor, []ObjectMetricDescriptor) error
 
-	Delete([]ObjectReference) error
+	Purge([]ObjectReference) error
 
 	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
+	ListAllMetricDescriptors() ([]PodsMetricDescriptor, []ObjectMetricDescriptor, error)
 }
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.
@@ -88,30 +91,44 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 
 // SetExternalMetricValues updates the external metrics in the configmap.
 func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) error {
-	if c.cm == nil {
-		return fmt.Errorf("configmap not initialized")
-	}
 	if len(added) == 0 {
 		return nil
 	}
-	if c.cm.Data == nil {
-		// Don't panic "assignment to entry in nil map" at init
-		c.cm.Data = make(map[string]string)
-	}
-	for _, m := range added {
-		key := strings.Join([]string{"external_metric", m.HPA.Namespace, m.HPA.Name, m.MetricName}, keyDelimeter)
-		toStore, err := json.Marshal(m)
-		if err != nil {
-			log.Debugf("Could not marshal the external metric %v: %s", m, err)
+	var err error
+	for _, metric := range added {
+		key := strings.Join([]string{"value", "external", metric.HPARef.Namespace, metric.HPARef.Name, metric.MetricName}, keyDelimeter)
+		if err = c.set(key, metric); err == nil {
 			continue
 		}
-		c.cm.Data[key] = string(toStore)
+		log.Debugf("Could not marshal the external metric %v: %s", metric, err)
 	}
 	return c.updateConfigMap()
 }
 
-// Delete deletes all metrics in the configmap that refer to any of the given object references.
-func (c *configMapStore) Delete(deleted []ObjectReference) error {
+func (c *configMapStore) SetMetricDescriptors(podsMetrics []PodsMetricDescriptor, objectMetrics []ObjectMetricDescriptor) error {
+	if len(podsMetrics) == 0 && len(objectMetrics) == 0 {
+		return nil
+	}
+	var err error
+	for _, desc := range podsMetrics {
+		key := strings.Join([]string{"descriptor", "pods", desc.HPARef.Namespace, desc.HPARef.Name, desc.MetricName}, keyDelimeter)
+		if err = c.set(key, desc); err == nil {
+			continue
+		}
+		log.Debugf("Could not marshal the pods metric descriptor %v: %v", desc, err)
+	}
+	for _, desc := range objectMetrics {
+		key := strings.Join([]string{"descriptor", "object", desc.HPARef.Namespace, desc.HPARef.Name, desc.MetricName}, keyDelimeter)
+		if err = c.set(key, desc); err == nil {
+			continue
+		}
+		log.Debugf("Could not marshal the object metric descriptor %v: %v", desc, err)
+	}
+	return c.updateConfigMap()
+}
+
+// Purge deletes all data in the configmap that refers to any of the given object references.
+func (c *configMapStore) Purge(deleted []ObjectReference) error {
 	if c.cm == nil {
 		return fmt.Errorf("configmap not initialized")
 	}
@@ -122,47 +139,98 @@ func (c *configMapStore) Delete(deleted []ObjectReference) error {
 		// Delete all metrics from the configmap that reference this object.
 		for k := range c.cm.Data {
 			parts := strings.Split(k, keyDelimeter)
-			if len(parts) < 4 {
+			if len(parts) < numKeyParts {
 				log.Debugf("Deleting malformed key %s", k)
 				delete(c.cm.Data, k)
 				continue
 			}
-			if parts[1] != obj.Namespace || parts[2] != obj.Name {
+			if parts[2] != obj.Namespace || parts[3] != obj.Name {
 				continue
 			}
 			delete(c.cm.Data, k)
-			log.Debugf("Deleted metric %s for HPA %s from the configmap %s", parts[3], obj.Name, c.name)
+			log.Debugf("Deleted metric %s for HPA %s from the configmap %s", parts[4], obj.Name, c.name)
 		}
 	}
 	return c.updateConfigMap()
 }
 
 // ListAllExternalMetricValues returns the most up-to-date list of external metrics from the configmap.
-// Any replica can safely call this function.
-func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
-	var metrics []ExternalMetricValue
-	if err := c.getConfigMap(); err != nil {
-		return nil, err
+func (c *configMapStore) ListAllExternalMetricValues() (externalMetrics []ExternalMetricValue, err error) {
+	if err = c.getConfigMap(); err != nil {
+		return
 	}
 	for k, v := range c.cm.Data {
-		if !strings.HasPrefix(k, "external_metric") {
+		parts := strings.Split(k, keyDelimeter)
+		if len(parts) < numKeyParts {
 			continue
 		}
-		m := ExternalMetricValue{}
-		if err := json.Unmarshal([]byte(v), &m); err != nil {
-			log.Debugf("Could not unmarshal the external metric for key %s: %s", k, err)
+		if parts[0] != "value" && parts[1] != "external" {
 			continue
 		}
-		metrics = append(metrics, m)
+		metric := ExternalMetricValue{}
+		if err := json.Unmarshal([]byte(v), &metric); err != nil {
+			log.Debugf("Could not unmarshal the external metric for key %s: %v", k, err)
+			continue
+		}
+		externalMetrics = append(externalMetrics, metric)
 	}
-	return metrics, nil
+	return
+}
+
+// ListAllMetricDescriptors returns the most up-to-date list of metric descriptors from the configmap.
+func (c *configMapStore) ListAllMetricDescriptors() (podsMetrics []PodsMetricDescriptor, objectMetrics []ObjectMetricDescriptor, err error) {
+	if err = c.getConfigMap(); err != nil {
+		return
+	}
+	for k, v := range c.cm.Data {
+		parts := strings.Split(k, keyDelimeter)
+		if len(parts) < numKeyParts {
+			continue
+		}
+		if parts[0] != "descriptor" {
+			continue
+		}
+		switch parts[1] {
+		case "pods":
+			desc := PodsMetricDescriptor{}
+			if err := json.Unmarshal([]byte(v), &desc); err != nil {
+				log.Debugf("Could not unmarshal the pods metric descriptor for key %s: %v", k, err)
+				continue
+			}
+			podsMetrics = append(podsMetrics, desc)
+		case "object":
+			desc := ObjectMetricDescriptor{}
+			if err := json.Unmarshal([]byte(v), &desc); err != nil {
+				log.Debugf("Could not unmarshal the object metric descriptor for key %s: %v", k, err)
+				continue
+			}
+			objectMetrics = append(objectMetrics, desc)
+		}
+	}
+	return
+}
+
+func (c *configMapStore) set(key string, obj interface{}) error {
+	if c.cm == nil {
+		return fmt.Errorf("configmap not initialized")
+	}
+	if c.cm.Data == nil {
+		// Don't panic "assignment to entry in nil map" at init
+		c.cm.Data = make(map[string]string)
+	}
+	toStore, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	c.cm.Data[key] = string(toStore)
+	return nil
 }
 
 func (c *configMapStore) getConfigMap() error {
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Get(c.name, metav1.GetOptions{})
 	if err != nil {
-		log.Infof("Could not get the configmap %s: %s", c.name, err)
+		log.Infof("Could not get the configmap %s: %v", c.name, err)
 		return err
 	}
 	return nil
@@ -175,7 +243,7 @@ func (c *configMapStore) updateConfigMap() error {
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Update(c.cm)
 	if err != nil {
-		log.Infof("Could not update the configmap %s: %s", c.name, err)
+		log.Infof("Could not update the configmap %s: %v", c.name, err)
 		return err
 	}
 	return nil

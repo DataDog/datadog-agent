@@ -11,13 +11,26 @@ type ExternalMetricValue struct {
 	MetricName string            `json:"metricName"`
 	Labels     map[string]string `json:"labels"`
 	Timestamp  int64             `json:"ts"`
-	HPA        ObjectReference   `json:"hpa"`
+	HPARef     ObjectReference   `json:"hpaRef"`
 	Value      int64             `json:"value"`
 	Valid      bool              `json:"valid"`
 }
 
+type PodsMetricDescriptor struct {
+	MetricName string          `json:"metricName"`
+	HPARef     ObjectReference `json:"hpaRef"`
+}
+
+type ObjectMetricDescriptor struct {
+	MetricName      string          `json:"metricName"`
+	HPARef          ObjectReference `json:"hpaRef"`
+	DescribedObject ObjectReference `json:"describedObject"`
+}
+
 // ObjectReference contains enough information to let you identify the referred resource.
 type ObjectReference struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Kind       string `json:"kind"`
+	Name       string `json:"name"`
+	Namespace  string `json:"namespace"`
+	APIVersion string `json:"apiVersion"`
 }

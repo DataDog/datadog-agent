@@ -56,24 +56,24 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 		},
@@ -83,24 +83,24 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "bar", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "bar", Namespace: "default"},
 				},
 			},
 		},
@@ -110,19 +110,19 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "frontend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 			},
 			[]ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
 					Labels:     map[string]string{"role": "backend"},
-					HPA:        ObjectReference{Name: "foo", Namespace: "default"},
+					HPARef:     ObjectReference{Name: "foo", Namespace: "default"},
 				},
 			},
 		},
@@ -140,15 +140,55 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			allMetrics, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, allMetrics)
-
-			objectRefs := make([]ObjectReference, 0)
-			for _, m := range tt.metrics {
-				objectRefs = append(objectRefs, m.HPA)
-			}
-
-			err = store.Delete(objectRefs)
-			require.NoError(t, err)
-			assert.Zero(t, len(store.(*configMapStore).cm.Data))
 		})
 	}
+}
+
+func TestConfigMapStorePurge(t *testing.T) {
+	client := fake.NewSimpleClientset()
+
+	store, err := NewConfigMapStore(client, "default", "bag-o-things")
+	require.NoError(t, err)
+
+	fooRef := ObjectReference{
+		Namespace: "foo",
+		Name:      "default",
+	}
+
+	barRef := ObjectReference{
+		Namespace: "bar",
+		Name:      "default",
+	}
+
+	externalMetrics := []ExternalMetricValue{
+		{
+			MetricName: "requests_per_s",
+			Labels:     map[string]string{"availability_zone": "us-east-1"},
+			HPARef:     fooRef,
+		},
+	}
+	err = store.SetExternalMetricValues(externalMetrics)
+	require.NoError(t, err)
+
+	podsDescs := []PodsMetricDescriptor{
+		{
+			MetricName: "conn_opened_per_s",
+			HPARef:     barRef,
+		},
+	}
+
+	objectDescs := []ObjectMetricDescriptor{
+		{
+			MetricName:      "conn_opened_per_s",
+			DescribedObject: ObjectReference{Name: "nginx", Namespace: "default"},
+			HPARef:          barRef,
+		},
+	}
+	err = store.SetMetricDescriptors(podsDescs, objectDescs)
+	require.NoError(t, err)
+
+	// Purging both references should delete all data in configmap.
+	err = store.Purge([]ObjectReference{fooRef, barRef})
+	require.NoError(t, err)
+	assert.Zero(t, len(store.(*configMapStore).cm.Data))
 }

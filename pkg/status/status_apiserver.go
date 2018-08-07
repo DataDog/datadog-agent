@@ -9,11 +9,12 @@ package status
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
-	"time"
 )
 
 func getLeaderElectionDetails() map[string]string {
@@ -54,26 +55,41 @@ func getDCAStatus() map[string]string {
 
 // GetHorizontalPodAutoscalingStatus fetches the content of the ConfigMap storing the state of the HPA metrics provider
 func GetHorizontalPodAutoscalingStatus() map[string]interface{} {
-	horizontalPodAutoscalingStatus := make(map[string]interface{})
+	status := make(map[string]interface{})
 
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
-		horizontalPodAutoscalingStatus["Error"] = err.Error()
-		return horizontalPodAutoscalingStatus
+		status["Error"] = err.Error()
+		return status
 	}
 
 	datadogHPAConfigMap := custommetrics.GetHPAConfigmapName()
-	horizontalPodAutoscalingStatus["Cmname"] = datadogHPAConfigMap
+	status["ConfigMapName"] = datadogHPAConfigMap
 
 	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, apiserver.GetResourcesNamespace(), datadogHPAConfigMap)
+
+	externalStatus := make(map[string]interface{})
 	externalMetrics, err := store.ListAllExternalMetricValues()
 	if err != nil {
-		horizontalPodAutoscalingStatus["ErrorStore"] = err.Error()
-		return horizontalPodAutoscalingStatus
+		externalStatus["ErrorStore"] = err.Error()
+		return status
 	}
+	externalStatus["Number"] = len(externalMetrics)
+	externalStatus["Metrics"] = externalMetrics
 
-	horizontalPodAutoscalingStatus["Number"] = len(externalMetrics)
-	horizontalPodAutoscalingStatus["Metrics"] = externalMetrics
+	status["External"] = externalStatus
 
-	return horizontalPodAutoscalingStatus
+	descStatus := make(map[string]interface{})
+	podsDescs, objectDescs, err := store.ListAllMetricDescriptors()
+	if err != nil {
+		descStatus["ErrorStore"] = err.Error()
+		return status
+	}
+	descStatus["Number"] = len(podsDescs) + len(objectDescs)
+	descStatus["Pods"] = podsDescs
+	descStatus["Object"] = objectDescs
+
+	status["Descriptors"] = descStatus
+
+	return status
 }
