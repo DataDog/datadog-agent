@@ -79,7 +79,7 @@ func (c *LogsConfig) Validate() error {
 }
 
 // validateProcessingRules validates the rules and raises an error if one is misconfigured.
-// All sources must have:
+// Each processing rule must have:
 // - a valid name
 // - a valid type
 // - a valid pattern that compiles
