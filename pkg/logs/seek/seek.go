@@ -7,8 +7,6 @@ package seek
 
 import (
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 )
 
 // Strategy represents the stategy a tailer should be using while starting tailing a new element.
@@ -23,30 +21,36 @@ const (
 	End
 )
 
+// Registry holds a list of offsets.
+type Registry interface {
+	GetOffset(identifier string) string
+}
+
 // Seeker provides seek strategies to inputs when starting tailing new element.
 type Seeker struct {
-	origin  time.Time
-	auditor *auditor.Auditor
+	registry Registry
 }
 
 // NewSeeker returns a new seeker
-func NewSeeker(auditor *auditor.Auditor) *Seeker {
+func NewSeeker(registry Registry) *Seeker {
 	return &Seeker{
-		origin:  time.Now(),
-		auditor: auditor,
+		registry: registry,
 	}
 }
 
+// origin represents the time reference of the agent.
+var origin = time.Now()
+
 // Seek returns the position to be used by a tailer when starting tailing an element:
-// - elements that have already been tailed in the past should be tailed from an offset registered in the auditor
+// - elements that have already been tailed in the past should be tailed from an offset retrieved from the registry
 // - elements that have been created before the agent start should be tailed from the end
 // - elements that have been created after the agent start should be tailed from the beginning
 func (s *Seeker) Seek(ctime time.Time, identifier string) (Strategy, string) {
-	offset := s.auditor.GetLastCommittedOffset(identifier)
+	offset := s.registry.GetOffset(identifier)
 	if offset != "" {
 		return Recover, offset
 	}
-	if ctime.After(s.origin) {
+	if ctime.After(origin) {
 		return Start, ""
 	}
 	return End, ""

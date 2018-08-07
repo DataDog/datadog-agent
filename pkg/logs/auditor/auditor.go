@@ -77,9 +77,9 @@ func (a *Auditor) Stop() {
 	}
 }
 
-// GetLastCommittedOffset returns the last committed offset for a given identifier,
+// GetOffset returns the last committed offset for a given identifier,
 // returns an empty string if it does not exist.
-func (a *Auditor) GetLastCommittedOffset(identifier string) string {
+func (a *Auditor) GetOffset(identifier string) string {
 	r := a.readOnlyRegistryCopy()
 	entry, exists := r[identifier]
 	if !exists {
