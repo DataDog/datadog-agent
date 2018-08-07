@@ -426,7 +426,11 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) ([]integration.Config, []i
 			removedConf = append(removedConf, c)
 		}
 	}
-	log.Infof("%v: collected %d new configurations, removed %d", pd.provider, len(newConf), len(removedConf))
+	if len(newConf) > 0 || len(removedConf) > 0 {
+		log.Infof("%v provider: collected %d new configurations, removed %d", pd.provider, len(newConf), len(removedConf))
+	} else {
+		log.Debugf("%v provider: no configuration change", pd.provider)
+	}
 	return newConf, removedConf
 }
 
