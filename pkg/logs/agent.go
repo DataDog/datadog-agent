@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/seek"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 )
 
@@ -47,13 +48,16 @@ func NewAgent(sources *config.LogSources) *Agent {
 	)
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
+	// setup the seeker
+	seeker := seek.NewSeeker(auditor)
+
 	// setup the inputs
 	inputs := []restart.Restartable{
-		docker.NewScanner(sources, pipelineProvider, auditor),
+		docker.NewScanner(sources, pipelineProvider, seeker),
 		listener.New(sources, pipelineProvider),
-		file.New(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		journald.New(sources, pipelineProvider, auditor),
-		windowsevent.New(sources, pipelineProvider, auditor),
+		file.New(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, seeker, file.DefaultSleepDuration),
+		journald.New(sources, pipelineProvider, seeker),
+		windowsevent.New(sources, pipelineProvider),
 	}
 
 	return &Agent{

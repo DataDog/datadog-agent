@@ -18,7 +18,6 @@ import (
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
@@ -80,67 +79,31 @@ func (t *Tailer) Stop() {
 	<-t.done
 }
 
-// recoverTailing starts the tailing from the last log line processed.
+// Start starts tailing from the last log line processed.
 // if we see this container for the first time, it will:
-// start from now if tailFromBeginning is False
+// start from now if the container has been created before the agent started
 // start from oldest log otherwise
-func (t *Tailer) recoverTailing(a *auditor.Auditor, tailFromBeginning bool) error {
-	lastCommittedOffset := a.GetLastCommittedOffset(t.Identifier())
-	return t.tailFrom(t.nextLogDate(lastCommittedOffset, tailFromBeginning))
-}
-
-// nextLogDate returns the date from which we should start tailing,
-// given what is in the auditor and how we should behave on miss
-func (t *Tailer) nextLogDate(lastCommittedOffset string, tailFromBeginning bool) string {
-	var ts time.Time
-	var err error
-	if lastCommittedOffset != "" {
-		ts, err = t.nextLogSinceDate(lastCommittedOffset)
-		if err != nil {
-			log.Warn("Couldn't recover last committed offset for container ", t.ContainerID[:12], " - ", err)
-			ts = time.Now().UTC()
-		}
-	} else if tailFromBeginning {
-		ts = time.Time{}
-	} else {
-		ts = time.Now().UTC()
-	}
-	return ts.Format(config.DateFormat)
-}
-
-// nextLogSinceDate returns the `from` value of the next log line
-// for a container.
-// In the auditor, we store the date of the last log line processed.
-// `ContainerLogs` is not exclusive on `Since`, so if we start again
-// from this date, we collect that last log line twice on restart.
-// A workaround is to add one nano second, to exclude that last
-// log line
-func (t *Tailer) nextLogSinceDate(lastTs string) (time.Time, error) {
-	ts, err := time.Parse(config.DateFormat, lastTs)
-	if err != nil {
-		return time.Time{}, err
-	}
-	ts = ts.Add(time.Nanosecond)
-	return ts, nil
+func (t *Tailer) Start(since time.Time) error {
+	return t.tail(since.Format(config.DateFormat))
 }
 
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
-func (t *Tailer) setupReader(from string) (io.ReadCloser, error) {
+func (t *Tailer) setupReader(since string) (io.ReadCloser, error) {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
 		Timestamps: true,
 		Details:    false,
-		Since:      from,
+		Since:      since,
 	}
 	return t.cli.ContainerLogs(context.Background(), t.ContainerID, options)
 }
 
-// tailFrom sets up and starts the tailer
-func (t *Tailer) tailFrom(from string) error {
-	reader, err := t.setupReader(from)
+// tail sets up and starts the tailer
+func (t *Tailer) tail(since string) error {
+	reader, err := t.setupReader(since)
 	if err != nil {
 		// could not start the tailer
 		t.source.Status.Error(err)

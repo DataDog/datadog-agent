@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	pipeline "github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/seek"
 )
 
 func TestShouldStartOnlyOneTailerPerJournal(t *testing.T) {
@@ -22,9 +23,9 @@ func TestShouldStartOnlyOneTailerPerJournal(t *testing.T) {
 		config.NewLogSource("", &config.LogsConfig{Type: config.JournaldType}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.JournaldType}),
 	})
-	launcher := New(sources, pipeline.NewMockProvider(), auditor.New(nil, ""))
+	launcher := New(sources, pipeline.NewMockProvider(), seek.NewSeeker(auditor.New(nil, "")))
 
-	// expect two new tailers
+	// expect only one new tailer
 	launcher.Start()
 	assert.Equal(t, 1, len(launcher.tailers))
 

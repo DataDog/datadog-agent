@@ -17,11 +17,11 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/seek"
 )
 
 const scanPeriod = 10 * time.Second
@@ -32,18 +32,18 @@ type Scanner struct {
 	sources          *config.LogSources
 	tailers          map[string]*Tailer
 	cli              *client.Client
-	auditor          *auditor.Auditor
+	seeker           *seek.Seeker
 	isRunning        bool
 	stop             chan struct{}
 }
 
 // NewScanner returns an initialized Scanner
-func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, a *auditor.Auditor) *Scanner {
+func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, seeker *seek.Seeker) *Scanner {
 	return &Scanner{
 		pipelineProvider: pipelineProvider,
 		sources:          sources,
 		tailers:          make(map[string]*Tailer),
-		auditor:          a,
+		seeker:           seeker,
 		stop:             make(chan struct{}),
 	}
 }
@@ -83,7 +83,7 @@ func (s *Scanner) run() {
 		select {
 		case <-scanTicker.C:
 			// check all the containers running on the host and start new tailers if needed
-			s.scan(true)
+			s.scan()
 		case <-s.stop:
 			// no docker container should be tailed anymore
 			return
@@ -94,7 +94,7 @@ func (s *Scanner) run() {
 // scan checks for new containers we're expected to
 // tail, as well as stopped containers or containers that
 // restarted
-func (s *Scanner) scan(tailFromBeginning bool) {
+func (s *Scanner) scan() {
 	runningContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
@@ -110,7 +110,7 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 		}
 		if !isTailed {
 			// setup a new tailer
-			succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pipelineProvider.NextPipelineChan())
+			succeeded := s.setupTailer(s.cli, container, source, s.pipelineProvider.NextPipelineChan())
 			if !succeeded {
 				// the setup failed, let's try to tail this container in the next scan
 				continue
@@ -144,21 +144,25 @@ func (s *Scanner) setup() error {
 	}
 
 	// Start tailing monitored containers
-	s.scan(false)
+	s.scan()
 	return nil
 }
 
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
-	t := NewTailer(cli, container.ID, source, outputChan)
-	err := t.recoverTailing(s.auditor, tailFromBeginning)
+	tailer := NewTailer(cli, container.ID, source, outputChan)
+	since, err := Since(s.seeker, container, tailer.Identifier())
+	if err != nil {
+		log.Warnf("Could not recover last committed offset for container %v: %v", container.ID[:12], err)
+	}
+	err = tailer.Start(since)
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
-	s.tailers[container.ID] = t
+	s.tailers[container.ID] = tailer
 	return true
 }
 

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/seek"
 )
 
 type ScannerTestSuite struct {
@@ -60,7 +61,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.openFilesLimit = 100
 	suite.sources = []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})}
 	sleepDuration := 20 * time.Millisecond
-	suite.s = New(config.NewLogSources(suite.sources), suite.openFilesLimit, suite.pipelineProvider, auditor.New(nil, ""), sleepDuration)
+	suite.s = New(config.NewLogSources(suite.sources), suite.openFilesLimit, suite.pipelineProvider, seek.NewSeeker(auditor.New(nil, "")), sleepDuration)
 	suite.s.setup()
 }
 
@@ -209,7 +210,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := New(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
+	scanner := New(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), seek.NewSeeker(auditor.New(nil, "")), sleepDuration)
 
 	// setup scanner
 	scanner.setup()
@@ -261,7 +262,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := New(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
+	scanner := New(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), seek.NewSeeker(auditor.New(nil, "")), sleepDuration)
 
 	// test at setup
 	scanner.setup()
