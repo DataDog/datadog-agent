@@ -7,17 +7,35 @@ package v1
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/paulbellamy/ratecounter"
 
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 )
 
-// eventChecks are checks that send events and are supported by the DCA
-var eventChecks = []string{
-	"kubernetes",
+var (
+	// eventChecks are checks that send events and are supported by the DCA
+	eventChecks = []string{
+		"kubernetes",
+	}
+
+	apiStats                  = expvar.NewMap("apiv1")
+	metadataStats             = new(expvar.Map).Init()
+	metadataErrors            = &expvar.Int{}
+	metadataRequestsPerSecond = &expvar.Int{}
+	metadataRequestsCounter   = ratecounter.NewRateCounter(1 * time.Second)
+)
+
+func init() {
+	apiStats.Set("Metadata", metadataStats)
+	metadataStats.Set("Errors", metadataErrors)
+	metadataStats.Set("RequestsPerSecond", metadataRequestsPerSecond)
 }
 
 // Install registers v1 API endpoints
@@ -61,6 +79,10 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: string
 			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
 	*/
+
+	metadataRequestsCounter.Incr(1)
+	metadataRequestsPerSecond.Set(metadataRequestsCounter.Rate())
+
 	vars := mux.Vars(r)
 	var metaBytes []byte
 	nodeName := vars["nodeName"]
@@ -70,6 +92,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName)
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
+		metadataErrors.Add(1)
 		return
 	}
 
@@ -77,6 +100,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		metadataErrors.Add(1)
 		return
 	}
 	if len(metaBytes) != 0 {
@@ -86,7 +110,6 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)))
-
 }
 
 // getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.

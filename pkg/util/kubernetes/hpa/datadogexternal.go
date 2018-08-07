@@ -9,15 +9,29 @@ package hpa
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var (
+	datadogStats          = expvar.NewMap("datadog-api")
+	datadogErrors         = &expvar.Int{}
+	datadogQueriesPerHour = &expvar.Int{}
+	datadogQueriesCounter = ratecounter.NewRateCounter(1 * time.Hour)
+)
+
+func init() {
+	datadogStats.Set("Errors", datadogErrors)
+	datadogStats.Set("QueriesPerHour", datadogQueriesPerHour)
+}
 
 // queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
@@ -36,11 +50,16 @@ func (hpa *HPAWatcherClient) queryDatadogExternal(metricName string, tags map[st
 	// TODO: offer other aggregations than avg.
 	query := fmt.Sprintf("avg:%s{%s}", metricName, tagString)
 
+	datadogQueriesCounter.Incr(1)
+	datadogQueriesPerHour.Set(datadogQueriesCounter.Rate())
+
 	seriesSlice, err := hpa.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 
 	if err != nil {
+		datadogErrors.Add(1)
 		return 0, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
+
 	if len(seriesSlice) == 0 {
 		return 0, log.Errorf("Returned series slice empty")
 	}
