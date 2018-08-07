@@ -80,22 +80,32 @@ func (t *Tailer) Stop() {
 	<-t.done
 }
 
-// tailFromBeginning starts the tailing from the beginning
-// of the container logs
-func (t *Tailer) tailFromBeginning() error {
-	return t.tailFrom(time.Time{}.Format(config.DateFormat))
+// recoverTailing starts the tailing from the last log line processed.
+// if we see this container for the first time, it will:
+// start from now if tailFromBeginning is False
+// start from oldest log otherwise
+func (t *Tailer) recoverTailing(a *auditor.Auditor, tailFromBeginning bool) error {
+	lastCommittedOffset := a.GetLastCommittedOffset(t.Identifier())
+	return t.tailFrom(t.nextLogDate(lastCommittedOffset, tailFromBeginning))
 }
 
-// tailFromEnd starts the tailing from the last line
-// of the container logs
-func (t *Tailer) tailFromEnd() error {
-	return t.tailFrom(time.Now().UTC().Format(config.DateFormat))
-}
-
-// recoverTailing starts the tailing from the last log line processed, or now
-// if we see this container for the first time
-func (t *Tailer) recoverTailing(a *auditor.Auditor) error {
-	return t.tailFrom(t.nextLogSinceDate(a.GetLastCommittedOffset(t.Identifier())))
+// nextLogDate returns the date from which we should start tailing,
+// given what is in the auditor and how we should behave on miss
+func (t *Tailer) nextLogDate(lastCommittedOffset string, tailFromBeginning bool) string {
+	var ts time.Time
+	var err error
+	if lastCommittedOffset != "" {
+		ts, err = t.nextLogSinceDate(lastCommittedOffset)
+		if err != nil {
+			log.Warn("Couldn't recover last committed offset for container ", t.ContainerID[:12], " - ", err)
+			ts = time.Now().UTC()
+		}
+	} else if tailFromBeginning {
+		ts = time.Time{}
+	} else {
+		ts = time.Now().UTC()
+	}
+	return ts.Format(config.DateFormat)
 }
 
 // nextLogSinceDate returns the `from` value of the next log line
@@ -105,13 +115,13 @@ func (t *Tailer) recoverTailing(a *auditor.Auditor) error {
 // from this date, we collect that last log line twice on restart.
 // A workaround is to add one nano second, to exclude that last
 // log line
-func (t *Tailer) nextLogSinceDate(lastTs string) string {
+func (t *Tailer) nextLogSinceDate(lastTs string) (time.Time, error) {
 	ts, err := time.Parse(config.DateFormat, lastTs)
 	if err != nil {
-		return lastTs
+		return time.Time{}, err
 	}
 	ts = ts.Add(time.Nanosecond)
-	return ts.Format(config.DateFormat)
+	return ts, nil
 }
 
 // setupReader sets up the reader that reads the container's logs

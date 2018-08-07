@@ -165,12 +165,7 @@ func (s *Scanner) setup() error {
 func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
 	t := NewTailer(cli, container.ID, source, outputChan)
-	var err error
-	if tailFromBeginning {
-		err = t.tailFromBeginning()
-	} else {
-		err = t.recoverTailing(s.auditor)
-	}
+	err := t.recoverTailing(s.auditor, tailFromBeginning)
 	if err != nil {
 		log.Warn(err)
 		return false
