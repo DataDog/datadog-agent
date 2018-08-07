@@ -9,13 +9,12 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 )
 
 // store holds useful mappings for the AD
 type store struct {
-	serviceToConfigs  map[listeners.ID][]integration.Config
-	serviceToTagsHash map[listeners.ID]string
+	serviceToConfigs  map[string][]integration.Config
+	serviceToTagsHash map[string]string
 	loadedConfigs     map[string]integration.Config
 	nameToJMXMetrics  map[string]integration.Data
 	m                 sync.RWMutex
@@ -24,8 +23,8 @@ type store struct {
 // newStore creates a store
 func newStore() *store {
 	s := store{
-		serviceToConfigs:  make(map[listeners.ID][]integration.Config),
-		serviceToTagsHash: make(map[listeners.ID]string),
+		serviceToConfigs:  make(map[string][]integration.Config),
+		serviceToTagsHash: make(map[string]string),
 		loadedConfigs:     make(map[string]integration.Config),
 		nameToJMXMetrics:  make(map[string]integration.Data),
 	}
@@ -34,21 +33,21 @@ func newStore() *store {
 }
 
 // getConfigsForService gets config for a specified service
-func (s *store) getConfigsForService(serviceID listeners.ID) []integration.Config {
+func (s *store) getConfigsForService(serviceID string) []integration.Config {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	return s.serviceToConfigs[serviceID]
 }
 
 // removeConfigsForService removes a config for a specified service
-func (s *store) removeConfigsForService(serviceID listeners.ID) {
+func (s *store) removeConfigsForService(serviceID string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	delete(s.serviceToConfigs, serviceID)
 }
 
 // addConfigForService adds a config for a specified service
-func (s *store) addConfigForService(serviceID listeners.ID, config integration.Config) {
+func (s *store) addConfigForService(serviceID string, config integration.Config) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	existingConfigs, found := s.serviceToConfigs[serviceID]
@@ -60,21 +59,21 @@ func (s *store) addConfigForService(serviceID listeners.ID, config integration.C
 }
 
 // getTagsHashForService return the tags hash for a specified service
-func (s *store) getTagsHashForService(serviceID listeners.ID) string {
+func (s *store) getTagsHashForService(serviceID string) string {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	return s.serviceToTagsHash[serviceID]
 }
 
 // removeTagsHashForService removes the tags hash for a specified service
-func (s *store) removeTagsHashForService(serviceID listeners.ID) {
+func (s *store) removeTagsHashForService(serviceID string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	delete(s.serviceToTagsHash, serviceID)
 }
 
 // setTagsHashForService set the tags hash for a specified service
-func (s *store) setTagsHashForService(serviceID listeners.ID, hash string) {
+func (s *store) setTagsHashForService(serviceID string, hash string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.serviceToTagsHash[serviceID] = hash

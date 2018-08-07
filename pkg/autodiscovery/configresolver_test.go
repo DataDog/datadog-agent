@@ -431,7 +431,7 @@ func TestResolve(t *testing.T) {
 
 		// Assert the valid configs are stored in the AC and the store
 		assert.Equal(t, validTemplates, len(ac.GetLoadedConfigs()))
-		assert.Equal(t, len(ac.store.getConfigsForService(tc.svc.GetID())), validTemplates)
+		assert.Equal(t, len(ac.store.getConfigsForService(tc.svc.GetEntity())), validTemplates)
 	}
 }
 

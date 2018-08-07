@@ -8,8 +8,9 @@ package autodiscovery
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestServiceToConfig(t *testing.T) {
@@ -19,10 +20,10 @@ func TestServiceToConfig(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 		Hosts:         map[string]string{"bridge": "127.0.0.1"},
 	}
-	s.addConfigForService(service.GetID(), integration.Config{Name: "foo"})
-	s.addConfigForService(service.GetID(), integration.Config{Name: "bar"})
-	assert.Equal(t, len(s.getConfigsForService(service.GetID())), 2)
-	s.removeConfigsForService(service.GetID())
-	s.addConfigForService(service.GetID(), integration.Config{Name: "foo"})
-	assert.Equal(t, len(s.getConfigsForService(service.GetID())), 1)
+	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
+	s.addConfigForService(service.GetEntity(), integration.Config{Name: "bar"})
+	assert.Equal(t, len(s.getConfigsForService(service.GetEntity())), 2)
+	s.removeConfigsForService(service.GetEntity())
+	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
+	assert.Equal(t, len(s.getConfigsForService(service.GetEntity())), 1)
 }

@@ -12,19 +12,11 @@ package containers
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/shirou/gopsutil/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-)
-
-// Return values per container runtime
-const (
-	RuntimeNameDocker     string = "docker"
-	RuntimeNameContainerd string = "containerd"
-	RuntimeNameCRIO       string = "cri-o"
 )
 
 // Internal constants
@@ -60,8 +52,7 @@ func EntityForPID(pid int32) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	value := fmt.Sprintf("%s://%s", runtime, cID)
-	return value, nil
+	return BuildEntityName(runtime, cID), nil
 }
 
 // GetRuntimeForPID inspects a PID's parents to detect a container runtime.
