@@ -85,7 +85,7 @@ func init() {
 	BindEnvAndSetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("tags", []string{})
-	Datadog.SetDefault("split_tags", map[string]string{})
+	BindEnvAndSetDefault("split_tags", map[string]string{})
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
