@@ -25,11 +25,12 @@ func Since(seeker *seek.Seeker, container types.Container, identifier string) (t
 	case seek.Recover:
 		since, err = time.Parse(config.DateFormat, offset)
 		if err != nil {
-			return time.Now().UTC(), err
+			since = time.Now().UTC()
+		} else {
+			since = since.Add(time.Nanosecond)
 		}
-		since = since.Add(time.Nanosecond)
 	case seek.End:
 		since = time.Now().UTC()
 	}
-	return since, nil
+	return since, err
 }
