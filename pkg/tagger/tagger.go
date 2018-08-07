@@ -243,13 +243,13 @@ IterCollectors:
 				continue IterCollectors // source was in cache, don't lookup again
 			}
 		}
-		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
+		log.Infof("[INV] coll is %s cache miss for %s, collecting tags for %s", collector, name, entity)
 		low, high, err := collector.Fetch(entity)
 		switch {
 		case errors.IsNotFound(err):
-			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
+			log.Infof("[INV] entity %s not found in %s, skipping: %v", entity, name, err)
 		case err != nil:
-			log.Warnf("error collecting from %s: %s", name, err)
+			log.Infof("[INV] error collecting from %s: %s", name, err)
 			continue // don't store empty tags, retry next time
 		}
 		tagArrays = append(tagArrays, low)
@@ -267,7 +267,8 @@ IterCollectors:
 	t.RUnlock()
 
 	computedTags := utils.ConcatenateTags(tagArrays)
-
+	ca := copyArray(computedTags)
+	log.Infof("[INV] computed is %v and copyarray is %v", computedTags, ca)
 	return copyArray(computedTags), nil
 }
 
