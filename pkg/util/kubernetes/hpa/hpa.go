@@ -96,7 +96,7 @@ func (c *HPAWatcherClient) run(res string) (added, modified, deleted []*autoscal
 				added = append(added, currHPA)
 			}
 			if rcvdHPA.Type == watch.Modified {
-				log.Debugf("Updated HPA: %s/%s", currHPA.Namespace, currHPA.Name)
+				log.Tracef("Updated HPA: %s/%s", currHPA.Namespace, currHPA.Name)
 				modified = append(modified, currHPA)
 			}
 			if rcvdHPA.Type == watch.Deleted {

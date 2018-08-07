@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/paulbellamy/ratecounter"
-
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,7 +22,7 @@ import (
 )
 
 var (
-	datadogStats          = expvar.NewMap("datadog")
+	datadogStats          = expvar.NewMap("datadog-api")
 	datadogErrors         = &expvar.Int{}
 	datadogQueriesPerHour = &expvar.Int{}
 	datadogQueriesCounter = ratecounter.NewRateCounter(1 * time.Hour)
