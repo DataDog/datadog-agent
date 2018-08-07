@@ -108,7 +108,7 @@ func (m *MetadataController) addEndpoints(obj interface{}) {
 	if !ok {
 		return
 	}
-	log.Tracef("Adding endpoints %s/%s", endpoints.Namespace, endpoints.Name)
+	log.Debugf("Adding endpoints %s/%s", endpoints.Namespace, endpoints.Name)
 	m.enqueue(obj)
 }
 
@@ -135,7 +135,7 @@ func (m *MetadataController) deleteEndpoints(obj interface{}) {
 			return
 		}
 	}
-	log.Tracef("Deleting endpoints %s/%s", endpoints.Namespace, endpoints.Name)
+	log.Debugf("Deleting endpoints %s/%s", endpoints.Namespace, endpoints.Name)
 	m.enqueue(obj)
 }
 
@@ -288,7 +288,7 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		log.Tracef("no cached services list found for the pod %s on the node %s", podName, nodeName)
 		return nil, nil
 	}
-	log.Debugf("CacheKey: %s, with %d services", cacheKey, len(serviceList))
+	log.Tracef("CacheKey: %s, with %d services", cacheKey, len(serviceList))
 	for _, s := range serviceList {
 		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
 	}
