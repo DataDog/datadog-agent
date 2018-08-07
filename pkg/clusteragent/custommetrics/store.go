@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -9,6 +9,7 @@ package custommetrics
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"strings"
 
@@ -24,6 +25,19 @@ import (
 const (
 	keyDelimeter = "-"
 )
+
+var (
+	storeStats    = expvar.NewMap("custommetrics")
+	externalStats = new(expvar.Map).Init()
+	externalTotal = &expvar.Int{}
+	externalValid = &expvar.Int{}
+)
+
+func init() {
+	storeStats.Set("External", externalStats)
+	externalStats.Set("Total", externalTotal)
+	externalStats.Set("Valid", externalValid)
+}
 
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
@@ -107,7 +121,23 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 		}
 		c.cm.Data[key] = string(toStore)
 	}
-	return c.updateConfigMap()
+	if err := c.updateConfigMap(); err != nil {
+		return err
+	}
+
+	total := int64(len(added))
+	externalTotal.Set(total)
+
+	valid := int64(0)
+	for _, metric := range added {
+		if metric.Valid {
+			valid += 1
+		}
+	}
+
+	externalValid.Set(valid)
+
+	return nil
 }
 
 // Delete deletes all metrics in the configmap that refer to any of the given object references.
