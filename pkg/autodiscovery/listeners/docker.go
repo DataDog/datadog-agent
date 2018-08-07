@@ -145,19 +145,6 @@ func (l *DockerListener) init() {
 	}
 }
 
-// GetServices returns a copy of the current services
-func (l *DockerListener) GetServices() map[string]Service {
-	l.m.RLock()
-	defer l.m.RUnlock()
-
-	ret := make(map[string]Service)
-	for _, v := range l.services {
-		ret[v.GetEntity()] = v
-	}
-
-	return ret
-}
-
 // processEvent takes a ContainerEvent, tries to find a service linked to it, and
 // figure out if the ConfigResolver could be interested to inspect it.
 func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
