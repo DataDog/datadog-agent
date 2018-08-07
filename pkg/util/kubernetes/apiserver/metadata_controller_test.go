@@ -16,6 +16,7 @@ import (
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -459,4 +460,39 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 	)
 
 	return metaController, informerFactory
+}
+
+func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
+	timeout := time.NewTimer(2 * time.Second)
+
+	select {
+	case <-ch:
+	case <-timeout.C:
+		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
+	}
+}
+
+func newFakePod(namespace, name, uid, ip string) v1.Pod {
+	return v1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			UID:       types.UID(uid),
+		},
+		Status: v1.PodStatus{PodIP: ip},
+	}
+}
+
+func newFakeEndpointAddress(nodeName string, pod v1.Pod) v1.EndpointAddress {
+	return v1.EndpointAddress{
+		IP:       pod.Status.PodIP,
+		NodeName: &nodeName,
+		TargetRef: &v1.ObjectReference{
+			Kind:      pod.Kind,
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			UID:       pod.UID,
+		},
+	}
 }
