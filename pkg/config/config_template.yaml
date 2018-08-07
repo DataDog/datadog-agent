@@ -46,8 +46,9 @@ api_key:
 #   - role:database
 
 # Split tags according to given string.
+# Supported only for tags handled by the Tagger (Kubernetes, Docker, AWS ECS, ...)
 # This option is useful when the native tags do not support repeating multiple
-# tags with the same name but different values.
+# tags with the same name and different values.
 #
 # Example use-case:
 #
