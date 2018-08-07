@@ -16,7 +16,7 @@ type dummyService struct {
 	Hostname      string
 }
 
-// GetID returns the service entity name
+// GetEntity returns the service entity name
 func (s *dummyService) GetEntity() string {
 	return s.ID
 }

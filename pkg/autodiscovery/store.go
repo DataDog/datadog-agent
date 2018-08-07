@@ -33,50 +33,50 @@ func newStore() *store {
 }
 
 // getConfigsForService gets config for a specified service
-func (s *store) getConfigsForService(serviceID string) []integration.Config {
+func (s *store) getConfigsForService(serviceEntity string) []integration.Config {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	return s.serviceToConfigs[serviceID]
+	return s.serviceToConfigs[serviceEntity]
 }
 
 // removeConfigsForService removes a config for a specified service
-func (s *store) removeConfigsForService(serviceID string) {
+func (s *store) removeConfigsForService(serviceEntity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	delete(s.serviceToConfigs, serviceID)
+	delete(s.serviceToConfigs, serviceEntity)
 }
 
 // addConfigForService adds a config for a specified service
-func (s *store) addConfigForService(serviceID string, config integration.Config) {
+func (s *store) addConfigForService(serviceEntity string, config integration.Config) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	existingConfigs, found := s.serviceToConfigs[serviceID]
+	existingConfigs, found := s.serviceToConfigs[serviceEntity]
 	if found {
-		s.serviceToConfigs[serviceID] = append(existingConfigs, config)
+		s.serviceToConfigs[serviceEntity] = append(existingConfigs, config)
 	} else {
-		s.serviceToConfigs[serviceID] = []integration.Config{config}
+		s.serviceToConfigs[serviceEntity] = []integration.Config{config}
 	}
 }
 
 // getTagsHashForService return the tags hash for a specified service
-func (s *store) getTagsHashForService(serviceID string) string {
+func (s *store) getTagsHashForService(serviceEntity string) string {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	return s.serviceToTagsHash[serviceID]
+	return s.serviceToTagsHash[serviceEntity]
 }
 
 // removeTagsHashForService removes the tags hash for a specified service
-func (s *store) removeTagsHashForService(serviceID string) {
+func (s *store) removeTagsHashForService(serviceEntity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	delete(s.serviceToTagsHash, serviceID)
+	delete(s.serviceToTagsHash, serviceEntity)
 }
 
 // setTagsHashForService set the tags hash for a specified service
-func (s *store) setTagsHashForService(serviceID string, hash string) {
+func (s *store) setTagsHashForService(serviceEntity string, hash string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	s.serviceToTagsHash[serviceID] = hash
+	s.serviceToTagsHash[serviceEntity] = hash
 }
 
 // setLoadedConfig stores a resolved config by its digest

@@ -42,9 +42,9 @@ var (
 type ConfigResolver struct {
 	ac              *AutoConfig
 	templates       *TemplateCache
-	services        map[string]listeners.Service // Service.ID --> Service
+	services        map[string]listeners.Service // entity --> Service
 	adIDToServices  map[string]map[string]bool   // AD id --> services that have it
-	configToService map[string]string            // config digest --> service ID
+	configToService map[string]string            // config digest --> service entity
 	newService      chan listeners.Service
 	delService      chan listeners.Service
 	stop            chan bool
