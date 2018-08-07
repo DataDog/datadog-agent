@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add a new configuration option, named `split_tags`, allowing the specified list of raw tags to be split by a given string.
