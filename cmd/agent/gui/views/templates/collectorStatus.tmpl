@@ -12,7 +12,7 @@
           {{ end }}
           {{- range $CheckSlice }}
             <span class="stat_subdata">
-                Instance: {{- if eq (len $CheckSlice) 1 }} {{ $CheckName}}{{else}} {{.CheckID}}{{end}}<br>
+                Instance ID: {{- if eq (len $CheckSlice) 1 }} {{ $CheckName}}{{else}} {{.CheckID}}{{end}}<br>
                 Total Runs: {{.TotalRuns}}<br>
                 Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
                 Events: {{.Events}}, Total: {{humanize .TotalEvents}}<br>

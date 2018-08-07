@@ -15,7 +15,7 @@ Collector
       {{printDashes .CheckName "-"}}{{- if .CheckVersion }}{{printDashes .CheckVersion "-"}}---{{ end }}
     {{ end }}
     {{- range $CheckSlice }}
-        Instance: {{- if eq (len $CheckSlice) 1 }} {{ $CheckName}}{{else}} {{.CheckID}}{{end}}
+        Instance ID: {{- if eq (len $CheckSlice) 1 }} {{ $CheckName}}{{else}} {{.CheckID}}{{end}}
         Total Runs: {{.TotalRuns}}
         Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
         Events: {{.Events}}, Total: {{humanize .TotalEvents}}
