@@ -24,6 +24,8 @@ const scanPeriod = 10 * time.Second
 // or update the old ones if needed
 type Scanner struct {
 	pipelineProvider    pipeline.Provider
+	sources             *config.LogSources
+	activeSources       []*config.LogSource
 	tailingLimit        int
 	fileProvider        *Provider
 	tailers             map[string]*Tailer
@@ -37,7 +39,8 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 	return &Scanner{
 		pipelineProvider:    pipelineProvider,
 		tailingLimit:        tailingLimit,
-		fileProvider:        NewProvider(sources, tailingLimit),
+		sources:             sources,
+		fileProvider:        NewProvider(tailingLimit),
 		tailers:             make(map[string]*Tailer),
 		registry:            registry,
 		tailerSleepDuration: tailerSleepDuration,
@@ -45,33 +48,16 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 	}
 }
 
-// Start starts the scanner.
+// Start starts the Scanner
 func (s *Scanner) Start() {
-	s.setup()
 	go s.run()
 }
 
-// Stop stops the scanner.
+// Stop stops the Scanner and its tailers in parallel,
+// this call returns only when all the tailers are stopped
 func (s *Scanner) Stop() {
 	s.stop <- struct{}{}
 	s.cleanup()
-}
-
-// setup sets all tailers
-func (s *Scanner) setup() {
-	files := s.fileProvider.FilesToTail()
-	for _, file := range files {
-		if len(s.tailers) == s.tailingLimit {
-			return
-		}
-		if _, ok := s.tailers[file.Path]; ok {
-			log.Warn("Can't tail file twice: ", file.Path)
-		} else {
-			// resume tailing from last committed offset if exists or start tailing from the end of file otherwise
-			// to prevent from reading a file over and over again at agent restart
-			s.startNewTailer(file, false)
-		}
-	}
 }
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
@@ -80,6 +66,8 @@ func (s *Scanner) run() {
 	defer scanTicker.Stop()
 	for {
 		select {
+		case source := <-s.sources.GetSourceStreamForType(config.DockerType):
+			s.activeSources = append(s.activeSources, source)
 		case <-scanTicker.C:
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
@@ -108,7 +96,7 @@ func (s *Scanner) cleanup() {
 // The Scanner needs to stop that previous tailer,
 // and start a new one for the new file.
 func (s *Scanner) scan() {
-	files := s.fileProvider.FilesToTail()
+	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
 
@@ -202,7 +190,7 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 	return true
 }
 
-// createTailer returns a new tailer.
+// createTailer returns a new initialized tailer
 func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tailer {
 	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
 }

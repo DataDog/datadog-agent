@@ -24,11 +24,9 @@ type ProviderTestSuite struct {
 	filesLimit int
 }
 
-// newProvider returns a new Provider initialized with the right configuration
-func (suite *ProviderTestSuite) newProvider(path string) *Provider {
-	sources := config.NewLogSources()
-	sources.AddSource(config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
-	return NewProvider(sources, suite.filesLimit)
+// newLogSources returns a new log source initialized with the right path.
+func (suite *ProviderTestSuite) newLogSources(path string) []*config.LogSource {
+	return []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -75,8 +73,8 @@ func (suite *ProviderTestSuite) TearDownTest() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	path := fmt.Sprintf("%s/1/1.log", suite.testDir)
-	fileProvider := suite.newProvider(path)
-	files := fileProvider.FilesToTail()
+	fileProvider := NewProvider(suite.filesLimit)
+	files := fileProvider.FilesToTail(suite.newLogSources(path))
 
 	suite.Equal(1, len(files))
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[0].Path)
@@ -84,8 +82,8 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
-	fileProvider := suite.newProvider(path)
-	files := fileProvider.FilesToTail()
+	fileProvider := NewProvider(suite.filesLimit)
+	files := fileProvider.FilesToTail(suite.newLogSources(path))
 
 	suite.Equal(3, len(files))
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[0].Path)
@@ -95,8 +93,8 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWithRightPermissions() {
 	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
-	fileProvider := suite.newProvider(path)
-	files := fileProvider.FilesToTail()
+	fileProvider := NewProvider(suite.filesLimit)
+	files := fileProvider.FilesToTail(suite.newLogSources(path))
 
 	suite.Equal(2, len(files))
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[0].Path)
@@ -105,8 +103,8 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard() {
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
-	fileProvider := suite.newProvider(path)
-	files := fileProvider.FilesToTail()
+	fileProvider := NewProvider(suite.filesLimit)
+	files := fileProvider.FilesToTail(suite.newLogSources(path))
 
 	suite.Equal(1, len(files))
 	suite.Equal(fmt.Sprintf("%s/1/?.log", suite.testDir), files[0].Path)
@@ -114,8 +112,8 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 
 func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
-	fileProvider := suite.newProvider(path)
-	files := fileProvider.FilesToTail()
+	fileProvider := NewProvider(suite.filesLimit)
+	files := fileProvider.FilesToTail(suite.newLogSources(path))
 
 	suite.Equal(suite.filesLimit, len(files))
 }

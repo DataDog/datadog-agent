@@ -40,38 +40,3 @@ func TestGetSources(t *testing.T) {
 	sources.AddSource(NewLogSource("", nil))
 	assert.Equal(t, 1, len(sources.GetSources()))
 }
-
-func TestGetValidSources(t *testing.T) {
-	sources := NewLogSources()
-	source1 := NewLogSource("foo", &LogsConfig{Type: FileType})
-	sources.AddSource(source1)
-	source2 := NewLogSource("bar", &LogsConfig{Type: DockerType})
-	sources.AddSource(source2)
-	assert.Equal(t, 1, len(sources.GetValidSources()))
-}
-
-func TestGetSourcesWithType(t *testing.T) {
-	sources := NewLogSources()
-	source1 := NewLogSource("foo", nil)
-	sources.AddSource(source1)
-	source2 := NewLogSource("bar", &LogsConfig{})
-	sources.AddSource(source2)
-	source3 := NewLogSource("baz", &LogsConfig{Type: FileType, Path: "foo"})
-	sources.AddSource(source3)
-	source4 := NewLogSource("qux", &LogsConfig{Type: FileType})
-	sources.AddSource(source4)
-	assert.Equal(t, 2, len(sources.GetSourcesWithType(FileType)))
-}
-
-func TestGetValidSourcesWithType(t *testing.T) {
-	sources := NewLogSources()
-	source1 := NewLogSource("foo", nil)
-	sources.AddSource(source1)
-	source2 := NewLogSource("bar", &LogsConfig{})
-	sources.AddSource(source2)
-	source3 := NewLogSource("baz", &LogsConfig{Type: FileType, Path: "foo"})
-	sources.AddSource(source3)
-	source4 := NewLogSource("qux", &LogsConfig{Type: FileType})
-	sources.AddSource(source4)
-	assert.Equal(t, 1, len(sources.GetValidSourcesWithType(FileType)))
-}

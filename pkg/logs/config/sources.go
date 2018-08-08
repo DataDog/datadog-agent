@@ -27,20 +27,15 @@ func NewLogSources() *LogSources {
 func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.sources = append(s.sources, source)
 
+	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
 		return
 	}
-	switch source.Config.Type {
-	case UDPType, TCPType, JournaldType, WindowsEventType:
-		stream := s.GetSourceStreamForType(source.Config.Type)
+	stream := s.GetSourceStreamForType(source.Config.Type)
+	go func() {
 		stream <- source
-	default:
-		// file and docker inputs are not plugged to source stream yet.
-		// FIXME: only consume sources through a stream.
-		break
-	}
+	}()
 }
 
 // RemoveSource removes a source.
@@ -68,37 +63,4 @@ func (s *LogSources) GetSourceStreamForType(sourceType string) chan *LogSource {
 // GetSources returns all the sources currently held.
 func (s *LogSources) GetSources() []*LogSource {
 	return s.sources
-}
-
-// GetValidSources returns the sources which config is valid.
-func (s *LogSources) GetValidSources() []*LogSource {
-	return s.getSources(func(source *LogSource) bool {
-		return source.Config != nil && source.Config.Validate() == nil
-	})
-}
-
-// GetSourcesWithType returns the sources which config type matches the provided type.
-func (s *LogSources) GetSourcesWithType(sourceType string) []*LogSource {
-	return s.getSources(func(source *LogSource) bool {
-		return source.Config != nil && source.Config.Type == sourceType
-	})
-}
-
-// GetValidSourcesWithType returns the sources which config is valid
-// and matches the provided type.
-func (s *LogSources) GetValidSourcesWithType(sourceType string) []*LogSource {
-	return s.getSources(func(source *LogSource) bool {
-		return source.Config != nil && source.Config.Validate() == nil && source.Config.Type == sourceType
-	})
-}
-
-// getSources returns all the sources matching the provided filter.
-func (s *LogSources) getSources(filter func(*LogSource) bool) []*LogSource {
-	sources := make([]*LogSource, 0)
-	for _, source := range s.sources {
-		if filter(source) {
-			sources = append(sources, source)
-		}
-	}
-	return sources
 }

@@ -29,6 +29,7 @@ const scanPeriod = 10 * time.Second
 type Scanner struct {
 	pipelineProvider pipeline.Provider
 	sources          *config.LogSources
+	activeSources    []*config.LogSource
 	tailers          map[string]*Tailer
 	cli              *client.Client
 	registry         auditor.Registry
@@ -94,9 +95,11 @@ func (s *Scanner) run() {
 	defer scanTicker.Stop()
 	for {
 		select {
+		case source := <-s.sources.GetSourceStreamForType(config.DockerType):
+			s.activeSources = append(s.activeSources, source)
 		case <-scanTicker.C:
 			// check all the containers running on the host and start new tailers if needed
-			s.scan(true)
+			s.scan()
 		case <-s.stop:
 			// no docker container should be tailed anymore
 			return
@@ -107,13 +110,13 @@ func (s *Scanner) run() {
 // scan checks for new containers we're expected to
 // tail, as well as stopped containers or containers that
 // restarted
-func (s *Scanner) scan(tailFromBeginning bool) {
+func (s *Scanner) scan() {
 	runningContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
 	// monitor new containers, and restart tailers if needed
 	for _, container := range runningContainers {
-		source := NewContainer(container).findSource(s.sources.GetValidSourcesWithType(config.DockerType))
+		source := NewContainer(container).findSource(s.activeSources)
 		if source == nil {
 			continue
 		}
@@ -123,7 +126,7 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 		}
 		if !isTailed {
 			// setup a new tailer
-			succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pipelineProvider.NextPipelineChan())
+			succeeded := s.setupTailer(s.cli, container, source, true, s.pipelineProvider.NextPipelineChan())
 			if !succeeded {
 				// the setup failed, let's try to tail this container in the next scan
 				continue
@@ -179,7 +182,7 @@ func (s *Scanner) listContainers() []types.Container {
 
 // reportErrorToAllSources changes the status of all sources to Error with err
 func (s *Scanner) reportErrorToAllSources(err error) {
-	for _, source := range s.sources.GetValidSourcesWithType(config.DockerType) {
+	for _, source := range s.activeSources {
 		source.Status.Error(err)
 	}
 }

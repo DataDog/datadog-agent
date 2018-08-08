@@ -60,10 +60,9 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.openFilesLimit = 100
 	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})
 	sleepDuration := 20 * time.Millisecond
-	sources := config.NewLogSources()
-	sources.AddSource(suite.source)
-	suite.s = NewScanner(sources, suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
-	suite.s.setup()
+	suite.s = NewScanner(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
+	suite.s.activeSources = append(suite.s.activeSources, suite.source)
+	suite.s.scan()
 }
 
 func (suite *ScannerTestSuite) TearDownTest() {
@@ -208,16 +207,10 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 
 	// create scanner
 	path = fmt.Sprintf("%s/*.log", testDir)
-	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	sources := config.NewLogSources()
-	sources.AddSource(source)
-	scanner := NewScanner(sources, openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
-
-	// setup scanner
-	scanner.setup()
-	assert.Equal(t, 0, len(scanner.tailers))
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
 
 	// create file
 	path = fmt.Sprintf("%s/test.log", testDir)
@@ -262,16 +255,10 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 
 	// create scanner
 	path = fmt.Sprintf("%s/*.log", testDir)
-	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	sources := config.NewLogSources()
-	sources.AddSource(source)
-	scanner := NewScanner(sources, openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
-
-	// test at setup
-	scanner.setup()
-	assert.Equal(t, 2, len(scanner.tailers))
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
 
 	// test at scan
 	scanner.scan()

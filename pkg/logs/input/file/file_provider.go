@@ -32,15 +32,13 @@ func NewFile(path string, source *config.LogSource) *File {
 
 // Provider implements the logic to retrieve at most filesLimit Files defined in sources
 type Provider struct {
-	sources         *config.LogSources
 	filesLimit      int
 	shouldLogErrors bool
 }
 
 // NewProvider returns a new Provider
-func NewProvider(sources *config.LogSources, filesLimit int) *Provider {
+func NewProvider(filesLimit int) *Provider {
 	return &Provider{
-		sources:         sources,
 		filesLimit:      filesLimit,
 		shouldLogErrors: true,
 	}
@@ -50,12 +48,11 @@ func NewProvider(sources *config.LogSources, filesLimit int) *Provider {
 // it cannot return more than filesLimit Files.
 // For now, there is no way to prioritize specific Files over others,
 // they are just returned in alphabetical order
-func (p *Provider) FilesToTail() []*File {
+func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 	var filesToTail []*File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 
-	sources := p.sources.GetValidSourcesWithType(config.FileType)
 	for i := 0; i < len(sources) && len(filesToTail) < p.filesLimit; i++ {
 		source := sources[i]
 		files, err := p.collectFiles(source)
@@ -71,6 +68,7 @@ func (p *Provider) FilesToTail() []*File {
 			filesToTail = append(filesToTail, file)
 		}
 	}
+
 	if len(filesToTail) == p.filesLimit {
 		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
 		return filesToTail
