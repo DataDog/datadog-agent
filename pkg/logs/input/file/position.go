@@ -13,7 +13,7 @@ import (
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, isSetup bool) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, tailFromBeginning bool) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -25,10 +25,10 @@ func Position(registry auditor.Registry, identifier string, isSetup bool) (int64
 		} else {
 			whence = io.SeekStart
 		}
-	} else if isSetup {
-		offset, whence = 0, io.SeekEnd
-	} else {
+	} else if tailFromBeginning {
 		offset, whence = 0, io.SeekStart
+	} else {
+		offset, whence = 0, io.SeekEnd
 	}
 	return offset, whence, err
 }

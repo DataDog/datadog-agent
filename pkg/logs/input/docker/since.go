@@ -15,7 +15,7 @@ import (
 )
 
 // Since returns the date from when logs should be collected.
-func Since(registry auditor.Registry, identifier string, isSetup bool) (time.Time, error) {
+func Since(registry auditor.Registry, identifier string, tailFromBeginning bool) (time.Time, error) {
 	var since time.Time
 	var err error
 	offset := registry.GetOffset(identifier)
@@ -26,10 +26,10 @@ func Since(registry auditor.Registry, identifier string, isSetup bool) (time.Tim
 		} else {
 			since = since.Add(time.Nanosecond)
 		}
-	} else if isSetup {
-		since = time.Now().UTC()
-	} else {
+	} else if tailFromBeginning {
 		since = time.Time{}
+	} else {
+		since = time.Now().UTC()
 	}
 	return since, err
 }

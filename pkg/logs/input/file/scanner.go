@@ -57,7 +57,7 @@ func (s *Scanner) setup() {
 		} else {
 			// resume tailing from last committed offset if exists or start tailing from the end of file otherwise
 			// to prevent from reading a file over and over again at agent restart
-			s.startNewTailer(file, true)
+			s.startNewTailer(file, false)
 		}
 	}
 }
@@ -79,10 +79,10 @@ func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tai
 
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise
-func (s *Scanner) startNewTailer(file *File, isSetup bool) bool {
+func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
 	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), isSetup)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), tailFromBeginning)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
@@ -151,7 +151,7 @@ func (s *Scanner) scan() {
 
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, false)
+			succeeded := s.startNewTailer(file, true)
 			if !succeeded {
 				// the setup failed, let's try to tail this file in the next scan
 				continue

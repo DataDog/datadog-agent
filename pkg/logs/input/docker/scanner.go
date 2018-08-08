@@ -83,7 +83,7 @@ func (s *Scanner) run() {
 		select {
 		case <-scanTicker.C:
 			// check all the containers running on the host and start new tailers if needed
-			s.scan(false)
+			s.scan(true)
 		case <-s.stop:
 			// no docker container should be tailed anymore
 			return
@@ -94,7 +94,7 @@ func (s *Scanner) run() {
 // scan checks for new containers we're expected to
 // tail, as well as stopped containers or containers that
 // restarted
-func (s *Scanner) scan(isSetup bool) {
+func (s *Scanner) scan(tailFromBeginning bool) {
 	runningContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
@@ -110,7 +110,7 @@ func (s *Scanner) scan(isSetup bool) {
 		}
 		if !isTailed {
 			// setup a new tailer
-			succeeded := s.setupTailer(s.cli, container, source, isSetup, s.pipelineProvider.NextPipelineChan())
+			succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pipelineProvider.NextPipelineChan())
 			if !succeeded {
 				// the setup failed, let's try to tail this container in the next scan
 				continue
@@ -144,16 +144,16 @@ func (s *Scanner) setup() error {
 	}
 
 	// Start tailing monitored containers
-	s.scan(true)
+	s.scan(false)
 	return nil
 }
 
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, isSetup bool, outputChan chan message.Message) bool {
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", ShortContainerID(container.ID))
 	tailer := NewTailer(cli, container.ID, source, outputChan)
-	since, err := Since(s.registry, tailer.Identifier(), isSetup)
+	since, err := Since(s.registry, tailer.Identifier(), tailFromBeginning)
 	if err != nil {
 		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(container.ID), err)
 	}

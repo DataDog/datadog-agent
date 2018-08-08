@@ -21,12 +21,12 @@ func TestPosition(t *testing.T) {
 	var offset int64
 	var whence int
 
-	offset, whence, err = Position(registry, "", true)
+	offset, whence, err = Position(registry, "", false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
-	offset, whence, err = Position(registry, "", false)
+	offset, whence, err = Position(registry, "", true)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)

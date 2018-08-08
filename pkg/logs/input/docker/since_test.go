@@ -24,11 +24,11 @@ func TestSince(t *testing.T) {
 	var since time.Time
 	var err error
 
-	since, err = Since(registry, "", true)
-	assert.Nil(t, err)
-	assert.True(t, since.After(now))
-
 	since, err = Since(registry, "", false)
+	assert.Nil(t, err)
+	assert.True(t, since.Equal(now) || since.After(now))
+
+	since, err = Since(registry, "", true)
 	assert.Nil(t, err)
 	assert.Equal(t, time.Time{}, since)
 
