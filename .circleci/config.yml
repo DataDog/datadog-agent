@@ -78,7 +78,7 @@ jobs:
           name: run integration tests
           command: inv  -e integration-tests --race --remote-docker
 
-  release_note_linting:
+  release_note:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
@@ -88,7 +88,7 @@ jobs:
           command: inv -e lint-releasenote
           name: run PR check for release note
 
-  team_assignment_label_linting:
+  team_label:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
@@ -156,10 +156,10 @@ workflows:
       - integration_tests:
           requires:
             - dependencies
-      - release_note_linting:
+      - release_note:
           requires:
             - dependencies
-      - team_assignment_label_linting:
+      - team_label:
           requires:
             - dependencies
       - filename_linting:
