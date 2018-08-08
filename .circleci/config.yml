@@ -89,7 +89,7 @@ jobs:
           name: run PR check for release note
 
   team_assignment_label_linting:
-     <<: *job_template
+    <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
