@@ -32,11 +32,6 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 
 	metaController, informerFactory := newFakeMetadataController(client)
 
-	stop := make(chan struct{})
-	defer close(stop)
-	informerFactory.Start(stop)
-	go metaController.Run(stop)
-
 	pod1 := newFakePod(
 		"default",
 		"pod1_name",
@@ -63,12 +58,14 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		{ObjectMeta: metav1.ObjectMeta{Name: "node2"}},
 		{ObjectMeta: metav1.ObjectMeta{Name: "node3"}},
 	} {
+		// We are adding objects directly into the store for testing purposes. Do NOT call
+		// informerFactory.Start() since the fake apiserver client doesn't actually contain our objects.
 		err := informerFactory.
 			Core().
 			V1().
 			Nodes().
 			Informer().
-			GetIndexer().
+			GetStore().
 			Add(node)
 		require.NoError(t, err)
 	}
@@ -253,20 +250,20 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		t.Logf("Running %d %s", i, tt.desc)
+		t.Logf("Running step %d %s", i, tt.desc)
 
-		indexer := informerFactory.
+		store := informerFactory.
 			Core().
 			V1().
 			Endpoints().
 			Informer().
-			GetIndexer()
+			GetStore()
 
 		var err error
 		if tt.delete {
-			err = indexer.Delete(tt.endpoints)
+			err = store.Delete(tt.endpoints)
 		} else {
-			err = indexer.Add(tt.endpoints)
+			err = store.Add(tt.endpoints)
 		}
 		require.NoError(t, err)
 
@@ -283,7 +280,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			metaBundle, ok := v.(*MetadataMapperBundle)
 			require.True(t, ok)
 
-			assert.Equal(t, expectedMapper, metaBundle.Services)
+			assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
 		}
 	}
 }
