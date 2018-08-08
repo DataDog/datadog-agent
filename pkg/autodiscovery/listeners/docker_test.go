@@ -159,12 +159,12 @@ func TestGetPortsFromPs(t *testing.T) {
 	co.Ports = make([]types.Port, 0)
 	assert.Empty(t, dl.getPortsFromPs(co))
 
-	co.Ports = append(co.Ports, types.Port{PrivatePort: 1234})
 	co.Ports = append(co.Ports, types.Port{PrivatePort: 4321})
+	co.Ports = append(co.Ports, types.Port{PrivatePort: 1234})
 	ports := dl.getPortsFromPs(co)
-	assert.Equal(t, 2, len(ports))
-	assert.Contains(t, ports, ContainerPort{1234, ""})
-	assert.Contains(t, ports, ContainerPort{4321, ""})
+
+	// Make sure the order is OK too
+	assert.Equal(t, []ContainerPort{{1234, ""}, {4321, ""}}, ports)
 }
 
 func TestGetADIdentifiers(t *testing.T) {
@@ -379,9 +379,9 @@ func TestGetPorts(t *testing.T) {
 	}
 
 	ports = make(nat.PortMap, 2)
-	p, _ := nat.NewPort("tcp", "1234")
+	p, _ := nat.NewPort("tcp", "4321")
 	ports[p] = nil
-	p, _ = nat.NewPort("tcp", "4321")
+	p, _ = nat.NewPort("tcp", "1234")
 	ports[p] = nil
 
 	networkSettings = types.NetworkSettings{
@@ -406,9 +406,7 @@ func TestGetPorts(t *testing.T) {
 	}
 
 	pts, _ = svc.GetPorts()
-	assert.Equal(t, 2, len(pts))
-	assert.Contains(t, pts, ContainerPort{1234, ""})
-	assert.Contains(t, pts, ContainerPort{4321, ""})
+	assert.Equal(t, []ContainerPort{{1234, ""}, {4321, ""}}, pts)
 }
 
 func TestGetPid(t *testing.T) {
