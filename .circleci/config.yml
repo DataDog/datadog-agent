@@ -156,7 +156,10 @@ workflows:
       - integration_tests:
           requires:
             - dependencies
-      - reno_linting:
+      - release_note_linting:
+          requires:
+            - dependencies
+      - team_assignment_label_linting:
           requires:
             - dependencies
       - filename_linting:
