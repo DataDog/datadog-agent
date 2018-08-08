@@ -304,9 +304,6 @@ func (l *DockerListener) getPortsFromPs(co types.Container) []ContainerPort {
 	for _, p := range co.Ports {
 		ports = append(ports, ContainerPort{int(p.PrivatePort), ""})
 	}
-	sort.Slice(ports, func(i, j int) bool {
-		return ports[i].Port < ports[j].Port
-	})
 	return ports
 }
 

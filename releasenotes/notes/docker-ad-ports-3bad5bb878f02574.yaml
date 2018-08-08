@@ -1,3 +1,0 @@
----
-fixes:
-  - Fix port ordering for the %%port_%% Autodiscovery tag on the docker listener
