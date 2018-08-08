@@ -31,7 +31,7 @@ import (
 // The controller takes care to garbage collect any data while processing updates/deletes
 // so that the cache does not contain data for deleted pods/services.
 //
-// This controller only supports Kubernetes 1.4+.
+// This controller is used by the Datadog Cluster Agent and supports Kubernetes 1.4+.
 type MetadataController struct {
 	nodeLister       corelisters.NodeLister
 	nodeListerSynced cache.InformerSynced
@@ -159,7 +159,7 @@ func (m *MetadataController) syncEndpoints(key string) error {
 	case errors.IsNotFound(err):
 		// Endpoints absence in store means watcher caught the deletion, ensure metadata map is cleaned.
 		log.Tracef("Endpoints has been deleted %v. Attempting to cleanup metadata map", key)
-		err = m.mapDeletedEndpoints(namespace, name)
+		err = m.deleteMappedEndpoints(namespace, name)
 	case err != nil:
 		log.Debugf("Unable to retrieve endpoints %v from store: %v", key, err)
 	default:
@@ -238,7 +238,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 	return nil
 }
 
-func (m *MetadataController) mapDeletedEndpoints(namespace, svc string) error {
+func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error {
 	nodes, err := m.nodeLister.List(labels.Everything()) // list all nodes
 	if err != nil {
 		return err
