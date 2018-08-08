@@ -6,15 +6,24 @@
 package system
 
 import (
+	"fmt"
 	"regexp"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/shirou/gopsutil/disk"
 	yaml "gopkg.in/yaml.v2"
 )
 
-const diskCheckName = "disk"
+const (
+	diskCheckName = "disk"
+	diskMetric    = "system.disk.%s"
+	inodeMetric   = "system.fs.inode.%s"
+)
 
 // DiskCheck stores disk-specific additional fields
 type DiskCheck struct {
@@ -30,8 +39,154 @@ type DiskCheck struct {
 	customeTags          []string
 }
 
+// Run executes the check
 func (c *DiskCheck) Run() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
+	c.collectAndSendMetrics(sender)
+
 	return nil
+}
+
+func (c *DiskCheck) collectAndSendMetrics(sender aggregator.Sender) error {
+	partitions, err := disk.Partitions(true)
+	if err != nil {
+		return err
+	}
+
+	for _, partition := range partitions {
+		if c.excludeDisk(partition) {
+			continue
+		}
+
+		// Get disk metrics here to be able to exclude on total usage
+		diskUsage, err := disk.Usage(partition.Mountpoint)
+		if err != nil {
+			log.Warnf("Unable to get disk metrics of %s mount point: %s", partition.Mountpoint, err)
+			continue
+		}
+
+		// Exclude disks with total disk size 0
+		if diskUsage.Total == 0 {
+			continue
+		}
+
+		tags := make([]string, len(c.customeTags))
+		copy(tags, c.customeTags)
+
+		if c.tagByFilesystem {
+			tags = append(tags, fmt.Sprintf("filesystem:%s", partition.Fstype))
+		}
+		var deviceName string
+		if c.useMount {
+			deviceName = partition.Mountpoint
+		} else {
+			deviceName = partition.Device
+		}
+		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+
+		// apply device/mountpoint specific tags
+		for re, deviceTags := range c.deviceTagRe {
+			if re != nil && (re.MatchString(partition.Device) || re.MatchString(partition.Mountpoint)) {
+				for _, tag := range deviceTags {
+					tags = append(tags, tag)
+				}
+			}
+		}
+
+		var ioCounter *disk.IOCountersStat
+		ioCounters, err := disk.IOCounters(partition.Device)
+		if err != nil {
+			log.Warnf("Unable to get IO metrics of %s:", partition.Device, err)
+		} else {
+			if counter, found := ioCounters[partition.Device]; found {
+				ioCounter = &counter
+			}
+		}
+
+		c.sendMetrics(sender, diskUsage, ioCounter, tags)
+	}
+
+	return nil
+}
+
+func (c *DiskCheck) excludeDisk(disk disk.PartitionStat) bool {
+
+	// Hack for NFS secure mounts
+	// Secure mounts might look like this: '/mypath (deleted)', we should
+	// ignore all the bits not part of the mountpoint name. Take also into
+	// account a space might be in the mountpoint.
+	disk.Mountpoint = strings.Split(disk.Mountpoint, " ")[0]
+
+	nameEmpty := disk.Device == "" || disk.Device == "none"
+
+	// allow empty names if `all_partitions` is `yes` so we can evaluate mountpoints
+	if nameEmpty {
+		if !c.allPartitions {
+			return true
+		}
+	} else {
+		// I don't why I we do this only if the device name is not empty
+		// This is useful only when `all_partitions` is true and `exclude_disk_re` matches empty strings or `excluded_devices` contains the device
+
+		// device is listed in `excluded_disks`
+		if stringSliceContain(c.excludedDisks, disk.Device) {
+			return true
+		}
+
+		// device name matches `excluded_disk_re`
+		if c.excludedDiskRe != nil && c.excludedDiskRe.MatchString(disk.Device) {
+			return true
+		}
+	}
+
+	// fs is listed in `excluded_filesystems`
+	if stringSliceContain(c.excludedFilesystems, disk.Fstype) {
+		return true
+	}
+
+	// device mountpoint matches `excluded_mountpoint_re`
+	if c.excludedMountpointRe != nil && c.excludedMountpointRe.MatchString(disk.Mountpoint) {
+		return true
+	}
+
+	// all good, don't exclude the disk
+	return false
+}
+
+func (c *DiskCheck) sendMetrics(sender aggregator.Sender, diskUsage *disk.UsageStat, ioCounter *disk.IOCountersStat, tags []string) {
+
+	if ioCounter != nil {
+
+		// /1000 as psutil returns the value in ms
+		// Rate computes a rate of change between to consecutive check run.
+		// For cumulated time values like read and write times this a ratio between 0 and 1, we want it as a percentage so we *100 in advance
+		sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
+		sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
+	}
+
+	if diskUsage != nil {
+		// Disk metrics
+		// For legacy reasons,  the standard unit it kB
+		sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(diskUsage.Total)/1024, "", tags)
+		sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(diskUsage.Used)/1024, "", tags)
+		sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(diskUsage.Free)/1024, "", tags)
+		sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), diskUsage.UsedPercent/100, "", tags)
+		// Use percent, a lot more logical than in_use
+		sender.Gauge(fmt.Sprintf(diskMetric, "used.percent"), diskUsage.UsedPercent, "", tags)
+
+		// Inodes metrics
+		sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(diskUsage.InodesTotal), "", tags)
+		sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(diskUsage.InodesUsed), "", tags)
+		sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(diskUsage.InodesFree), "", tags)
+		sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), diskUsage.InodesUsedPercent/100, "", tags)
+		// Use percent, a lot more logical than in_use
+		sender.Gauge(fmt.Sprintf(inodeMetric, "used.percent"), diskUsage.InodesUsedPercent, "", tags)
+	}
+
 }
 
 // Configure the disk check
@@ -104,6 +259,15 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 	}
 
 	return nil
+}
+
+func stringSliceContain(slice []string, x string) bool {
+	for _, e := range slice {
+		if e == x {
+			return true
+		}
+	}
+	return false
 }
 
 func diskFactory() check.Check {
