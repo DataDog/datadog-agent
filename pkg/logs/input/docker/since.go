@@ -10,29 +10,26 @@ package docker
 import (
 	"time"
 
-	"github.com/docker/docker/api/types"
-
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/seek"
 )
 
 // Since returns the date from when logs should be collected.
-func Since(seeker *seek.Seeker, container types.Container, identifier string) (time.Time, error) {
+func Since(registry auditor.Registry, identifier string, isSetup bool) (time.Time, error) {
 	var since time.Time
 	var err error
-	strategy, offset := seeker.Seek(time.Unix(container.Created, 0), identifier)
-	switch strategy {
-	case seek.Start:
-		since = time.Time{}
-	case seek.Recover:
+	offset := registry.GetOffset(identifier)
+	if offset != "" {
 		since, err = time.Parse(config.DateFormat, offset)
 		if err != nil {
 			since = time.Now().UTC()
 		} else {
 			since = since.Add(time.Nanosecond)
 		}
-	case seek.End:
+	} else if isSetup {
 		since = time.Now().UTC()
+	} else {
+		since = time.Time{}
 	}
 	return since, err
 }

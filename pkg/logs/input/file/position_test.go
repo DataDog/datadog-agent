@@ -8,42 +8,37 @@ package file
 import (
 	"io"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/seek"
-	"github.com/DataDog/datadog-agent/pkg/logs/seek/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 )
 
 func TestPosition(t *testing.T) {
-	start := time.Now().Add(-time.Hour)
 	registry := mock.NewRegistry()
-	seeker := seek.NewSeeker(registry)
-	end := time.Now().Add(time.Hour)
 
 	var err error
 	var offset int64
 	var whence int
 
-	offset, whence, err = Position(seeker, start, "")
+	offset, whence, err = Position(registry, "", true)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
-	offset, whence, err = Position(seeker, end, "")
+	offset, whence, err = Position(registry, "", false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("123456789")
-	offset, whence, err = Position(seeker, end, "")
+	offset, whence, err = Position(registry, "", false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(123456789), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("foo")
-	offset, whence, err = Position(seeker, end, "")
+	offset, whence, err = Position(registry, "", false)
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)

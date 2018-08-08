@@ -26,6 +26,11 @@ const defaultTTL = 23 * time.Hour
 // latest version of the API used by the auditor to retrieve the registry from disk.
 const registryAPIVersion = 2
 
+// Registry holds a list of offsets.
+type Registry interface {
+	GetOffset(identifier string) string
+}
+
 // A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
 type RegistryEntry struct {

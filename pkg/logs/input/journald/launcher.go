@@ -6,12 +6,10 @@
 package journald
 
 import (
-	"time"
-
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-	"github.com/DataDog/datadog-agent/pkg/logs/seek"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,16 +17,16 @@ import (
 type Launcher struct {
 	sources          *config.LogSources
 	pipelineProvider pipeline.Provider
-	seeker           *seek.Seeker
+	registry         auditor.Registry
 	tailers          map[string]*Tailer
 }
 
 // New returns a new Launcher.
-func New(sources *config.LogSources, pipelineProvider pipeline.Provider, seeker *seek.Seeker) *Launcher {
+func New(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
 	return &Launcher{
 		sources:          sources,
 		pipelineProvider: pipelineProvider,
-		seeker:           seeker,
+		registry:         registry,
 		tailers:          make(map[string]*Tailer),
 	}
 }
@@ -64,7 +62,7 @@ func (l *Launcher) Stop() {
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
 	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan())
-	_, cursor := l.seeker.Seek(time.Time{}, tailer.Identifier())
+	cursor := l.registry.GetOffset(tailer.Identifier())
 	err := tailer.Start(cursor)
 	if err != nil {
 		return nil, err

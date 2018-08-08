@@ -8,16 +8,16 @@
 package docker
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/seek"
 )
 
 // Scanner is not supported on windows environment
 type Scanner struct{}
 
 // NewScanner returns a new Scanner
-func NewScanner(sources *config.LogSources, pp pipeline.Provider, seeker *seek.Seeker) *Scanner {
+func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
 	return &Scanner{}
 }
 
