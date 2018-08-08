@@ -82,6 +82,9 @@ func GetRuntimeForPID(pid int32) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		if len(cmdline) == 0 {
+			return "", errors.New("empty command line")
+		}
 		cmd := cmdline[0]
 		if strings.Contains(cmd, "/") {
 			cmdParts := strings.Split(cmd, "/")
@@ -92,6 +95,9 @@ func GetRuntimeForPID(pid int32) (string, error) {
 		case shimNameContainerdUnsure:
 			// Shim can be used either by k8s for direct containerd
 			// or new docker versions, checking arguments
+			if len(cmdline) < 2 {
+				break
+			}
 			args := strings.Join(cmdline[1:], " ")
 			switch {
 			case strings.Contains(args, shimArgContainerdK8s):

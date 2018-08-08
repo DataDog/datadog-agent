@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix a possible index out of range panic in Dogstatsd origin detection
