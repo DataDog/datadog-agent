@@ -344,13 +344,16 @@ func (ac *AutoConfig) pollConfigs() {
 					}
 					currentHash := tagger.GetEntityHash(entityName)
 					if currentHash != previousHash {
-						servicesToRefresh = append(servicesToRefresh, service)
 						ac.store.setTagsHashForService(service.GetID(), currentHash)
+						if previousHash != "" {
+							// only refresh service if we already had a hash to avoid resetting it
+							servicesToRefresh = append(servicesToRefresh, service)
+						}
 					}
 				}
 				ac.configResolver.m.Unlock()
 				for _, service := range servicesToRefresh {
-					log.Debugf("Tags changed for service %s, rescheduling associated checks", string(service.GetID()))
+					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", string(service.GetID()))
 					ac.configResolver.processDelService(service)
 					ac.configResolver.processNewService(service)
 				}
