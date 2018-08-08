@@ -71,7 +71,7 @@ func (t *Tailer) Identifier() string {
 // Stop stops the tailer from reading new container logs,
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing container ", t.ContainerID[:12])
+	log.Info("Stop tailing container ", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 	t.reader.Close()
 	t.source.RemoveInput(t.ContainerID)
