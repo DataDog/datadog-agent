@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // store holds useful mappings for the AD
@@ -63,6 +64,8 @@ func (s *store) addConfigForService(serviceID listeners.ID, config integration.C
 func (s *store) getTagsHashForService(serviceID listeners.ID) string {
 	s.m.RLock()
 	defer s.m.RUnlock()
+	out := s.serviceToTagsHash[serviceID]
+	log.Infof("[INV] service asked is %s and returned is %s", string(serviceID), out)
 	return s.serviceToTagsHash[serviceID]
 }
 
@@ -77,6 +80,8 @@ func (s *store) removeTagsHashForService(serviceID listeners.ID) {
 func (s *store) setTagsHashForService(serviceID listeners.ID, hash string) {
 	s.m.Lock()
 	defer s.m.Unlock()
+	out := s.serviceToTagsHash[serviceID]
+	log.Infof("[INV] service set is %s value in serviceToTagsHash is %s and hash passed is %s", string(serviceID), out, hash)
 	s.serviceToTagsHash[serviceID] = hash
 }
 
