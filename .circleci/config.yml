@@ -30,8 +30,8 @@ templates:
           - v2-godeps-{{ .Branch }}-
           - v2-godeps-master-
     - run: &enter_venv
-        name: entering virtual env
-        command: source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate
+        name: add virtualenv to bashrc 
+        command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
 
 
 jobs:
@@ -52,12 +52,13 @@ jobs:
       - run:
           name: setup virtual env
           command: virtualenv /go/src/github.com/DataDog/datadog-agent/venv
+      - run: *enter_venv
       - run:
           name: setup python deps
           command: source ./venv/bin/activate && pip install -r requirements.txt
       - run:
           name: grab go deps
-          command: inv -e deps
+          command: source ./venv/bin/activate && inv deps
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
