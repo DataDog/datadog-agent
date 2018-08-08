@@ -32,10 +32,18 @@ def build(ctx, vstudio_root=None):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
-    vsroot = vstudio_root or os.getenv('VSTUDIO_ROOT')
-    vs_env_bat = '{}\\VC\\Auxiliary\\Build\\vcvars64.bat'.format(vsroot)
+    cmd = ""
+    if not os.getenv("VCINSTALLDIR"):
+        print("VC Not installed in environment; checking other locations")
 
-    cmd = 'call \"{}\" && msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform=x64'.format(vs_env_bat)
+        vsroot = vstudio_root or os.getenv('VSTUDIO_ROOT')
+        if not vsroot:
+            print("Must have visual studio installed")
+            raise Exit(code=2)
+        vs_env_bat = '{}\\VC\\Auxiliary\\Build\\vcvars64.bat'.format(vsroot)
+        cmd = 'call \"{}\" && msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform=x64'.format(vs_env_bat)
+    else:
+        cmd = 'msbuild omnibus\\resources\\agent\\msi\\cal\\customaction.vcxproj /p:Configuration=Release /p:Platform=x64'
 
     print("Build Command: %s" % cmd)
 
