@@ -79,10 +79,11 @@ func (s *store) removeTagsHashForService(serviceID listeners.ID) {
 // setTagsHashForService set the tags hash for a specified service
 func (s *store) setTagsHashForService(serviceID listeners.ID, hash string) {
 	s.m.Lock()
-	defer s.m.Unlock()
+	//defer s.m.Unlock()
 	out := s.serviceToTagsHash[serviceID]
 	log.Infof("[INV] service set is %s value in serviceToTagsHash is %s and hash passed is %s", string(serviceID), out, hash)
 	s.serviceToTagsHash[serviceID] = hash
+	s.m.Unlock()
 }
 
 // setLoadedConfig stores a resolved config by its digest
