@@ -110,7 +110,9 @@ func getK8sConfig() (*rest.Config, error) {
 			return nil, err
 		}
 	}
-	k8sConfig.Timeout = 2 * time.Second
+	// The timeout for http.Client requests. Note that this timeout also applies to a "watch" and will cause
+	// client-go cache.Reflector to recreate the "watch" based on this timeout.
+	k8sConfig.Timeout = 1 * time.Minute
 	return k8sConfig, nil
 }
 
