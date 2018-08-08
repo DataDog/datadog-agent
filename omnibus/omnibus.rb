@@ -16,13 +16,16 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
   s3_endpoint "https://s3.amazonaws.com"
   s3_region 'us-east-1'
   s3_force_path_style true
-  s3_authenticated_download true
+  s3_authenticated_download false #TODO: revert true
   if ENV['WINDOWS_BUILDER']
     s3_role true
     s3_role_arn 'arn:aws:iam::486234852809:role/ci-datadog-agent'
     s3_role_session_name 'datadog-agent-builder'
     s3_sts_creds_instance_profile true
   else
-    s3_instance_profile true
+    s3_instance_profile false #TODO: revert true
+    s3_access_key ENV["AWS_ACCESS_KEY_ID"]
+    s3_secret_key ENV["AWS_SECRET_ACCESS_KEY"]
+
   end
 end

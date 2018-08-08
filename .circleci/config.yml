@@ -135,19 +135,25 @@ jobs:
 
     - run:
         name: ensure libtool
-        command: apt-get install -y libtool && apt-get install -y --only-upgrade libtool
+        command: apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
 
     - run:
         name: build omnibus
-        command: inv -e agent.omnibus-build --base-dir ./omnibus
+        command: inv -e agent.omnibus-build --base-dir ./omnibus --omnibus-s3-cache --skip-sign
 
     - run:
         name: build agent
-        command: inv -e agent.build
+        command: inv -e agent.build --build-exclude=snmp
 
     - run:
         name: Publish deb files
-        command: deb-s3 upload --bucket ${STS_AWS_BUCKET} omnibus/pkg/*.deb
+        command: |
+          if [ "$CIRCLE_BRANCH" != "master" ];
+          then
+            deb-s3 upload --codename ${CIRCLE_BRANCH}  --bucket ${STS_AWS_BUCKET} omnibus/pkg/*.deb
+          else
+            deb-s3 upload --bucket ${STS_AWS_BUCKET} omnibus/pkg/*.deb
+          fi
 
   build_puppy:
     <<: *job_template

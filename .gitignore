@@ -67,3 +67,8 @@ cmd/agent/android/app/build
 platform.pk8
 
 p-env/
+
+# build artifacts
+omnibus/omnibus/*
+pkg/flare/auth_token
+
