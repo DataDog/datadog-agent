@@ -83,6 +83,7 @@ func (s *store) setTagsHashForService(serviceID listeners.ID, hash string) {
 	out := s.serviceToTagsHash[serviceID]
 	log.Infof("[INV] service set is %s value in serviceToTagsHash is %s and hash passed is %s", string(serviceID), out, hash)
 	s.serviceToTagsHash[serviceID] = hash
+	log.Infof("[INV] service %s should be set: %s", string(serviceID), s.serviceToTagsHash[serviceID])
 	s.m.Unlock()
 }
 
