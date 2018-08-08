@@ -38,6 +38,23 @@ func Install(r *mux.Router) {
 	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/metadata/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")
+	r.HandleFunc("/events/{check}", getCheckLatestEvents).Methods("GET")
+
+	installClusterCheckEndpoints(r)
+}
+
+func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	check := vars["check"]
+	for _, c := range eventChecks {
+		if c == check {
+			w.Write([]byte("[OK] TODO"))
+			return
+		}
+	}
+	err := fmt.Errorf("[FAIL] TODO")
+	log.Errorf("%s", err.Error())
+	http.Error(w, err.Error(), http.StatusNotFound)
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.

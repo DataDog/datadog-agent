@@ -11,8 +11,9 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var tplVarRegex = regexp.MustCompile(`%%.+?%%`)
@@ -35,6 +36,7 @@ type Config struct {
 	LogsConfig    Data     `json:"logs"`           // the logs config in Yaml (logs-agent only)
 	ADIdentifiers []string `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
 	Provider      string   `json:"provider"`       // the provider that issued the config
+	ClusterCheck  bool     `json:"-"`              // cluster-check configuration flag, don't expose in JSON
 }
 
 // Equal determines whether the passed config is the same
@@ -170,7 +172,9 @@ func (c *Data) MergeAdditionalTags(tags []string) error {
 	return nil
 }
 
-// Digest returns an hash value representing the data stored in this configuration
+// Digest returns an hash value representing the data stored in this configuration.
+// The ClusterCheck field is intentionnally left out to keep a stable digest
+// between the cluster-agent and the node-agents
 func (c *Config) Digest() string {
 	h := fnv.New64()
 	h.Write([]byte(c.Name))

@@ -68,7 +68,7 @@ type AutoConfig struct {
 	listenerRetryStop  chan struct{}
 	configResolver     *ConfigResolver
 	configsPollTicker  *time.Ticker
-	scheduler          scheduler.Scheduler
+	scheduler          *scheduler.MetaScheduler
 	pollerStop         chan struct{}
 	pollerActive       bool
 	health             *health.Handle
@@ -77,7 +77,7 @@ type AutoConfig struct {
 }
 
 // NewAutoConfig creates an AutoConfig instance.
-func NewAutoConfig(scheduler scheduler.Scheduler) *AutoConfig {
+func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
 		providers:          make([]*providerDescriptor, 0, 5),
 		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
@@ -362,6 +362,29 @@ func (ac *AutoConfig) retryListenerCandidates() {
 			}
 		}
 	}
+}
+
+// AddScheduler allows to register a new scheduler to receive configurations.
+// Previously emitted configurations can be replayed with the replayConfigs flag.
+func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
+	ac.scheduler.Register(name, s)
+	if !replayConfigs {
+		return
+	}
+
+	var configs []integration.Config
+	for _, c := range ac.store.getLoadedConfigs() {
+		configs = append(configs, c)
+	}
+	s.Schedule(configs)
+}
+
+// RemoveScheduler allows to remove a scheduler from the AD system.
+func (ac *AutoConfig) RemoveScheduler(name string) {
+	ac.scheduler.Deregister(name)
 }
 
 func decryptConfig(conf integration.Config) (integration.Config, error) {

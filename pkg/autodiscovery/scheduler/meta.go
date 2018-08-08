@@ -6,12 +6,15 @@
 package scheduler
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MetaScheduler is a scheduler dispatching to all its registered schedulers
 type MetaScheduler struct {
+	m                sync.Mutex
 	activeSchedulers map[string]Scheduler
 }
 
@@ -24,14 +27,29 @@ func NewMetaScheduler() *MetaScheduler {
 
 // Register a scheduler in the meta scheduler to dispatch to
 func (ms *MetaScheduler) Register(name string, s Scheduler) {
+	ms.m.Lock()
+	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
 	}
 	ms.activeSchedulers[name] = s
 }
 
+// Deregister a scheduler in the meta scheduler to dispatch to
+func (ms *MetaScheduler) Deregister(name string) {
+	ms.m.Lock()
+	defer ms.m.Unlock()
+	if _, ok := ms.activeSchedulers[name]; !ok {
+		log.Warnf("Scheduler %s no registered, skipping", name)
+		return
+	}
+	delete(ms.activeSchedulers, name)
+}
+
 // Schedule schedules configs to all registered schedulers
 func (ms *MetaScheduler) Schedule(configs []integration.Config) {
+	ms.m.Lock()
+	defer ms.m.Unlock()
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Schedule(configs)
 	}
@@ -39,6 +57,8 @@ func (ms *MetaScheduler) Schedule(configs []integration.Config) {
 
 // Unschedule unschedules configs to all registered schedulers
 func (ms *MetaScheduler) Unschedule(configs []integration.Config) {
+	ms.m.Lock()
+	defer ms.m.Unlock()
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Unschedule(configs)
 	}
@@ -46,6 +66,8 @@ func (ms *MetaScheduler) Unschedule(configs []integration.Config) {
 
 // Stop handles clean stop of registered schedulers
 func (ms *MetaScheduler) Stop() {
+	ms.m.Lock()
+	defer ms.m.Unlock()
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Stop()
 	}

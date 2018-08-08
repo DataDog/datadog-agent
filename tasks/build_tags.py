@@ -8,6 +8,7 @@ from invoke import task
 # ALL_TAGS lists any available build tag
 ALL_TAGS = set([
     "apm",
+    "clusterchecks",
     "consul",
     "cpython",
     "docker",
@@ -15,14 +16,14 @@ ALL_TAGS = set([
     "etcd",
     "gce",
     "jmx",
+    "kubeapiserver",
     "kubelet",
     "log",
-    "systemd",
     "process",
     "snmp",
+    "systemd",
     "zk",
     "zlib",
-    "kubeapiserver",
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent
@@ -39,6 +40,7 @@ LINUX_ONLY_TAGS = [
 DEBIAN_ONLY_TAGS = [
     "systemd",
 ]
+
 
 def get_default_build_tags(puppy=False):
     """

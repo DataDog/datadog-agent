@@ -20,6 +20,7 @@ import (
 
 type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
+	ClusterCheck  bool        `yaml:"cluster_check"`
 	InitConfig    interface{} `yaml:"init_config"`
 	MetricConfig  interface{} `yaml:"jmx_metrics"`
 	LogsConfig    interface{} `yaml:"logs"`
@@ -291,6 +292,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Copy auto discovery identifiers
 	config.ADIdentifiers = cf.ADIdentifiers
+
+	// Copy cluster_check status
+	config.ClusterCheck = cf.ClusterCheck
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {

@@ -282,6 +282,9 @@ func init() {
 	BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)    // 5 minutes
 	BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60) // 1 minute
 
+	// Cluster check Autodiscovery
+	BindEnvAndSetDefault("cluster_checks.enabled", false)
+
 	setAssetFs()
 }
 

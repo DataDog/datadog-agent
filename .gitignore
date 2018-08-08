@@ -24,6 +24,7 @@ agentmsg.h
 # go-generated files
 datadog.yaml
 dogstatsd.yaml
+Dockerfiles/cluster-agent/datadog-cluster.yaml
 
 # jetbrains IDE directory
 /.idea/
