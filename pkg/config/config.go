@@ -216,6 +216,7 @@ func init() {
 	Datadog.SetDefault("leader_lease_duration", "60")
 	Datadog.SetDefault("leader_election", false)
 	Datadog.SetDefault("kube_resources_namespace", "")
+	BindEnvAndSetDefault("kubernetes_restclient_timeout", 60)
 
 	// Datadog cluster agent
 	Datadog.SetDefault("cluster_agent.enabled", false)

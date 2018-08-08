@@ -493,7 +493,6 @@ api_key:
 # kubernetes_collect_metadata_tags: true
 # kubernetes_metadata_tag_update_freq: 60
 # kubernetes_apiserver_client_timeout: 10
-# kubernetes_apiserver_poll_freq: 30
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
 # Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#event-collection).

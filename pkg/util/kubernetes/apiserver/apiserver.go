@@ -110,9 +110,8 @@ func getK8sConfig() (*rest.Config, error) {
 			return nil, err
 		}
 	}
-	// The timeout for http.Client requests. Note that this timeout also applies to a "watch" and will cause
-	// client-go cache.Reflector to recreate the "watch" based on this timeout.
-	k8sConfig.Timeout = 1 * time.Minute
+	// The timeout for http.Client requests. Note that this timeout also applies to a "watch".
+	k8sConfig.Timeout = time.Duration(config.Datadog.GetInt("kubernetes_restclient_timeout")) * time.Second
 	return k8sConfig, nil
 }
 
