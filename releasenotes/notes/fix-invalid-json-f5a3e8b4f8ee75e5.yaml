@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix invalid JSON in log

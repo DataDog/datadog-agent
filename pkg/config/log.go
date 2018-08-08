@@ -107,7 +107,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 
 	configTemplate += fmt.Sprintf(`</outputs>
 	<formats>
-		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%File&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%File&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%QuoteMsg&quot;}%%n"/>
 		<format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n"/>
 		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
 		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />
@@ -304,7 +304,14 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
+func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		return strconv.Quote(message)
+	}
+}
+
 func init() {
+	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter)
 	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
 	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
 }
