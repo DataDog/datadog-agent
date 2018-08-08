@@ -193,10 +193,11 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 	if !strings.Contains(entityName, "://") {
 		entityName = docker.ContainerIDToEntityName(entityName)
 	}
+	log.Infof("[INV] resolving template for %#v entity is %#v", svc.GetID(), tagger.GetEntityHash(entityName))
 	cr.ac.store.setTagsHashForService(
 		svc.GetID(),
 		tagger.GetEntityHash(entityName),
-	)
+	) // sets the hash.
 
 	return resolvedConfig, nil
 }

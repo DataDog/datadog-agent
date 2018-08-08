@@ -174,9 +174,9 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	}
 
 	l.m.Lock()
-	l.services[ID(id)] = &svc
+	l.services[ID(id)] = &svc // Doest this add the ID to the CR
 	l.m.Unlock()
-
+	log.Infof("[INV] svc created by kubelet %#v", svc)
 	l.newService <- &svc
 }
 

@@ -142,6 +142,7 @@ func (l *DockerListener) init() {
 				Ports:         l.getPortsFromPs(co),
 			}
 		}
+		log.Infof("[INV] Adding svc %#v", svc)
 		l.newService <- svc
 		l.services[id] = svc
 	}
@@ -211,7 +212,7 @@ func (l *DockerListener) createService(cID ID) {
 			ID: cID,
 		}
 	}
-
+	log.Infof("[INV] Eval cid %#v, iskube to %s, ", cID, isKube)
 	_, err = svc.GetADIdentifiers()
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)

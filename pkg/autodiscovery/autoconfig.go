@@ -337,12 +337,15 @@ func (ac *AutoConfig) pollConfigs() {
 				ac.configResolver.m.Lock()
 				for _, service := range ac.configResolver.services {
 					previousHash := ac.store.getTagsHashForService(service.GetID())
+					log.Debugf("[INV] Currently eval %#v, previoushash is ", service, previousHash)
 					// TODO: harmonize service & entities ID
 					entityName := string(service.GetID())
+					log.Debugf("[INV] entityname is %s and str is %v", entityName, service.GetID())
 					if !strings.Contains(entityName, "://") {
 						entityName = docker.ContainerIDToEntityName(entityName)
 					}
 					currentHash := tagger.GetEntityHash(entityName)
+					log.Debugf("[INV] hash is ", currentHash)
 					if currentHash != previousHash {
 						log.Infof("[INV] entinty name %s, current hash %s, previous hash %s", entityName, currentHash, previousHash)
 						tags, err := tagger.Tag(entityName, true)
