@@ -42,6 +42,7 @@ type jobQueue struct {
 	stopped             chan bool // signals that this queue has stopped
 	buckets             []*jobBucket
 	bucketTicker        *time.Ticker
+	lastTick            time.Time
 	sparseStep          uint
 	currentBucketIdx    uint
 	schedulingBucketIdx uint
@@ -157,11 +158,15 @@ func (jq *jobQueue) process(out chan<- check.Check) bool {
 	case <-jq.stop:
 		jq.health.Deregister()
 		return false
-	case <-jq.bucketTicker.C:
+	case t := <-jq.bucketTicker.C:
 		log.Debugf("Bucket ticked... current index: %v", jq.currentBucketIdx)
-		jq.mu.RLock()
+		jq.mu.Lock()
+		if !jq.lastTick.Equal(time.Time{}) && t.After(jq.lastTick.Add(2*time.Second)) {
+			log.Infof("Previous bucket took over 1sec to schedule. Running behind...")
+		}
+		jq.lastTick = t
 		bucket := jq.buckets[jq.currentBucketIdx]
-		jq.mu.RUnlock()
+		jq.mu.Unlock()
 
 		bucket.mu.RLock()
 		// we have to copy to avoid blocking the bucket :(
