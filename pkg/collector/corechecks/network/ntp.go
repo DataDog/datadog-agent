@@ -78,18 +78,14 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 
 	c.instance = instance
 	if c.instance.Host != "" {
-		if c.instance.Hosts == nil {
-			c.instance.Hosts = []string{c.instance.Host}
-		} else {
-			hosts := []string{c.instance.Host}
-			// If config contains both host and hosts, we merge both
-			for _, h := range c.instance.Hosts {
-				if h != c.instance.Host {
-					hosts = append(hosts, h)
-				}
+		hosts := []string{c.instance.Host}
+		// If config contains both host and hosts
+		for _, h := range c.instance.Hosts {
+			if h != c.instance.Host {
+				hosts = append(hosts, h)
 			}
-			c.instance.Hosts = hosts
 		}
+		c.instance.Hosts = hosts
 	}
 	if c.instance.Hosts == nil {
 		c.instance.Hosts = defaultHosts
