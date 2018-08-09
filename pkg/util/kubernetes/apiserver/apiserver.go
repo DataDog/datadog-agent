@@ -43,7 +43,7 @@ const (
 	tokenKey                  = "tokenKey"
 	metadataMapExpire         = 2 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
-	defaultClientTimeout      = 2 * time.Second
+	defaultClientTimeout      = 10 * time.Second
 )
 
 // APIClient provides authenticated access to the
