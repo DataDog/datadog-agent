@@ -32,18 +32,18 @@ type Scanner struct {
 	sources          *config.LogSources
 	tailers          map[string]*Tailer
 	cli              *client.Client
-	auditor          *auditor.Auditor
+	registry         auditor.Registry
 	isRunning        bool
 	stop             chan struct{}
 }
 
 // NewScanner returns an initialized Scanner
-func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, a *auditor.Auditor) *Scanner {
+func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Scanner {
 	return &Scanner{
 		pipelineProvider: pipelineProvider,
 		sources:          sources,
 		tailers:          make(map[string]*Tailer),
-		auditor:          a,
+		registry:         registry,
 		stop:             make(chan struct{}),
 	}
 }
@@ -151,14 +151,18 @@ func (s *Scanner) setup() error {
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
 func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
-	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
-	t := NewTailer(cli, container.ID, source, outputChan)
-	err := t.recoverTailing(s.auditor, tailFromBeginning)
+	log.Info("Detected container ", container.Image, " - ", ShortContainerID(container.ID))
+	tailer := NewTailer(cli, container.ID, source, outputChan)
+	since, err := Since(s.registry, tailer.Identifier(), tailFromBeginning)
+	if err != nil {
+		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(container.ID), err)
+	}
+	err = tailer.Start(since)
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
-	s.tailers[container.ID] = t
+	s.tailers[container.ID] = tailer
 	return true
 }
 
@@ -185,8 +189,4 @@ func (s *Scanner) reportErrorToAllSources(err error) {
 	for _, source := range s.sources.GetValidSourcesWithType(config.DockerType) {
 		source.Status.Error(err)
 	}
-}
-
-func (s *Scanner) humanReadableContainerID(containerID string) string {
-	return containerID[:12]
 }

@@ -82,11 +82,11 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
 		Offset: "42",
 	}
 
-	offset := suite.a.GetLastCommittedOffset(suite.source.Config.Path)
+	offset := suite.a.GetOffset(suite.source.Config.Path)
 	suite.Equal("42", offset)
 
 	othersource := config.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
-	offset = suite.a.GetLastCommittedOffset(othersource.Config.Path)
+	offset = suite.a.GetOffset(othersource.Config.Path)
 	suite.Equal("", offset)
 }
 

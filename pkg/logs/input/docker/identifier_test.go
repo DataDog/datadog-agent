@@ -3,17 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package windowsevent
+// +build docker
+
+package docker
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
-func TestShouldSanitizeConfig(t *testing.T) {
-	launcher := New(nil, nil)
-	assert.Equal(t, "*", launcher.sanitizedConfig(&config.LogsConfig{ChannelPath: "System", Query: ""}).Query)
+func TestShortContainerID(t *testing.T) {
+	var containerID string
+
+	containerID = "abcdefghijklmnopqrstuvwxyz"
+	assert.Equal(t, "abcdefghijkl", ShortContainerID(containerID))
+
+	containerID = "abcde"
+	assert.Equal(t, "abcde", ShortContainerID(containerID))
 }

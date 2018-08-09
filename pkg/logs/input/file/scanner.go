@@ -6,7 +6,6 @@
 package file
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,19 +27,19 @@ type Scanner struct {
 	tailingLimit        int
 	fileProvider        *Provider
 	tailers             map[string]*Tailer
-	auditor             *auditor.Auditor
+	registry            auditor.Registry
 	tailerSleepDuration time.Duration
 	stop                chan struct{}
 }
 
 // New returns an initialized Scanner
-func New(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, auditor *auditor.Auditor, tailerSleepDuration time.Duration) *Scanner {
+func New(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry, tailerSleepDuration time.Duration) *Scanner {
 	return &Scanner{
 		pipelineProvider:    pipelineProvider,
 		tailingLimit:        tailingLimit,
 		fileProvider:        NewProvider(sources, tailingLimit),
 		tailers:             make(map[string]*Tailer),
-		auditor:             auditor,
+		registry:            registry,
 		tailerSleepDuration: tailerSleepDuration,
 		stop:                make(chan struct{}),
 	}
@@ -58,8 +57,7 @@ func (s *Scanner) setup() {
 		} else {
 			// resume tailing from last committed offset if exists or start tailing from the end of file otherwise
 			// to prevent from reading a file over and over again at agent restart
-			tailFromBeginning := false
-			s.startNewTailer(file, tailFromBeginning)
+			s.startNewTailer(file, false)
 		}
 	}
 }
@@ -83,22 +81,18 @@ func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tai
 // returns true if the operation succeeded, false otherwise
 func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
 	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
-	offset := s.auditor.GetLastCommittedOffset(tailer.Identifier())
-	value, err := strconv.ParseInt(offset, 10, 64)
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), tailFromBeginning)
 	if err != nil {
-		value = 0
+		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
-	if value > 0 {
-		err = tailer.recoverTailing(value)
-	} else if tailFromBeginning {
-		err = tailer.tailFromBeginning()
-	} else {
-		err = tailer.tailFromEnd()
-	}
+
+	err = tailer.Start(offset, whence)
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
+
 	s.tailers[file.Path] = tailer
 	return true
 }
@@ -157,8 +151,7 @@ func (s *Scanner) scan() {
 
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			tailFromBeginning := true
-			succeeded := s.startNewTailer(file, tailFromBeginning)
+			succeeded := s.startNewTailer(file, true)
 			if !succeeded {
 				// the setup failed, let's try to tail this file in the next scan
 				continue
@@ -206,7 +199,7 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 	tailer.StopAfterFileRotation()
 	tailer = s.createTailer(file, tailer.outputChan)
 	// force reading file from beginning since it has been log-rotated
-	err := tailer.tailFromBeginning()
+	err := tailer.StartFromBeginning()
 	if err != nil {
 		log.Warn(err)
 		return false

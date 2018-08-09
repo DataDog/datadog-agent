@@ -17,16 +17,16 @@ import (
 type Launcher struct {
 	sources          *config.LogSources
 	pipelineProvider pipeline.Provider
-	auditor          *auditor.Auditor
+	registry         auditor.Registry
 	tailers          map[string]*Tailer
 }
 
 // New returns a new Launcher.
-func New(sources *config.LogSources, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
+func New(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
 	return &Launcher{
 		sources:          sources,
 		pipelineProvider: pipelineProvider,
-		auditor:          auditor,
+		registry:         registry,
 		tailers:          make(map[string]*Tailer),
 	}
 }
@@ -62,7 +62,8 @@ func (l *Launcher) Stop() {
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
 	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan())
-	err := tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
+	cursor := l.registry.GetOffset(tailer.Identifier())
+	err := tailer.Start(cursor)
 	if err != nil {
 		return nil, err
 	}
