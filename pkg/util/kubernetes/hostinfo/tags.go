@@ -8,10 +8,10 @@
 package hostinfo
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -46,13 +46,14 @@ func GetTags() ([]string, error) {
 }
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {
-	var tags []string
+	tagList := utils.NewTagList()
 
 	for labelName, labelValue := range nodeLabels {
 		if tagName, found := labelsToTags[strings.ToLower(labelName)]; found {
-			tags = append(tags, fmt.Sprintf("%s:%s", tagName, labelValue))
+			tagList.AddLow(tagName, labelValue)
 		}
 	}
 
+	tags, _ := tagList.Compute()
 	return tags
 }
