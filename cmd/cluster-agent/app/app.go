@@ -156,13 +156,13 @@ func start(cmd *cobra.Command, args []string) error {
 
 	}
 
-	// Start the Service Mapper.
-	asc, err := apiserver.GetAPIClient()
+	_, err = apiserver.GetAPIClient() // make sure we can connect to the apiserver
 	if err != nil {
-		log.Errorf("Could not instantiate the API Server Client: %s", err.Error())
+		log.Errorf("Could not connect to the apiserver: %v", err)
 	} else {
+		// Start controllers
 		stopCh = make(chan struct{})
-		if err := apiserver.StartMetadataController(asc.ClientBuilder, stopCh); err != nil {
+		if err := apiserver.StartMetadataController(stopCh); err != nil {
 			log.Errorf("Could not start metadata controller: %v", err)
 		}
 	}

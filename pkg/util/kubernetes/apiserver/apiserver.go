@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -47,8 +49,6 @@ const (
 // APIClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
-	ClientBuilder *ClientBuilder
-
 	// used to setup the APIClient
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
@@ -77,17 +77,33 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
+func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+	var clientConfig *rest.Config
+	var err error
+	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
+	if cfgPath == "" {
+		clientConfig, err = rest.InClusterConfig()
+		if err != nil {
+			log.Debugf("Can't create a config for the official client from the service account's token: %v", err)
+			return nil, err
+		}
+	} else {
+		// use the current context in kubeconfig
+		clientConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
+		if err != nil {
+			log.Debugf("Can't create a config for the official client from the configured path to the kubeconfig: %s, %v", cfgPath, err)
+			return nil, err
+		}
+	}
+	clientConfig.Timeout = timeout
+	return kubernetes.NewForConfig(clientConfig)
+}
+
 func (c *APIClient) connect() error {
 	var err error
-	c.ClientBuilder, err = NewClientBuilder()
+	c.Cl, err = getKubeClient(defaultClientTimeout)
 	if err != nil {
-		log.Debugf("Could not create client builder: %v", err)
-		return err
-	}
-	c.Cl, err = c.ClientBuilder.Client(defaultClientTimeout)
-	if err != nil {
-		// We do not return an error as the HPA is an option that should not prevent the DCA to work.
-		log.Errorf("Not able to set up a client for the API Server: %s", err)
+		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
 	// Try to get apiserver version to confim connectivity
@@ -401,14 +417,15 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 
 // StartMetadataController runs the metadata controller to collect cluster metadata. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
-func StartMetadataController(clientBuilder *ClientBuilder, stopCh chan struct{}) error {
+func StartMetadataController(stopCh chan struct{}) error {
 	var (
 		timeoutSeconds      = time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
 		resyncPeriodSeconds = time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	)
 
-	client, err := clientBuilder.Client(timeoutSeconds * time.Second)
+	client, err := getKubeClient(timeoutSeconds * time.Second)
 	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
 	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
