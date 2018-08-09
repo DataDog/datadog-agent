@@ -81,7 +81,8 @@ func (c *APIClient) connect() error {
 	var err error
 	c.ClientBuilder, err = NewClientBuilder()
 	if err != nil {
-		return nil, err
+		log.Debugf("Could not create client builder: %v", err)
+		return err
 	}
 	c.Cl, err = c.ClientBuilder.Client(defaultClientTimeout)
 	if err != nil {
