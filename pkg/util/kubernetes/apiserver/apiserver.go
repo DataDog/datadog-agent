@@ -132,7 +132,7 @@ func (c *APIClient) connect() error {
 	}
 	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
 
-	err = c.checkResources(metav1.NamespaceAll)
+	err = c.checkResources()
 	if err != nil {
 		return err
 	}
@@ -406,7 +406,7 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	return result.Into(output)
 }
 
-// maybeListResources checks that we can query resources from the Kubernetes apiserver.
+// maybeListResources checks that we have can query resources from the Kubernetes apiserver.
 func (c *APIClient) maybeListResources(listers map[string]ListFunc) error {
 	options := metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds}
 	var errorMessages []string

@@ -14,14 +14,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+// checkResources checks that we can query resources from the Kubernetes apiserver required
+// by the Datadog Cluster Agent.
 func (c *APIClient) checkResources() error {
 	resources := make(map[string]ListFunc)
 	resources["events"] = func(options metav1.ListOptions) (runtime.Object, error) {
-		return c.Cl.CoreV1().Events(namespace).List(options)
+		return c.Cl.CoreV1().Events("").List(options)
 	}
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
 		resources["endpoints"] = func(options metav1.ListOptions) (runtime.Object, error) {
-			return c.Cl.CoreV1().Endpoints(namespace).List(options)
+			return c.Cl.CoreV1().Endpoints("").List(options)
 		}
 		resources["nodes"] = func(options metav1.ListOptions) (runtime.Object, error) {
 			return c.Cl.CoreV1().Nodes().List(options)
