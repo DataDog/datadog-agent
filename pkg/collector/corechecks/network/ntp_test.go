@@ -223,6 +223,23 @@ hosts:
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
 
+func TestHostConfigsMergeNoDuplicate(t *testing.T) {
+
+	expectedHosts := []string{"0.time.dogo", "1.time.dogo", "2.time.dogo"}
+	testedConfig := []byte(`
+host: 0.time.dogo
+hosts:
+  - 0.time.dogo
+  - 1.time.dogo
+  - 2.time.dogo
+`)
+
+	ntpCheck := new(NTPCheck)
+	ntpCheck.Configure(testedConfig, []byte(""))
+
+	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
+}
+
 func TestHostConfig(t *testing.T) {
 	expectedHosts := []string{"time.dogo"}
 	testedConfig := []byte(`
