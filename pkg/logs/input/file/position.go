@@ -19,11 +19,10 @@ func Position(registry auditor.Registry, identifier string, tailFromBeginning bo
 	var err error
 	value := registry.GetOffset(identifier)
 	if value != "" {
+		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			offset, whence = 0, io.SeekEnd
-		} else {
-			whence = io.SeekStart
 		}
 	} else if tailFromBeginning {
 		offset, whence = 0, io.SeekStart
