@@ -46,12 +46,13 @@ func (c *DiskCheck) Run() error {
 		return err
 	}
 
-	c.collectAndSendMetrics(sender)
+	c.collectPartitionMetrics(sender)
+	c.collectDiskMetrics(sender)
 
 	return nil
 }
 
-func (c *DiskCheck) collectAndSendMetrics(sender aggregator.Sender) error {
+func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 	partitions, err := disk.Partitions(true)
 	if err != nil {
 		return err
@@ -74,7 +75,7 @@ func (c *DiskCheck) collectAndSendMetrics(sender aggregator.Sender) error {
 			continue
 		}
 
-		tags := make([]string, len(c.customeTags))
+		tags := make([]string, len(c.customeTags)+1)
 		copy(tags, c.customeTags)
 
 		if c.tagByFilesystem {
@@ -97,20 +98,68 @@ func (c *DiskCheck) collectAndSendMetrics(sender aggregator.Sender) error {
 			}
 		}
 
-		var ioCounter *disk.IOCountersStat
-		ioCounters, err := disk.IOCounters(partition.Device)
-		if err != nil {
-			log.Warnf("Unable to get IO metrics of %s:", partition.Device, err)
-		} else {
-			if counter, found := ioCounters[partition.Device]; found {
-				ioCounter = &counter
-			}
-		}
-
-		c.sendMetrics(sender, diskUsage, ioCounter, tags)
+		c.sendPartitionMetrics(sender, diskUsage, tags)
 	}
 
 	return nil
+}
+
+func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
+	ioCounters, err := disk.IOCounters()
+	if err != nil {
+		return err
+	}
+	for deviceName, ioCounter := range ioCounters {
+
+		tags := make([]string, len(c.customeTags)+1)
+		copy(tags, c.customeTags)
+		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+
+		// apply device specific tags
+		for re, deviceTags := range c.deviceTagRe {
+			if re != nil && re.MatchString(deviceName) {
+				for _, tag := range deviceTags {
+					tags = append(tags, tag)
+				}
+			}
+		}
+
+		c.sendDiskMetrics(sender, ioCounter, tags)
+	}
+
+	return nil
+}
+
+func (c *DiskCheck) sendPartitionMetrics(sender aggregator.Sender, diskUsage *disk.UsageStat, tags []string) {
+	// Disk metrics
+	// For legacy reasons,  the standard unit it kB
+	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(diskUsage.Total)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(diskUsage.Used)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(diskUsage.Free)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), diskUsage.UsedPercent/100, "", tags)
+	// Use percent, a lot more logical than in_use
+	sender.Gauge(fmt.Sprintf(diskMetric, "used.percent"), diskUsage.UsedPercent, "", tags)
+
+	// Inodes metrics
+	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(diskUsage.InodesTotal), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(diskUsage.InodesUsed), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(diskUsage.InodesFree), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), diskUsage.InodesUsedPercent/100, "", tags)
+	// Use percent, a lot more logical than in_use
+	sender.Gauge(fmt.Sprintf(inodeMetric, "used.percent"), diskUsage.InodesUsedPercent, "", tags)
+
+	sender.Commit()
+
+}
+
+func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCountersStat, tags []string) {
+
+	// /1000 as psutil returns the value in ms
+	// Rate computes a rate of change between to consecutive check run.
+	// For cumulated time values like read and write times this a ratio between 0 and 1, we want it as a percentage so we *100 in advance
+	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
+	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
+	sender.Commit()
 }
 
 func (c *DiskCheck) excludeDisk(disk disk.PartitionStat) bool {
@@ -155,38 +204,6 @@ func (c *DiskCheck) excludeDisk(disk disk.PartitionStat) bool {
 
 	// all good, don't exclude the disk
 	return false
-}
-
-func (c *DiskCheck) sendMetrics(sender aggregator.Sender, diskUsage *disk.UsageStat, ioCounter *disk.IOCountersStat, tags []string) {
-
-	if ioCounter != nil {
-
-		// /1000 as psutil returns the value in ms
-		// Rate computes a rate of change between to consecutive check run.
-		// For cumulated time values like read and write times this a ratio between 0 and 1, we want it as a percentage so we *100 in advance
-		sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
-		sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
-	}
-
-	if diskUsage != nil {
-		// Disk metrics
-		// For legacy reasons,  the standard unit it kB
-		sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(diskUsage.Total)/1024, "", tags)
-		sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(diskUsage.Used)/1024, "", tags)
-		sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(diskUsage.Free)/1024, "", tags)
-		sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), diskUsage.UsedPercent/100, "", tags)
-		// Use percent, a lot more logical than in_use
-		sender.Gauge(fmt.Sprintf(diskMetric, "used.percent"), diskUsage.UsedPercent, "", tags)
-
-		// Inodes metrics
-		sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(diskUsage.InodesTotal), "", tags)
-		sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(diskUsage.InodesUsed), "", tags)
-		sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(diskUsage.InodesFree), "", tags)
-		sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), diskUsage.InodesUsedPercent/100, "", tags)
-		// Use percent, a lot more logical than in_use
-		sender.Gauge(fmt.Sprintf(inodeMetric, "used.percent"), diskUsage.InodesUsedPercent, "", tags)
-	}
-
 }
 
 // Configure the disk check
