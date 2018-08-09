@@ -17,7 +17,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// ClientBuilder allows you to get clients and configs the Kubernetes apiserver.
+// ClientBuilder allows you to get clients and configs for the apiserver.
 type ClientBuilder struct {
 	// ClientConfig is a default config to clone and use as the basis for each controller client.
 	ClientConfig *rest.Config
