@@ -29,6 +29,9 @@ templates:
           - v2-godeps-{{ .Branch }}-{{ .Revision }}
           - v2-godeps-{{ .Branch }}-
           - v2-godeps-master-
+    - restore_cache: &restore_artifacts
+        keys:
+          - v2-artifacts-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -120,33 +123,37 @@ jobs:
           name: build agent
           command: inv -e agent.build
 
-  build_install_packages:
+  build_puppy:
     <<: *job_template
     steps:
     - restore_cache: *restore_source
     - restore_cache: *restore_deps
     - run:
-        name: git user email
+        name: build puppy
+        command: inv -e agent.build --puppy
+    - run:
+        name: test puppy
+        command: ./bin/agent/agent -c ./bin/agent/dist check cpu
+
+  build_publish_deb:
+    <<: *job_template
+    steps:
+    - restore_cache: *restore_source
+    - restore_cache: *restore_deps
+    - run:
+        name: Git configure email
         command: git config --global user.email "circleci@stackstate"
-
     - run:
-        name: git user name
+        name: Git configure name
         command: git config --global user.name "CircleCI Stackstate"
-
     - run:
-        name: ensure libtool
+        name: Ensure libtool
         command: apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
-
     - run:
-        name: build omnibus
+        name: Omnibus deb build
         command: inv -e agent.omnibus-build --base-dir ./omnibus --omnibus-s3-cache --skip-sign
-
     - run:
-        name: build agent
-        command: inv -e agent.build --build-exclude=snmp
-
-    - run:
-        name: Publish deb files
+        name: Publish deb package
         command: |
           if [ "$CIRCLE_BRANCH" != "master" ];
           then
@@ -154,18 +161,31 @@ jobs:
           else
             deb-s3 upload --bucket ${STS_AWS_BUCKET} omnibus/pkg/*.deb
           fi
+    - save_cache:
+        key: v2-artifacts-{{ .Revision }}
+        paths:
+        - /go/src/github.com/StackVista/stackstate-agent/omnibus/pkg
+        - /go/src/github.com/StackVista/stackstate-agent/Dockerfiles
 
-  build_puppy:
+  build_publish_image:
     <<: *job_template
+    docker:
+      - image: docker:18.06.0
     steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: build puppy
-          command: inv -e agent.build --puppy
-      - run:
-          name: test puppy
-          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
+    - restore_cache: *restore_artifacts
+    - setup_remote_docker:
+        docker_layer_caching: true
+    - run:
+        name: Copy deb file to docker context
+        command: cp omnibus/pkg/datadog-agent*_amd64.deb Dockerfiles/agent
+    - run:
+        name: Build image
+        command: |
+          TAG=${CIRCLE_SHA1:0:7}
+          docker build -t stackstate/stackstate-agent:$TAG Dockerfiles/agent
+          docker login -u $DOCKER_USER -p $DOCKER_PASS
+          docker push stackstate/stackstate-agent:$TAG
+
 
 workflows:
   version: 2
@@ -200,6 +220,10 @@ workflows:
             - unit_tests
             - integration_tests
             - docker_integration_tests
-      - build_install_packages:
+      - build_publish_deb:
           requires:
           - build_binaries
+      - build_publish_image:
+          requires:
+          - build_publish_deb
+

@@ -22,7 +22,7 @@ build do
   }
 
   # we assume the go deps are already installed before running omnibus
-  command "invoke dogstatsd.build --rebuild --use-embedded-libs", env: env
+  command "invoke -e dogstatsd.build --rebuild --use-embedded-libs", env: env
 
   mkdir "#{install_dir}/etc/datadog-dogstatsd"
   unless windows?
