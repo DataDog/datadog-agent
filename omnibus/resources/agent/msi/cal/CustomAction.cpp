@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-static std::wstring secretUserUsername(L"secretuser");
-static std::wstring secretUserDescription(L"DataDog Secret User");
+static std::wstring secretUserUsername(L"datadog_secretuser");
+static std::wstring secretUserDescription(L"DataDog user used to fetch secrets from KMS");
 static std::wstring datadog_path = L"Datadog\\Datadog Agent";
 static std::wstring datadog_key_root = L"SOFTWARE\\" + datadog_path;
 static std::wstring datadog_key_secret_key = L"secrets";
@@ -33,6 +33,7 @@ extern "C" UINT __stdcall AddDatadogSecretUser(
 
 	// that's helpful.  WcaInitialize Log header silently limited to 32 chars 
 	hr = WcaInitialize(hInstall, "CA: AddDatadogSecretUser");
+	// ExitOnFailure macro includes a goto LExit if hr has a failure.
 	ExitOnFailure(hr, "Failed to initialize");
 
 	WcaLog(LOGMSG_STANDARD, "Initialized.");
@@ -103,8 +104,10 @@ extern "C" BOOL WINAPI DllMain(
 #define MIN_PASS_LEN 12
 #define MAX_PASS_LEN 18
 
-wchar_t * GeneratePassword() {
-	static wchar_t passbuf[MAX_PASS_LEN + 1];
+bool GeneratePassword(wchar_t* passbuf, int passbuflen) {
+	if(passbuflen < MAX_PASS_LEN + 1) {
+        return false;
+    }
 	
 	const wchar_t * availLower = L"abcdefghijklmnopqrstuvwxyz";
 	const wchar_t * availUpper = L"ABCDEFGHIJKLMNOPQRSTUVWXYZ"; 
@@ -153,11 +156,29 @@ wchar_t * GeneratePassword() {
 		     (usedClasses[CHARTYPE_NUMBER] + usedClasses[CHARTYPE_SPECIAL])));
 
 	WcaLog(LOGMSG_STANDARD, "Took %d passes to generate the password", times);
-	printf("%d %d %d %d\n", usedClasses[0], usedClasses[1], usedClasses[2], usedClasses[3]);
-	return passbuf;
+
+	return true;
 
 }
-
+bool createRegistryKey() {
+	LSTATUS status = 0;
+	HKEY hKey;
+	status = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+		datadog_key_secrets.c_str(),
+		0, // reserved is zero
+		NULL, // class is null
+		0, // no options
+		KEY_ALL_ACCESS,
+		NULL, // default security descriptor (we'll change this later)
+		&hKey,
+		NULL); // don't care about disposition... 
+	if (ERROR_SUCCESS != status) {
+		WcaLog(LOGMSG_STANDARD, "Couldn't create/open datadog reg key %d", GetLastError());
+		return false;
+	}
+	RegCloseKey(hKey);
+	return true;
+}
 bool writePasswordToRegistry(const wchar_t * name, const wchar_t* pass) {
 	// RegCreateKey opens the key if it's there.
 	LSTATUS status = 0;
@@ -194,7 +215,7 @@ DWORD changeRegistryAcls(const wchar_t* name) {
 	localAdmins.BuildGrantSid(TRUSTEE_IS_GROUP,  GENERIC_ALL | KEY_ALL_ACCESS, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS);
 	
 	ExplicitAccess suser;
-	suser.BuildGrantUser(L"secretuser", GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
+	suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
 
 	WinAcl acl;
 	acl.AddToArray(localsystem);
@@ -220,10 +241,15 @@ DWORD changeRegistryAcls(const wchar_t* name) {
 }
 int CreateUser(std::wstring& name, std::wstring& comment, bool writePassToReg) {
 	USER_INFO_1 ui;
+    wchar_t passbuf[MAX_PASS_LEN + 2];
+    if ( !GeneratePassword(passbuf, MAX_PASS_LEN + 2)) {
+        WcaLog(LOGMSG_STANDARD, "Failed to generate password");
+        return -1;
+    }
 	memset(&ui, 0, sizeof(USER_INFO_1));
 	WcaLog(LOGMSG_STANDARD, "entered createuser");
 	ui.usri1_name = (LPWSTR) name.c_str();
-	ui.usri1_password = GeneratePassword();
+	ui.usri1_password = passbuf;
 	ui.usri1_priv = USER_PRIV_USER;
 	ui.usri1_comment = (LPWSTR) comment.c_str();
 	ui.usri1_flags = UF_DONT_EXPIRE_PASSWD;
@@ -237,29 +263,42 @@ int CreateUser(std::wstring& name, std::wstring& comment, bool writePassToReg) {
 	WcaLog(LOGMSG_STANDARD, "NetUserAdd. %d", ret);
 	if (ret != 0) {
 		WcaLog(LOGMSG_STANDARD, "Create User failed %d", (int)ret);
+        goto clearAndReturn;
 	} 
-	else {
 	
-		WcaLog(LOGMSG_STANDARD, "Successfully created user");
-		if (writePassToReg) {
-			writePasswordToRegistry(name.c_str(), ui.usri1_password);
-			// if we write the password to the registry,
-			// change the ownership so that only LOCAL_SYSTEM and
-			// the user itself can read it
+    WcaLog(LOGMSG_STANDARD, "Successfully created user");
+    if (writePassToReg) {
 
-			// of course, the security APIs use a different format than
-			// the registry APIs
-			ret = changeRegistryAcls(datadog_acl_key_secrets.c_str());
-			if (0 == ret) {
-				WcaLog(LOGMSG_STANDARD, "Changed registry perms");
-			}
-			else {
-				WcaLog(LOGMSG_STANDARD, "Failed to change registry perms %d", ret);
-			}
-		}
-	}
+        // create the top level key HKLM\Software\Datadog Agent\secrets.  Key must be
+        // created to change the ACLS.
+        if (!createRegistryKey()) {
+            WcaLog(LOGMSG_STANDARD, "Failed to create secret storage key");
+            goto clearAndReturn;
+        }
+        
+        // if we write the password to the registry,
+        // change the ownership so that only LOCAL_SYSTEM and
+        // the user itself can read it
+
+        // of course, the security APIs use a different format than
+        // the registry APIs
+        ret = changeRegistryAcls(datadog_acl_key_secrets.c_str());
+        if (0 == ret) {
+            WcaLog(LOGMSG_STANDARD, "Changed registry perms");
+        }
+        else {
+            WcaLog(LOGMSG_STANDARD, "Failed to change registry perms %d", ret);
+            goto clearAndReturn;
+        }
+
+        // now that the ACLS are changed on the containing key, write
+        // the password into it.
+        writePasswordToRegistry(name.c_str(), ui.usri1_password);
+    }
+
+clearAndReturn:
 	// clear the password so it's not sitting around in memory
-	memset(ui.usri1_password, 0, MAX_PASS_LEN * sizeof(wchar_t));
+	memset(passbuf, 0, (MAX_PASS_LEN + 2)* sizeof(wchar_t));
 	return (int)ret;
 
 }
