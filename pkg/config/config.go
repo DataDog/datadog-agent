@@ -216,7 +216,6 @@ func init() {
 	Datadog.SetDefault("leader_lease_duration", "60")
 	Datadog.SetDefault("leader_election", false)
 	Datadog.SetDefault("kube_resources_namespace", "")
-	BindEnvAndSetDefault("kubernetes_restclient_timeout", 60)
 
 	// Datadog cluster agent
 	Datadog.SetDefault("cluster_agent.enabled", false)
@@ -319,7 +318,8 @@ func init() {
 	BindEnvAndSetDefault("external_metrics_provider.polling_freq", 30)
 	BindEnvAndSetDefault("external_metrics_provider.max_age", 60)
 	BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)
-	BindEnvAndSetDefault("kubernetes_metadata_resync_period", 60*5) // 5 minutes
+	BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)    // 5 minutes
+	BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60) // 1 minute
 
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")

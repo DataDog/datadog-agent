@@ -20,8 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -43,11 +41,14 @@ const (
 	tokenKey                  = "tokenKey"
 	metadataMapExpire         = 2 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
+	defaultClientTimeout      = 2 * time.Second
 )
 
 // APIClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
+	ClientBuilder *ClientBuilder
+
 	// used to setup the APIClient
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
@@ -76,48 +77,13 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
-// getClientSet returns the generic kubernetes client set
-func getClientSet() (*kubernetes.Clientset, error) {
-	k8sConfig, err := getK8sConfig()
-	if err != nil {
-		return nil, err
-	}
-	clientSet, err := kubernetes.NewForConfig(k8sConfig)
-	if err != nil {
-		log.Debugf("Could not create the ClientSet: %s", err)
-		return nil, err
-	}
-
-	return clientSet, nil
-}
-
-func getK8sConfig() (*rest.Config, error) {
-	var k8sConfig *rest.Config
-	var err error
-
-	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
-	if cfgPath == "" {
-		k8sConfig, err = rest.InClusterConfig()
-		if err != nil {
-			log.Debugf("Can't create a config for the official client from the service account's token: %s", err)
-			return nil, err
-		}
-	} else {
-		// use the current context in kubeconfig
-		k8sConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
-		if err != nil {
-			log.Debugf("Can't create a config for the official client from the configured path to the kubeconfig: %s, %s", cfgPath, err)
-			return nil, err
-		}
-	}
-	// The timeout for http.Client requests. Note that this timeout also applies to a "watch".
-	k8sConfig.Timeout = time.Duration(config.Datadog.GetInt("kubernetes_restclient_timeout")) * time.Second
-	return k8sConfig, nil
-}
-
 func (c *APIClient) connect() error {
 	var err error
-	c.Cl, err = getClientSet()
+	c.ClientBuilder, err = NewClientBuilder()
+	if err != nil {
+		return nil, err
+	}
+	c.Cl, err = c.ClientBuilder.Client(defaultClientTimeout)
 	if err != nil {
 		// We do not return an error as the HPA is an option that should not prevent the DCA to work.
 		log.Errorf("Not able to set up a client for the API Server: %s", err)
@@ -214,19 +180,6 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 		}
 		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)
 	}
-}
-
-// StartClusterMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
-// This runs the metadata controller to collect cluster metadata.
-func (c *APIClient) StartClusterMetadataMapping(stopCh chan struct{}) {
-	resyncPeriod := time.Duration(config.Datadog.GetInt64("kubernetes_metadata_resync_period")) * time.Second
-	informerFactory := informers.NewSharedInformerFactory(c.Cl, resyncPeriod)
-	metaController := NewMetadataController(
-		informerFactory.Core().V1().Nodes(),
-		informerFactory.Core().V1().Endpoints(),
-	)
-	informerFactory.Start(stopCh)
-	go metaController.Run(stopCh)
 }
 
 func aggregateCheckResourcesErrors(errorMessages []string) error {
@@ -443,4 +396,27 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	}
 
 	return result.Into(output)
+}
+
+// StartMetadataController runs the metadata controller to collect cluster metadata. This is
+// only called once, when we have confirmed we could correctly connect to the API server.
+func StartMetadataController(clientBuilder *ClientBuilder, stopCh chan struct{}) error {
+	var (
+		timeoutSeconds      = time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+		resyncPeriodSeconds = time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	)
+
+	client, err := clientBuilder.Client(timeoutSeconds * time.Second)
+	if err != nil {
+		return err
+	}
+	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
+	metaController := NewMetadataController(
+		informerFactory.Core().V1().Nodes(),
+		informerFactory.Core().V1().Endpoints(),
+	)
+	informerFactory.Start(stopCh)
+	go metaController.Run(stopCh)
+
+	return nil
 }

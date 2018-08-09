@@ -162,7 +162,9 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Errorf("Could not instantiate the API Server Client: %s", err.Error())
 	} else {
 		stopCh = make(chan struct{})
-		asc.StartClusterMetadataMapping(stopCh)
+		if err := apiserver.StartMetadataController(asc.ClientBuilder, stopCh); err != nil {
+			log.Errorf("Could not start metadata controller: %v", err)
+		}
 	}
 
 	// Setup a channel to catch OS signals
