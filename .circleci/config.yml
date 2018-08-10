@@ -33,7 +33,6 @@ templates:
         name: add virtualenv to bashrc 
         command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
 
-
 jobs:
   checkout_code:
     <<: *job_template
