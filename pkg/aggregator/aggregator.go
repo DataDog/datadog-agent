@@ -109,7 +109,7 @@ func init() {
 	aggregatorExpvars.Set("SeriesFlushed", &aggregatorSeriesFlushed)
 	aggregatorExpvars.Set("SeriesFlushErrors", &aggregatorSeriesFlushErrors)
 	aggregatorExpvars.Set("ServiceCheckFlushErrors", &aggregatorServiceCheckFlushErrors)
-	aggregatorExpvars.Set("ServiceCheckFlushed)", &aggregatorServiceCheckFlushed)
+	aggregatorExpvars.Set("ServiceCheckFlushed", &aggregatorServiceCheckFlushed)
 	aggregatorExpvars.Set("SketchesFlushErrors", &aggregatorSketchesFlushErrors)
 	aggregatorExpvars.Set("SketchesFlushed", &aggregatorSketchesFlushed)
 	aggregatorExpvars.Set("EventsFlushErrors", &aggregatorEventsFlushErrors)
