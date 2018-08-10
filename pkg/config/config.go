@@ -332,6 +332,8 @@ func init() {
 	Datadog.BindEnv("kube_resources_namespace")
 
 	Datadog.BindEnv("collect_ec2_tags")
+
+	setAssetFs()
 }
 
 // BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding
@@ -425,9 +427,12 @@ func loadProxyFromEnv() {
 
 // Load reads configs files and initializes the config module
 func Load() error {
+	log.Infof("config.Load()")
 	if err := Datadog.ReadInConfig(); err != nil {
+		log.Warnf("confrig.load() error %v", err)
 		return err
 	}
+	log.Infof("config.load succeeded")
 
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.

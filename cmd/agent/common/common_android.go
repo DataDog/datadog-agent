@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build freebsd netbsd openbsd solaris dragonfly linux
-// +build !android
-
 package common
 
 import (
@@ -14,7 +11,7 @@ import (
 
 const (
 	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "/etc/datadog-agent"
+	DefaultConfPath = ""
 	// DefaultLogFile points to the log file that will be used if not configured
 	DefaultLogFile = "/var/log/datadog/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured

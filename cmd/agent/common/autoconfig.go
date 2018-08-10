@@ -46,6 +46,7 @@ func SetupAutoConfig(confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(GetDistPath(), "conf.d"),
+		"",
 	}
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
 
