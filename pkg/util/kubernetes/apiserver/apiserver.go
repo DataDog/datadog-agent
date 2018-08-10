@@ -45,6 +45,9 @@ const (
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
 
+// ListFunc knows how to list resources
+type ListFunc func(options metav1.ListOptions) (runtime.Object, error)
+
 // APIClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
@@ -129,7 +132,7 @@ func (c *APIClient) connect() error {
 	}
 	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
 
-	err = c.checkResourcesAuth()
+	err = c.checkResources()
 	if err != nil {
 		return err
 	}
@@ -233,47 +236,6 @@ func aggregateCheckResourcesErrors(errorMessages []string) error {
 		return nil
 	}
 	return fmt.Errorf("check resources failed: %s", strings.Join(errorMessages, ", "))
-}
-
-// checkResourcesAuth is meant to check that we can query resources from the API server.
-// Depending on the user's config we only trigger an error if necessary.
-// The Event check requires getting Events data.
-// The MetadataMapper case, requires access to Services, Nodes and Pods.
-func (c *APIClient) checkResourcesAuth() error {
-	var errorMessages []string
-
-	// We always want to collect events
-	_, err := c.Cl.CoreV1().Events("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-
-	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
-		return aggregateCheckResourcesErrors(errorMessages)
-	}
-	_, err = c.Cl.CoreV1().Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-	_, err = c.Cl.CoreV1().Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
-		if !isConnectVerbose {
-			return aggregateCheckResourcesErrors(errorMessages)
-		}
-	}
-	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
-
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
-	}
-	return aggregateCheckResourcesErrors(errorMessages)
 }
 
 // ComponentStatuses returns the component status list from the APIServer
@@ -442,4 +404,20 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	}
 
 	return result.Into(output)
+}
+
+// maybeListResources checks that we have can query resources from the Kubernetes apiserver.
+func (c *APIClient) maybeListResources(listers map[string]ListFunc) error {
+	options := metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds}
+	var errorMessages []string
+	for kind, lister := range listers {
+		_, err := lister(options)
+		if err != nil {
+			errorMessages = append(errorMessages, fmt.Sprintf("%s collection: %q", kind, err.Error()))
+			if !isConnectVerbose {
+				return aggregateCheckResourcesErrors(errorMessages)
+			}
+		}
+	}
+	return aggregateCheckResourcesErrors(errorMessages)
 }
