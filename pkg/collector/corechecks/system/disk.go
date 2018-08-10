@@ -48,6 +48,7 @@ func (c *DiskCheck) Run() error {
 
 	c.collectPartitionMetrics(sender)
 	c.collectDiskMetrics(sender)
+	sender.Commit()
 
 	return nil
 }
@@ -75,7 +76,7 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 			continue
 		}
 
-		tags := make([]string, len(c.customeTags)+1)
+		tags := make([]string, len(c.customeTags), len(c.customeTags)+2)
 		copy(tags, c.customeTags)
 
 		if c.tagByFilesystem {
@@ -148,8 +149,6 @@ func (c *DiskCheck) sendPartitionMetrics(sender aggregator.Sender, diskUsage *di
 	// Use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(inodeMetric, "used.percent"), diskUsage.InodesUsedPercent, "", tags)
 
-	sender.Commit()
-
 }
 
 func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCountersStat, tags []string) {
@@ -159,7 +158,6 @@ func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOC
 	// For cumulated time values like read and write times this a ratio between 0 and 1, we want it as a percentage so we *100 in advance
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
-	sender.Commit()
 }
 
 func (c *DiskCheck) excludeDisk(disk disk.PartitionStat) bool {
