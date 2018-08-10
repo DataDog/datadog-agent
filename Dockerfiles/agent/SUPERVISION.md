@@ -36,7 +36,7 @@ The supported way to pass envvars to the agent is to set container envvars.
 The image starts three services:
 
 - `agent` is the main agent. The container will exit if it stops.
-- `trace-agent` and `process-agent` are auxilary services. They will be
+- `trace-agent` and `process-agent` are auxiliary services. They will be
 restarted after crashing, but not if exiting normally (for example, the
 `trace-agent` will disable itself if `DD_APM_ENABLED` is false).
 

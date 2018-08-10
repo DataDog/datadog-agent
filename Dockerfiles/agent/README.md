@@ -119,7 +119,7 @@ Some options are not yet available as environment variable bindings. To customiz
 
 ### Optional volumes
 
-To run custom checks and configurations without buidling your own image, you can mount additional files in these folders:
+To run custom checks and configurations without building your own image, you can mount additional files in these folders:
 
 - `/checks.d/` : custom checks in this folder will be copied over and used, if a corresponding configuration is found
 - `/conf.d/` : check configurations and Autodiscovery templates in this folder will be copied over in the agent's configuration folder. You can mount a host folder, kubernetes configmaps, or other volumes. **Note:** autodiscovery templates now are directly stored in the main `conf.d` folder, not in an `auto_conf` subfolder.

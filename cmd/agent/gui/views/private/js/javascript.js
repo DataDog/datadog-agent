@@ -100,7 +100,7 @@ function setupHomePage() {
     $("#hostname").append(JSON.stringify(data))
   });
 
-  // Regularily check if agent is running
+  // Regularly check if agent is running
   setInterval(checkStatus, 2000);
 }
 

@@ -40,11 +40,11 @@ def update_changelog(ctx, new_version):
         print("Error: invalid version: {}".format(new_version_int))
         raise Exit(1)
 
-    # let's avoid loosing uncommited change with 'git reset --hard'
+    # let's avoid loosing uncommitted change with 'git reset --hard'
     try:
         ctx.run("git diff --exit-code HEAD", hide="both")
     except Failure as e:
-        print("Error: You have uncommited change, please commit or stash before using update_changelog")
+        print("Error: You have uncommitted change, please commit or stash before using update_changelog")
         return
 
     # make sure we are up to date
