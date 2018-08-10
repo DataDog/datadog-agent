@@ -58,7 +58,7 @@ type Server struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) (*Server, error) {
+func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -118,7 +118,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 	return s, nil
 }
 
-func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
+func (s *Server) handleMessages(metricOut chan<- []*metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 	}
@@ -155,13 +155,14 @@ func (s *Server) forwarder(fcon net.Conn, packetChannel chan *listeners.Packet) 
 	}
 }
 
-func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
+func (s *Server) worker(metricOut chan<- []*metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
 	for {
 		select {
 		case <-s.stopChan:
 			return
 		case <-s.health.C:
 		case packets := <-s.packetIn:
+			metricSamples := []*metrics.MetricSample{}
 			for _, packet := range packets {
 				var originTags []string
 
@@ -222,18 +223,19 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 							sample.Tags = append(sample.Tags, originTags...)
 						}
 						dogstatsdMetricPackets.Add(1)
-						//metricOut <- sample
+						metricSamples = append(metricSamples, sample)
 						if s.histToDist && sample.Mtype == metrics.HistogramType {
 							distSample := sample.Copy()
 							distSample.Name = s.histToDistPrefix + distSample.Name
 							distSample.Mtype = metrics.DistributionType
-							//metricOut <- distSample
+							metricSamples = append(metricSamples, distSample)
 						}
 					}
 				}
 				// Return the packet object back to the object pool for reuse
 				s.packetPool.Put(packet)
 			}
+			metricOut <- metricSamples
 		}
 	}
 }
