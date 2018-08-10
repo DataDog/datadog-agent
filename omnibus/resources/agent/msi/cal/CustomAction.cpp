@@ -30,20 +30,52 @@ extern "C" UINT __stdcall AddDatadogSecretUser(
 {
 	HRESULT hr = S_OK;
 	UINT er = ERROR_SUCCESS;
-
+	LSA_HANDLE hLsa = NULL;
+	PSID sid = NULL;
 	// that's helpful.  WcaInitialize Log header silently limited to 32 chars 
 	hr = WcaInitialize(hInstall, "CA: AddDatadogSecretUser");
 	// ExitOnFailure macro includes a goto LExit if hr has a failure.
 	ExitOnFailure(hr, "Failed to initialize");
 
 	WcaLog(LOGMSG_STANDARD, "Initialized.");
-
+	hr = -1;
 	er = CreateUser(secretUserUsername, secretUserDescription, true);
 	if (0 != er) {
-		hr = -1;
+		goto LExit;
+	}
+	// change the rights on this user
+	sid = GetSidForUser(NULL, L"datadog_secretuser");
+	if (!sid) {
+		goto LExit;
+	}
+	if ((hLsa = GetPolicyHandle()) == NULL) {
+		goto LExit;
+	}
+	if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+		WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+		goto LExit;
 	}
 
+	if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+		WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+		goto LExit;
+	}
+	if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+		WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+		goto LExit;
+	}
+	if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+		WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+		goto LExit;
+	}
+	hr = 0;
 LExit:
+	if (sid) {
+		delete[](BYTE *) sid;
+	}
+	if (hLsa) {
+		LsaClose(hLsa);
+	}
 	er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
 	return WcaFinalize(er);
 }
@@ -321,4 +353,14 @@ DWORD DeleteSecretsRegKey() {
 	}
 	RegCloseKey(hKey);
 	return ret;
+}
+
+void toMbcs(std::string& target, LPCWSTR src) {
+	size_t len = wcslen(src);
+	size_t narrowlen = (2 * len) + 1;
+	char * tgt = new char[narrowlen];
+	wcstombs(tgt, src, narrowlen);
+	target = tgt;
+	delete[] tgt;
+	return;
 }
