@@ -30,13 +30,15 @@ func init() {
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn       net.PacketConn
-	packetPool *PacketPool
-	packetOut  chan *Packet
+	conn         net.PacketConn
+	packets      []*Packet
+	packetPool   *PacketPool
+	packetNumber int
+	packetOut    chan []*Packet
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan *Packet, packetPool *PacketPool) (*UDPListener, error) {
+func NewUDPListener(packetOut chan []*Packet, packetPool *PacketPool) (*UDPListener, error) {
 	var conn net.PacketConn
 	var err error
 	var url string
@@ -63,6 +65,7 @@ func NewUDPListener(packetOut chan *Packet, packetPool *PacketPool) (*UDPListene
 	listener := &UDPListener{
 		packetOut:  packetOut,
 		packetPool: packetPool,
+		packets:    make([]*Packet, 4096),
 		conn:       conn,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
@@ -87,7 +90,12 @@ func (l *UDPListener) Listen() {
 		}
 
 		packet.Contents = packet.buffer[:n]
-		l.packetOut <- packet
+		l.packets[l.packetNumber] = packet
+		l.packetNumber = (l.packetNumber + 1) % 4096
+		if l.packetNumber == 0 {
+			l.packetOut <- l.packets
+			l.packets = make([]*Packet, 4096)
+		}
 	}
 }
 
