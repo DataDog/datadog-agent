@@ -90,7 +90,8 @@ func TestLogging(t *testing.T) {
 		CheckName: c.String(),
 	}
 	s.TotalRuns = 0
-	checkStats.Stats[c.ID()] = s
+	checkStats.Stats[c.String()] = make(map[check.ID]*check.Stats)
+	checkStats.Stats[c.String()][c.ID()] = s
 
 	doLog, lastLog := shouldLog(c.ID())
 	assert.True(t, doLog)

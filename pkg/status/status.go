@@ -99,8 +99,9 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	checks := s["runnerStats"].(map[string]interface{})["Checks"]
-	checks.(map[string]interface{})[c.String()] = cs
+	checks := s["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
+	checks[c.String()] = make(map[check.ID]interface{})
+	checks[c.String()].(map[check.ID]interface{})[c.ID()] = cs
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {

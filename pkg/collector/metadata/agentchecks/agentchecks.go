@@ -24,22 +24,24 @@ func GetPayload() *Payload {
 	checkStats := runner.GetCheckStats()
 
 	for _, stats := range checkStats {
-		var status []interface{}
-		if stats.LastError != "" {
-			status = []interface{}{
-				stats.CheckName, stats.CheckName, stats.CheckID, "ERROR", stats.LastError, "",
+		for _, s := range stats {
+			var status []interface{}
+			if s.LastError != "" {
+				status = []interface{}{
+					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "",
+				}
+			} else if len(s.LastWarnings) != 0 {
+				status = []interface{}{
+					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "",
+				}
+			} else {
+				status = []interface{}{
+					s.CheckName, s.CheckName, s.CheckID, "OK", "", "",
+				}
 			}
-		} else if len(stats.LastWarnings) != 0 {
-			status = []interface{}{
-				stats.CheckName, stats.CheckName, stats.CheckID, "WARNING", stats.LastWarnings, "",
+			if status != nil {
+				agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 			}
-		} else {
-			status = []interface{}{
-				stats.CheckName, stats.CheckName, stats.CheckID, "OK", "", "",
-			}
-		}
-		if status != nil {
-			agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 		}
 	}
 

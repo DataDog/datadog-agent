@@ -15,11 +15,11 @@ Collector
   {{end -}}
 
   {{- range $CheckName, $CheckSlice := .Checks}}
-      {{- with index $CheckSlice 0}}
-      {{.CheckName}} {{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}
-      {{printDashes .CheckName "-"}}{{- if .CheckVersion }}{{printDashes .CheckVersion "-"}}---{{ end }}
-    {{ end }}
+    {{$CheckName}} 
+    {{printDashes $CheckName "-"}}
     {{- range $CheckSlice }}
+        {{- if .CheckVersion }}
+        Version: {{.CheckVersion}}{{ end }}
         Instance ID: {{- if eq (len $CheckSlice) 1 }} {{$CheckName}}{{else}} {{.CheckID}}{{end}}
         Total Runs: {{.TotalRuns}}
         Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}

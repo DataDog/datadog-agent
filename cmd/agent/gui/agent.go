@@ -45,7 +45,6 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	statusType := mux.Vars(r)["type"]
 
 	s, e := status.GetStatus()
-	status.FormatRunnerStats(s["runnerStats"])
 	if e != nil {
 		log.Errorf("Error getting status: " + e.Error())
 		w.Write([]byte("Error getting status: " + e.Error()))
