@@ -63,6 +63,28 @@ func (s *RuntimeDetectionTestSuite) TestDockerContainerdMoby() {
 	assert.Equal(s.T(), RuntimeNameDocker, runtime)
 }
 
+func (s *RuntimeDetectionTestSuite) TestDockerContainerdNoArguments() {
+	s.proc.addDummyProcess("1", "0", "/sbin/init")
+	s.proc.addDummyProcess("25", "1", "/usr/local/bin/docker-containerd --log-level debug")
+	s.proc.addDummyProcess("28", "25", "docker-containerd-shim") // Make sure we don't panic on missing arguments
+	s.proc.addDummyProcess("444", "28", "/opt/datadog-agent/bin/agent/agent start")
+
+	runtime, err := GetRuntimeForPID(444)
+	assert.Equal(s.T(), ErrNoRuntimeMatch, err)
+	assert.Equal(s.T(), "", runtime)
+}
+
+func (s *RuntimeDetectionTestSuite) TestEmptyCmdline() {
+	s.proc.addDummyProcess("1", "0", "/sbin/init")
+	s.proc.addDummyProcess("25", "1", "/usr/local/bin/docker-containerd --log-level debug")
+	s.proc.addDummyProcess("28", "25", "") // Make sure we don't panic on missing cmdline
+	s.proc.addDummyProcess("444", "28", "/opt/datadog-agent/bin/agent/agent start")
+
+	runtime, err := GetRuntimeForPID(444)
+	assert.Error(s.T(), err, "empty command line")
+	assert.Equal(s.T(), "", runtime)
+}
+
 func (s *RuntimeDetectionTestSuite) TestDockerLegacyCentOS7() {
 	s.proc.addDummyProcess("1", "0", "/usr/lib/systemd/systemd")
 	s.proc.addDummyProcess("10", "1", "/usr/bin/dockerd-current ...")
