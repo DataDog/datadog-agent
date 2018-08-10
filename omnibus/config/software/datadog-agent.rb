@@ -52,6 +52,11 @@ build do
   #   copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
   # end
 
+  ## build the custom action library required for the install
+  if windows?
+    command "invoke customaction.build"
+  end
+
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
   move 'bin/agent/dist/trace-agent.conf', "#{conf_dir}/trace-agent.conf.example"

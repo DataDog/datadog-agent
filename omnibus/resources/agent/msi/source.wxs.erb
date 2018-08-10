@@ -412,6 +412,10 @@
          </Directory>
       </Directory>
     </DirectoryRef>
+    <InstallExecuteSequence>
+      <Custom Action='addsecretuser' Before='InstallFiles'> NOT Installed </Custom>
+      <Custom Action='delsecretuser' After='DeleteServices'> (NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
+    </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
@@ -539,8 +543,13 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
+    <CustomAction Id='addsecretuser' BinaryKey='wixcadll' DllEntry='AddDatadogSecretUser' Execute='immediate' Return='check'/>
+    <CustomAction Id='delsecretuser' BinaryKey='wixcadll' DllEntry='RemoveDatadogSecretUser' Execute='immediate' Return='check'/>
+    <Binary Id='wixcadll' SourceFile='$(var.BinFiles)\customaction.dll'/>
+    
     <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />
     <Binary Id="BackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
+    
     <Property Id="ShortCompanyName" Value="!(loc.CompanyNameShort)" />
 
   </Product>
