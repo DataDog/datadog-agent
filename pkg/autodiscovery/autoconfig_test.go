@@ -186,7 +186,6 @@ func (suite *AutoConfigTestSuite) TestStop() {
 	ac.Stop()
 
 	assert.True(suite.T(), ml.stopReceived)
-	assert.True(suite.T(), ml.stopReceived)
 }
 
 func (suite *AutoConfigTestSuite) TestListenerRetry() {

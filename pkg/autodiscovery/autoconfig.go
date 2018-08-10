@@ -338,11 +338,7 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 		}
 	}
 
-	if len(ac.listenerCandidates) > 0 {
-		// We have more candidates to try later
-		return true
-	}
-	return false
+	return len(ac.listenerCandidates) > 0
 }
 
 func (ac *AutoConfig) retryListenerCandidates() {
