@@ -43,7 +43,6 @@ const (
 	tokenKey                  = "tokenKey"
 	metadataMapExpire         = 2 * time.Minute
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
-	defaultClientTimeout      = 10 * time.Second
 )
 
 // APIClient provides authenticated access to the
@@ -101,7 +100,7 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 
 func (c *APIClient) connect() error {
 	var err error
-	c.Cl, err = getKubeClient(defaultClientTimeout)
+	c.Cl, err = getKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
 		return err
