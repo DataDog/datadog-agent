@@ -37,7 +37,7 @@ var stopCh chan struct{}
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
-		Use:   "cluster-agent [command]",
+		Use:   "datadog-cluster-agent [command]",
 		Short: "Datadog Cluster Agent at your service.",
 		Long: `
 Datadog Cluster Agent takes care of running checks that need run only once per cluster.
