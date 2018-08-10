@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -101,8 +102,13 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		for _, container := range pod.Status.Containers {
 			lowC := append(low, fmt.Sprintf("kube_container_name:%s", container.Name))
 			highC := append(high, fmt.Sprintf("container_id:%s", kubelet.TrimRuntimeFromCID(container.ID)))
-			// TODO: search for an alternative
-			//highC = append(highC, fmt.Sprintf("container_name:%s-%s", pod.Metadata.Name, container.Name))
+
+			// FIXME: work on an alternative display name tag
+			// If we submit container_name on docker containers, we will override the one collected from docker itself
+			if !strings.HasPrefix(container.ID, docker.DockerEntityPrefix) {
+				highC = append(highC, fmt.Sprintf("container_name:%s-%s", pod.Metadata.Name, container.Name))
+			}
+
 			// check image tag in spec
 			for _, containerSpec := range pod.Spec.Containers {
 				if containerSpec.Name == container.Name {

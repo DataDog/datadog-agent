@@ -307,6 +307,7 @@ func TestParsePods(t *testing.T) {
 			desc: "CRI pod",
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
+					Name: "redis-master-bpnn6",
 					Owners: []kubelet.PodOwner{
 						{
 							Kind: "ReplicaSet",
@@ -329,6 +330,8 @@ func TestParsePods(t *testing.T) {
 					"short_image:redis",
 				},
 				HighCardTags: []string{
+					"pod_name:redis-master-bpnn6",
+					"container_name:redis-master-bpnn6-redis-master", // Temporary for non-docker containers
 					"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
 					"kube_replica_set:redis-master-546dc4865f",
 				},
