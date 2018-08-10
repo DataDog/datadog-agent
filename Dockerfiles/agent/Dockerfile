@@ -72,7 +72,8 @@ RUN apt-get update \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
-  /usr/lib/x86_64-linux-gnu/libdb-5.3.so
+  && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
