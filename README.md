@@ -49,3 +49,13 @@ DD_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/datadog.yaml
 
 You'll find information and help on how to contribute code to this project under
 [the `docs/dev` directory](docs/dev) of the present repo.
+
+## Install
+
+To install the debian package you need to configure the (untrusted for now) debian repository:
+
+    $ echo "deb [trusted=yes] https://s3.amazonaws.com/stackstate-agent-test master main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
+    $ sudo apt-get update --allow-unauthenticated
+    $ sudo apt-get install datadog-agent
+    
+You can replace `master` with any published branch. 

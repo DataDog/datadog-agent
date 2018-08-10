@@ -154,13 +154,7 @@ jobs:
         command: inv -e agent.omnibus-build --base-dir ./omnibus --omnibus-s3-cache --skip-sign
     - run:
         name: Publish deb package
-        command: |
-          if [ "$CIRCLE_BRANCH" != "master" ];
-          then
-            deb-s3 upload --codename ${CIRCLE_BRANCH}  --bucket ${STS_AWS_BUCKET} omnibus/pkg/*.deb
-          else
-            deb-s3 upload --bucket ${STS_AWS_BUCKET} omnibus/pkg/*.deb
-          fi
+        command: deb-s3 upload --codename ${CIRCLE_BRANCH} --bucket ${STS_AWS_BUCKET} omnibus/pkg/*.deb
     - save_cache:
         key: v2-artifacts-{{ .Revision }}
         paths:
