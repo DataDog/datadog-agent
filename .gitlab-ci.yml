@@ -100,7 +100,7 @@ run_tests_deb-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - inv -e test --race --profile
+    - inv -e test --race --profile --cpus 4
 
 # run tests for rpm-x64
 run_test_rpm-x64:
@@ -108,7 +108,7 @@ run_test_rpm-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - inv -e test --race --profile
+    - inv -e test --race --profile --cpus 4
 
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
