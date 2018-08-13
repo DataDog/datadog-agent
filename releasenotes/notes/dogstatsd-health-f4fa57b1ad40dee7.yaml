@@ -1,0 +1,3 @@
+enhancements:
+  - The standalone dogstatsd binary now has ``health`` and ``tagger-list`` commands
+  - Dogstatsd docker image: add healthcheck probe.sh
