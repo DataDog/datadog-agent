@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// scanPeriod represents the period of scanning
+// scanPeriod represents the period of time between two scans.
 const scanPeriod = 10 * time.Second
 
 // Scanner checks all files provided by fileProvider and create new tailers
@@ -32,8 +32,8 @@ type Scanner struct {
 	stop                chan struct{}
 }
 
-// New returns an initialized Scanner
-func New(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry, tailerSleepDuration time.Duration) *Scanner {
+// NewScanner returns a new scanner.
+func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry, tailerSleepDuration time.Duration) *Scanner {
 	return &Scanner{
 		pipelineProvider:    pipelineProvider,
 		tailingLimit:        tailingLimit,
@@ -43,6 +43,18 @@ func New(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline
 		tailerSleepDuration: tailerSleepDuration,
 		stop:                make(chan struct{}),
 	}
+}
+
+// Start starts the scanner.
+func (s *Scanner) Start() {
+	s.setup()
+	go s.run()
+}
+
+// Stop stops the scanner.
+func (s *Scanner) Stop() {
+	s.stop <- struct{}{}
+	s.cleanup()
 }
 
 // setup sets all tailers
@@ -62,54 +74,6 @@ func (s *Scanner) setup() {
 	}
 }
 
-// cleanup all tailers
-func (s *Scanner) cleanup() {
-	stopper := restart.NewParallelStopper()
-	for _, tailer := range s.tailers {
-		stopper.Add(tailer)
-		delete(s.tailers, tailer.path)
-	}
-	stopper.Stop()
-}
-
-// createTailer returns a new initialized tailer
-func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tailer {
-	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
-}
-
-// startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
-// returns true if the operation succeeded, false otherwise
-func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
-	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
-
-	offset, whence, err := Position(s.registry, tailer.Identifier(), tailFromBeginning)
-	if err != nil {
-		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
-	}
-
-	err = tailer.Start(offset, whence)
-	if err != nil {
-		log.Warn(err)
-		return false
-	}
-
-	s.tailers[file.Path] = tailer
-	return true
-}
-
-// Start starts the Scanner
-func (s *Scanner) Start() {
-	s.setup()
-	go s.run()
-}
-
-// Stop stops the Scanner and its tailers in parallel,
-// this call returns only when all the tailers are stopped
-func (s *Scanner) Stop() {
-	s.stop <- struct{}{}
-	s.cleanup()
-}
-
 // run checks periodically if there are new files to tail and the state of its tailers until stop
 func (s *Scanner) run() {
 	scanTicker := time.NewTicker(scanPeriod)
@@ -124,6 +88,16 @@ func (s *Scanner) run() {
 			return
 		}
 	}
+}
+
+// cleanup all tailers
+func (s *Scanner) cleanup() {
+	stopper := restart.NewParallelStopper()
+	for _, tailer := range s.tailers {
+		stopper.Add(tailer)
+		delete(s.tailers, tailer.path)
+	}
+	stopper.Stop()
 }
 
 // scan checks all the files we're expected to tail,
@@ -161,7 +135,7 @@ func (s *Scanner) scan() {
 			continue
 		}
 
-		didRotate, err := s.didFileRotate(file, tailer)
+		didRotate, err := DidRotate(tailer.file, tailer.GetReadOffset())
 		if err != nil {
 			continue
 		}
@@ -186,10 +160,30 @@ func (s *Scanner) scan() {
 	}
 }
 
-// didFileRotate returns true if a file-rotation happened to file
-// since tailer has been set up, otherwise returns false
-func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
-	return tailer.checkForRotation()
+// startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
+// returns true if the operation succeeded, false otherwise
+func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
+	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), tailFromBeginning)
+	if err != nil {
+		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
+	}
+
+	err = tailer.Start(offset, whence)
+	if err != nil {
+		log.Warn(err)
+		return false
+	}
+
+	s.tailers[file.Path] = tailer
+	return true
+}
+
+// stopTailer stops the tailer
+func (s *Scanner) stopTailer(tailer *Tailer) {
+	go tailer.Stop()
+	delete(s.tailers, tailer.path)
 }
 
 // restartTailer safely stops tailer and starts a new one
@@ -208,8 +202,7 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 	return true
 }
 
-// stopTailer stops the tailer
-func (s *Scanner) stopTailer(tailer *Tailer) {
-	go tailer.Stop()
-	delete(s.tailers, tailer.path)
+// createTailer returns a new tailer.
+func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tailer {
+	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
 }
