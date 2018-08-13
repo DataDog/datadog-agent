@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	expectedHPAType = reflect.TypeOf(&autoscalingv2.HorizontalPodAutoscaler{})
+	expectedHPAType = reflect.TypeOf(autoscalingv2.HorizontalPodAutoscaler{})
 )
 
 type DatadogClient interface {
