@@ -146,6 +146,7 @@ func (l *UDSListener) Listen() {
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
+	l.packetBuffer.close()
 	l.conn.Close()
 
 	// Socket cleanup on exit

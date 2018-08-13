@@ -10,6 +10,7 @@ type packetBuffer struct {
 	flushTimer    *time.Ticker
 	bufferSize    uint
 	outputChannel chan Packets
+	closeChannel  chan struct{}
 	m             sync.Mutex
 }
 
@@ -19,6 +20,7 @@ func newPacketBuffer(bufferSize uint, flushTimer time.Duration, outputChannel ch
 		flushTimer:    time.NewTicker(flushTimer),
 		outputChannel: outputChannel,
 		packets:       make(Packets, 0, bufferSize),
+		closeChannel:  make(chan struct{}),
 	}
 	go pb.flushLoop()
 	return pb
@@ -26,10 +28,14 @@ func newPacketBuffer(bufferSize uint, flushTimer time.Duration, outputChannel ch
 
 func (pb *packetBuffer) flushLoop() {
 	for {
-		<-pb.flushTimer.C
-		pb.m.Lock()
-		pb.flush()
-		pb.m.Unlock()
+		select {
+		case <-pb.flushTimer.C:
+			pb.m.Lock()
+			pb.flush()
+			pb.m.Unlock()
+		case <-pb.closeChannel:
+			return
+		}
 	}
 }
 
@@ -48,4 +54,8 @@ func (pb *packetBuffer) flush() {
 		pb.outputChannel <- pb.packets
 		pb.packets = make(Packets, 0, pb.bufferSize)
 	}
+}
+
+func (pb *packetBuffer) close() {
+	close(pb.closeChannel)
 }
