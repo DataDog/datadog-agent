@@ -109,43 +109,36 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         matches = []
         for target in test_targets:
             for root, _, filenames in os.walk(target):
-                if fnmatch.filter(filenames, "*.go"):
-                    matches.append(root)
+                if not fnmatch.filter(filenames, "*.go"):
+                    continue
+                if sys.platform == 'win32' and root in WIN_PKG_BLACKLIST:
+                    print("Skipping blacklisted directory {}\n".format(root))
+                    continue
+                if sys.platform != 'win32' and root in NOTWIN_PKG_BLACKLIST:
+                    print("Skipping blacklisted directory {}\n".format(root))
+                    continue
+                matches.append(root)
+
     else:
         matches = ["{}/...".format(t) for t in test_targets]
     print("\n--- Running unit tests:")
-    for match in matches:
-        if sys.platform == 'win32':
-            if match in WIN_PKG_BLACKLIST:
-                print("Skipping blacklisted directory {}\n".format(match))
-                continue
-        else:
-            if match in NOTWIN_PKG_BLACKLIST:
-                print("Skipping blacklisted directory {}\n".format(match))
-                continue
 
-        coverprofile = ""
-        if coverage:
-            profile_tmp = "{}/profile.tmp".format(match)
-            coverprofile = "-coverprofile={}".format(profile_tmp)
-        cmd = 'go test -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
-        cmd += '{race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
-        args = {
-            "go_build_tags": " ".join(build_tags),
-            "gcflags": gcflags,
-            "ldflags": ldflags,
-            "race_opt": race_opt,
-            "covermode_opt": covermode_opt,
-            "coverprofile": coverprofile,
-            "pkg_folder": match,
-            "timeout": timeout,
-        }
-        ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
-
-        if coverage:
-            if os.path.exists(profile_tmp):
-                ctx.run("cat {} | tail -n +2 >> {}".format(profile_tmp, PROFILE_COV))
-                os.remove(profile_tmp)
+    coverprofile = ""
+    if coverage:
+        coverprofile = "-coverprofile={}".format(PROFILE_COV)
+    cmd = 'go test -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
+    cmd += '{race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
+    args = {
+        "go_build_tags": " ".join(build_tags),
+        "gcflags": gcflags,
+        "ldflags": ldflags,
+        "race_opt": race_opt,
+        "covermode_opt": covermode_opt,
+        "coverprofile": coverprofile,
+        "pkg_folder": ' '.join(matches),
+        "timeout": timeout,
+    }
+    ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
 
     if coverage:
         print("\n--- Test coverage:")
@@ -179,7 +172,7 @@ def lint_teamassignment(ctx):
     # The PR has not been created yet
     else:
         print("PR not yet created, skipping check for team assignment")
-        
+
 @task
 def lint_releasenote(ctx):
     """
