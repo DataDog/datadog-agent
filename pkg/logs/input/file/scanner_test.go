@@ -60,7 +60,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.openFilesLimit = 100
 	suite.sources = []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})}
 	sleepDuration := 20 * time.Millisecond
-	suite.s = New(config.NewLogSources(suite.sources), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
+	suite.s = NewScanner(config.NewLogSources(suite.sources), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
 	suite.s.setup()
 }
 
@@ -209,7 +209,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := New(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	scanner := NewScanner(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
 
 	// setup scanner
 	scanner.setup()
@@ -261,7 +261,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := New(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	scanner := NewScanner(config.NewLogSources(sources), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
 
 	// test at setup
 	scanner.setup()

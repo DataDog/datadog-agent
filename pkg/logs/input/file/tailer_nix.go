@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -68,40 +67,5 @@ func (t *Tailer) readForever() {
 			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 			t.incrementReadOffset(n)
 		}
-	}
-}
-
-func (t *Tailer) checkForRotation() (bool, error) {
-	f, err := os.Open(t.path)
-	if err != nil {
-		t.source.Status.Error(err)
-		return false, err
-	}
-
-	stat1, err := f.Stat()
-	if err != nil {
-		t.source.Status.Error(err)
-		return false, err
-	}
-
-	stat2, err := t.file.Stat()
-	if err != nil {
-		return true, nil
-	}
-
-	return inode(stat1) != inode(stat2) || stat1.Size() < t.GetReadOffset(), nil
-}
-
-// inode uniquely identifies a file on a filesystem
-func inode(f os.FileInfo) uint64 {
-	s := f.Sys()
-	if s == nil {
-		return 0
-	}
-	switch s := s.(type) {
-	case *syscall.Stat_t:
-		return uint64(s.Ino)
-	default:
-		return 0
 	}
 }

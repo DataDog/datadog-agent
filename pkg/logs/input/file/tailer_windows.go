@@ -95,9 +95,3 @@ func (t *Tailer) readForever() {
 		}
 	}
 }
-
-// checkForRotation does nothing on windows, log rotations
-// are for now handled by the readAvailable method
-func (t *Tailer) checkForRotation() (bool, error) {
-	return false, nil
-}
