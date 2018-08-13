@@ -45,7 +45,7 @@ func init() {
 // Server represent a Dogstatsd server
 type Server struct {
 	listeners        []listeners.StatsdListener
-	packetIn         chan []*listeners.Packet
+	packetIn         chan listeners.Packets
 	Statistics       *util.Stats
 	Started          bool
 	packetPool       *listeners.PacketPool
@@ -69,7 +69,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- metrics
 		stats = s
 	}
 
-	packetChannel := make(chan []*listeners.Packet, 100)
+	packetChannel := make(chan listeners.Packets, 100)
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
