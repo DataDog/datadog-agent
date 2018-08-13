@@ -40,8 +40,8 @@ func NewAgent(sources *config.LogSources, serverConfig *config.ServerConfig) *Ag
 
 	var serverConfig sender.ServerConfig
 	switch {
-	case LogsAgent.GetBool("logs_config.use_port_443"):
-		serverConfig := sender.SSLServerConfig(config.LogsAgent.GetString("logs_config.dd_url"))
+	case config.LogsAgent.GetBool("logs_config.use_port_443"):
+		serverConfig = sender.SSLServerConfig(config.LogsAgent.GetString("logs_config.dd_url_443"))
 	default:
 		serverConfig = sender.NewServerConfig(
 			config.LogsAgent.GetString("logs_config.dd_url"),

@@ -267,6 +267,7 @@ func init() {
 	BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	BindEnvAndSetDefault("logs_config.use_port_443", false)
+	BindEnvAndSetDefault("logs_config.dd_url_443", "443-agent-intake.logs.datadoghq.com")
 	// increase the read buffer size of the UDP sockets:
 	BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// increase the number of files that can be tailed in parallel:
