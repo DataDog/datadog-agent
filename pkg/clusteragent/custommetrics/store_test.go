@@ -141,12 +141,7 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, allMetrics)
 
-			objectRefs := make([]ObjectReference, 0)
-			for _, m := range tt.metrics {
-				objectRefs = append(objectRefs, m.HPA)
-			}
-
-			err = store.Delete(objectRefs)
+			err = store.DeleteExternalMetricValues(allMetrics)
 			require.NoError(t, err)
 			assert.Zero(t, len(store.(*configMapStore).cm.Data))
 		})

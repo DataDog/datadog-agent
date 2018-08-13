@@ -78,10 +78,14 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	var externalMetricsInfoList []provider.ExternalMetricInfo
 	var externalMetricsList []externalMetric
 
+	if err := p.store.Resync(); err != nil {
+		log.Errorf("Could not list the external metrics in the store: %v", err)
+		return nil
+	}
 	rawMetrics, err := p.store.ListAllExternalMetricValues()
 	if err != nil {
-		log.Errorf("Could not list the external metrics in the store: %s", err.Error())
-		return externalMetricsInfoList
+		log.Errorf("Could not list the external metrics in the store: %v", err)
+		return nil
 	}
 
 	for _, metric := range rawMetrics {
