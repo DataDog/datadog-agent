@@ -73,6 +73,16 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- metrics
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
+	socketPath := config.Datadog.GetString("dogstatsd_socket")
+	if len(socketPath) > 0 {
+		unixListener, err := listeners.NewUDSListener(packetChannel, packetPool)
+		if err != nil {
+			log.Errorf(err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, unixListener)
+		}
+	}
+
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
 		udpListener, err := listeners.NewUDPListener(packetChannel, packetPool)
 		if err != nil {
