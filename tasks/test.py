@@ -22,17 +22,6 @@ from .cluster_agent import integration_tests as dca_integration_tests
 
 PROFILE_COV = "profile.cov"
 
-# List of packages to ignore when running tests on Windows platform
-WIN_PKG_BLACKLIST = [
-    "./pkg\\util\\xc",
-    "./pkg\\util\\container",
-    "./pkg\\util\\kubernetes",
-]
-
-NOTWIN_PKG_BLACKLIST = [
-    "./pkg/util/winutil",
-    "./pkg/util/winutil/pdhutil",
-]
 DEFAULT_TOOL_TARGETS = [
     "./pkg",
     "./cmd",
