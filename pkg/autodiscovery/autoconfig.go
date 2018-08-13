@@ -12,23 +12,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 var (
-	configsPollIntl = 10 * time.Second
-	acErrors        *expvar.Map
-	errorStats      = newAcErrorStats()
+	configsPollIntl       = 10 * time.Second
+	listenerCandidateIntl = 30 * time.Second
+	acErrors              *expvar.Map
+	errorStats            = newAcErrorStats()
 )
 
 func init() {
@@ -61,28 +63,32 @@ type providerDescriptor struct {
 // Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
 // meaning that you cannot use it to schedule integrations instances directly.
 type AutoConfig struct {
-	providers         []*providerDescriptor
-	templateCache     *TemplateCache
-	listeners         []listeners.ServiceListener
-	configResolver    *ConfigResolver
-	configsPollTicker *time.Ticker
-	scheduler         scheduler.Scheduler
-	stop              chan bool
-	pollerActive      bool
-	health            *health.Handle
-	store             *store
-	m                 sync.RWMutex
+	providers          []*providerDescriptor
+	templateCache      *TemplateCache
+	listeners          []listeners.ServiceListener
+	listenerCandidates map[string]listeners.ServiceListenerFactory
+	listenerRetryStop  chan struct{}
+	configResolver     *ConfigResolver
+	configsPollTicker  *time.Ticker
+	scheduler          scheduler.Scheduler
+	pollerStop         chan struct{}
+	pollerActive       bool
+	health             *health.Handle
+	store              *store
+	m                  sync.RWMutex
 }
 
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(scheduler scheduler.Scheduler) *AutoConfig {
 	ac := &AutoConfig{
-		providers:     make([]*providerDescriptor, 0, 5),
-		templateCache: NewTemplateCache(),
-		stop:          make(chan bool),
-		store:         newStore(),
-		health:        health.Register("ad-autoconfig"),
-		scheduler:     scheduler,
+		providers:          make([]*providerDescriptor, 0, 5),
+		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
+		listenerRetryStop:  nil, // We'll open it if needed
+		templateCache:      NewTemplateCache(),
+		pollerStop:         make(chan struct{}),
+		store:              newStore(),
+		health:             health.Register("ad-autoconfig"),
+		scheduler:          scheduler,
 	}
 	ac.configResolver = newConfigResolver(ac, ac.templateCache)
 	return ac
@@ -107,7 +113,7 @@ func (ac *AutoConfig) Stop() {
 
 	// stop the poller if running
 	if ac.pollerActive {
-		ac.stop <- true
+		ac.pollerStop <- struct{}{}
 		ac.pollerActive = false
 	}
 
@@ -117,6 +123,11 @@ func (ac *AutoConfig) Stop() {
 	// stop the config resolver
 	if ac.configResolver != nil {
 		ac.configResolver.Stop()
+	}
+
+	// stop the listener retry logic if running
+	if ac.listenerRetryStop != nil {
+		ac.listenerRetryStop <- struct{}{}
 	}
 
 	// stop all the listeners
@@ -269,20 +280,90 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	return configs
 }
 
-// AddListener adds a service listener to AutoConfig.
-func (ac *AutoConfig) AddListener(listener listeners.ServiceListener) {
+// AddListeners tries to initialise the listeners listed in the given configs. A first
+// try is done synchronously. If a listener fails with a ErrWillRetry, the initialization
+// will be re-triggered later until success or ErrPermaFail.
+func (ac *AutoConfig) AddListeners(listenerConfigs []config.Listeners) {
+	ac.addListenerCandidates(listenerConfigs)
+	remaining := ac.initListenerCandidates()
+	if remaining == false {
+		return
+	}
+
+	// Start the retry logic if we have remaining candidates and it is not already running
+	ac.m.Lock()
+	defer ac.m.Unlock()
+	if ac.listenerRetryStop == nil {
+		ac.listenerRetryStop = make(chan struct{})
+		go ac.retryListenerCandidates()
+	}
+}
+
+func (ac *AutoConfig) addListenerCandidates(listenerConfigs []config.Listeners) {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
-	for _, l := range ac.listeners {
-		if l == listener {
-			log.Warnf("Listener %s was already added, skipping...", listener)
-			return
+	for _, c := range listenerConfigs {
+		factory, ok := listeners.ServiceListenerFactories[c.Name]
+		if !ok {
+			// Factory has not been registered.
+			log.Warnf("Listener %s was not registered", c.Name)
+			continue
+		}
+		log.Debugf("Listener %s was registered", c.Name)
+		ac.listenerCandidates[c.Name] = factory
+	}
+}
+
+func (ac *AutoConfig) initListenerCandidates() bool {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
+	for name, factory := range ac.listenerCandidates {
+		listener, err := factory()
+		switch {
+		case err == nil:
+			// Init successful, let's start listening
+			log.Infof("%s listener successfully started", name)
+			ac.listeners = append(ac.listeners, listener)
+			listener.Listen(ac.configResolver.newService, ac.configResolver.delService)
+			delete(ac.listenerCandidates, name)
+		case retry.IsErrWillRetry(err):
+			// Log an info and keep in candidates
+			log.Infof("%s listener cannot start, will retry: %s", name, err)
+		default:
+			// Log an error and remove from candidates
+			log.Errorf("%s listener cannot start: %s", name, err)
+			delete(ac.listenerCandidates, name)
 		}
 	}
 
-	ac.listeners = append(ac.listeners, listener)
-	listener.Listen(ac.configResolver.newService, ac.configResolver.delService)
+	return len(ac.listenerCandidates) > 0
+}
+
+func (ac *AutoConfig) retryListenerCandidates() {
+	retryTicker := time.NewTicker(listenerCandidateIntl)
+	defer func() {
+		// Stop ticker
+		retryTicker.Stop()
+		// Cleanup channel before exiting so that we can re-start the routine later
+		ac.m.Lock()
+		defer ac.m.Unlock()
+		close(ac.listenerRetryStop)
+		ac.listenerRetryStop = nil
+	}()
+
+	for {
+		select {
+		case <-ac.listenerRetryStop:
+			return
+		case <-retryTicker.C:
+			remaining := ac.initListenerCandidates()
+			if !remaining {
+				return
+			}
+		}
+	}
 }
 
 func decryptConfig(conf integration.Config) (integration.Config, error) {
@@ -323,7 +404,7 @@ func (ac *AutoConfig) pollConfigs() {
 	go func() {
 		for {
 			select {
-			case <-ac.stop:
+			case <-ac.pollerStop:
 				if ac.configsPollTicker != nil {
 					ac.configsPollTicker.Stop()
 				}

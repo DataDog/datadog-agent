@@ -53,7 +53,7 @@ func init() {
 func NewKubeletListener() (ServiceListener, error) {
 	watcher, err := kubelet.NewPodWatcher(15 * time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to kubelet, Kubernetes listener will not work: %s", err)
+		return nil, err
 	}
 	return &KubeletListener{
 		watcher:  watcher,

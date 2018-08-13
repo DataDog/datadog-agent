@@ -54,11 +54,10 @@ func init() {
 }
 
 // NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
-// TODO: TLS support
 func NewDockerListener() (ServiceListener, error) {
 	d, err := docker.GetDockerUtil()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Docker, auto discovery will not work: %s", err)
+		return nil, err
 	}
 	return &DockerListener{
 		dockerUtil: d,
