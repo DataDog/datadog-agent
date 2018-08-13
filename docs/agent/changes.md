@@ -295,6 +295,8 @@ The `enabled` value is a string with the following options:
 
 ## Docker check
 
+Docker versions 1.12.1 and up are supported.
+
 The Docker check has been rewritten in Go to take advantage of the new
 internal architecture of the Agent, mainly bringing a consistent behaviour
 across every container related component. Therefore the Python version will
@@ -332,7 +334,7 @@ needed settings from `docker_daemon.yaml` to `datadog.yaml`.
 
 ### Kubernetes versions
 
-Agent 6 currently supports Kubernetes versions 1.7.6 and above. Support for previous versions will be added in a future release.
+Agent 6 currently supports Kubernetes versions 1.3 and above.
 
 ### Kubernetes metrics and events
 
