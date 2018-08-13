@@ -42,9 +42,9 @@ var (
 type ConfigResolver struct {
 	ac              *AutoConfig
 	templates       *TemplateCache
-	services        map[listeners.ID]listeners.Service // Service.ID --> Service
-	adIDToServices  map[string]map[listeners.ID]bool   // AD id --> services that have it
-	configToService map[string]listeners.ID            // config digest --> service ID
+	services        map[string]listeners.Service // entity --> Service
+	adIDToServices  map[string]map[string]bool   // AD id --> services that have it
+	configToService map[string]string            // config digest --> service entity
 	newService      chan listeners.Service
 	delService      chan listeners.Service
 	stop            chan bool
@@ -57,9 +57,9 @@ func newConfigResolver(ac *AutoConfig, tc *TemplateCache) *ConfigResolver {
 	cr := &ConfigResolver{
 		ac:              ac,
 		templates:       tc,
-		services:        make(map[listeners.ID]listeners.Service),
-		adIDToServices:  make(map[string]map[listeners.ID]bool),
-		configToService: make(map[string]listeners.ID),
+		services:        make(map[string]listeners.Service),
+		adIDToServices:  make(map[string]map[string]bool),
+		configToService: make(map[string]string),
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
 		stop:            make(chan bool),
@@ -186,15 +186,15 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 
 	// store resolved configs in the AC
 	cr.ac.store.setLoadedConfig(resolvedConfig)
-	cr.ac.store.addConfigForService(svc.GetID(), resolvedConfig)
-	cr.configToService[resolvedConfig.Digest()] = svc.GetID()
+	cr.ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
+	cr.configToService[resolvedConfig.Digest()] = svc.GetEntity()
 	// TODO: harmonize service & entities ID
-	entityName := string(svc.GetID())
+	entityName := string(svc.GetEntity())
 	if !strings.Contains(entityName, "://") {
 		entityName = docker.ContainerIDToEntityName(entityName)
 	}
 	cr.ac.store.setTagsHashForService(
-		svc.GetID(),
+		svc.GetEntity(),
 		tagger.GetEntityHash(entityName),
 	)
 
@@ -208,21 +208,21 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	defer cr.m.Unlock()
 
 	// in any case, register the service and store its tag hash
-	cr.services[svc.GetID()] = svc
+	cr.services[svc.GetEntity()] = svc
 
 	// get all the templates matching service identifiers
 	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers()
 	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetID(), err)
+		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
 		return
 	}
 	for _, adID := range ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
 		if cr.adIDToServices[adID] == nil {
-			cr.adIDToServices[adID] = make(map[listeners.ID]bool)
+			cr.adIDToServices[adID] = make(map[string]bool)
 		}
-		cr.adIDToServices[adID][svc.GetID()] = true
+		cr.adIDToServices[adID][svc.GetEntity()] = true
 		tpls, err := cr.templates.Get(adID)
 		if err != nil {
 			log.Debugf("Unable to fetch templates from the cache: %v", err)
@@ -251,20 +251,20 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 	cr.m.Lock()
 	defer cr.m.Unlock()
 
-	delete(cr.services, svc.GetID())
-	configs := cr.ac.store.getConfigsForService(svc.GetID())
-	cr.ac.store.removeConfigsForService(svc.GetID())
+	delete(cr.services, svc.GetEntity())
+	configs := cr.ac.store.getConfigsForService(svc.GetEntity())
+	cr.ac.store.removeConfigsForService(svc.GetEntity())
 	cr.ac.processRemovedConfigs(configs)
-	cr.ac.store.removeTagsHashForService(svc.GetID())
+	cr.ac.store.removeTagsHashForService(svc.GetEntity())
 }
 
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	hosts, err := svc.GetHosts()
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", svc.GetEntity(), err)
 	}
 	if len(hosts) == 0 {
-		return nil, fmt.Errorf("no network found for container %s, ignoring it", svc.GetID())
+		return nil, fmt.Errorf("no network found for container %s, ignoring it", svc.GetEntity())
 	}
 
 	// a network was specified
@@ -277,7 +277,7 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %s", svc.GetEntity(), err)
 	}
 
 	return []byte(ip), nil
@@ -306,9 +306,9 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	ports, err := svc.GetPorts()
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", svc.GetEntity(), err)
 	} else if len(ports) == 0 {
-		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetID())
+		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetEntity())
 	}
 
 	if len(tplVar) == 0 {
@@ -323,10 +323,10 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 				return []byte(strconv.Itoa(port.Port)), nil
 			}
 		}
-		return nil, fmt.Errorf("port %s not found, skipping container %s", string(tplVar), svc.GetID())
+		return nil, fmt.Errorf("port %s not found, skipping container %s", string(tplVar), svc.GetEntity())
 	}
 	if len(ports) <= idx {
-		return nil, fmt.Errorf("index given for the port template var is too big, skipping container %s", svc.GetID())
+		return nil, fmt.Errorf("index given for the port template var is too big, skipping container %s", svc.GetEntity())
 	}
 	return []byte(strconv.Itoa(ports[idx].Port)), nil
 }
@@ -335,7 +335,7 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 func getPid(_ []byte, svc listeners.Service) ([]byte, error) {
 	pid, err := svc.GetPid()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetEntity(), err)
 	}
 	return []byte(strconv.Itoa(pid)), nil
 }
@@ -345,7 +345,7 @@ func getPid(_ []byte, svc listeners.Service) ([]byte, error) {
 func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	name, err := svc.GetHostname()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetEntity(), err)
 	}
 	return []byte(name), nil
 }
@@ -353,11 +353,11 @@ func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 // getEnvvar returns a system environment variable if found
 func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	if len(tplVar) == 0 {
-		return nil, fmt.Errorf("envvar name is missing, skipping service %s", svc.GetID())
+		return nil, fmt.Errorf("envvar name is missing, skipping service %s", svc.GetEntity())
 	}
 	value, found := os.LookupEnv(string(tplVar))
 	if !found {
-		return nil, fmt.Errorf("failed to retrieve envvar %s, skipping service %s", tplVar, svc.GetID())
+		return nil, fmt.Errorf("failed to retrieve envvar %s, skipping service %s", tplVar, svc.GetEntity())
 	}
 	return []byte(value), nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -36,6 +37,15 @@ type DockerListenerTestSuite struct {
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
 	tagger.Init()
+
+	config.SetupLogger(
+		"debug",
+		"",
+		"",
+		false,
+		true,
+		false,
+	)
 
 	var err error
 	suite.dockerutil, err = docker.GetDockerUtil()
@@ -91,7 +101,7 @@ func (suite *DockerListenerTestSuite) getServices(containerIDs []string, channel
 		select {
 		case svc := <-channel:
 			for _, id := range containerIDs {
-				if string(svc.GetID()) == id {
+				if strings.HasSuffix(svc.GetEntity(), id) {
 					log.Infof("Service matches container %s, keeping", id)
 					services[id] = svc
 					log.Infof("Got services for %d containers so far, out of %d wanted", len(services), len(containerIDs))
@@ -150,10 +160,12 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	for _, container := range containerIDs {
 		inspect, err := suite.dockerutil.Inspect(container, false)
 		assert.Nil(suite.T(), err)
+		entity := fmt.Sprintf("docker://%s", container)
 		if strings.Contains(inspect.Name, "redis-with-id") {
-			expectedIDs[container] = []string{"custom-id"}
+			expectedIDs[entity] = []string{"custom-id"}
 		} else {
-			expectedIDs[container] = []string{"docker://" + container,
+			expectedIDs[entity] = []string{
+				entity,
 				"datadog/docker-library",
 				"docker-library"}
 		}
@@ -169,16 +181,20 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		ports, err := service.GetPorts()
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), ports, 1)
+
+		entity := service.GetEntity()
+		expectedTags, found := expectedIDs[entity]
+		assert.True(suite.T(), found, "entity not found in expected ones")
+
 		tags, err := service.GetTags()
 		assert.Nil(suite.T(), err)
-
 		assert.Contains(suite.T(), tags, "docker_image:datadog/docker-library:redis_3_2_11-alpine")
 		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
 		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")
 
 		adIDs, err := service.GetADIdentifiers()
 		assert.Nil(suite.T(), err)
-		assert.Equal(suite.T(), expectedIDs[string(service.GetID())], adIDs)
+		assert.Equal(suite.T(), expectedTags, adIDs)
 	}
 
 	suite.stopContainers()

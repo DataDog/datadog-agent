@@ -8,7 +8,6 @@ package autodiscovery
 import (
 	"expvar"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -417,15 +415,10 @@ func (ac *AutoConfig) pollConfigs() {
 				// locking the configresolver to loop on services
 				ac.configResolver.m.Lock()
 				for _, service := range ac.configResolver.services {
-					previousHash := ac.store.getTagsHashForService(service.GetID())
-					// TODO: harmonize service & entities ID
-					entityName := string(service.GetID())
-					if !strings.Contains(entityName, "://") {
-						entityName = docker.ContainerIDToEntityName(entityName)
-					}
-					currentHash := tagger.GetEntityHash(entityName)
+					previousHash := ac.store.getTagsHashForService(service.GetEntity())
+					currentHash := tagger.GetEntityHash(service.GetEntity())
 					if currentHash != previousHash {
-						ac.store.setTagsHashForService(service.GetID(), currentHash)
+						ac.store.setTagsHashForService(service.GetEntity(), currentHash)
 						if previousHash != "" {
 							// only refresh service if we already had a hash to avoid resetting it
 							servicesToRefresh = append(servicesToRefresh, service)
@@ -434,7 +427,7 @@ func (ac *AutoConfig) pollConfigs() {
 				}
 				ac.configResolver.m.Unlock()
 				for _, service := range servicesToRefresh {
-					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", string(service.GetID()))
+					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
 					ac.configResolver.processDelService(service)
 					ac.configResolver.processNewService(service)
 				}

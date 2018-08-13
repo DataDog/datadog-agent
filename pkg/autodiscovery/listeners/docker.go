@@ -30,7 +30,7 @@ import (
 // match templates against.
 type DockerListener struct {
 	dockerUtil *docker.DockerUtil
-	services   map[ID]Service
+	services   map[string]Service
 	newService chan<- Service
 	delService chan<- Service
 	stop       chan bool
@@ -40,13 +40,13 @@ type DockerListener struct {
 
 // DockerService implements and store results from the Service interface for the Docker listener
 type DockerService struct {
-	ID            ID
-	ADIdentifiers []string
-	Hosts         map[string]string
-	Ports         []ContainerPort
-	Pid           int
-	Hostname      string
 	sync.RWMutex
+	cID           string
+	adIdentifiers []string
+	hosts         map[string]string
+	ports         []ContainerPort
+	pid           int
+	hostname      string
 }
 
 func init() {
@@ -61,7 +61,7 @@ func NewDockerListener() (ServiceListener, error) {
 	}
 	return &DockerListener{
 		dockerUtil: d,
-		services:   make(map[ID]Service),
+		services:   make(map[string]Service),
 		stop:       make(chan bool),
 		health:     health.Register("ad-dockerlistener"),
 	}, nil
@@ -122,47 +122,33 @@ func (l *DockerListener) init() {
 	}
 
 	for _, co := range containers {
-		id := ID(co.ID)
 		var svc Service
 
 		if findKubernetesInLabels(co.Labels) {
 			svc = &DockerKubeletService{
 				DockerService: DockerService{
-					ID:            id,
-					ADIdentifiers: l.getConfigIDFromPs(co),
+					cID:           co.ID,
+					adIdentifiers: l.getConfigIDFromPs(co),
 					// Host and Ports will be looked up when needed
 				},
 			}
 		} else {
 			svc = &DockerService{
-				ID:            id,
-				ADIdentifiers: l.getConfigIDFromPs(co),
-				Hosts:         l.getHostsFromPs(co),
-				Ports:         l.getPortsFromPs(co),
+				cID:           co.ID,
+				adIdentifiers: l.getConfigIDFromPs(co),
+				hosts:         l.getHostsFromPs(co),
+				ports:         l.getPortsFromPs(co),
 			}
 		}
 		l.newService <- svc
-		l.services[id] = svc
+		l.services[co.ID] = svc
 	}
-}
-
-// GetServices returns a copy of the current services
-func (l *DockerListener) GetServices() map[ID]Service {
-	l.m.RLock()
-	defer l.m.RUnlock()
-
-	ret := make(map[ID]Service)
-	for k, v := range l.services {
-		ret[k] = v
-	}
-
-	return ret
 }
 
 // processEvent takes a ContainerEvent, tries to find a service linked to it, and
 // figure out if the ConfigResolver could be interested to inspect it.
 func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
-	cID := ID(e.ContainerID)
+	cID := e.ContainerID
 
 	l.m.RLock()
 	_, found := l.services[cID]
@@ -187,12 +173,12 @@ func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 
 // createService takes a container ID, create a service for it in its cache
 // and tells the ConfigResolver that this service started.
-func (l *DockerListener) createService(cID ID) {
+func (l *DockerListener) createService(cID string) {
 	var svc Service
 
 	// Detect whether that container is managed by Kubernetes
 	var isKube bool
-	cInspect, err := l.dockerUtil.Inspect(string(cID), false)
+	cInspect, err := l.dockerUtil.Inspect(cID, false)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	} else if findKubernetesInLabels(cInspect.Config.Labels) {
@@ -202,12 +188,12 @@ func (l *DockerListener) createService(cID ID) {
 	if isKube {
 		svc = &DockerKubeletService{
 			DockerService: DockerService{
-				ID: cID,
+				cID: cID,
 			},
 		}
 	} else {
 		svc = &DockerService{
-			ID: cID,
+			cID: cID,
 		}
 	}
 
@@ -233,7 +219,7 @@ func (l *DockerListener) createService(cID ID) {
 	}
 
 	l.m.Lock()
-	l.services[ID(cID)] = svc
+	l.services[cID] = svc
 	l.m.Unlock()
 
 	l.newService <- svc
@@ -241,7 +227,7 @@ func (l *DockerListener) createService(cID ID) {
 
 // removeService takes a container ID, removes the related service from its cache
 // and tells the ConfigResolver that this service stopped.
-func (l *DockerListener) removeService(cID ID) {
+func (l *DockerListener) removeService(cID string) {
 	l.m.RLock()
 	svc, ok := l.services[cID]
 	l.m.RUnlock()
@@ -273,7 +259,8 @@ func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
 	if err != nil {
 		log.Warnf("error while resolving image name: %s", err)
 	}
-	return ComputeContainerServiceIDs(co.ID, image, co.Labels)
+	entity := docker.ContainerIDToEntityName(co.ID)
+	return ComputeContainerServiceIDs(entity, image, co.Labels)
 }
 
 // getHostsFromPs gets the addresss (for now IP address only) of a container on all its networks.
@@ -309,9 +296,9 @@ func (l *DockerListener) getPortsFromPs(co types.Container) []ContainerPort {
 	return ports
 }
 
-// GetID returns the service ID
-func (s *DockerService) GetID() ID {
-	return s.ID
+// GetEntity returns the unique entity name linked to that service
+func (s *DockerService) GetEntity() string {
+	return docker.ContainerIDToEntityName(s.cID)
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
@@ -326,12 +313,12 @@ func (s *DockerService) GetID() ID {
 //   1. Long image name
 //   2. Short image name
 func (s *DockerService) GetADIdentifiers() ([]string, error) {
-	if len(s.ADIdentifiers) == 0 {
+	if len(s.adIdentifiers) == 0 {
 		du, err := docker.GetDockerUtil()
 		if err != nil {
 			return []string{}, err
 		}
-		cj, err := du.Inspect(string(s.ID), false)
+		cj, err := du.Inspect(s.cID, false)
 		if err != nil {
 			return []string{}, err
 		}
@@ -339,10 +326,11 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 		}
-		s.ADIdentifiers = ComputeContainerServiceIDs(string(s.ID), image, cj.Config.Labels)
+		entity := docker.ContainerIDToEntityName(s.cID)
+		s.adIdentifiers = ComputeContainerServiceIDs(entity, image, cj.Config.Labels)
 	}
 
-	return s.ADIdentifiers, nil
+	return s.adIdentifiers, nil
 }
 
 // GetHosts returns the container's hosts
@@ -350,8 +338,8 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	if s.Hosts != nil {
-		return s.Hosts, nil
+	if s.hosts != nil {
+		return s.hosts, nil
 	}
 
 	ips := make(map[string]string)
@@ -359,9 +347,9 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cInspect, err := du.Inspect(string(s.ID), false)
+	cInspect, err := du.Inspect(s.cID, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+		return nil, fmt.Errorf("failed to inspect container %s", s.cID[:12])
 	}
 	if cInspect.NetworkSettings != nil {
 		for net, settings := range cInspect.NetworkSettings.Networks {
@@ -376,14 +364,14 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 		ips["rancher"] = rancherIP
 	}
 
-	s.Hosts = ips
+	s.hosts = ips
 	return ips, nil
 }
 
 // GetPorts returns the container's ports
 func (s *DockerService) GetPorts() ([]ContainerPort, error) {
-	if s.Ports != nil {
-		return s.Ports, nil
+	if s.ports != nil {
+		return s.ports, nil
 	}
 
 	// Make a non-nil array to avoid re-running if we find zero port
@@ -393,9 +381,9 @@ func (s *DockerService) GetPorts() ([]ContainerPort, error) {
 	if err != nil {
 		return ports, err
 	}
-	cInspect, err := du.Inspect(string(s.ID), false)
+	cInspect, err := du.Inspect(s.cID, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+		return nil, fmt.Errorf("failed to inspect container %s", s.cID[:12])
 	}
 
 	switch {
@@ -409,7 +397,7 @@ func (s *DockerService) GetPorts() ([]ContainerPort, error) {
 			ports = append(ports, out...)
 		}
 	case cInspect.Config != nil && len(cInspect.Config.ExposedPorts) > 0:
-		log.Infof("using ExposedPorts for container %s as no port bindings are listed", string(s.ID)[:12])
+		log.Infof("using ExposedPorts for container %s as no port bindings are listed", s.cID[:12])
 		for p := range cInspect.Config.ExposedPorts {
 			out, err := parseDockerPort(p)
 			if err != nil {
@@ -423,7 +411,7 @@ func (s *DockerService) GetPorts() ([]ContainerPort, error) {
 	sort.Slice(ports, func(i, j int) bool {
 		return ports[i].Port < ports[j].Port
 	})
-	s.Ports = ports
+	s.ports = ports
 	return ports, nil
 }
 
@@ -451,8 +439,7 @@ func parseDockerPort(port nat.Port) ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
-	entity := docker.ContainerIDToEntityName(string(s.ID))
-	tags, err := tagger.Tag(entity, tagger.IsFullCardinality())
+	tags, err := tagger.Tag(s.GetEntity(), tagger.IsFullCardinality())
 	if err != nil {
 		return []string{}, err
 	}
@@ -463,44 +450,44 @@ func (s *DockerService) GetTags() ([]string, error) {
 // GetPid inspect the container an return its pid
 func (s *DockerService) GetPid() (int, error) {
 	// Try to inspect container to get the pid if not defined
-	if s.Pid <= 0 {
+	if s.pid <= 0 {
 		du, err := docker.GetDockerUtil()
 		if err != nil {
 			return -1, err
 		}
-		cj, err := du.Inspect(string(s.ID), false)
+		cj, err := du.Inspect(s.cID, false)
 		if err != nil {
 			return -1, err
 		}
-		s.Pid = cj.State.Pid
+		s.pid = cj.State.Pid
 	}
 
-	return s.Pid, nil
+	return s.pid, nil
 }
 
 // GetHostname returns hostname.domainname for the container
 func (s *DockerService) GetHostname() (string, error) {
-	if s.Hostname != "" {
-		return s.Hostname, nil
+	if s.hostname != "" {
+		return s.hostname, nil
 	}
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return "", err
 	}
-	cInspect, err := du.Inspect(string(s.ID), false)
+	cInspect, err := du.Inspect(s.cID, false)
 	if err != nil {
-		return "", fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+		return "", fmt.Errorf("failed to inspect container %s", s.cID[:12])
 	}
 	if cInspect.Config == nil {
-		return "", fmt.Errorf("invalid inspect for container %s", string(s.ID)[:12])
+		return "", fmt.Errorf("invalid inspect for container %s", s.cID[:12])
 	}
 	if cInspect.Config.Hostname == "" {
-		return "", fmt.Errorf("empty hostname for container %s", string(s.ID)[:12])
+		return "", fmt.Errorf("empty hostname for container %s", s.cID[:12])
 	}
 
-	s.Hostname = cInspect.Config.Hostname
-	return s.Hostname, nil
+	s.hostname = cInspect.Config.Hostname
+	return s.hostname, nil
 }
 
 // findKubernetesInLabels traverses a map of container labels and

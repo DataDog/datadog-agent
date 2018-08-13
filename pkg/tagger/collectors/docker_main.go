@@ -9,8 +9,8 @@ package collectors
 
 import (
 	"io"
-	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -87,9 +87,9 @@ func (c *DockerCollector) Stop() error {
 }
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
-func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
-	cID := strings.TrimPrefix(container, docker.DockerEntityPrefix)
-	if cID == container || len(cID) == 0 {
+func (c *DockerCollector) Fetch(entity string) ([]string, []string, error) {
+	runtime, cID := containers.SplitEntityName(entity)
+	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
 		return nil, nil, nil
 	}
 	return c.fetchForDockerID(cID)

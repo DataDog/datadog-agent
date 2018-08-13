@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
@@ -35,12 +35,11 @@ type ECSListener struct {
 
 // ECSService implements and store results from the Service interface for the ECS listener
 type ECSService struct {
-	ID            ID
+	cID           string
+	runtime       string
 	ADIdentifiers []string
-	Hosts         map[string]string
-	Ports         []int
-	Pid           int
-	Tags          []string
+	hosts         map[string]string
+	tags          []string
 	clusterName   string
 	taskFamily    string
 	taskVersion   string
@@ -138,9 +137,9 @@ func (l *ECSListener) refreshServices() {
 }
 
 func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
-	cID := ID(c.DockerID)
 	svc := ECSService{
-		ID:          cID,
+		cID:         c.DockerID,
+		runtime:     containers.RuntimeNameDocker,
 		clusterName: l.task.ClusterName,
 		taskFamily:  l.task.Family,
 		taskVersion: l.task.Version,
@@ -149,7 +148,7 @@ func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 	// ADIdentifiers
 	image := c.Image
 	labels := c.Labels
-	svc.ADIdentifiers = ComputeContainerServiceIDs(c.DockerID, image, labels)
+	svc.ADIdentifiers = ComputeContainerServiceIDs(svc.GetEntity(), image, labels)
 
 	// Host
 	ips := make(map[string]string)
@@ -159,26 +158,21 @@ func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 			ips["awsvpc"] = string(net.IPv4Addresses[0])
 		}
 	}
-	svc.Hosts = ips
+	svc.hosts = ips
 
 	// Tags
-	entity := docker.ContainerIDToEntityName(string(c.DockerID))
-	tags, err := tagger.Tag(entity, tagger.IsFullCardinality())
+	tags, err := tagger.Tag(svc.GetEntity(), tagger.IsFullCardinality())
 	if err != nil {
-		log.Errorf("Failed to extract tags for container %s - %s", cID[:12], err)
+		log.Errorf("Failed to extract tags for container %s - %s", c.DockerID[:12], err)
 	}
-	svc.Tags = tags
-
-	// Ports and Pid
-	svc.Ports = nil
-	svc.Pid = -1
+	svc.tags = tags
 
 	return svc, err
 }
 
-// GetID returns the service ID
-func (s *ECSService) GetID() ID {
-	return s.ID
+// GetEntity returns the unique entity name linked to that service
+func (s *ECSService) GetEntity() string {
+	return containers.BuildEntityName(s.runtime, s.cID)
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
@@ -199,7 +193,7 @@ func (s *ECSService) GetADIdentifiers() ([]string, error) {
 // GetHosts returns the container's hosts
 // TODO: using localhost should usually be enough
 func (s *ECSService) GetHosts() (map[string]string, error) {
-	return s.Hosts, nil
+	return s.hosts, nil
 }
 
 // GetPorts returns nil and an error because port is not supported in Fargate-based ECS
@@ -209,7 +203,7 @@ func (s *ECSService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves a container's tags
 func (s *ECSService) GetTags() ([]string, error) {
-	return s.Tags, nil
+	return s.tags, nil
 }
 
 // GetPid inspect the container and return its pid

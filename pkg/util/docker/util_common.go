@@ -7,7 +7,8 @@ package docker
 
 import (
 	"errors"
-	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const (
@@ -32,8 +33,5 @@ var (
 
 // ContainerIDToEntityName returns a prefixed entity name from a container ID
 func ContainerIDToEntityName(cid string) string {
-	if cid == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
+	return containers.BuildEntityName(containers.RuntimeNameDocker, cid)
 }

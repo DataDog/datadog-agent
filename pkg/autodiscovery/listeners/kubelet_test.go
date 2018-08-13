@@ -105,13 +105,13 @@ func TestProcessNewPod(t *testing.T) {
 	services := make(chan Service, 3)
 	listener := KubeletListener{
 		newService: services,
-		services:   make(map[ID]Service),
+		services:   make(map[string]Service),
 	}
 	listener.processNewPod(getMockedPod())
 
 	select {
 	case service := <-services:
-		assert.Equal(t, "docker://foorandomhash", string(service.GetID()))
+		assert.Equal(t, "docker://foorandomhash", string(service.GetEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://foorandomhash", "datadoghq.com/foo:latest", "foo"}, adIdentifiers)
@@ -129,7 +129,7 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case service := <-services:
-		assert.Equal(t, "rkt://bar-random-hash", string(service.GetID()))
+		assert.Equal(t, "rkt://bar-random-hash", string(service.GetEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar:latest", "bar"}, adIdentifiers)
@@ -147,7 +147,7 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case service := <-services:
-		assert.Equal(t, "docker://containerid", string(service.GetID()))
+		assert.Equal(t, "docker://containerid", string(service.GetEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://containerid"}, adIdentifiers)

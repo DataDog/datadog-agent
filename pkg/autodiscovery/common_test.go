@@ -8,7 +8,7 @@ package autodiscovery
 import "github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 
 type dummyService struct {
-	ID            listeners.ID
+	ID            string
 	ADIdentifiers []string
 	Hosts         map[string]string
 	Ports         []listeners.ContainerPort
@@ -16,8 +16,8 @@ type dummyService struct {
 	Hostname      string
 }
 
-// GetID returns the service ID
-func (s *dummyService) GetID() listeners.ID {
+// GetEntity returns the service entity name
+func (s *dummyService) GetEntity() string {
 	return s.ID
 }
 
