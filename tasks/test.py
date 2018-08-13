@@ -105,28 +105,13 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         else:
             covermode_opt = "-covermode=count"
 
-    if coverage:
-        matches = []
-        for target in test_targets:
-            for root, _, filenames in os.walk(target):
-                if not fnmatch.filter(filenames, "*.go"):
-                    continue
-                if sys.platform == 'win32' and root in WIN_PKG_BLACKLIST:
-                    print("Skipping blacklisted directory {}\n".format(root))
-                    continue
-                if sys.platform != 'win32' and root in NOTWIN_PKG_BLACKLIST:
-                    print("Skipping blacklisted directory {}\n".format(root))
-                    continue
-                matches.append(root)
-
-    else:
-        matches = ["{}/...".format(t) for t in test_targets]
+    matches = ["{}/...".format(t) for t in test_targets]
     print("\n--- Running unit tests:")
 
     coverprofile = ""
     if coverage:
         coverprofile = "-coverprofile={}".format(PROFILE_COV)
-    cmd = 'go test -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
+    cmd = 'go test -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
     cmd += '{race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
     args = {
         "go_build_tags": " ".join(build_tags),
