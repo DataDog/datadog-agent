@@ -46,8 +46,14 @@ func (c *DiskCheck) Run() error {
 		return err
 	}
 
-	c.collectPartitionMetrics(sender)
-	c.collectDiskMetrics(sender)
+	err = c.collectPartitionMetrics(sender)
+	if err != nil {
+		return err
+	}
+	err = c.collectDiskMetrics(sender)
+	if err != nil {
+		return err
+	}
 	sender.Commit()
 
 	return nil
