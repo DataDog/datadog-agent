@@ -144,6 +144,7 @@ datadog-cluster-agent-8568545574-x9tc9   1/1       Running   0          2h
 Then, Kubernetes events should start to flow in your Datadog account, and relevant metrics collected by your agents should be tagged with their corresponding cluster level metadata.
 
 ## Troubleshooting
+<a name="troubleshooting"></a>
 
 To execute the following commands, you will first need to be inside the pod of the Cluster Agent or the Node Agent.
 You can use `kubectl exec -it <datadog-cluster-agent pod name> bash`
@@ -230,14 +231,16 @@ root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent status
 You can check the status of the Datadog Cluster Agent while running the status command of the agent:
 `agent status`
 
-If the Datadog Cluster Agent is enabled, you should see:
+If the Datadog Cluster Agent is enabled and correctly configured, you should see:
 
 ```
 [...]
  =====================
  Datadog Cluster Agent
  =====================
-   Datadog Cluster Agent available at: 
+   - Datadog Cluster Agent endpoint detected: https://XXX.XXX.XXX.XXX:5005
+   Successfully Connected to the Datadog Cluster Agent.
+   - Running: {Major:1 Minor:0 Pre:xxx Meta:xxx Commit:xxxxx}
 ```
 
 Make sure the Cluster Agent service was created before the agents' pods, so that the DNS is available in the environment variables:

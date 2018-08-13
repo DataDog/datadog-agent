@@ -89,6 +89,9 @@ If you are running the Datadog Node Agent 6.4.2+, to deploy the Datadog Cluster 
 - Configure (DD_API_KEY and other options) the [the cluster-agent.yaml](/manifests/cluster-agent/cluster-agent.yaml) and deploy it
 - Specify the [required options](#communication-with-the-datadog-node-agent) to ensure the communication between the Datadog Cluster Agent and the Datadog Node Agent.
 - Apply the new configuration to the Datadog Node Agent DaemonSet and redeploy the DaemonSet.
+- Once the Datadog Cluster Agent and the Datadog Node Agents are running, you can run the `agent status` command to confirm the successful communication.
+
+Refer to the Datadog Cluster Agent [troubleshooting section](../../docs/cluster-agent/GETTING_STARTED.md#troubleshooting) for more information.
 
 ### Command line interface of the Datadog Cluster Agent
 
@@ -127,7 +130,7 @@ You can disable the kubernetes metadata tag collection with `DD_KUBERNETES_COLLE
 
 #### Custom Metrics Server
 
-The Datadog Cluster Agent implements the External Metrics Provider's interface in alpha.
+The Datadog Cluster Agent implements the External Metrics Provider's interface and is currently in alpha.
 Therefore it can serve Custom Metrics to Kubernetes for Horizontal Pod Autoscalers.
 It is referred throughout the documentation as the Custom Metrics Server, per Kubernetes' terminology.
 
