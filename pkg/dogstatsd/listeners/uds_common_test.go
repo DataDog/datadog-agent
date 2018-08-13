@@ -75,7 +75,7 @@ func TestUDSReceive(t *testing.T) {
 
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
-	packetChannel := make(chan *Packet)
+	packetChannel := make(chan Packets)
 	s, err := NewUDSListener(packetChannel, packetPoolUDS)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -88,8 +88,10 @@ func TestUDSReceive(t *testing.T) {
 	conn.Write(contents)
 
 	select {
-	case packet := <-packetChannel:
+	case packets := <-packetChannel:
+		packet := packets[0]
 		assert.NotNil(t, packet)
+		assert.Equal(t, 1, len(packets))
 		assert.Equal(t, packet.Contents, contents)
 		assert.Equal(t, packet.Origin, "")
 	case <-time.After(2 * time.Second):

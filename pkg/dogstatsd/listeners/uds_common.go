@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -36,14 +37,15 @@ func init() {
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
 	conn            *net.UnixConn
-	packetOut       chan *Packet
+	packetOut       chan Packets
+	packetBuffer    *packetBuffer
 	packetPool      *PacketPool
 	oobPool         *sync.Pool // For origin detection ancilary data
 	OriginDetection bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListener, error) {
+func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
 
@@ -81,6 +83,7 @@ func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListene
 		OriginDetection: originDetection,
 		packetOut:       packetOut,
 		packetPool:      packetPool,
+		packetBuffer:    newPacketBuffer(4096, 100*time.Millisecond, packetOut),
 		conn:            conn,
 	}
 
@@ -137,7 +140,7 @@ func (l *UDSListener) Listen() {
 		}
 
 		packet.Contents = packet.buffer[:n]
-		l.packetOut <- packet
+		l.packetBuffer.append(packet)
 	}
 }
 
