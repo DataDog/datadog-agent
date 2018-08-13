@@ -134,6 +134,7 @@ func TestUDPReceive(t *testing.T) {
 	case packets := <-packetChannel:
 		packet := packets[0]
 		assert.NotNil(t, packet)
+		assert.Equal(t, 1, len(packets))
 		assert.Equal(t, contents, packet.Contents)
 		assert.Equal(t, "", packet.Origin)
 	case <-time.After(2 * time.Second):
