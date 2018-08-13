@@ -1,6 +1,6 @@
 # Datadog Cluster Agent | Custom & External Metrics Provider 
 
-The Datadog Cluster Agent is a **beta** feature and the Custom Metrics Provider is in **alpha** if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help).
+The Datadog Cluster Agent is a **beta** feature and the Custom Metrics Server is in **alpha** if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help).
 
 ## Introduction
 
@@ -12,7 +12,7 @@ As of Kubernetes v1.10, support for external metrics was introduced so users can
 
 The custom and external metric providers, as opposed to the metrics server, are resources that have to be implemented and registered by the user.
 
-As of v1.0.0, the Datadog Cluster Agent implements the Custom Metrics Provider interface for External Metrics.
+As of v1.0.0, the Custom Metrics Server in the Datadog Cluster Agent implements the External Metrics Provider interface for External Metrics.
 This walkthrough explains how to set it up and how to autoscale your Kubernetes workload based off of your Datadog metrics.
 
 ## Requirements

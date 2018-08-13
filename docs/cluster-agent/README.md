@@ -29,7 +29,7 @@ The goal of the Datadog Cluster Agent is to enhance the experience of monitoring
 * It acts as a proxy between the API server and the Node Agent in order to separate concerns.
 * It provides cluster level metadata that can only be found in the API server to the Node Agents for them to enrich the metadata of the locally collected metrics.
 * It enables the collection of cluster level data such as the monitoring of services or SPOF and events. These would otherwise require a mix of [Leader Election](../../Dockerfiles/agent/README.md#leader-election-[dca]) and [Autodiscovery](../../pkg/autodiscovery/README.md) to be monitored.
-* It implements the [External Metrics Provider](CUSTOM_METRICS_PROVIDER.md) interface, enabling the users to autoscale their applications out of any metrics available in their Dataadog accounts. 
+* It implements the [External Metrics Provider](CUSTOM_METRICS_SERVER.md) interface, enabling the users to autoscale their applications out of any metrics available in their Dataadog accounts. 
 
 ## When to use the Datadog Cluster Agent
 
@@ -39,7 +39,7 @@ We recommend using the Datadog Cluster Agent:
 - To isolate the Node Agent to the node, reducing the RBAC rules to solely read metrics and metadata from the kubelet.
 - To leverage the Horizontal Pod Autoscaling feature with custom metrics of Kubernetes, use the Datadog Cluster Agent to pull metrics from Datadog.
 You will be able to autoscale your deployments based off of any metric available in your Datadog account.
-Refer to [the dedicated guide](CUSTOM_METRICS_PROVIDER.md) to get more details about this feature.
+Refer to [the dedicated guide](CUSTOM_METRICS_SERVER.md) to get more details about this feature.
 
 
 ## Limitations of the Datadog Cluster Agent
