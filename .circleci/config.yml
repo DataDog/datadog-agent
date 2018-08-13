@@ -66,7 +66,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 2
+          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
 
   integration_tests:
     <<: *job_template
