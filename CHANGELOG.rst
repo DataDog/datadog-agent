@@ -463,7 +463,7 @@ Bug Fixes
 - Fixes JMXFetch on Windows when the ``custom_jar_paths`` and/or ``tools_jar_path`` options are set,
   by using a semicolon as the path separator on Windows.
 
-- Prevent an empty response body from being marked as a "successfull call to the GCE metadata api".
+- Prevent an empty response body from being marked as a "successful call to the GCE metadata api".
   Fixes a bug where hostnames became an empty string when using docker swarm and a non GCE environment.
 
 - Config option specified in `syslog_pem` if syslog logging is enabled with
@@ -844,7 +844,7 @@ Bug Fixes
   line to be set in the registry, where they'll be translated to the
   configuration
 
-- Accept now short names for docker image in logs configuration file and added to the possibilty to filter containers by image name with Kubernetes.
+- Accept now short names for docker image in logs configuration file and added to the possibility to filter containers by image name with Kubernetes.
 
 - Fixes an issue that would prevent the agent from stopping when it was tailing logs
   of a container that had no logs.
@@ -1385,7 +1385,7 @@ New Features
 
 - Set the default "procfs_path" configuration to `/host/proc` when containerized
   to allow the network check to collect the host's network metrics. This can be
-  overriden with the the DD_PROCFS_PATH envvar.
+  overridden with the the DD_PROCFS_PATH envvar.
 
 - Series for a common metric name will no longer be split among multiple
   transactions/payload. This guarantee that every point for a time T and a metric
