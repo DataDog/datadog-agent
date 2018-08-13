@@ -1,24 +1,24 @@
-# Datadog Cluster Agent - DCA | Getting Started
+# Datadog Cluster Agent | Getting Started
 
-The DCA is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
+The Datadog Cluster Agent is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
 
 ## Introduction
 
-This document aims to get you started using the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent - DCA | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent in Containerized environments](../../Dockerfiles/cluster-agent/README.md) documentation.
+This document aims to get you started using the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent technical documentation](../../Dockerfiles/cluster-agent/README.md) documentation.
 
 ## Step by step
 
-**Step 1** - The Datadog Cluster Agent (DCA) needs a proper RBAC to be up and running, first create its:
+**Step 1** - The Datadog Cluster Agent needs a proper RBAC to be up and running:
 
 * Service Account
 * Cluster Role
 * Cluster Role Binding
 
-Those can be found in the [Datadog Cluster Agent RBAC](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml).
+Review these manifests in the [Datadog Cluster Agent RBAC folder](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml).
 
-**Step 2** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-cluster-agent.yaml` from the datadog-agent directory.
+**Step 2** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-cluster-agent.yaml` from the `datadog-agent` directory.
 
-**Step 3** - Depending on whether you are relying on a secret to secure the communication between the Node Agent and the Cluster Agent, either:
+**Step 3** - Depending on whether you are relying on a secret to secure the communication between the Datadog Agent and the Datadog Cluster Agent, either:
 
 * Create a secret
 * Set an environment variable
@@ -69,9 +69,9 @@ Then create your datadog-cluster.yaml with the variables of your choice.
 Create the ConfigMap accordingly:
 `kubectl create configmap dca-yaml --from-file datadog-cluster.yaml`
 
-**Step 4** - Once the secret is created, create the DCA along with its service.
-Don't forget to add your `<DD_API_KEY>` in the manifest of the DCA. Both manifests can be found in the [manifest/cluster-agent directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
-Run:
+**Step 4** - Once the secret is created, create the Datadog Cluster Agent along with its service.
+Don't forget to add your `<DD_API_KEY>` in the manifest of the Datadog Cluster Agent. Both manifests can be found in the [manifest/cluster-agent directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
+Run: 
 
 `kubectl apply -f Dockerfiles/manifests/cluster-agent/datadog-cluster-agent_service.yaml`
 
@@ -94,18 +94,18 @@ datadog-auth-token     Opaque                                1         1d
 datadog-cluster-agent-8568545574-x9tc9   1/1       Running   0          2h
 
 -> kubectl get service -l app:datadog-cluster-agent
-NAME                  TYPE           CLUSTER-IP       EXTERNAL-IP        PORT(S)          AGE
-dca                   ClusterIP      10.100.202.234   <none>             5005/TCP         1d
+NAME                    TYPE           CLUSTER-IP       EXTERNAL-IP        PORT(S)          AGE
+datadog-cluster-agent   ClusterIP      10.100.202.234   none               5005/TCP         1d
 ```
 
-**Step 6** - Configure your agent to communicate with the DCA.
-First, create the RBAC for your agents. They limit the agents' access to the kubelet API. For this create a dedicated:
+**Step 6** - Configure your agent to communicate with the Datadog Cluster Agent.
+First, create the RBAC for your agents. They limit the agents' access to the kubelet API.
 
 - Service Account
 - Cluster Role
 - Cluster Role Binding
 
-Those can be found in the [Datadog Agent RBAC](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-agent.yaml).
+Review these manifests in these files [Datadog Agent RBAC](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-agent.yaml).
 
 **Step 7** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-agent.yaml` from the datadog-agent directory.
 
@@ -141,16 +141,17 @@ datadog-agent-x5wk5                      1/1       Running   0          2h
 datadog-cluster-agent-8568545574-x9tc9   1/1       Running   0          2h
 ```
 
-Then, Kubernetes events should start to flow in your Datadog accounts, and relevant metrics collected by your agents should be tagged with their corresponding cluster level metadata.
+Then, Kubernetes events should start to flow in your Datadog account, and relevant metrics collected by your agents should be tagged with their corresponding cluster level metadata.
 
 ## Troubleshooting
+<a name="troubleshooting"></a>
 
 To execute the following commands, you will first need to be inside the pod of the Cluster Agent or the Node Agent.
 You can use `kubectl exec -it <datadog-cluster-agent pod name> bash`
+  
+#### On the Datadog Cluster Agent side
 
-#### On the DCA side
-
-To see what cluster level metadata is served by the DCA exec in the pod and run:
+To see what cluster level metadata is served by the Datadog Cluster Agent exec in the pod and run:
 
 ```
 root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent metamap
@@ -186,7 +187,7 @@ Node detected: gke-test-default-pool-068cb9c0-wntj
         Services: [metrics-server]
 ```
 
-To verify that the DCA is being queried, look for:
+To verify that the Datadog Cluster Agent is being queried, look for:
 
 ```
 root@datadog-cluster-agent-8568545574-x9tc9:/# tail -f /var/log/datadog/cluster-agent.log
@@ -227,23 +228,38 @@ root@datadog-cluster-agent-8568545574-x9tc9:/# datadog-cluster-agent status
 
 #### On the Node Agent side
 
+You can check the status of the Datadog Cluster Agent while running the status command of the agent:
+`agent status`
+
+If the Datadog Cluster Agent is enabled and correctly configured, you should see:
+
+```
+[...]
+ =====================
+ Datadog Cluster Agent
+ =====================
+   - Datadog Cluster Agent endpoint detected: https://XXX.XXX.XXX.XXX:5005
+   Successfully Connected to the Datadog Cluster Agent.
+   - Running: {Major:1 Minor:0 Pre:xxx Meta:xxx Commit:xxxxx}
+```
+
 Make sure the Cluster Agent service was created before the agents' pods, so that the DNS is available in the environment variables:
 
 ```
-root@datadog-agent-9d5bl:/# env | grep DCA_ | sort
-DCA_SERVICE_PORT=5005
-DCA_SERVICE_HOST=10.100.202.234
-DCA_PORT_5005_TCP_PORT=5005
-DCA_PORT=tcp://10.100.202.234:5005
-DCA_PORT_5005_TCP=tcp://10.100.202.234:5005
-DCA_PORT_5005_TCP_PROTO=tcp
-DCA_PORT_5005_TCP_ADDR=10.100.202.234
+root@datadog-agent-9d5bl:/# env | grep DATADOG_CLUSTER_AGENT | sort
+DATADOG_CLUSTER_AGENT_SERVICE_PORT=5005
+DATADOG_CLUSTER_AGENT_SERVICE_HOST=10.100.202.234
+DATADOG_CLUSTER_AGENT_PORT_5005_TCP_PORT=5005
+DATADOG_CLUSTER_AGENT_PORT=tcp://10.100.202.234:5005
+DATADOG_CLUSTER_AGENT_PORT_5005_TCP=tcp://10.100.202.234:5005
+DATADOG_CLUSTER_AGENTPORT_5005_TCP_PROTO=tcp
+DATADOG_CLUSTER_AGENT_PORT_5005_TCP_ADDR=10.100.202.234
 
 root@datadog-agent-9d5bl:/# echo ${DD_CLUSTER_AGENT_AUTH_TOKEN}
 DD_CLUSTER_AGENT_AUTH_TOKEN=1234****9
 ```
 
-Verify that the Node Agent is using the DCA as a tag provider:
+Verify that the Node Agent is using the Datadog Cluster Agent as a tag provider:
 
 ```
 root@datadog-agent-9d5bl:/# cat /var/log/datadog/agent.log | grep "metadata-collector"
@@ -253,5 +269,5 @@ root@datadog-agent-9d5bl:/# cat /var/log/datadog/agent.log | grep "metadata-coll
 Or look for error logs, such as:
 
 ```
-2018-06-10 08:03:02 UTC | ERROR | Could not initialise the communication with the DCA, falling back to local service mapping: [...]
+2018-06-10 08:03:02 UTC | ERROR | Could not initialise the communication with the Datadog Cluster Agent, falling back to local service mapping: [...]
 ```

@@ -62,7 +62,7 @@ func GetHorizontalPodAutoscalingStatus() map[string]interface{} {
 		return horizontalPodAutoscalingStatus
 	}
 
-	datadogHPAConfigMap := custommetrics.GetHPAConfigmapName()
+	datadogHPAConfigMap := custommetrics.GetConfigmapName()
 	horizontalPodAutoscalingStatus["Cmname"] = datadogHPAConfigMap
 
 	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, apiserver.GetResourcesNamespace(), datadogHPAConfigMap)
