@@ -186,7 +186,7 @@ func (s *Server) worker(metricOut chan<- []*metrics.MetricSample, eventOut chan<
 			return
 		case <-s.health.C:
 		case packets := <-s.packetIn:
-			metricSamples := []*metrics.MetricSample{}
+			metricSamples := make([]*metrics.MetricSample, 0, len(packets))
 			for _, packet := range packets {
 				var originTags []string
 
@@ -259,7 +259,9 @@ func (s *Server) worker(metricOut chan<- []*metrics.MetricSample, eventOut chan<
 				// Return the packet object back to the object pool for reuse
 				s.packetPool.Put(packet)
 			}
-			metricOut <- metricSamples
+			if len(metricSamples) > 0 {
+				metricOut <- metricSamples
+			}
 		}
 	}
 }
