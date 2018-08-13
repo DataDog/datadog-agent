@@ -117,7 +117,7 @@ func TestUDPReceive(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	packetChannel := make(chan *Packet)
+	packetChannel := make(chan Packets)
 	s, err := NewUDPListener(packetChannel, packetPoolUDP)
 	require.NotNil(t, s)
 	assert.Nil(t, err)
@@ -131,7 +131,8 @@ func TestUDPReceive(t *testing.T) {
 	conn.Write(contents)
 
 	select {
-	case packet := <-packetChannel:
+	case packets := <-packetChannel:
+		packet := packets[0]
 		assert.NotNil(t, packet)
 		assert.Equal(t, contents, packet.Contents)
 		assert.Equal(t, "", packet.Origin)

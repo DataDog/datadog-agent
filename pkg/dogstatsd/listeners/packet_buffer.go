@@ -36,10 +36,10 @@ func (pb *packetBuffer) append(packet *Packet) {
 	if uint(len(pb.packets)) == pb.bufferSize {
 		pb.m.Unlock()
 		pb.flush()
+		pb.m.Lock()
 	}
-	pb.m.Lock()
-	defer pb.m.Unlock()
 	pb.packets = append(pb.packets, packet)
+	pb.m.Unlock()
 }
 
 func (pb *packetBuffer) flush() {
