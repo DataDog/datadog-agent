@@ -45,7 +45,8 @@ DEFAULT_TEST_TARGETS = [
 
 @task()
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
-    race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False, timeout=120):
+    race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
+    cpus=0, timeout=120):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -94,6 +95,9 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
 
     race_opt = ""
     covermode_opt = ""
+    build_cpus_opt = ""
+    if cpus:
+        build_cpus_opt = "-p {}".format(cpus)
     if race:
         race_opt = "-race"
     if coverage:
@@ -112,12 +116,13 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     if coverage:
         coverprofile = "-coverprofile={}".format(PROFILE_COV)
     cmd = 'go test -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
-    cmd += '{race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
+    cmd += '{build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
     args = {
         "go_build_tags": " ".join(build_tags),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "race_opt": race_opt,
+        "build_cpus": build_cpus_opt,
         "covermode_opt": covermode_opt,
         "coverprofile": coverprofile,
         "pkg_folder": ' '.join(matches),
