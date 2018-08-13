@@ -11,9 +11,9 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/pkg/errors"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	expectedHPAType = reflect.TypeOf(autoscalingv2.HorizontalPodAutoscaler{})
+	expectedHPAType = reflect.TypeOf(&autoscalingv2.HorizontalPodAutoscaler{})
 )
 
 type DatadogClient interface {
@@ -68,6 +68,8 @@ func (c *HPAWatcherClient) run(res string) (added, modified, deleted []*autoscal
 	defer watcher.Stop()
 
 	watcherTimeout := time.NewTimer(c.readTimeout)
+	defer watcherTimeout.Stop()
+
 	for {
 		select {
 		case rcvdHPA, ok := <-watcher.ResultChan():
@@ -75,21 +77,16 @@ func (c *HPAWatcherClient) run(res string) (added, modified, deleted []*autoscal
 				log.Debugf("Unexpected watch close")
 				return nil, nil, nil, "0", err
 			}
+			if rcvdHPA.Type == watch.Error {
+				return nil, nil, nil, "0", apierrs.FromObject(rcvdHPA.Object)
+			}
 			currHPA, ok := rcvdHPA.Object.(*autoscalingv2.HorizontalPodAutoscaler)
 			if !ok {
-				log.Errorf("Wrong type: %s", currHPA)
+				log.Errorf("Expected type %v, but watch event object had type %v", expectedHPAType, reflect.TypeOf(rcvdHPA.Object))
 				continue
 			}
 			if currHPA.ResourceVersion != "" && currHPA.ResourceVersion != resVer {
 				resVer = currHPA.ResourceVersion
-			}
-			if rcvdHPA.Type == watch.Error {
-				status, ok := rcvdHPA.Object.(*metav1.Status)
-				if !ok {
-					return nil, nil, nil, "0", errors.Errorf("error in the watcher, evaluating: %s", currHPA)
-				}
-				log.Infof("Error while processing the HPA watch: %#v", status)
-				continue
 			}
 			if rcvdHPA.Type == watch.Added {
 				log.Debugf("Added HPA: %s/%s", currHPA.Namespace, currHPA.Name)
@@ -137,8 +134,9 @@ func (c *HPAWatcherClient) Start() {
 				}
 				added, modified, deleted, res, err := c.run(resversion)
 				if err != nil {
-					log.Errorf("Error while watching HPA Objects' activities: %s", err)
-					return
+					log.Debugf("Error while watching HPA Objects' activities: %s", err)
+					resversion = "0"
+					continue
 				}
 				if res != resversion && res != "" {
 					resversion = res
