@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -31,14 +32,14 @@ func init() {
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
 	conn         net.PacketConn
-	packets      []*Packet
+	packetBuffer *packetBuffer
 	packetPool   *PacketPool
 	packetNumber int
-	packetOut    chan []*Packet
+	packetOut    chan Packets
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan []*Packet, packetPool *PacketPool) (*UDPListener, error) {
+func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListener, error) {
 	var conn net.PacketConn
 	var err error
 	var url string
@@ -63,10 +64,10 @@ func NewUDPListener(packetOut chan []*Packet, packetPool *PacketPool) (*UDPListe
 	}
 
 	listener := &UDPListener{
-		packetOut:  packetOut,
-		packetPool: packetPool,
-		packets:    make([]*Packet, 4096),
-		conn:       conn,
+		packetOut:    packetOut,
+		packetPool:   packetPool,
+		packetBuffer: newPacketBuffer(4096, 100*time.Millisecond, packetOut),
+		conn:         conn,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -90,12 +91,7 @@ func (l *UDPListener) Listen() {
 		}
 
 		packet.Contents = packet.buffer[:n]
-		l.packets[l.packetNumber] = packet
-		l.packetNumber = (l.packetNumber + 1) % 4096
-		if l.packetNumber == 0 {
-			l.packetOut <- l.packets
-			l.packets = make([]*Packet, 4096)
-		}
+		l.packetBuffer.append(packet)
 	}
 }
 
