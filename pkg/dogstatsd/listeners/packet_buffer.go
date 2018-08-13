@@ -27,24 +27,23 @@ func newPacketBuffer(bufferSize uint, flushTimer time.Duration, outputChannel ch
 func (pb *packetBuffer) flushLoop() {
 	for {
 		<-pb.flushTimer.C
+		pb.m.Lock()
 		pb.flush()
+		pb.m.Unlock()
 	}
 }
 
 func (pb *packetBuffer) append(packet *Packet) {
 	pb.m.Lock()
+	defer pb.m.Unlock()
 	if uint(len(pb.packets)) == pb.bufferSize {
-		pb.m.Unlock()
 		pb.flush()
-		pb.m.Lock()
 	}
 	pb.packets = append(pb.packets, packet)
-	pb.m.Unlock()
+
 }
 
 func (pb *packetBuffer) flush() {
-	pb.m.Lock()
-	defer pb.m.Unlock()
 	if len(pb.packets) > 0 {
 		pb.outputChannel <- pb.packets
 		pb.packets = make(Packets, 0, pb.bufferSize)

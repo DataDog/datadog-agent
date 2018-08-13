@@ -80,7 +80,7 @@ func TestUPDReceive(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan *metrics.MetricSample)
+	metricOut := make(chan []*metrics.MetricSample)
 	eventOut := make(chan metrics.Event)
 	serviceOut := make(chan metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
@@ -95,7 +95,9 @@ func TestUPDReceive(t *testing.T) {
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
-	case res := <-metricOut:
+	case ms := <-metricOut:
+		assert.Equal(t, 1, len(ms))
+		res := ms[0]
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
@@ -106,7 +108,9 @@ func TestUPDReceive(t *testing.T) {
 
 	conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
-	case res := <-metricOut:
+	case ms := <-metricOut:
+		assert.Equal(t, 1, len(ms))
+		res := ms[0]
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
@@ -118,7 +122,9 @@ func TestUPDReceive(t *testing.T) {
 
 	conn.Write([]byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
-	case res := <-metricOut:
+	case ms := <-metricOut:
+		assert.Equal(t, 1, len(ms))
+		res := ms[0]
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
@@ -130,7 +136,9 @@ func TestUPDReceive(t *testing.T) {
 
 	conn.Write([]byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
-	case res := <-metricOut:
+	case ms := <-metricOut:
+		assert.Equal(t, 1, len(ms))
+		res := ms[0]
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
@@ -142,7 +150,9 @@ func TestUPDReceive(t *testing.T) {
 
 	conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
-	case res := <-metricOut:
+	case ms := <-metricOut:
+		assert.Equal(t, 1, len(ms))
+		res := ms[0]
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon_set")
 		assert.Equal(t, res.RawValue, "abc")
@@ -154,7 +164,9 @@ func TestUPDReceive(t *testing.T) {
 	// Test erroneous metric
 	conn.Write([]byte("daemon1:666:777|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
-	case res := <-metricOut:
+	case ms := <-metricOut:
+		assert.Equal(t, 1, len(ms))
+		res := ms[0]
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon2")
 	case <-time.After(2 * time.Second):
@@ -186,6 +198,7 @@ func TestUPDReceive(t *testing.T) {
 	case res := <-eventOut:
 		assert.NotNil(t, res)
 	case <-time.After(2 * time.Second):
+		time.Sleep(10 * time.Hour)
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
@@ -207,6 +220,8 @@ func TestUDPForward(t *testing.T) {
 	// Setup UDP server to forward to
 	config.Datadog.SetDefault("statsd_forward_port", fport)
 	config.Datadog.SetDefault("statsd_forward_host", "127.0.0.1")
+	defer config.Datadog.SetDefault("statsd_forward_port", 0)
+	defer config.Datadog.SetDefault("statsd_forward_host", "")
 
 	addr := fmt.Sprintf("127.0.0.1:%d", fport)
 	pc, err := net.ListenPacket("udp", addr)
@@ -219,7 +234,7 @@ func TestUDPForward(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan *metrics.MetricSample)
+	metricOut := make(chan []*metrics.MetricSample)
 	eventOut := make(chan metrics.Event)
 	serviceOut := make(chan metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
@@ -256,7 +271,7 @@ func TestHistToDist(t *testing.T) {
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
-	metricOut := make(chan *metrics.MetricSample)
+	metricOut := make(chan []*metrics.MetricSample, 100)
 	eventOut := make(chan metrics.Event)
 	serviceOut := make(chan metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
@@ -271,17 +286,16 @@ func TestHistToDist(t *testing.T) {
 	// Test metric
 	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
-	case histMetric := <-metricOut:
+	case histMetrics := <-metricOut:
+		assert.Equal(t, 2, len(histMetrics))
+		histMetric := histMetrics[0]
+		distMetric := histMetrics[1]
+
 		assert.NotNil(t, histMetric)
 		assert.Equal(t, histMetric.Name, "daemon")
 		assert.EqualValues(t, histMetric.Value, 666.0)
 		assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
 
-	select {
-	case distMetric := <-metricOut:
 		assert.NotNil(t, distMetric)
 		assert.Equal(t, distMetric.Name, "dist.daemon")
 		assert.EqualValues(t, distMetric.Value, 666.0)
