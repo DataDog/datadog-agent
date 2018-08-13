@@ -21,9 +21,8 @@ type Agent struct {
 }
 
 // Run returns a running Cluster agent instance
-func Run(mOut chan<- *metrics.MetricSample, eOut chan<- metrics.Event, scOut chan<- metrics.ServiceCheck) (*Agent, error) {
+func Run(mOut chan<- []*metrics.MetricSample, eOut chan<- metrics.Event, scOut chan<- metrics.ServiceCheck) (*Agent, error) {
 	a := Agent{
-		metricOut:       mOut,
 		eventout:        eOut,
 		serviceCheckOut: scOut,
 	}
