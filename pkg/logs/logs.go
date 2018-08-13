@@ -21,7 +21,7 @@ var (
 
 // Start starts logs-agent
 func Start() error {
-	sources, err := config.Build()
+	sources, serverConfig, err := config.Build()
 	if err != nil {
 		// could not parse the configuration
 		return err
@@ -30,7 +30,7 @@ func Start() error {
 	log.Info("Starting logs-agent")
 
 	// setup and start the agent
-	agent = NewAgent(sources)
+	agent = NewAgent(sources, serverConfig)
 	agent.Start()
 
 	// setup the status

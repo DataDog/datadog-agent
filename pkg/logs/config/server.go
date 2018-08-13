@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package sender
+package config
 
 import (
 	"fmt"
@@ -17,8 +17,8 @@ type ServerConfig struct {
 }
 
 // NewServerConfig returns a new server config.
-func NewServerConfig(name string, port int, useSSL bool) ServerConfig {
-	return ServerConfig{
+func NewServerConfig(name string, port int, useSSL bool) *ServerConfig {
+	return &ServerConfig{
 		Name:   name,
 		Port:   port,
 		UseSSL: useSSL,
@@ -26,6 +26,6 @@ func NewServerConfig(name string, port int, useSSL bool) ServerConfig {
 }
 
 // Address returns the address of the server to send logs to.
-func (c ServerConfig) Address() string {
+func (c *ServerConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Name, c.Port)
 }

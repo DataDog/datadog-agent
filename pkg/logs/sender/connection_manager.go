@@ -12,9 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/net/proxy"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 const (
@@ -25,14 +26,14 @@ const (
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	serverConfig ServerConfig
+	serverConfig *config.ServerConfig
 	proxyAddress string
 	mutex        sync.Mutex
 	firstConn    sync.Once
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(serverConfig ServerConfig, proxyAddress string) *ConnectionManager {
+func NewConnectionManager(serverConfig *config.ServerConfig, proxyAddress string) *ConnectionManager {
 	return &ConnectionManager{
 		serverConfig: serverConfig,
 		proxyAddress: proxyAddress,
