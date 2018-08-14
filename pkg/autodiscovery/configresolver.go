@@ -11,138 +11,26 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
-	"sync"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
 
-var (
-	templateVariables = map[string]variableGetter{
-		"host":     getHost,
-		"pid":      getPid,
-		"port":     getPort,
-		"env":      getEnvvar,
-		"hostname": getHostname,
-	}
-)
-
-// ConfigResolver stores services and templates in cache, and matches
-// services it hears about with templates to create valid configs.
-// It is also responsible to send scheduling orders to AutoConfig
-type ConfigResolver struct {
-	ac              *AutoConfig
-	templates       *TemplateCache
-	services        map[string]listeners.Service // entity --> Service
-	adIDToServices  map[string]map[string]bool   // AD id --> services that have it
-	configToService map[string]string            // config digest --> service entity
-	newService      chan listeners.Service
-	delService      chan listeners.Service
-	stop            chan bool
-	health          *health.Handle
-	m               sync.Mutex
+var templateVariables = map[string]variableGetter{
+	"host":     getHost,
+	"pid":      getPid,
+	"port":     getPort,
+	"env":      getEnvvar,
+	"hostname": getHostname,
 }
 
-// NewConfigResolver returns a config resolver
-func newConfigResolver(ac *AutoConfig, tc *TemplateCache) *ConfigResolver {
-	cr := &ConfigResolver{
-		ac:              ac,
-		templates:       tc,
-		services:        make(map[string]listeners.Service),
-		adIDToServices:  make(map[string]map[string]bool),
-		configToService: make(map[string]string),
-		newService:      make(chan listeners.Service),
-		delService:      make(chan listeners.Service),
-		stop:            make(chan bool),
-		health:          health.Register("ad-configresolver"),
-	}
-
-	// start listening
-	cr.listen()
-
-	return cr
-}
-
-// listen waits on services and templates and process them as they come.
-// It can trigger scheduling decisions using its AC reference or just update its cache.
-func (cr *ConfigResolver) listen() {
-	go func() {
-		for {
-			select {
-			case <-cr.stop:
-				cr.health.Deregister()
-				return
-			case <-cr.health.C:
-			case svc := <-cr.newService:
-				cr.processNewService(svc)
-			case svc := <-cr.delService:
-				cr.processDelService(svc)
-			}
-		}
-	}()
-}
-
-// Stop shuts down the config resolver
-func (cr *ConfigResolver) Stop() {
-	cr.stop <- true
-}
-
-// ResolveTemplate attempts to resolve a configuration template using the AD
-// identifiers in the `integration.Config` struct to match a Service.
-//
-// The function might return more than one configuration for a single template,
-// for example when the `ad_identifiers` section of a config.yaml file contains
-// multiple entries, or when more than one Service has the same identifier,
-// e.g. 'redis'.
-//
-// The function might return an empty list in the case the configuration has a
-// list of Autodiscovery identifiers for services that are unknown to the
-// resolver at this moment.
-func (cr *ConfigResolver) ResolveTemplate(tpl integration.Config) []integration.Config {
-	// use a map to dedupe configurations
-	// FIXME: the config digest as the key is currently not reliable
-	resolvedSet := map[string]integration.Config{}
-
-	// go through the AD identifiers provided by the template
-	for _, id := range tpl.ADIdentifiers {
-		// check out whether any service we know has this identifier
-		serviceIds, found := cr.adIDToServices[id]
-		if !found {
-			s := fmt.Sprintf("No service found with this AD identifier: %s", id)
-			errorStats.setResolveWarning(tpl.Name, s)
-			log.Debugf(s)
-			continue
-		}
-
-		for serviceID := range serviceIds {
-			config, err := cr.resolve(tpl, cr.services[serviceID])
-			if err == nil {
-				resolvedSet[config.Digest()] = config
-				continue
-			}
-			err = fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, serviceID, err)
-			errorStats.setResolveWarning(tpl.Name, err.Error())
-			log.Warn(err)
-		}
-	}
-
-	// build the slice of configs to return
-	var resolved []integration.Config
-	for _, v := range resolvedSet {
-		resolved = append(resolved, v)
-	}
-
-	return resolved
-}
+// ConfigResolver resolves configuration against a given service
+type ConfigResolver struct{}
 
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
@@ -184,81 +72,7 @@ func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service)
 		}
 	}
 
-	// store resolved configs in the AC
-	cr.ac.store.setLoadedConfig(resolvedConfig)
-	cr.ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
-	cr.configToService[resolvedConfig.Digest()] = svc.GetEntity()
-	// TODO: harmonize service & entities ID
-	entityName := string(svc.GetEntity())
-	if !strings.Contains(entityName, "://") {
-		entityName = docker.ContainerIDToEntityName(entityName)
-	}
-	cr.ac.store.setTagsHashForService(
-		svc.GetEntity(),
-		tagger.GetEntityHash(entityName),
-	)
-
 	return resolvedConfig, nil
-}
-
-// processNewService takes a service, tries to match it against templates and
-// triggers scheduling events if it finds a valid config for it.
-func (cr *ConfigResolver) processNewService(svc listeners.Service) {
-	cr.m.Lock()
-	defer cr.m.Unlock()
-
-	// in any case, register the service and store its tag hash
-	cr.services[svc.GetEntity()] = svc
-
-	// get all the templates matching service identifiers
-	var templates []integration.Config
-	ADIdentifiers, err := svc.GetADIdentifiers()
-	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
-		return
-	}
-	for _, adID := range ADIdentifiers {
-		// map the AD identifier to this service for reverse lookup
-		if cr.adIDToServices[adID] == nil {
-			cr.adIDToServices[adID] = make(map[string]bool)
-		}
-		cr.adIDToServices[adID][svc.GetEntity()] = true
-		tpls, err := cr.templates.Get(adID)
-		if err != nil {
-			log.Debugf("Unable to fetch templates from the cache: %v", err)
-		}
-		templates = append(templates, tpls...)
-	}
-
-	for _, template := range templates {
-		// resolve the template
-		config, err := cr.resolve(template, svc)
-		if err != nil {
-			s := fmt.Sprintf("Unable to resolve configuration template: %v", err)
-			errorStats.setResolveWarning(template.Name, s)
-			log.Errorf(s)
-			continue
-		}
-		errorStats.removeResolveWarnings(config.Name)
-
-		// set the config origin
-		config.Origin = integration.NewService
-
-		// ask the Collector to schedule the checks
-		cr.ac.schedule([]integration.Config{config})
-	}
-}
-
-// processDelService takes a service, stops its associated checks, and updates the cache
-func (cr *ConfigResolver) processDelService(svc listeners.Service) {
-	cr.m.Lock()
-	defer cr.m.Unlock()
-
-	delete(cr.services, svc.GetEntity())
-	configs := cr.ac.store.getConfigsForService(svc.GetEntity())
-	cr.ac.store.removeConfigsForService(svc.GetEntity())
-	cr.ac.processRemovedConfigs(configs)
-	cr.ac.store.removeTagsHashForService(svc.GetEntity())
 }
 
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {

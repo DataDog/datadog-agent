@@ -55,14 +55,13 @@ type providerDescriptor struct {
 //  - it owns a reference to the `collector.Collector` that it uses to schedule checks when template or container updates warrant them
 //  - it holds a list of `providers.ConfigProvider`s and poll them according to their policy
 //  - it holds a list of `check.Loader`s to load configurations into `Check` objects
-//  - it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events
-//  - it runs the `ConfigResolver` that resolves a configuration template to an actual configuration based on data it extracts from a service that matches it the template
+//  - it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events and listen to them
+//  - it uses the `ConfigResolver` that resolves a configuration template to an actual configuration based on a service matching the template
 //
 // Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
 // meaning that you cannot use it to schedule integrations instances directly.
 type AutoConfig struct {
 	providers          []*providerDescriptor
-	templateCache      *TemplateCache
 	listeners          []listeners.ServiceListener
 	listenerCandidates map[string]listeners.ServiceListenerFactory
 	listenerRetryStop  chan struct{}
@@ -71,7 +70,12 @@ type AutoConfig struct {
 	scheduler          *scheduler.MetaScheduler
 	pollerStop         chan struct{}
 	pollerActive       bool
-	health             *health.Handle
+	healthPolling      *health.Handle
+	listenerActive     bool
+	listenerStop       chan struct{}
+	healthListening    *health.Handle
+	newService         chan listeners.Service
+	delService         chan listeners.Service
 	store              *store
 	m                  sync.RWMutex
 }
@@ -82,24 +86,52 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		providers:          make([]*providerDescriptor, 0, 5),
 		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
 		listenerRetryStop:  nil, // We'll open it if needed
-		templateCache:      NewTemplateCache(),
 		pollerStop:         make(chan struct{}),
-		store:              newStore(),
-		health:             health.Register("ad-autoconfig"),
+		healthPolling:      health.Register("ad-configpolling"),
+		listenerStop:       make(chan struct{}),
+		healthListening:    health.Register("ad-servicelistening"),
+		newService:         make(chan listeners.Service),
+		delService:         make(chan listeners.Service),
+		store:              newStore(NewTemplateCache()),
 		scheduler:          scheduler,
+		configResolver:     &ConfigResolver{},
 	}
-	ac.configResolver = newConfigResolver(ac, ac.templateCache)
+	// We need to listen to the service channels before anything is sent to them
+	ac.startServiceListening()
 	return ac
 }
 
-// StartPolling starts the goroutine responsible for polling the providers
-func (ac *AutoConfig) StartPolling() {
+// StartConfigPolling starts the goroutine responsible for polling the providers
+func (ac *AutoConfig) StartConfigPolling() {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
 	ac.configsPollTicker = time.NewTicker(configsPollIntl)
 	ac.pollConfigs()
 	ac.pollerActive = true
+}
+
+// startServiceListening waits on services and templates and process them as they come.
+// It can trigger scheduling decisions or just update its cache.
+func (ac *AutoConfig) startServiceListening() {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
+	go func() {
+		for {
+			select {
+			case <-ac.listenerStop:
+				ac.healthListening.Deregister()
+				return
+			case <-ac.healthListening.C:
+			case svc := <-ac.newService:
+				ac.processNewService(svc)
+			case svc := <-ac.delService:
+				ac.processDelService(svc)
+			}
+		}
+	}()
+	ac.listenerActive = true
 }
 
 // Stop just shuts down AutoConfig in a clean way.
@@ -109,19 +141,20 @@ func (ac *AutoConfig) Stop() {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
-	// stop the poller if running
+	// stop the config poller if running
 	if ac.pollerActive {
 		ac.pollerStop <- struct{}{}
 		ac.pollerActive = false
 	}
 
+	// stop the service listener if running
+	if ac.listenerActive {
+		ac.listenerStop <- struct{}{}
+		ac.listenerActive = false
+	}
+
 	// stop the meta scheduler
 	ac.scheduler.Stop()
-
-	// stop the config resolver
-	if ac.configResolver != nil {
-		ac.configResolver.Stop()
-	}
 
 	// stop the listener retry logic if running
 	if ac.listenerRetryStop != nil {
@@ -243,12 +276,12 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 
 	if config.IsTemplate() {
 		// store the template in the cache in any case
-		if err := ac.templateCache.Set(config); err != nil {
+		if err := ac.store.templateCache.Set(config); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
 		// try to resolve the template
-		resolvedConfigs := ac.configResolver.ResolveTemplate(config)
+		resolvedConfigs := ac.resolveTemplate(config)
 		if len(resolvedConfigs) == 0 {
 			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
 			errorStats.setResolveWarning(config.Name, e)
@@ -326,7 +359,7 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 			// Init successful, let's start listening
 			log.Infof("%s listener successfully started", name)
 			ac.listeners = append(ac.listeners, listener)
-			listener.Listen(ac.configResolver.newService, ac.configResolver.delService)
+			listener.Listen(ac.newService, ac.delService)
 			delete(ac.listenerCandidates, name)
 		case retry.IsErrWillRetry(err):
 			// Log an info and keep in candidates
@@ -431,15 +464,13 @@ func (ac *AutoConfig) pollConfigs() {
 				if ac.configsPollTicker != nil {
 					ac.configsPollTicker.Stop()
 				}
-				ac.health.Deregister()
+				ac.healthPolling.Deregister()
 				return
-			case <-ac.health.C:
+			case <-ac.healthPolling.C:
 			case <-ac.configsPollTicker.C:
 				// check if services tags are up to date
 				var servicesToRefresh []listeners.Service
-				// locking the configresolver to loop on services
-				ac.configResolver.m.Lock()
-				for _, service := range ac.configResolver.services {
+				for _, service := range ac.store.getServices() {
 					previousHash := ac.store.getTagsHashForService(service.GetEntity())
 					currentHash := tagger.GetEntityHash(service.GetEntity())
 					if currentHash != previousHash {
@@ -450,11 +481,10 @@ func (ac *AutoConfig) pollConfigs() {
 						}
 					}
 				}
-				ac.configResolver.m.Unlock()
 				for _, service := range servicesToRefresh {
 					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
-					ac.configResolver.processDelService(service)
-					ac.configResolver.processNewService(service)
+					ac.processDelService(service)
+					ac.processNewService(service)
 				}
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
@@ -496,13 +526,67 @@ func (ac *AutoConfig) pollConfigs() {
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.scheduler.Unschedule(configs)
 	for _, c := range configs {
-		delete(ac.configResolver.configToService, c.Digest())
 		ac.store.removeLoadedConfig(c)
 		// if the config is a template, remove it from the cache
 		if c.IsTemplate() {
-			ac.templateCache.Del(c)
+			ac.store.templateCache.Del(c)
 		}
 	}
+}
+
+// resolveTemplate attempts to resolve a configuration template using the AD
+// identifiers in the `integration.Config` struct to match a Service.
+//
+// The function might return more than one configuration for a single template,
+// for example when the `ad_identifiers` section of a config.yaml file contains
+// multiple entries, or when more than one Service has the same identifier,
+// e.g. 'redis'.
+//
+// The function might return an empty list in the case the configuration has a
+// list of Autodiscovery identifiers for services that are unknown to the
+// resolver at this moment.
+func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Config {
+	// use a map to dedupe configurations
+	// FIXME: the config digest as the key is currently not reliable
+	resolvedSet := map[string]integration.Config{}
+
+	// go through the AD identifiers provided by the template
+	for _, id := range tpl.ADIdentifiers {
+		// check out whether any service we know has this identifier
+		serviceIds, found := ac.store.getServiceEntitesForADID(id)
+		if !found {
+			s := fmt.Sprintf("No service found with this AD identifier: %s", id)
+			errorStats.setResolveWarning(tpl.Name, s)
+			log.Debugf(s)
+			continue
+		}
+
+		for serviceID := range serviceIds {
+			resolvedConfig, err := ac.configResolver.resolve(tpl, ac.store.getServiceForEntity(serviceID))
+			if err == nil {
+				resolvedSet[resolvedConfig.Digest()] = resolvedConfig
+				// store resolved configs in the AC
+				ac.store.setLoadedConfig(resolvedConfig)
+				ac.store.addConfigForService(serviceID, resolvedConfig)
+				ac.store.setTagsHashForService(
+					serviceID,
+					tagger.GetEntityHash(serviceID),
+				)
+				continue
+			}
+			err = fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, serviceID, err)
+			errorStats.setResolveWarning(tpl.Name, err.Error())
+			log.Warn(err)
+		}
+	}
+
+	// build the slice of configs to return
+	var resolved []integration.Config
+	for _, v := range resolvedSet {
+		resolved = append(resolved, v)
+	}
+
+	return resolved
 }
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
@@ -545,7 +629,7 @@ func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string]integration.Config {
-	return ac.templateCache.GetUnresolvedTemplates()
+	return ac.store.templateCache.GetUnresolvedTemplates()
 }
 
 // check if the descriptor contains the Config passed
@@ -566,4 +650,61 @@ func GetConfigErrors() map[string]string {
 // GetResolveWarnings get the resolve warnings/errors
 func GetResolveWarnings() map[string][]string {
 	return errorStats.getResolveWarnings()
+}
+
+// processNewService takes a service, tries to match it against templates and
+// triggers scheduling events if it finds a valid config for it.
+func (ac *AutoConfig) processNewService(svc listeners.Service) {
+	// in any case, register the service and store its tag hash
+	ac.store.setServiceForEntity(svc, svc.GetEntity())
+	// todo store?
+
+	// get all the templates matching service identifiers
+	var templates []integration.Config
+	ADIdentifiers, err := svc.GetADIdentifiers()
+	if err != nil {
+		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+		return
+	}
+	for _, adID := range ADIdentifiers {
+		// map the AD identifier to this service for reverse lookup
+		ac.store.setADIDForServices(adID, svc.GetEntity())
+		tpls, err := ac.store.templateCache.Get(adID)
+		if err != nil {
+			log.Debugf("Unable to fetch templates from the cache: %v", err)
+		}
+		templates = append(templates, tpls...)
+	}
+	for _, template := range templates {
+		// resolve the template
+		resolvedConfig, err := ac.configResolver.resolve(template, svc)
+		if err != nil {
+			s := fmt.Sprintf("Unable to resolve configuration template: %v", err)
+			errorStats.setResolveWarning(template.Name, s)
+			log.Errorf(s)
+			continue
+		}
+		ac.store.setLoadedConfig(resolvedConfig)
+		ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
+		ac.store.setTagsHashForService(
+			svc.GetEntity(),
+			tagger.GetEntityHash(svc.GetEntity()),
+		)
+		errorStats.removeResolveWarnings(resolvedConfig.Name)
+
+		// set the config origin
+		resolvedConfig.Origin = integration.NewService
+
+		// ask the Collector to schedule the checks
+		ac.schedule([]integration.Config{resolvedConfig})
+	}
+}
+
+// processDelService takes a service, stops its associated checks, and updates the cache
+func (ac *AutoConfig) processDelService(svc listeners.Service) {
+	ac.store.removeServiceForEntity(svc.GetEntity())
+	configs := ac.store.getConfigsForService(svc.GetEntity())
+	ac.store.removeConfigsForService(svc.GetEntity())
+	ac.processRemovedConfigs(configs)
+	ac.store.removeTagsHashForService(svc.GetEntity())
 }

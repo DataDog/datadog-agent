@@ -136,7 +136,7 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 
 func (suite *AutoConfigTestSuite) TestAddProvider() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.StartPolling()
+	ac.StartConfigPolling()
 	assert.Len(suite.T(), ac.providers, 0)
 	mp := &MockProvider{}
 	ac.AddProvider(mp, false)
@@ -177,7 +177,7 @@ func (suite *AutoConfigTestSuite) TestContains() {
 
 func (suite *AutoConfigTestSuite) TestStop() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.StartPolling() // otherwise Stop would block
+	ac.StartConfigPolling() // otherwise Stop would block
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory)
@@ -291,4 +291,26 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 
 func TestAutoConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(AutoConfigTestSuite))
+}
+
+func TestResolveTemplate(t *testing.T) {
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	tpl := integration.Config{
+		Name:          "cpu",
+		ADIdentifiers: []string{"redis"},
+	}
+
+	// no services
+	res := ac.resolveTemplate(tpl)
+	assert.Len(t, res, 0)
+
+	service := dummyService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+		ADIdentifiers: []string{"redis"},
+	}
+	ac.processNewService(&service)
+
+	// there are no template vars but it's ok
+	res = ac.resolveTemplate(tpl)
+	assert.Len(t, res, 1)
 }

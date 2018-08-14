@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 )
 
 // store holds useful mappings for the AD
@@ -17,16 +18,22 @@ type store struct {
 	serviceToTagsHash map[string]string
 	loadedConfigs     map[string]integration.Config
 	nameToJMXMetrics  map[string]integration.Data
+	adIDToServices    map[string]map[string]bool
+	entityToService   map[string]listeners.Service
+	templateCache     *TemplateCache
 	m                 sync.RWMutex
 }
 
 // newStore creates a store
-func newStore() *store {
+func newStore(tc *TemplateCache) *store {
 	s := store{
 		serviceToConfigs:  make(map[string][]integration.Config),
 		serviceToTagsHash: make(map[string]string),
 		loadedConfigs:     make(map[string]integration.Config),
 		nameToJMXMetrics:  make(map[string]integration.Data),
+		adIDToServices:    make(map[string]map[string]bool),
+		entityToService:   make(map[string]listeners.Service),
+		templateCache:     tc,
 	}
 
 	return &s
@@ -112,4 +119,48 @@ func (s *store) getJMXMetricsForConfigName(config string) integration.Data {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	return s.nameToJMXMetrics[config]
+}
+
+func (s *store) getServices() []listeners.Service {
+	s.m.Lock()
+	defer s.m.Unlock()
+	services := []listeners.Service{}
+	for _, service := range s.entityToService {
+		services = append(services, service)
+	}
+	return services
+}
+
+func (s *store) setServiceForEntity(svc listeners.Service, entity string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.entityToService[entity] = svc
+}
+
+func (s *store) getServiceForEntity(entity string) listeners.Service {
+	s.m.Lock()
+	defer s.m.Unlock()
+	return s.entityToService[entity]
+}
+
+func (s *store) removeServiceForEntity(entity string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	delete(s.entityToService, entity)
+}
+
+func (s *store) setADIDForServices(adID string, serviceEntity string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	if s.adIDToServices[adID] == nil {
+		s.adIDToServices[adID] = make(map[string]bool)
+	}
+	s.adIDToServices[adID][serviceEntity] = true
+}
+
+func (s *store) getServiceEntitesForADID(adID string) (map[string]bool, bool) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	services, found := s.adIDToServices[adID]
+	return services, found
 }

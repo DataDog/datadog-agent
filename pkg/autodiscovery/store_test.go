@@ -14,7 +14,7 @@ import (
 )
 
 func TestServiceToConfig(t *testing.T) {
-	s := newStore()
+	s := newStore(NewTemplateCache())
 	service := dummyService{
 		ID:            "a5901276aed1",
 		ADIdentifiers: []string{"redis"},

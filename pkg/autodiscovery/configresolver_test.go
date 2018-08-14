@@ -15,42 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
-
-func TestNewConfigResolver(t *testing.T) {
-	cr := newConfigResolver(nil, nil)
-	assert.NotNil(t, cr)
-}
-
-func TestResolveTemplate(t *testing.T) {
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	tc := NewTemplateCache()
-	cr := newConfigResolver(ac, tc)
-	tpl := integration.Config{
-		Name:          "cpu",
-		ADIdentifiers: []string{"redis"},
-	}
-	// add the template to the cache
-	tc.Set(tpl)
-
-	// no services
-	res := cr.ResolveTemplate(tpl)
-	assert.Len(t, res, 0)
-
-	service := dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-	}
-	cr.processNewService(&service)
-
-	// there are no template vars but it's ok
-	res = cr.ResolveTemplate(tpl)
-	assert.Len(t, res, 1)
-}
 
 func TestParseTemplateVar(t *testing.T) {
 	name, key := parseTemplateVar([]byte("%%host%%"))
@@ -407,10 +375,7 @@ func TestResolve(t *testing.T) {
 			errorString: "yaml: found character that cannot start any token",
 		},
 	}
-	ac := &AutoConfig{
-		store: newStore(),
-	}
-	cr := newConfigResolver(ac, NewTemplateCache())
+	cr := &ConfigResolver{}
 	validTemplates := 0
 
 	for i, tc := range testCases {
@@ -428,10 +393,6 @@ func TestResolve(t *testing.T) {
 				validTemplates++
 			}
 		})
-
-		// Assert the valid configs are stored in the AC and the store
-		assert.Equal(t, validTemplates, len(ac.GetLoadedConfigs()))
-		assert.Equal(t, len(ac.store.getConfigsForService(tc.svc.GetEntity())), validTemplates)
 	}
 }
 
