@@ -2,6 +2,40 @@
 Release Notes
 =============
 
+
+.. _Release Notes_6.4.2:
+
+6.4.2
+=====
+
+.. _Release Notes_6.4.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-08-13
+
+- Please refer to the `6.4.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.2>`_ for the list of changes on the Core Checks.
+
+.. _Release Notes_6.4.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The flare command does not collect the agent container's environment variables anymore
+
+
+.. _Release Notes_6.4.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue with docker tailing on restart of monitored containers.
+  Previously, at each container restart the agent would re submit all logs.
+  Now, on restart we use tracked offsets properly, and as a result submit only
+  new logs
+
+
 .. _Release Notes_6.4.1:
 
 6.4.1
