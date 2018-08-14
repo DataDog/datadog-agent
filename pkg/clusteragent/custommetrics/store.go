@@ -104,8 +104,10 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 	if len(added) == 0 {
 		return nil
 	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.cm == nil {
 		return errNotInitialized
 	}
@@ -146,8 +148,10 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 	if len(deleted) == 0 {
 		return nil
 	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.cm == nil {
 		return errNotInitialized
 	}
@@ -163,16 +167,11 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 // Any replica can safely call this function.
 func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
 	c.mu.Lock()
-	err := c.getConfigMap()
-	c.mu.Unlock()
+	defer c.mu.Unlock()
 
-	if err != nil {
+	if err := c.getConfigMap(); err != nil {
 		return nil, err
 	}
-
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	var metrics []ExternalMetricValue
 	for k, v := range c.cm.Data {
 		if !isExternalMetricValueKey(k) {
