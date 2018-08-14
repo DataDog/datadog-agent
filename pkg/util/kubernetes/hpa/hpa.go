@@ -169,7 +169,8 @@ func (c *HPAWatcherClient) Start() {
 	}()
 }
 
-// gc checks if any hpas have been deleted to clean the store.
+// gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
+// not running) to clean the store.
 func (c *HPAWatcherClient) gc() {
 	log.Debugf("Starting gc run")
 
