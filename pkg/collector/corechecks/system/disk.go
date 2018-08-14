@@ -25,9 +25,7 @@ const (
 	inodeMetric   = "system.fs.inode.%s"
 )
 
-// DiskCheck stores disk-specific additional fields
-type DiskCheck struct {
-	core.CheckBase
+type diskConfig struct {
 	useMount             bool
 	excludedFilesystems  []string
 	excludedDisks        []string
@@ -37,6 +35,12 @@ type DiskCheck struct {
 	allPartitions        bool
 	deviceTagRe          map[*regexp.Regexp][]string
 	customeTags          []string
+}
+
+// DiskCheck stores disk-specific additional fields
+type DiskCheck struct {
+	core.CheckBase
+	cfg *diskConfig
 }
 
 // Run executes the check
@@ -82,14 +86,14 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 			continue
 		}
 
-		tags := make([]string, len(c.customeTags), len(c.customeTags)+2)
-		copy(tags, c.customeTags)
+		tags := make([]string, len(c.cfg.customeTags), len(c.cfg.customeTags)+2)
+		copy(tags, c.cfg.customeTags)
 
-		if c.tagByFilesystem {
+		if c.cfg.tagByFilesystem {
 			tags = append(tags, fmt.Sprintf("filesystem:%s", partition.Fstype))
 		}
 		var deviceName string
-		if c.useMount {
+		if c.cfg.useMount {
 			deviceName = partition.Mountpoint
 		} else {
 			deviceName = partition.Device
@@ -97,7 +101,7 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 
 		// apply device/mountpoint specific tags
-		for re, deviceTags := range c.deviceTagRe {
+		for re, deviceTags := range c.cfg.deviceTagRe {
 			if re != nil && (re.MatchString(partition.Device) || re.MatchString(partition.Mountpoint)) {
 				for _, tag := range deviceTags {
 					tags = append(tags, tag)
@@ -118,12 +122,12 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	}
 	for deviceName, ioCounter := range ioCounters {
 
-		tags := make([]string, len(c.customeTags)+1)
-		copy(tags, c.customeTags)
+		tags := make([]string, len(c.cfg.customeTags)+1)
+		copy(tags, c.cfg.customeTags)
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 
 		// apply device specific tags
-		for re, deviceTags := range c.deviceTagRe {
+		for re, deviceTags := range c.cfg.deviceTagRe {
 			if re != nil && re.MatchString(deviceName) {
 				for _, tag := range deviceTags {
 					tags = append(tags, tag)
@@ -178,7 +182,7 @@ func (c *DiskCheck) excludeDisk(disk disk.PartitionStat) bool {
 
 	// allow empty names if `all_partitions` is `yes` so we can evaluate mountpoints
 	if nameEmpty {
-		if !c.allPartitions {
+		if !c.cfg.allPartitions {
 			return true
 		}
 	} else {
@@ -186,23 +190,23 @@ func (c *DiskCheck) excludeDisk(disk disk.PartitionStat) bool {
 		// This is useful only when `all_partitions` is true and `exclude_disk_re` matches empty strings or `excluded_devices` contains the device
 
 		// device is listed in `excluded_disks`
-		if stringSliceContain(c.excludedDisks, disk.Device) {
+		if stringSliceContain(c.cfg.excludedDisks, disk.Device) {
 			return true
 		}
 
 		// device name matches `excluded_disk_re`
-		if c.excludedDiskRe != nil && c.excludedDiskRe.MatchString(disk.Device) {
+		if c.cfg.excludedDiskRe != nil && c.cfg.excludedDiskRe.MatchString(disk.Device) {
 			return true
 		}
 	}
 
 	// fs is listed in `excluded_filesystems`
-	if stringSliceContain(c.excludedFilesystems, disk.Fstype) {
+	if stringSliceContain(c.cfg.excludedFilesystems, disk.Fstype) {
 		return true
 	}
 
 	// device mountpoint matches `excluded_mountpoint_re`
-	if c.excludedMountpointRe != nil && c.excludedMountpointRe.MatchString(disk.Mountpoint) {
+	if c.cfg.excludedMountpointRe != nil && c.cfg.excludedMountpointRe.MatchString(disk.Mountpoint) {
 		return true
 	}
 
@@ -213,7 +217,7 @@ func (c *DiskCheck) excludeDisk(disk disk.PartitionStat) bool {
 // Configure the disk check
 func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data) error {
 	conf := make(map[interface{}]interface{})
-
+	c.cfg = &diskConfig{}
 	err := yaml.Unmarshal([]byte(data), &conf)
 	if err != nil {
 		return err
@@ -221,25 +225,25 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 
 	useMount, found := conf["use_mount"]
 	if useMount, ok := useMount.(bool); found && ok {
-		c.useMount = useMount
+		c.cfg.useMount = useMount
 	}
 
 	excludedFilesystems, found := conf["excluded_filesystems"]
 	if excludedFilesystems, ok := excludedFilesystems.([]string); found && ok {
-		c.excludedFilesystems = excludedFilesystems
+		c.cfg.excludedFilesystems = excludedFilesystems
 	}
 
 	// Force exclusion of CDROM (iso9660) from disk check
-	c.excludedFilesystems = append(c.excludedFilesystems, "iso9660")
+	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
 
 	excludedDisks, found := conf["excluded_disks"]
 	if excludedDisks, ok := excludedDisks.([]string); found && ok {
-		c.excludedDisks = excludedDisks
+		c.cfg.excludedDisks = excludedDisks
 	}
 
 	excludedDiskRe, found := conf["excluded_disk_re"]
 	if excludedDiskRe, ok := excludedDiskRe.(string); found && ok {
-		c.excludedDiskRe, err = regexp.Compile(excludedDiskRe)
+		c.cfg.excludedDiskRe, err = regexp.Compile(excludedDiskRe)
 		if err != nil {
 			return err
 		}
@@ -247,12 +251,12 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 
 	tagByFilesystem, found := conf["tag_by_filesystem"]
 	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
-		c.tagByFilesystem = tagByFilesystem
+		c.cfg.tagByFilesystem = tagByFilesystem
 	}
 
 	excludedMountpointRe, found := conf["excluded_mountpoint_re"]
 	if excludedMountpointRe, ok := excludedMountpointRe.(string); found && ok {
-		c.excludedMountpointRe, err = regexp.Compile(excludedMountpointRe)
+		c.cfg.excludedMountpointRe, err = regexp.Compile(excludedMountpointRe)
 		if err != nil {
 			return err
 		}
@@ -260,7 +264,7 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 
 	allPartitions, found := conf["all_partitions"]
 	if allPartitions, ok := allPartitions.(bool); found && ok {
-		c.tagByFilesystem = allPartitions
+		c.cfg.allPartitions = allPartitions
 	}
 
 	deviceTagRe, found := conf["device_tag_re"]
@@ -270,16 +274,16 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 			if err != nil {
 				return err
 			}
-			c.deviceTagRe[re] = strings.Split(tags, ",")
+			c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
 		}
 	}
 
 	tags, found := conf["tags"]
 	if tags, ok := tags.([]interface{}); found && ok {
-		c.customeTags = make([]string, 0, len(tags))
+		c.cfg.customeTags = make([]string, 0, len(tags))
 		for _, tag := range tags {
 			if tag, ok := tag.(string); ok {
-				c.customeTags = append(c.customeTags, tag)
+				c.cfg.customeTags = append(c.cfg.customeTags, tag)
 			}
 		}
 	}
