@@ -7,6 +7,7 @@ package flare
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,18 +57,18 @@ func zipEnvvars(tempDir, hostname string) error {
 
 	var b bytes.Buffer
 	if len(envvars) > 0 {
-		b.WriteString("Found the following envvars:\n")
+		fmt.Fprintln(&b, "Found the following envvars:")
 		for _, envvar := range envvars {
-			b.WriteString(envvar)
-			b.WriteString("\n")
+			fmt.Fprintln(&b, " - ", envvar)
 		}
 	} else {
-		b.WriteString("Found no whitelisted envvar\n")
+		fmt.Fprintln(&b, "Found no whitelisted envvar")
 	}
 
-	b.WriteString("\n\nLooked for these envvars:\n")
-	b.WriteString(strings.Join(envvarNameWhitelist, ", "))
-	b.WriteString("\n")
+	fmt.Fprintln(&b, "Looked for these whitelisted envvars:")
+	for _, envvar := range envvarNameWhitelist {
+		fmt.Fprintln(&b, " - ", envvar)
+	}
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
 	w, err := NewRedactingWriter(f, os.ModePerm, true)
