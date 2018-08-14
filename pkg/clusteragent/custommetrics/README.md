@@ -18,9 +18,9 @@ Only the leader replica should add or delete metrics from the store. Any replica
 
 The `configMapStore` always performs operations a local copy of the configmap but `ListAllExternalMetricValues` will always get the most up-to-date configmap from the apiserver before listing the metrics.
 
-#### apiserver requests
+#### Summary of apiserver calls
 
-`NewConfigMapStore`: between 1 and 2 requests
-`SetExternalMetricValues`: 1 request
-`DeleteExternalMetricValues`: 1 request
-`ListAllExternalMetricValues`: 1 request
+`NewConfigMapStore`: between 1 and 2 calls
+`SetExternalMetricValues`: 1 call to update configmap
+`DeleteExternalMetricValues`: 1 call to update configmap
+`ListAllExternalMetricValues`: 1 call to get configmap
