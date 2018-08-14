@@ -22,17 +22,6 @@ from .cluster_agent import integration_tests as dca_integration_tests
 
 PROFILE_COV = "profile.cov"
 
-# List of packages to ignore when running tests on Windows platform
-WIN_PKG_BLACKLIST = [
-    "./pkg\\util\\xc",
-    "./pkg\\util\\container",
-    "./pkg\\util\\kubernetes",
-]
-
-NOTWIN_PKG_BLACKLIST = [
-    "./pkg/util/winutil",
-    "./pkg/util/winutil/pdhutil",
-]
 DEFAULT_TOOL_TARGETS = [
     "./pkg",
     "./cmd",
@@ -45,7 +34,8 @@ DEFAULT_TEST_TARGETS = [
 
 @task()
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
-    race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False, timeout=120):
+    race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
+    cpus=0, timeout=120):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -94,6 +84,9 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
 
     race_opt = ""
     covermode_opt = ""
+    build_cpus_opt = ""
+    if cpus:
+        build_cpus_opt = "-p {}".format(cpus)
     if race:
         race_opt = "-race"
     if coverage:
@@ -105,47 +98,26 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         else:
             covermode_opt = "-covermode=count"
 
-    if coverage:
-        matches = []
-        for target in test_targets:
-            for root, _, filenames in os.walk(target):
-                if fnmatch.filter(filenames, "*.go"):
-                    matches.append(root)
-    else:
-        matches = ["{}/...".format(t) for t in test_targets]
+    matches = ["{}/...".format(t) for t in test_targets]
     print("\n--- Running unit tests:")
-    for match in matches:
-        if sys.platform == 'win32':
-            if match in WIN_PKG_BLACKLIST:
-                print("Skipping blacklisted directory {}\n".format(match))
-                continue
-        else:
-            if match in NOTWIN_PKG_BLACKLIST:
-                print("Skipping blacklisted directory {}\n".format(match))
-                continue
 
-        coverprofile = ""
-        if coverage:
-            profile_tmp = "{}/profile.tmp".format(match)
-            coverprofile = "-coverprofile={}".format(profile_tmp)
-        cmd = 'go test -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
-        cmd += '{race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
-        args = {
-            "go_build_tags": " ".join(build_tags),
-            "gcflags": gcflags,
-            "ldflags": ldflags,
-            "race_opt": race_opt,
-            "covermode_opt": covermode_opt,
-            "coverprofile": coverprofile,
-            "pkg_folder": match,
-            "timeout": timeout,
-        }
-        ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
-
-        if coverage:
-            if os.path.exists(profile_tmp):
-                ctx.run("cat {} | tail -n +2 >> {}".format(profile_tmp, PROFILE_COV))
-                os.remove(profile_tmp)
+    coverprofile = ""
+    if coverage:
+        coverprofile = "-coverprofile={}".format(PROFILE_COV)
+    cmd = 'go test -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
+    cmd += '{build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
+    args = {
+        "go_build_tags": " ".join(build_tags),
+        "gcflags": gcflags,
+        "ldflags": ldflags,
+        "race_opt": race_opt,
+        "build_cpus": build_cpus_opt,
+        "covermode_opt": covermode_opt,
+        "coverprofile": coverprofile,
+        "pkg_folder": ' '.join(matches),
+        "timeout": timeout,
+    }
+    ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
 
     if coverage:
         print("\n--- Test coverage:")
@@ -179,7 +151,7 @@ def lint_teamassignment(ctx):
     # The PR has not been created yet
     else:
         print("PR not yet created, skipping check for team assignment")
-        
+
 @task
 def lint_releasenote(ctx):
     """

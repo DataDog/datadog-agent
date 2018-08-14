@@ -47,7 +47,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: grab go deps
-          command: invoke deps
+          command: inv -e deps
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
@@ -66,7 +66,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --profile --fail-on-fmt
+          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
 
   integration_tests:
     <<: *job_template
@@ -76,7 +76,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: run integration tests
-          command: inv  -e integration-tests --race --remote-docker
+          command: inv -e integration-tests --race --remote-docker
 
   # general linting for PR health  These checks are so short there doesn't seem
   # to be a point in spinning up separate images to run them.  Leave it named
