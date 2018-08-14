@@ -49,8 +49,6 @@ type Store interface {
 	DeleteExternalMetricValues([]ExternalMetricValue) error
 
 	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
-
-	Resync() error
 }
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.
@@ -58,9 +56,8 @@ type configMapStore struct {
 	namespace string
 	name      string
 	client    corev1.CoreV1Interface
-
-	mu sync.RWMutex
-	cm *v1.ConfigMap
+	mu        sync.RWMutex
+	cm        *v1.ConfigMap
 }
 
 // GetConfigmapName returns the name of the ConfigMap used to store the state of the Custom Metrics Provider
@@ -76,14 +73,14 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 		name:      name,
 		client:    client.CoreV1(),
 	}
-	err := store.resync()
+	err := store.getConfigMap()
 	if err == nil {
 		log.Infof("Retrieved the configmap %s", name)
 		return store, nil
 	}
 
 	if !errors.IsNotFound(err) {
-		log.Infof("Error while attempting to fetch the configmap %s: %s", name, err)
+		log.Infof("Error while attempting to fetch the configmap %s: %v", name, err)
 		return nil, err
 	}
 
@@ -107,10 +104,8 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 	if len(added) == 0 {
 		return nil
 	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	if c.cm == nil {
 		return errNotInitialized
 	}
@@ -118,12 +113,11 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 		// Don't panic "assignment to entry in nil map" at init
 		c.cm.Data = make(map[string]string)
 	}
-
 	for _, m := range added {
-		key := strings.Join([]string{"external_metric", m.HPA.Namespace, m.HPA.Name, m.MetricName}, keyDelimeter)
+		key := externalMetricValueKeyFunc(m)
 		toStore, err := json.Marshal(m)
 		if err != nil {
-			log.Debugf("Could not marshal the external metric %v: %s", m, err)
+			log.Debugf("Could not marshal the external metric %v: %v", m, err)
 			continue
 		}
 		c.cm.Data[key] = string(toStore)
@@ -152,38 +146,41 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 	if len(deleted) == 0 {
 		return nil
 	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	if c.cm == nil {
 		return errNotInitialized
 	}
-
 	for _, m := range deleted {
-		key := strings.Join([]string{"external_metric", m.HPA.Namespace, m.HPA.Name, m.MetricName}, keyDelimeter)
+		key := externalMetricValueKeyFunc(m)
 		delete(c.cm.Data, key)
 		log.Debugf("Deleted metric %s for HPA %s/%s from the configmap %s", m.MetricName, m.HPA.Namespace, m.HPA.Name, c.name)
 	}
 	return c.updateConfigMap()
 }
 
-// ListAllExternalMetricValues returns external metrics from the local copy of the configmap.
+// ListAllExternalMetricValues returns the most up-to-date list of external metrics from the configmap.
+// Any replica can safely call this function.
 func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
+	c.mu.Lock()
+	err := c.getConfigMap()
+	c.mu.Unlock()
+
+	if err != nil {
+		return nil, err
+	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if c.cm == nil {
-		return nil, errNotInitialized
-	}
 	var metrics []ExternalMetricValue
 	for k, v := range c.cm.Data {
-		if !strings.HasPrefix(k, "external_metric") {
+		if !isExternalMetricValueKey(k) {
 			continue
 		}
 		m := ExternalMetricValue{}
 		if err := json.Unmarshal([]byte(v), &m); err != nil {
-			log.Debugf("Could not unmarshal the external metric for key %s: %s", k, err)
+			log.Debugf("Could not unmarshal the external metric for key %s: %v", k, err)
 			continue
 		}
 		metrics = append(metrics, m)
@@ -191,19 +188,11 @@ func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, e
 	return metrics, nil
 }
 
-// Resync updates local copy of the configmap with the configmap from the apiserver.
-func (c *configMapStore) Resync() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.resync()
-}
-
-func (c *configMapStore) resync() error {
+func (c *configMapStore) getConfigMap() error {
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Get(c.name, metav1.GetOptions{})
 	if err != nil {
-		log.Infof("Could not get the configmap %s: %s", c.name, err)
+		log.Infof("Could not get the configmap %s: %v", c.name, err)
 		return err
 	}
 	return nil
@@ -213,8 +202,26 @@ func (c *configMapStore) updateConfigMap() error {
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Update(c.cm)
 	if err != nil {
-		log.Infof("Could not update the configmap %s: %s", c.name, err)
+		log.Infof("Could not update the configmap %s: %v", c.name, err)
 		return err
 	}
 	return nil
+}
+
+// externalMetricValueKeyFunc knows how to make keys for storing external metrics. The key
+// is unique for each metric of an HPA. This means that the keys for the same metric from two
+// different HPAs will be different (important for external metrics that may use different labels
+// for the same metric).
+func externalMetricValueKeyFunc(val ExternalMetricValue) string {
+	parts := []string{
+		"external_metric",
+		val.HPA.Namespace,
+		val.HPA.Name,
+		val.MetricName,
+	}
+	return strings.Join(parts, keyDelimeter)
+}
+
+func isExternalMetricValueKey(key string) bool {
+	return strings.HasPrefix(key, "external_metric")
 }
