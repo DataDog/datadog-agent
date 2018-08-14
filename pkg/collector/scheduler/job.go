@@ -73,17 +73,21 @@ func newJobQueue(interval time.Duration) *jobQueue {
 	}
 
 	// compute step for sparse scheduling
-	switch nb % 2 {
-	case 0:
-		step := nb / 2
-		switch step % 2 {
+	if nb <= 2 {
+		jq.sparseStep = uint(1)
+	} else {
+		switch nb % 2 {
 		case 0:
-			jq.sparseStep = uint(step - 1)
+			step := nb / 2
+			switch step % 2 {
+			case 0:
+				jq.sparseStep = uint(step - 1)
+			case 1:
+				jq.sparseStep = uint(step - 2)
+			}
 		case 1:
-			jq.sparseStep = uint(step - 2)
+			jq.sparseStep = uint(nb / 2)
 		}
-	case 1:
-		jq.sparseStep = uint(nb / 2)
 	}
 
 	return jq
@@ -162,7 +166,7 @@ func (jq *jobQueue) process(out chan<- check.Check) bool {
 		log.Debugf("Bucket ticked... current index: %v", jq.currentBucketIdx)
 		jq.mu.Lock()
 		if !jq.lastTick.Equal(time.Time{}) && t.After(jq.lastTick.Add(2*time.Second)) {
-			log.Infof("Previous bucket took over 1sec to schedule. Running behind...")
+			log.Infof("Previous bucket took over %v to schedule. Running behind...", t.Sub(jq.lastTick))
 		}
 		jq.lastTick = t
 		bucket := jq.buckets[jq.currentBucketIdx]
