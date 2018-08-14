@@ -76,6 +76,10 @@ DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
 DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name"}'
 ```
 
+#### Using secret files (BETA)
+
+Integration credentials can be stored in Docker / Kubernetes secrets and used in Autodiscovery templates. See the [setup instructions for the helper script](secrets-helper/README.md) and the [agent documentation](https://github.com/DataDog/datadog-agent/blob/6.4.x/docs/agent/secrets.md) for more information.
+
 #### Ignore containers
 
 You can exclude containers from the metrics collection and autodiscovery, if these are not useful for you. We already exclude Kubernetes and OpenShift `pause` containers by default. See the `datadog.yaml.example` file for more documentation, and examples.
