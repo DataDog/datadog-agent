@@ -230,19 +230,17 @@ func (d *DockerCheck) Run() error {
 		}
 
 		if c.Network != nil {
-			if c.Network != nil {
-				for _, netStat := range c.Network {
-					if netStat.NetworkName == "" {
-						log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
-						continue
-					}
-					ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
-					sender.Rate("docker.net.bytes_sent", float64(netStat.BytesSent), "", ifaceTags)
-					sender.Rate("docker.net.bytes_rcvd", float64(netStat.BytesRcvd), "", ifaceTags)
+			for _, netStat := range c.Network {
+				if netStat.NetworkName == "" {
+					log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+					continue
 				}
-			} else {
-				log.Debugf("Empty network metrics for container %s", c.ID[:12])
+				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
+				sender.Rate("docker.net.bytes_sent", float64(netStat.BytesSent), "", ifaceTags)
+				sender.Rate("docker.net.bytes_rcvd", float64(netStat.BytesRcvd), "", ifaceTags)
 			}
+		} else {
+			log.Debugf("Empty network metrics for container %s", c.ID[:12])
 		}
 
 		if collectingContainerSizeDuringThisRun {
