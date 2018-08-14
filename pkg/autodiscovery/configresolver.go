@@ -89,7 +89,7 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	if ip, ok := hosts[tplVarStr]; ok {
 		return []byte(ip), nil
 	}
-	log.Warnf("Network %q not found, trying bridge IP instead", tplVarStr)
+	log.Debugf("Network %q not found, trying bridge IP instead", tplVarStr)
 
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)

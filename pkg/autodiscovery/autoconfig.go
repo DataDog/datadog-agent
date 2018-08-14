@@ -92,7 +92,7 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		healthListening:    health.Register("ad-servicelistening"),
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
-		store:              newStore(NewTemplateCache()),
+		store:              newStore(),
 		scheduler:          scheduler,
 		configResolver:     &ConfigResolver{},
 	}
@@ -261,6 +261,7 @@ func (ac *AutoConfig) schedule(configs []integration.Config) {
 }
 
 // resolve loads and resolves a given config into a slice of resolved configs
+// and store them in the template cache
 func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 	var configs []integration.Config
 
@@ -288,7 +289,6 @@ func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
 			log.Debug(e)
 			return configs
 		}
-		errorStats.removeResolveWarnings(config.Name)
 
 		// each template can resolve to multiple configs
 		for _, config := range resolvedConfigs {
@@ -562,21 +562,11 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 		}
 
 		for serviceID := range serviceIds {
-			resolvedConfig, err := ac.configResolver.resolve(tpl, ac.store.getServiceForEntity(serviceID))
-			if err == nil {
-				resolvedSet[resolvedConfig.Digest()] = resolvedConfig
-				// store resolved configs in the AC
-				ac.store.setLoadedConfig(resolvedConfig)
-				ac.store.addConfigForService(serviceID, resolvedConfig)
-				ac.store.setTagsHashForService(
-					serviceID,
-					tagger.GetEntityHash(serviceID),
-				)
+			resolvedConfig, err := ac.resolveTemplateForService(tpl, ac.store.getServiceForEntity(serviceID))
+			if err != nil {
 				continue
 			}
-			err = fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, serviceID, err)
-			errorStats.setResolveWarning(tpl.Name, err.Error())
-			log.Warn(err)
+			resolvedSet[resolvedConfig.Digest()] = resolvedConfig
 		}
 	}
 
@@ -587,6 +577,25 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 	}
 
 	return resolved
+}
+
+// resolveTemplateForService calls the config resolver for the template against the service
+// and stores the resolved config and service mapping if successful
+func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
+	resolvedConfig, err := ac.configResolver.resolve(tpl, svc)
+	if err != nil {
+		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetEntity(), err)
+		errorStats.setResolveWarning(tpl.Name, newErr.Error())
+		return tpl, log.Warn(newErr)
+	}
+	ac.store.setLoadedConfig(resolvedConfig)
+	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
+	ac.store.setTagsHashForService(
+		svc.GetEntity(),
+		tagger.GetEntityHash(svc.GetEntity()),
+	)
+	errorStats.removeResolveWarnings(tpl.Name)
+	return resolvedConfig, nil
 }
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
@@ -677,20 +686,10 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	}
 	for _, template := range templates {
 		// resolve the template
-		resolvedConfig, err := ac.configResolver.resolve(template, svc)
+		resolvedConfig, err := ac.resolveTemplateForService(template, svc)
 		if err != nil {
-			s := fmt.Sprintf("Unable to resolve configuration template: %v", err)
-			errorStats.setResolveWarning(template.Name, s)
-			log.Errorf(s)
 			continue
 		}
-		ac.store.setLoadedConfig(resolvedConfig)
-		ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
-		ac.store.setTagsHashForService(
-			svc.GetEntity(),
-			tagger.GetEntityHash(svc.GetEntity()),
-		)
-		errorStats.removeResolveWarnings(resolvedConfig.Name)
 
 		// set the config origin
 		resolvedConfig.Origin = integration.NewService

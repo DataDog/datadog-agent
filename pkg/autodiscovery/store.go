@@ -25,7 +25,7 @@ type store struct {
 }
 
 // newStore creates a store
-func newStore(tc *TemplateCache) *store {
+func newStore() *store {
 	s := store{
 		serviceToConfigs:  make(map[string][]integration.Config),
 		serviceToTagsHash: make(map[string]string),
@@ -33,7 +33,7 @@ func newStore(tc *TemplateCache) *store {
 		nameToJMXMetrics:  make(map[string]integration.Data),
 		adIDToServices:    make(map[string]map[string]bool),
 		entityToService:   make(map[string]listeners.Service),
-		templateCache:     tc,
+		templateCache:     NewTemplateCache(),
 	}
 
 	return &s

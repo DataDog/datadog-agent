@@ -36,7 +36,7 @@ type Service interface {
 // ServiceListener monitors running services and triggers check (un)scheduling
 //
 // It holds a cache of running services, listens to new/killed services and
-// updates its cache, and the ConfigResolver with these events.
+// updates its cache, and the AutoConfig with these events.
 type ServiceListener interface {
 	Listen(newSvc, delSvc chan<- Service)
 	Stop()
