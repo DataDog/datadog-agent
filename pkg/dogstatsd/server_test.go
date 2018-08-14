@@ -198,7 +198,6 @@ func TestUPDReceive(t *testing.T) {
 	case res := <-eventOut:
 		assert.NotNil(t, res)
 	case <-time.After(2 * time.Second):
-		time.Sleep(10 * time.Hour)
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
