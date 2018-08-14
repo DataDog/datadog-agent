@@ -275,8 +275,13 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 	}
 
 	tags, found := conf["tags"]
-	if tags, ok := tags.([]string); found && ok {
-		c.customeTags = tags
+	if tags, ok := tags.([]interface{}); found && ok {
+		c.customeTags = make([]string, 0, len(tags))
+		for _, tag := range tags {
+			if tag, ok := tag.(string); ok {
+				c.customeTags = append(c.customeTags, tag)
+			}
+		}
 	}
 
 	return nil
