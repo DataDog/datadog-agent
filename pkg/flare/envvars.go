@@ -12,51 +12,62 @@ import (
 	"strings"
 )
 
-var envvarPrefixWhitelist = []string{
+var envvarNameWhitelist = []string{
 	// Docker client
-	"DOCKER_API_VERSION=",
-	"DOCKER_CONFIG=",
-	"DOCKER_CERT_PATH=",
-	"DOCKER_HOST=",
-	"DOCKER_TLS_VERIFY=",
-	"HTTP_PROXY=",
-	"HTTPS_PROXY=",
-	"NO_PROXY=",
+	"DOCKER_API_VERSION",
+	"DOCKER_CONFIG",
+	"DOCKER_CERT_PATH",
+	"DOCKER_HOST",
+	"DOCKER_TLS_VERIFY",
+
+	// Proxy settings
+	"HTTP_PROXY",
+	"HTTPS_PROXY",
+	"NO_PROXY",
+	"DD_PROXY_HTTP",
+	"DD_PROXY_HTTPS",
+	"DD_PROXY_NO_PROXY",
 
 	// Go runtime
-	"GOGC=",
-	"GODEBUG=",
-	"GOMAXPROCS=",
-	"GOTRACEBACK=",
+	"GOGC",
+	"GODEBUG",
+	"GOMAXPROCS",
+	"GOTRACEBACK",
 }
 
 func getWhitelistedEnvvars() []string {
-	var vars []string
+	var found []string
 	for _, envvar := range os.Environ() {
-		for _, prefix := range envvarPrefixWhitelist {
-			if strings.HasPrefix(envvar, prefix) {
-				vars = append(vars, envvar)
+		parts := strings.SplitN(envvar, "=", 2)
+		for _, whitelisted := range envvarNameWhitelist {
+			if parts[0] == whitelisted {
+				found = append(found, envvar)
 				continue
 			}
 		}
 	}
-	return vars
+	return found
 }
 
 // zipEnvvars collects whitelisted envvars that can affect the agent's
 // behaviour while not being handled by viper
 func zipEnvvars(tempDir, hostname string) error {
 	envvars := getWhitelistedEnvvars()
-	if len(envvars) == 0 {
-		// Don't create the file if we have nothing
-		return nil
-	}
 
 	var b bytes.Buffer
-	for _, envvar := range envvars {
-		b.WriteString(envvar)
-		b.WriteString("\n")
+	if len(envvars) > 0 {
+		b.WriteString("Found the following envvars:\n")
+		for _, envvar := range envvars {
+			b.WriteString(envvar)
+			b.WriteString("\n")
+		}
+	} else {
+		b.WriteString("Found no whitelisted envvar\n")
 	}
+
+	b.WriteString("\n\nLooked for these envvars:\n")
+	b.WriteString(strings.Join(envvarNameWhitelist, ", "))
+	b.WriteString("\n")
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
 	w, err := NewRedactingWriter(f, os.ModePerm, true)
