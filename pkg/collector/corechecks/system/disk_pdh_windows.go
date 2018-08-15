@@ -48,12 +48,13 @@ func (c *DiskCheck) collectMetrics(sender aggregator.Sender) error {
 		return err
 	}
 	for drive, metrics := range drives {
-		fstype, err := winutil.GetDriveFsType(drive + `\`)
+		driveSlash := drive + `\`
+		fstype, err := winutil.GetDriveFsType(driveSlash)
 		if err != nil {
 			log.Warnf("Unable to get filesystem type of drive: %s", drive)
 		}
 		drive = strings.ToLower(drive)
-		if c.excludeDisk(drive, drive, fstype) {
+		if c.excludeDisk(driveSlash, driveSlash, fstype) {
 			continue
 		}
 
