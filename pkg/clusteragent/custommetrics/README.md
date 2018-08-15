@@ -20,7 +20,7 @@ The `configMapStore` always performs operations on a local copy of the configmap
 
 #### Summary of apiserver calls
 
-`NewConfigMapStore`: between 1 and 2 calls
-`SetExternalMetricValues`: 1 call to update configmap
-`DeleteExternalMetricValues`: 1 call to update configmap
-`ListAllExternalMetricValues`: 1 call to get configmap
+- `NewConfigMapStore`: between 1 and 2 calls
+- `SetExternalMetricValues`: 1 call to update configmap
+- `DeleteExternalMetricValues`: 1 call to update configmap
+- `ListAllExternalMetricValues`: 1 call to get configmap
