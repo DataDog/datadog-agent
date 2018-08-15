@@ -253,5 +253,5 @@ func setLastUpdatedAnnotation(cm *v1.ConfigMap) {
 		// Don't panic "assignment to entry in nil map" at init
 		cm.Annotations = make(map[string]string)
 	}
-	cm.Annotations[storeLastUpdatedAnnotationKey] = time.Now().String()
+	cm.Annotations[storeLastUpdatedAnnotationKey] = time.Now().Format(time.RFC3339)
 }
