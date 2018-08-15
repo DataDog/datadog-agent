@@ -26,7 +26,7 @@ end
 
 def agent_command
   if os == :windows
-    '"C:\\Program Files\\Datadog\\Datadog Agent\\embedded\\agent.exe"'
+    File.join(ENV['ProgramFiles'], 'Datadog\Datadog Agent\embedded\agent.exe')
   else
     "sudo datadog-agent"
   end
@@ -388,14 +388,14 @@ shared_examples_for 'an Agent that is removed' do
     if os != :windows
       agent_path = '/usr/bin/datadog-agent'
     else
-      agent_path = "C:\\Program Files\\Datadog\\Datadog Agent\\embedded\\agent.exe"
+      agent_path = File.join(ENV['ProgramFiles'], 'Datadog\Datadog Agent\embedded\agent.exe')
     end
     expect(File).not_to exist(agent_path)
   end
 
   it 'should remove the trace-agent binary' do
     if os == :windows
-      trace_agent_path = "C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\trace-agent"
+      trace_agent_path = File.join(ENV['ProgramFiles'], 'Datadog\Datadog Agent\bin\agent\trace-agent')
     else
       trace_agent_path = '/opt/datadog-agent/bin/trace-agent'
     end

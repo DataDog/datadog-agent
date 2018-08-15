@@ -13,7 +13,7 @@ The most basic installation is performed by downloading the installer and runnin
 * (cmd shell) `start /wait msiexec /q /i datadog-agent-6-latest.amd64.msi`
 * (powershell) `Start-Process msiexec -ArgumentList '/q /i datadog-agent-6-latest.amd64.msi'` -Wait
 
-This will result in all files being installed, but the agent will _not_ be functional.  This is because the agent won't run without an API_KEY.  This can be accomplished by editing the configuration file, `c:\programdata\datadog\datadog.yaml`.
+This will result in all files being installed, but the agent will _not_ be functional.  This is because the agent won't run without an API_KEY.  This can be accomplished by editing the configuration file, `%ProgramData%\datadog\datadog.yaml`.
 
 ## Installation with options
 

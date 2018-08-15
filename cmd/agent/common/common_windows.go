@@ -38,11 +38,11 @@ var (
 
 const (
 	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "c:\\programdata\\datadog"
+	DefaultConfPath = filepath.Join(os.Getenv("ProgramData"), "datadog")
 	// DefaultLogFile points to the log file that will be used if not configured
-	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
+	DefaultLogFile = filepath.Join(os.Getenv("ProgramData"), "datadog", "logs", "agent.log")
 	// DefaultDCALogFile points to the log file that will be used if not configured
-	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
+	DefaultDCALogFile = filepath.Join(os.Getenv("ProgramData"), "datadog", "logs", "cluster-agent.log")
 )
 
 // EnableLoggingToFile -- set up logging to file
@@ -50,7 +50,7 @@ func EnableLoggingToFile() {
 	seeConfig := `
 <seelog>
 	<outputs>
-		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\agent.log" maxsize="1000000" maxrolls="2" />
+		<rollingfile type="size" filename="` + DefaultLogFile + `" maxsize="1000000" maxrolls="2" />
 	</outputs>
 </seelog>`
 	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))

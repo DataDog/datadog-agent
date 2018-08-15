@@ -6,8 +6,8 @@
 package config
 
 const (
-	defaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
-	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
+	defaultConfdPath            = filepath.Join(os.Getenv("ProgramData"), "Datadog", "conf.d")
+	defaultAdditionalChecksPath = filepath.Join(os.Getenv("ProgramData"), "Datadog", "checks.d")
 	defaultRunPath              = ""
 	defaultSyslogURI            = ""
 	defaultGuiPort              = "5002"

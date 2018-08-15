@@ -21,7 +21,7 @@ var (
 	relPyPath            = pythonBin
 	relConstraintsPath   = filepath.Join("..", constraintsFile)
 	relTufConfigFilePath = filepath.Join("..", tufConfigFile)
-	tufPipCachePath      = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
+	tufPipCachePath      = filepath.Join(os.Getenv("ProgramData"), "Datadog", "repositories", "cache")
 )
 
 func authorizedUser() bool {
