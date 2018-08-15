@@ -9,6 +9,7 @@ package system
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -31,7 +32,7 @@ func (c *DiskCheck) Run() error {
 		return err
 	}
 
-	err = c.collectPartitionMetrics(sender)
+	err = c.collectMetrics(sender)
 	if err != nil {
 		return err
 	}
@@ -40,14 +41,14 @@ func (c *DiskCheck) Run() error {
 	return nil
 }
 
-func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
+func (c *DiskCheck) collectMetrics(sender aggregator.Sender) error {
 	drives, err := c.counter.GetAllValues()
 	if err != nil {
 		return err
 	}
 	for drive, metrics := range drives {
-		fmt.Println("drive", drive)
 		fstype := winutil.GetDriveFsType(drive)
+		drive = strings.ToLower(drive)
 		if c.excludeDisk(drive, drive, fstype) {
 			continue
 		}
@@ -61,21 +62,38 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 
 		tags = append(tags, fmt.Sprintf("device:%s", drive))
 
-		// apply device/mountpoint specific tags
-		for re, deviceTags := range c.cfg.deviceTagRe {
-			if re != nil && re.MatchString(drive) {
-				for _, tag := range deviceTags {
-					tags = append(tags, tag)
-				}
-			}
-		}
-		//metrics := make()
-		//c.sendPartitionMetrics(sender, diskUsage, tags)
+		tags = c.applyDeviceTags(drive, "", tags)
+
+		c.sendMetrics(sender, metrics, tags)
 	}
 
 	return nil
 }
 
+func (c *DiskCheck) sendMetrics(sender aggregator.Sender, metrics map[string]float64, tags []string) {
+	// Disk metrics
+	// For legacy reasons,  the standard unit it kB
+	freePercent := metrics["% Free Space"]
+	free := metrics["Free Megabytes"] * 1024
+	readTimePercent := metrics["% Disk Read Time"]
+	writeTimePercent := metrics["% Disk Write Time"]
+	total := free / freePercent * 100
+
+	sender.Gauge(fmt.Sprintf(diskMetric, "total"), total, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "used"), total-free, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "free"), free, "", tags)
+	// FIXME: 6.x, use percent, a lot more logical than in_use
+	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), (100-freePercent)/100, "", tags)
+
+	// /1000 as psutil returns the value in ms
+	// Rate computes a rate of change between to consecutive check run.
+	// For cumulated time values like read and write times this a ratio between 0 and 1, we want it as a percentage so we *100 in advance
+	sender.Gauge(fmt.Sprintf(diskMetric, "read_time_pct"), readTimePercent, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "write_time_pct"), writeTimePercent, "", tags)
+
+}
+
+// Configure the disk check
 func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data) error {
 	err := c.commonConfigure(data)
 	if err != nil {
