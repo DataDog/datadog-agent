@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
@@ -47,7 +48,10 @@ func (c *DiskCheck) collectMetrics(sender aggregator.Sender) error {
 		return err
 	}
 	for drive, metrics := range drives {
-		fstype := winutil.GetDriveFsType(drive)
+		fstype, err := winutil.GetDriveFsType(drive + `\`)
+		if err != nil {
+			log.Warnf("Unable to get filesystem type of drive: %s", drive)
+		}
 		drive = strings.ToLower(drive)
 		if c.excludeDisk(drive, drive, fstype) {
 			continue
@@ -56,7 +60,7 @@ func (c *DiskCheck) collectMetrics(sender aggregator.Sender) error {
 		tags := make([]string, len(c.cfg.customeTags), len(c.cfg.customeTags)+2)
 		copy(tags, c.cfg.customeTags)
 
-		if c.cfg.tagByFilesystem {
+		if c.cfg.tagByFilesystem && fstype != "" {
 			tags = append(tags, fmt.Sprintf("filesystem:%s", fstype))
 		}
 

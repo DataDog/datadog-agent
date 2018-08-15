@@ -8,13 +8,20 @@
 package winutil
 
 import (
+	"fmt"
+	"regexp"
 	"syscall"
 
 	"golang.org/x/sys/windows"
 )
 
-// GetDriveFsType returns the filesystem name of a drive (ex: "C:")
-func GetDriveFsType(driveName string) string {
+var driveRegexp = regexp.MustCompile("(?i)[a-z]:\\\\")
+
+// GetDriveFsType returns the filesystem name of a drive (ex: "C:\")
+func GetDriveFsType(driveName string) (string, error) {
+	if !driveRegexp.MatchString(driveName) {
+		return "", fmt.Errorf("driveName is not a correct drive name: %s", driveName)
+	}
 	maxLength := uint32(syscall.MAX_PATH + 1)
 	volumeNameBuffer := make([]uint16, maxLength)
 	maximumComponentLength := uint32(0)
@@ -31,6 +38,6 @@ func GetDriveFsType(driveName string) string {
 		maxLength,
 	)
 
-	return syscall.UTF16ToString(fileSystemNameBuffer)
+	return syscall.UTF16ToString(fileSystemNameBuffer), nil
 
 }
