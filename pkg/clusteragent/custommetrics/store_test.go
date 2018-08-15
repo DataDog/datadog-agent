@@ -137,18 +137,16 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			err = store.SetExternalMetricValues(tt.metrics)
 			require.NoError(t, err)
 
-			allMetrics, err := store.ListAllExternalMetricValues()
+			list, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, allMetrics)
+			assert.ElementsMatch(t, tt.expected, list)
 
-			objectRefs := make([]ObjectReference, 0)
-			for _, m := range tt.metrics {
-				objectRefs = append(objectRefs, m.HPA)
-			}
-
-			err = store.Delete(objectRefs)
+			err = store.DeleteExternalMetricValues(list)
 			require.NoError(t, err)
-			assert.Zero(t, len(store.(*configMapStore).cm.Data))
+
+			list, err = store.ListAllExternalMetricValues()
+			require.NoError(t, err)
+			assert.Empty(t, list)
 		})
 	}
 }

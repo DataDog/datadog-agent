@@ -313,7 +313,7 @@ func init() {
 	Datadog.BindEnv("cluster_agent.cmd_port")
 	Datadog.BindEnv("cluster_agent.kubernetes_service_name")
 	BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
-
+	BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	BindEnvAndSetDefault("external_metrics_provider.enabled", false)
 	BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
 	BindEnvAndSetDefault("external_metrics_provider.polling_freq", 30)

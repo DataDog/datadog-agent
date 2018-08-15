@@ -20,4 +20,5 @@ type ExternalMetricValue struct {
 type ObjectReference struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+	UID       string `json:"uid"`
 }
