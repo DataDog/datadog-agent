@@ -13,16 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
-	"github.com/shirou/gopsutil/disk"
 )
 
 // DiskCheck stores disk-specific additional fields
 type DiskCheck struct {
 	core.CheckBase
-	cfg      *diskConfig
-	counters map[string]*pdhutil.PdhCounterSet
+	cfg     *diskConfig
+	counter *pdhutil.PdhCounterSet
 }
 
 // Run executes the check
@@ -36,35 +35,20 @@ func (c *DiskCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	err = c.collectDiskMetrics(sender)
-	if err != nil {
-		return err
-	}
 	sender.Commit()
 
 	return nil
 }
 
 func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
-	partitions, err := disk.Partitions(true)
+	drives, err := c.counter.GetAllValues()
 	if err != nil {
 		return err
 	}
-
-	for _, partition := range partitions {
-		if c.excludeDisk(partition.Mountpoint, partition.Device, partition.Fstype) {
-			continue
-		}
-
-		// Get disk metrics here to be able to exclude on total usage
-		diskUsage, err := disk.Usage(partition.Mountpoint)
-		if err != nil {
-			log.Warnf("Unable to get disk metrics of %s mount point: %s", partition.Mountpoint, err)
-			continue
-		}
-
-		// Exclude disks with total disk size 0
-		if diskUsage.Total == 0 {
+	for drive, metrics := range drives {
+		fmt.Println("drive", drive)
+		fstype := winutil.GetDriveFsType(drive)
+		if c.excludeDisk(drive, drive, fstype) {
 			continue
 		}
 
@@ -72,26 +56,21 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 		copy(tags, c.cfg.customeTags)
 
 		if c.cfg.tagByFilesystem {
-			tags = append(tags, fmt.Sprintf("filesystem:%s", partition.Fstype))
+			tags = append(tags, fmt.Sprintf("filesystem:%s", fstype))
 		}
-		var deviceName string
-		if c.cfg.useMount {
-			deviceName = partition.Mountpoint
-		} else {
-			deviceName = partition.Device
-		}
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+
+		tags = append(tags, fmt.Sprintf("device:%s", drive))
 
 		// apply device/mountpoint specific tags
 		for re, deviceTags := range c.cfg.deviceTagRe {
-			if re != nil && (re.MatchString(partition.Device) || re.MatchString(partition.Mountpoint)) {
+			if re != nil && re.MatchString(drive) {
 				for _, tag := range deviceTags {
 					tags = append(tags, tag)
 				}
 			}
 		}
-
-		c.sendPartitionMetrics(sender, diskUsage, tags)
+		//metrics := make()
+		//c.sendPartitionMetrics(sender, diskUsage, tags)
 	}
 
 	return nil
@@ -103,20 +82,16 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 		return err
 	}
 
-	counternames = []string{
+	counternames := []string{
 		"% Free Space",
 		"Free Megabytes",
 		"% Disk Read Time",
-		"% Disk Write Time"
+		"% Disk Write Time",
 	}
 
-	c.counters = make(map[string]*pdhutil.PdhCounterSet)
-
-	for name := range counternames {
-		c.counters[name], err = pdhutil.GetCounterSet("LogicalDisk", name, "", isDrive)
-		if err != nil {
-			return err
-		}
+	c.counter, err = pdhutil.GetCounterSet("LogicalDisk", counternames, "", isDrive)
+	if err != nil {
+		return err
 	}
 
 	return nil

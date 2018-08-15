@@ -29,10 +29,10 @@ type CounterInstanceVerify func(string) bool
 // PdhCounterSet is the object which represents a pdh counter set.
 type PdhCounterSet struct {
 	className     string
-	counterName   string
+	counterNames  []string
 	query         PDH_HQUERY
-	countermap    map[string]PDH_HCOUNTER // map instance name to counter handle
-	singleCounter PDH_HCOUNTER
+	countermap    map[string][]PDH_HCOUNTER // map instance name to counter handle
+	singleCounter []PDH_HCOUNTER
 }
 
 const singleInstanceKey = "_singleInstance_"
@@ -72,9 +72,9 @@ func makeCounterSetIndexes() error {
 }
 
 // GetCounterSet returns an initialized PDH counter set.
-func GetCounterSet(className string, counterName string, instanceName string, verifyfn CounterInstanceVerify) (*PdhCounterSet, error) {
+func GetCounterSet(className string, counterNames []string, instanceName string, verifyfn CounterInstanceVerify) (*PdhCounterSet, error) {
 	var p PdhCounterSet
-	p.countermap = make(map[string]PDH_HCOUNTER)
+	p.countermap = make(map[string][]PDH_HCOUNTER)
 	var err error
 
 	// the counter index list may be > 1, but for class name, only take the first
@@ -93,7 +93,7 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 		ndx := ndxlist[0]
 		p.className, err = pdhLookupPerfNameByIndex(ndx)
 		if err != nil {
-			return nil, fmt.Errorf("Class name not found: %s", counterName)
+			return nil, fmt.Errorf("Class name not found: %s", counterNames)
 		}
 		log.Debugf("Found class name for %s %s", className, p.className)
 	}
@@ -116,16 +116,22 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 					continue
 				}
 			}
-			path, err := p.MakeCounterPath("", counterName, inst, allcounters)
+			paths, err := p.MakeCounterPath("", counterNames, inst, allcounters)
 			if err != nil {
 				continue
 			}
-			var hc PDH_HCOUNTER
-			winerror = PdhAddCounter(p.query, path, uintptr(0), &hc)
-			if ERROR_SUCCESS != winerror {
-				continue
+			for _, path := range paths {
+				var hc PDH_HCOUNTER
+				winerror = PdhAddCounter(p.query, path, uintptr(0), &hc)
+				if ERROR_SUCCESS != winerror {
+					continue
+				}
+				if hcs, found := p.countermap[inst]; found {
+					p.countermap[inst] = append(hcs, hc)
+				} else {
+					p.countermap[inst] = []PDH_HCOUNTER{hc}
+				}
 			}
-			p.countermap[inst] = hc
 		}
 	} else {
 		if instanceName != "" {
@@ -144,14 +150,20 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 				return nil, fmt.Errorf("Didn't find instance name %s", instanceName)
 			}
 		}
-		path, err := p.MakeCounterPath("", counterName, instanceName, allcounters)
+		paths, err := p.MakeCounterPath("", counterNames, instanceName, allcounters)
 		if err != nil {
 			return nil, err
 		}
-		winerror = PdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)
-		if ERROR_SUCCESS != winerror {
-			return nil, fmt.Errorf("Failed to add single counter %d", winerror)
+		p.singleCounter = make([]PDH_HCOUNTER, 0, len(paths))
+		for _, path := range paths {
+			var hc PDH_HCOUNTER
+			winerror = PdhAddCounter(p.query, path, uintptr(0), &hc)
+			if ERROR_SUCCESS != winerror {
+				return nil, fmt.Errorf("Failed to add single counter %d", winerror)
+			}
+			p.singleCounter = append(p.singleCounter, hc)
 		}
+
 	}
 	// do the initial collect now
 	PdhCollectQueryData(p.query)
@@ -161,7 +173,7 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 // MakeCounterPath creates a counter path from the counter instance and
 // counter name.  Tries all available translated counter indexes from
 // the english name
-func (p *PdhCounterSet) MakeCounterPath(machine, counterName, instanceName string, counters []string) (string, error) {
+func (p *PdhCounterSet) MakeCounterPath(machine string, counterNames []string, instanceName string, counters []string) ([]string, error) {
 	/*
 	   When handling non english versions, the counters don't work quite as documented.
 	   This is because strings like "Bytes Sent/sec" might appear multiple times in the
@@ -172,48 +184,63 @@ func (p *PdhCounterSet) MakeCounterPath(machine, counterName, instanceName strin
 
 	   For more information, see README.md.
 	*/
-	idxList, err := getCounterIndexList(counterName)
-	if err != nil {
-		return "", err
-	}
-	for _, ndx := range idxList {
-		counter, e := pdhLookupPerfNameByIndex(ndx)
-		if e != nil {
-			log.Debugf("Counter index %d not found, skipping", ndx)
-			continue
+	paths := make([]string, 0, len(counterNames))
+	for _, counterName := range counterNames {
+		idxList, err := getCounterIndexList(counterName)
+		if err != nil {
+			return paths, err
 		}
-		// see if the counter we got back is in the list of counters
-		if !stringInSlice(counter, counters) {
-			log.Debugf("counter %s not in counter list", counter)
-			continue
+		var path string
+		for _, ndx := range idxList {
+			counter, e := pdhLookupPerfNameByIndex(ndx)
+			if e != nil {
+				log.Debugf("Counter index %d not found, skipping", ndx)
+				continue
+			}
+			// see if the counter we got back is in the list of counters
+			if !stringInSlice(counter, counters) {
+				log.Debugf("counter %s not in counter list", counter)
+				continue
+			}
+			// check to see if we can create the counter
+			path, err = pdhMakeCounterPath(machine, p.className, instanceName, counter)
+			if err == nil {
+				log.Debugf("Successfully created counter path %s", path)
+				p.counterNames = append(p.counterNames, counter)
+				paths = append(paths, path)
+				break
+			}
+			// else
+			log.Debugf("Unable to create path with %s, trying again", counter)
 		}
-		// check to see if we can create the counter
-		path, err := pdhMakeCounterPath(machine, p.className, instanceName, counter)
 		if err == nil {
-			log.Debugf("Successfully created counter path %s", path)
-			p.counterName = counter
-			return path, nil
+			continue
 		}
-		// else
-		log.Debugf("Unable to create path with %s, trying again", counter)
+		// if we get here, was never able to find a counter path or create a valid
+		// path.  Return failure.
+		log.Warnf("Unable to create counter path for %s %s", counterName, instanceName)
+		return paths, fmt.Errorf("Unable to create counter path %s %s", counterName, instanceName)
 	}
-	// if we get here, was never able to find a counter path or create a valid
-	// path.  Return failure.
-	log.Warnf("Unable to create counter path for %s %s", counterName, instanceName)
-	return "", fmt.Errorf("Unable to create counter path %s %s", counterName, instanceName)
+	return paths, nil
 }
 
 // GetAllValues returns the data associated with each instance in a query.
-func (p *PdhCounterSet) GetAllValues() (values map[string]float64, err error) {
-	values = make(map[string]float64)
+func (p *PdhCounterSet) GetAllValues() (values map[string]map[string]float64, err error) {
+	values = make(map[string]map[string]float64)
 	err = nil
 	PdhCollectQueryData(p.query)
-	if p.singleCounter != PDH_HCOUNTER(0) {
-		values[singleInstanceKey], _ = pdhGetFormattedCounterValueFloat(p.singleCounter)
+	if len(p.singleCounter) != 0 {
+		values[singleInstanceKey] = make(map[string]float64)
+		for i, hcounter := range p.singleCounter {
+			values[singleInstanceKey][p.counterNames[i]], _ = pdhGetFormattedCounterValueFloat(hcounter)
+		}
 		return
 	}
-	for inst, hcounter := range p.countermap {
-		values[inst], err = pdhGetFormattedCounterValueFloat(hcounter)
+	for inst, hcounters := range p.countermap {
+		values[inst] = make(map[string]float64)
+		for i, hcounter := range hcounters {
+			values[inst][p.counterNames[i]], err = pdhGetFormattedCounterValueFloat(hcounter)
+		}
 		if err != nil {
 			return
 		}
@@ -222,13 +249,13 @@ func (p *PdhCounterSet) GetAllValues() (values map[string]float64, err error) {
 }
 
 // GetSingleValue returns the data associated with a single-value counter
-func (p *PdhCounterSet) GetSingleValue() (val float64, err error) {
-	if p.singleCounter == PDH_HCOUNTER(0) {
-		return 0, fmt.Errorf("Not a single-value counter")
+func (p *PdhCounterSet) GetSingleValue() (val map[string]float64, err error) {
+	if len(p.singleCounter) == 0 {
+		return map[string]float64{}, fmt.Errorf("Not a single-value counter")
 	}
 	vals, err := p.GetAllValues()
 	if err != nil {
-		return 0, err
+		return map[string]float64{}, err
 	}
 	return vals[singleInstanceKey], nil
 }

@@ -40,7 +40,7 @@ const (
 type IOCheck struct {
 	core.CheckBase
 	blacklist    *regexp.Regexp
-	counters     map[string]*pdhutil.PdhCounterSet
+	counter      *pdhutil.PdhCounterSet
 	counternames map[string]string
 }
 
@@ -73,14 +73,17 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data) 
 		"Disk Reads/sec":            "system.io.r_s",
 		"Current Disk Queue Length": "system.io.avg_q_sz"}
 
-	c.counters = make(map[string]*pdhutil.PdhCounterSet)
-
-	for name := range c.counternames {
-		c.counters[name], err = pdhutil.GetCounterSet("LogicalDisk", name, "", isDrive)
-		if err != nil {
-			return err
-		}
+	c.counter, err = pdhutil.GetCounterSet("LogicalDisk", []string{
+		"Disk Write Bytes/sec",
+		"Disk Writes/sec",
+		"Disk Read Bytes/sec",
+		"Disk Reads/sec",
+		"Current Disk Queue Length",
+	}, "", isDrive)
+	if err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -91,17 +94,18 @@ func (c *IOCheck) Run() error {
 		return err
 	}
 	var tagbuff bytes.Buffer
-	for cname, cset := range c.counters {
-		vals, err := cset.GetAllValues()
-		if err != nil {
-			fmt.Printf("Error getting values %v\n", err)
-			return err
+
+	counters, err := c.counter.GetAllValues()
+	if err != nil {
+		fmt.Printf("Error getting values %v\n", err)
+		return err
+	}
+	for inst, vals := range counters {
+		if c.blacklist != nil && c.blacklist.MatchString(inst) {
+			log.Debugf("matched drive %s against blacklist; skipping", inst)
+			continue
 		}
-		for inst, val := range vals {
-			if c.blacklist != nil && c.blacklist.MatchString(inst) {
-				log.Debugf("matched drive %s against blacklist; skipping", inst)
-				continue
-			}
+		for cname, val := range vals {
 			tagbuff.Reset()
 			tagbuff.WriteString("device:")
 			tagbuff.WriteString(inst)

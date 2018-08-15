@@ -30,11 +30,12 @@ func (c *fhCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	val, err := c.counter.GetSingleValue()
+	vals, err := c.counter.GetSingleValue()
 	if err != nil {
 		log.Warnf("Error getting handle value %v", err)
 		return err
 	}
+	val := vals["Handle Count"]
 	log.Debugf("Submitting system.fs.file_handles_in_use %v", val)
 	sender.Gauge("system.fs.file_handles.in_use", float64(val), "", nil)
 	sender.Commit()
@@ -44,7 +45,7 @@ func (c *fhCheck) Run() error {
 
 // The check doesn't need configuration
 func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data) (err error) {
-	c.counter, err = pdhutil.GetCounterSet("Process", "Handle Count", "_Total", nil)
+	c.counter, err = pdhutil.GetCounterSet("Process", []string{"Handle Count"}, "_Total", nil)
 	return err
 }
 
