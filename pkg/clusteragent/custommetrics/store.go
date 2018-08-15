@@ -98,7 +98,7 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 	return store, nil
 }
 
-// Add adds metrics in the bundle to the configmap.
+// Add adds metrics in the bundle to the configmap. Only the leader should call this function.
 func (c *configMapStore) Add(bundle *MetricsBundle) error {
 	if bundle.Len() == 0 {
 		return nil
@@ -126,7 +126,7 @@ func (c *configMapStore) Add(bundle *MetricsBundle) error {
 	return c.updateConfigMap()
 }
 
-// Delete deletes metrics in the bundle from the configmap.
+// Delete deletes metrics in the bundle from the configmap. Only the leader should call this function.
 func (c *configMapStore) Delete(bundle *MetricsBundle) error {
 	if bundle.Len() == 0 {
 		return nil
@@ -173,8 +173,8 @@ func (c *configMapStore) doDump() (*MetricsBundle, error) {
 	return bundle, nil
 }
 
-// ResyncAndDump returns an up-to-date bundle of metrics from the configmap.
-// Any replica can safely call this function.
+// ResyncAndDump syncs the local configmap with the apiserver and returns bundle of all
+// metrics in the configmap. Any replica can safely call this function.
 func (c *configMapStore) ResyncAndDump() (*MetricsBundle, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
