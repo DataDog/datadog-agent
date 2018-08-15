@@ -51,6 +51,7 @@ extern "C" UINT __stdcall AddDatadogSecretUser(
 	if ((hLsa = GetPolicyHandle()) == NULL) {
 		goto LExit;
 	}
+    /*
 	if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
 		WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
 		goto LExit;
@@ -68,6 +69,7 @@ extern "C" UINT __stdcall AddDatadogSecretUser(
 		WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
 		goto LExit;
 	}
+    */
 	hr = 0;
 LExit:
 	if (sid) {
