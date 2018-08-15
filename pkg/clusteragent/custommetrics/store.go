@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,6 +26,8 @@ import (
 
 const (
 	keyDelimeter = "-"
+
+	storeLastUpdatedAnnotationKey = "custom-metrics.datadoghq.com/last-updated"
 )
 
 var (
@@ -90,6 +93,8 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 			Namespace: ns,
 		},
 	}
+	setLastUpdatedAnnotation(cm)
+
 	// FIXME: distinguish RBAC error
 	store.cm, err = client.CoreV1().ConfigMaps(ns).Create(cm)
 	if err != nil {
@@ -196,6 +201,7 @@ func (c *configMapStore) getConfigMap() error {
 }
 
 func (c *configMapStore) updateConfigMap() error {
+	setLastUpdatedAnnotation(c.cm)
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Update(c.cm)
 	if err != nil {
@@ -240,4 +246,12 @@ func setStoreStats(store *configMapStore) {
 		}
 	}
 	externalValid.Set(valid)
+}
+
+func setLastUpdatedAnnotation(cm *v1.ConfigMap) {
+	if cm.Annotations == nil {
+		// Don't panic "assignment to entry in nil map" at init
+		cm.Annotations = make(map[string]string)
+	}
+	cm.Annotations[storeLastUpdatedAnnotationKey] = time.Now().String()
 }
