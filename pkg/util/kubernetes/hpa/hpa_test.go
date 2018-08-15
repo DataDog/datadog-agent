@@ -36,7 +36,7 @@ func newFakeConfigMapStore(t *testing.T, ns, name string, metrics []custommetric
 	client := fake.NewSimpleClientset()
 	store, err := custommetrics.NewConfigMapStore(client, ns, name)
 	require.NoError(t, err)
-	err = store.SetExternalMetricValues(metrics)
+	err = store.Add(&custommetrics.MetricsBundle{External: metrics})
 	require.NoError(t, err)
 	return store, client
 }
@@ -109,9 +109,9 @@ func TestHPAWatcherGC(t *testing.T) {
 
 			hpaCl.gc() // force gc to run
 
-			allMetrics, err := store.ListAllExternalMetricValues()
+			bundle, err := store.Dump()
 			require.NoError(t, err)
-			assert.ElementsMatch(t, testCase.expected, allMetrics)
+			assert.ElementsMatch(t, testCase.expected, bundle.External)
 		})
 	}
 }
@@ -165,12 +165,12 @@ func TestHPAWatcherUpdateExternalMetrics(t *testing.T) {
 
 			hpaCl.updateExternalMetrics()
 
-			externalMetrics, err := store.ListAllExternalMetricValues()
+			bundle, err := store.Dump()
 
 			// Timestamps are always set to time.Now() so we cannot assert the value
 			// in a unit test.
 			strippedTs := make([]custommetrics.ExternalMetricValue, 0)
-			for _, m := range externalMetrics {
+			for _, m := range bundle.External {
 				m.Timestamp = 0
 				strippedTs = append(strippedTs, m)
 			}
