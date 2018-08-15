@@ -53,6 +53,10 @@
     <!-- No need to restart Windows after the installation -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
+    <!-- TODO mark as hidden so the value isn't logged -->
+    <Property Id="DDAGENTUSER_PASSWORD" />
+
+
         <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
       same version gets installed "side by side" -->
 
@@ -67,19 +71,6 @@
     <Property Id="DDUSER" Value="ddagentuser"/>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Component Id="CreateDDUser" Guid="fee764e1-d34d-4eca-a259-6818640ce7dd">
-            <util:User
-            CreateUser="yes"
-            FailIfExists="no"
-            LogonAsService="yes"
-            Id="ServiceInstaller"
-            Name="ddagentuser"
-            Password="r3@llyGoodW0rd"
-            RemoveOnUninstall="yes"
-            UpdateIfExists="yes"
-        />
-      </Component>
-
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="APPLICATIONROOTDIRECTORY" Name="Datadog">
           <Directory Id="PROJECTLOCATION" Name="Datadog Agent"/>
@@ -89,12 +80,11 @@
         <Directory Id="APPLICATIONDATADIRECTORY" Name="Datadog">
           <Component Id="conffolder" Guid="e540d2db-f443-4a98-bd72-7ab2654f4ffb">
             <CreateFolder>
-                <util:PermissionEx User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
-                <util:PermissionEx User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
-                <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
-                <util:PermissionEx User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+                <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
+                <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
+                <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
             </CreateFolder>
-          
           </Component>
         </Directory>
       </Directory>
@@ -141,61 +131,61 @@
                      Key="SOFTWARE\Datadog\Datadog Agent"
                      ForceCreateOnInstall="yes"
                      >
-          <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+          <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
           <RegistryValue Name="api_key"
                          Type="string"
                          Value="[APIKEY]">
-            <util:PermissionEx User="[DDUSER]"  GenericAll="yes"  ChangePermission="yes"/>
+            <Permission User="[DDUSER]"  GenericAll="yes"  ChangePermission="yes"/>
           </RegistryValue>
           <RegistryValue Name="tags"
                          Type="string"
                          Value="[TAGS]" >
-            <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+            <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
           </RegistryValue>
           <RegistryValue Name="hostname"
                          Type="string"
                          Value="[HOSTNAME]" >
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
            <RegistryValue Name="proxy_host"
                          Type="string"
                          Value="[PROXY_HOST]">
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_port"
                          Type="string"
                          Value="[PROXY_PORT]" >
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_user"
                          Type="string"
                          Value="[PROXY_USER]">
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_password"
                          Type="string"
                          Value="[PROXY_PASSWORD]" >
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="logs_enabled"
                          Type="string"
                          Value="[LOGS_ENABLED]">
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="apm_enabled"
                          Type="string"
                          Value="[APM_ENABLED]" >
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="process_enabled"
                          Type="string"
                          Value="[PROCESS_ENABLED]">
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                          </RegistryValue>
           <RegistryValue Name="cmd_port"
                          Type="string"
                          Value="[CMD_PORT]" >
-                         <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
         </RegistryKey>
 
@@ -225,7 +215,7 @@
                           Vital="yes"
                           Interactive="no"
                           Account=".\ddagentuser"
-                          Password="r3@llyGoodW0rd">
+                          Password="[DDAGENTUSER_PASSWORD]">
             <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
             <util:ServiceConfig
               FirstFailureActionType='restart'
@@ -395,10 +385,10 @@
                    Location="either"
                    NeverOverwrite="yes">
           <CreateFolder>
-              <util:PermissionEx User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
-              <util:PermissionEx User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
-              <util:PermissionEx User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
-              <util:PermissionEx User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+              <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
+              <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
+              <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+              <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
           </CreateFolder>
         </Component>
       </Directory>
@@ -461,8 +451,10 @@
       </Directory>
     </DirectoryRef>
     <InstallExecuteSequence>
+      <Custom Action='adddduser' Before='CreateFolders'> NOT (REMOVE = "ALL") </Custom>
       <Custom Action='addsecretuser' Before='InstallFiles'> NOT Installed </Custom>
       <Custom Action='delsecretuser' After='DeleteServices'> (NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
+      <Custom Action='enableservices' After='InstallServices'> NOT (REMOVE = "ALL") </Custom>
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
@@ -591,6 +583,8 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
+    <CustomAction Id='enableservices' BinaryKey='wixcadll' DllEntry='EnableServicesForDDUser' Execute='immediate' Return='check'/>
+    <CustomAction Id='adddduser' BinaryKey='wixcadll' DllEntry='CreateOrUpdateDDUser' Execute='immediate' Return='check'/>
     <CustomAction Id='addsecretuser' BinaryKey='wixcadll' DllEntry='AddDatadogSecretUser' Execute='immediate' Return='check'/>
     <CustomAction Id='delsecretuser' BinaryKey='wixcadll' DllEntry='RemoveDatadogSecretUser' Execute='immediate' Return='check'/>
     <Binary Id='wixcadll' SourceFile='$(var.BinFiles)\customaction.dll'/>

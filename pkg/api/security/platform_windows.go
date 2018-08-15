@@ -54,6 +54,7 @@ func saveAuthToken(token, tokenPath string) error {
 			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["Administrators"]),
 			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["System"]),
 			acl.GrantSid(windows.GENERIC_ALL, currUserSid))
+		log.Infof("Wrote auth token acl %v", err)
 	}
 	return err
 }

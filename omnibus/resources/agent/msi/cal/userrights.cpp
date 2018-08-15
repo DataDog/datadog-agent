@@ -171,3 +171,117 @@ bool InitLsaString(
 
 	return TRUE;
 }
+void BuildExplicitAccessWithSid(EXPLICIT_ACCESS_W &data, PSID pSID, DWORD perms, ACCESS_MODE mode, DWORD inheritance) 
+{
+	data.grfAccessPermissions = perms;
+	data.grfAccessMode = mode;
+	data.grfInheritance = inheritance;
+	data.Trustee.pMultipleTrustee = NULL;
+	data.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+	data.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+	data.Trustee.TrusteeType = TRUSTEE_IS_USER;
+	data.Trustee.ptstrName = (LPTSTR)pSID;
+}
+
+int EnableServiceForUser(const std::wstring& service, const std::wstring& user)
+{
+    int ret = 0;
+    SC_HANDLE hscm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS | GENERIC_ALL | READ_CONTROL);
+	if (!hscm) {
+        ret = GetLastError();
+		WcaLog(LOGMSG_STANDARD, "failed to open scm %d\n", ret);
+		return ret;
+	}
+	
+	DWORD dwInfo = 0;
+	BYTE bigbuf[8192];
+	DWORD pcbBytes = 8192;
+	char *ssec = NULL;
+	PSID sid = NULL;
+	PSECURITY_DESCRIPTOR psec = (PSECURITY_DESCRIPTOR)bigbuf;
+	EXPLICIT_ACCESSW ea;
+	memset(&ea, 0, sizeof(EXPLICIT_ACCESSW));
+	PACL pacl = NULL, pNewAcl = NULL;
+	BOOL bDaclDefaulted = FALSE;
+	BOOL bDaclPresent = FALSE;
+	DWORD dwError = 0;
+	SECURITY_DESCRIPTOR sd;
+    std::string asciiservice;
+    toMbcs(asciiservice, service.c_str());
+    WcaLog(LOGMSG_STANDARD, "attempting to open %s", asciiservice.c_str());
+    SC_HANDLE hService = OpenServiceW(hscm, (LPCWSTR)service.c_str(), SERVICE_ALL_ACCESS | READ_CONTROL | WRITE_DAC);
+	if (!hService) {
+		WcaLog(LOGMSG_STANDARD,"Failed to open service %d\n", GetLastError());
+		goto cleanAndReturn;
+	}
+	
+	
+	if (!QueryServiceObjectSecurity(hService, DACL_SECURITY_INFORMATION , psec, 8192, &pcbBytes)) {
+		WcaLog(LOGMSG_STANDARD,"Failed to query security info %d\n", GetLastError());
+		goto cleanAndReturn;
+	}
+	if ((sid = GetSidForUser(NULL, user.c_str())) == NULL) {
+		WcaLog(LOGMSG_STANDARD,"Failed to get sid\n");
+		goto cleanAndReturn;
+	}
+	// Get the DACL...
+
+	if (!GetSecurityDescriptorDacl(psec, &bDaclPresent, &pacl, &bDaclDefaulted))
+	{
+		WcaLog(LOGMSG_STANDARD,"Failed to get security dacl %d \n", GetLastError());
+		goto cleanAndReturn;
+	}
+
+	// Build the ACE.
+
+	BuildExplicitAccessWithSid(ea, sid, SERVICE_START | SERVICE_STOP | READ_CONTROL | DELETE, SET_ACCESS, NO_INHERITANCE);
+
+	dwError = SetEntriesInAcl(1, &ea, pacl, &pNewAcl);
+
+	if (dwError != ERROR_SUCCESS)
+	{
+		WcaLog(LOGMSG_STANDARD,"Failed to set security dacl %d \n", dwError);
+		goto cleanAndReturn;
+	}
+
+
+	// Initialize a NEW Security Descriptor.
+
+	if (!InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION))
+	{
+		WcaLog(LOGMSG_STANDARD,"Failed to initialize security descriptor %d \n", GetLastError());
+		goto cleanAndReturn;
+	}
+
+
+	// Set the new DACL in the Security Descriptor.
+
+	if (!SetSecurityDescriptorDacl(&sd, TRUE, pNewAcl, FALSE))
+	{
+		WcaLog(LOGMSG_STANDARD,"Failed to set security descriptor Dacl %d \n", GetLastError());
+		goto cleanAndReturn;
+	}
+
+
+
+	// Set the new DACL for the service object.
+
+	if (!SetServiceObjectSecurity(hService, DACL_SECURITY_INFORMATION, &sd))
+	{
+		WcaLog(LOGMSG_STANDARD,"Failed to set security object %d \n", GetLastError());
+		goto cleanAndReturn;
+	}
+
+	
+cleanAndReturn:
+	if (hscm) {
+		CloseServiceHandle(hscm);
+	}
+	if (hService) {
+		CloseServiceHandle(hscm);
+	}
+	if (sid) {
+		delete[](BYTE *) sid;
+	}
+    return ret;
+}

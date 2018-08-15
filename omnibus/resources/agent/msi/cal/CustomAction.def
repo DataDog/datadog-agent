@@ -4,3 +4,5 @@ EXPORTS
 	DllMain
 	AddDatadogSecretUser
 	RemoveDatadogSecretUser
+    CreateOrUpdateDDUser
+    EnableServicesForDDUser

@@ -13,6 +13,7 @@
 #include <strsafe.h>
 #include <msiquery.h>
 #include <lmaccess.h>
+#include <lmerr.h>
 
 // std c++ lib
 #include <string>

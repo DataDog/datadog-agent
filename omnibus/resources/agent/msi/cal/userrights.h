@@ -1,7 +1,7 @@
 #pragma once
 bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
 bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
-
+int EnableServiceForUser(const std::wstring& service, const std::wstring& user);
 bool InitLsaString(
 	PLSA_UNICODE_STRING pLsaString,
 	LPCWSTR pwszString);
