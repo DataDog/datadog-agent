@@ -189,18 +189,18 @@ func (c *HPAWatcherClient) gc() {
 	for _, hpa := range list.Items {
 		uids[string(hpa.UID)] = struct{}{}
 	}
-	bundle = &custommetrics.MetricsBundle{}
+	deletedBundle := &custommetrics.MetricsBundle{}
 	for _, em := range emList {
 		if _, ok := uids[em.HPA.UID]; !ok {
-			bundle.External = append(bundle.External, em)
+			deletedBundle.External = append(deletedBundle.External, em)
 		}
 	}
-	if c.store.Delete(bundle); err != nil {
+	if c.store.Delete(deletedBundle); err != nil {
 		log.Errorf("Could not delete the external metrics in the store: %v")
 		return
 	}
 
-	log.Debugf("Done gc run. Deleted %d metrics", len(bundle.External))
+	log.Debugf("Done gc run. Deleted %d metrics", len(deletedBundle.External))
 }
 
 func (c *HPAWatcherClient) updateExternalMetrics() {
@@ -218,7 +218,7 @@ func (c *HPAWatcherClient) updateExternalMetrics() {
 		return
 	}
 
-	bundle = &custommetrics.MetricsBundle{}
+	updatedBundle := &custommetrics.MetricsBundle{}
 	for _, em := range emList {
 		if metav1.Now().Unix()-em.Timestamp <= maxAge && em.Valid {
 			continue
@@ -230,9 +230,9 @@ func (c *HPAWatcherClient) updateExternalMetrics() {
 			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
 		}
 		log.Debugf("Updated the external metric %#v", em)
-		bundle.External = append(bundle.External, em)
+		updatedBundle.External = append(updatedBundle.External, em)
 	}
-	if err = c.store.Add(bundle); err != nil {
+	if err = c.store.Add(updatedBundle); err != nil {
 		log.Errorf("Could not update the external metrics in the store: %s", err.Error())
 	}
 }

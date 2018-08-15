@@ -16,6 +16,8 @@ Only the leader replica should add or delete metrics from the store. Any replica
 
 ### configMapStore
 
+The `configMapStore` store provides simple persistent storage of custom and external metrics. This allows any replica of the Datadog Cluster Agent to serve metrics to the apiserver but still only have the leader replica query Datadog.
+
 The `configMapStore` always performs operations on a local copy of the configmap but `ResyncAndDump` will always get the most up-to-date configmap from the apiserver before returning the metrics.
 
 #### Summary of apiserver calls
