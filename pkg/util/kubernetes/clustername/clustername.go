@@ -22,6 +22,7 @@ func autoDiscoverClustername() {
 	// TODO
 }
 
+// GetClustername returns a k8s cluster name if it exists, either directly specified or autodiscovered
 func GetClustername() string {
 	mutex.Lock()
 	defer mutex.Unlock()
