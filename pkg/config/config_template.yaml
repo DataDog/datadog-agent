@@ -21,14 +21,14 @@ api_key:
 #     - host1
 #     - host2
 
-# Setting this option to "yes" will tell the agent to skip validation of SSL/TLS certificates.
+# Setting this option to "true" will tell the agent to skip validation of SSL/TLS certificates.
 # This may be necessary if the agent is running behind a proxy. See this page for details:
 # https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
-# skip_ssl_validation: no
+# skip_ssl_validation: false
 
-# Setting this option to "yes" will force the agent to only use TLS 1.2 when
+# Setting this option to "true" will force the agent to only use TLS 1.2 when
 # pushing data to the url specified in "dd_url".
-# force_tls_12: no
+# force_tls_12: false
 
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
@@ -167,8 +167,8 @@ api_key:
 {{- if .Dogstatsd }}
 # DogStatsd
 #
-# If you don't want to enable the DogStatsd server, set this option to no
-# use_dogstatsd: yes
+# If you don't want to enable the DogStatsd server, set this option to false
+# use_dogstatsd: true
 #
 # Make sure your client is sending to the same UDP port
 # dogstatsd_port: 8125
@@ -190,10 +190,10 @@ api_key:
 # dogstatsd_buffer_size: 1024
 #
 # Whether dogstatsd should listen to non local UDP traffic
-# dogstatsd_non_local_traffic: no
+# dogstatsd_non_local_traffic: false
 #
 # Publish dogstatsd's internal stats as Go expvars
-# dogstatsd_stats_enable: no
+# dogstatsd_stats_enable: false
 #
 # How many items in the dogstatsd's stats circular buffer
 # dogstatsd_stats_buffer: 10
@@ -303,26 +303,26 @@ api_key:
 # log_level: info
 # log_file: /var/log/datadog/agent.log
 
-# Set to 'yes' to output logs in JSON format
-# log_format_json: no
+# Set to 'true' to output logs in JSON format
+# log_format_json: false
 
-# Set to 'no' to disable logging to stdout
-# log_to_console: yes
+# Set to 'false' to disable logging to stdout
+# log_to_console: true
 
-# Set to 'yes' to disable logging to the log file
-# disable_file_logging: no
+# Set to 'true' to disable logging to the log file
+# disable_file_logging: false
 
-# Set to 'yes' to enable logging to syslog.
+# Set to 'true' to enable logging to syslog.
 #
-# log_to_syslog: no
+# log_to_syslog: false
 #
 # If 'syslog_uri' is left undefined/empty, a local domain socket connection will be attempted
 #
 # syslog_uri:
 #
-# Set to 'yes' to output in an RFC 5424-compliant format
+# Set to 'true' to output in an RFC 5424-compliant format
 #
-# syslog_rfc: no
+# syslog_rfc: false
 #
 # If TLS enabled, you must specify a path to a PEM certificate here
 #
@@ -334,7 +334,7 @@ api_key:
 #
 # If TLS enabled, you may enforce TLS verification here (defaults to true)
 #
-# syslog_tls_verify: yes
+# syslog_tls_verify: true
 #
 {{ end -}}
 {{- if .Autodiscovery }}
@@ -342,14 +342,14 @@ api_key:
 #
 # Change the root directory to look at to get cgroup statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# Default if environment variable "DOCKER_DD_AGENT" is set to "true"
 # "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
 #
 # container_cgroup_root: /host/sys/fs/cgroup/
 #
 # Change the root directory to look at to get proc statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# Default if environment variable "DOCKER_DD_AGENT" is set to "true"
 # "/host/proc" and "/proc" if not.
 #
 # container_proc_root: /host/proc
