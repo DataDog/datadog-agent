@@ -7,8 +7,37 @@ dd_url: https://app.datadoghq.com
 # https://app.datadoghq.com/account/settings
 api_key:
 
+# If you need a proxy to connect to the Internet, provide it here (default:
+# disabled). You can use the 'no_proxy' list to specify hosts that should
+# bypass the proxy. These settings might impact your checks requests, please
+# refer to the specific check documentation for more details. Environment
+# variables HTTP_PROXY, HTTPS_PROXY and NO_PROXY (coma-separated string) will
+# override the values set here. See https://docs.datadoghq.com/agent/proxy/.
+#
+# proxy:
+#   http: http(s)://user:password@proxy_for_http:port
+#   https: http(s)://user:password@proxy_for_https:port
+#   no_proxy:
+#     - host1
+#     - host2
+
+# Setting this option to "yes" will tell the agent to skip validation of SSL/TLS certificates.
+# This may be necessary if the agent is running behind a proxy. See this page for details:
+# https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
+# skip_ssl_validation: no
+
+# Setting this option to "yes" will force the agent to only use TLS 1.2 when
+# pushing data to the url specified in "dd_url".
+# force_tls_12: no
+
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
+
+# Make the agent use "hostname -f" on unix-based systems as a last resort
+# way of determining the hostname instead of Golang "os.Hostname()"
+# This will be enabled by default in version 6.4
+# More information at  https://dtdg.co/flag-hostname-fqdn
+# hostname_fqdn: false
 
 # Set the host's tags (optional)
 # tags:
@@ -16,10 +45,80 @@ api_key:
 #   - env:prod
 #   - role:database
 
+# Histogram and Historate configuration
+#
+# Configure which aggregated value to compute. Possible values are: min, max,
+# median, avg, sum and count.
+#
+# histogram_aggregates: ["max", "median", "avg", "count"]
+#
+# Configure which percentiles will be computed. Must be a list of float
+# between 0 and 1.
+# Warning: percentiles must be specified as yaml strings
+#
+# histogram_percentiles: ["0.95"]
+#
+# Copy histogram values to distributions for true global distributions (in beta)
+# This will increase the number of custom metrics created
+# histogram_copy_to_distribution: false
+#
+# A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
+# histogram_copy_to_distribution_prefix: ""
+
+# Forwarder timeout in seconds
+# forwarder_timeout: 20
+
+# The forwarder retries failed requests. Use this setting to change the
+# maximum length of the forwarder's retry queue (each request in the queue
+# takes no more than 2MB in memory)
+# forwarder_retry_queue_max_size: 30
+
+# The number of workers used by the forwarder. Please note each worker will
+# open an outbound HTTP connection towards Datadog's metrics intake at every
+# flush.
+# forwarder_num_workers: 1
+
+# Collect AWS EC2 custom tags as agent tags
+# collect_ec2_tags: false
+
 # Logging
 #
 # log_level: info
 # log_file: /var/log/datadog/agent.log
+
+# Set to 'yes' to output logs in JSON format
+# log_format_json: no
+
+# Set to 'no' to disable logging to stdout
+# log_to_console: yes
+
+# Set to 'yes' to disable logging to the log file
+# disable_file_logging: no
+
+# Set to 'yes' to enable logging to syslog.
+#
+# log_to_syslog: no
+#
+# If 'syslog_uri' is left undefined/empty, a local domain socket connection will be attempted
+#
+# syslog_uri:
+#
+# Set to 'yes' to output in an RFC 5424-compliant format
+#
+# syslog_rfc: no
+#
+# If TLS enabled, you must specify a path to a PEM certificate here
+#
+# syslog_pem: /path/to/certificate.pem
+#
+# If TLS enabled, you must specify a path to a private key here
+#
+# syslog_key: /path/to/key.pem
+# 
+# If TLS enabled, you may enforce TLS verification here (defaults to true) 
+#
+# syslog_tls_verify: yes 
+#
 
 # Kubernetes apiserver integration
 #
@@ -32,7 +131,7 @@ api_key:
 #
 # In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
 # [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
-# You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of metadata (including service names) to
+# You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
 # ContainerIDs with the following options:
 # kubernetes_collect_metadata_tags: true
 # kubernetes_metadata_tag_update_freq: 300
@@ -48,3 +147,11 @@ api_key:
 # leader_election: false
 # The leader election lease is an integer in seconds.
 # leader_lease_duration: 60
+#
+# Node labels that should be collected and their name in host tags. Off by default.
+# Some of these labels are redundant with metadata collected by
+# cloud provider crawlers (AWS, GCE, Azure)
+#
+# kubernetes_node_labels_as_tags:
+#   kubernetes.io/hostname: nodename
+#   beta.kubernetes.io/os: os
