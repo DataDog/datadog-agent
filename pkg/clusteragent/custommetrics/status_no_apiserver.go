@@ -5,18 +5,11 @@
 
 // +build !kubeapiserver
 
-package status
+package custommetrics
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-func getLeaderElectionDetails() map[string]string {
-	log.Info("Not implemented")
-	return nil
-}
-
-func getDCAStatus() map[string]string {
-	log.Info("Not implemented")
-	return nil
+// GetStatus returns the status info of the Custom Metrics Server.
+func GetStatus() map[string]interface{} {
+	status := make(map[string]interface{})
+	status["Error"] = "The Custom Metrics Server is not enabled"
+	return status
 }
