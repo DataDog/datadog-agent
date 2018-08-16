@@ -92,18 +92,17 @@ func (d *Detector) detectCandidates() {
 	for name, c := range d.candidates {
 		err := c.Detect()
 		if retry.IsErrWillRetry(err) {
-			log.Debugf("will retry collector %s later: %s", name, err)
+			log.Debugf("Will retry collector %s later: %s", name, err)
 			continue // we want to retry later
 		}
+		delete(d.candidates, name)
 		if err != nil {
-			log.Debugf("%s collector cannot detect: %s", name, err)
-			delete(d.candidates, name)
-		} else {
-			log.Infof("%s collector successfully detected", name)
-			d.detected[name] = c
-			foundNew = true
-			delete(d.candidates, name)
+			log.Debugf("Collector %s failed to detect: %s", name, err)
+			continue
 		}
+		log.Infof("Collector %s successfully detected", name)
+		d.detected[name] = c
+		foundNew = true
 	}
 
 	// Skip ordering if we have no new collector
@@ -121,7 +120,6 @@ func (d *Detector) detectCandidates() {
 		}
 		if isPrefered(name, preferred) {
 			preferred = name
-			continue
 		}
 	}
 
@@ -133,13 +131,9 @@ func (d *Detector) detectCandidates() {
 // isPrefered compares a collector by name to the current preferred
 // to determine whether it should be used instead
 func isPrefered(name, current string) bool {
-	// Highest priority first
-	if collectorPriorities[name] > collectorPriorities[current] {
-		return true
+	if collectorPriorities[name] == collectorPriorities[current] {
+		// Alphabetic order if priorities are identical
+		return strings.Compare(current, name) == 1
 	}
-	if collectorPriorities[name] < collectorPriorities[current] {
-		return false
-	}
-	// Alphabetic order to stay stable
-	return strings.Compare(current, name) == 1
+	return collectorPriorities[name] > collectorPriorities[current]
 }

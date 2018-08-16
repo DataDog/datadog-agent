@@ -142,7 +142,6 @@ func parseContainerReadiness(status ContainerStatus, pod *Pod) string {
 
 	if time.Now().Before(probeGraceTime) {
 		return containers.ContainerStartingHealth
-	} else {
-		return containers.ContainerUnhealthy
 	}
+	return containers.ContainerUnhealthy
 }

@@ -26,7 +26,7 @@ func (c *ECSFargateCollector) Detect() error {
 	if ecs.IsFargateInstance() {
 		return nil
 	}
-	return fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
+	return fmt.Errorf("failed to connect to task metadata API")
 }
 
 // List gets all running containers
