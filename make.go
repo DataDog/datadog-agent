@@ -32,9 +32,7 @@ func main() {
 	branch := commandOutput("git", "rev-parse", "--abbrev-ref", "HEAD")
 	go_version := commandOutput(gobin, "version")
 
-	// NB: Starting from Go 1.5, the syntax of these ldflags changes from `-X main.var 'value'` to `-X 'main.var=value'`
-	// For reference see https://github.com/golang/go/issues/12338
-	ldflags := fmt.Sprintf("-X main.buildDate '%s' -X main.gitCommit '%s' -X main.gitBranch '%s' -X main.goVersion '%s'", date, commit, branch, go_version)
+	ldflags := fmt.Sprintf("\"-X main.buildDate='%s' -X=main.gitCommit='%s' -X main.gitBranch='%s' -X main.goVersion='%s'\"", date, commit, branch, go_version)
 
 	cmd := exec.Command(gobin, []string{"build", "-a", "-ldflags", ldflags}...)
 	cmd.Stdout = os.Stdout
