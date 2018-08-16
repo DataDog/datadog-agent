@@ -29,6 +29,10 @@ templates:
           - v2-godeps-{{ .Branch }}-{{ .Revision }}
           - v2-godeps-{{ .Branch }}-
           - v2-godeps-master-
+    - run: &enter_venv
+        name: add virtualenv to bashrc 
+        command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
+
 
 jobs:
   checkout_code:
@@ -46,8 +50,15 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          name: setup virtual env
+          command: virtualenv /go/src/github.com/DataDog/datadog-agent/venv
+      - run: *enter_venv
+      - run:
+          name: setup python deps
+          command: source ./venv/bin/activate && pip install -r requirements.txt
+      - run:
           name: grab go deps
-          command: inv -e deps
+          command: source ./venv/bin/activate && inv deps
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
@@ -55,6 +66,7 @@ jobs:
           key: v2-godeps-{{ .Branch }}-{{ .Revision }}
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
+            - /go/src/github.com/DataDog/datadog-agent/venv
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
@@ -64,6 +76,7 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
+      - run: *enter_venv
       - run:
           name: run unit tests
           command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
@@ -74,6 +87,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
+      - run: *enter_venv
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
@@ -87,6 +101,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
+      - run: *enter_venv
       - run:
           command: inv -e lint-releasenote
           name: run PR check for release note
@@ -100,6 +115,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
+      - run: *enter_venv
       - run:
           name: run filename linting
           command: inv -e lint-filenames
@@ -110,6 +126,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
+      - run: *enter_venv
       - run:
           name: run docker image integration tests
           command: inv -e docker.integration-tests
@@ -119,6 +136,7 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
+      - run: *enter_venv
       - run:
           name: build dogstatsd
           command: inv -e dogstatsd.build --static
@@ -131,6 +149,7 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
+      - run: *enter_venv
       - run:
           name: build puppy
           command: inv -e agent.build --puppy
