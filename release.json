@@ -1,6 +1,6 @@
 {
 	"nightly": {
-		"INTEGRATIONS_CORE_VERSION": "master",
+		"INTEGRATIONS_CORE_VERSION": "antoine/add-clustername-suffix-to-nodenames-in-kubernetes-state",
 		"TRACE_AGENT_VERSION": "master",
 		"PROCESS_AGENT_VERSION": "master",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
