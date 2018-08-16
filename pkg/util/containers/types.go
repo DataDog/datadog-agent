@@ -17,7 +17,6 @@ const (
 )
 
 // Supported container states
->>>>>>> Add kubelet backend for live containers
 const (
 	ContainerUnknownState    string = "unknown"
 	ContainerCreatedState           = "created"
