@@ -125,7 +125,6 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 func (ku *KubeUtil) GetHostname() (string, error) {
 	nodeName, err := ku.getNodename()
 	if err != nil {
-	} else {
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
 
