@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -55,6 +56,19 @@ func GetHostname(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	}
 
 	cStr := C.CString(hostname)
+	pyStr := C.PyString_FromString(cStr)
+	C.free(unsafe.Pointer(cStr))
+	return pyStr
+}
+
+// GetClustername exposes the current clustername (if it exists) of the agent to Python checks.
+// Used as a PyCFunction of type METH_VARARGS mapped to `datadog_agent.get_clustername`.
+// `self` is the module object.
+//export GetClustername
+func GetClustername(self *C.PyObject, args *C.PyObject) *C.PyObject {
+	clustername := clustername.GetClustername()
+
+	cStr := C.CString(clustername)
 	pyStr := C.PyString_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
