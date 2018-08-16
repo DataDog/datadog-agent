@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
     Introduction of a new bucketed scheduler to enable multiple 
     check workers to increase concurrency while spreading the load
