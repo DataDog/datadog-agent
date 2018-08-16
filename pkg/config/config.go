@@ -564,7 +564,7 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 
 // IsContainerized returns whether the Agent is running on a Docker container
 func IsContainerized() bool {
-	return os.Getenv("DOCKER_DD_AGENT") == "yes"
+	return os.Getenv("DOCKER_DD_AGENT") != ""
 }
 
 // FileUsedDir returns the absolute path to the folder containing the config

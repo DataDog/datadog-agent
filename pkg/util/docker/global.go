@@ -109,5 +109,5 @@ func (cfg *ContainerListConfig) GetCacheKey() string {
 
 // IsContainerized returns True if we're running in the docker-dd-agent container.
 func IsContainerized() bool {
-	return os.Getenv("DOCKER_DD_AGENT") == "yes"
+	return os.Getenv("DOCKER_DD_AGENT") != ""
 }
