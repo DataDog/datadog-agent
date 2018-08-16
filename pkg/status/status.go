@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -128,7 +129,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
-	stats["hpaExternal"] = GetHorizontalPodAutoscalingStatus()
+	stats["custommetrics"] = custommetrics.GetStatus()
 
 	return stats, nil
 }

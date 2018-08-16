@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mholt/archiver"
 
@@ -190,7 +191,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 func zipHPAStatus(tempDir, hostname string) error {
 	// Grab the full content of the HPA configmap
 	stats := make(map[string]interface{})
-	stats["hpaExternal"] = status.GetHorizontalPodAutoscalingStatus()
+	stats["custommetrics"] = custommetrics.GetStatus()
 	statsBytes, err := json.Marshal(stats)
 	if err != nil {
 		log.Infof("Error while marshalling the cluster level metadata: %q", err)
