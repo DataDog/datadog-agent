@@ -17,7 +17,7 @@ type Packet struct {
 	Origin   string // Origin container if identified
 }
 
-// Packets is a slice of packet
+// Packets is a slice of packet pointers
 type Packets []*Packet
 
 // StatsdListener opens a communication channel to get statsd packets in.
