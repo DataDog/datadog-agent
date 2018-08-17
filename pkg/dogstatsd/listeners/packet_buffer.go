@@ -42,11 +42,10 @@ func (pb *packetBuffer) flushLoop() {
 func (pb *packetBuffer) append(packet *Packet) {
 	pb.m.Lock()
 	defer pb.m.Unlock()
+	pb.packets = append(pb.packets, packet)
 	if uint(len(pb.packets)) == pb.bufferSize {
 		pb.flush()
 	}
-	pb.packets = append(pb.packets, packet)
-
 }
 
 func (pb *packetBuffer) flush() {
