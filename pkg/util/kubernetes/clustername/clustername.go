@@ -18,19 +18,19 @@ var (
 	mutex       = &sync.Mutex{}
 )
 
-func autoDiscoverClustername() {
+func autoDiscoverClusterName() {
 	// TODO
 }
 
-// GetClustername returns a k8s cluster name if it exists, either directly specified or autodiscovered
-func GetClustername() string {
+// GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
+func GetClusterName() string {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	if !initDone {
 		clusterName = config.Datadog.GetString("cluster_name")
 		if clusterName == "" {
-			autoDiscoverClustername()
+			autoDiscoverClusterName()
 		}
 		initDone = true
 	}

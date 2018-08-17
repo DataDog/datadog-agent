@@ -121,14 +121,14 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
 }
 
-// GetHostname builds a k8s from a hostname and an optional cluster-name
+// GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
 func (ku *KubeUtil) GetHostname() (string, error) {
 	nodeName, err := ku.getNodename()
 	if err != nil {
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
 
-	clusterName := clustername.GetClustername()
+	clusterName := clustername.GetClusterName()
 	if clusterName == "" {
 		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
 		return nodeName, nil
