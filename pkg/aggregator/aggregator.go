@@ -480,9 +480,10 @@ func (agg *BufferedAggregator) run() {
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
 		case samples := <-agg.dogstatsdIn:
+			aggregatorDogstatsdMetricSample.Add(int64(len(samples)))
+			ts := timeNowNano()
 			for _, sample := range samples {
-				aggregatorDogstatsdMetricSample.Add(1)
-				agg.addSample(sample, timeNowNano())
+				agg.addSample(sample, ts)
 			}
 		case ss := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
