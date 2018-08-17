@@ -102,11 +102,13 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		for _, container := range pod.Status.Containers {
 			lowC := append(low, fmt.Sprintf("kube_container_name:%s", container.Name))
 			highC := append(high, fmt.Sprintf("container_id:%s", kubelet.TrimRuntimeFromCID(container.ID)))
+			if container.Name != "" && pod.Metadata.Name != "" {
+				highC = append(highC, fmt.Sprintf("display_container_name:%s_%s", container.Name, pod.Metadata.Name))
+			}
 
-			// FIXME: work on an alternative display name tag
-			// If we submit container_name on docker containers, we will override the one collected from docker itself
+			// REMOVEME: remove when live view / map handles `display_container_name`
 			if !strings.HasPrefix(container.ID, docker.DockerEntityPrefix) {
-				highC = append(highC, fmt.Sprintf("container_name:%s-%s", pod.Metadata.Name, container.Name))
+				highC = append(highC, fmt.Sprintf("container_name:%s_%s", container.Name, pod.Metadata.Name))
 			}
 
 			// check image tag in spec

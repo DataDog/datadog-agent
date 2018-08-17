@@ -100,6 +100,7 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"pod_name:dd-agent-rc-qd876",
+					"display_container_name:dd-agent_dd-agent-rc-qd876",
 				},
 			},
 		},
@@ -331,7 +332,8 @@ func TestParsePods(t *testing.T) {
 				},
 				HighCardTags: []string{
 					"pod_name:redis-master-bpnn6",
-					"container_name:redis-master-bpnn6-redis-master", // Temporary for non-docker containers
+					"container_name:redis-master_redis-master-bpnn6", // Temporary for non-docker containers
+					"display_container_name:redis-master_redis-master-bpnn6",
 					"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
 					"kube_replica_set:redis-master-546dc4865f",
 				},
