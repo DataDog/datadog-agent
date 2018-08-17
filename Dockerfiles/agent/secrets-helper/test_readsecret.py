@@ -14,7 +14,7 @@ class TestListSecretNames(unittest.TestCase):
             list_secret_names("")
 
     def test_invalid_version(self):
-        with self.assertRaisesRegexp(ValueError, "unknown protocol version 2.0"):
+        with self.assertRaisesRegexp(ValueError, "incompatible protocol version 2.0"):
             list_secret_names('{"version": "2.0"}')
 
     def test_not_list(self):
