@@ -342,14 +342,14 @@ api_key:
 #
 # Change the root directory to look at to get cgroup statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set to "true"
+# Default if environment variable "DOCKER_DD_AGENT" is set
 # "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
 #
 # container_cgroup_root: /host/sys/fs/cgroup/
 #
 # Change the root directory to look at to get proc statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set to "true"
+# Default if environment variable "DOCKER_DD_AGENT" is set
 # "/host/proc" and "/proc" if not.
 #
 # container_proc_root: /host/proc
