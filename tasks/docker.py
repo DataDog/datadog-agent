@@ -15,6 +15,14 @@ from .dogstatsd import DOGSTATSD_TAG
 
 
 @task
+def test(ctx):
+    """
+    Run docker tests
+    """
+    ctx.run("python ./Dockerfiles/agent/secrets-helper/test_readsecret.py")
+
+
+@task
 def integration_tests(ctx, skip_image_build=False, skip_build=False):
     """
     Run docker integration tests
