@@ -95,7 +95,7 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	}
 	for deviceName, ioCounter := range ioCounters {
 
-		tags := make([]string, len(c.cfg.customeTags)+1)
+		tags := make([]string, len(c.cfg.customeTags), len(c.cfg.customeTags)+1)
 		copy(tags, c.cfg.customeTags)
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 
