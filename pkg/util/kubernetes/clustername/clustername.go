@@ -6,7 +6,6 @@
 package clustername
 
 import (
-	// "fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
