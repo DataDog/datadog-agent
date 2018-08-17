@@ -54,7 +54,7 @@ func testUDSOriginDetection(t *testing.T) {
 	config.Datadog.Set("dogstatsd_origin_detection", true)
 
 	// Start DSD
-	packetChannel := make(chan []*listeners.Packet)
+	packetChannel := make(chan listeners.Packets)
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	s, err := listeners.NewUDSListener(packetChannel, packetPool)
 	require.Nil(t, err)
