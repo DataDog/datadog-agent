@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add a cluster-name attribute in the agent, to be used in kubernetes clusters so that host aliases are unique.
