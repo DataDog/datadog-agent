@@ -149,7 +149,7 @@ func (c *NTPCheck) Run() error {
 	} else {
 		if int(math.Abs(clockOffset)) > offsetThreshold {
 			serviceCheckStatus = metrics.ServiceCheckCritical
-			serviceCheckMessage = fmt.Sprintf("Offset %v secs higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
+			serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
 		} else {
 			serviceCheckStatus = metrics.ServiceCheckOK
 		}
