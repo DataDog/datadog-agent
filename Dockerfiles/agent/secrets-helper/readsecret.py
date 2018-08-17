@@ -8,8 +8,9 @@ import sys
 
 def list_secret_names(input_json):
     query = json.loads(input_json)
-    if query["version"] != "1.0":
-        raise ValueError("unknown protocol version {}".format(query["version"]))
+    version = query["version"].split(".")
+    if version[0] != "1":
+        raise ValueError("incompatible protocol version {}".format(query["version"]))
 
     names = query["secrets"]
     if type(names) is not list:
