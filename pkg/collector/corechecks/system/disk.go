@@ -131,13 +131,18 @@ func (c *DiskCheck) commonConfigure(data integration.Data) error {
 	}
 
 	deviceTagRe, found := conf["device_tag_re"]
-	if deviceTagRe, ok := deviceTagRe.(map[string]string); found && ok {
+	if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
+		c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
 		for reString, tags := range deviceTagRe {
-			re, err := regexp.Compile(reString)
-			if err != nil {
-				return err
+			if reString, ok := reString.(string); ok {
+				if tags, ok := tags.(string); ok {
+					re, err := regexp.Compile(reString)
+					if err != nil {
+						return err
+					}
+					c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
+				}
 			}
-			c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
 		}
 	}
 
