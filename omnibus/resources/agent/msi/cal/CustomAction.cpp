@@ -7,6 +7,7 @@ static std::wstring datadog_key_root = L"SOFTWARE\\" + datadog_path;
 static std::wstring datadog_key_secret_key = L"secrets";
 static std::wstring datadog_key_secrets = L"SOFTWARE\\" + datadog_path + L"\\" + datadog_key_secret_key;
 static std::wstring datadog_acl_key_secrets = L"MACHINE\\" + datadog_key_secrets;
+static std::wstring datadog_acl_key_datadog = L"MACHINE\\SOFTWARE\\" + datadog_path;
 
 static std::wstring ddAgentUserName(L"ddagentuser");
 static std::wstring ddAgentUserPasswordProperty(L"DDAGENTUSER_PASSWORD");
@@ -19,6 +20,7 @@ int CreateSecretUser(std::wstring& name, std::wstring& comment);
 int CreateDDUser(MSIHANDLE hInstall) ;
 DWORD DeleteUser(std::wstring& name);
 DWORD DeleteSecretsRegKey();
+DWORD changeRegistryAcls(const wchar_t* name);
 
 #ifdef CA_CMD_TEST
 #define LOGMSG_STANDARD 0
@@ -95,7 +97,9 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
 	UINT er = ERROR_SUCCESS;
    	LSA_HANDLE hLsa = NULL;
 	PSID sid = NULL;
-
+    DWORD nErr = 0;
+    LOCALGROUP_MEMBERS_INFO_0 lmi0;
+    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_3));
 
 	// that's helpful.  WcaInitialize Log header silently limited to 32 chars
 	hr = WcaInitialize(hInstall, "CA: CreateOrUpdateDDUser");
@@ -110,6 +114,7 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
 	} 
 
 // change the rights on this user
+    hr = -1;
 	sid = GetSidForUser(NULL, (LPCWSTR)ddAgentUserName.c_str());
 	if (!sid) {
 		goto LExit;
@@ -136,6 +141,17 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
 		WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
 		goto LExit;
 	}
+    // add the user to the "performance monitor users" group
+    lmi0.lgrmi0_sid = sid;
+    nErr = NetLocalGroupAddMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
+    if(nErr == NERR_Success) {
+        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to Performance Monitor Users");
+    } else if (nErr == ERROR_MEMBER_IN_GROUP || nErr == ERROR_MEMBER_IN_ALIAS ) {
+        WcaLog(LOGMSG_STANDARD, "User already in group, continuing %d", nErr);
+    } else {
+        WcaLog(LOGMSG_STANDARD, "Unexpected error adding user to group %d", nErr);
+        goto LExit;
+    }
 	hr = 0;
 LExit:
 	if (sid) {
@@ -199,6 +215,50 @@ extern "C" UINT __stdcall RemoveDatadogSecretUser(MSIHANDLE hInstall) {
 		hr = -1;
 		goto LExit;
 	}
+
+
+LExit:
+	er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+	return WcaFinalize(er);
+
+}
+
+extern "C" UINT __stdcall VerifyDatadogRegistryPerms(MSIHANDLE hInstall) {
+	HRESULT hr = S_OK;
+	UINT er = ERROR_SUCCESS;
+
+	// that's helpful.  WcaInitialize Log header silently limited to 32 chars
+	hr = WcaInitialize(hInstall, "CA: VerifyDDRegPerms");
+	ExitOnFailure(hr, "Failed to initialize");
+
+	WcaLog(LOGMSG_STANDARD, "Initialized.");
+    // make sure the key is there
+    LSTATUS status = 0;
+	HKEY hKey;
+	status = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+		datadog_key_root.c_str(),
+		0, // reserved is zero
+		NULL, // class is null
+		0, // no options
+		KEY_ALL_ACCESS,
+		NULL, // default security descriptor (we'll change this later)
+		&hKey,
+		NULL); // don't care about disposition... 
+	if (ERROR_SUCCESS != status) {
+		WcaLog(LOGMSG_STANDARD, "Couldn't create/open datadog reg key %d", GetLastError());
+		hr = -1;
+        goto LExit;
+	}
+	RegCloseKey(hKey);
+	
+    WcaLog(LOGMSG_STANDARD, "Reg key created, setting perms");
+	if(0 == changeRegistryAcls(datadog_acl_key_datadog.c_str())) {
+        WcaLog(LOGMSG_STANDARD, "registry perms updated");
+        hr = S_OK;
+    } else {
+        WcaLog(LOGMSG_STANDARD, "registry perm update failed");
+        hr = -1;
+    }
 
 
 LExit:
@@ -345,13 +405,18 @@ DWORD changeRegistryAcls(const wchar_t* name) {
 	ExplicitAccess localAdmins;
 	localAdmins.BuildGrantSid(TRUSTEE_IS_GROUP,  GENERIC_ALL | KEY_ALL_ACCESS, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS);
 	
-	ExplicitAccess suser;
-	suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
+	//ExplicitAccess suser;
+	//suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
+
+    ExplicitAccess dduser;
+	dduser.BuildGrantUser(ddAgentUserName.c_str(), GENERIC_ALL | KEY_ALL_ACCESS);
+
 
 	WinAcl acl;
 	acl.AddToArray(localsystem);
-	acl.AddToArray(suser);
+	//acl.AddToArray(suser);
 	acl.AddToArray(localAdmins);
+    acl.AddToArray(dduser);
 
 
 	PACL newAcl = NULL;
@@ -415,7 +480,7 @@ int CreateDDUser(MSIHANDLE hInstall)
                             1003, // according to the docs there's no constant
                             (LPBYTE)&newPassword,
                             NULL);
-    }
+    } 
     if (ret != 0) {
         // failed with some unexpected reason
         WcaLog(LOGMSG_STANDARD, "Failed to create dd agent user");

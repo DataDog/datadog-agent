@@ -129,64 +129,54 @@
       <Component Id="RegisterConfVariables" Guid="e2423815-704d-4f29-af3b-9baf23ef03d6">
         <RegistryKey Root="HKLM"
                      Key="SOFTWARE\Datadog\Datadog Agent"
-                     ForceCreateOnInstall="yes"
                      >
-          <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+
+
           <RegistryValue Name="api_key"
                          Type="string"
                          Value="[APIKEY]">
-            <Permission User="[DDUSER]"  GenericAll="yes"  ChangePermission="yes"/>
           </RegistryValue>
           <RegistryValue Name="tags"
                          Type="string"
                          Value="[TAGS]" >
-            <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
           </RegistryValue>
           <RegistryValue Name="hostname"
                          Type="string"
                          Value="[HOSTNAME]" >
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
            <RegistryValue Name="proxy_host"
                          Type="string"
                          Value="[PROXY_HOST]">
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_port"
                          Type="string"
                          Value="[PROXY_PORT]" >
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_user"
                          Type="string"
                          Value="[PROXY_USER]">
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="proxy_password"
                          Type="string"
                          Value="[PROXY_PASSWORD]" >
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="logs_enabled"
                          Type="string"
                          Value="[LOGS_ENABLED]">
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="apm_enabled"
                          Type="string"
                          Value="[APM_ENABLED]" >
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
           <RegistryValue Name="process_enabled"
                          Type="string"
                          Value="[PROCESS_ENABLED]">
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                          </RegistryValue>
           <RegistryValue Name="cmd_port"
                          Type="string"
                          Value="[CMD_PORT]" >
-                         <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
                        </RegistryValue>
+
         </RegistryKey>
 
       </Component>
@@ -454,7 +444,8 @@
       <Custom Action='adddduser' Before='CreateFolders'> NOT (REMOVE = "ALL") </Custom>
       <Custom Action='addsecretuser' Before='InstallFiles'> NOT Installed </Custom>
       <Custom Action='delsecretuser' After='DeleteServices'> (NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
-      <Custom Action='enableservices' After='InstallServices'> NOT (REMOVE = "ALL") </Custom>
+      <Custom Action='verifyregperms' After='adddduser'> NOT (REMOVE = "ALL") </Custom>
+      <Custom Action='enableservices' Before='InstallFinalize'> NOT (REMOVE = "ALL") </Custom>
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
@@ -583,10 +574,11 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
-    <CustomAction Id='enableservices' BinaryKey='wixcadll' DllEntry='EnableServicesForDDUser' Execute='immediate' Return='check'/>
+    <CustomAction Id='enableservices' BinaryKey='wixcadll' DllEntry='EnableServicesForDDUser' Execute='deferred' Return='check'/>
     <CustomAction Id='adddduser' BinaryKey='wixcadll' DllEntry='CreateOrUpdateDDUser' Execute='immediate' Return='check'/>
     <CustomAction Id='addsecretuser' BinaryKey='wixcadll' DllEntry='AddDatadogSecretUser' Execute='immediate' Return='check'/>
     <CustomAction Id='delsecretuser' BinaryKey='wixcadll' DllEntry='RemoveDatadogSecretUser' Execute='immediate' Return='check'/>
+    <CustomAction Id='verifyregperms' BinaryKey='wixcadll' DllEntry='VerifyDatadogRegistryPerms' Execute='immediate' Return='check'/>
     <Binary Id='wixcadll' SourceFile='$(var.BinFiles)\customaction.dll'/>
     
     <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />

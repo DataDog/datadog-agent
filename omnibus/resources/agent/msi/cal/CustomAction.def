@@ -6,3 +6,4 @@ EXPORTS
 	RemoveDatadogSecretUser
     CreateOrUpdateDDUser
     EnableServicesForDDUser
+    VerifyDatadogRegistryPerms
