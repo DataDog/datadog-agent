@@ -173,7 +173,7 @@ func (c *DiskCheck) applyDeviceTags(device, mountpoint string, tags []string) []
 		if re == nil {
 			continue
 		}
-		if re.MatchString(device) && (mountpoint == "" || re.MatchString(mountpoint)) {
+		if re.MatchString(device) || (mountpoint != "" && re.MatchString(mountpoint)) {
 			for _, tag := range deviceTags {
 				tags = append(tags, tag)
 			}
