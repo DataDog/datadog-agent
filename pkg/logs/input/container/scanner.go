@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewScanner returns a new container scanner.
@@ -21,6 +22,8 @@ func NewScanner(sources *config.LogSources, pp pipeline.Provider, auditor *audit
 			// Fow now, avoid manually scanning docker containers when in a
 			// kubernetes environment, and rely on Kubernetes API.
 			return scanner
+		} else {
+			log.Warn("Can't start kubernetes integration, ", err)
 		}
 		// Append a fake source to collect all logs from all containers.
 		dockerConfig := &config.LogsConfig{
