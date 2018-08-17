@@ -17,6 +17,12 @@ import (
 	"github.com/shirou/gopsutil/disk"
 )
 
+// for testing
+var (
+	diskPartitions = disk.Partitions
+	diskUsage      = disk.Usage
+)
+
 // DiskCheck stores disk-specific additional fields
 type DiskCheck struct {
 	core.CheckBase
@@ -44,7 +50,7 @@ func (c *DiskCheck) Run() error {
 }
 
 func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
-	partitions, err := disk.Partitions(true)
+	partitions, err := diskPartitions(true)
 	if err != nil {
 		return err
 	}
@@ -55,14 +61,14 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 		}
 
 		// Get disk metrics here to be able to exclude on total usage
-		diskUsage, err := disk.Usage(partition.Mountpoint)
+		usage, err := diskUsage(partition.Mountpoint)
 		if err != nil {
 			log.Warnf("Unable to get disk metrics of %s mount point: %s", partition.Mountpoint, err)
 			continue
 		}
 
 		// Exclude disks with total disk size 0
-		if diskUsage.Total == 0 {
+		if usage.Total == 0 {
 			continue
 		}
 
@@ -82,18 +88,18 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 
 		tags = c.applyDeviceTags(partition.Device, partition.Mountpoint, tags)
 
-		c.sendPartitionMetrics(sender, diskUsage, tags)
+		c.sendPartitionMetrics(sender, usage, tags)
 	}
 
 	return nil
 }
 
 func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
-	ioCounters, err := disk.IOCounters()
+	iomap, err := ioCounters()
 	if err != nil {
 		return err
 	}
-	for deviceName, ioCounter := range ioCounters {
+	for deviceName, ioCounter := range iomap {
 
 		tags := make([]string, len(c.cfg.customeTags), len(c.cfg.customeTags)+1)
 		copy(tags, c.cfg.customeTags)
@@ -107,23 +113,23 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	return nil
 }
 
-func (c *DiskCheck) sendPartitionMetrics(sender aggregator.Sender, diskUsage *disk.UsageStat, tags []string) {
+func (c *DiskCheck) sendPartitionMetrics(sender aggregator.Sender, usage *disk.UsageStat, tags []string) {
 	// Disk metrics
 	// For legacy reasons,  the standard unit it kB
-	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(diskUsage.Total)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(diskUsage.Used)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(diskUsage.Free)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), diskUsage.UsedPercent/100, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
 	// Use percent, a lot more logical than in_use
-	sender.Gauge(fmt.Sprintf(diskMetric, "used.percent"), diskUsage.UsedPercent, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "used.percent"), usage.UsedPercent, "", tags)
 
 	// Inodes metrics
-	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(diskUsage.InodesTotal), "", tags)
-	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(diskUsage.InodesUsed), "", tags)
-	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(diskUsage.InodesFree), "", tags)
-	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), diskUsage.InodesUsedPercent/100, "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "total"), float64(usage.InodesTotal), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "used"), float64(usage.InodesUsed), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "free"), float64(usage.InodesFree), "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
 	// Use percent, a lot more logical than in_use
-	sender.Gauge(fmt.Sprintf(inodeMetric, "used.percent"), diskUsage.InodesUsedPercent, "", tags)
+	sender.Gauge(fmt.Sprintf(inodeMetric, "used.percent"), usage.InodesUsedPercent, "", tags)
 
 }
 
