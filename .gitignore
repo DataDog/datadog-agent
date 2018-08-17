@@ -5,6 +5,8 @@ Dockerfiles/dogstatsd/alpine/dogstatsd
 vendor/
 bin/
 /dev/
+__pycache__
+.pytest_cache
 
 **/*.tmp
 **/debug.test
