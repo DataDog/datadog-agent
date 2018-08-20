@@ -71,7 +71,6 @@ type AutoConfig struct {
 	pollerStop         chan struct{}
 	pollerActive       bool
 	healthPolling      *health.Handle
-	listenerActive     bool
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
 	newService         chan listeners.Service
@@ -131,7 +130,6 @@ func (ac *AutoConfig) startServiceListening() {
 			}
 		}
 	}()
-	ac.listenerActive = true
 }
 
 // Stop just shuts down AutoConfig in a clean way.
@@ -147,11 +145,8 @@ func (ac *AutoConfig) Stop() {
 		ac.pollerActive = false
 	}
 
-	// stop the service listener if running
-	if ac.listenerActive {
-		ac.listenerStop <- struct{}{}
-		ac.listenerActive = false
-	}
+	// stop the service listener
+	ac.listenerStop <- struct{}{}
 
 	// stop the meta scheduler
 	ac.scheduler.Stop()
