@@ -244,7 +244,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvcEmpt
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
-func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
+func (suite *clusterAgentSuite) TestGetPodClusterTags() {
 	dca, err := newDummyClusterAgent()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -302,7 +302,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	}
 	for _, testCase := range testSuite {
 		suite.T().Run("", func(t *testing.T) {
-			svc, err := ca.GetKubernetesMetadataNames(testCase.nodeName, testCase.namespace, testCase.podName)
+			svc, err := ca.GetPodClusterTags(testCase.nodeName, testCase.namespace, testCase.podName)
 			t.Logf("svc: %s", svc)
 			require.Nil(t, err, fmt.Sprintf("%v", err))
 			require.Equal(t, len(testCase.expectedSvc), len(svc))

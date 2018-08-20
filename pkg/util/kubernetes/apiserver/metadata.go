@@ -266,8 +266,8 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 	return nil
 }
 
-// GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.
-func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
+// GetPodClusterTags returns a list of cluster-level tags for the specified pod, namespace, and node.
+func GetPodClusterTags(nodeName, ns, podName string) ([]string, error) {
 	var metaList []string
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 

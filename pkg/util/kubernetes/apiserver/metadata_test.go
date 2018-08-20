@@ -428,7 +428,7 @@ func TestMetadataController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for endpoints to sync")
 	}
 
-	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
+	metadataNames, err := GetPodClusterTags(node.Name, pod.Namespace, pod.Name)
 	require.NoError(t, err)
 	assert.Len(t, metadataNames, 1)
 	assert.Contains(t, metadataNames, "kube_service:nginx-1")
@@ -451,7 +451,7 @@ func TestMetadataController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for endpoints to sync")
 	}
 
-	metadataNames, err = GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
+	metadataNames, err = GetPodClusterTags(node.Name, pod.Namespace, pod.Name)
 	require.NoError(t, err)
 	assert.Len(t, metadataNames, 2)
 	assert.Contains(t, metadataNames, "kube_service:nginx-1")

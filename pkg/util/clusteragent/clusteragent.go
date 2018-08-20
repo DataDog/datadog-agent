@@ -191,10 +191,10 @@ func (c *DCAClient) GetVersion() (string, error) {
 	return dcaVersion, nil
 }
 
-// GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
-// Kubernetes metadata.
-func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	const dcaMetadataPath = "api/v1/metadata"
+// GetPodClusterTags queries the Datadog Cluster Agent to get nodeName/podName registered
+// cluster-level tags.
+func (c *DCAClient) GetPodClusterTags(nodeName, ns, podName string) ([]string, error) {
+	const dcaMetadataPath = "api/v1/tags"
 	var metadataNames metadataNames
 	var err error
 
@@ -205,7 +205,7 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 		return nil, fmt.Errorf("namespace is empty")
 	}
 
-	// https://host:port/api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
+	// https://host:port/api/v1/tags/{nodeName}/{ns}/{pod-[0-9a-z]+}
 	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaMetadataPath, nodeName, ns, podName)
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {

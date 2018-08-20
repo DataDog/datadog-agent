@@ -120,9 +120,8 @@ func (c *APIClient) connect() error {
 	return nil
 }
 
-// MetadataMapperBundle maps pod names to associated metadata.
-//
-// It is updated by mapServices in services.go.
+// MetadataMapperBundle contains cluster-level metadata for a node that maps pod names to metadata
+// about the pod. This is used to add cluster-level tags to metrics like the `kube_service` tag.
 type MetadataMapperBundle struct {
 	Services ServicesMapper `json:"services,omitempty"`
 	mapOnIP  bool           // temporary opt-out of the new mapping logic
@@ -414,7 +413,7 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	return result.Into(output)
 }
 
-// StartMetadataController runs the metadata controller to collect cluster metadata. This is
+// StartMetadataController runs the controller to collect cluster-level tags. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
 func StartMetadataController(stopCh chan struct{}) error {
 	var (

@@ -31,9 +31,9 @@ func GetAPIClient() (*APIClient, error) {
 	return nil, nil
 }
 
-// GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
+// GetPodClusterTags returns a list of cluster-level tags for the specified pod, namespace, and node.
+func GetPodClusterTags(nodeName, ns, podName string) ([]string, error) {
+	log.Errorf("GetPodClusterTags not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
 
@@ -47,10 +47,4 @@ func GetMetadataMapBundleOnNode(nodeName string) (map[string]interface{}, error)
 func GetMetadataMapBundleOnAllNodes(_ *APIClient) (map[string]interface{}, error) {
 	log.Errorf("GetMetadataMapBundleOnAllNodes not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
-}
-
-// StartClusterMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
-func (c *APIClient) StartClusterMetadataMapping(_ chan struct{}) {
-	log.Errorf("StartClusterMetadataMapping not implemented %s", ErrNotCompiled.Error())
-	return
 }
