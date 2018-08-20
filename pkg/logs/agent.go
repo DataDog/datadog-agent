@@ -55,7 +55,6 @@ func NewAgent(sources *config.LogSources) *Agent {
 		windowsevent.New(sources, pipelineProvider),
 	}
 	if input, err := container.NewScanner(sources, pipelineProvider, auditor); err == nil {
-		// FIXME: improve input creation
 		inputs = append(inputs, input)
 	}
 

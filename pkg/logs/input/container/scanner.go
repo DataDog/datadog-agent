@@ -17,8 +17,8 @@ import (
 )
 
 // NewScanner returns a new container scanner,
-// by default it returns a docker scanner unless it could not be set up properly ,
-// otherwise returns a kubernetes scanner.
+// by default returns a docker scanner unless it could not be set up properly,
+// in which case returns a kubernetes scanner.
 func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) (restart.Restartable, error) {
 	var scanner restart.Restartable
 	var err error

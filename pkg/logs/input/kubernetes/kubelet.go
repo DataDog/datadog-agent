@@ -26,6 +26,7 @@ const (
 )
 
 // Kubelet looks for new and deleted pods polling the kubelet.
+// This component will be removed as soon as the logs-agent will be plugged to autodiscovery.
 type Kubelet struct {
 	watcher *kubelet.PodWatcher
 	added   chan *kubelet.Pod
