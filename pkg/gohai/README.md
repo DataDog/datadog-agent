@@ -23,10 +23,9 @@ Pipe it through eg. `python -m json.tool` for pretty output.
 
 ## How to build
 
-We use [glide](https://github.com/Masterminds/glide) to pin our dependencies.
+We use [dep](https://github.com/golang/dep) to pin our dependencies. You can choose the most appropriate installation method using the [dep docs](https://golang.github.io/dep/docs/installation.html). After installing dep, you can execute the following to fetch all dependencies and build `gohai`
 ```sh
-go get github.com/Masterminds/glide
-glide install
+dep ensure
 go build
 ```
 
