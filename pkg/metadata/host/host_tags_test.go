@@ -24,7 +24,7 @@ func TestGetEmptyHostTags(t *testing.T) {
 }
 
 func TestGetHostTagsWithSplits(t *testing.T) {
-	config.Datadog.Set("split_tags", map[string]string{"kafka_partition": ","})
+	config.Datadog.Set("tag_value_split_separator", map[string]string{"kafka_partition": ","})
 	config.Datadog.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 	defer config.Datadog.Set("tags", nil)
 
@@ -34,7 +34,7 @@ func TestGetHostTagsWithSplits(t *testing.T) {
 }
 
 func TestGetHostTagsWithoutSplits(t *testing.T) {
-	config.Datadog.Set("split_tags", map[string]string{"kafka_partition": ";"})
+	config.Datadog.Set("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
 	config.Datadog.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 	defer config.Datadog.Set("tags", nil)
 

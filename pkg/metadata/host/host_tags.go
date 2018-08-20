@@ -43,7 +43,7 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 }
 
 func getHostTags() *tags {
-	splits := config.Datadog.GetStringMapString("split_tags")
+	splits := config.Datadog.GetStringMapString("tag_value_split_separator")
 	appendToHostTags := func(old, new []string) []string {
 		return appendAndSplitTags(old, new, splits)
 	}

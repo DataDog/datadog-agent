@@ -25,7 +25,7 @@ func NewTagList() *TagList {
 	return &TagList{
 		lowCardTags:  make(map[string]bool),
 		highCardTags: make(map[string]bool),
-		splitList:    config.Datadog.GetStringMapString("split_tags"),
+		splitList:    config.Datadog.GetStringMapString("tag_value_split_separator"),
 	}
 }
 

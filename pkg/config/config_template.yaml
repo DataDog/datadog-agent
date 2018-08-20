@@ -55,7 +55,7 @@ api_key:
 #  With a raw collected tag "foo:1;2;3
 #  Using the following configuration:
 #
-#    split_tags:
+#    tag_value_split_separator:
 #      foo: ;
 #
 #  will result in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
