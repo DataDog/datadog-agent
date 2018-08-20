@@ -11,11 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
@@ -68,43 +66,6 @@ func GetMeta() *Meta {
 		return x.(*Meta)
 	}
 	return getMeta()
-}
-
-func getHostTags() *tags {
-	hostTags := config.Datadog.GetStringSlice("tags")
-
-	if config.Datadog.GetBool("collect_ec2_tags") {
-		ec2Tags, err := ec2.GetTags()
-		if err != nil {
-			log.Debugf("No EC2 host tags %v", err)
-		} else {
-			hostTags = append(hostTags, ec2Tags...)
-		}
-	}
-
-	k8sTags, err := k8s.GetTags()
-	if err != nil {
-		log.Debugf("No Kubernetes host tags %v", err)
-	} else {
-		hostTags = append(hostTags, k8sTags...)
-	}
-
-	dockerTags, err := docker.GetTags()
-	if err != nil {
-		log.Debugf("No Docker host tags %v", err)
-	} else {
-		hostTags = append(hostTags, dockerTags...)
-	}
-
-	gceTags, err := gce.GetTags()
-	if err != nil {
-		log.Debugf("No GCE host tags %v", err)
-	}
-
-	return &tags{
-		System:              hostTags,
-		GoogleCloudPlatform: gceTags,
-	}
 }
 
 // getPythonVersion returns the version string as provided by the embedded Python
