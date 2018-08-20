@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build systemd
+
 package journald
 
 import (
@@ -22,7 +24,7 @@ type Launcher struct {
 }
 
 // New returns a new Launcher.
-func New(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
+func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
 	return &Launcher{
 		sources:          sources,
 		pipelineProvider: pipelineProvider,

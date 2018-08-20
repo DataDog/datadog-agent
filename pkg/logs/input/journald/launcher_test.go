@@ -22,7 +22,7 @@ func TestShouldStartOnlyOneTailerPerJournal(t *testing.T) {
 		config.NewLogSource("", &config.LogsConfig{Type: config.JournaldType}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.JournaldType}),
 	})
-	launcher := New(sources, pipeline.NewMockProvider(), auditor.NewRegistry())
+	launcher := NewLauncher(sources, pipeline.NewMockProvider(), auditor.NewRegistry())
 
 	// expect only one new tailer
 	launcher.Start()

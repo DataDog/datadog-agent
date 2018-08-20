@@ -27,8 +27,8 @@ type Listeners struct {
 	listeners        []Listener
 }
 
-// New returns an initialized Listeners
-func New(sources *config.LogSources, pipelineProvider pipeline.Provider) *Listeners {
+// NewListener returns an initialized Listeners
+func NewListener(sources *config.LogSources, pipelineProvider pipeline.Provider) *Listeners {
 	return &Listeners{
 		pipelineProvider: pipelineProvider,
 		sources:          sources,
