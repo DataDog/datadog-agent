@@ -13,9 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
-func installClusterCheckEndpoints(r *mux.Router) {
-}
+// installClusterCheckEndpoints not implemented
+func installClusterCheckEndpoints(r *mux.Router) {}
 
 // SetClusterCheckHandler not implemented
-func SetClusterCheckHandler(h *clusterchecks.Handler) {
-}
+func SetClusterCheckHandler(h *clusterchecks.Handler) {}

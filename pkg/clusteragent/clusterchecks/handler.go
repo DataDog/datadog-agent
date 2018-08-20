@@ -20,7 +20,7 @@ const (
 	schedulerName       = "clusterchecks"
 )
 
-// The handler is the glue holding all components for cluster-checks managment
+// The handler is the glue holding all components for cluster-checks management
 type Handler struct {
 	m          sync.Mutex
 	autoconfig *autodiscovery.AutoConfig
