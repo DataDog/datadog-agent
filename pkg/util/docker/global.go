@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -105,9 +104,4 @@ func (cfg *ContainerListConfig) GetCacheKey() string {
 	}
 
 	return cacheKey
-}
-
-// IsContainerized returns True if we're running in the docker-dd-agent container.
-func IsContainerized() bool {
-	return os.Getenv("DOCKER_DD_AGENT") != ""
 }
