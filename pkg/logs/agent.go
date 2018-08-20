@@ -8,7 +8,7 @@ package logs
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
@@ -49,11 +49,14 @@ func NewAgent(sources *config.LogSources) *Agent {
 
 	// setup the inputs
 	inputs := []restart.Restartable{
-		docker.NewScanner(sources, pipelineProvider, auditor),
 		listener.New(sources, pipelineProvider),
 		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
 		journald.New(sources, pipelineProvider, auditor),
 		windowsevent.New(sources, pipelineProvider),
+	}
+	if input, err := container.NewScanner(sources, pipelineProvider, auditor); err == nil {
+		// FIXME: improve input creation
+		inputs = append(inputs, input)
 	}
 
 	return &Agent{

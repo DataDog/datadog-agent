@@ -9,7 +9,6 @@ package docker
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -33,39 +32,53 @@ type Scanner struct {
 	tailers          map[string]*Tailer
 	cli              *client.Client
 	registry         auditor.Registry
-	isRunning        bool
 	stop             chan struct{}
 }
 
 // NewScanner returns an initialized Scanner
-func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Scanner {
-	return &Scanner{
+func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Scanner, error) {
+	scanner := &Scanner{
 		pipelineProvider: pipelineProvider,
 		sources:          sources,
 		tailers:          make(map[string]*Tailer),
 		registry:         registry,
 		stop:             make(chan struct{}),
 	}
+	err := scanner.setup()
+	if err != nil {
+		scanner.reportErrorToAllSources(err)
+		return nil, err
+	}
+	return scanner, nil
+}
+
+// setup initializes the docker client and the tagger,
+// returns an error if it failed.
+func (s *Scanner) setup() error {
+	var err error
+	// create a new docker client
+	s.cli, err = NewClient()
+	if err != nil {
+		return err
+	}
+	// initialize the tagger
+	err = tagger.Init()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Start starts the Scanner
 func (s *Scanner) Start() {
-	err := s.setup()
-	if err != nil {
-		s.reportErrorToAllSources(err)
-		return
-	}
+	// start tailing monitored containers
+	s.scan(false)
 	go s.run()
-	s.isRunning = true
 }
 
 // Stop stops the Scanner and its tailers in parallel,
 // this call returns only when all the tailers are stopped
 func (s *Scanner) Stop() {
-	if !s.isRunning {
-		// the scanner was not start, no need to stop anything
-		return
-	}
 	s.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range s.tailers {
@@ -126,26 +139,6 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 			s.dismissTailer(tailer)
 		}
 	}
-}
-
-// Start starts the Scanner
-func (s *Scanner) setup() error {
-	cli, err := NewClient()
-	if err != nil {
-		log.Error("Can't tail containers, ", err)
-		return fmt.Errorf("Can't initialize client")
-	}
-	s.cli = cli
-
-	// Initialize docker utils
-	err = tagger.Init()
-	if err != nil {
-		log.Warn(err)
-	}
-
-	// Start tailing monitored containers
-	s.scan(false)
-	return nil
 }
 
 // setupTailer sets one tailer, making it tail from the beginning or the end,

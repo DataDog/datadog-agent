@@ -30,22 +30,32 @@ type Scanner struct {
 
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources) (*Scanner, error) {
-	// initialize a pod provider to retrieve added and deleted pods.
-	podProvider, err := NewPodProvider()
+	scanner := &Scanner{
+		sources:            sources,
+		sourcesByContainer: make(map[string]*config.LogSource),
+		stopped:            make(chan struct{}),
+	}
+	err := scanner.setup()
 	if err != nil {
 		return nil, err
+	}
+	return scanner, nil
+}
+
+// setup initializes the pod watcher and the tagger.
+func (s *Scanner) setup() error {
+	var err error
+	// initialize a pod provider to retrieve added and deleted pods.
+	s.podProvider, err = NewPodProvider()
+	if err != nil {
+		return err
 	}
 	// initialize the tagger to collect container tags
 	err = tagger.Init()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &Scanner{
-		podProvider:        podProvider,
-		sources:            sources,
-		sourcesByContainer: make(map[string]*config.LogSource),
-		stopped:            make(chan struct{}),
-	}, nil
+	return nil
 }
 
 // Start starts the scanner
