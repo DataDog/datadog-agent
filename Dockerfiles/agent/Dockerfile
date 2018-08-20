@@ -48,7 +48,7 @@ COPY datadog*.yaml etc/datadog-agent/
 FROM debian:buster-slim
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
-ENV DOCKER_DD_AGENT=yes \
+ENV DOCKER_DD_AGENT=true \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
     CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
     # Pass envvar variables to agents
