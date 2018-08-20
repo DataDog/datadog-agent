@@ -1,0 +1,24 @@
+{{/*
+NOTE: Changes made to this template should be reflected on the following templates, if applicable:
+* cmd/agent/gui/views/templates/generalStatus.tmpl
+*/}}=========
+DogStatsD
+=========
+{{ if .EventPackets}}
+  Event Packets: {{.EventPackets}}
+{{ end -}}
+{{- if .EventParseErrors}}
+  Event Parse Errors: {{.EventParseErrors}}
+{{- end -}}
+{{- if .MetricPackets}}
+  Metric Packets: {{.MetricPackets}}
+{{- end -}}
+{{- if .MetricParseErrors}}
+  Metric Parse Errors: {{.MetricParseErrors}}
+{{- end -}}
+{{- if .ServiceCheckPackets}}
+  Service Check Packets: {{.ServiceCheckPackets}}
+{{- end -}}
+{{- if .ServiceCheckParseErrors}}
+  Service Check Parse Errors: {{.ServiceCheckParseErrors}}
+{{- end }}

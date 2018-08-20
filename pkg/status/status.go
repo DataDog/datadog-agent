@@ -211,6 +211,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
 	stats["aggregatorStats"] = aggregatorStats
 
+	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+	dogstatsdStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	stats["dogstatsdStats"] = aggregatorStats
+
 	pyLoaderData := expvar.Get("pyLoader")
 	if pyLoaderData != nil {
 		pyLoaderStatsJSON := []byte(pyLoaderData.String())

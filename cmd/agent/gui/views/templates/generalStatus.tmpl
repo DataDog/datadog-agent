@@ -249,7 +249,33 @@
         {{- if .HostnameUpdate}}
           Hostname Update: {{humanize .HostnameUpdate}}<br>
         {{- end }}
+      {{- end -}}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">DogStatsD</span>
+    <span class="stat_data">
+      {{- with .dogstatsdStats -}}
+        {{ if .EventPackets}}
+          Event Packets: {{.EventPackets}}<br>
+        {{ end -}}
+        {{- if .EventParseErrors}}
+          Event Parse Errors: {{.EventParseErrors}}<br>
         {{- end -}}
+        {{- if .MetricPackets}}
+          Metric Packets: {{.MetricPackets}}<br>
+        {{- end -}}
+        {{- if .MetricParseErrors}}
+          Metric Parse Errors: {{.MetricParseErrors}}<br>
+        {{- end -}}
+        {{- if .ServiceCheckPackets}}
+          Service Check Packets: {{.ServiceCheckPackets}}<br>
+        {{- end -}}
+        {{- if .ServiceCheckParseErrors}}
+          Service Check Parse Errors: {{.ServiceCheckParseErrors}}<br>
+        {{- end }}
+      {{- end -}}
     </span>
   </div>
 {{- end -}}
