@@ -50,7 +50,8 @@ func FormatStatus(data []byte) (string, error) {
 	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
 	renderLogsStatus(b, logsStats)
-	renderDogstatsdStatus(b, aggregatorStats)
+	renderAggregatorStatus(b, aggregatorStats)
+	// renderDogstatsdStatus(b, aggregatorStats)
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		renderDatadogClusterAgentStatus(b, dcaStats)
 	}
@@ -103,6 +104,14 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 func renderHeader(w io.Writer, stats map[string]interface{}) {
 	t := template.Must(template.New("header.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "header.tmpl")))
 	err := t.Execute(w, stats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderAggregatorStatus(w io.Writer, aggregatorStats interface{}) {
+	t := template.Must(template.New("aggregator.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "aggregator.tmpl")))
+	err := t.Execute(w, aggregatorStats)
 	if err != nil {
 		fmt.Println(err)
 	}
