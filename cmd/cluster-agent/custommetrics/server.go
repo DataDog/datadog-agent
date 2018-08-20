@@ -20,9 +20,8 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
 
 var options *server.CustomMetricsAdapterServerOptions
@@ -83,17 +82,12 @@ func StartServer() error {
 		return err
 	}
 
-	datadogCl, err := hpa.NewDatadogClient()
+	stopCh2 := make(chan struct{})
+	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return err
 	}
-
-	// HPA watcher
-	hpaClient, err := hpa.NewHPAWatcherClient(client.Cl, datadogCl, store)
-	if err != nil {
-		return err
-	}
-	hpaClient.Start()
+	as.StartAutoscalerController(le, stopCh2)
 
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.

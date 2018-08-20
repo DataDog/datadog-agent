@@ -97,7 +97,7 @@ func TestHPAWatcherGC(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
-			hpaCl := &HPAWatcherClient{clientSet: client, store: store}
+			hpaCl := &HPAProcessor{clientSet: client, store: store}
 
 			if testCase.hpa != nil {
 				_, err := client.
@@ -161,7 +161,7 @@ func TestHPAWatcherUpdateExternalMetrics(t *testing.T) {
 					return tt.series, nil
 				},
 			}
-			hpaCl := &HPAWatcherClient{datadogClient: datadogClient, store: store}
+			hpaCl := &HPAProcessor{datadogClient: datadogClient, store: store}
 
 			hpaCl.updateExternalMetrics()
 

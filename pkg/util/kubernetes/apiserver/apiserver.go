@@ -437,3 +437,27 @@ func StartMetadataController(stopCh chan struct{}) error {
 
 	return nil
 }
+
+// StartAutoscalerController
+func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, stopCh chan struct{}) error{
+	// Update var
+	var (
+		timeoutSeconds      = time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+		resyncPeriodSeconds = time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	)
+
+	client, err := getKubeClient(timeoutSeconds * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return err
+	}
+
+	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
+	autoscalerController := NewAutoscalerController(
+		client,
+		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
+	)
+	informerFactory.Start(stopCh)
+	go autoscalerController.Run(LeaderElectorItf, stopCh)
+	return nil
+}

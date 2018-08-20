@@ -35,7 +35,7 @@ func init() {
 
 // queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (hpa *HPAWatcherClient) queryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
+func (hpa *HPAProcessor) queryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
 	if metricName == "" || len(tags) == 0 {
 		return 0, errors.New("invalid metric to query")
 	}

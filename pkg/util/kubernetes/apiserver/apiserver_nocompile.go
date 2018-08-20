@@ -54,3 +54,9 @@ func (c *APIClient) StartClusterMetadataMapping(_ chan struct{}) {
 	log.Errorf("StartClusterMetadataMapping not implemented %s", ErrNotCompiled.Error())
 	return
 }
+
+// LeaderElectorItf is the interface avoiding the import cycle between the LeaderElection and the APIServer
+type LeaderElectorItf interface {
+	//EnsureLeaderElectionRuns() error
+	IsLeader() bool
+}
