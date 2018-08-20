@@ -17,13 +17,13 @@ import (
 // store holds the state of cluster-check management.
 // It is written to by the dispatcher and read from by the api handler
 type store struct {
-	m             sync.RWMutex
-	digest2Config map[string]integration.Config // All configurations to dispatch
+	m              sync.RWMutex
+	digestToConfig map[string]integration.Config // All configurations to dispatch
 }
 
 func newStore() *store {
 	return &store{
-		digest2Config: make(map[string]integration.Config),
+		digestToConfig: make(map[string]integration.Config),
 	}
 }
 
@@ -31,19 +31,19 @@ func (s *store) addConfig(config integration.Config) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	s.digest2Config[config.Digest()] = config
+	s.digestToConfig[config.Digest()] = config
 }
 
 func (s *store) removeConfig(digest string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	_, found := s.digest2Config[digest]
+	_, found := s.digestToConfig[digest]
 	if !found {
 		log.Debug("unknown digest %s, skipping", digest)
 		return
 	}
-	delete(s.digest2Config, digest)
+	delete(s.digestToConfig, digest)
 }
 
 func (s *store) getAllConfigs() []integration.Config {
@@ -51,7 +51,7 @@ func (s *store) getAllConfigs() []integration.Config {
 	defer s.m.RUnlock()
 
 	var configSlice []integration.Config
-	for _, c := range s.digest2Config {
+	for _, c := range s.digestToConfig {
 		configSlice = append(configSlice, c)
 	}
 	return configSlice
