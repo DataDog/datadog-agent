@@ -52,7 +52,7 @@ api_key:
 #
 # Example use-case:
 #
-#  With a raw collected tag "foo:1;2;3
+#  With a raw collected tag "foo:1;2;3"
 #  Using the following configuration:
 #
 #    tag_value_split_separator:

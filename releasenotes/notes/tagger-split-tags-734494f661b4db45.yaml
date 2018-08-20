@@ -1,5 +1,5 @@
 ---
 enhancements:
   - |
-    Add a new configuration option, named `tag_value_split_separator`, allowing the specified list of raw tags to be split by a given string.
-    This feature is limited to tags handled by the Tagger and does not process host tags, external host tags or check instance tags.
+    Add a new configuration option, named `tag_value_split_separator`, allowing the specified list of raw tags to have its value split by a given separator.
+    This feature is limited to tags handled by the Tagger and host tags (config, AWS, GCE, docker).
