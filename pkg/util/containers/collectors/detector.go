@@ -61,58 +61,75 @@ func NewDetector(configuredName string) *Detector {
 // constant when all collectors are either ok or PermaFail.
 // Users should keep calling this method instead of caching the first result.
 func (d *Detector) GetPreferred() (Collector, string, error) {
+	// Detection rounds finished, exit fast
 	if d.candidates == nil {
-		// Detection rounds finished, exit fast
 		if d.preferredCollector == nil {
 			return nil, "", ErrPermaFail
 		}
 		return d.preferredCollector, d.preferredName, nil
 	}
 
-	d.detectCandidates()
+	// Retry all remaining candidates
+	detected, remaining := retryCandidates(d.candidates)
+	d.candidates = remaining
+
+	// Add newly detected detected
+	for name, c := range detected {
+		d.detected[name] = c
+	}
+
+	// Pick preferred collector among detected ones
+	preferred := rankCollectors(d.detected, d.preferredName)
+	if preferred != d.preferredName {
+		log.Infof("Using collector %s", preferred)
+		d.preferredName = preferred
+		d.preferredCollector = d.detected[preferred]
+	}
+
 	// Stop detection when all candidates are tested
-	if len(d.candidates) == 0 {
+	// return a PermaFail error if nothing was detected
+	if len(remaining) == 0 {
 		d.candidates = nil
 		d.detected = nil
+		if d.preferredCollector == nil {
+			return nil, "", ErrPermaFail
+		}
 	}
 
 	if d.preferredCollector == nil {
-		if d.candidates == nil {
-			return nil, "", ErrPermaFail
-		}
 		return nil, "", ErrNothingYet
 	}
-
 	return d.preferredCollector, d.preferredName, nil
 }
 
-func (d *Detector) detectCandidates() {
-	foundNew := false
-	// Retry all remaining candidates
-	for name, c := range d.candidates {
+// retryCandidates iterates over candidates and returns two new maps:
+// the successfully detected collectors, and the ones to retry later
+func retryCandidates(candidates map[string]Collector) (map[string]Collector, map[string]Collector) {
+	detected := make(map[string]Collector)
+	remaining := make(map[string]Collector)
+
+	for name, c := range candidates {
 		err := c.Detect()
 		if retry.IsErrWillRetry(err) {
 			log.Debugf("Will retry collector %s later: %s", name, err)
-			continue // we want to retry later
+			remaining[name] = c
+			continue
 		}
-		delete(d.candidates, name)
 		if err != nil {
 			log.Debugf("Collector %s failed to detect: %s", name, err)
 			continue
 		}
 		log.Infof("Collector %s successfully detected", name)
-		d.detected[name] = c
-		foundNew = true
+		detected[name] = c
 	}
+	return detected, remaining
+}
 
-	// Skip ordering if we have no new collector
-	if !foundNew {
-		return
-	}
-
-	// Pick preferred collector among detected ones
-	var preferred string
-	for name := range d.detected {
+// rankCollectors returns the preferred collector out of a map.
+// It ranks by collector priority, then name for stability
+func rankCollectors(collectors map[string]Collector, current string) string {
+	preferred := current
+	for name := range collectors {
 		// First one
 		if preferred == "" {
 			preferred = name
@@ -122,10 +139,7 @@ func (d *Detector) detectCandidates() {
 			preferred = name
 		}
 	}
-
-	log.Infof("Using collector %s", preferred)
-	d.preferredName = preferred
-	d.preferredCollector = d.detected[preferred]
+	return preferred
 }
 
 // isPrefered compares a collector by name to the current preferred
