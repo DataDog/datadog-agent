@@ -413,7 +413,7 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	return result.Into(output)
 }
 
-// StartMetadataController runs the controller to collect cluster-level tags. This is
+// StartMetadataController runs the metadata controller to collect cluster metadata. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
 func StartMetadataController(stopCh chan struct{}) error {
 	var (
