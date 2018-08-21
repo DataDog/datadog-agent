@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build secrets,!windows
 
 package secrets
 
@@ -14,6 +14,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+func setCorrectRight(path string) {
+	os.Chmod(path, 0700)
+}
 
 func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists"))
