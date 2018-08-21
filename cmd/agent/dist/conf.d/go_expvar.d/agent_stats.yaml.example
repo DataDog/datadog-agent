@@ -62,6 +62,21 @@ instances:
       - path: forwarder/Transactions/RetryQueueSize
       - path: forwarder/Transactions/Success
         type: rate
+      - path: forwarder/Transactions/Errors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/DNSErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/TLSErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/ConnectionErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/WroteRequestErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/SentRequestErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/HTTPErrors
+        type: rate
+
 
       # datadog-agent dogstatsd monitoring
       - path: dogstatsd-udp/PacketReadingErrors
