@@ -26,10 +26,10 @@ func installClusterCheckEndpoints(r *mux.Router, sc types.ServerContext) {
 	}
 	clusterCheckHandler = sc.ClusterCheckHandler
 
-	r.HandleFunc("/clusterchecks/allconfigs", getAllCheckConfigs).Methods("GET")
 	// TODO
 	//r.HandleFunc("/clusterchecks/status/{nodeName}", postCheckStatus).Methods("POST")
 	//r.HandleFunc("/clusterchecks/configs/{nodeName}", getCheckConfigs).Methods("GET")
+	r.HandleFunc("/clusterchecks", getAllCheckConfigs).Methods("GET")
 }
 
 // getAllCheckConfigs is used by the clustercheck config
