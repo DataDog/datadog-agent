@@ -8,4 +8,6 @@
 ---
 features:
   - |
-    Added a support to send logs by TCP to a proxy.
+    Added dedicated configuration parameters to send logs to a proxy by TCP.
+    Note that 'logs_config.dd_url', 'logs_config.dd_port' and 'logs_config.dev_mode_no_ssl' are deprecated and will be unvailable soon,
+    use the new parameters 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead.

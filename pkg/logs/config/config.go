@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LogsAgent is the global configuration object
@@ -60,8 +61,15 @@ func buildLogSources(ddconfdPath string, collectAllLogsFromContainers bool, tcpF
 
 // buildServerConfig returns the server config to send logs to.
 func buildServerConfig() (*ServerConfig, error) {
+	if LogsAgent.GetBool("logs_config.dev_mode_no_ssl") {
+		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
+	}
+
 	switch {
 	case LogsAgent.GetString("logs_config.logs_dd_url") != "":
+		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
+		// and '<PORT>' to be an integer.
+		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
 		host, portString, err := net.SplitHostPort(LogsAgent.GetString("logs_config.logs_dd_url"))
 		if err != nil {
 			return nil, fmt.Errorf("could not parse logs_dd_url: %v", err)
@@ -76,6 +84,7 @@ func buildServerConfig() (*ServerConfig, error) {
 			!LogsAgent.GetBool("logs_config.logs_no_ssl"),
 		), nil
 	default:
+		// datadog settings
 		return NewServerConfig(
 			LogsAgent.GetString("logs_config.dd_url"),
 			LogsAgent.GetInt("logs_config.dd_port"),

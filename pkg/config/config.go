@@ -251,7 +251,7 @@ func init() {
 
 	// Logs Agent
 
-	// External Use: modify those paramteers to configure the logs-agent.
+	// External Use: modify those parameters to configure the logs-agent.
 	// enable the logs-agent:
 	BindEnvAndSetDefault("logs_enabled", false)
 	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
@@ -261,8 +261,8 @@ func init() {
 	BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
 	// add a socks5 proxy:
 	BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
-	// override the logs destination:
-	BindEnvAndSetDefault("logs_config.logs_dd_url", "") // must respect format `<HOST>:<PORT>`
+	// send the logs to a proxy:
+	BindEnvAndSetDefault("logs_config.logs_dd_url", "") // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 	// increase the read buffer size of the UDP sockets:
 	BindEnvAndSetDefault("logs_config.frame_size", 9000)
