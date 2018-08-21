@@ -27,6 +27,7 @@ DEFAULT_BUILD_TAGS = [
     "zlib",
     "docker",
     "kubelet",
+    "secrets",
 ]
 
 
