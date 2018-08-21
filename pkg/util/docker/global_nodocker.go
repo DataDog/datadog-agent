@@ -12,11 +12,6 @@ func HostnameProvider(hostName string) (string, error) {
 	return "", ErrDockerNotCompiled
 }
 
-// IsContainerized returns True if we're running in the docker-dd-agent container.
-func IsContainerized() bool {
-	return false
-}
-
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
 func GetTags() ([]string, error) {

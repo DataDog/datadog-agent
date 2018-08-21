@@ -23,7 +23,7 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestGetPayloadContainerized(t *testing.T) {
-	os.Setenv("DOCKER_DD_AGENT", "yes")
+	os.Setenv("DOCKER_DD_AGENT", "true")
 	defer os.Unsetenv("DOCKER_DD_AGENT")
 
 	gohai := GetPayload()

@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -80,9 +79,4 @@ type Config struct {
 
 	// internal use only
 	filter *containers.Filter
-}
-
-// IsContainerized returns True if we're running in the docker-dd-agent container.
-func IsContainerized() bool {
-	return os.Getenv("DOCKER_DD_AGENT") == "yes"
 }
