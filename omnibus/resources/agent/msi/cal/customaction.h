@@ -8,6 +8,12 @@ bool InitLsaString(
 
 PSID GetSidForUser(LPCWSTR host, LPCWSTR user);
 LSA_HANDLE GetPolicyHandle();
+int CreateSecretUser(MSIHANDLE hInstall, std::wstring& name, std::wstring& comment);
+int CreateDDUser(MSIHANDLE hInstall);
+DWORD DeleteUser(std::wstring& name);
+DWORD DeleteSecretsRegKey();
+DWORD changeRegistryAcls(const wchar_t* name);
+
 
 // rights we might be interested in
 /*

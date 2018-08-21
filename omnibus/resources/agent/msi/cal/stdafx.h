@@ -17,6 +17,8 @@
 
 // std c++ lib
 #include <string>
+#include <map>
+#include <sstream>
 
 // WiX Header Files:
 #include <wcautil.h>
@@ -24,6 +26,7 @@
 
 // TODO: reference additional headers your program requires here
 #include "winacl.h"
-#include "userrights.h"
+#include "customaction.h"
+#include "strings.h"
 
-void toMbcs(std::string& target, LPCWSTR src);
+

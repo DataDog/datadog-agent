@@ -7,3 +7,5 @@ EXPORTS
     CreateOrUpdateDDUser
     EnableServicesForDDUser
     VerifyDatadogRegistryPerms
+	RemoveDDUser
+	RollbackInstallation
