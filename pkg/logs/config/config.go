@@ -34,16 +34,6 @@ func buildLogSources(ddconfdPath string, collectAllLogsFromContainers bool, tcpF
 	fileSources := buildLogSourcesFromDirectory(ddconfdPath)
 	sources = append(sources, fileSources...)
 
-	if collectAllLogsFromContainers {
-		// append source to collect all logs from all containers.
-		containersSource := NewLogSource("container_collect_all", &LogsConfig{
-			Type:    DockerType,
-			Service: "docker",
-			Source:  "docker",
-		})
-		sources = append(sources, containersSource)
-	}
-
 	if tcpForwardPort > 0 {
 		// append source to collect all logs forwarded by TCP on a given port.
 		tcpForwardSource := NewLogSource("tcp_forward", &LogsConfig{
@@ -54,7 +44,7 @@ func buildLogSources(ddconfdPath string, collectAllLogsFromContainers bool, tcpF
 	}
 
 	logSources := NewLogSources(sources)
-	if len(logSources.GetValidSources()) == 0 {
+	if len(logSources.GetValidSources()) == 0 && !collectAllLogsFromContainers {
 		return nil, fmt.Errorf("could not find any valid logs configuration")
 	}
 

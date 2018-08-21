@@ -33,15 +33,10 @@ func TestBuildLogsSources(t *testing.T) {
 	sources, err = buildLogSources("", false, -1)
 	assert.NotNil(t, err)
 
-	// should return the default tail all containers source
+	// should not return an error
 	sources, err = buildLogSources("", true, -1)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(sources.GetValidSources()))
-	source = sources.GetValidSources()[0]
-	assert.Equal(t, "container_collect_all", source.Name)
-	assert.Equal(t, DockerType, source.Config.Type)
-	assert.Equal(t, "docker", source.Config.Service)
-	assert.Equal(t, "docker", source.Config.Source)
+	assert.Equal(t, 0, len(sources.GetValidSources()))
 
 	// should return the tcp forward source
 	sources, err = buildLogSources("", false, 1234)
