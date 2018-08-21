@@ -127,3 +127,5 @@ instances:
         type: rate
       - path: splitter/TotalLoops
         type: rate
+      - path: splitter/PayloadDrops
+        type: rate
