@@ -13,21 +13,23 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
 var clusterCheckHandler *clusterchecks.Handler
 
 // Install registers v1 API endpoints
-func installClusterCheckEndpoints(r *mux.Router) {
+func installClusterCheckEndpoints(r *mux.Router, sc types.ServerContext) {
+	if sc.ClusterCheckHandler == nil {
+		return
+	}
+	clusterCheckHandler = sc.ClusterCheckHandler
+
 	r.HandleFunc("/clusterchecks/allconfigs", getAllCheckConfigs).Methods("GET")
 	// TODO
 	//r.HandleFunc("/clusterchecks/status/{nodeName}", postCheckStatus).Methods("POST")
 	//r.HandleFunc("/clusterchecks/configs/{nodeName}", getCheckConfigs).Methods("GET")
-}
-
-func SetClusterCheckHandler(h *clusterchecks.Handler) {
-	clusterCheckHandler = h
 }
 
 // getAllCheckConfigs is used by the clustercheck config

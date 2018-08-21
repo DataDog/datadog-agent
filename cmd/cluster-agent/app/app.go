@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -135,11 +135,6 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	log.Infof("Hostname is: %s", hostname)
 
-	// start the cmd HTTPS server
-	if err = api.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -194,6 +189,15 @@ func start(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+
+	// start the cmd HTTPS server
+	sc := types.ServerContext{
+		ClusterCheckHandler: clusterCheckHandler,
+	}
+	if err = api.StartServer(sc); err != nil {
+		return log.Errorf("Error while starting api server, exiting: %v", err)
+	}
+
 	// Block here until we receive the interrupt signal
 	<-signalCh
 	if clusterCheckHandler != nil {
@@ -229,6 +233,5 @@ func setupClusterCheck() *clusterchecks.Handler {
 	}
 
 	log.Info("Started cluster check Autodiscovery")
-	v1.SetClusterCheckHandler(clusterCheckHandler)
 	return clusterCheckHandler
 }

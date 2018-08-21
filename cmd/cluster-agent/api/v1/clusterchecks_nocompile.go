@@ -10,11 +10,8 @@ package v1
 import (
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
 )
 
 // installClusterCheckEndpoints not implemented
-func installClusterCheckEndpoints(r *mux.Router) {}
-
-// SetClusterCheckHandler not implemented
-func SetClusterCheckHandler(h *clusterchecks.Handler) {}
+func installClusterCheckEndpoints(_ *mux.Router, _ types.ServerContext) {}
