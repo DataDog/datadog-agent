@@ -19,7 +19,7 @@ curl http://localhost:5000/debug/pprof/goroutine?debug=2
 ```
 * Profile the go heap:
 ```sh
-go tool pprof http://localhost:6060/debug/pprof/heap
+go tool pprof http://localhost:5000/debug/pprof/heap
 ```
 
 ## expvar
