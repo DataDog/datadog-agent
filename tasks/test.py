@@ -55,6 +55,12 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
 
     build_include = get_default_build_tags() if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
+
+    # On windows the secrets package requires a external user to run. By
+    # default such user doesn't exists so we exclude that tag.
+    if sys.platform == 'win32' and "secrets" not in build_include:
+        build_exclude.append("secrets")
+
     build_tags = get_build_tags(build_include, build_exclude)
 
     timeout = int(timeout)

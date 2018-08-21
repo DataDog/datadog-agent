@@ -24,6 +24,8 @@ ALL_TAGS = set([
     "systemd",
     "zk",
     "zlib",
+    "kubeapiserver",
+    "secrets"
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent

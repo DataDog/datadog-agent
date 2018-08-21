@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build secrets
 
 package secrets
 
@@ -11,11 +11,38 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func build(cmd string, args ...string) {
+	out, err := exec.Command(cmd, args...).Output()
+	fmt.Printf("%s -> %v\n", out, err)
+}
+
+func TestMain(m *testing.M) {
+	build("bash", "-c", "pwd")
+	build("go", "build", "-o", "./test/argument/argument", "./test/argument")
+	build("go", "build", "-o", "./test/error/error", "./test/error")
+	build("go", "build", "-o", "./test/input/input", "./test/input")
+	build("go", "build", "-o", "./test/response_too_long/response_too_long", "./test/response_too_long")
+	build("go", "build", "-o", "./test/simple/simple", "./test/simple")
+	build("go", "build", "-o", "./test/timeout/timeout", "./test/timeout")
+
+	res := m.Run()
+
+	os.Remove("test/argument/argument")
+	os.Remove("test/error/error")
+	os.Remove("test/input/input")
+	os.Remove("test/response_too_long/response_too_long")
+	os.Remove("test/simple/simple")
+	os.Remove("test/timeout/timeout")
+
+	os.Exit(res)
+}
 
 func TestLimitBuffer(t *testing.T) {
 	lb := limitBuffer{
@@ -54,51 +81,50 @@ func TestExecCommandError(t *testing.T) {
 	require.NotNil(t, err)
 
 	// test timeout
-	os.Chmod("./test/timeout.sh", 0700)
-	secretBackendCommand = "./test/timeout.sh"
+	os.Chmod("./test/timeout/timeout", 0700)
+	secretBackendCommand = "./test/timeout/timeout"
 	secretBackendTimeout = 2
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
-	require.Equal(t, "error while running './test/timeout.sh': command timeout", err.Error())
+	require.Equal(t, "error while running './test/timeout/timeout': command timeout", err.Error())
 
 	// test simple (no error)
-	os.Chmod("./test/simple.sh", 0700)
-	secretBackendCommand = "./test/simple.sh"
+	os.Chmod("./test/simple/simple", 0700)
+	secretBackendCommand = "./test/simple/simple"
 	resp, err := execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
 
 	// test error
-	secretBackendCommand = "./test/error.sh"
+	secretBackendCommand = "./test/error/error"
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 
 	// test arguments
-	os.Chmod("./test/argument.sh", 0700)
-	secretBackendCommand = "./test/argument.sh"
+	os.Chmod("./test/argument/argument", 0700)
+	secretBackendCommand = "./test/argument/argument"
 	secretBackendArguments = []string{"arg1"}
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
-	secretBackendCommand = "./test/argument.sh"
 	secretBackendArguments = []string{"arg1", "arg2"}
 	resp, err = execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"arg_password\"}}"), resp)
 
 	// test input
-	os.Chmod("./test/input.sh", 0700)
-	secretBackendCommand = "./test/input.sh"
+	os.Chmod("./test/input/input", 0700)
+	secretBackendCommand = "./test/input/input"
 	resp, err = execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"input_password\"}}"), resp)
 
 	// test buffer limit
-	os.Chmod("./test/response_too_long.sh", 0700)
-	secretBackendCommand = "./test/response_too_long.sh"
+	os.Chmod("./test/response_too_long/response_too_long", 0700)
+	secretBackendCommand = "./test/response_too_long/response_too_long"
 	secretBackendOutputMaxSize = 20
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
-	assert.Equal(t, "error while running './test/response_too_long.sh': command output was too long: exceeded 20 bytes", err.Error())
+	assert.Equal(t, "error while running './test/response_too_long/response_too_long': command output was too long: exceeded 20 bytes", err.Error())
 }
 
 func TestFetchSecretExecError(t *testing.T) {
