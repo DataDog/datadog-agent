@@ -45,9 +45,10 @@ api_key:
 #   - env:prod
 #   - role:database
 
-# Split tags according to given string.
-# Supports host tags, container tags, excludes tags collected by the integration
-# themselves.
+# Split tag values according to a given separator.
+# Only applies to host tags, tags coming from container integrations.
+# Does not apply to tags on dogstatsd metrics, and tags collected by other
+# integrations.
 # This option is useful when the native tags do not support repeating multiple
 # tags with the same name and different values.
 #
