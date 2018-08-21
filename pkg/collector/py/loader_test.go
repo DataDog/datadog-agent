@@ -38,6 +38,14 @@ func TestLoad(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))
 
+	// the python module works
+	config = integration.Config{Name: "working"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	config.Instances = append(config.Instances, []byte("bar: baz"))
+	instances, err = l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 2, len(instances))
+
 	// the python module is good but nothing derives from AgentCheck
 	config = integration.Config{Name: "foo"}
 	instances, err = l.Load(config)
