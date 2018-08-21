@@ -224,7 +224,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
     Build the Agent packages with Omnibus Installer.
     """
     if not skip_deps:
-        deps(ctx)
+        deps(ctx, no_checks=True)  # no_checks since the omnibus build installs checks with a dedicated software def
 
     # omnibus config overrides
     overrides = []
