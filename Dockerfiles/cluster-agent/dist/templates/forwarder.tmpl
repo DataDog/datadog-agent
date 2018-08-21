@@ -3,15 +3,19 @@ Forwarder
 =========
 {{ if .Transactions }}
   {{- range $key, $value := .Transactions }}
-  {{- if eq $key "ErrorsByType"}}
+    {{- if eq $key "ErrorsByType"}}
+      {{- if $.Transactions.Errors }}
   {{$key}}:
-    {{- range $type, $count := $value }}
+          {{- range $type, $count := $value }}
+            {{- if and (ne $type "HTTPErrorsByCode") ($count) }}
     {{$type}}: {{$count}}
-    {{- end}}
-  {{- else}}
+            {{- end}}
+          {{- end}}
+      {{- end}}
+    {{- else}}
   {{$key}}: {{humanize $value}}
+    {{- end}}
   {{- end}}
-  {{- end }}
   {{- if .Transactions.DroppedOnInput }}
 
   Warning: the forwarder dropped transactions because all workers were busy.

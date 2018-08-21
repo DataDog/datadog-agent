@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptrace"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,6 +34,7 @@ var (
 	transactionsWroteRequestErrors = expvar.Int{}
 	transactionsSentRequestErrors  = expvar.Int{}
 	transactionsHTTPErrors         = expvar.Int{}
+	transactionsHTTPErrorsByCode   = expvar.Map{}
 )
 
 var trace = &httptrace.ClientTrace{
@@ -64,6 +66,7 @@ var trace = &httptrace.ClientTrace{
 
 func initTransactionExpvars() {
 	transactionsErrorsByType.Init()
+	transactionsHTTPErrorsByCode.Init()
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("Success", &transactionsSuccessful)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
@@ -75,6 +78,7 @@ func initTransactionExpvars() {
 	transactionsErrorsByType.Set("WroteRequestErrors", &transactionsWroteRequestErrors)
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
 	transactionsErrorsByType.Set("HTTPErrors", &transactionsHTTPErrors)
+	transactionsErrorsByType.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -154,6 +158,19 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		return err
 	}
 
+	if resp.StatusCode >= 400 {
+		statusCode := strconv.Itoa(resp.StatusCode)
+		var codeCount *expvar.Int
+		if count := transactionsHTTPErrorsByCode.Get(statusCode); count == nil {
+			codeCount = &expvar.Int{}
+			transactionsHTTPErrorsByCode.Set(statusCode, codeCount)
+		} else {
+			codeCount = count.(*expvar.Int)
+		}
+		codeCount.Add(1)
+		transactionsHTTPErrors.Add(1)
+	}
+
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
 		transactionsDropped.Add(1)
@@ -165,7 +182,6 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
-		transactionsHTTPErrors.Add(1)
 		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
