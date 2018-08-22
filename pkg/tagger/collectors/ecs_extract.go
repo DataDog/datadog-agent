@@ -15,7 +15,7 @@ import (
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
-func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response) ([]*TagInfo, error) {
+func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response, targetDockerID string) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 	for _, task := range tasks_list.Tasks {
@@ -24,8 +24,8 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response) ([]*TagInf
 			continue
 		}
 		for _, container := range task.Containers {
-			// We only want to collect the tags from new containers.
-			if c.expire.Update(container.DockerID, now) {
+			// Only collect new containers + the targeted container, to avoid empty tags on race conditions
+			if c.expire.Update(container.DockerID, now) || container.DockerID == targetDockerID {
 				tags := utils.NewTagList()
 				tags.AddLow("task_version", task.Version)
 				tags.AddLow("task_name", task.Family)

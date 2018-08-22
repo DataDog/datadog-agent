@@ -5,7 +5,7 @@ This document provides a list of known development caveats
 ## Windows
 
 The COM concurrency model may be set in different ways, it also has to be called for every thread that might indeed interact with the COM library. Furthermore, once a concurrency model is set for a thread, it cannot be changed unless the thread is `CoUnitilialize()`d. This poses an issue for us for a variety of reasons:
-1. We use thirdparty libraries like `gopsutil` that initialize the concurrency model setting it to the multi-threaded model - the libary will fail in its calls if the model is any different.
+1. We use thirdparty libraries like `gopsutil` that initialize the concurrency model setting it to the multi-threaded model - the library will fail in its calls if the model is any different.
 2. We also have python integrations that employ the COM library (ie. WMI, SQLserver, ...) that ultimately rely on `pythoncom` for this. `pythoncom`, in fact, initializes the COM library to the single-threaded model by default, but doesn't really care about the concurrency model and will not fail if a different model has been previously set. 
 3. Because the actual *loading* of the integrations will import `pythoncom` the concurrency model might be inadvertedly and implicitly be set to the default (single-threaded) concurrency model meaning that any subsequent call to an affected `gopsutil` function would fail as the concurrency model would already be set. 
 4. Due to go's concurrency model we can assume nothing about what goroutine is running on what thread at any given time, so it's not trivial to tell what concurrency model a thread's COM library was initialized to. 

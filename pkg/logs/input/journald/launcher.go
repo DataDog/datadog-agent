@@ -15,31 +15,25 @@ import (
 
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
-	sources          []*config.LogSource
+	sources          *config.LogSources
 	pipelineProvider pipeline.Provider
-	auditor          *auditor.Auditor
+	registry         auditor.Registry
 	tailers          map[string]*Tailer
 }
 
 // New returns a new Launcher.
-func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
-	journaldSources := []*config.LogSource{}
-	for _, source := range sources {
-		if source.Config.Type == config.JournaldType {
-			journaldSources = append(journaldSources, source)
-		}
-	}
+func New(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
 	return &Launcher{
-		sources:          journaldSources,
+		sources:          sources,
 		pipelineProvider: pipelineProvider,
-		auditor:          auditor,
+		registry:         registry,
 		tailers:          make(map[string]*Tailer),
 	}
 }
 
 // Start starts new tailers.
 func (l *Launcher) Start() {
-	for _, source := range l.sources {
+	for _, source := range l.sources.GetValidSourcesWithType(config.JournaldType) {
 		identifier := source.Config.Path
 		if _, exists := l.tailers[identifier]; exists {
 			// set up only one tailer per journal
@@ -68,7 +62,8 @@ func (l *Launcher) Stop() {
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
 	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan())
-	err := tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
+	cursor := l.registry.GetOffset(tailer.Identifier())
+	err := tailer.Start(cursor)
 	if err != nil {
 		return nil, err
 	}

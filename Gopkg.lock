@@ -612,6 +612,12 @@
   version = "v2.1.0"
 
 [[projects]]
+  name = "github.com/paulbellamy/ratecounter"
+  packages = ["."]
+  revision = "524851a93235ac051e3540563ed7909357fe24ab"
+  version = "v0.2.0"
+
+[[projects]]
   name = "github.com/pborman/uuid"
   packages = ["."]
   revision = "e790cca94e6cc75c7064b1332e63811d4aae1a53"
@@ -793,6 +799,15 @@
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   revision = "a49355c7e3f8fe157a85be2f77e6e269a0f89602"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/mobile"
+  packages = [
+    "asset",
+    "internal/mobileinit"
+  ]
+  revision = "bceb7ef27cc623473a5b664d2a3450576dddff0f"
 
 [[projects]]
   branch = "master"
@@ -1267,7 +1282,8 @@
     "util/flowcontrol",
     "util/homedir",
     "util/integer",
-    "util/retry"
+    "util/retry",
+    "util/workqueue"
   ]
   revision = "23781f4d6632d88e869066eaebb743857aa1ef9b"
   version = "v7.0.0"
@@ -1300,6 +1316,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "93591a49081406a09997ccc0a20a961d4c95330a07255af743b88e2a6e8067ea"
+  inputs-digest = "5a9127e88f491e8b090e9053c32bd9093cceaf268c57fc6774e5958816dc5311"
   solver-name = "gps-cdcl"
   solver-version = 1

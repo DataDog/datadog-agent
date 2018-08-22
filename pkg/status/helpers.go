@@ -22,27 +22,15 @@ func init() {
 		"lastError":          lastError,
 		"lastErrorTraceback": lastErrorTraceback,
 		"lastErrorMessage":   LastErrorMessage,
-		"pythonLoaderError":  pythonLoaderError,
 		"configError":        configError,
 		"printDashes":        printDashes,
 		"formatUnixTime":     FormatUnixTime,
 		"humanize":           MkHuman,
+		"toUnsortedList":     toUnsortedList,
 	}
 }
 
 func doNotEscape(value string) template.HTML {
-	return template.HTML(value)
-}
-
-func pythonLoaderError(value string) template.HTML {
-	value = strings.Replace(value, "', '", "", -1)
-	value = strings.Replace(value, "['", "", -1)
-	value = strings.Replace(value, "\\n']", "", -1)
-	value = strings.Replace(value, "']", "", -1)
-	value = strings.Replace(value, "\\n", "\n      ", -1)
-	value = strings.TrimRight(value, "\n\t ")
-	var loaderErrorArray []string
-	json.Unmarshal([]byte(value), &loaderErrorArray)
 	return template.HTML(value)
 }
 
@@ -96,6 +84,14 @@ func FormatUnixTime(unixTime float64) string {
 
 func printDashes(s string, dash string) string {
 	return strings.Repeat(dash, stringLength(s))
+}
+
+func toUnsortedList(s map[string]interface{}) string {
+	res := make([]string, 0, len(s))
+	for key := range s {
+		res = append(res, key)
+	}
+	return fmt.Sprintf("%s", res)
 }
 
 // MkHuman makes large numbers more readable

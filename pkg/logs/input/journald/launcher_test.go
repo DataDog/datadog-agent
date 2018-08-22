@@ -12,19 +12,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	pipeline "github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
 func TestShouldStartOnlyOneTailerPerJournal(t *testing.T) {
-	sources := []*config.LogSource{
+	sources := config.NewLogSources([]*config.LogSource{
 		config.NewLogSource("", &config.LogsConfig{Type: config.JournaldType}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.JournaldType}),
-	}
-	launcher := New(sources, pipeline.NewMockProvider(), auditor.New(nil, ""))
+	})
+	launcher := New(sources, pipeline.NewMockProvider(), auditor.NewRegistry())
 
-	// expect two new tailers
+	// expect only one new tailer
 	launcher.Start()
 	assert.Equal(t, 1, len(launcher.tailers))
 

@@ -4,6 +4,7 @@
 // Copyright 2018 Datadog, Inc.
 
 // +build linux freebsd netbsd openbsd solaris dragonfly
+// +build !android
 
 package config
 
@@ -14,3 +15,6 @@ const (
 	defaultSyslogURI            = "unixgram:///dev/log"
 	defaultGuiPort              = "-1"
 )
+
+// NewAssetFs  Should never be called on non-android
+func setAssetFs() {}

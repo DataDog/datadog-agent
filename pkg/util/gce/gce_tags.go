@@ -15,7 +15,7 @@ import (
 
 // Slice of attributes to exclude from the tags (because they're too long, useless or sensitive)
 var excludedAttributes = []string{"kube-env", "startup-script", "shutdown-script", "configure-sh",
-	"sshKeys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"}
+	"sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"}
 
 // GetTags gets the tags from the GCE api
 func GetTags() ([]string, error) {

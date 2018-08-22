@@ -14,10 +14,8 @@ package listeners
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -40,7 +38,7 @@ func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
 			return nil, err
 		}
 	}
-	searchedId := docker.ContainerIDToEntityName(string(s.GetID()))
+	searchedId := s.GetEntity()
 	return s.kubeUtil.GetPodForContainerID(searchedId)
 }
 
@@ -72,10 +70,10 @@ func (s *DockerKubeletService) GetPorts() ([]ContainerPort, error) {
 	if err != nil {
 		return nil, err
 	}
-	searchedId := string(s.GetID())
+	searchedId := s.GetEntity()
 	var searchedContainerName string
 	for _, container := range pod.Status.Containers {
-		if strings.HasSuffix(container.ID, searchedId) {
+		if container.ID == searchedId {
 			searchedContainerName = container.Name
 		}
 	}

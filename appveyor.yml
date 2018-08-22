@@ -27,7 +27,7 @@ install:
   - 7z x *.zip > NUL
   - set PATH=C:\deps\bin;%GOPATH%\bin;%GOROOT%\bin;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;%PATH%
   - go version
-  - pip install invoke
+  - pip install -r %GOPATH%\src\github.com\DataDog\datadog-agent\requirements.txt
 
 cache:
   - '%GOPATH%\bin'

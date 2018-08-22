@@ -37,11 +37,11 @@ type Status struct {
 
 // Builder is used to build the status.
 type Builder struct {
-	sources []*config.LogSource
+	sources *config.LogSources
 }
 
 // Initialize instantiates a builder that holds the sources required to build the current status later on.
-func Initialize(sources []*config.LogSource) {
+func Initialize(sources *config.LogSources) {
 	builder = &Builder{
 		sources: sources,
 	}
@@ -51,7 +51,7 @@ func Initialize(sources []*config.LogSource) {
 func Get() Status {
 	// Sort sources by name (ie. by integration name ~= file name)
 	sources := make(map[string][]*config.LogSource)
-	for _, source := range builder.sources {
+	for _, source := range builder.sources.GetSources() {
 		if _, exists := sources[source.Name]; !exists {
 			sources[source.Name] = []*config.LogSource{}
 		}

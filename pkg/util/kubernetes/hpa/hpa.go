@@ -38,6 +38,7 @@ type HPAWatcherClient struct {
 	readTimeout    time.Duration
 	refreshItl     *time.Ticker
 	pollItl        *time.Ticker
+	gcTicker       *time.Ticker // how often to gc metrics in the store
 	externalMaxAge time.Duration
 	datadogClient  DatadogClient
 	store          custommetrics.Store
@@ -48,11 +49,13 @@ func NewHPAWatcherClient(clientSet kubernetes.Interface, datadogCl DatadogClient
 	pollInterval := config.Datadog.GetInt("hpa_watcher_polling_freq")
 	refreshInterval := config.Datadog.GetInt("external_metrics_provider.polling_freq")
 	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
+	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
 	return &HPAWatcherClient{
 		clientSet:      clientSet,
 		readTimeout:    100 * time.Millisecond,
 		pollItl:        time.NewTicker(time.Duration(pollInterval) * time.Second),
 		refreshItl:     time.NewTicker(time.Duration(refreshInterval) * time.Second),
+		gcTicker:       time.NewTicker(time.Duration(gcPeriodSeconds) * time.Second),
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		datadogClient:  datadogCl,
 		store:          store,
@@ -92,11 +95,11 @@ func (c *HPAWatcherClient) run(res string) (added, modified, deleted []*autoscal
 				continue
 			}
 			if rcvdHPA.Type == watch.Added {
-				log.Debugf("Adding this manifest: %s", currHPA)
+				log.Debugf("Added HPA: %s/%s", currHPA.Namespace, currHPA.Name)
 				added = append(added, currHPA)
 			}
 			if rcvdHPA.Type == watch.Modified {
-				log.Debugf("Modifying this manifest: %s", currHPA)
+				log.Tracef("Updated HPA: %s/%s", currHPA.Namespace, currHPA.Name)
 				modified = append(modified, currHPA)
 			}
 			if rcvdHPA.Type == watch.Deleted {
@@ -135,7 +138,7 @@ func (c *HPAWatcherClient) Start() {
 				if !leaderEngine.IsLeader() {
 					continue
 				}
-				added, modified, deleted, res, err := c.run(resversion)
+				added, modified, _, res, err := c.run(resversion)
 				if err != nil {
 					log.Errorf("Error while watching HPA Objects' activities: %s", err)
 					return
@@ -147,9 +150,6 @@ func (c *HPAWatcherClient) Start() {
 					if err = c.processHPAs(added, modified); err != nil {
 						log.Errorf("Could not update the external metrics in the store: %s", err.Error())
 					}
-					if err = c.removeEntryFromStore(deleted); err != nil {
-						log.Errorf("Could not delete the external metrics in the store: %s", err.Error())
-					}
 				}
 			// Ticker to run the refresh process for the stored external metrics
 			case <-tickerHPARefreshProcess.C:
@@ -159,9 +159,47 @@ func (c *HPAWatcherClient) Start() {
 				// Updating the metrics against Datadog should not affect the HPA pipeline.
 				// If metrics are temporarily unavailable for too long, they will become `Valid=false` and won't be evaluated.
 				c.updateExternalMetrics()
+			case <-c.gcTicker.C:
+				if !leaderEngine.IsLeader() {
+					continue
+				}
+				c.gc()
 			}
 		}
 	}()
+}
+
+// gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
+// not running) to clean the store.
+func (c *HPAWatcherClient) gc() {
+	log.Debugf("Starting gc run")
+
+	list, err := c.clientSet.AutoscalingV2beta1().HorizontalPodAutoscalers(metav1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		log.Errorf("Could not list hpas: %v", err)
+		return
+	}
+	emList, err := c.store.ListAllExternalMetricValues()
+	if err != nil {
+		log.Errorf("Could not list external metrics from store: %v", err)
+		return
+	}
+	uids := make(map[string]struct{})
+	for _, hpa := range list.Items {
+		uids[string(hpa.UID)] = struct{}{}
+	}
+	var deleted []custommetrics.ExternalMetricValue
+	for _, em := range emList {
+		if _, ok := uids[em.HPA.UID]; !ok {
+			deleted = append(deleted, em)
+		}
+	}
+	if c.store.DeleteExternalMetricValues(deleted); err != nil {
+		log.Errorf("Could not delete the external metrics in the store: %v")
+		return
+	}
+
+	log.Debugf("Done gc run. Deleted %d metrics", len(deleted))
 }
 
 func (c *HPAWatcherClient) updateExternalMetrics() {
@@ -215,6 +253,7 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 					HPA: custommetrics.ObjectReference{
 						Name:      hpa.Name,
 						Namespace: hpa.Namespace,
+						UID:       string(hpa.UID),
 					},
 					Labels: metricSpec.External.MetricSelector.MatchLabels,
 				}
@@ -231,21 +270,6 @@ func (c *HPAWatcherClient) processHPAs(added, modified []*autoscalingv2.Horizont
 	return c.store.SetExternalMetricValues(externalMetrics)
 }
 
-func (c *HPAWatcherClient) removeEntryFromStore(deleted []*autoscalingv2.HorizontalPodAutoscaler) error {
-	if len(deleted) == 0 {
-		return nil
-	}
-	objectRefs := []custommetrics.ObjectReference{}
-	for _, hpa := range deleted {
-		objectRef := custommetrics.ObjectReference{
-			Name:      hpa.Name,
-			Namespace: hpa.Namespace,
-		}
-		objectRefs = append(objectRefs, objectRef)
-	}
-	return c.store.Delete(objectRefs)
-}
-
 // validateExternalMetric queries Datadog to validate the availability of an external metric
 func (c *HPAWatcherClient) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
 	val, err := c.queryDatadogExternal(metricName, labels)
@@ -260,4 +284,5 @@ func (c *HPAWatcherClient) validateExternalMetric(metricName string, labels map[
 func (c *HPAWatcherClient) Stop() {
 	c.pollItl.Stop()
 	c.refreshItl.Stop()
+	c.gcTicker.Stop()
 }

@@ -14,6 +14,6 @@ import (
 )
 
 func TestShouldSanitizeConfig(t *testing.T) {
-	launcher := New(nil, nil, nil)
+	launcher := New(nil, nil)
 	assert.Equal(t, "*", launcher.sanitizedConfig(&config.LogsConfig{ChannelPath: "System", Query: ""}).Query)
 }

@@ -18,6 +18,7 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -48,18 +49,16 @@ const (
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
 	// used to setup the APIClient
-	initRetry        retry.Retrier
-	Cl               kubernetes.Interface
-	timeoutSeconds   int64
-	metadataPollIntl time.Duration
+	initRetry      retry.Retrier
+	Cl             kubernetes.Interface
+	timeoutSeconds int64
 }
 
 // GetAPIClient returns the shared ApiClient instance.
 func GetAPIClient() (*APIClient, error) {
 	if globalAPIClient == nil {
 		globalAPIClient = &APIClient{
-			timeoutSeconds:   config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
-			metadataPollIntl: time.Duration(config.Datadog.GetInt64("kubernetes_apiserver_poll_freq")) * time.Second,
+			timeoutSeconds: config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
 		}
 		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
 			Name:          "apiserver",
@@ -77,50 +76,33 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
-// getClientSet returns the generic kubernetes client set
-func getClientSet() (*kubernetes.Clientset, error) {
-	k8sConfig, err := getK8sConfig()
-	if err != nil {
-		return nil, err
-	}
-	clientSet, err := kubernetes.NewForConfig(k8sConfig)
-	if err != nil {
-		log.Debugf("Could not create the ClientSet: %s", err)
-		return nil, err
-	}
-
-	return clientSet, nil
-}
-
-func getK8sConfig() (*rest.Config, error) {
-	var k8sConfig *rest.Config
+func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+	var clientConfig *rest.Config
 	var err error
-
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
 	if cfgPath == "" {
-		k8sConfig, err = rest.InClusterConfig()
+		clientConfig, err = rest.InClusterConfig()
 		if err != nil {
-			log.Debugf("Can't create a config for the official client from the service account's token: %s", err)
+			log.Debugf("Can't create a config for the official client from the service account's token: %v", err)
 			return nil, err
 		}
 	} else {
 		// use the current context in kubeconfig
-		k8sConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
+		clientConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
 		if err != nil {
-			log.Debugf("Can't create a config for the official client from the configured path to the kubeconfig: %s, %s", cfgPath, err)
+			log.Debugf("Can't create a config for the official client from the configured path to the kubeconfig: %s, %v", cfgPath, err)
 			return nil, err
 		}
 	}
-	k8sConfig.Timeout = 2 * time.Second
-	return k8sConfig, nil
+	clientConfig.Timeout = timeout
+	return kubernetes.NewForConfig(clientConfig)
 }
 
 func (c *APIClient) connect() error {
 	var err error
-	c.Cl, err = getClientSet()
+	c.Cl, err = getKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
-		// We do not return an error as the HPA is an option that should not prevent the DCA to work.
-		log.Errorf("Not able to set up a client for the API Server: %s", err)
+		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
 	// Try to get apiserver version to confim connectivity
@@ -179,49 +161,6 @@ func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) er
 	return nil
 }
 
-// ClusterMetadataMapping is run by the Cluster Agent. It queries the Kubernetes apiserver to get the following resources:
-// - all nodes
-// - all endpoints of all namespaces
-// - all pods of all namespaces
-// Then it stores in cache the MetadataMapperBundle of each node.
-func (c *APIClient) ClusterMetadataMapping() error {
-	// A poll run should take less than the poll frequency.
-	// We fetch nodes to reliably use nodename as key in the cache.
-	// Avoiding to retrieve them from the endpoints/podList.
-	nodeList, err := c.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		log.Errorf("Could not collect nodes from the kube-apiserver: %q", err.Error())
-		return err
-	}
-	if nodeList.Items == nil {
-		log.Debug("No node collected from the kube-apiserver")
-		return nil
-	}
-
-	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		log.Errorf("Could not collect endpoints from the kube-apiserver: %q", err.Error())
-		return err
-	}
-	if endpointList.Items == nil {
-		log.Debug("No endpoint collected from the kube-apiserver")
-		return nil
-	}
-
-	podList, err := c.Cl.CoreV1().Pods("").List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		log.Errorf("Could not collect pods from the kube-apiserver: %q", err.Error())
-		return err
-	}
-	if podList.Items == nil {
-		log.Debug("No pod collected from the kube-apiserver")
-		return nil
-	}
-
-	processKubeServices(nodeList, podList, endpointList)
-	return nil
-}
-
 // processKubeServices adds services to the metadataMapper cache, pointer parameters must be non nil
 func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointList *v1.EndpointsList) {
 	if nodeList.Items == nil || podList.Items == nil || endpointList.Items == nil {
@@ -233,7 +172,7 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
 
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deledte key. Then compute again.
+		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deleted key. Then compute again.
 		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
 
 		if !found {
@@ -257,21 +196,6 @@ func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointLis
 		}
 		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)
 	}
-}
-
-// StartClusterMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
-// The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
-func (c *APIClient) StartClusterMetadataMapping() {
-	tickerSvcProcess := time.NewTicker(c.metadataPollIntl)
-	log.Infof("Starting the cluster level metadata mapping, polling every %s", c.metadataPollIntl.String())
-	go func() {
-		for {
-			select {
-			case <-tickerSvcProcess.C:
-				c.ClusterMetadataMapping()
-			}
-		}
-	}()
 }
 
 func aggregateCheckResourcesErrors(errorMessages []string) error {
@@ -402,14 +326,14 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 }
 
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.
-func GetMetadataMapBundleOnAllNodes() (map[string]interface{}, error) {
+func GetMetadataMapBundleOnAllNodes(cl *APIClient) (map[string]interface{}, error) {
 	nodePodMetadataMap := make(map[string]*MetadataMapperBundle)
 	stats := make(map[string]interface{})
 	var warnlist []string
 	var warn string
 	var err error
 
-	nodes, err := getNodeList()
+	nodes, err := getNodeList(cl)
 	if err != nil {
 		stats["Errors"] = fmt.Sprintf("Failed to get nodes from the API server: %s", err.Error())
 		return stats, err
@@ -455,14 +379,8 @@ func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
 	return metaBundle.(*MetadataMapperBundle), nil
 }
 
-func getNodeList() ([]v1.Node, error) {
-	cl, err := GetAPIClient()
-	if err != nil {
-		log.Errorf("Can't create client to query the API Server: %s", err.Error())
-		return nil, err
-	}
+func getNodeList(cl *APIClient) ([]v1.Node, error) {
 	nodes, err := cl.Cl.CoreV1().Nodes().List(metav1.ListOptions{TimeoutSeconds: &cl.timeoutSeconds})
-
 	if err != nil {
 		log.Errorf("Can't list nodes from the API server: %s", err.Error())
 		return nil, err
@@ -494,4 +412,28 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	}
 
 	return result.Into(output)
+}
+
+// StartMetadataController runs the metadata controller to collect cluster metadata. This is
+// only called once, when we have confirmed we could correctly connect to the API server.
+func StartMetadataController(stopCh chan struct{}) error {
+	var (
+		timeoutSeconds      = time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+		resyncPeriodSeconds = time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	)
+
+	client, err := getKubeClient(timeoutSeconds * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return err
+	}
+	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
+	metaController := NewMetadataController(
+		informerFactory.Core().V1().Nodes(),
+		informerFactory.Core().V1().Endpoints(),
+	)
+	informerFactory.Start(stopCh)
+	go metaController.Run(stopCh)
+
+	return nil
 }

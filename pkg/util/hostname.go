@@ -6,6 +6,7 @@
 package util
 
 import (
+	"expvar"
 	"fmt"
 	"net"
 	"os"
@@ -30,7 +31,16 @@ var (
 		"localhost6.localdomain6",
 		"ip6-localhost",
 	}
+	hostnameExpvars  = expvar.NewMap("hostname")
+	hostnameProvider = expvar.String{}
+	hostnameErrors   = expvar.Map{}
 )
+
+func init() {
+	hostnameErrors.Init()
+	hostnameExpvars.Set("provider", &hostnameProvider)
+	hostnameExpvars.Set("errors", &hostnameErrors)
+}
 
 // ValidHostname determines whether the passed string is a valid hostname.
 // In case it's not, the returned error contains the details of the failure.
@@ -96,12 +106,14 @@ func GetHostname() (string, error) {
 
 	var hostName string
 	var err error
+	var provider string
 
 	// try the name provided in the configuration file
 	name := config.Datadog.GetString("hostname")
 	err = ValidHostname(name)
 	if err == nil {
 		cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
+		hostnameProvider.Set("configuration")
 		return name, err
 	}
 
@@ -120,8 +132,12 @@ func GetHostname() (string, error) {
 		name, err = getGCEHostname(name)
 		if err == nil {
 			cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
+			hostnameProvider.Set("gce")
 			return name, err
 		}
+		expErr := new(expvar.String)
+		expErr.Set(err.Error())
+		hostnameErrors.Set("gce", expErr)
 		log.Debug("Unable to get hostname from GCE: ", err)
 	}
 
@@ -130,13 +146,26 @@ func GetHostname() (string, error) {
 	fqdn, err := getSystemFQDN()
 	if config.Datadog.GetBool("hostname_fqdn") && err == nil {
 		hostName = fqdn
+		provider = "fqdn"
 	} else {
+		if err != nil {
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("fqdn", expErr)
+		}
 		log.Debug("Unable to get FQDN from system: ", err)
 	}
 
 	isContainerized, name := getContainerHostname()
-	if isContainerized && name != "" {
-		hostName = name
+	if isContainerized {
+		if name != "" {
+			hostName = name
+			provider = "container"
+		} else {
+			expErr := new(expvar.String)
+			expErr.Set("Unable to get hostname from container API")
+			hostnameErrors.Set("container", expErr)
+		}
 	}
 
 	if hostName == "" {
@@ -145,7 +174,11 @@ func GetHostname() (string, error) {
 		name, err = os.Hostname()
 		if err == nil {
 			hostName = name
+			provider = "os"
 		} else {
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("os", expErr)
 			log.Debug("Unable to get hostname from OS: ", err)
 		}
 	}
@@ -161,10 +194,17 @@ func GetHostname() (string, error) {
 			err = ValidHostname(instanceID)
 			if err == nil {
 				hostName = instanceID
+				provider = "aws"
 			} else {
+				expErr := new(expvar.String)
+				expErr.Set(err.Error())
+				hostnameErrors.Set("aws", expErr)
 				log.Debug("EC2 instance ID is not a valid hostname: ", err)
 			}
 		} else {
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("aws", expErr)
 			log.Debug("Unable to determine hostname from EC2: ", err)
 		}
 	}
@@ -184,5 +224,11 @@ func GetHostname() (string, error) {
 	}
 
 	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
+	hostnameProvider.Set(provider)
+	if err != nil {
+		expErr := new(expvar.String)
+		expErr.Set(fmt.Sprintf(err.Error()))
+		hostnameErrors.Set("all", expErr)
+	}
 	return hostName, err
 }

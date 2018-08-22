@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -46,6 +45,7 @@ func SetupAutoConfig(confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(GetDistPath(), "conf.d"),
+		"",
 	}
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
 
@@ -74,23 +74,13 @@ func SetupAutoConfig(confdPath string) {
 	// Autodiscovery listeners
 	// for now, no need to implement a registry of available listeners since we
 	// have only docker
-	var Listeners []config.Listeners
-	if err = config.Datadog.UnmarshalKey("listeners", &Listeners); err == nil {
-		Listeners = AutoAddListeners(Listeners)
-		for _, l := range Listeners {
-			serviceListenerFactory, ok := listeners.ServiceListenerFactories[l.Name]
-			if !ok {
-				// Factory has not been registered.
-				log.Warnf("Listener %s was not registered", l)
-				continue
-			}
-			serviceListener, err := serviceListenerFactory()
-			if err != nil {
-				log.Errorf("Failed to create a %s listener: %s", l.Name, err)
-			} else {
-				AC.AddListener(serviceListener)
-			}
-		}
+	var listeners []config.Listeners
+	err = config.Datadog.UnmarshalKey("listeners", &listeners)
+	if err == nil {
+		listeners = AutoAddListeners(listeners)
+		AC.AddListeners(listeners)
+	} else {
+		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
 }
 

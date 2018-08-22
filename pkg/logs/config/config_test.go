@@ -25,30 +25,29 @@ func TestDefaultDatadogConfig(t *testing.T) {
 }
 
 func TestBuildLogsSources(t *testing.T) {
-	var ddconfdPath string
-	var logsSources *LogSources
+	var sources *LogSources
 	var source *LogSource
 	var err error
 
 	// should return an error
-	logsSources, err = buildLogSources(ddconfdPath, false, -1)
+	sources, err = buildLogSources("", false, -1)
 	assert.NotNil(t, err)
 
 	// should return the default tail all containers source
-	logsSources, err = buildLogSources(ddconfdPath, true, -1)
+	sources, err = buildLogSources("", true, -1)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(logsSources.GetValidSources()))
-	source = logsSources.GetValidSources()[0]
+	assert.Equal(t, 1, len(sources.GetValidSources()))
+	source = sources.GetValidSources()[0]
 	assert.Equal(t, "container_collect_all", source.Name)
 	assert.Equal(t, DockerType, source.Config.Type)
 	assert.Equal(t, "docker", source.Config.Service)
 	assert.Equal(t, "docker", source.Config.Source)
 
 	// should return the tcp forward source
-	logsSources, err = buildLogSources(ddconfdPath, false, 1234)
+	sources, err = buildLogSources("", false, 1234)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(logsSources.GetValidSources()))
-	source = logsSources.GetValidSources()[0]
+	assert.Equal(t, 1, len(sources.GetValidSources()))
+	source = sources.GetValidSources()[0]
 	assert.Equal(t, "tcp_forward", source.Name)
 	assert.Equal(t, TCPType, source.Config.Type)
 	assert.Equal(t, 1234, source.Config.Port)

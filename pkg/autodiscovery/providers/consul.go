@@ -99,7 +99,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the ConsulConfigProvider
 func (p *ConsulConfigProvider) String() string {
-	return "consul Configuration Provider"
+	return Consul
 }
 
 // Collect retrieves templates from consul, builds Config objects and returns them

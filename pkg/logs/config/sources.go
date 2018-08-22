@@ -5,15 +5,39 @@
 
 package config
 
+import (
+	"sync"
+)
+
 // LogSources stores a list of log sources.
 type LogSources struct {
 	sources []*LogSource
+	mu      sync.Mutex
 }
 
-// newLogsSource creates a new log sources.
-func newLogSources(sources []*LogSource) *LogSources {
+// NewLogSources creates a new log sources.
+func NewLogSources(sources []*LogSource) *LogSources {
 	return &LogSources{
 		sources: sources,
+	}
+}
+
+// AddSource adds a new source.
+func (s *LogSources) AddSource(source *LogSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sources = append(s.sources, source)
+}
+
+// RemoveSource removes a source.
+func (s *LogSources) RemoveSource(source *LogSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, src := range s.sources {
+		if src == source {
+			s.sources = append(s.sources[:i], s.sources[i+1:]...)
+			break
+		}
 	}
 }
 
@@ -22,10 +46,25 @@ func (s *LogSources) GetSources() []*LogSource {
 	return s.sources
 }
 
-// GetValidSources returns all the sources currently held not having errors.
+// GetValidSources returns the sources which status is not having in error.
 func (s *LogSources) GetValidSources() []*LogSource {
 	return s.getSources(func(source *LogSource) bool {
 		return !source.Status.IsError()
+	})
+}
+
+// GetSourcesWithType returns the sources which config type matches the provided type.
+func (s *LogSources) GetSourcesWithType(sourceType string) []*LogSource {
+	return s.getSources(func(source *LogSource) bool {
+		return source.Config != nil && source.Config.Type == sourceType
+	})
+}
+
+// GetValidSourcesWithType returns the sources which status is not in error,
+// and the config type matches the provided type.
+func (s *LogSources) GetValidSourcesWithType(sourceType string) []*LogSource {
+	return s.getSources(func(source *LogSource) bool {
+		return !source.Status.IsError() && source.Config != nil && source.Config.Type == sourceType
 	})
 }
 

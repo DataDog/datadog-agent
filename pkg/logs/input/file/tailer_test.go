@@ -9,6 +9,7 @@ package file
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -70,7 +71,7 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	_, err = suite.testFile.WriteString(lines[0])
 	suite.Nil(err)
 
-	suite.tl.tailFromBeginning()
+	suite.tl.StartFromBeginning()
 
 	// those lines should be tailed
 	_, err = suite.testFile.WriteString(lines[1])
@@ -103,7 +104,7 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 	_, err = suite.testFile.WriteString(lines[0])
 	suite.Nil(err)
 
-	suite.tl.tailFromEnd()
+	suite.tl.Start(0, io.SeekEnd)
 
 	// those lines should be tailed
 	_, err = suite.testFile.WriteString(lines[1])
@@ -136,7 +137,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	_, err = suite.testFile.WriteString(lines[1])
 	suite.Nil(err)
 
-	suite.tl.recoverTailing(int64(len(lines[0])))
+	suite.tl.Start(int64(len(lines[0])), io.SeekStart)
 
 	// this line should be tailed
 	_, err = suite.testFile.WriteString(lines[2])
@@ -154,13 +155,13 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
-	suite.tl.tailFromBeginning()
+	suite.tl.StartFromBeginning()
 	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
 }
 
 func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 
-	suite.tl.tailFromBeginning()
+	suite.tl.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("foo\n")
 	suite.Nil(err)

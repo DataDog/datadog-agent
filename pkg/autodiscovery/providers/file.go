@@ -68,7 +68,7 @@ func (c *FileConfigProvider) Collect() ([]integration.Config, error) {
 	for _, path := range c.paths {
 		log.Infof("%v: searching for configuration files at: %s", c, path)
 
-		entries, err := ioutil.ReadDir(path)
+		entries, err := readDirPtr(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -133,7 +133,7 @@ func (c *FileConfigProvider) IsUpToDate() (bool, error) {
 
 // String returns a string representation of the FileConfigProvider
 func (c *FileConfigProvider) String() string {
-	return "File Configuration Provider"
+	return File
 }
 
 // collectEntry collects a file entry and return it's configuration if valid
@@ -247,7 +247,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := ioutil.ReadFile(fpath)
+	yamlFile, err := readFilePtr(fpath)
 	if err != nil {
 		return config, err
 	}

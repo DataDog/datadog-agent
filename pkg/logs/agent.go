@@ -39,22 +39,21 @@ func NewAgent(sources *config.LogSources) *Agent {
 	auditor := auditor.New(messageChan, config.LogsAgent.GetString("logs_config.run_path"))
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	connectionManager := sender.NewConnectionManager(
+	serverConfig := sender.NewServerConfig(
 		config.LogsAgent.GetString("logs_config.dd_url"),
 		config.LogsAgent.GetInt("logs_config.dd_port"),
-		config.LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
-		config.LogsAgent.GetString("logs_config.socks5_proxy_address"),
+		!config.LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
 	)
+	connectionManager := sender.NewConnectionManager(serverConfig, config.LogsAgent.GetString("logs_config.socks5_proxy_address"))
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
 	// setup the inputs
-	validSources := sources.GetValidSources()
 	inputs := []restart.Restartable{
-		docker.NewScanner(validSources, pipelineProvider, auditor),
-		listener.New(validSources, pipelineProvider),
-		file.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		journald.New(validSources, pipelineProvider, auditor),
-		windowsevent.New(validSources, pipelineProvider, auditor),
+		docker.NewScanner(sources, pipelineProvider, auditor),
+		listener.New(sources, pipelineProvider),
+		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		journald.New(sources, pipelineProvider, auditor),
+		windowsevent.New(sources, pipelineProvider),
 	}
 
 	return &Agent{

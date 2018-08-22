@@ -3,6 +3,7 @@ Android namespaced tasks
 """
 from __future__ import print_function
 import glob
+import yaml
 import os
 import shutil
 import sys
@@ -23,21 +24,31 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 from .agent import DEFAULT_BUILD_TAGS
 
-
+ANDROID_CORECHECKS = [
+    "cpu",
+    "io",
+    "load",
+    "memory",
+    "uptime",
+]
+CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
         use_embedded_libs=False, development=True, precompile_only=False,
           skip_assets=False):
     """
-    Build the agent. If the bits to include in the build are not specified,
+    Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=snmp,systemd
+        inv android.build 
     """
     # ensure BIN_PATH exists
     if not os.path.exists(BIN_PATH):
         os.makedirs(BIN_PATH)
+
+    # put the check confs in place
+    assetconfigs(ctx)
 
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -49,7 +60,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
-    # remove all tags that are only availaible on debian distributions
+    # remove all tags that are only available on debian distributions
     distname = platform.linux_distribution()[0].lower()
     if distname not in ['debian', 'ubuntu']:
         for ex in DEBIAN_ONLY_TAGS:
@@ -121,4 +132,50 @@ def clean(ctx):
 
     # remove the bin/agent folder
     print("Remove agent binary folder")
-    ctx.run("rm -rf ./bin/agent")
+    shutil.rmtree("./bin/agent")
+
+    shutil.rmtree(CORECHECK_CONFS_DIR)
+
+@task
+def assetconfigs(ctx):
+    # move the core check config
+    try:
+        shutil.rmtree(CORECHECK_CONFS_DIR)
+    except:
+        ## it's ok if the dir is not there
+        pass
+
+    files = {}
+    files_list = []
+    os.makedirs(CORECHECK_CONFS_DIR)
+    for check in ANDROID_CORECHECKS:
+        srcfile = "cmd/agent/dist/conf.d/{}.d/conf.yaml.default".format(check)
+        tgtfile = "{}/{}.yaml".format(CORECHECK_CONFS_DIR, check)
+        shutil.copyfile(srcfile, tgtfile)
+        files_list.append("{}.yaml".format(check))
+    files["files"] = files_list
+
+    with open("{}/directory_manifest.yaml".format(CORECHECK_CONFS_DIR), 'w') as outfile:
+        yaml.dump(files, outfile, default_flow_style=False)
+
+@task
+def launchservice(ctx, api_key, hostname=None, tags=None):
+    if api_key is None:
+        print("must supply api key")
+        return
+    
+    if hostname is None:
+        print("Setting hostname to android-tablet")
+        hostname="android-tablet"
+    
+    if tags is None:
+        print("Setting tags to owner:db,env:local,role:windows")
+        tags="owner:db,env:local,role:windows"
+
+    cmd = "adb shell am startservice --es api_key {} --es hostname {} --es tags {} org.datadog.agent/.DDService".format(api_key, hostname, tags)
+    ctx.run(cmd)
+
+@task   
+def stopservice(ctx):
+    cmd = "adb shell am force-stop org.datadog.agent"
+    ctx.run(cmd)

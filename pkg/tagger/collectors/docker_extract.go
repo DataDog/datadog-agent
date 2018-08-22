@@ -10,11 +10,11 @@ package collectors
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // extractFromInspect extract tags for a container inspect JSON
@@ -40,7 +40,7 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 
 func dockerExtractImage(tags *utils.TagList, dockerImage string) {
 	tags.AddLow("docker_image", dockerImage)
-	imageName, shortImage, imageTag, err := docker.SplitImageName(dockerImage)
+	imageName, shortImage, imageTag, err := containers.SplitImageName(dockerImage)
 	if err != nil {
 		log.Debugf("Cannot split %s: %s", dockerImage, err)
 		return

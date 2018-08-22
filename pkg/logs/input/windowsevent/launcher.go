@@ -8,7 +8,6 @@ package windowsevent
 import (
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
@@ -16,24 +15,16 @@ import (
 
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
-	sources          []*config.LogSource
+	sources          *config.LogSources
 	pipelineProvider pipeline.Provider
-	auditor          *auditor.Auditor
 	tailers          map[string]*Tailer
 }
 
 // New returns a new Launcher.
-func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
-	windowsEventSources := []*config.LogSource{}
-	for _, source := range sources {
-		if source.Config.Type == config.WindowsEventType {
-			windowsEventSources = append(windowsEventSources, source)
-		}
-	}
+func New(sources *config.LogSources, pipelineProvider pipeline.Provider) *Launcher {
 	return &Launcher{
-		sources:          windowsEventSources,
+		sources:          sources,
 		pipelineProvider: pipelineProvider,
-		auditor:          auditor,
 		tailers:          make(map[string]*Tailer),
 	}
 }
@@ -47,7 +38,7 @@ func (l *Launcher) Start() {
 		log.Debug("Found available windows event log channels: ", availableChannels)
 	}
 
-	for _, source := range l.sources {
+	for _, source := range l.sources.GetValidSourcesWithType(config.WindowsEventType) {
 		identifier := Identifier(source.Config.ChannelPath, source.Config.Query)
 		if _, exists := l.tailers[identifier]; exists {
 			// tailer already setup
@@ -86,6 +77,6 @@ func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
 	sanitizedConfig := l.sanitizedConfig(source.Config)
 	config := &Config{sanitizedConfig.ChannelPath, sanitizedConfig.Query}
 	tailer := NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
-	tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
+	tailer.Start()
 	return tailer, nil
 }

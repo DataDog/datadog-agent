@@ -32,10 +32,12 @@ import (
 	"github.com/fatih/color"
 )
 
+var stopCh chan struct{}
+
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
-		Use:   "cluster-agent [command]",
+		Use:   "datadog-cluster-agent [command]",
 		Short: "Datadog Cluster Agent at your service.",
 		Long: `
 Datadog Cluster Agent takes care of running checks that need run only once per cluster.
@@ -153,12 +155,16 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Errorf("Could not start the Cluster Agent Process.")
 
 	}
-	// Start the Service Mapper.
-	asc, err := apiserver.GetAPIClient()
+
+	_, err = apiserver.GetAPIClient() // make sure we can connect to the apiserver
 	if err != nil {
-		log.Errorf("Could not instantiate the API Server Client: %s", err.Error())
+		log.Errorf("Could not connect to the apiserver: %v", err)
 	} else {
-		asc.StartClusterMetadataMapping()
+		// Start controllers
+		stopCh = make(chan struct{})
+		if err := apiserver.StartMetadataController(stopCh); err != nil {
+			log.Errorf("Could not start metadata controller: %v", err)
+		}
 	}
 
 	// Setup a channel to catch OS signals
@@ -189,6 +195,9 @@ func start(cmd *cobra.Command, args []string) error {
 		custommetrics.StopServer()
 	}
 	clusterAgent.Stop()
+	if stopCh != nil {
+		close(stopCh)
+	}
 	log.Info("See ya!")
 	log.Flush()
 	return nil

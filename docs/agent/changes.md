@@ -273,7 +273,7 @@ apm_config:
 For the Docker image, the APM agent is disabled by default. You can enable it by setting
 the `DD_APM_ENABLED` envvar to `true`. It will listen to all interfaces by default.
 
-If you want to listen to non-local trafic on any other platform, you can set
+If you want to listen to non-local traffic on any other platform, you can set
 `apm_config.apm_non_local_traffic = true` in your `datadog.yaml`.
 
 ## Process agent
@@ -295,6 +295,8 @@ The `enabled` value is a string with the following options:
 
 ## Docker check
 
+Docker versions 1.12.1 and up are supported.
+
 The Docker check has been rewritten in Go to take advantage of the new
 internal architecture of the Agent, mainly bringing a consistent behaviour
 across every container related component. Therefore the Python version will
@@ -314,7 +316,7 @@ are ported, excepted the following deprecations:
   * `collect_labels_as_tags` has been renamed `docker_labels_as_tags` and now
     supports high cardinality tags, see the details in `datadog.yaml.example`
   * `exclude` and `include` lists have been renamed `ac_include` and
-    `ac_exclude`. In order to make filtering consistent accross all components of
+    `ac_exclude`. In order to make filtering consistent across all components of
     the agent, we had to drop filtering on arbitrary tags. The only supported
     filtering tags are `image` (image name) and `name` (container name).
     Regexp filtering is still available, see `datadog.yaml.example` for examples
@@ -332,7 +334,7 @@ needed settings from `docker_daemon.yaml` to `datadog.yaml`.
 
 ### Kubernetes versions
 
-Agent 6 currently supports Kubernetes versions 1.7.6 and above. Support for previous versions will be added in a future release.
+Agent 6 currently supports Kubernetes versions 1.3 and above.
 
 ### Kubernetes metrics and events
 
@@ -373,7 +375,7 @@ All documented use cases are supported, please contact our support team if you r
 
 ### Kubernetes
 
-When using Kubernetes, the Autodiscovery system now sources information from the kubelet, instead of the Docker daemon. This will allow AD to work without access to the Docker socket, and enable a more consistent experience accross all parts of the agent. Also, the default behaviour is to source AD templates from pod annotations. You can enable the `docker` config-provider to use container labels, and replace the `kubelet` listener by the `kubelet` one if you need AD on containers running out of pods.
+When using Kubernetes, the Autodiscovery system now sources information from the kubelet, instead of the Docker daemon. This will allow AD to work without access to the Docker socket, and enable a more consistent experience across all parts of the agent. Also, the default behaviour is to source AD templates from pod annotations. You can enable the `docker` config-provider to use container labels, and replace the `kubelet` listener by the `kubelet` one if you need AD on containers running out of pods.
 
 When specifying AD templates in pod annotations, the new annotation name prefix is `ad.datadoghq.com/`. the previous annotation prefix
 `service-discovery.datadoghq.com/` is still supported for Agent6 but support will be removed in Agent7.

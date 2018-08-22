@@ -28,31 +28,23 @@ const scanPeriod = 10 * time.Second
 
 // A Scanner listens for stdout and stderr of containers
 type Scanner struct {
-	pp        pipeline.Provider
-	sources   []*config.LogSource
-	tailers   map[string]*Tailer
-	cli       *client.Client
-	auditor   *auditor.Auditor
-	isRunning bool
-	stop      chan struct{}
+	pipelineProvider pipeline.Provider
+	sources          *config.LogSources
+	tailers          map[string]*Tailer
+	cli              *client.Client
+	registry         auditor.Registry
+	isRunning        bool
+	stop             chan struct{}
 }
 
 // NewScanner returns an initialized Scanner
-func NewScanner(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
-	containerSources := []*config.LogSource{}
-	for _, source := range sources {
-		switch source.Config.Type {
-		case config.DockerType:
-			containerSources = append(containerSources, source)
-		default:
-		}
-	}
+func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Scanner {
 	return &Scanner{
-		pp:      pp,
-		sources: containerSources,
-		tailers: make(map[string]*Tailer),
-		auditor: a,
-		stop:    make(chan struct{}),
+		pipelineProvider: pipelineProvider,
+		sources:          sources,
+		tailers:          make(map[string]*Tailer),
+		registry:         registry,
+		stop:             make(chan struct{}),
 	}
 }
 
@@ -108,7 +100,7 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 
 	// monitor new containers, and restart tailers if needed
 	for _, container := range runningContainers {
-		source := NewContainer(container).findSource(s.sources)
+		source := NewContainer(container).findSource(s.sources.GetSourcesWithType(config.DockerType))
 		if source == nil {
 			continue
 		}
@@ -118,7 +110,7 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 		}
 		if !isTailed {
 			// setup a new tailer
-			succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pp.NextPipelineChan())
+			succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pipelineProvider.NextPipelineChan())
 			if !succeeded {
 				// the setup failed, let's try to tail this container in the next scan
 				continue
@@ -138,10 +130,6 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 
 // Start starts the Scanner
 func (s *Scanner) setup() error {
-	if len(s.sources) == 0 {
-		return fmt.Errorf("No container source defined")
-	}
-
 	cli, err := NewClient()
 	if err != nil {
 		log.Error("Can't tail containers, ", err)
@@ -163,19 +151,18 @@ func (s *Scanner) setup() error {
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
 func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
-	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
-	t := NewTailer(cli, container.ID, source, outputChan)
-	var err error
-	if tailFromBeginning {
-		err = t.tailFromBeginning()
-	} else {
-		err = t.recoverTailing(s.auditor)
+	log.Info("Detected container ", container.Image, " - ", ShortContainerID(container.ID))
+	tailer := NewTailer(cli, container.ID, source, outputChan)
+	since, err := Since(s.registry, tailer.Identifier(), tailFromBeginning)
+	if err != nil {
+		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(container.ID), err)
 	}
+	err = tailer.Start(since)
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
-	s.tailers[container.ID] = t
+	s.tailers[container.ID] = tailer
 	return true
 }
 
@@ -199,11 +186,7 @@ func (s *Scanner) listContainers() []types.Container {
 
 // reportErrorToAllSources changes the status of all sources to Error with err
 func (s *Scanner) reportErrorToAllSources(err error) {
-	for _, source := range s.sources {
+	for _, source := range s.sources.GetValidSourcesWithType(config.DockerType) {
 		source.Status.Error(err)
 	}
-}
-
-func (s *Scanner) humanReadableContainerID(containerID string) string {
-	return containerID[:12]
 }

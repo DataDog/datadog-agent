@@ -8,7 +8,6 @@ package listener
 import (
 	"fmt"
 	"net"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,32 +33,6 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 	fmt.Fprintf(conn, "hello world\n")
 	msg = <-msgChan
 	assert.Equal(t, "hello world", string(msg.Content()))
-
-	listener.Stop()
-}
-
-func TestUDPShouldProperlyTruncateTooBigMessages(t *testing.T) {
-	pp := mock.NewMockProvider()
-	msgChan := pp.NextPipelineChan()
-	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 100)
-	listener.Start()
-
-	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
-	assert.Nil(t, err)
-
-	var msg message.Message
-
-	fmt.Fprintf(conn, strings.Repeat("a", 80)+"\n")
-	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 80), string(msg.Content()))
-
-	fmt.Fprintf(conn, strings.Repeat("a", 100)+"\n")
-	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 100), string(msg.Content()))
-
-	fmt.Fprintf(conn, strings.Repeat("a", 70)+"\n")
-	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 70), string(msg.Content()))
 
 	listener.Stop()
 }

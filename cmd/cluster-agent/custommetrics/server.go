@@ -77,7 +77,7 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-	datadogHPAConfigMap := custommetrics.GetHPAConfigmapName()
+	datadogHPAConfigMap := custommetrics.GetConfigmapName()
 	store, err := custommetrics.NewConfigMapStore(client.Cl, as.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		return err
@@ -109,6 +109,6 @@ func StartServer() error {
 // stops listening to new commands.
 func StopServer() {
 	if stopCh != nil {
-		stopCh <- struct{}{}
+		close(stopCh)
 	}
 }

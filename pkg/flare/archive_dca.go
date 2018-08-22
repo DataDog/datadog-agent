@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mholt/archiver"
 
@@ -148,8 +149,14 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 }
 
 func zipMetadataMap(tempDir, hostname string) error {
+	cl, err := apiserver.GetAPIClient()
+	if err != nil {
+		log.Infof("Can't create client to query the API Server: %v", err)
+		return err
+	}
+
 	// Grab the metadata map for all nodes.
-	metaList, err := apiserver.GetMetadataMapBundleOnAllNodes()
+	metaList, err := apiserver.GetMetadataMapBundleOnAllNodes(cl)
 	if err != nil {
 		log.Infof("Error while collecting the cluster level metadata: %q", err)
 	}
@@ -184,7 +191,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 func zipHPAStatus(tempDir, hostname string) error {
 	// Grab the full content of the HPA configmap
 	stats := make(map[string]interface{})
-	stats["hpaExternal"] = status.GetHorizontalPodAutoscalingStatus()
+	stats["custommetrics"] = custommetrics.GetStatus()
 	statsBytes, err := json.Marshal(stats)
 	if err != nil {
 		log.Infof("Error while marshalling the cluster level metadata: %q", err)

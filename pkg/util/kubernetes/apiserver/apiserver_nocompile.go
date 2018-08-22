@@ -25,6 +25,12 @@ type APIClient struct{}
 // MetadataMapperBundle maps the podNames to the metadata they are associated with.
 type MetadataMapperBundle struct{}
 
+// GetAPIClient returns the shared ApiClient instance.
+func GetAPIClient() (*APIClient, error) {
+	log.Errorf("GetAPIClient not implemented %s", ErrNotCompiled.Error())
+	return nil, nil
+}
+
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
 func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
@@ -38,13 +44,13 @@ func GetMetadataMapBundleOnNode(nodeName string) (map[string]interface{}, error)
 }
 
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the service map of all nodes.
-func GetMetadataMapBundleOnAllNodes() (map[string]interface{}, error) {
+func GetMetadataMapBundleOnAllNodes(_ *APIClient) (map[string]interface{}, error) {
 	log.Errorf("GetMetadataMapBundleOnAllNodes not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
 
 // StartClusterMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
-func (c *APIClient) StartClusterMetadataMapping() {
+func (c *APIClient) StartClusterMetadataMapping(_ chan struct{}) {
 	log.Errorf("StartClusterMetadataMapping not implemented %s", ErrNotCompiled.Error())
 	return
 }

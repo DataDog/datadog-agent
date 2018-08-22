@@ -153,7 +153,6 @@ spec:
         data:
           datadog.yaml: |
             dd_url: "http://fake-datadog.default.svc.cluster.local"
-            kubernetes_apiserver_poll_freq: 20
             leader_election: true
             cluster_agent:
               auth_token: "c9e21a248434a400b1de021dbdd554d790983a1212a5eac0ba36e79346ec52fd"
@@ -681,7 +680,7 @@ spec:
         - "{{inputs.parameters.nginx-hpa}}"
 
     - - name: remove-maps
-        template: delete-cm-datadog-hpa
+        template: delete-cm-datadog-custom-metrics
 
   - name: manifest
     inputs:
@@ -702,7 +701,7 @@ spec:
         set -o pipefail
 
         # Verify the DCA has written in the configmap
-        until kubectl get cm datadog-hpa -o json -n default | jq -re .data[]
+        until kubectl get cm datadog-custom-metrics -o json -n default | jq -re .data[]
         do
          sleep 1
         done
@@ -739,7 +738,7 @@ spec:
           sleep 3
         done
 
-  - name: delete-cm-datadog-hpa
+  - name: delete-cm-datadog-custom-metrics
     activeDeadlineSeconds: 200
     script:
       image: argoproj/argoexec:latest
@@ -747,7 +746,7 @@ spec:
       source: |
         set -o pipefail
         set -x
-        kubectl delete cm datadog-hpa
+        kubectl delete cm datadog-custom-metrics
         echo $?
 
   - name: find-metrics-nginx

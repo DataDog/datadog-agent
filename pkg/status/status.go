@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -128,7 +129,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
-	stats["hpaExternal"] = GetHorizontalPodAutoscalingStatus()
+	stats["custommetrics"] = custommetrics.GetStatus()
 
 	return stats, nil
 }
@@ -198,6 +199,21 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
 	stats["aggregatorStats"] = aggregatorStats
+
+	pyLoaderData := expvar.Get("pyLoader")
+	if pyLoaderData != nil {
+		pyLoaderStatsJSON := []byte(pyLoaderData.String())
+		pyLoaderStats := make(map[string]interface{})
+		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats)
+		stats["pyLoaderStats"] = pyLoaderStats
+	} else {
+		stats["pyLoaderStats"] = nil
+	}
+
+	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
+	hostnameStats := make(map[string]interface{})
+	json.Unmarshal(hostnameStatsJSON, &hostnameStats)
+	stats["hostnameStats"] = hostnameStats
 
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)

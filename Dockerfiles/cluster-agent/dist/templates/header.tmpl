@@ -28,6 +28,14 @@
     {{$name}}: {{$value}}
     {{- end }}
   {{- end }}
+      hostname provider: {{.hostnameStats.provider}}
+  {{- range $name, $value := .hostnameStats.errors -}}
+    {{- if ne $name "all" }}
+    error: {{$name}}: {{$value}}
+    {{- else }}
+    error: {{$value}}
+    {{- end}}
+  {{- end }}
 
   Leader Election
   ===============
@@ -43,22 +51,23 @@
     {{- end}}
     {{- end}}
 
-  Custom Metrics Provider
-  =======================
-  External Metrics
-  ================
-    {{- if .hpaExternal -}}
-    {{- if .hpaExternal.Error }}
-    Error while trying to serve external metrics: {{ .hpaExternal.Error }}
+  Custom Metrics Server
+  =====================
+    {{- if .custommetrics.Error }}
+    Error: {{ .custommetrics.Error }}
     {{ else }}
-    {{- if .hpaExternal.ErrorStore }}
-    Internal Error while processing the External Metrics : {{ .hpaExternal.ErrorStore }}
+    ConfigMap name: {{ .custommetrics.Cmname }}
+    {{ if .custommetrics.StoreError }}
+    Error: {{ .custommetrics.StoreError }}
     {{ else }}
-    ConfigMap name: {{ .hpaExternal.Cmname }}
-    Number of external metrics detected: {{ .hpaExternal.Number }}
-    {{- end -}}
-    {{- end -}}
-    {{ else }}
-    The External Metrics Provider is not enabled
-    {{- end -}}
+    External Metrics
+    ----------------
+      {{- if .custommetrics.External.ListError }}
+      Error: {{ .custommetrics.External.ListError }}
+      {{ else }}
+      Total: {{ .custommetrics.External.Total }}
+      Valid: {{ .custommetrics.External.Valid }}
+      {{ end -}}
+    {{- end }}
+    {{- end }}
 {{/* this line intentionally left blank */}}
