@@ -184,6 +184,8 @@ func init() {
 	BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
 	BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
+	BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 4096)                          // Number of packets to buffer at dogstatsd intake before flushing them to parsing/aggregation
+	BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond) // Timeout after which we force dogstatsd intake buffer to be flushed
 	BindEnvAndSetDefault("statsd_forward_host", "")
 	BindEnvAndSetDefault("statsd_forward_port", 0)
 	BindEnvAndSetDefault("statsd_metric_namespace", "")

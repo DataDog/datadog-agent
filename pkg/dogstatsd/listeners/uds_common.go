@@ -12,7 +12,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -83,7 +82,7 @@ func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListene
 		OriginDetection: originDetection,
 		packetOut:       packetOut,
 		packetPool:      packetPool,
-		packetBuffer:    newPacketBuffer(4096, 100*time.Millisecond, packetOut),
+		packetBuffer:    newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")), config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
 		conn:            conn,
 	}
 

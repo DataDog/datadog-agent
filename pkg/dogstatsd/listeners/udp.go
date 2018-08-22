@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -66,7 +65,7 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 	listener := &UDPListener{
 		packetOut:    packetOut,
 		packetPool:   packetPool,
-		packetBuffer: newPacketBuffer(4096, 100*time.Millisecond, packetOut),
+		packetBuffer: newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")), config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
 		conn:         conn,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
