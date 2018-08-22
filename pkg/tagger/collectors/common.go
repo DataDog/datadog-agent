@@ -13,7 +13,7 @@ import (
 )
 
 var templateVariables = map[string]struct{}{
-	"label": struct{}{},
+	"label": {},
 }
 
 // retrieveMappingFromConfig gets a stringmapstring config key and
