@@ -69,11 +69,25 @@ We automatically collect common tags from [Docker](https://github.com/DataDog/da
 - `DD_KUBERNETES_POD_LABELS_AS_TAGS` : extract pod labels
 - `DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS` : extract pod annotations
 
-You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the datadog tag name.
+You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the Datadog tag name.
 
 ```shell
 DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
 DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name"}'
+```
+
+You can use shell patterns in label names to define simple rules for mapping labels to Datadog tag names using the same simple template system used by Autodiscovery. This is only supported by `DD_KUBERNETES_POD_LABELS_AS_TAGS`.
+
+To add all pod labels as tags to your metrics where tags names are prefixed by `kube_`, you can use the following:
+
+```shell
+DD_KUBERNETES_POD_LABELS_AS_TAGS='{"*":"kube_%%label%%"}'
+```
+
+To add only pod labels as tags to your metrics that start with `app`, you can use the following:
+
+```shell
+DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app*":"kube_%%label%%"}'
 ```
 
 #### Using secret files (BETA)

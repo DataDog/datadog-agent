@@ -9,7 +9,12 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
+
+var templateVariables = map[string]struct{}{
+	"label": struct{}{},
+}
 
 // retrieveMappingFromConfig gets a stringmapstring config key and
 // lowercases all map keys to make envvar and yaml sources consistent
@@ -21,4 +26,17 @@ func retrieveMappingFromConfig(configKey string) map[string]string {
 	}
 
 	return labelsList
+}
+
+func resolveTag(tmpl, label string) string {
+	vars := tmplvar.ParseString(tmpl)
+	tagName := tmpl
+	for _, v := range vars {
+		if _, ok := templateVariables[string(v.Name)]; ok {
+			tagName = strings.Replace(tagName, string(v.Raw), label, -1)
+			continue
+		}
+		tagName = strings.Replace(tagName, string(v.Raw), "", -1)
+	}
+	return tagName
 }
