@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 )
 
 // DefaultFlushInterval aggregator default flush interval
@@ -321,6 +322,18 @@ func (agg *BufferedAggregator) flushSeries() {
 	series = append(series, &metrics.Serie{
 		Name:           "datadog.agent.running",
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
+
+	var logsIsRunning float64
+	if logs.IsRunning() {
+		logsIsRunning = 1
+	}
+	series = append(series, &metrics.Serie{
+		Name:           "datadog.logs.agent.running",
+		Points:         []metrics.Point{{Value: logsIsRunning, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
