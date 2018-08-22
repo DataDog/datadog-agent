@@ -3,16 +3,7 @@ Forwarder
 =========
 {{ if .Transactions }}
   {{- range $key, $value := .Transactions }}
-    {{- if eq $key "ErrorsByType"}}
-      {{- if $.Transactions.Errors }}
-  {{$key}}:
-          {{- range $type, $count := $value }}
-            {{- if and (ne $type "HTTPErrorsByCode") ($count) }}
-    {{$type}}: {{$count}}
-            {{- end}}
-          {{- end}}
-      {{- end}}
-    {{- else}}
+    {{- if and (ne $key "Errors") (ne $key "ErrorsByType")}}
   {{$key}}: {{humanize $value}}
     {{- end}}
   {{- end}}
@@ -21,6 +12,24 @@ Forwarder
   Warning: the forwarder dropped transactions because all workers were busy.
   You should review your network performance, and tune the forwarder_num_workers
   and forwarder_timeout options.
+  {{- end}}
+  {{- if .Transactions.Errors }}
+
+  Transaction Errors
+  ==================
+    Errors: {{.Transactions.Errors}}
+    Errors By Type:
+          {{- range $type, $count := .Transactions.ErrorsByType }}
+            {{- if and (ne $type "HTTPErrorsByCode") ($count) }}
+      {{$type}}: {{$count}}
+            {{- end}}
+          {{- end}}
+      {{- if .Transactions.ErrorsByType.HTTPErrorsByCode }}
+      HTTP Errors By Code:
+          {{- range $code, $count := .Transactions.ErrorsByType.HTTPErrorsByCode }}
+        {{$code}}: {{$count}}
+          {{- end}}
+      {{- end}}
   {{- end}}
 {{- end}}
 

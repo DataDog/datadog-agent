@@ -123,19 +123,33 @@
     <span class="stat_data">
       {{- with .forwarderStats -}}
         {{- range $key, $value := .Transactions }}
-            {{- if eq $key "ErrorsByType"}}
-              {{- if $.Stats.forwarderStats.Transactions.Errors }}
-          {{formatTitle $key}}:<br>
-                  {{- range $type, $count := $value }}
-                    {{- if and (ne $type "HTTPErrorsByCode") ($count) }}
-            {{formatTitle $type}}: {{$count}}<br>
-                    {{- end}}
-                  {{- end}}
-              {{- end}}
-            {{- else}}
+            {{- if and (ne $key "Errors") (ne $key "ErrorsByType")}}
           {{formatTitle $key}}: {{humanize $value}}<br>
             {{- end}}
-          {{- end}}
+        {{- end}}
+        {{- if .Transactions.Errors }}
+          <span class="stat_subtitle">Transactions Errors</span>
+            <span class="stat_subdata">
+              Errors: {{.Transactions.Errors}}<br>
+              Errors By Type:<br>
+              <span class="stat_subdata">
+                {{- range $type, $count := .Transactions.ErrorsByType }}
+                  {{- if and (ne $type "HTTPErrorsByCode") ($count) }}
+                    {{$type}}: {{$count}}<br>
+                  {{- end}}
+                {{- end}}
+                {{- if .Transactions.ErrorsByType.HTTPErrorsByCode }}
+                  HTTP Errors By Code:<br>
+                  <span class="stat_subdata">
+                    {{- range $code, $count := .Transactions.ErrorsByType.HTTPErrorsByCode }}
+                      {{$code}}: {{$count}}<br>
+                    {{- end}}
+                  </span>
+                {{- end}}
+              </span>
+            </span>
+          </span>
+        {{- end}}
         {{- if .APIKeyStatus}}
           <span class="stat_subtitle">API Keys Status</span>
           <span class="stat_subdata">
