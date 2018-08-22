@@ -311,6 +311,42 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{"kube_replica_set:redis-master-546dc4865f"},
 			},
 		},
+		{
+			desc: "pod labels as tags with wildcards",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Labels: map[string]string{
+						"component":         "kube-proxy",
+						"tier":              "node",
+						"k8s-app":           "kubernetes-dashboard",
+						"pod-template-hash": "490794276",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			labelsAsTags: map[string]string{
+				"*":         "foo_%%label%%",
+				"component": "component",
+			},
+			annotationsAsTags: map[string]string{},
+			expectedInfo: &TagInfo{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"foo_component:kube-proxy",
+					"component:kube-proxy",
+					"foo_tier:node",
+					"foo_k8s-app:kubernetes-dashboard",
+					"foo_pod-template-hash:490794276",
+					"image_name:datadog/docker-dd-agent",
+					"image_tag:latest5",
+					"kube_container_name:dd-agent",
+					"short_image:docker-dd-agent",
+				},
+				HighCardTags: []string{},
+			},
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
 			collector := &KubeletCollector{

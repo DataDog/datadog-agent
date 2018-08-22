@@ -9,6 +9,7 @@ package collectors
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,8 +39,10 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Pod labels
 		for name, value := range pod.Metadata.Labels {
-			if tagName, found := c.labelsAsTags[strings.ToLower(name)]; found {
-				tags.AddAuto(tagName, value)
+			for pattern, tmpl := range c.labelsAsTags {
+				if ok, _ := filepath.Match(pattern, strings.ToLower(name)); ok {
+					tags.AddAuto(resolveTag(tmpl, name), value)
+				}
 			}
 		}
 

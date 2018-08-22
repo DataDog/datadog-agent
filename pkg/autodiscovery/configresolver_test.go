@@ -52,28 +52,6 @@ func TestResolveTemplate(t *testing.T) {
 	assert.Len(t, res, 1)
 }
 
-func TestParseTemplateVar(t *testing.T) {
-	name, key := parseTemplateVar([]byte("%%host%%"))
-	assert.Equal(t, "host", string(name))
-	assert.Equal(t, "", string(key))
-
-	name, key = parseTemplateVar([]byte("%%host_0%%"))
-	assert.Equal(t, "host", string(name))
-	assert.Equal(t, "0", string(key))
-
-	name, key = parseTemplateVar([]byte("%%host 0%%"))
-	assert.Equal(t, "host0", string(name))
-	assert.Equal(t, "", string(key))
-
-	name, key = parseTemplateVar([]byte("%%host_0_1%%"))
-	assert.Equal(t, "host", string(name))
-	assert.Equal(t, "0_1", string(key))
-
-	name, key = parseTemplateVar([]byte("%%host_network_name%%"))
-	assert.Equal(t, "host", string(name))
-	assert.Equal(t, "network_name", string(key))
-}
-
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)

@@ -69,11 +69,25 @@ We automatically collect common tags from [Docker](https://github.com/DataDog/da
 - `DD_KUBERNETES_POD_LABELS_AS_TAGS` : extract pod labels
 - `DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS` : extract pod annotations
 
-You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the datadog tag name.
+You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the Datadog tag name.
 
 ```shell
 DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
 DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name"}'
+```
+
+You can use shell patterns in label names to define simple rules for mapping labels to Datadog tag names using the same simple template system used by Autodiscovery. This is only supported by `DD_KUBERNETES_POD_LABELS_AS_TAGS`.
+
+To add all pod labels as tags to your metrics where tags names are prefixed by `kube_`, you can use the following:
+
+```shell
+DD_KUBERNETES_POD_LABELS_AS_TAGS='{"*":"kube_%%label%%"}'
+```
+
+To add only pod labels as tags to your metrics that start with `app`, you can use the following:
+
+```shell
+DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app*":"kube_%%label%%"}'
 ```
 
 #### Ignore containers
@@ -137,7 +151,7 @@ For more information about the container's lifecycle, see [SUPERVISION.md](SUPER
 To deploy the Agent in your Kubernetes cluster, you can use the manifest in [manifests](../manifests/cluster-agent/cluster-agent.yaml). Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
 `kubectl create -f manifests/rbac`
 
-Please note that with the above RBAC, every agent will have access to the API Server, to list the pods, services ...  
+Please note that with the above RBAC, every agent will have access to the API Server, to list the pods, services ...
 These accesses vanish when using the Datadog Cluster Agent.
 Indeed, the agents will only have access to the local kubelet and only the Cluster Agent will be able to access cluster level insight (nodes, services...).
 
@@ -155,7 +169,7 @@ See details in [Event Collection](#event-collection).
 
 **This sub-section is only valid for agent versions > 6.3.2 and when using the Datadog Cluster Agent.**
 
-Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated Clusterrole for the agent which should be as follows: 
+Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated Clusterrole for the agent which should be as follows:
 
 ```
 apiVersion: rbac.authorization.k8s.io/v1
@@ -184,7 +198,7 @@ Similarly to Agent 5, Agent 6 collects events from the Kubernetes API server.
 1/ Set the `collect_kubernetes_events` variable to `true` in the `datadog.yaml` file, you can use the environment variable `DD_COLLECT_KUBERNETES_EVENTS` for this.
 2/ Give the agents proper RBACs to activate this feature. See the [RBAC](#rbac) section.
 3/ A ConfigMap can be used to store the `event.tokenKey` and the `event.tokenTimestamp`. It has to be deployed in the `default` namespace and be named `datadogtoken`.
-   Run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` . 
+   Run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` .
    You can also use the example in [manifests/datadog_configmap.yaml][https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/manifests/datadog_configmap.yaml].
 
 Note: When the ConfigMap is used, if the agent in charge (via the [Leader election](#leader-election)) of collecting the events dies, the next leader elected will use the ConfigMap to identify the last events pulled.

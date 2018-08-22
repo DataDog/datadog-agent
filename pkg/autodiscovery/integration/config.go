@@ -8,14 +8,12 @@ package integration
 import (
 	"fmt"
 	"hash/fnv"
-	"regexp"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 	yaml "gopkg.in/yaml.v2"
 )
-
-var tplVarRegex = regexp.MustCompile(`%%.+?%%`)
 
 // Data contains YAML code
 type Data []byte
@@ -126,11 +124,11 @@ func (c *Config) AddMetrics(metrics Data) error {
 
 // GetTemplateVariablesForInstance returns a slice of raw template variables
 // it found in a config instance template.
-func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
+func (c *Config) GetTemplateVariablesForInstance(i int) []tmplvar.TemplateVar {
 	if len(c.Instances) < i {
-		return vars
+		return nil
 	}
-	return tplVarRegex.FindAll(c.Instances[i], -1)
+	return tmplvar.Parse(c.Instances[i])
 }
 
 // MergeAdditionalTags merges additional tags to possible existing config tags
