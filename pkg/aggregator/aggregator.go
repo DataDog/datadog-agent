@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -321,6 +322,15 @@ func (agg *BufferedAggregator) flushSeries() {
 	series = append(series, &metrics.Serie{
 		Name:           "datadog.agent.running",
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
+
+	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
+	series = append(series, &metrics.Serie{
+		Name:           "n_o_i_n_d_e_x.datadog.agent.payload.dropped",
+		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
