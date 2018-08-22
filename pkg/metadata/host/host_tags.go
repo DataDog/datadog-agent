@@ -1,0 +1,89 @@
+package host
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/gce"
+	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// this is a "low-tech" version of tagger/utils/taglist.go
+// but host tags are handled separately here for now
+func appendAndSplitTags(target []string, tags []string, splits map[string]string) []string {
+	if len(splits) == 0 {
+		return append(target, tags...)
+	}
+
+	for _, tag := range tags {
+		tagParts := strings.SplitN(tag, ":", 2)
+		if len(tagParts) != 2 {
+			target = append(target, tag)
+			continue
+		}
+		name := tagParts[0]
+		value := tagParts[1]
+
+		sep, ok := splits[name]
+		if !ok {
+			target = append(target, tag)
+			continue
+		}
+
+		for _, elt := range strings.Split(value, sep) {
+			target = append(target, fmt.Sprintf("%s:%s", name, elt))
+		}
+	}
+
+	return target
+}
+
+func getHostTags() *tags {
+	splits := config.Datadog.GetStringMapString("tag_value_split_separator")
+	appendToHostTags := func(old, new []string) []string {
+		return appendAndSplitTags(old, new, splits)
+	}
+
+	rawHostTags := config.Datadog.GetStringSlice("tags")
+	hostTags := make([]string, 0, len(rawHostTags))
+	hostTags = appendToHostTags(hostTags, rawHostTags)
+
+	if config.Datadog.GetBool("collect_ec2_tags") {
+		ec2Tags, err := ec2.GetTags()
+		if err != nil {
+			log.Debugf("No EC2 host tags %v", err)
+		} else {
+			hostTags = appendToHostTags(hostTags, ec2Tags)
+		}
+	}
+
+	k8sTags, err := k8s.GetTags()
+	if err != nil {
+		log.Debugf("No Kubernetes host tags %v", err)
+	} else {
+		hostTags = appendToHostTags(hostTags, k8sTags)
+	}
+
+	dockerTags, err := docker.GetTags()
+	if err != nil {
+		log.Debugf("No Docker host tags %v", err)
+	} else {
+		hostTags = appendToHostTags(hostTags, dockerTags)
+	}
+
+	rawGceTags, err := gce.GetTags()
+	if err != nil {
+		log.Debugf("No GCE host tags %v", err)
+	}
+	var gceTags []string
+	gceTags = appendToHostTags(gceTags, rawGceTags)
+
+	return &tags{
+		System:              hostTags,
+		GoogleCloudPlatform: gceTags,
+	}
+}

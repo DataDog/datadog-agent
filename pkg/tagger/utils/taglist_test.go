@@ -25,6 +25,10 @@ func TestNewTagList(t *testing.T) {
 
 func TestAddLow(t *testing.T) {
 	list := NewTagList()
+	list.splitList = map[string]string{
+		"values":  ",",
+		"missing": " ",
+	}
 	list.AddLow("foo", "bar")
 	list.AddLow("faa", "baz")
 	list.AddLow("empty", "")
@@ -35,10 +39,21 @@ func TestAddLow(t *testing.T) {
 
 	require.False(t, list.lowCardTags["empty:"])
 	require.False(t, list.lowCardTags["empty"])
+
+	list.AddLow("values", "1")
+	require.Contains(t, list.lowCardTags, "values:1")
+	list.AddLow("values", "2,3")
+	require.Contains(t, list.lowCardTags, "values:1")
+	require.Contains(t, list.lowCardTags, "values:2")
+	require.Contains(t, list.lowCardTags, "values:3")
 }
 
 func TestAddHigh(t *testing.T) {
 	list := NewTagList()
+	list.splitList = map[string]string{
+		"values":  ",",
+		"missing": " ",
+	}
 	list.AddHigh("foo", "bar")
 	list.AddHigh("faa", "baz")
 	list.AddHigh("empty", "")
@@ -49,6 +64,13 @@ func TestAddHigh(t *testing.T) {
 
 	require.False(t, list.highCardTags["empty:"])
 	require.False(t, list.highCardTags["empty"])
+
+	list.AddHigh("values", "1")
+	require.Contains(t, list.highCardTags, "values:1")
+	list.AddHigh("values", "2,3")
+	require.Contains(t, list.highCardTags, "values:1")
+	require.Contains(t, list.highCardTags, "values:2")
+	require.Contains(t, list.highCardTags, "values:3")
 }
 
 func TestAddHighOrLow(t *testing.T) {

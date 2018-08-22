@@ -45,6 +45,23 @@ api_key:
 #   - env:prod
 #   - role:database
 
+# Split tag values according to a given separator.
+# Only applies to host tags, tags coming from container integrations.
+# Does not apply to tags on dogstatsd metrics, and tags collected by other
+# integrations.
+# This option is useful when the native tags do not support repeating multiple
+# tags with the same name and different values.
+#
+# Example use-case:
+#
+#  With a raw collected tag "foo:1;2;3"
+#  Using the following configuration:
+#
+#    tag_value_split_separator:
+#      foo: ;
+#
+#  will result in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
+
 # Histogram and Historate configuration
 #
 # Configure which aggregated value to compute. Possible values are: min, max,
