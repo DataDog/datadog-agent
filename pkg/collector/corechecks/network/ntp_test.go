@@ -88,7 +88,7 @@ func TestNTPCritical(t *testing.T) {
 		metrics.ServiceCheckCritical,
 		"",
 		[]string(nil),
-		"Offset 100 secs higher than offset threshold (60 secs)").Return().Times(1)
+		"Offset 100 is higher than offset threshold (60 secs)").Return().Times(1)
 
 	mockSender.On("Commit").Return().Times(1)
 	ntpCheck.Run()
@@ -123,6 +123,36 @@ func TestNTPError(t *testing.T) {
 
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestNTPNegativeOffsetCritical(t *testing.T) {
+	var ntpCfg = []byte(ntpCfgString)
+	var ntpInitCfg = []byte("")
+
+	offset = -100
+	ntpQuery = testNTPQuery
+	defer func() { ntpQuery = ntp.Query }()
+
+	ntpCheck := new(NTPCheck)
+	ntpCheck.Configure(ntpCfg, ntpInitCfg)
+
+	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+
+	mockSender.On("Gauge", "ntp.offset", float64(-100), "", []string(nil)).Return().Times(1)
+	mockSender.On("ServiceCheck",
+		"ntp.in_sync",
+		metrics.ServiceCheckCritical,
+		"",
+		[]string(nil),
+		"Offset -100 is higher than offset threshold (60 secs)").Return().Times(1)
+
+	mockSender.On("Commit").Return().Times(1)
+	ntpCheck.Run()
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 1)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
@@ -196,7 +226,7 @@ hosts:
 		metrics.ServiceCheckCritical,
 		"",
 		[]string(nil),
-		"Offset 400 secs higher than offset threshold (60 secs)").Return().Times(1)
+		"Offset 400 is higher than offset threshold (60 secs)").Return().Times(1)
 
 	mockSender.On("Commit").Return().Times(1)
 	ntpCheck.Run()

@@ -8,6 +8,7 @@ package network
 import (
 	"expvar"
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
@@ -146,9 +147,9 @@ func (c *NTPCheck) Run() error {
 		log.Info(err)
 		serviceCheckStatus = metrics.ServiceCheckUnknown
 	} else {
-		if int(clockOffset) > offsetThreshold {
+		if int(math.Abs(clockOffset)) > offsetThreshold {
 			serviceCheckStatus = metrics.ServiceCheckCritical
-			serviceCheckMessage = fmt.Sprintf("Offset %v secs higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
+			serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
 		} else {
 			serviceCheckStatus = metrics.ServiceCheckOK
 		}
