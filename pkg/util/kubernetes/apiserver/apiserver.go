@@ -455,9 +455,10 @@ func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, stopCh chan st
 	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
 	autoscalerController := NewAutoscalerController(
 		client,
+		LeaderElectorItf,
 		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
 	informerFactory.Start(stopCh)
-	go autoscalerController.Run(LeaderElectorItf, stopCh)
+	go autoscalerController.Run(stopCh)
 	return nil
 }

@@ -24,20 +24,13 @@ type DatadogClient interface {
 
 // HPAProcessor embeds the API Server client and the configuration to refresh metrics from Datadog and watch the HPA Objects' activities
 type HPAProcessor struct {
-	//readTimeout    time.Duration
-	//refreshItl     *time.Ticker
-	//pollItl        *time.Ticker
-	//gcTicker       *time.Ticker // how often to gc metrics in the store
 	externalMaxAge time.Duration
 	datadogClient  DatadogClient
 }
 
 // NewHPAWatcherClient returns a new HPAProcessor
 func NewHPAWatcherClient(datadogCl DatadogClient) (*HPAProcessor, error) {
-//	pollInterval := config.Datadog.GetInt("hpa_watcher_polling_freq")
-	//refreshInterval := config.Datadog.GetInt("external_metrics_provider.polling_freq")
 	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
-	//gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
 	return &HPAProcessor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		datadogClient:  datadogCl,
@@ -58,7 +51,6 @@ func (c *HPAProcessor) ComputeDeleteExternalMetrics(list *autoscalingv2.Horizont
 	}
 	return deleted
 }
-
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
 func (c *HPAProcessor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue){
@@ -82,21 +74,23 @@ func (c *HPAProcessor) UpdateExternalMetrics(emList []custommetrics.ExternalMetr
 }
 
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
-func (c *HPAProcessor) ProcessHPAs(added *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
+func (c *HPAProcessor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
 	var externalMetrics []custommetrics.ExternalMetricValue
 	var err error
-	log.Infof("attempting to process %v", added)
-
-	for _, metricSpec := range added.Spec.Metrics {
+	if len(hpa.Spec.Metrics) == 0 {
+		log.Errorf("Error processing %s/%s's external metrics, empty list", hpa.Namespace, hpa.Name)
+		return nil
+	}
+	for _, metricSpec := range hpa.Spec.Metrics {
 		switch metricSpec.Type {
 		case autoscalingv2.ExternalMetricSourceType:
 			m := custommetrics.ExternalMetricValue{
 				MetricName: metricSpec.External.MetricName,
 				Timestamp:  metav1.Now().Unix(),
 				HPA: custommetrics.ObjectReference{
-					Name:      added.Name,
-					Namespace: added.Namespace,
-					UID:       string(added.UID),
+					Name:      hpa.Name,
+					Namespace: hpa.Namespace,
+					UID:       string(hpa.UID),
 				},
 				Labels: metricSpec.External.MetricSelector.MatchLabels,
 			}
