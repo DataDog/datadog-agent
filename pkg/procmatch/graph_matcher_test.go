@@ -6,7 +6,7 @@ import "testing"
 var avoidOptimizationGraph string
 
 func BenchmarkGraph10(b *testing.B) {
-	m, err := NewWithGraph(rawIntegs)
+	m, err := NewMatcher(rawIntegs)
 	if err != nil {
 		return
 	}
@@ -14,7 +14,7 @@ func BenchmarkGraph10(b *testing.B) {
 }
 
 func BenchmarkGraph20(b *testing.B) {
-	m, err := NewWithGraph(append(rawIntegs, rawIntegs2...))
+	m, err := NewMatcher(append(rawIntegs, rawIntegs2...))
 	if err != nil {
 		return
 	}
@@ -22,7 +22,7 @@ func BenchmarkGraph20(b *testing.B) {
 }
 
 func BenchmarkGraph40(b *testing.B) {
-	m, err := NewWithGraph(append(append(rawIntegs, rawIntegs2...), rawIntegs3...))
+	m, err := NewMatcher(append(append(rawIntegs, rawIntegs2...), rawIntegs3...))
 	if err != nil {
 		return
 	}

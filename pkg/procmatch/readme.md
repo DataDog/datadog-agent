@@ -42,9 +42,7 @@ The generation script reads process signatures from the `manifest.json` files.
 You can also use your own catalog
 
 ```golang
-m, err := NewGraphMatcher(myCustomCatalog)
-// Or
-m := NewContainsMatcher(myCustomCatalog)
+m, err := NewMatcher(myCustomCatalog)
 ```
 
 ## Running the tests

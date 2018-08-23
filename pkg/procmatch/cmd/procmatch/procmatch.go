@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/procmatch"
+	"github.com/DataDog/datadog-agent/pkg/procmatch"
 )
 
 func main() {

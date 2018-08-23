@@ -52,7 +52,7 @@ func main() {
 	}
 
 	dirs, err := ioutil.ReadDir(rootDir)
-	failIf(err, "An error occured listing directories in %s: %s", rootDir, err)
+	failIf(err, "An error occurred listing directories in %s: %s", rootDir, err)
 
 	manifests := []Manifest{}
 
