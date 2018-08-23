@@ -332,7 +332,6 @@ func TestParsePods(t *testing.T) {
 				},
 				HighCardTags: []string{
 					"pod_name:redis-master-bpnn6",
-					"container_name:redis-master_redis-master-bpnn6", // Temporary for non-docker containers
 					"display_container_name:redis-master_redis-master-bpnn6",
 					"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
 					"kube_replica_set:redis-master-546dc4865f",
