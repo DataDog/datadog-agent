@@ -251,18 +251,31 @@ func init() {
 	BindEnvAndSetDefault("apm_config.enabled", true)
 
 	// Logs Agent
+
+	// External Use: modify those parameters to configure the logs-agent.
+	// enable the logs-agent:
 	BindEnvAndSetDefault("logs_enabled", false)
 	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
-	BindEnvAndSetDefault("logset", "")
+	// collect all logs from all containers:
+	BindEnvAndSetDefault("logs_config.container_collect_all", false)
+	// collect all logs forwarded by TCP on a specific port:
+	BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
+	// add a socks5 proxy:
+	BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
+	// send the logs to a proxy:
+	BindEnvAndSetDefault("logs_config.logs_dd_url", "") // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
+	// increase the read buffer size of the UDP sockets:
+	BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	// increase the number of files that can be tailed in parallel:
+	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 
+	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
+	BindEnvAndSetDefault("logset", "")
+	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.dd_url", "agent-intake.logs.datadoghq.com")
 	BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
-	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
-	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
-	BindEnvAndSetDefault("logs_config.container_collect_all", false)
-	BindEnvAndSetDefault("logs_config.frame_size", 9000)
-	BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now
