@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 const (
@@ -273,6 +274,17 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	hostname, err := kubeutil.GetHostname()
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "my-node-name", hostname)
+
+	// Testing hostname when a cluster name is set
+	var testClusterName = "Laika"
+	config.Datadog.Set("cluster_name", testClusterName)
+	defer config.Datadog.Set("cluster_name", nil)
+
+	clustername.ResetClusterName() // reset state as clustername was already read
+	hostname, err = kubeutil.GetHostname()
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "my-node-name-"+testClusterName, hostname)
+	clustername.ResetClusterName() // reset state so that future hostname fetches are not impacted
 
 	select {
 	case r := <-kubelet.Requests:
