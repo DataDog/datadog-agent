@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 )
 
-// Install registers v1 API endpoints
+// installClusterCheckEndpoints registers v1 clusterchecks endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
 	// TODO
 	//r.HandleFunc("/clusterchecks/status/{nodeName}", postCheckStatus).Methods("POST")
