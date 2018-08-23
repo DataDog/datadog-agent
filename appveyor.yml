@@ -43,7 +43,4 @@ build: off
 test_script:
   - cd %APPVEYOR_BUILD_FOLDER%
   - inv -e deps
-  - echo "regular"
   - inv -e test --race --profile --fail-on-fmt
-  - echo "include tests"
-  - inv -e test --race --profile --fail-on-fmt --build-include="secrets"
