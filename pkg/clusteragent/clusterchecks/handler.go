@@ -10,14 +10,12 @@ package clusterchecks
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 )
 
 const (
-	warmupPhaseDuration = 30 * time.Second
-	schedulerName       = "clusterchecks"
+	schedulerName = "clusterchecks"
 )
 
 // The handler is the glue holding all components for cluster-checks management
