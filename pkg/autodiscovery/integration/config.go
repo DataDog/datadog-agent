@@ -173,7 +173,7 @@ func (c *Data) MergeAdditionalTags(tags []string) error {
 }
 
 // Digest returns an hash value representing the data stored in this configuration.
-// The ClusterCheck field is intentionnally left out to keep a stable digest
+// The ClusterCheck field is intentionally left out to keep a stable digest
 // between the cluster-agent and the node-agents
 func (c *Config) Digest() string {
 	h := fnv.New64()
