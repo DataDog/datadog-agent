@@ -20,32 +20,31 @@ import (
 )
 
 var (
-	apiStats                  = expvar.NewMap("apiv1")
-	metadataStats             = new(expvar.Map).Init()
-	metadataErrors            = &expvar.Int{}
-	metadataRequestsPerSecond = &expvar.Int{}
-	metadataRequestsCounter   = ratecounter.NewRateCounter(1 * time.Second)
+	apiStats              = expvar.NewMap("apiv1")
+	tagsStats             = new(expvar.Map).Init()
+	tagsErrors            = &expvar.Int{}
+	tagsRequestsPerSecond = &expvar.Int{}
+	tagsRequestsCounter   = ratecounter.NewRateCounter(1 * time.Second)
 )
 
 func init() {
-	apiStats.Set("Metadata", metadataStats)
-	metadataStats.Set("Errors", metadataErrors)
-	metadataStats.Set("RequestsPerSecond", metadataRequestsPerSecond)
+	apiStats.Set("Tags", tagsStats)
+	tagsStats.Set("Errors", tagsErrors)
+	tagsStats.Set("RequestsPerSecond", tagsRequestsPerSecond)
 }
 
 // Install registers v1 API endpoints
 func Install(r *mux.Router) {
-	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
+	r.HandleFunc("/tags/{nodeName}/{ns}/{podName}", getPodTags).Methods("GET")
 	r.HandleFunc("/metadata/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")
 }
 
-// getPodMetadata is only used when the node agent hits the DCA for the tags list.
-// It returns a list of all the tags that can be directly used in the tagger of the agent.
-func getPodMetadata(w http.ResponseWriter, r *http.Request) {
+// getPodTags returns a list of cluster-level tags for the specified pod, namespace, and node.
+func getPodTags(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
-			localhost:5001/api/v1/metadata/localhost/default/my-nginx-5d69
+			localhost:5001/api/v1/tags/localhost/default/my-nginx-5d69
 		Outputs
 			Status: 200
 			Returns: []string
@@ -59,20 +58,18 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: string
 			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
 	*/
-
-	metadataRequestsCounter.Incr(1)
-	metadataRequestsPerSecond.Set(metadataRequestsCounter.Rate())
+	tagsRequestsCounter.Incr(1)
+	tagsRequestsPerSecond.Set(tagsRequestsCounter.Rate())
 
 	vars := mux.Vars(r)
-	var metaBytes []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
 	ns := vars["ns"]
-	metaList, errMetaList := as.GetPodMetadataNames(nodeName, ns, podName)
+	metaList, errMetaList := as.GetPodClusterTags(nodeName, ns, podName)
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName)
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
-		metadataErrors.Add(1)
+		tagsErrors.Add(1)
 		return
 	}
 
@@ -80,7 +77,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		metadataErrors.Add(1)
+		tagsErrors.Add(1)
 		return
 	}
 	if len(metaBytes) != 0 {

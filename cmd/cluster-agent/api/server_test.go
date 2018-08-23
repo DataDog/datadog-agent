@@ -31,12 +31,12 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			http.StatusForbidden,
 		},
 		{
-			"/api/v1/metadata/node/namespace/pod",
+			"/api/v1/tags/node/namespace/pod",
 			"abc123",
 			http.StatusOK,
 		},
 		{
-			"/api/v1/metadata/node/namespace/pod",
+			"/api/v1/tags/node/namespace/pod",
 			"imposter",
 			http.StatusForbidden,
 		},

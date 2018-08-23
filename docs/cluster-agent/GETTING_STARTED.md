@@ -71,7 +71,7 @@ Create the ConfigMap accordingly:
 
 **Step 4** - Once the secret is created, create the Datadog Cluster Agent along with its service.
 Don't forget to add your `<DD_API_KEY>` in the manifest of the Datadog Cluster Agent. Both manifests can be found in the [manifest/cluster-agent directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
-Run: 
+Run:
 
 `kubectl apply -f Dockerfiles/manifests/cluster-agent/datadog-cluster-agent_service.yaml`
 
@@ -148,7 +148,7 @@ Then, Kubernetes events should start to flow in your Datadog account, and releva
 
 To execute the following commands, you will first need to be inside the pod of the Cluster Agent or the Node Agent.
 You can use `kubectl exec -it <datadog-cluster-agent pod name> bash`
-  
+
 #### On the Datadog Cluster Agent side
 
 To see what cluster level metadata is served by the Datadog Cluster Agent exec in the pod and run:
@@ -191,8 +191,8 @@ To verify that the Datadog Cluster Agent is being queried, look for:
 
 ```
 root@datadog-cluster-agent-8568545574-x9tc9:/# tail -f /var/log/datadog/cluster-agent.log
-2018-06-11 09:37:20 UTC | DEBUG | (metadata.go:40 in GetPodMetadataNames) | CacheKey: agent/KubernetesMetadataMapping/ip-192-168-226-77.ec2.internal, with 1 services
-2018-06-11 09:37:20 UTC | DEBUG | (metadata.go:40 in GetPodMetadataNames) | CacheKey: agent/KubernetesMetadataMapping/ip-192-168-226-77.ec2.internal, with 1 services
+2018-06-11 09:37:20 UTC | DEBUG | (metadata.go:40 in GetPodClusterTags) | CacheKey: agent/KubernetesMetadataMapping/ip-192-168-226-77.ec2.internal, with 1 services
+2018-06-11 09:37:20 UTC | DEBUG | (metadata.go:40 in GetPodClusterTags) | CacheKey: agent/KubernetesMetadataMapping/ip-192-168-226-77.ec2.internal, with 1 services
 ```
 
 If you are not collecting events properly, make sure to have those environment variables set to true:

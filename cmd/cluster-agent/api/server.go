@@ -103,7 +103,7 @@ func StopServer() {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		if strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || path == "/version" {
+		if strings.HasPrefix(path, "/api/v1/tags/") && len(strings.Split(path, "/")) == 7 || path == "/version" {
 			if err := util.ValidateDCARequest(w, r); err != nil {
 				return
 			}

@@ -56,8 +56,7 @@ Secondly, it will start serving the `DD_CLUSTER_AGENT.CMD_PORT` if set or 5005 b
 ```
 - /hostname
 - /version
-- /api/v1/{check}/checks (available for Kubernetes only in 6.0.0)
-- /api/v1/metadata/{host}/{container:[0-9a-z]{64}} (returning the metadata of the said source available in the API Server)
+- /api/v1/tags/{nodeName}/{namespace}{container:[0-9a-z]{64}} (returning the cluster-level tags of the said source available in the API Server)
 - /flare
 - /stop
 - /status
