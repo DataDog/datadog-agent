@@ -19,5 +19,11 @@ func TestGetClusterName(t *testing.T) {
 	defer config.Datadog.Set("cluster_name", nil)
 
 	assert.Equal(t, testClusterName, GetClusterName())
-	assert.Equal(t, initDone, true)
+
+	// Test caching and reset
+	var newClusterName = "Youri"
+	config.Datadog.Set("cluster_name", newClusterName)
+	assert.Equal(t, testClusterName, GetClusterName())
+	ResetClusterName()
+	assert.Equal(t, newClusterName, GetClusterName())
 }

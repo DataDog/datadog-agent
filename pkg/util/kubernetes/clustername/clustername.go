@@ -35,3 +35,10 @@ func GetClusterName() string {
 	}
 	return clusterName
 }
+
+// ResetClusterName resets the clustername, which allows it to be detected again. Used for tests
+func ResetClusterName() {
+	mutex.Lock()
+	defer mutex.Unlock()
+	initDone = false
+}
