@@ -16,27 +16,19 @@ type Integration struct {
 // IntegrationCatalog represents a list of Integrations
 type IntegrationCatalog []Integration
 
-// Default matchers
+// Default matcher
 var defaultGraphMatcher Matcher
-var defaultContainsMatcher Matcher
 
 func init() {
 	var err error
-	defaultGraphMatcher, err = NewWithGraph(DefaultCatalog)
+	defaultGraphMatcher, err = NewMatcher(DefaultCatalog)
 
 	if err != nil {
 		panic(err)
 	}
-
-	defaultContainsMatcher = NewWithContains(DefaultCatalog)
 }
 
 // Match uses the default matcher (graph one) built with the default catalog
 func Match(cmdline string) string {
 	return defaultGraphMatcher.Match(cmdline)
-}
-
-// MatchWithContains uses the contains matcher built with the default catalog
-func MatchWithContains(cmdline string) string {
-	return defaultContainsMatcher.Match(cmdline)
 }

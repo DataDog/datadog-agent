@@ -10,8 +10,8 @@ func (m graphMatcher) Match(cmdline string) string {
 	return m.graph.searchIntegration(cmdline)
 }
 
-// NewWithGraph builds a graph matcher from an integration catalog
-func NewWithGraph(catalog IntegrationCatalog) (Matcher, error) {
+// NewMatcher builds a graph matcher from an integration catalog
+func NewMatcher(catalog IntegrationCatalog) (Matcher, error) {
 	signatures := buildSignatures(catalog)
 
 	graph, err := buildSignatureGraph(signatures)

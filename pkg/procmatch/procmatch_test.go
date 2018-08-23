@@ -61,7 +61,7 @@ func assertIntegration(t *testing.T, e string, i string) {
 	}
 }
 
-func TestFindService(t *testing.T) {
+func TestFindIntegration(t *testing.T) {
 	cases := []struct {
 		cmdline     string
 		integration string
@@ -118,15 +118,6 @@ func TestDefaultCatalogOnGraph(t *testing.T) {
 	for _, integration := range DefaultCatalog {
 		for _, cmd := range integration.Signatures {
 			name := Match(cmd)
-			assertIntegration(t, integration.Name, name)
-		}
-	}
-}
-
-func TestDefaultCatalogOnContains(t *testing.T) {
-	for _, integration := range DefaultCatalog {
-		for _, cmd := range integration.Signatures {
-			name := MatchWithContains(cmd)
 			assertIntegration(t, integration.Name, name)
 		}
 	}

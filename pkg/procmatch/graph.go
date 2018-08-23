@@ -87,7 +87,7 @@ func expandNode(n *node, sigs []signature) error {
 				toRemove = append(toRemove, i)
 
 				if len(s.words) == 1 && newNode.integration != "" && s.integration != newNode.integration {
-					return fmt.Errorf("Two different signatures are leading to the same node with diferent integration."+
+					return fmt.Errorf("Two different signatures are leading to the same node with different integration."+
 						"Current :%s with %s + %s, other %s with %s\n", sig.integration, word, sig.words, s.integration, s.words)
 				}
 
