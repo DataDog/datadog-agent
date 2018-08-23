@@ -7,13 +7,14 @@ bool InitLsaString(
 	LPCWSTR pwszString);
 
 PSID GetSidForUser(LPCWSTR host, LPCWSTR user);
+DWORD addDdUserPermsToFile(std::wstring filename);
 LSA_HANDLE GetPolicyHandle();
 int CreateSecretUser(MSIHANDLE hInstall, std::wstring& name, std::wstring& comment);
 int CreateDDUser(MSIHANDLE hInstall);
 DWORD DeleteUser(std::wstring& name);
 DWORD DeleteSecretsRegKey();
 DWORD changeRegistryAcls(const wchar_t* name);
-
+VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring svcName);
 
 // rights we might be interested in
 /*

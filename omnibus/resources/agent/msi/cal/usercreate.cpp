@@ -1,5 +1,6 @@
 #include "stdafx.h"
 
+#pragma comment(lib, "shlwapi.lib")
 #define MIN_PASS_LEN 12
 #define MAX_PASS_LEN 18
 
@@ -144,6 +145,49 @@ DWORD changeRegistryAcls(const wchar_t* name) {
 
 }
 
+DWORD addDdUserPermsToFile(std::wstring filename)
+{
+    if(!PathFileExistsW((LPCWSTR) filename.c_str()))
+    {
+        // return success; we don't need to do anything
+        WcaLog(LOGMSG_STANDARD, "file doesn't exist, not doing anything");
+        return 0;
+    }
+    ExplicitAccess dduser;
+    dduser.BuildGrantUser(ddAgentUserName.c_str(), FILE_ALL_ACCESS);
+
+    // get the current ACLs and append, rather than just set; if the file exists,
+    // the user may have already set custom ACLs on the file, and we don't want
+    // to disrupt that
+
+    DWORD dwRes = 0;
+    PACL pOldDACL = NULL, pNewDACL = NULL;
+    PSECURITY_DESCRIPTOR pSD = NULL;
+    WinAcl acl;
+    acl.AddToArray(dduser);
+
+    dwRes = GetNamedSecurityInfo(filename.c_str(), SE_FILE_OBJECT, 
+          DACL_SECURITY_INFORMATION,
+          NULL, NULL, &pOldDACL, NULL, &pSD);
+    if (ERROR_SUCCESS == dwRes) {
+        dwRes = acl.SetEntriesInAclW(pOldDACL, &pNewDACL);
+        if(dwRes == 0) {
+            dwRes = SetNamedSecurityInfoW((LPWSTR) filename.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+            NULL, NULL, pNewDACL, NULL);
+        } else {
+            WcaLog(LOGMSG_STANDARD, "%d setting entries in acl", dwRes);    
+        }
+    } else {
+        WcaLog(LOGMSG_STANDARD, "%d getting existing perms", dwRes);
+    }
+    if(pSD){
+        LocalFree((HLOCAL) pSD);
+    }
+    if(pNewDACL) {
+        LocalFree((HLOCAL) pNewDACL);
+    }
+    return dwRes;
+}
 
 int doCreateUser(std::wstring& name, std::wstring& comment, const wchar_t* passbuf)
 {

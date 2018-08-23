@@ -355,9 +355,10 @@
                  NeverOverwrite="yes"
                  Permanent="yes">
         <File Id="datadog.yaml.example"
-              Name="datadog.yaml"
-              Source="$(var.EtcFiles)\datadog.yaml.example"/>
+            Name="datadog.yaml"
+            Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
+      
 
       <Directory Id="checks.d" Name="checks.d">
         <Component Id="checks.d"

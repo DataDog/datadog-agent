@@ -9,6 +9,8 @@
 #include <AccCtrl.h>
 #include <AclAPI.h>
 #include <sddl.h>
+#include <shlwapi.h>
+
 #include <stdlib.h>
 #include <strsafe.h>
 #include <msiquery.h>

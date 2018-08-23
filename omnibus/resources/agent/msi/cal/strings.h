@@ -7,6 +7,7 @@ extern std::wstring datadog_key_secret_key;
 extern std::wstring datadog_key_secrets;
 extern std::wstring datadog_acl_key_secrets;
 extern std::wstring datadog_acl_key_datadog;
+extern std::wstring datadog_service_name;
 
 extern std::wstring ddAgentUserName;
 extern std::wstring ddAgentUserPasswordProperty;
@@ -20,6 +21,9 @@ extern std::wstring propertySecretUserCreated;
 extern std::wstring propertySecretPasswordWritten;
 extern std::wstring propertyRollbackState;
 
+extern std::wstring logfilename;
+extern std::wstring authtokenfilename;
+extern std::wstring datadogyamlfile;
 
 void toMbcs(std::string& target, LPCWSTR src);
 

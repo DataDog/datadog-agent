@@ -88,6 +88,7 @@ static void parseProperty(std::wstring& property, std::map<std::wstring, bool>& 
  * Whether or not those operations were initiated by this installation is indicated
  * by properties set during the install
  */
+void logProcCount();
  extern "C" UINT __stdcall RollbackInstallation(MSIHANDLE hInstall)
 {
     HRESULT hr = S_OK;
@@ -101,7 +102,7 @@ static void parseProperty(std::wstring& property, std::map<std::wstring, bool>& 
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: Rollback");
     ExitOnFailure(hr, "Failed to initialize");
-
+    logProcCount();
     WcaLog(LOGMSG_STANDARD, "Rollback Initialized.");
     
     getStatusProp(hInstall, propertyRollbackState, propertystring);

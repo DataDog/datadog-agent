@@ -4,14 +4,18 @@
 /* define _NO_SECRET_USER_RIGHTS_REMOVAL to test with the datadog_secretuser
    retaining interactive, network, remote login rights
    */
-// #define _NO_SECRET_USER_RIGHTS_REMOVAL
+//#define _NO_SECRET_USER_RIGHTS_REMOVAL
 
 /* define _NO_DD_USER_RIGHTS_REMOVAL to test with the ddagentuser
    retaining interactive, network, remote login rights
    */
-// #define _NO_DD_USER_RIGHTS_REMOVAL
+//#define _NO_DD_USER_RIGHTS_REMOVAL
 
+static int proccount = 0;
 
+void logProcCount() {
+    WcaLog(LOGMSG_STANDARD, "ProcCount %d", ++proccount);
+}
 
 #ifdef CA_CMD_TEST
 #define LOGMSG_STANDARD 0
@@ -36,7 +40,7 @@ extern "C" UINT __stdcall AddDatadogSecretUser(
     hr = WcaInitialize(hInstall, "CA: AddDatadogSecretUser");
     // ExitOnFailure macro includes a goto LExit if hr has a failure.
     ExitOnFailure(hr, "Failed to initialize");
-
+    logProcCount();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
 
     er = CreateSecretUser(hInstall, secretUserUsername, secretUserDescription);
@@ -53,11 +57,14 @@ extern "C" UINT __stdcall AddDatadogSecretUser(
     }
 
 #ifndef _NO_SECRET_USER_RIGHTS_REMOVAL
+/*
+ for now, just comment out.  Secret user needs interactive login for
+ CreatePRocessWithLogon()
     if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
         WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
         goto LExit;
     }
-
+*/
     if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
         WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
         goto LExit;
@@ -91,7 +98,7 @@ extern "C" UINT __stdcall RemoveDDUser(MSIHANDLE hInstall)
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: DeleteDDUser");
     ExitOnFailure(hr, "Failed to initialize");
-
+    logProcCount();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
 
     er = DeleteUser(ddAgentUserName);
@@ -120,7 +127,7 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: CreateOrUpdateDDUser");
     ExitOnFailure(hr, "Failed to initialize");
-
+    logProcCount();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
 
     er = CreateDDUser(hInstall);
@@ -128,6 +135,17 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
         hr = -1;
         goto LExit;
     } 
+    // if the log file or the auth token already exist, allow the dd-user to 
+    // access them
+
+    
+    er = addDdUserPermsToFile(logfilename);
+    WcaLog(LOGMSG_STANDARD, "%d setting log file perms",er);
+    er = addDdUserPermsToFile(authtokenfilename);
+    WcaLog(LOGMSG_STANDARD, "%d setting token file perms",er);
+    er = addDdUserPermsToFile(datadogyamlfile);
+    WcaLog(LOGMSG_STANDARD, "%d setting token file perms",er);
+
 
 // change the rights on this user
     hr = -1;
@@ -191,7 +209,7 @@ extern "C" UINT __stdcall EnableServicesForDDUser(MSIHANDLE hInstall)
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: EnableServicesForDDUser");
     ExitOnFailure(hr, "Failed to initialize");
-
+    logProcCount();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
 
     er = EnableServiceForUser(traceService, ddAgentUserName);
@@ -222,7 +240,7 @@ extern "C" UINT __stdcall RemoveDatadogSecretUser(MSIHANDLE hInstall)
     ExitOnFailure(hr, "Failed to initialize");
 
     WcaLog(LOGMSG_STANDARD, "Initialized.");
-
+    logProcCount();
     er = DeleteUser(secretUserUsername);
     if (0 != er) {
         // don't actually fail on failure.  We're doing an uninstall,
@@ -252,7 +270,7 @@ extern "C" UINT __stdcall VerifyDatadogRegistryPerms(MSIHANDLE hInstall) {
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: VerifyDDRegPerms");
     ExitOnFailure(hr, "Failed to initialize");
-
+    logProcCount();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
     // make sure the key is there
     LSTATUS status = 0;
@@ -289,6 +307,25 @@ LExit:
 
 }
 
+extern "C" UINT __stdcall PreStopServices(MSIHANDLE hInstall) {
+    HRESULT hr = S_OK;
+    UINT er = ERROR_SUCCESS;
+
+    // that's helpful.  WcaInitialize Log header silently limited to 32 chars
+    hr = WcaInitialize(hInstall, "CA: PreStopServices");
+    ExitOnFailure(hr, "Failed to initialize");
+    logProcCount();
+    WcaLog(LOGMSG_STANDARD, "Initialized.");
+
+    DoStopSvc(hInstall, datadog_service_name);
+    WcaLog(LOGMSG_STANDARD, "Waiting for prestop to complete");
+    Sleep(10000);
+    WcaLog(LOGMSG_STANDARD, "Prestop complete");
+LExit:
+    er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+    return WcaFinalize(er);
+
+}
 
 
 // DllMain - Initialize and cleanup WiX custom action utils.

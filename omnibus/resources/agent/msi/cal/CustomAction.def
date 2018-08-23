@@ -9,3 +9,4 @@ EXPORTS
     VerifyDatadogRegistryPerms
 	RemoveDDUser
 	RollbackInstallation
+	PreStopServices
