@@ -16,27 +16,23 @@ const (
 	RuntimeNameCRIO       string = "cri-o"
 )
 
-// Expose container states
+// Supported container states
 const (
-	ContainerCreatedState    string = "created"
-	ContainerRunningState    string = "running"
-	ContainerRestartingState string = "restarting"
-	ContainerPausedState     string = "paused"
-	ContainerExitedState     string = "exited"
-	ContainerDeadState       string = "dead"
+	ContainerUnknownState    string = "unknown"
+	ContainerCreatedState           = "created"
+	ContainerRunningState           = "running"
+	ContainerRestartingState        = "restarting"
+	ContainerPausedState            = "paused"
+	ContainerExitedState            = "exited"
+	ContainerDeadState              = "dead"
 )
 
-var (
-	// NullContainer is an empty container object that has
-	// default values for all fields including sub-fields.
-	// If new sub-structs are added to Container this must
-	// be updated.
-	NullContainer = &Container{
-		CPU:     &metrics.CgroupTimesStat{},
-		Memory:  &metrics.CgroupMemStat{},
-		IO:      &metrics.CgroupIOStat{},
-		Network: metrics.ContainerNetStats{},
-	}
+// Supported container health
+const (
+	ContainerUnknownHealth  string = "unknown"
+	ContainerStartingHealth        = "starting"
+	ContainerHealthy               = "healthy"
+	ContainerUnhealthy             = "unhealthy"
 )
 
 // Container represents a single container on a machine

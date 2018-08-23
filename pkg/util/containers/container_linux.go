@@ -16,6 +16,7 @@ import (
 // be able to enable FillCgroupMetrics and FillNetworkMetrics to works
 func (c *Container) SetCgroups(cgroup *metrics.ContainerCgroup) error {
 	c.cgroup = cgroup
+	c.Pids = c.cgroup.Pids
 	return nil
 }
 

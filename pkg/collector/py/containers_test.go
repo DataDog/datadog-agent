@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 type ContainerFilterSuite struct {
@@ -26,6 +27,7 @@ func (s *ContainerFilterSuite) TearDownTest() {
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{})
 	config.Datadog.SetDefault("ac_exclude", []string{})
+	containers.ResetSharedFilter()
 	initContainerFilter()
 }
 
@@ -33,6 +35,7 @@ func (s *ContainerFilterSuite) TestCheckRun() {
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
 	config.Datadog.SetDefault("ac_exclude", []string{"name:dd-.*"})
+	containers.ResetSharedFilter()
 	initContainerFilter()
 
 	check, _ := getCheckInstance("testcontainers", "TestCheck")

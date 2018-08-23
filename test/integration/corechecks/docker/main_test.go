@@ -53,6 +53,15 @@ var dockerCheck check.Check
 func TestMain(m *testing.M) {
 	flag.Parse()
 
+	config.SetupLogger(
+		"debug",
+		"",
+		"",
+		false,
+		true,
+		false,
+	)
+
 	retryTicker := time.NewTicker(time.Duration(*retryDelay) * time.Second)
 	timeoutTicker := time.NewTicker(time.Duration(*retryTimeout) * time.Second)
 	var lastRunResult int
