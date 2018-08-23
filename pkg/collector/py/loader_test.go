@@ -53,6 +53,31 @@ func TestLoad(t *testing.T) {
 	assert.Zero(t, len(instances))
 }
 
+func TestLoadVersion(t *testing.T) {
+	l, _ := NewPythonCheckLoader()
+
+	// the python module has no version
+	config := integration.Config{Name: "working"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	instances, err := l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(instances))
+
+	// the python module has a version
+	config = integration.Config{Name: "version"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	instances, err = l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(instances))
+	assert.Equal(t, "1.0.0", instances[0].Version())
+}
+
+func TestLoadVersionLock(t *testing.T) {
+	glock := newStickyLock()
+	TestLoadVersion(t)
+	glock.unlock()
+}
+
 func TestNewPythonCheckLoader(t *testing.T) {
 	loader, err := NewPythonCheckLoader()
 	assert.Nil(t, err)
