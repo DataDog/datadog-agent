@@ -15,7 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/paulbellamy/ratecounter"
 
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,7 +35,7 @@ func init() {
 }
 
 // Install registers v1 API endpoints
-func Install(r *mux.Router, sc types.ServerContext) {
+func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/metadata/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")

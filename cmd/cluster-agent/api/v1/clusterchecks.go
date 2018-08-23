@@ -13,11 +13,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 )
 
 // Install registers v1 API endpoints
-func installClusterCheckEndpoints(r *mux.Router, sc types.ServerContext) {
+func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
 	// TODO
 	//r.HandleFunc("/clusterchecks/status/{nodeName}", postCheckStatus).Methods("POST")
 	//r.HandleFunc("/clusterchecks/configs/{nodeName}", getCheckConfigs).Methods("GET")
@@ -26,7 +26,7 @@ func installClusterCheckEndpoints(r *mux.Router, sc types.ServerContext) {
 }
 
 // getAllCheckConfigs is used by the clustercheck config
-func getAllCheckConfigs(sc types.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+func getAllCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
 	if sc.ClusterCheckHandler == nil {
 		return func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
