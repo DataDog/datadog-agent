@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
-
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -274,12 +272,8 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		require.NoError(t, err)
 
 		for nodeName, expectedMapper := range tt.expectedBundles {
-			cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-			v, ok := agentcache.Cache.Get(cacheKey)
+			metaBundle, ok := metaController.store.Get(nodeName)
 			require.True(t, ok, "No meta bundle for %s", nodeName)
-			metaBundle, ok := v.(*MetadataMapperBundle)
-			require.True(t, ok)
-
 			assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
 		}
 	}
@@ -290,7 +284,8 @@ func TestMetadataController(t *testing.T) {
 
 	metaController, informerFactory := newFakeMetadataController(client)
 
-	metaController.endpoints = make(chan interface{}, 1)
+	metaController.endpoints = make(chan struct{}, 1)
+	metaController.nodes = make(chan struct{}, 1)
 
 	stop := make(chan struct{})
 	defer close(stop)
@@ -335,6 +330,8 @@ func TestMetadataController(t *testing.T) {
 	node.Name = "ip-172-31-119-125"
 	_, err := c.Nodes().Create(node)
 	require.NoError(t, err)
+
+	requireReceive(t, metaController.nodes, "nodes")
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -419,14 +416,7 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(ep)
 	require.NoError(t, err)
 
-	timeout := time.NewTimer(2 * time.Second)
-
-	// wait for endpoints to be synced by controller
-	select {
-	case <-metaController.endpoints:
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for endpoints to sync")
-	}
+	requireReceive(t, metaController.endpoints, "endpoints")
 
 	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 	require.NoError(t, err)
@@ -442,14 +432,7 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(ep)
 	require.NoError(t, err)
 
-	timeout = time.NewTimer(2 * time.Second)
-
-	// wait for endpoints to be synced by controller
-	select {
-	case <-metaController.endpoints:
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting for endpoints to sync")
-	}
+	requireReceive(t, metaController.endpoints, "endpoints")
 
 	metadataNames, err = GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 	require.NoError(t, err)
@@ -467,6 +450,14 @@ func TestMetadataController(t *testing.T) {
 	services, found := fullMap["ip-172-31-119-125"].ServicesForPod(metav1.NamespaceDefault, "nginx")
 	assert.True(t, found)
 	assert.Contains(t, services, "nginx-1")
+
+	err = c.Nodes().Delete(node.Name, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	requireReceive(t, metaController.nodes, "nodes")
+
+	_, err = GetMetadataMapBundleOnNode(node.Name)
+	require.Error(t, err)
 }
 
 func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {
@@ -480,4 +471,14 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 	metaController.endpointsListerSynced = alwaysReady
 
 	return metaController, informerFactory
+}
+
+func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
+	timeout := time.NewTimer(2 * time.Second)
+
+	select {
+	case <-ch:
+	case <-timeout.C:
+		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
+	}
 }
