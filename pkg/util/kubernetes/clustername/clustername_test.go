@@ -17,6 +17,7 @@ func TestGetClusterName(t *testing.T) {
 	var testClusterName = "Laika"
 	config.Datadog.Set("cluster_name", testClusterName)
 	defer config.Datadog.Set("cluster_name", nil)
+	defer ResetClusterName()
 
 	assert.Equal(t, testClusterName, GetClusterName())
 
