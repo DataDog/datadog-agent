@@ -109,7 +109,6 @@ func (c *HPAProcessor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) [
 // validateExternalMetric queries Datadog to validate the availability of an external metric
 func (c *HPAProcessor) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
 	val, err := c.queryDatadogExternal(metricName, labels)
-	log.Infof("got val %v and err %v", val, err)
 	if err != nil {
 		return val, false, err
 	}
