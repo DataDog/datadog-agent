@@ -25,7 +25,8 @@ var (
 	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
 	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
 
-	drivePattern = regexp.MustCompile(`[A-Za-z]:`)
+	driveLetterPattern    = regexp.MustCompile(`[A-Za-z]:`)
+	unmountedDrivePattern = regexp.MustCompile(`HarddiskVolume([0-9])+`)
 )
 
 const (
@@ -44,7 +45,10 @@ type IOCheck struct {
 }
 
 func isDrive(instance string) bool {
-	if !drivePattern.MatchString(instance) {
+	if unmountedDrivePattern.MatchString(instance) {
+		return true
+	}
+	if !driveLetterPattern.MatchString(instance) {
 		return false
 	}
 	instance += "\\"
