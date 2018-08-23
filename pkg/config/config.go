@@ -42,17 +42,18 @@ type MetadataProviders struct {
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
-	Name        string `mapstructure:"name"`
-	Polling     bool   `mapstructure:"polling"`
-	TemplateURL string `mapstructure:"template_url"`
-	TemplateDir string `mapstructure:"template_dir"`
-	Username    string `mapstructure:"username"`
-	Password    string `mapstructure:"password"`
-	CAFile      string `mapstructure:"ca_file"`
-	CAPath      string `mapstructure:"ca_path"`
-	CertFile    string `mapstructure:"cert_file"`
-	KeyFile     string `mapstructure:"key_file"`
-	Token       string `mapstructure:"token"`
+	Name             string `mapstructure:"name"`
+	Polling          bool   `mapstructure:"polling"`
+	TemplateURL      string `mapstructure:"template_url"`
+	TemplateDir      string `mapstructure:"template_dir"`
+	Username         string `mapstructure:"username"`
+	Password         string `mapstructure:"password"`
+	CAFile           string `mapstructure:"ca_file"`
+	CAPath           string `mapstructure:"ca_path"`
+	CertFile         string `mapstructure:"cert_file"`
+	KeyFile          string `mapstructure:"key_file"`
+	Token            string `mapstructure:"token"`
+	GraceTimeSeconds int    `mapstructure:"grace_time_seconds"`
 }
 
 // Listeners helps unmarshalling `listeners` config param

@@ -56,3 +56,14 @@ func (s *store) getAllConfigs() []integration.Config {
 	}
 	return configSlice
 }
+
+func (s *store) getConfigs(nodeName string) []integration.Config {
+	s.m.RLock()
+	defer s.m.RUnlock()
+
+	var configSlice []integration.Config
+	for _, c := range s.digestToConfig {
+		configSlice = append(configSlice, c)
+	}
+	return configSlice
+}
