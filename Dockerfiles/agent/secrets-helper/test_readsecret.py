@@ -38,6 +38,23 @@ class TestReadFile(unittest.TestCase):
         with self.assertRaisesRegexp(ValueError, "outside of the specified folder"):
             read_file(self.folder, "a/../../outside/file")
 
+    def test_path_escape_symlink(self):
+        sensitive_path = os.path.join(self.folder, "sensitive")
+        os.mkdir(sensitive_path)
+        allowed_path = os.path.join(self.folder, "allowed")
+        os.mkdir(allowed_path)
+
+        # Create a sensitive file and symlink it in the allowed folder
+        with open(os.path.join(sensitive_path, "target"), "w") as f:
+            f.write("sensitive")
+        os.symlink(
+            os.path.join(sensitive_path, "target"),
+            os.path.join(allowed_path, "target"),
+        )
+
+        with self.assertRaisesRegexp(ValueError, "outside of the specified folder"):
+            read_file(allowed_path, "target")
+
     def test_file_not_found(self):
         with self.assertRaisesRegexp(IOError, "No such file or directory"):
             read_file(self.folder, "file/not/found")
