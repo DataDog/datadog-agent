@@ -10,6 +10,7 @@ package hpa
 import (
 	"fmt"
 	"testing"
+
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -92,11 +93,10 @@ func TestHPAProcessor_UpdateExternalMetrics(t *testing.T) {
 	}
 }
 
-
 func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 	tests := []struct {
 		desc     string
-		list  autoscalingv2.HorizontalPodAutoscalerList
+		list     autoscalingv2.HorizontalPodAutoscalerList
 		emList   []custommetrics.ExternalMetricValue
 		expected []custommetrics.ExternalMetricValue
 	}{
@@ -114,7 +114,6 @@ func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 							UID: types.UID(7),
 						},
 					},
-
 				},
 			},
 			[]custommetrics.ExternalMetricValue{
@@ -122,7 +121,7 @@ func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 					MetricName: "requests_per_s_one",
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      true,
-					HPA:	custommetrics.ObjectReference{
+					HPA: custommetrics.ObjectReference{
 						UID: string(5),
 					},
 				},
@@ -130,7 +129,7 @@ func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 					MetricName: "requests_per_s_two",
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
-					HPA:	custommetrics.ObjectReference{
+					HPA: custommetrics.ObjectReference{
 						UID: string(6),
 					},
 				},
@@ -138,7 +137,7 @@ func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 					MetricName: "requests_per_s_three",
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
-					HPA:	custommetrics.ObjectReference{
+					HPA: custommetrics.ObjectReference{
 						UID: string(7),
 					},
 				},
@@ -148,7 +147,7 @@ func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 					MetricName: "requests_per_s_two",
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
-					HPA:	custommetrics.ObjectReference{
+					HPA: custommetrics.ObjectReference{
 						UID: string(6),
 					},
 				},
@@ -183,22 +182,22 @@ func TestHPAProcessor_ProcessHPAs(t *testing.T) {
 		{
 			"process valid hpa external metric",
 			autoscalingv2.HorizontalPodAutoscaler{
-				Spec:autoscalingv2.HorizontalPodAutoscalerSpec{
-					Metrics:[]autoscalingv2.MetricSpec{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
-							External:&autoscalingv2.ExternalMetricSource{
-								MetricName:metricName,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
 								MetricSelector: &metav1.LabelSelector{
-									MatchLabels :map[string]string{
+									MatchLabels: map[string]string{
 										"dcos_version": "1.9.4",
 									},
 								},
 							},
-					},
+						},
 					},
 				},
-					},
+			},
 			[]datadog.Series{
 				{
 					Metric: &metricName,
@@ -220,14 +219,14 @@ func TestHPAProcessor_ProcessHPAs(t *testing.T) {
 		{
 			"process invalid hpa external metric",
 			autoscalingv2.HorizontalPodAutoscaler{
-				Spec:autoscalingv2.HorizontalPodAutoscalerSpec{
-					Metrics:[]autoscalingv2.MetricSpec{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
-							External:&autoscalingv2.ExternalMetricSource{
-								MetricName:metricName,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
 								MetricSelector: &metav1.LabelSelector{
-									MatchLabels :map[string]string{
+									MatchLabels: map[string]string{
 										"dcos_version": "1.9.4",
 									},
 								},
@@ -254,14 +253,14 @@ func TestHPAProcessor_ProcessHPAs(t *testing.T) {
 		{
 			"process hpa external metrics",
 			autoscalingv2.HorizontalPodAutoscaler{
-				Spec:autoscalingv2.HorizontalPodAutoscalerSpec{
-					Metrics:[]autoscalingv2.MetricSpec{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
-							External:&autoscalingv2.ExternalMetricSource{
-								MetricName:metricName,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
 								MetricSelector: &metav1.LabelSelector{
-									MatchLabels :map[string]string{
+									MatchLabels: map[string]string{
 										"dcos_version": "1.9.4",
 									},
 								},
@@ -269,10 +268,10 @@ func TestHPAProcessor_ProcessHPAs(t *testing.T) {
 						},
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
-							External:&autoscalingv2.ExternalMetricSource{
-								MetricName:metricName,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
 								MetricSelector: &metav1.LabelSelector{
-									MatchLabels :map[string]string{
+									MatchLabels: map[string]string{
 										"dcos_version": "2.1.9",
 									},
 								},

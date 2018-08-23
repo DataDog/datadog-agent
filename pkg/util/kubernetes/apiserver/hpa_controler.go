@@ -8,30 +8,30 @@
 package apiserver
 
 import (
+	"time"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	autoscalersinformer "k8s.io/client-go/informers/autoscaling/v2beta1"
+	autoscalerslister "k8s.io/client-go/listers/autoscaling/v2beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	autoscalerslister "k8s.io/client-go/listers/autoscaling/v2beta1"
-	autoscalersinformer "k8s.io/client-go/informers/autoscaling/v2beta1"
-	"time"
-	"k8s.io/apimachinery/pkg/api/errors"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 type Poller struct {
 	gcPeriodSeconds int
 	refreshPeriod   int
-	batchWindow		int
+	batchWindow     int
 }
-
 
 type AutoscalersController struct {
 	autoscalersLister       autoscalerslister.HorizontalPodAutoscalerLister
@@ -46,10 +46,10 @@ type AutoscalersController struct {
 	store              custommetrics.Store
 	clientSet          kubernetes.Interface
 	poller             Poller
-	le 					LeaderElectorItf
+	le                 LeaderElectorItf
 }
 
-func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) *AutoscalersController{
+func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) *AutoscalersController {
 	h := &AutoscalersController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoscalers"),
 	}
@@ -62,9 +62,9 @@ func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, a
 	h.hpaProc, err = hpa.NewHPAWatcherClient(datadogCl)
 
 	h.poller = Poller{
-		gcPeriodSeconds : config.Datadog.GetInt("hpa_watcher_gc_period"),
-		refreshPeriod: config.Datadog.GetInt("external_metrics_provider.polling_freq"),
-		batchWindow: config.Datadog.GetInt("external_metrics_provider.batch_window"),
+		gcPeriodSeconds: config.Datadog.GetInt("hpa_watcher_gc_period"),
+		refreshPeriod:   config.Datadog.GetInt("external_metrics_provider.polling_freq"),
+		batchWindow:     config.Datadog.GetInt("external_metrics_provider.batch_window"),
 	}
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
@@ -78,7 +78,7 @@ func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, a
 	h.le = le
 	autoscalingInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:  h.addAutoscaler,
+			AddFunc:    h.addAutoscaler,
 			UpdateFunc: h.updateAutoscaler,
 			DeleteFunc: h.deleteAutoscaler,
 		},
@@ -89,7 +89,7 @@ func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, a
 	return h
 }
 
-func (h *AutoscalersController) Run( stopCh <- chan struct{}) {
+func (h *AutoscalersController) Run(stopCh <-chan struct{}) {
 	defer h.queue.ShutDown()
 
 	log.Infof("Starting HPA Controller ... ")
@@ -102,12 +102,12 @@ func (h *AutoscalersController) Run( stopCh <- chan struct{}) {
 	h.processingLoop()
 
 	go wait.Until(h.worker, time.Second, stopCh)
-	<- stopCh
+	<-stopCh
 }
 
 // processingLoop is a second go routing that schedules the garbage collection and the refreshing of external metrics
 // in the GlobalStore.
-func (c *AutoscalersController) processingLoop()  {
+func (c *AutoscalersController) processingLoop() {
 	tickerHPARefreshProcess := time.NewTicker(time.Duration(c.poller.refreshPeriod) * time.Second)
 	gcPeriodSeconds := time.NewTicker(time.Duration(c.poller.gcPeriodSeconds) * time.Second)
 	batchFreq := time.NewTicker(time.Duration(c.poller.batchWindow) * time.Second)
@@ -116,7 +116,7 @@ func (c *AutoscalersController) processingLoop()  {
 		for {
 			select {
 			case <-tickerHPARefreshProcess.C:
-				if !c.le.IsLeader(){
+				if !c.le.IsLeader() {
 					c.hpaToStoreGlobally = nil
 					continue
 				}
@@ -124,12 +124,12 @@ func (c *AutoscalersController) processingLoop()  {
 				// If metrics are temporarily unavailable for too long, they will become `Valid=false` and won't be evaluated.
 				c.updateExternalMetrics()
 			case <-gcPeriodSeconds.C:
-				if !c.le.IsLeader(){
+				if !c.le.IsLeader() {
 					continue
 				}
 				c.gc()
 			case <-batchFreq.C:
-				if !c.le.IsLeader() || len(c.hpaToStoreGlobally) == 0{
+				if !c.le.IsLeader() || len(c.hpaToStoreGlobally) == 0 {
 					continue
 				}
 
@@ -144,7 +144,7 @@ func (c *AutoscalersController) processingLoop()  {
 	}()
 }
 
-func (h *AutoscalersController) pushToGlobalStore(toPush  []custommetrics.ExternalMetricValue) error {
+func (h *AutoscalersController) pushToGlobalStore(toPush []custommetrics.ExternalMetricValue) error {
 	// reset the batch before submitting to avoid a discrepancy between the global store and the local one
 	h.hpaToStoreGlobally = nil
 	return h.store.SetExternalMetricValues(toPush)
@@ -226,7 +226,7 @@ func (h *AutoscalersController) processNext() bool {
 			return true
 		}
 		new := h.hpaProc.ProcessHPAs(hpa)
-		h.hpaToStoreGlobally = append(h.hpaToStoreGlobally, new ...)
+		h.hpaToStoreGlobally = append(h.hpaToStoreGlobally, new...)
 		log.Infof("hpaToStoreGlobally is %v", h.hpaToStoreGlobally)
 	}
 	return true
@@ -292,4 +292,3 @@ func (h *AutoscalersController) enqueue(obj interface{}) {
 	log.Infof("enqueueing %v", key)
 	h.queue.AddRateLimited(key)
 }
-

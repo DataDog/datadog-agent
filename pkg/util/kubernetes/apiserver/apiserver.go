@@ -439,7 +439,7 @@ func StartMetadataController(stopCh chan struct{}) error {
 }
 
 // StartAutoscalerController
-func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, stopCh chan struct{}) error{
+func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, stopCh chan struct{}) error {
 	// Update var
 	var (
 		timeoutSeconds      = time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))

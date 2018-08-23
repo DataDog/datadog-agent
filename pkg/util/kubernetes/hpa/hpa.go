@@ -10,12 +10,12 @@ package hpa
 import (
 	"time"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/zorkian/go-datadog-api.v2"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type DatadogClient interface {
@@ -53,7 +53,7 @@ func (c *HPAProcessor) ComputeDeleteExternalMetrics(list *autoscalingv2.Horizont
 }
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
-func (c *HPAProcessor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue){
+func (c *HPAProcessor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue) {
 	maxAge := int64(c.externalMaxAge.Seconds())
 	var err error
 
