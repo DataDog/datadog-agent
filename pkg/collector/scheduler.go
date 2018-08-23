@@ -196,9 +196,9 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	return allChecks
 }
 
-// isCheckConfig returns true if the config is a check configuration,
+// isCheckConfig returns true if the config is a node-agent check configuration,
 func isCheckConfig(config integration.Config) bool {
-	return len(config.Instances) > 0
+	return config.ClusterCheck == false && len(config.Instances) > 0
 }
 
 // GetLoaderErrors returns the check loader errors

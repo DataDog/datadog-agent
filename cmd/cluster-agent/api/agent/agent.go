@@ -13,21 +13,22 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router, sc types.ServerContext) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
@@ -35,7 +36,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status", getStatus).Methods("GET")
 
 	// Install versioned apis
-	v1.Install(r.PathPrefix("/api/v1").Subrouter())
+	v1.Install(r.PathPrefix("/api/v1").Subrouter(), sc)
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {

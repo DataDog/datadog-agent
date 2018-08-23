@@ -15,21 +15,23 @@ import (
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/fatih/color"
 )
 
 var stopCh chan struct{}
@@ -133,11 +135,6 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	log.Infof("Hostname is: %s", hostname)
 
-	// start the cmd HTTPS server
-	if err = api.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -175,6 +172,9 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
+	// Start the cluster-check discovery if configured
+	clusterCheckHandler := setupClusterCheck()
+
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		err = custommetrics.ValidateArgs(args)
@@ -189,8 +189,20 @@ func start(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+
+	// start the cmd HTTPS server
+	sc := types.ServerContext{
+		ClusterCheckHandler: clusterCheckHandler,
+	}
+	if err = api.StartServer(sc); err != nil {
+		return log.Errorf("Error while starting api server, exiting: %v", err)
+	}
+
 	// Block here until we receive the interrupt signal
 	<-signalCh
+	if clusterCheckHandler != nil {
+		clusterCheckHandler.StopDiscovery()
+	}
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		custommetrics.StopServer()
 	}
@@ -201,4 +213,25 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Info("See ya!")
 	log.Flush()
 	return nil
+}
+
+func setupClusterCheck() *clusterchecks.Handler {
+	if !config.Datadog.GetBool("cluster_checks.enabled") {
+		log.Debug("Cluster check Autodiscovery disabled")
+		return nil
+	}
+
+	clusterCheckHandler, err := clusterchecks.SetupHandler(common.AC)
+	if err != nil {
+		log.Errorf("Could not setup the cluster-checks Autodiscovery: %s", err.Error())
+		return nil
+	}
+	err = clusterCheckHandler.StartDiscovery()
+	if err != nil {
+		log.Errorf("Could not start the cluster-checks Autodiscovery: %s", err.Error())
+		return nil
+	}
+
+	log.Info("Started cluster check Autodiscovery")
+	return clusterCheckHandler
 }

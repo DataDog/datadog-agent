@@ -20,11 +20,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
+
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/gorilla/mux"
 )
 
 var (
@@ -32,12 +34,12 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer() error {
+func StartServer(sc types.ServerContext) error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(r)
+	agent.SetupHandlers(r, sc)
 
 	// Validate token for every request
 	r.Use(validateToken)
