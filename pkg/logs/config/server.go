@@ -25,15 +25,6 @@ func NewServerConfig(name string, port int, useSSL bool) *ServerConfig {
 	}
 }
 
-// SSLServerConfig returns a new secure server config.
-func SSLServerConfig(name string) ServerConfig {
-	return ServerConfig{
-		Name:   name,
-		Port:   443,
-		UseSSL: true,
-	}
-}
-
 // Address returns the address of the server to send logs to.
 func (c *ServerConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Name, c.Port)

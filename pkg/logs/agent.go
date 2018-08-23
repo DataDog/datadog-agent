@@ -38,18 +38,6 @@ func NewAgent(sources *config.LogSources, serverConfig *config.ServerConfig) *Ag
 	messageChan := make(chan message.Message, config.ChanSize)
 	auditor := auditor.New(messageChan, config.LogsAgent.GetString("logs_config.run_path"))
 
-	var serverConfig sender.ServerConfig
-	switch {
-	case config.LogsAgent.GetBool("logs_config.use_port_443"):
-		serverConfig = sender.SSLServerConfig(config.LogsAgent.GetString("logs_config.dd_url_443"))
-	default:
-		serverConfig = sender.NewServerConfig(
-			config.LogsAgent.GetString("logs_config.dd_url"),
-			config.LogsAgent.GetInt("logs_config.dd_port"),
-			!config.LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
-		)
-	}
-
 	// setup the pipeline provider that provides pairs of processor and sender
 	connectionManager := sender.NewConnectionManager(serverConfig, config.LogsAgent.GetString("logs_config.socks5_proxy_address"))
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)

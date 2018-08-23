@@ -267,7 +267,6 @@ func init() {
 	BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	BindEnvAndSetDefault("logs_config.use_port_443", false)
-	BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	// increase the read buffer size of the UDP sockets:
 	BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// increase the number of files that can be tailed in parallel:
@@ -279,6 +278,7 @@ func init() {
 	BindEnvAndSetDefault("logs_config.dd_url", "agent-intake.logs.datadoghq.com")
 	BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
+	BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now

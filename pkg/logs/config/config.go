@@ -83,6 +83,12 @@ func buildServerConfig() (*ServerConfig, error) {
 			port,
 			!LogsAgent.GetBool("logs_config.logs_no_ssl"),
 		), nil
+	case LogsAgent.GetBool("logs_config.use_port_443"):
+		return NewServerConfig(
+			LogsAgent.GetString("logs_config.dd_url_443"),
+			443,
+			true,
+		), nil
 	default:
 		// datadog settings
 		return NewServerConfig(
