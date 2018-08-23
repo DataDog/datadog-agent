@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package autodiscovery
+package configresolver
 
 import (
 	"bytes"
@@ -29,12 +29,9 @@ var templateVariables = map[string]variableGetter{
 	"hostname": getHostname,
 }
 
-// ConfigResolver resolves configuration against a given service
-type ConfigResolver struct{}
-
-// resolve takes a template and a service and generates a config with
+// Resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-func (cr *ConfigResolver) resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
+func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
 		Name:          tpl.Name,

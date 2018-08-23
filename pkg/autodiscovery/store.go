@@ -158,7 +158,7 @@ func (s *store) setADIDForServices(adID string, serviceEntity string) {
 	s.adIDToServices[adID][serviceEntity] = true
 }
 
-func (s *store) getServiceEntitesForADID(adID string) (map[string]bool, bool) {
+func (s *store) getServiceEntitiesForADID(adID string) (map[string]bool, bool) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	services, found := s.adIDToServices[adID]

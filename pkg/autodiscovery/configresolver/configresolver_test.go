@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package autodiscovery
+package configresolver
 
 import (
 	"fmt"
@@ -19,6 +19,50 @@ import (
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
+
+type dummyService struct {
+	ID            string
+	ADIdentifiers []string
+	Hosts         map[string]string
+	Ports         []listeners.ContainerPort
+	Pid           int
+	Hostname      string
+}
+
+// GetEntity returns the service entity name
+func (s *dummyService) GetEntity() string {
+	return s.ID
+}
+
+// GetADIdentifiers returns dummy identifiers
+func (s *dummyService) GetADIdentifiers() ([]string, error) {
+	return s.ADIdentifiers, nil
+}
+
+// GetHosts returns dummy hosts
+func (s *dummyService) GetHosts() (map[string]string, error) {
+	return s.Hosts, nil
+}
+
+// GetPorts returns dummy ports
+func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
+	return s.Ports, nil
+}
+
+// GetTags returns mil
+func (s *dummyService) GetTags() ([]string, error) {
+	return nil, nil
+}
+
+// GetPid return a dummy pid
+func (s *dummyService) GetPid() (int, error) {
+	return s.Pid, nil
+}
+
+// GetHostname return a dummy hostname
+func (s *dummyService) GetHostname() (string, error) {
+	return s.Hostname, nil
+}
 
 func TestParseTemplateVar(t *testing.T) {
 	name, key := parseTemplateVar([]byte("%%host%%"))
@@ -375,7 +419,6 @@ func TestResolve(t *testing.T) {
 			errorString: "yaml: found character that cannot start any token",
 		},
 	}
-	cr := &ConfigResolver{}
 	validTemplates := 0
 
 	for i, tc := range testCases {
@@ -383,7 +426,7 @@ func TestResolve(t *testing.T) {
 			// Make sure we don't modify the template object
 			checksum := tc.tpl.Digest()
 
-			cfg, err := cr.resolve(tc.tpl, tc.svc)
+			cfg, err := Resolve(tc.tpl, tc.svc)
 			if tc.errorString != "" {
 				assert.EqualError(t, err, tc.errorString)
 			} else {

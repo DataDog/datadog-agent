@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -55,7 +56,7 @@ type providerDescriptor struct {
 //  - it owns a reference to the `collector.Collector` that it uses to schedule checks when template or container updates warrant them
 //  - it holds a list of `providers.ConfigProvider`s and poll them according to their policy
 //  - it holds a list of `check.Loader`s to load configurations into `Check` objects
-//  - it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events and listen to them
+//  - it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events
 //  - it uses the `ConfigResolver` that resolves a configuration template to an actual configuration based on a service matching the template
 //
 // Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
@@ -65,7 +66,6 @@ type AutoConfig struct {
 	listeners          []listeners.ServiceListener
 	listenerCandidates map[string]listeners.ServiceListenerFactory
 	listenerRetryStop  chan struct{}
-	configResolver     *ConfigResolver
 	configsPollTicker  *time.Ticker
 	scheduler          *scheduler.MetaScheduler
 	pollerStop         chan struct{}
@@ -93,7 +93,6 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
 		scheduler:          scheduler,
-		configResolver:     &ConfigResolver{},
 	}
 	// We need to listen to the service channels before anything is sent to them
 	ac.startServiceListening()
@@ -548,7 +547,7 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 	// go through the AD identifiers provided by the template
 	for _, id := range tpl.ADIdentifiers {
 		// check out whether any service we know has this identifier
-		serviceIds, found := ac.store.getServiceEntitesForADID(id)
+		serviceIds, found := ac.store.getServiceEntitiesForADID(id)
 		if !found {
 			s := fmt.Sprintf("No service found with this AD identifier: %s", id)
 			errorStats.setResolveWarning(tpl.Name, s)
@@ -577,7 +576,7 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 // resolveTemplateForService calls the config resolver for the template against the service
 // and stores the resolved config and service mapping if successful
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	resolvedConfig, err := ac.configResolver.resolve(tpl, svc)
+	resolvedConfig, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetEntity(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())
@@ -661,7 +660,6 @@ func GetResolveWarnings() map[string][]string {
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// in any case, register the service and store its tag hash
 	ac.store.setServiceForEntity(svc, svc.GetEntity())
-	// todo store?
 
 	// get all the templates matching service identifiers
 	var templates []integration.Config
