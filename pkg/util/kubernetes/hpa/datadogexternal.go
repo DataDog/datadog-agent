@@ -53,7 +53,7 @@ func (hpa *HPAProcessor) queryDatadogExternal(metricName string, tags map[string
 	datadogQueriesCounter.Incr(1)
 	datadogQueriesPerHour.Set(datadogQueriesCounter.Rate())
 
-	seriesSlice, err := hpa.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
+	seriesSlice, err := hpa.DatadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 
 	if err != nil {
 		datadogErrors.Add(1)

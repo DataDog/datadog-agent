@@ -76,7 +76,7 @@ func TestHPAProcessor_UpdateExternalMetrics(t *testing.T) {
 					return tt.series, nil
 				},
 			}
-			hpaCl := &HPAProcessor{datadogClient: datadogClient}
+			hpaCl := &HPAProcessor{DatadogClient: datadogClient}
 
 			externalMetrics := hpaCl.UpdateExternalMetrics(tt.metrics)
 
@@ -162,7 +162,7 @@ func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 					return nil, nil
 				},
 			}
-			hpaCl := &HPAProcessor{datadogClient: datadogClient}
+			hpaCl := &HPAProcessor{externalMaxAge: 3, DatadogClient: datadogClient}
 
 			externalMetrics := hpaCl.ComputeDeleteExternalMetrics(&tt.list, tt.emList)
 
@@ -313,7 +313,7 @@ func TestHPAProcessor_ProcessHPAs(t *testing.T) {
 					return tt.series, nil
 				},
 			}
-			hpaCl := &HPAProcessor{datadogClient: datadogClient}
+			hpaCl := &HPAProcessor{DatadogClient: datadogClient}
 
 			externalMetrics := hpaCl.ProcessHPAs(&tt.metrics)
 

@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -439,7 +440,7 @@ func StartMetadataController(stopCh chan struct{}) error {
 }
 
 // StartAutoscalerController
-func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, stopCh chan struct{}) error {
+func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, dogCl hpa.DatadogClient, stopCh chan struct{}) error {
 	// Update var
 	var (
 		timeoutSeconds      = time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
@@ -456,8 +457,13 @@ func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, stopCh chan st
 	autoscalerController := NewAutoscalerController(
 		client,
 		LeaderElectorItf,
+		dogCl,
 		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
+	if err != nil {
+		return err
+	}
+
 	informerFactory.Start(stopCh)
 	go autoscalerController.Run(stopCh)
 	return nil

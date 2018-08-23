@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
 	"github.com/spf13/pflag"
@@ -81,13 +82,16 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-
+	dogCl, err := hpa.NewDatadogClient()
+	if err != nil {
+		return err
+	}
 	stopCh2 := make(chan struct{})
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return err
 	}
-	as.StartAutoscalerController(le, stopCh2)
+	as.StartAutoscalerController(le, dogCl, stopCh2)
 
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.

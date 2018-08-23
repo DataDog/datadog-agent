@@ -25,7 +25,7 @@ type DatadogClient interface {
 // HPAProcessor embeds the API Server client and the configuration to refresh metrics from Datadog and watch the HPA Objects' activities
 type HPAProcessor struct {
 	externalMaxAge time.Duration
-	datadogClient  DatadogClient
+	DatadogClient  DatadogClient
 }
 
 // NewHPAWatcherClient returns a new HPAProcessor
@@ -33,7 +33,7 @@ func NewHPAWatcherClient(datadogCl DatadogClient) (*HPAProcessor, error) {
 	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
 	return &HPAProcessor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
-		datadogClient:  datadogCl,
+		DatadogClient:  datadogCl,
 	}, nil
 }
 

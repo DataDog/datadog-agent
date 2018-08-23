@@ -49,17 +49,11 @@ type AutoscalersController struct {
 	le                 LeaderElectorItf
 }
 
-func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) *AutoscalersController {
+func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) *AutoscalersController {
+	var err error
 	h := &AutoscalersController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoscalers"),
 	}
-
-	datadogCl, err := hpa.NewDatadogClient()
-	if err != nil {
-		log.Errorf("Could not instantiate Datadog Client %v", err)
-		return nil
-	}
-	h.hpaProc, err = hpa.NewHPAWatcherClient(datadogCl)
 
 	h.poller = Poller{
 		gcPeriodSeconds: config.Datadog.GetInt("hpa_watcher_gc_period"),
@@ -67,6 +61,7 @@ func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, a
 		batchWindow:     config.Datadog.GetInt("external_metrics_provider.batch_window"),
 	}
 
+	h.hpaProc, err = hpa.NewHPAWatcherClient(dogCl)
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
 	h.store, err = custommetrics.NewConfigMapStore(client, GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
@@ -213,7 +208,6 @@ func (h *AutoscalersController) processNext() bool {
 
 	ns, name, _ := cache.SplitMetaNamespaceKey(key.(string))
 	hpa, err := h.autoscalersLister.HorizontalPodAutoscalers(ns).Get(name)
-
 	switch {
 	case errors.IsNotFound(err):
 		// We missed the Deletion Event. Local store does not have the HPA data anymore. The GC will clean up the Global Store.
@@ -229,6 +223,7 @@ func (h *AutoscalersController) processNext() bool {
 		h.hpaToStoreGlobally = append(h.hpaToStoreGlobally, new...)
 		log.Infof("hpaToStoreGlobally is %v", h.hpaToStoreGlobally)
 	}
+
 	return true
 }
 
