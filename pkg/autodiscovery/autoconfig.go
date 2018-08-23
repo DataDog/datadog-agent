@@ -241,7 +241,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 			// set config's provider and origin
 			config.Provider = pd.provider.String()
 			config.Origin = integration.NewConfig
-			rc := ac.resolve(config)
+			rc := ac.storeAndResolve(config)
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 	}
@@ -254,9 +254,8 @@ func (ac *AutoConfig) schedule(configs []integration.Config) {
 	ac.scheduler.Schedule(configs)
 }
 
-// resolve loads and resolves a given config into a slice of resolved configs
-// and store them in the template cache
-func (ac *AutoConfig) resolve(config integration.Config) []integration.Config {
+// storeAndResolve store (in template cache) and resolves a given config into a slice of resolved configs
+func (ac *AutoConfig) storeAndResolve(config integration.Config) []integration.Config {
 	var configs []integration.Config
 
 	// add default metrics to collect to JMX checks
@@ -508,7 +507,7 @@ func (ac *AutoConfig) pollConfigs() {
 						// set config's provider and origin
 						config.Provider = pd.provider.String()
 						config.Origin = integration.NewConfig
-						resolvedConfigs := ac.resolve(config)
+						resolvedConfigs := ac.storeAndResolve(config)
 						ac.schedule(resolvedConfigs)
 					}
 				}
