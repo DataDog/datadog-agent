@@ -14,43 +14,43 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
-
-var clusterCheckHandler *clusterchecks.Handler
 
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc types.ServerContext) {
-	if sc.ClusterCheckHandler == nil {
-		return
-	}
-	clusterCheckHandler = sc.ClusterCheckHandler
-
 	// TODO
 	//r.HandleFunc("/clusterchecks/status/{nodeName}", postCheckStatus).Methods("POST")
 	//r.HandleFunc("/clusterchecks/configs/{nodeName}", getCheckConfigs).Methods("GET")
-	r.HandleFunc("/clusterchecks", getAllCheckConfigs).Methods("GET")
+
+	r.HandleFunc("/clusterchecks", getAllCheckConfigs(sc)).Methods("GET")
 }
 
 // getAllCheckConfigs is used by the clustercheck config
-func getAllCheckConfigs(w http.ResponseWriter, r *http.Request) {
-	if clusterCheckHandler == nil {
+func getAllCheckConfigs(sc types.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+	if sc.ClusterCheckHandler == nil {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		configs, err := sc.ClusterCheckHandler.GetAllConfigs()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		slcB, err := json.Marshal(configs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if len(slcB) != 0 {
+			w.WriteHeader(http.StatusOK)
+			w.Write(slcB)
+			return
+		}
 		w.WriteHeader(http.StatusNotFound)
-		return
 	}
-
-	configs, err := clusterCheckHandler.GetAllConfigs()
-
-	slcB, err := json.Marshal(configs)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if len(slcB) != 0 {
-		w.WriteHeader(http.StatusOK)
-		w.Write(slcB)
-		return
-	}
-	w.WriteHeader(http.StatusNotFound)
 }
