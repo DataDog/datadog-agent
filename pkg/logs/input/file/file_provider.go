@@ -55,7 +55,7 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 
 	for i := 0; i < len(sources) && len(filesToTail) < p.filesLimit; i++ {
 		source := sources[i]
-		files, err := p.collectFiles(source)
+		files, err := p.CollectFiles(source)
 		if err != nil {
 			source.Status.Error(err)
 			if shouldLogErrors {
@@ -77,8 +77,8 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 	return filesToTail
 }
 
-// collectFiles returns all the files matching the source path.
-func (p *Provider) collectFiles(source *config.LogSource) ([]*File, error) {
+// CollectFiles returns all the files matching the source path.
+func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 	path := source.Config.Path
 	fileExists := p.exists(path)
 	switch {

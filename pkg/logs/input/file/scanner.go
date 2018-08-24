@@ -68,6 +68,7 @@ func (s *Scanner) run() {
 		select {
 		case source := <-s.sources.GetSourceStreamForType(config.DockerType):
 			s.activeSources = append(s.activeSources, source)
+			s.launchTailers(source)
 		case <-scanTicker.C:
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
@@ -113,7 +114,7 @@ func (s *Scanner) scan() {
 
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, true)
+			succeeded := s.startNewTailer(file)
 			if !succeeded {
 				// the setup failed, let's try to tail this file in the next scan
 				continue
@@ -148,10 +149,34 @@ func (s *Scanner) scan() {
 	}
 }
 
+// launch launches new tailers for a new source.
+func (s *Scanner) launchTailers(source *config.LogSource) {
+	files, err := s.fileProvider.CollectFiles(source)
+	if err != nil {
+		source.Status.Error(err)
+		log.Warnf("Could not collect files: %v", err)
+		return
+	}
+	for _, file := range files {
+		if len(s.tailers) >= s.tailingLimit {
+			return
+		}
+		if _, isTailed := s.tailers[file.Path]; isTailed {
+			continue
+		}
+		s.startNewTailer(file)
+	}
+}
+
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise
-func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
+func (s *Scanner) startNewTailer(file *File) bool {
 	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
+
+	var tailFromBeginning bool
+	if file.Source.Origin == config.SourceOriginService {
+		tailFromBeginning = true
+	}
 
 	offset, whence, err := Position(s.registry, tailer.Identifier(), tailFromBeginning)
 	if err != nil {

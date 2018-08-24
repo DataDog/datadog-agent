@@ -95,6 +95,7 @@ func (s *Scanner) run() {
 		select {
 		case source := <-s.sources.GetSourceStreamForType(config.DockerType):
 			s.activeSources = append(s.activeSources, source)
+			s.launchTailers(source)
 		case <-scanTicker.C:
 			// check all the containers running on the host and start new tailers if needed
 			s.scan()
@@ -114,17 +115,18 @@ func (s *Scanner) scan() {
 
 	// monitor new containers, and restart tailers if needed
 	for _, container := range runningContainers {
-		source := NewContainer(container).findSource(s.activeSources)
-		if source == nil {
-			continue
-		}
 		tailer, isTailed := s.tailers[container.ID]
 		if isTailed && tailer.shouldStop {
 			continue
 		}
 		if !isTailed {
+			// search the best source matching the container
+			source := NewContainer(container).FindSource(s.activeSources)
+			if source == nil {
+				continue
+			}
 			// setup a new tailer
-			succeeded := s.setupTailer(s.cli, container, source, true, s.pipelineProvider.NextPipelineChan())
+			succeeded := s.setupTailer(s.cli, container, source, s.pipelineProvider.NextPipelineChan())
 			if !succeeded {
 				// the setup failed, let's try to tail this container in the next scan
 				continue
@@ -142,20 +144,40 @@ func (s *Scanner) scan() {
 	}
 }
 
+// launch launches new tailers for a new source.
+func (s *Scanner) launchTailers(source *config.LogSource) {
+	for _, container := range s.listContainers() {
+		if _, isTailed := s.tailers[container.ID]; isTailed {
+			continue
+		}
+		if NewContainer(container).IsMatch(source) {
+			s.setupTailer(s.cli, container, source, s.pipelineProvider.NextPipelineChan())
+		}
+	}
+}
+
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", ShortContainerID(container.ID))
 	tailer := NewTailer(cli, container.ID, source, outputChan)
+
+	var tailFromBeginning bool
+	if source.Origin == config.SourceOriginService {
+		tailFromBeginning = true
+	}
+
 	since, err := Since(s.registry, tailer.Identifier(), tailFromBeginning)
 	if err != nil {
 		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(container.ID), err)
 	}
+
 	err = tailer.Start(since)
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
+
 	s.tailers[container.ID] = tailer
 	return true
 }

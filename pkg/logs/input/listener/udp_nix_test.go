@@ -25,7 +25,7 @@ const maxUDPFrameLen = 65535
 func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), defaultFrameSize)
+	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}, config.SourceOriginConfig), defaultFrameSize)
 	listener.Start()
 
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
@@ -51,7 +51,7 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 func TestUDPShoulDropTooBigMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), maxUDPFrameLen)
+	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}, config.SourceOriginConfig), maxUDPFrameLen)
 	listener.Start()
 
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))

@@ -29,7 +29,7 @@ func NewContainer(container types.Container) *Container {
 
 // findSource returns the source that most closely matches the container,
 // if no source is found return nil
-func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
+func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 	if label := c.getLabel(); label != "" {
 		configs, err := config.ParseJSON([]byte(label))
 		if err != nil || len(configs) == 0 {
@@ -46,17 +46,11 @@ func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 			return nil
 		}
 		cfg.Type = config.DockerType
-		return config.NewLogSource(c.getSourceName(), cfg)
+		return config.NewLogSource(c.getSourceName(), cfg, config.SourceOriginService)
 	}
 	var candidate *config.LogSource
 	for _, source := range sources {
-		if source.Config.Image != "" && !c.isImageMatch(source.Config.Image) {
-			continue
-		}
-		if source.Config.Label != "" && !c.isLabelMatch(source.Config.Label) {
-			continue
-		}
-		if source.Config.Name != "" && !c.isNameMatch(source.Config.Name) {
+		if !c.IsMatch(source) {
 			continue
 		}
 		if candidate == nil {
@@ -82,6 +76,20 @@ func (c *Container) computeScore(source *config.LogSource) int {
 		score++
 	}
 	return score
+}
+
+// isMatch returns true if the source matches with the container.
+func (c *Container) IsMatch(source *config.LogSource) bool {
+	if source.Config.Image != "" && !c.isImageMatch(source.Config.Image) {
+		return false
+	}
+	if source.Config.Label != "" && !c.isLabelMatch(source.Config.Label) {
+		return false
+	}
+	if source.Config.Name != "" && !c.isNameMatch(source.Config.Name) {
+		return false
+	}
+	return true
 }
 
 // digestPrefix represents a prefix that can be added to an image name.

@@ -22,7 +22,7 @@ const udpTestPort = 10513
 func TestUDPShouldReceiveMessage(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), defaultFrameSize)
+	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}, config.SourceOriginConfig), defaultFrameSize)
 	listener.Start()
 
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))

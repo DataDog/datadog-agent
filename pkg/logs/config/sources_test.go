@@ -14,17 +14,17 @@ import (
 func TestAddSource(t *testing.T) {
 	sources := NewLogSources()
 	assert.Equal(t, 0, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("foo", nil))
+	sources.AddSource(NewLogSource("foo", nil, SourceOriginConfig))
 	assert.Equal(t, 1, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("bar", nil))
+	sources.AddSource(NewLogSource("bar", nil, SourceOriginConfig))
 	assert.Equal(t, 2, len(sources.GetSources()))
 }
 
 func TestRemoveSource(t *testing.T) {
 	sources := NewLogSources()
-	source1 := NewLogSource("foo", nil)
+	source1 := NewLogSource("foo", nil, SourceOriginConfig)
 	sources.AddSource(source1)
-	source2 := NewLogSource("bar", nil)
+	source2 := NewLogSource("bar", nil, SourceOriginConfig)
 	sources.AddSource(source2)
 	assert.Equal(t, 2, len(sources.GetSources()))
 	sources.RemoveSource(source1)
@@ -37,6 +37,6 @@ func TestRemoveSource(t *testing.T) {
 func TestGetSources(t *testing.T) {
 	sources := NewLogSources()
 	assert.Equal(t, 0, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("", nil))
+	sources.AddSource(NewLogSource("", nil, SourceOriginConfig))
 	assert.Equal(t, 1, len(sources.GetSources()))
 }
