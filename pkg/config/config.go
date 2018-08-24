@@ -293,7 +293,7 @@ func init() {
 	BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	BindEnvAndSetDefault("external_metrics_provider.enabled", false)
 	BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
-	BindEnvAndSetDefault("external_metrics_provider.batch_window", 5) // 5 seconds to batch calls to the GlobalStore
+	BindEnvAndSetDefault("external_metrics_provider.batch_window_configmap", 5) // 5 seconds to batch calls to the GlobalStore
 	BindEnvAndSetDefault("external_metrics_provider.max_age", 60)
 	BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5) // Window of the metric from Datadog
 	BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)    // 5 minutes

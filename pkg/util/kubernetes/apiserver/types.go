@@ -7,7 +7,7 @@
 
 package apiserver
 
-// LeaderElectorItf is the interface avoiding the import cycle between the LeaderElection and the APIServer
-type LeaderElectorItf interface {
+// LeaderElectorInterface is the interface avoiding the import cycle between the LeaderElection and the APIServer
+type LeaderElectorInterface interface {
 	IsLeader() bool
 }

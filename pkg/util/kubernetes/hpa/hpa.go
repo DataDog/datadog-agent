@@ -23,25 +23,25 @@ type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 }
 
-// HPAProcessor embeds the configuration to refresh metrics from Datadog and process HPA structs to ExternalMetrics.
-type HPAProcessor struct {
+// Processor embeds the configuration to refresh metrics from Datadog and process HPA structs to ExternalMetrics.
+type Processor struct {
 	externalMaxAge time.Duration
-	DatadogClient  DatadogClient
+	datadogClient  DatadogClient
 }
 
-// NewHPAProcessor returns a new HPAProcessor
-func NewHPAProcessor(datadogCl DatadogClient) (*HPAProcessor, error) {
+// NewHPAProcessor returns a new Processor
+func NewHPAProcessor(datadogCl DatadogClient) (*Processor, error) {
 	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
-	return &HPAProcessor{
+	return &Processor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
-		DatadogClient:  datadogCl,
+		datadogClient:  datadogCl,
 	}, nil
 }
 
 // ComputeDeleteExternalMetrics returns a diff of a list of ExternalMetrics with the given HPA Objects.
-func (c *HPAProcessor) ComputeDeleteExternalMetrics(list *autoscalingv2.HorizontalPodAutoscalerList, emList []custommetrics.ExternalMetricValue) (toDelete []custommetrics.ExternalMetricValue) {
+func ComputeDeleteExternalMetrics(list []*autoscalingv2.HorizontalPodAutoscaler, emList []custommetrics.ExternalMetricValue) (toDelete []custommetrics.ExternalMetricValue) {
 	uids := make(map[string]struct{})
-	for _, hpa := range list.Items {
+	for _, hpa := range list {
 		uids[string(hpa.UID)] = struct{}{}
 	}
 
@@ -56,7 +56,7 @@ func (c *HPAProcessor) ComputeDeleteExternalMetrics(list *autoscalingv2.Horizont
 }
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
-func (c *HPAProcessor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue) {
+func (c *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue) {
 	maxAge := int64(c.externalMaxAge.Seconds())
 	var err error
 
@@ -77,7 +77,7 @@ func (c *HPAProcessor) UpdateExternalMetrics(emList []custommetrics.ExternalMetr
 }
 
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
-func (c *HPAProcessor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
+func (c *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
 	var externalMetrics []custommetrics.ExternalMetricValue
 	var err error
 
@@ -112,7 +112,7 @@ func (c *HPAProcessor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) [
 }
 
 // validateExternalMetric queries Datadog to validate the availability and value of an external metric
-func (c *HPAProcessor) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
+func (c *Processor) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
 	val, err := c.queryDatadogExternal(metricName, labels)
 	if err != nil {
 		return val, false, err

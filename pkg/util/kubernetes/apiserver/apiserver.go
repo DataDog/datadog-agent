@@ -31,13 +31,12 @@ import (
 )
 
 var (
-	globalAPIClient     *APIClient
-	ErrNotFound         = errors.New("entity not found")
-	ErrOutdated         = errors.New("entity is outdated")
-	ErrNotLeader        = errors.New("not Leader")
-	isConnectVerbose    = false
-	timeoutSeconds      = time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
-	resyncPeriodSeconds = time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	globalAPIClient  *APIClient
+	ErrNotFound      = errors.New("entity not found")
+	ErrIsEmpty       = errors.New("entity is empty")
+	ErrOutdated      = errors.New("entity is outdated")
+	ErrNotLeader     = errors.New("not Leader")
+	isConnectVerbose = false
 )
 
 const (
@@ -404,6 +403,8 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 // StartMetadataController runs the metadata controller to collect cluster metadata. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
 func StartMetadataController(stopCh chan struct{}) error {
+	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(timeoutSeconds * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
@@ -420,10 +421,13 @@ func StartMetadataController(stopCh chan struct{}) error {
 	return nil
 }
 
-// StartAutoscalerController runs the Autoscaler controller to collect the HorizontalPodAutoscaler data.
+// StartAutoscalersController runs the Autoscaler controller to collect the HorizontalPodAutoscaler data.
 // only called once, when we have confirmed we could correctly connect to the API server.
 // We pass the LeaderElection and Datadog Client Interfaces to avoid import cycles and allow unit/integration tests.
-func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, dogCl hpa.DatadogClient, stopCh chan struct{}) error {
+// TODO refactor Controllers to share the same Informer Factory and the config options.
+func StartAutoscalersController(LeaderElectorItf LeaderElectorInterface, dogCl hpa.DatadogClient, stopCh chan struct{}) error {
+	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(timeoutSeconds * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
@@ -431,7 +435,7 @@ func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, dogCl hpa.Data
 	}
 
 	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
-	autoscalerController := NewAutoscalerController(
+	autoscalerController := NewAutoscalersController(
 		client,
 		LeaderElectorItf,
 		dogCl,

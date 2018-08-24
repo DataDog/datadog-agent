@@ -76,7 +76,7 @@ func TestHPAProcessor_UpdateExternalMetrics(t *testing.T) {
 					return tt.series, nil
 				},
 			}
-			hpaCl := &HPAProcessor{DatadogClient: datadogClient}
+			hpaCl := &Processor{datadogClient: datadogClient}
 
 			externalMetrics := hpaCl.UpdateExternalMetrics(tt.metrics)
 
@@ -96,23 +96,21 @@ func TestHPAProcessor_UpdateExternalMetrics(t *testing.T) {
 func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 	tests := []struct {
 		desc     string
-		list     autoscalingv2.HorizontalPodAutoscalerList
+		list     []*autoscalingv2.HorizontalPodAutoscaler
 		emList   []custommetrics.ExternalMetricValue
 		expected []custommetrics.ExternalMetricValue
 	}{
 		{
 			"Delete invalid metric",
-			autoscalingv2.HorizontalPodAutoscalerList{
-				Items: []autoscalingv2.HorizontalPodAutoscaler{
-					{
-						ObjectMeta: v1.ObjectMeta{
-							UID: types.UID(5),
-						},
+			[]*autoscalingv2.HorizontalPodAutoscaler{
+				{
+					ObjectMeta: v1.ObjectMeta{
+						UID: types.UID(5),
 					},
-					{
-						ObjectMeta: v1.ObjectMeta{
-							UID: types.UID(7),
-						},
+				},
+				{
+					ObjectMeta: v1.ObjectMeta{
+						UID: types.UID(7),
 					},
 				},
 			},
@@ -157,15 +155,7 @@ func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClient := &fakeDatadogClient{
-				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-					return nil, nil
-				},
-			}
-			hpaCl := &HPAProcessor{externalMaxAge: 3, DatadogClient: datadogClient}
-
-			externalMetrics := hpaCl.ComputeDeleteExternalMetrics(&tt.list, tt.emList)
-
+			externalMetrics := ComputeDeleteExternalMetrics(tt.list, tt.emList)
 			assert.ElementsMatch(t, tt.expected, externalMetrics)
 		})
 	}
@@ -313,7 +303,7 @@ func TestHPAProcessor_ProcessHPAs(t *testing.T) {
 					return tt.series, nil
 				},
 			}
-			hpaCl := &HPAProcessor{DatadogClient: datadogClient}
+			hpaCl := &Processor{datadogClient: datadogClient}
 
 			externalMetrics := hpaCl.ProcessHPAs(&tt.metrics)
 

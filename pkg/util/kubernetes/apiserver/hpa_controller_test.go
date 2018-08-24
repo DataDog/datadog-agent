@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
@@ -58,10 +59,10 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 	}
 }
 
-func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorItf, dcl hpa.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
+func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorInterface, dcl hpa.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 
-	autoscalerController := NewAutoscalerController(
+	autoscalerController := NewAutoscalersController(
 		client,
 		itf,
 		dcl,
@@ -72,15 +73,19 @@ func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorI
 	return autoscalerController, informerFactory
 }
 
-type leItf struct{}
+var alwaysLeader = fakeLeaderElector{true}
 
-func (le *leItf) IsLeader() bool { return true }
+type fakeLeaderElector struct {
+	isLeader bool
+}
 
-type dClItf struct {
+func (le *fakeLeaderElector) IsLeader() bool { return le.isLeader }
+
+type fakeDatadogClient struct {
 	queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error)
 }
 
-func (d *dClItf) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
+func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
 	if d.queryMetricsFunc != nil {
 		return d.queryMetricsFunc(from, to, query)
 	}
@@ -89,10 +94,9 @@ func (d *dClItf) QueryMetrics(from, to int64, query string) ([]datadog.Series, e
 
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestAutoscalerController(t *testing.T) {
-	client := fake.NewSimpleClientset()
-	i := &leItf{}
-	metricName := "foo"
 	name := custommetrics.GetConfigmapName()
+	store, client := newFakeConfigMapStore(t, "default", name, nil)
+	metricName := "foo"
 	ddSeries := []datadog.Series{
 		{
 			Metric: &metricName,
@@ -102,12 +106,12 @@ func TestAutoscalerController(t *testing.T) {
 			},
 		},
 	}
-	d := &dClItf{
+	d := &fakeDatadogClient{
 		queryMetricsFunc: func(from, to int64, query string) ([]datadog.Series, error) {
 			return ddSeries, nil
 		},
 	}
-	hctrl, inf := newFakeAutoscalerController(client, LeaderElectorItf(i), hpa.DatadogClient(d))
+	hctrl, inf := newFakeAutoscalerController(client, &alwaysLeader, hpa.DatadogClient(d))
 	hctrl.poller.batchWindow = 600 // Do not trigger the refresh or batch call to avoid flakiness.
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
@@ -153,17 +157,16 @@ func TestAutoscalerController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 	// Forcing update the to global store and clean local cache store
-	hctrl.pushToGlobalStore(hctrl.toStore.data)
+	hctrl.pushToGlobalStore()
 	require.Nil(t, hctrl.toStore.data)
 
 	// Test that the Global store contains the correct data
 	select {
 	case <-ticker.C:
-		k, _ := client.CoreV1().ConfigMaps("default").Get(name, metav1.GetOptions{})
-		for _, v := range k.Data {
-			require.Contains(t, v, "\"value\":14")
-			require.Contains(t, v, "\"labels\":{\"foo\":\"bar\"}")
-		}
+		storedExternal, err := store.ListAllExternalMetricValues()
+		require.NoError(t, err)
+		require.Equal(t, storedExternal[0].Value, int64(14))
+		require.Equal(t, storedExternal[0].Labels, map[string]string{"foo": "bar"})
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -193,19 +196,27 @@ func TestAutoscalerController(t *testing.T) {
 	storedHPA, err = hctrl.autoscalersLister.HorizontalPodAutoscalers(mockedHPA.Namespace).Get(mockedHPA.Name)
 	require.NoError(t, err)
 	require.Equal(t, storedHPA, mockedHPA)
-
 	// Process and submit to the Global Store
-	// bypassing toStore, although it could be used
-	hpaToStore := hctrl.hpaProc.ProcessHPAs(storedHPA)
-	errPush := hctrl.pushToGlobalStore(hpaToStore)
+	select {
+	case <-ticker.C:
+		hctrl.toStore.m.Lock()
+		st := hctrl.toStore.data // ensure toStore is not nil before pushToGlobalStore
+		hctrl.toStore.m.Unlock()
+		require.NotEmpty(t, st)
+	case <-timeout.C:
+		require.FailNow(t, "Timeout waiting for HPAs to update")
+	}
+
+	errPush := hctrl.pushToGlobalStore()
+
 	require.NoError(t, errPush)
 	select {
 	case <-ticker.C:
-		k, _ := client.CoreV1().ConfigMaps("default").Get(name, metav1.GetOptions{})
-		for _, v := range k.Data {
-			require.Contains(t, v, "\"labels\":{\"dcos_version\":\"2.1.9\"}")
-			require.Contains(t, v, "\"valid\":true")
-		}
+		//k, _ := client.CoreV1().ConfigMaps("default").Get(name, metav1.GetOptions{})
+		storedExternal, err := store.ListAllExternalMetricValues()
+		require.NoError(t, err)
+		require.Equal(t, storedExternal[0].Value, int64(14))
+		require.Equal(t, storedExternal[0].Labels, map[string]string{"dcos_version": "2.1.9"})
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -215,12 +226,38 @@ func TestAutoscalerController(t *testing.T) {
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:
-		k, err := client.CoreV1().ConfigMaps("default").Get(name, metav1.GetOptions{})
+		//k, err := client.CoreV1().ConfigMaps("default").Get(name, metav1.GetOptions{})
+		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		require.Len(t, k.Data, 0)
+		require.Len(t, storedExternal, 0)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
+}
+
+func TestAutoscalerSync(t *testing.T) {
+	client := fake.NewSimpleClientset()
+	i := &fakeLeaderElector{}
+	d := &fakeDatadogClient{}
+	hctrl, inf := newFakeAutoscalerController(client, LeaderElectorInterface(i), hpa.DatadogClient(d))
+	obj := newFakeHorizontalPodAutoscaler(
+		"hpa_1",
+		"default",
+		"1",
+		"foo",
+		map[string]string{"foo": "bar"},
+	)
+
+	err := inf.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer().GetStore().Add(obj)
+	require.NoError(t, err)
+	key := "default/hpa_1"
+	err = hctrl.syncAutoscalers(key)
+	require.NoError(t, err)
+
+	fakeKey := "default/prometheus"
+	err = hctrl.syncAutoscalers(fakeKey)
+	require.Error(t, err, errors.IsNotFound)
+
 }
 
 // TestAutoscalerControllerGC tests the GC process of of the controller
@@ -280,20 +317,23 @@ func TestAutoscalerControllerGC(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
+			i := &fakeLeaderElector{}
+			d := &fakeDatadogClient{}
+			hctrl, inf := newFakeAutoscalerController(client, LeaderElectorInterface(i), hpa.DatadogClient(d))
 
-			h := &AutoscalersController{
-				store:     store,
-				clientSet: client,
-			}
+			hctrl.store = store
+
 			if testCase.hpa != nil {
-				_, err := client.
-					AutoscalingV2beta1().
-					HorizontalPodAutoscalers("default").
-					Create(testCase.hpa)
+				err := inf.
+					Autoscaling().
+					V2beta1().
+					HorizontalPodAutoscalers().
+					Informer().
+					GetStore().
+					Add(testCase.hpa)
 				require.NoError(t, err)
 			}
-
-			h.gc() // force gc to run
+			hctrl.gc() // force gc to run
 			allMetrics, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, testCase.expected, allMetrics)
