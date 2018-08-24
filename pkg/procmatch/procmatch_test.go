@@ -16,7 +16,7 @@ func assertIntegration(t *testing.T, e string, i string) {
 	}
 }
 
-func TestFindIntegration(t *testing.T) {
+func TestMatchIntegration(t *testing.T) {
 	cases := []struct {
 		cmdline     string
 		integration string
