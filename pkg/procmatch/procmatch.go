@@ -16,19 +16,7 @@ type Integration struct {
 // IntegrationCatalog represents a list of Integrations
 type IntegrationCatalog []Integration
 
-// Default matcher
-var defaultGraphMatcher Matcher
-
-func init() {
-	var err error
-	defaultGraphMatcher, err = NewMatcher(DefaultCatalog)
-
-	if err != nil {
-		panic(err)
-	}
-}
-
 // Match uses the default matcher (graph one) built with the default catalog
-func Match(cmdline string) string {
-	return defaultGraphMatcher.Match(cmdline)
+func NewDefault() (Matcher, error) {
+	return NewMatcher(DefaultCatalog)
 }

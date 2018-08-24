@@ -4,6 +4,12 @@ import (
 	"testing"
 )
 
+var testMatcher Matcher
+
+func init() {
+	testMatcher, _ = NewDefault()
+}
+
 func assertIntegration(t *testing.T, e string, i string) {
 	if e != i {
 		t.Errorf("%s failed, wrong integration name, expected '%s' but got '%s'", t.Name(), e, i)
@@ -38,7 +44,7 @@ func TestFindIntegration(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		name := Match(c.cmdline)
+		name := testMatcher.Match(c.cmdline)
 		assertIntegration(t, c.integration, name)
 	}
 }
@@ -57,7 +63,7 @@ func TestOverlappingSignatures(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		name := Match(c.cmdline)
+		name := testMatcher.Match(c.cmdline)
 		assertIntegration(t, c.integration, name)
 	}
 }
@@ -66,7 +72,7 @@ func TestOverlappingSignatures(t *testing.T) {
 func TestDefaultCatalogOnGraph(t *testing.T) {
 	for _, integration := range DefaultCatalog {
 		for _, cmd := range integration.Signatures {
-			name := Match(cmd)
+			name := testMatcher.Match(cmd)
 			assertIntegration(t, integration.Name, name)
 		}
 	}
