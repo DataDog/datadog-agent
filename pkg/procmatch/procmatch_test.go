@@ -4,57 +4,6 @@ import (
 	"testing"
 )
 
-var (
-	rawIntegs = []Integration{
-		{"java", []string{"java"}},
-		{"elasticsearch", []string{"java org.elasticsearch.bootstrap.Elasticsearch"}},
-		{"kafka", []string{"java kafka.kafka"}},
-		{"gunicorn", []string{"gunicorn: master "}},
-		{"haproxy", []string{"haproxy", "haproxy-master"}},
-		{"mongodb", []string{"mongod"}},
-		{"consul", []string{"consul agent", "consul_agent", "consul-agent"}},
-		{"supervisord", []string{"python supervisord", "supervisord"}},
-		{"pgbouncer", []string{"pgbouncer"}},
-		{"apache", []string{"httpd", "apache"}},
-	}
-
-	rawIntegs2 = []Integration{
-		{"cassandra", []string{"java org.apache.cassandra.service.CassandraDaemon"}},
-		{"ceph", []string{"ceph-*"}},
-		{"couchbase", []string{"beam.smp"}},
-		{"couchdb", []string{"couchjs"}},
-		{"etcd", []string{"etcd"}},
-		{"fluentd", []string{"td-agent", "fluentd", "ruby td-agent"}},
-		{"kyototycoon", []string{"ktserver"}},
-		{"lighttpd", []string{"lighttpd"}},
-		{"memcached", []string{"memcached"}},
-		{"mysql", []string{"mysqld"}},
-	}
-
-	rawIntegs3 = []Integration{
-		{"nginx", []string{"nginx: master process"}},
-		{"postgres", []string{"postgres -D", "pg_ctl start -l logfile", "postgres -c 'pg_ctl start -D -l"}},
-		{"rabbitmq", []string{"rabbitmq"}},
-		{"redis", []string{"redis-server"}},
-		{"tomcat", []string{"java tomcat"}},
-		{"activeMQ", []string{"activemq"}},
-		{"airbrake", []string{"rake airbrake:deploy"}},
-		{"bitbucket", []string{"start-bitbucket.sh ", "service atlbitbucket start"}},
-		{"bugsnag", []string{"bugsnag-agent", "start bugsnag"}},
-		{"docker", []string{"dockerd", "docker-containerd", "docker run", "docker daemon", " docker-containerd-shim"}},
-		{"gearman", []string{"gearmand", "gearman"}},
-		{"kong", []string{"kong start"}},
-		{"marathon", []string{"start --master mesos marathon"}},
-		{"mesos", []string{" mesos-agent.sh --master --work_dir=/var/lib/mesos"}},
-		{"nagios", []string{"service snmpd restart", "systemctl restart snmpd.service"}},
-		{"openStack", []string{"stack.sh"}},
-		{"php", []string{"php"}},
-		{"php-fpm", []string{"php7.0-fpm", "php7.0-fpm start", "service php-fpm", "php7.0-fpm restart", "restart php-fpm", "systemctl restart php-fpm.service", "php7.0-fpm.service"}},
-		{"postfix", []string{"postfix start", "sendmail -bd"}},
-		{"powerdns_recursor", []string{"pdns_server", "systemctl start pdns@"}},
-	}
-)
-
 func assertIntegration(t *testing.T, e string, i string) {
 	if e != i {
 		t.Errorf("%s failed, wrong integration name, expected '%s' but got '%s'", t.Name(), e, i)
