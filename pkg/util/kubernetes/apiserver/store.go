@@ -24,7 +24,7 @@ type metaBundleStore struct {
 	keyFunc func(...string) string
 }
 
-func (m *metaBundleStore) Get(nodeName string) (*MetadataMapperBundle, bool) {
+func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
 	cacheKey := m.keyFunc(metadataMapperCachePrefix, nodeName)
 
 	var metaBundle *MetadataMapperBundle
@@ -46,7 +46,7 @@ func (m *metaBundleStore) Get(nodeName string) (*MetadataMapperBundle, bool) {
 	return metaBundle, true
 }
 
-func (m *metaBundleStore) GetOrCreate(nodeName string) *MetadataMapperBundle {
+func (m *metaBundleStore) getOrCreate(nodeName string) *MetadataMapperBundle {
 	cacheKey := m.keyFunc(metadataMapperCachePrefix, nodeName)
 
 	var metaBundle *MetadataMapperBundle
@@ -70,7 +70,7 @@ func (m *metaBundleStore) GetOrCreate(nodeName string) *MetadataMapperBundle {
 	return metaBundle
 }
 
-func (m *metaBundleStore) Set(nodeName string, metaBundle *MetadataMapperBundle) {
+func (m *metaBundleStore) set(nodeName string, metaBundle *MetadataMapperBundle) {
 	cacheKey := m.keyFunc(metadataMapperCachePrefix, nodeName)
 
 	m.mu.Lock()
@@ -79,7 +79,7 @@ func (m *metaBundleStore) Set(nodeName string, metaBundle *MetadataMapperBundle)
 	m.cache.Set(cacheKey, metaBundle, cache.NoExpiration)
 }
 
-func (m *metaBundleStore) Delete(nodeName string) {
+func (m *metaBundleStore) delete(nodeName string) {
 	cacheKey := m.keyFunc(metadataMapperCachePrefix, nodeName)
 
 	m.mu.Lock()

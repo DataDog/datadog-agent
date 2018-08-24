@@ -272,7 +272,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		require.NoError(t, err)
 
 		for nodeName, expectedMapper := range tt.expectedBundles {
-			metaBundle, ok := metaController.store.Get(nodeName)
+			metaBundle, ok := metaController.store.get(nodeName)
 			require.True(t, ok, "No meta bundle for %s", nodeName)
 			assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
 		}
