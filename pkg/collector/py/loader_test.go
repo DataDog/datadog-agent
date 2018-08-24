@@ -9,6 +9,7 @@
 package py
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -75,6 +76,36 @@ func TestLoadVersion(t *testing.T) {
 func TestLoadVersionLock(t *testing.T) {
 	glock := newStickyLock()
 	TestLoadVersion(t)
+	glock.unlock()
+}
+
+func TestLoadandRun(t *testing.T) {
+	l, _ := NewPythonCheckLoader()
+
+	// the python module loads fine but check fails
+	config := integration.Config{Name: "version"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	instances, err := l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(instances))
+	err = instances[0].Run()
+	assert.NotNil(t, err)
+
+	// the python module loads and check runs
+	config = integration.Config{Name: "working"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	instances, err = l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(instances))
+	err = instances[0].Run()
+	fmt.Println(err)
+	assert.Nil(t, err)
+
+}
+
+func TestLoadandRunLock(t *testing.T) {
+	glock := newStickyLock()
+	TestLoadandRun(t)
 	glock.unlock()
 }
 

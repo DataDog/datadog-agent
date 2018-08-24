@@ -15,4 +15,4 @@ class Version(AgentCheck):
         Do not interact with the Aggregator during
         unit tests. Doing anything is ok here.
         """
-        pass
+        raise Exception("not working check")
