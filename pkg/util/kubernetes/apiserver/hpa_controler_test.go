@@ -108,8 +108,9 @@ func TestAutoscalerController(t *testing.T) {
 		},
 	}
 	hctrl, inf := newFakeAutoscalerController(client, LeaderElectorItf(i), hpa.DatadogClient(d))
-	hctrl.poller.batchWindow = 60 // Do not trigger the refresh or batch call to avoid flakiness.
-	hctrl.poller.refreshPeriod = 60
+	hctrl.poller.batchWindow = 600 // Do not trigger the refresh or batch call to avoid flakiness.
+	hctrl.poller.refreshPeriod = 600
+	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
 
 	stop := make(chan struct{})
@@ -139,18 +140,21 @@ func TestAutoscalerController(t *testing.T) {
 	}
 	// Check local cache store is 1:1 with expectations
 	storedHPA, err := hctrl.autoscalersLister.HorizontalPodAutoscalers(mockedHPA.Namespace).Get(mockedHPA.Name)
+	require.NoError(t, err)
 	require.Equal(t, storedHPA, mockedHPA)
 
 	select {
 	case <-ticker.C:
-		st := hctrl.hpaToStoreGlobally
+		hctrl.toStore.m.Lock()
+		st := hctrl.toStore.data
+		hctrl.toStore.m.Unlock()
 		require.NotEmpty(t, st)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 	// Forcing update the to global store and clean local cache store
-	hctrl.pushToGlobalStore(hctrl.hpaToStoreGlobally)
-	require.Nil(t, hctrl.hpaToStoreGlobally)
+	hctrl.pushToGlobalStore(hctrl.toStore.data)
+	require.Nil(t, hctrl.toStore.data)
 
 	// Test that the Global store contains the correct data
 	select {
@@ -191,9 +195,9 @@ func TestAutoscalerController(t *testing.T) {
 	require.Equal(t, storedHPA, mockedHPA)
 
 	// Process and submit to the Global Store
-	// bypassing hpaToStoreGlobally, although it could be used
-	toStore := hctrl.hpaProc.ProcessHPAs(storedHPA)
-	errPush := hctrl.pushToGlobalStore(toStore)
+	// bypassing toStore, although it could be used
+	hpaToStore := hctrl.hpaProc.ProcessHPAs(storedHPA)
+	errPush := hctrl.pushToGlobalStore(hpaToStore)
 	require.NoError(t, errPush)
 	select {
 	case <-ticker.C:

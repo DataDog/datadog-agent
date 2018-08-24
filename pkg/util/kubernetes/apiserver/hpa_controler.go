@@ -20,6 +20,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -33,6 +35,10 @@ type Poller struct {
 	batchWindow     int
 }
 
+type hpaToStoreGlobally struct {
+	data []custommetrics.ExternalMetricValue
+	m    sync.Mutex
+}
 type AutoscalersController struct {
 	autoscalersLister       autoscalerslister.HorizontalPodAutoscalerLister
 	autoscalersListerSynced cache.InformerSynced
@@ -42,12 +48,12 @@ type AutoscalersController struct {
 	// used in unit tests to wait until endpoints are synced
 	autoscalers chan interface{}
 
-	hpaToStoreGlobally []custommetrics.ExternalMetricValue
-	hpaProc            *hpa.HPAProcessor
-	store              custommetrics.Store
-	clientSet          kubernetes.Interface
-	poller             Poller
-	le                 LeaderElectorItf
+	toStore   hpaToStoreGlobally
+	hpaProc   *hpa.HPAProcessor
+	store     custommetrics.Store
+	clientSet kubernetes.Interface
+	poller    Poller
+	le        LeaderElectorItf
 }
 
 // NewAutoscalerController returns a new AutoscalerController
@@ -65,6 +71,10 @@ func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, d
 
 	// Setup the client to process the HPA and metrics
 	h.hpaProc, err = hpa.NewHPAProcessor(dogCl)
+	if err != nil {
+		log.Errorf("Could not instantiate the HPA Processor: %v", err.Error())
+		return nil
+	}
 	h.clientSet = client
 	h.le = le // only trigger GC and updateExternalMetrics by the Leader.
 
@@ -115,7 +125,9 @@ func (c *AutoscalersController) processingLoop() {
 			select {
 			case <-tickerHPARefreshProcess.C:
 				if !c.le.IsLeader() {
-					c.hpaToStoreGlobally = nil
+					c.toStore.m.Lock()
+					c.toStore.data = nil
+					c.toStore.m.Unlock()
 					continue
 				}
 				// Updating the metrics against Datadog should not affect the HPA pipeline.
@@ -127,12 +139,15 @@ func (c *AutoscalersController) processingLoop() {
 				}
 				c.gc()
 			case <-batchFreq.C:
-				if !c.le.IsLeader() || len(c.hpaToStoreGlobally) == 0 {
+				c.toStore.m.Lock()
+				data := c.toStore.data
+				c.toStore.m.Unlock()
+				if !c.le.IsLeader() || len(data) == 0 {
 					continue
 				}
 
-				log.Tracef("Batch call pushing %d metrics", len(c.hpaToStoreGlobally))
-				err := c.pushToGlobalStore(c.hpaToStoreGlobally)
+				log.Tracef("Batch call pushing %d metrics", len(data))
+				err := c.pushToGlobalStore(data)
 				if err != nil {
 					log.Errorf("Error storing the list of External Metrics to the ConfigMap: %v", err)
 					continue
@@ -144,7 +159,9 @@ func (c *AutoscalersController) processingLoop() {
 
 func (h *AutoscalersController) pushToGlobalStore(toPush []custommetrics.ExternalMetricValue) error {
 	// reset the batch before submitting to avoid a discrepancy between the global store and the local one
-	h.hpaToStoreGlobally = nil
+	h.toStore.m.Lock()
+	h.toStore.data = nil
+	h.toStore.m.Unlock()
 	return h.store.SetExternalMetricValues(toPush)
 }
 
@@ -226,8 +243,10 @@ func (h *AutoscalersController) processNext() bool {
 			return true
 		}
 		new := h.hpaProc.ProcessHPAs(hpa)
-		h.hpaToStoreGlobally = append(h.hpaToStoreGlobally, new...)
-		log.Tracef("Local batch cache of HPA is %v", h.hpaToStoreGlobally)
+		h.toStore.m.Lock()
+		h.toStore.data = append(h.toStore.data, new...)
+		log.Tracef("Local batch cache of HPA is %v", h.toStore.data)
+		h.toStore.m.Unlock()
 	}
 	return true
 }
