@@ -211,7 +211,9 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 
 		// resolve configs if needed
 		for _, config := range cfgs {
+			// set config's provider and origin
 			config.Provider = pd.provider.String()
+			config.Origin = integration.NewConfig
 			rc := ac.resolve(config)
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
@@ -479,7 +481,9 @@ func (ac *AutoConfig) pollConfigs() {
 					ac.processRemovedConfigs(removedConfigs)
 
 					for _, config := range newConfigs {
+						// set config's provider and origin
 						config.Provider = pd.provider.String()
+						config.Origin = integration.NewConfig
 						resolvedConfigs := ac.resolve(config)
 						ac.schedule(resolvedConfigs)
 					}
