@@ -20,7 +20,9 @@ var (
 )
 
 // APIClient provides authenticated access to the
-type APIClient struct{}
+type APIClient struct {
+	Cl interface{}
+}
 
 // MetadataMapperBundle maps the podNames to the metadata they are associated with.
 type MetadataMapperBundle struct{}
@@ -28,7 +30,7 @@ type MetadataMapperBundle struct{}
 // GetAPIClient returns the shared ApiClient instance.
 func GetAPIClient() (*APIClient, error) {
 	log.Errorf("GetAPIClient not implemented %s", ErrNotCompiled.Error())
-	return nil, nil
+	return &APIClient{}, nil
 }
 
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.

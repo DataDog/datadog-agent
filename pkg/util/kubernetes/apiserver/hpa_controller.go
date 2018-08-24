@@ -36,7 +36,7 @@ type PollerConfig struct {
 	batchWindow     int
 }
 
-type hpaToStoreGlobally struct {
+type metricsBatch struct {
 	data []custommetrics.ExternalMetricValue
 	m    sync.Mutex
 }
@@ -57,7 +57,7 @@ type AutoscalersController struct {
 	// used in unit tests to wait until hpas are synced
 	autoscalers chan interface{}
 
-	toStore   hpaToStoreGlobally
+	toStore   metricsBatch
 	hpaProc   *hpa.Processor
 	store     custommetrics.Store
 	clientSet kubernetes.Interface
@@ -66,7 +66,7 @@ type AutoscalersController struct {
 }
 
 // NewAutoscalersController returns a new AutoscalersController
-func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) *AutoscalersController {
+func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) (*AutoscalersController, error) {
 	var err error
 	h := &AutoscalersController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoscalers"),
@@ -75,14 +75,14 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	h.poller = PollerConfig{
 		gcPeriodSeconds: config.Datadog.GetInt("hpa_watcher_gc_period"),
 		refreshPeriod:   config.Datadog.GetInt("external_metrics_provider.polling_freq"),
-		batchWindow:     config.Datadog.GetInt("external_metrics_provider.batch_window_configmap"),
+		batchWindow:     config.Datadog.GetInt("external_metrics_provider.batch_window"),
 	}
 
 	// Setup the client to process the HPA and metrics
 	h.hpaProc, err = hpa.NewHPAProcessor(dogCl)
 	if err != nil {
 		log.Errorf("Could not instantiate the HPA Processor: %v", err.Error())
-		return nil
+		return nil, err
 	}
 	h.clientSet = client
 	h.le = le // only trigger GC and updateExternalMetrics by the Leader.
@@ -91,7 +91,7 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	h.store, err = custommetrics.NewConfigMapStore(client, common.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		log.Errorf("Could not instantiate the local store for the External Metrics %v", err)
-		return nil
+		return nil, err
 	}
 
 	autoscalingInformer.Informer().AddEventHandler(
@@ -103,7 +103,7 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	)
 	h.autoscalersLister = autoscalingInformer.Lister()
 	h.autoscalersListerSynced = autoscalingInformer.Informer().HasSynced
-	return h
+	return h, nil
 }
 
 func (h *AutoscalersController) Run(stopCh <-chan struct{}) {
@@ -134,9 +134,6 @@ func (c *AutoscalersController) processingLoop() {
 			select {
 			case <-tickerHPARefreshProcess.C:
 				if !c.le.IsLeader() {
-					c.toStore.m.Lock()
-					c.toStore.data = nil
-					c.toStore.m.Unlock()
 					continue
 				}
 				// Updating the metrics against Datadog should not affect the HPA pipeline.

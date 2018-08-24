@@ -425,7 +425,7 @@ func StartMetadataController(stopCh chan struct{}) error {
 // only called once, when we have confirmed we could correctly connect to the API server.
 // We pass the LeaderElection and Datadog Client Interfaces to avoid import cycles and allow unit/integration tests.
 // TODO refactor Controllers to share the same Informer Factory and the config options.
-func StartAutoscalersController(LeaderElectorItf LeaderElectorInterface, dogCl hpa.DatadogClient, stopCh chan struct{}) error {
+func StartAutoscalersController(le LeaderElectorInterface, dogCl hpa.DatadogClient, stopCh chan struct{}) error {
 	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(timeoutSeconds * time.Second)
@@ -435,9 +435,9 @@ func StartAutoscalersController(LeaderElectorItf LeaderElectorInterface, dogCl h
 	}
 
 	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
-	autoscalerController := NewAutoscalersController(
+	autoscalerController, err := NewAutoscalersController(
 		client,
-		LeaderElectorItf,
+		le,
 		dogCl,
 		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)

@@ -62,12 +62,13 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorInterface, dcl hpa.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 
-	autoscalerController := NewAutoscalersController(
+	autoscalerController, _ := NewAutoscalersController(
 		client,
 		itf,
 		dcl,
 		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
+
 	autoscalerController.autoscalersListerSynced = alwaysReady
 
 	return autoscalerController, informerFactory
