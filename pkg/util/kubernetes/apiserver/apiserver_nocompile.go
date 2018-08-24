@@ -10,6 +10,7 @@ package apiserver
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -55,8 +56,13 @@ func (c *APIClient) StartClusterMetadataMapping(_ chan struct{}) {
 	return
 }
 
+// StartAutoscalerController runs the Autoscaler controller to collect the HorizontalPodAutoscaler data.
+func StartAutoscalerController(LeaderElectorItf LeaderElectorItf, dogCl hpa.DatadogClient, _ chan struct{}) error {
+	log.Errorf("StartAutoscalerController not implemented %s", ErrNotCompiled.Error())
+	return
+}
+
 // LeaderElectorItf is the interface avoiding the import cycle between the LeaderElection and the APIServer
 type LeaderElectorItf interface {
-	//EnsureLeaderElectionRuns() error
 	IsLeader() bool
 }

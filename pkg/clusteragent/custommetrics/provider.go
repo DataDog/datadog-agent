@@ -10,7 +10,6 @@ package custommetrics
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -20,6 +19,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type externalMetric struct {
@@ -115,6 +116,8 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 // - The registering of the External Metrics Provider
 // - The creation of a HPA manifest with an External metrics type.
 // - The validation of the metrics against Datadog
+// FIXME ListAllExternalMetrics is called on another replica prior to GetExternalMetric for the first time the metrics will be missing.
+// Make sure to hit the Global store in GetExternalMetric too.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricName string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
 

@@ -12,10 +12,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
 	"github.com/spf13/pflag"
@@ -23,6 +19,11 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 )
 
 var options *server.CustomMetricsAdapterServerOptions
@@ -86,12 +87,12 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-	stopCh2 := make(chan struct{})
+	stopHPA := make(chan struct{})
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return err
 	}
-	as.StartAutoscalerController(le, dogCl, stopCh2)
+	as.StartAutoscalerController(le, dogCl, stopHPA)
 
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.

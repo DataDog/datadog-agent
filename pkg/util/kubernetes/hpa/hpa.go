@@ -10,26 +10,27 @@ package hpa
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 }
 
-// HPAProcessor embeds the API Server client and the configuration to refresh metrics from Datadog and watch the HPA Objects' activities
+// HPAProcessor embeds the configuration to refresh metrics from Datadog and process HPA structs to ExternalMetrics.
 type HPAProcessor struct {
 	externalMaxAge time.Duration
 	DatadogClient  DatadogClient
 }
 
-// NewHPAWatcherClient returns a new HPAProcessor
-func NewHPAWatcherClient(datadogCl DatadogClient) (*HPAProcessor, error) {
+// NewHPAProcessor returns a new HPAProcessor
+func NewHPAProcessor(datadogCl DatadogClient) (*HPAProcessor, error) {
 	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
 	return &HPAProcessor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
@@ -37,18 +38,20 @@ func NewHPAWatcherClient(datadogCl DatadogClient) (*HPAProcessor, error) {
 	}, nil
 }
 
-// ComputeDeleteExternalMetrics compares a list of ExternalMetrics with the HPA Objects.
+// ComputeDeleteExternalMetrics returns a diff of a list of ExternalMetrics with the given HPA Objects.
 func (c *HPAProcessor) ComputeDeleteExternalMetrics(list *autoscalingv2.HorizontalPodAutoscalerList, emList []custommetrics.ExternalMetricValue) (toDelete []custommetrics.ExternalMetricValue) {
 	uids := make(map[string]struct{})
 	for _, hpa := range list.Items {
 		uids[string(hpa.UID)] = struct{}{}
 	}
+
 	var deleted []custommetrics.ExternalMetricValue
 	for _, em := range emList {
 		if _, ok := uids[em.HPA.UID]; !ok {
 			deleted = append(deleted, em)
 		}
 	}
+
 	return deleted
 }
 
@@ -77,10 +80,12 @@ func (c *HPAProcessor) UpdateExternalMetrics(emList []custommetrics.ExternalMetr
 func (c *HPAProcessor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
 	var externalMetrics []custommetrics.ExternalMetricValue
 	var err error
+
 	if len(hpa.Spec.Metrics) == 0 {
 		log.Errorf("Error processing %s/%s's external metrics, empty list", hpa.Namespace, hpa.Name)
 		return nil
 	}
+
 	for _, metricSpec := range hpa.Spec.Metrics {
 		switch metricSpec.Type {
 		case autoscalingv2.ExternalMetricSourceType:
@@ -106,7 +111,7 @@ func (c *HPAProcessor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) [
 	return externalMetrics
 }
 
-// validateExternalMetric queries Datadog to validate the availability of an external metric
+// validateExternalMetric queries Datadog to validate the availability and value of an external metric
 func (c *HPAProcessor) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
 	val, err := c.queryDatadogExternal(metricName, labels)
 	if err != nil {
