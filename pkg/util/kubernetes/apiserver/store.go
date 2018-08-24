@@ -8,6 +8,9 @@ import (
 	"github.com/patrickmn/go-cache"
 )
 
+// metaBundleStore is a cache for MetadataMapperBundles for each node in the cluster
+// and allows multiple goroutines to safely get or create meta bundles for the same nodes
+// without overwriting each other.
 type metaBundleStore struct {
 	mu      sync.RWMutex
 	cache   *cache.Cache
