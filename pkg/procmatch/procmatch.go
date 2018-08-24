@@ -16,7 +16,7 @@ type Integration struct {
 // IntegrationCatalog represents a list of Integrations
 type IntegrationCatalog []Integration
 
-// Match uses the default matcher (graph one) built with the default catalog
+// NewDefault returns the default matcher (graph one) built with the default catalog
 func NewDefault() (Matcher, error) {
 	return NewMatcher(DefaultCatalog)
 }
