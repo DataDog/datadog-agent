@@ -15,10 +15,18 @@ import (
 
 func TestSourceAreGroupedByIntegrations(t *testing.T) {
 	sources := config.NewLogSources()
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{}))
-	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{}))
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{}))
+	go func() {
+		for range sources.GetSourceStreamForType("foo") {
+			// ensure that another component is consuming the channel to prevent
+			// the producer to get stuck.
+		}
+	}()
+	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
+	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}))
+	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
+
 	Initialize(sources)
+
 	status := Get()
 	assert.Equal(t, true, status.IsRunning)
 	assert.Equal(t, 2, len(status.Integrations))

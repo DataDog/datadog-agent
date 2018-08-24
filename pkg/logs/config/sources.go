@@ -33,9 +33,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 		return
 	}
 	stream := s.GetSourceStreamForType(source.Config.Type)
-	go func() {
-		stream <- source
-	}()
+	stream <- source
 }
 
 // RemoveSource removes a source.
