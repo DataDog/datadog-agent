@@ -241,6 +241,9 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 		}
 		errorStats.removeResolveWarnings(config.Name)
 
+		// set the config origin
+		config.Origin = integration.NewService
+
 		// ask the Collector to schedule the checks
 		cr.ac.schedule([]integration.Config{config})
 	}

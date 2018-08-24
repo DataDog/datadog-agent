@@ -27,6 +27,16 @@ type RawMap map[interface{}]interface{}
 // JSONMap is the generic type to hold JSON configurations
 type JSONMap map[string]interface{}
 
+// Origin is the origin of the config
+type Origin int
+
+const (
+	// NewService indicates the config was created from a service event
+	NewService Origin = iota
+	// NewConfig indicates the config was created from a config event
+	NewConfig
+)
+
 // Config is a generic container for configuration files
 type Config struct {
 	Name          string   `json:"check_name"`     // the name of the check
@@ -37,6 +47,7 @@ type Config struct {
 	ADIdentifiers []string `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
 	Provider      string   `json:"provider"`       // the provider that issued the config
 	ClusterCheck  bool     `json:"-"`              // cluster-check configuration flag, don't expose in JSON
+	Origin        Origin   `json:"-"`              // configuration's origin
 }
 
 // Equal determines whether the passed config is the same
