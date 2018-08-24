@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -62,7 +63,7 @@ type LeaderEngine struct {
 func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
 		LeaseName:       defaultLeaseName,
-		LeaderNamespace: apiserver.GetResourcesNamespace(),
+		LeaderNamespace: common.GetResourcesNamespace(),
 	}
 }
 
@@ -212,7 +213,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 
 	c := client.Cl.CoreV1()
 
-	leaderNamespace := apiserver.GetResourcesNamespace()
+	leaderNamespace := common.GetResourcesNamespace()
 	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
 	if err != nil {
 		return led, err

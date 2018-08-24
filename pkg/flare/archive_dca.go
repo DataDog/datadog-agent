@@ -191,7 +191,12 @@ func zipMetadataMap(tempDir, hostname string) error {
 func zipHPAStatus(tempDir, hostname string) error {
 	// Grab the full content of the HPA configmap
 	stats := make(map[string]interface{})
-	stats["custommetrics"] = custommetrics.GetStatus()
+	apiCl, err := apiserver.GetAPIClient()
+	if err != nil {
+		stats["custommetrics"] = map[string]string{"Error": err.Error()}
+		return err
+	}
+	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	statsBytes, err := json.Marshal(stats)
 	if err != nil {
 		log.Infof("Error while marshalling the cluster level metadata: %q", err)

@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -68,7 +69,7 @@ func NewAutoscalerController(client kubernetes.Interface, le LeaderElectorItf, d
 	h.le = le // only trigger GC and updateExternalMetrics by the Leader.
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
-	h.store, err = custommetrics.NewConfigMapStore(client, GetResourcesNamespace(), datadogHPAConfigMap)
+	h.store, err = custommetrics.NewConfigMapStore(client, common.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		log.Errorf("Could not instantiate the local store for the External Metrics %v", err)
 		return nil
