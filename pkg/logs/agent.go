@@ -44,10 +44,10 @@ func NewAgent(sources *config.LogSources, serverConfig *config.ServerConfig) *Ag
 
 	// setup the inputs
 	inputs := []restart.Restartable{
-		listener.New(sources, pipelineProvider),
+		listener.NewListener(sources, pipelineProvider),
 		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		journald.New(sources, pipelineProvider, auditor),
-		windowsevent.New(sources, pipelineProvider),
+		journald.NewLauncher(sources, pipelineProvider, auditor),
+		windowsevent.NewLauncher(sources, pipelineProvider),
 	}
 	if input, err := container.NewScanner(sources, pipelineProvider, auditor); err == nil {
 		inputs = append(inputs, input)
