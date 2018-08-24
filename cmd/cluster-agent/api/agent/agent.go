@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -28,7 +28,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, sc types.ServerContext) {
+func SetupHandlers(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")

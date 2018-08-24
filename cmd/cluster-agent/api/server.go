@@ -23,9 +23,9 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -34,7 +34,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(sc types.ServerContext) error {
+func StartServer(sc clusteragent.ServerContext) error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
