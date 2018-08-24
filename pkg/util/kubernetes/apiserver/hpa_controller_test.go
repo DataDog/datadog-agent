@@ -73,7 +73,7 @@ func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorI
 	return autoscalerController, informerFactory
 }
 
-var alwaysLeader = fakeLeaderElector{true}
+var alwaysLeader = &fakeLeaderElector{true}
 
 type fakeLeaderElector struct {
 	isLeader bool
@@ -111,7 +111,7 @@ func TestAutoscalerController(t *testing.T) {
 			return ddSeries, nil
 		},
 	}
-	hctrl, inf := newFakeAutoscalerController(client, &alwaysLeader, hpa.DatadogClient(d))
+	hctrl, inf := newFakeAutoscalerController(client, alwaysLeader, hpa.DatadogClient(d))
 	hctrl.poller.batchWindow = 600 // Do not trigger the refresh or batch call to avoid flakiness.
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
@@ -165,6 +165,7 @@ func TestAutoscalerController(t *testing.T) {
 	case <-ticker.C:
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
+		require.NotZero(t, len(storedExternal))
 		require.Equal(t, storedExternal[0].Value, int64(14))
 		require.Equal(t, storedExternal[0].Labels, map[string]string{"foo": "bar"})
 	case <-timeout.C:
@@ -212,9 +213,9 @@ func TestAutoscalerController(t *testing.T) {
 	require.NoError(t, errPush)
 	select {
 	case <-ticker.C:
-		//k, _ := client.CoreV1().ConfigMaps("default").Get(name, metav1.GetOptions{})
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
+		require.NotZero(t, len(storedExternal))
 		require.Equal(t, storedExternal[0].Value, int64(14))
 		require.Equal(t, storedExternal[0].Labels, map[string]string{"dcos_version": "2.1.9"})
 	case <-timeout.C:
@@ -226,7 +227,6 @@ func TestAutoscalerController(t *testing.T) {
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:
-		//k, err := client.CoreV1().ConfigMaps("default").Get(name, metav1.GetOptions{})
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
 		require.Len(t, storedExternal, 0)
@@ -239,7 +239,7 @@ func TestAutoscalerSync(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	i := &fakeLeaderElector{}
 	d := &fakeDatadogClient{}
-	hctrl, inf := newFakeAutoscalerController(client, LeaderElectorInterface(i), hpa.DatadogClient(d))
+	hctrl, inf := newFakeAutoscalerController(client, i, d)
 	obj := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
 		"default",
@@ -319,7 +319,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
 			i := &fakeLeaderElector{}
 			d := &fakeDatadogClient{}
-			hctrl, inf := newFakeAutoscalerController(client, LeaderElectorInterface(i), hpa.DatadogClient(d))
+			hctrl, inf := newFakeAutoscalerController(client, i, d)
 
 			hctrl.store = store
 

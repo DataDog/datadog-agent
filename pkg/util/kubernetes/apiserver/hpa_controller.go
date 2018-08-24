@@ -23,11 +23,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/labels"
-	"github.com/DataDog/datadog-agent/pkg/errors"
 )
 
 type PollerConfig struct {
@@ -41,9 +41,9 @@ type hpaToStoreGlobally struct {
 	m    sync.Mutex
 }
 
-// AutoscalersController is responsible for synchronizing objects from the Kubernetes
-// apiserver to build and cache the horizontal pod autoscalers in the cluster.
-// This allows to compute the External Metrics specified to autoscale pods and collect them from Datadog.
+// AutoscalersController is responsible for synchronizing horizontal pod autoscalers from the Kubernetes
+// apiserver to determine the metrics that need to be provided by the custom metrics server.
+// This controller also queries Datadog for the values of detected external metrics.
 //
 // The controller takes care to garbage collect any data while processing updates/deletes
 // so that the cache does not contain data for deleted hpas
@@ -65,7 +65,7 @@ type AutoscalersController struct {
 	le        LeaderElectorInterface
 }
 
-// NewAutoscalersController returns a new AutoscalerController
+// NewAutoscalersController returns a new AutoscalersController
 func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) *AutoscalersController {
 	var err error
 	h := &AutoscalersController{
@@ -159,15 +159,16 @@ func (c *AutoscalersController) processingLoop() {
 
 func (h *AutoscalersController) pushToGlobalStore() error {
 	// reset the batch before submitting to avoid a discrepancy between the global store and the local one
-	localStore := h.toStore
 	h.toStore.m.Lock()
+	localStore := h.toStore.data
 	h.toStore.data = nil
 	h.toStore.m.Unlock()
+
 	if !h.le.IsLeader() {
 		return nil
 	}
-	log.Tracef("Batch call pushing %d metrics", len(localStore.data))
-	err := h.store.SetExternalMetricValues(localStore.data)
+	log.Tracef("Batch call pushing %d metrics", len(localStore))
+	err := h.store.SetExternalMetricValues(localStore)
 	return err
 }
 
@@ -227,14 +228,15 @@ func (h *AutoscalersController) processNext() bool {
 
 	defer h.queue.Done(key)
 
-	if h.autoscalers != nil {
-		h.autoscalers <- key
-	}
-
 	err := h.syncAutoscalers(key)
 	if err != nil {
 		log.Errorf("Could not sync HPAs %s", err)
 	}
+
+	if h.autoscalers != nil {
+		h.autoscalers <- key
+	}
+
 	return true
 }
 
@@ -295,7 +297,7 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 		log.Debugf("Deleting Metrics from HPA %s/%s", hpa.Namespace, hpa.Name)
 		toDelete := h.hpaProc.ProcessHPAs(hpa)
 		h.store.DeleteExternalMetricValues(toDelete)
-		h.queue.Forget(hpa)
+		h.queue.Done(hpa)
 		return
 	}
 
@@ -314,7 +316,7 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 	log.Debugf("Deleting Metrics from HPA %s/%s", hpa.Namespace, hpa.Name)
 	toDelete := h.hpaProc.ProcessHPAs(autoscaler)
 	h.store.DeleteExternalMetricValues(toDelete)
-	h.queue.Forget(hpa)
+	h.queue.Done(hpa)
 }
 
 func (h *AutoscalersController) enqueue(obj interface{}) {

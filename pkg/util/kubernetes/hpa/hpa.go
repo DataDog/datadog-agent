@@ -56,8 +56,8 @@ func ComputeDeleteExternalMetrics(list []*autoscalingv2.HorizontalPodAutoscaler,
 }
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
-func (c *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue) {
-	maxAge := int64(c.externalMaxAge.Seconds())
+func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue) {
+	maxAge := int64(p.externalMaxAge.Seconds())
 	var err error
 
 	for _, em := range emList {
@@ -66,7 +66,7 @@ func (c *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 		}
 		em.Valid = false
 		em.Timestamp = metav1.Now().Unix()
-		em.Value, em.Valid, err = c.validateExternalMetric(em.MetricName, em.Labels)
+		em.Value, em.Valid, err = p.validateExternalMetric(em.MetricName, em.Labels)
 		if err != nil {
 			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
 		}
@@ -77,7 +77,7 @@ func (c *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 }
 
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
-func (c *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
+func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
 	var externalMetrics []custommetrics.ExternalMetricValue
 	var err error
 
@@ -99,7 +99,7 @@ func (c *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []cu
 				},
 				Labels: metricSpec.External.MetricSelector.MatchLabels,
 			}
-			m.Value, m.Valid, err = c.validateExternalMetric(m.MetricName, m.Labels)
+			m.Value, m.Valid, err = p.validateExternalMetric(m.MetricName, m.Labels)
 			if err != nil {
 				log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", m.MetricName, err)
 			}
@@ -112,8 +112,8 @@ func (c *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []cu
 }
 
 // validateExternalMetric queries Datadog to validate the availability and value of an external metric
-func (c *Processor) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
-	val, err := c.queryDatadogExternal(metricName, labels)
+func (p *Processor) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
+	val, err := p.queryDatadogExternal(metricName, labels)
 	if err != nil {
 		return val, false, err
 	}
