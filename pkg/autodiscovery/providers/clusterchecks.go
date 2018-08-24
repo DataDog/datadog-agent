@@ -24,7 +24,7 @@ type ClusterChecksConfigProvider struct {
 	dcaClient     *clusteragent.DCAClient
 	graceDuration time.Duration
 	lastPing      time.Time
-	lastChange    int
+	lastChange    int64
 	nodeName      string
 }
 

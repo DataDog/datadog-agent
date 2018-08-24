@@ -15,9 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-const dcaClusterChecksPath = "api/v1/clusterchecks"
-const dcaClusterChecksStatusPath = dcaClusterChecksPath + "/status"
-const dcaClusterChecksConfigsPath = dcaClusterChecksPath + "/configs"
+const (
+	dcaClusterChecksPath        = "api/v1/clusterchecks"
+	dcaClusterChecksStatusPath  = dcaClusterChecksPath + "/status"
+	dcaClusterChecksConfigsPath = dcaClusterChecksPath + "/configs"
+)
 
 // PostClusterCheckStatus is called by the clustercheck config provider
 func (c *DCAClient) PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {

@@ -11,17 +11,18 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
 	m        sync.Mutex
-	store    *store
+	store    *clusterStore
 	stopChan chan struct{}
 }
 
-func newDispatcher(store *store) *dispatcher {
+func newDispatcher(store *clusterStore) *dispatcher {
 	return &dispatcher{
 		store: store,
 	}
@@ -52,7 +53,10 @@ func (d *dispatcher) add(config integration.Config) {
 		return // Ignore non cluster-check configs
 	}
 	log.Debugf("dispatching configuration %s:%s", config.Name, config.Digest())
-	d.store.addConfig(config)
+
+	// TODO: add dispatching logic
+	hostname, _ := util.GetHostname()
+	d.store.addConfig(config, hostname)
 }
 
 // remove deletes a given configuration

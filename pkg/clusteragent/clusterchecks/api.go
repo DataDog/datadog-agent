@@ -28,15 +28,18 @@ func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
 // GetConfigs returns  configurations dispatched to a given node
 func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
 	response := types.ConfigResponse{
-		Configs: h.store.getConfigs(nodeName),
+		Configs: h.store.getNodeConfigs(nodeName),
 	}
 	return response, nil
 }
 
 // GetConfigs returns configurations dispatched to a given node
 func (h *Handler) PostStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
+	h.store.storeNodeStatus(nodeName, status)
+	lastChange := h.store.getNodeLastChange(nodeName)
+
 	response := types.StatusResponse{
-		IsUpToDate: false,
+		IsUpToDate: (lastChange == status.LastChange),
 	}
 	return response, nil
 }

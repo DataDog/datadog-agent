@@ -23,7 +23,7 @@ type Handler struct {
 	m          sync.Mutex
 	autoconfig *autodiscovery.AutoConfig
 	dispatcher *dispatcher
-	store      *store
+	store      *clusterStore
 	running    bool
 }
 
@@ -45,7 +45,7 @@ func (h *Handler) StartDiscovery() error {
 	}
 
 	// Clean initial state
-	h.store = newStore()
+	h.store = newClusterStore()
 	h.dispatcher = newDispatcher(h.store)
 	h.running = true
 

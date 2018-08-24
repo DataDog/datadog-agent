@@ -9,16 +9,16 @@ import "github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 // NodeStatus holds the status report from the node-agent
 type NodeStatus struct {
-	LastChange int
+	LastChange int64 `json:"last_change"`
 }
 
 // StatusResponse holds the DCA response for a status report
 type StatusResponse struct {
-	IsUpToDate bool
+	IsUpToDate bool `json:"isuptodate"`
 }
 
 // ConfigResponse holds the DCA response for a config query
 type ConfigResponse struct {
-	LastChange int
-	Configs    []integration.Config
+	LastChange int64                `json:"last_change"`
+	Configs    []integration.Config `json:"configs"`
 }

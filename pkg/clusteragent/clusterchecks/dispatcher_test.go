@@ -16,7 +16,7 @@ import (
 )
 
 func TestSchedule(t *testing.T) {
-	store := newStore()
+	store := newClusterStore()
 	dispatcher := newDispatcher(store)
 
 	assert.Len(t, store.getAllConfigs(), 0)
