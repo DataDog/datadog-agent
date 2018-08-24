@@ -72,8 +72,6 @@ func (s *Scanner) setup() error {
 
 // Start starts the Scanner
 func (s *Scanner) Start() {
-	// start tailing monitored containers
-	s.scan(false)
 	go s.run()
 }
 
