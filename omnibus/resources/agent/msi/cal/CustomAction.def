@@ -4,3 +4,9 @@ EXPORTS
 	DllMain
 	AddDatadogSecretUser
 	RemoveDatadogSecretUser
+    CreateOrUpdateDDUser
+    EnableServicesForDDUser
+    VerifyDatadogRegistryPerms
+	RemoveDDUser
+	RollbackInstallation
+	PreStopServices
