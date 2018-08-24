@@ -20,8 +20,13 @@ import (
 )
 
 func main() {
+    matcher, err := procmatch.NewDefault()
+    if err != nil {
+        // Handle the error
+    }
+
 	cmd := "java org.elasticsearch.bootstrap.elasticsearch"
-	fmt.Printf("Integration: %s\n", procmatch.Match(cmd))
+	fmt.Printf("Integration: %s\n", matcher.Match(cmd))
 	// Outputs:
 	// Integration: elastic
 }
