@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -23,6 +24,7 @@ func GetTags() ([]string, error) {
 		// Nothing to extract
 		return nil, nil
 	}
+	nodeLabels := make(map[string]string)
 
 	// viper lower-cases map keys from yaml, but not from envvars
 	for label, value := range labelsToTags {
@@ -34,14 +36,24 @@ func GetTags() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := apiserver.GetAPIClient()
-	if err != nil {
-		return nil, err
+	if config.Datadog.GetBool("cluster_agent.enabled") {
+		cl, err := clusteragent.GetClusterAgentClient()
+		nodeLabels, err = cl.GetNodeLabels(nodeName)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+
+		client, err := apiserver.GetAPIClient()
+		if err != nil {
+			return nil, err
+		}
+		nodeLabels, err = client.NodeLabels(nodeName)
+		if err != nil {
+			return nil, err
+		}
 	}
-	nodeLabels, err := client.NodeLabels(nodeName)
-	if err != nil {
-		return nil, err
-	}
+
 	return extractTags(nodeLabels, labelsToTags), nil
 }
 
