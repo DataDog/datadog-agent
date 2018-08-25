@@ -8,10 +8,13 @@
 package apiserver
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	autoscalersinformer "k8s.io/client-go/informers/autoscaling/v2beta1"
 	"k8s.io/client-go/kubernetes"
@@ -19,15 +22,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/apimachinery/pkg/labels"
 )
 
 type PollerConfig struct {
@@ -72,10 +72,19 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoscalers"),
 	}
 
+	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
+	refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
+	batchWindow := config.Datadog.GetInt("external_metrics_provider.batch_window")
+
+	if gcPeriodSeconds <= 0 || refreshPeriod <= 0 || batchWindow <= 0 {
+		return nil, fmt.Errorf("tickers must be strictly positive in the AutoscalersController"+
+			" [GC: %d s, Refresh: %d s, Batchwindow: %d s]", gcPeriodSeconds, refreshPeriod, batchWindow)
+	}
+
 	h.poller = PollerConfig{
-		gcPeriodSeconds: config.Datadog.GetInt("hpa_watcher_gc_period"),
-		refreshPeriod:   config.Datadog.GetInt("external_metrics_provider.polling_freq"),
-		batchWindow:     config.Datadog.GetInt("external_metrics_provider.batch_window"),
+		gcPeriodSeconds: gcPeriodSeconds,
+		refreshPeriod:   refreshPeriod,
+		batchWindow:     batchWindow,
 	}
 
 	// Setup the client to process the HPA and metrics

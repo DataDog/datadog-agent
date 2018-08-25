@@ -93,8 +93,10 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-	as.StartAutoscalersController(le, dogCl, stopHPA)
-
+	errHPAController := as.StartAutoscalersController(le, dogCl, stopHPA)
+	if errHPAController != nil {
+		return errHPAController
+	}
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.
 	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)
