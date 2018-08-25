@@ -78,13 +78,13 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	var externalMetricsInfoList []provider.ExternalMetricInfo
 	var externalMetricsList []externalMetric
 
-	rawMetrics, err := p.store.ListAllExternalMetricValues()
+	bundle, err := p.store.ResyncAndDump()
 	if err != nil {
 		log.Errorf("Could not list the external metrics in the store: %s", err.Error())
 		return externalMetricsInfoList
 	}
 
-	for _, metric := range rawMetrics {
+	for _, metric := range bundle.External {
 		// Only metrics that exist in Datadog and available are eligible to be evaluated in the HPA process.
 		if !metric.Valid {
 			continue

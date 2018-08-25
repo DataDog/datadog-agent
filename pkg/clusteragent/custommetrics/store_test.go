@@ -40,6 +40,7 @@ func TestNewConfigMapStore(t *testing.T) {
 	store, err = NewConfigMapStore(client, "default", "bar")
 	require.NoError(t, err)
 	require.NotNil(t, store.(*configMapStore).cm)
+	assert.NotEmpty(t, store.(*configMapStore).cm.Annotations[storeLastUpdatedAnnotationKey])
 }
 
 func TestConfigMapStoreExternalMetrics(t *testing.T) {
@@ -134,19 +135,20 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, store.(*configMapStore).cm)
 
-			err = store.SetExternalMetricValues(tt.metrics)
+			bundle := &MetricsBundle{External: tt.metrics}
+			err = store.Add(bundle)
 			require.NoError(t, err)
 
-			list, err := store.ListAllExternalMetricValues()
+			bundle, err = store.Dump()
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, list)
+			assert.ElementsMatch(t, tt.expected, bundle.External)
 
-			err = store.DeleteExternalMetricValues(list)
+			err = store.Delete(bundle)
 			require.NoError(t, err)
 
-			list, err = store.ListAllExternalMetricValues()
+			bundle, err = store.Dump()
 			require.NoError(t, err)
-			assert.Empty(t, list)
+			assert.Empty(t, bundle)
 		})
 	}
 }

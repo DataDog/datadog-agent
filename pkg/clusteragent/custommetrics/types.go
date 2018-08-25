@@ -7,6 +7,15 @@
 
 package custommetrics
 
+type MetricsBundle struct {
+	External []ExternalMetricValue
+}
+
+func (b *MetricsBundle) Len() int {
+	return len(b.External)
+}
+
+// ExternalMetricValue is the value of a metric from Datadog.
 type ExternalMetricValue struct {
 	MetricName string            `json:"metricName"`
 	Labels     map[string]string `json:"labels"`
