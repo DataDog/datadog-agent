@@ -163,10 +163,10 @@ func (jq *jobQueue) process(out chan<- check.Check) bool {
 		jq.health.Deregister()
 		return false
 	case t := <-jq.bucketTicker.C:
-		log.Debugf("Bucket ticked... current index: %v", jq.currentBucketIdx)
+		log.Tracef("Bucket ticked... current index: %v", jq.currentBucketIdx)
 		jq.mu.Lock()
 		if !jq.lastTick.Equal(time.Time{}) && t.After(jq.lastTick.Add(2*time.Second)) {
-			log.Infof("Previous bucket took over %v to schedule. Running behind...", t.Sub(jq.lastTick))
+			log.Debugf("Previous bucket took over %v to schedule. Next checks will be running behind the schedule. Please disable checks that are taking too long to run or consider adding more runners.", t.Sub(jq.lastTick))
 		}
 		jq.lastTick = t
 		bucket := jq.buckets[jq.currentBucketIdx]
@@ -179,7 +179,7 @@ func (jq *jobQueue) process(out chan<- check.Check) bool {
 		jobs = append(jobs, bucket.jobs...)
 		bucket.mu.RUnlock()
 
-		log.Debugf("Jobs in bucket: %v", jobs)
+		log.Tracef("Jobs in bucket: %v", jobs)
 
 		for _, check := range jobs {
 			select {
