@@ -103,6 +103,7 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
+
 	stopCh = make(chan struct{})
 	return server.GenericAPIServer.PrepareRun().Run(stopCh)
 }

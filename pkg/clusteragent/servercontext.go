@@ -5,9 +5,13 @@
 
 package clusteragent
 
-import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+)
 
 // ServerContext holds business logic classes required to setup API endpoints
 type ServerContext struct {
 	ClusterCheckHandler *clusterchecks.Handler
+	MetricsIntake       *custommetrics.Intake
 }

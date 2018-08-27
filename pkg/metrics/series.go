@@ -21,6 +21,10 @@ import (
 
 var seriesExpvar = expvar.NewMap("series")
 
+type Payload struct {
+	Series []Serie `json:"series"`
+}
+
 // Point represents a metric value at a specific time
 type Point struct {
 	Ts    float64

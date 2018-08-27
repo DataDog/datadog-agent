@@ -20,7 +20,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
+	cmserver "github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -89,7 +91,7 @@ func init() {
 
 	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
-	custommetrics.AddFlags(startCmd.Flags())
+	cmserver.AddFlags(startCmd.Flags())
 }
 
 func start(cmd *cobra.Command, args []string) error {
@@ -169,9 +171,11 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Start the cluster-check discovery if configured
 	clusterCheckHandler := setupClusterCheck()
+	intake := setupMetricsIntake()
 	// start the cmd HTTPS server
 	sc := clusteragent.ServerContext{
 		ClusterCheckHandler: clusterCheckHandler,
+		MetricsIntake:       intake,
 	}
 	if err = api.StartServer(sc); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
@@ -179,13 +183,13 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		err = custommetrics.ValidateArgs(args)
+		err = cmserver.ValidateArgs(args)
 		if err != nil {
 			log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
 
 		} else {
 			// Start the k8s custom metrics server. This is a blocking call
-			err = custommetrics.StartServer()
+			err = cmserver.StartServer()
 			if err != nil {
 				log.Errorf("Could not start the custom metrics API server: %s", err.Error())
 			}
@@ -197,8 +201,11 @@ func start(cmd *cobra.Command, args []string) error {
 	if clusterCheckHandler != nil {
 		clusterCheckHandler.StopDiscovery()
 	}
+	if intake != nil {
+		intake.Stop()
+	}
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		custommetrics.StopServer()
+		cmserver.StopServer()
 	}
 	api.StopServer()
 	if stopCh != nil {
@@ -207,6 +214,22 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Info("See ya!")
 	log.Flush()
 	return nil
+}
+
+func setupMetricsIntake() *custommetrics.Intake {
+	processor, err := custommetrics.NewBufferedProcessor()
+	if err != nil {
+		log.Errorf("Could not setup setup buffered processor: %v", err)
+		return nil
+	}
+	intake, err := custommetrics.NewIntake(processor)
+	if err != nil {
+		log.Errorf("Could not setup setup metrics intake: %v", err)
+		return nil
+	}
+	intake.Start()
+
+	return intake
 }
 
 func setupClusterCheck() *clusterchecks.Handler {

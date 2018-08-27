@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/paulbellamy/ratecounter"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,6 +42,8 @@ func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/metadata/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")
+	r.HandleFunc("/series", seriesHandler(sc)).Methods("POST")
+
 	installClusterCheckEndpoints(r, sc)
 }
 
@@ -162,4 +167,47 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNotFound)
 	return
+}
+
+func seriesHandler(sc clusteragent.ServerContext) func(http.ResponseWriter, *http.Request) {
+	if sc.MetricsIntake == nil {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "could not read HTTP body", http.StatusBadRequest)
+			return
+		}
+
+		if r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, http.StatusText(http.StatusUnsupportedMediaType), http.StatusUnsupportedMediaType)
+			return
+		}
+
+		// HACK(devonboyer): This assumes the same buildtag is used for the agent and dca.
+		decompressedBody, err := compression.Decompress(nil, body)
+		if err != nil {
+			http.Error(w, "could not decompress HTTP body", http.StatusBadRequest)
+			return
+		}
+
+		var payload metrics.Payload
+		if err := json.Unmarshal(decompressedBody, &payload); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+
+		if err := sc.MetricsIntake.Submit(payload); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 }

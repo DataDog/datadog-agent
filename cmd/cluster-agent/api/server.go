@@ -105,7 +105,16 @@ func StopServer() {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		if strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || path == "/version" {
+		// HACK(devonboyer): Specific middleware for "/api/v1/series" endpoint
+		if strings.HasPrefix(path, "/api/v1/series") {
+			if r.FormValue("api_key") == "" {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Cluster Agent"`)
+				http.Error(w, "missing api key", http.StatusForbidden)
+				return
+			}
+			// FIXME(devonboyer): How do we validate the apikey?
+			next.ServeHTTP(w, r)
+		} else if strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 {
 			if err := util.ValidateDCARequest(w, r); err != nil {
 				return
 			}
