@@ -27,8 +27,8 @@ templates:
           # The first match will be used. Doing that so new branches
           # use master's cache but don't pollute it back.
           - v2-godeps-{{ .Branch }}-{{ .Revision }}-{{ checksum "Gopkg.lock" }}
-          - v2-godeps-{{ .Branch }}-
-          - v2-godeps-master-
+          # - v2-godeps-{{ .Branch }}-
+          # - v2-godeps-master-
     - run: &enter_venv
         name: add virtualenv to bashrc 
         command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
