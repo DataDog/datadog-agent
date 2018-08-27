@@ -50,9 +50,3 @@ func GetMetadataMapBundleOnAllNodes(_ *APIClient) (map[string]interface{}, error
 	log.Errorf("GetMetadataMapBundleOnAllNodes not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
-
-// StartClusterMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
-func (c *APIClient) StartClusterMetadataMapping(_ chan struct{}) {
-	log.Errorf("StartClusterMetadataMapping not implemented %s", ErrNotCompiled.Error())
-	return
-}

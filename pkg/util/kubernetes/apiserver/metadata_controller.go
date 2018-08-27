@@ -39,17 +39,23 @@ type MetadataController struct {
 	endpointsLister       corelisters.EndpointsLister
 	endpointsListerSynced cache.InformerSynced
 
+	store *metaBundleStore
+
 	// Endpoints that need to be added to services mapping.
 	queue workqueue.RateLimitingInterface
 
-	// used in unit tests to wait until endpoints are synced
-	endpoints chan interface{}
+	// used in unit tests to wait until objects are synced (tombstones will be ignored)
+	endpoints, nodes chan struct{}
 }
 
 func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "metadata"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
+	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    m.addNode,
+		DeleteFunc: m.deleteNode,
+	})
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
 
@@ -60,6 +66,8 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInf
 	})
 	m.endpointsLister = endpointsInformer.Lister()
 	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
+
+	m.store = globalMetaBundleStore // default to global store
 
 	return m
 }
@@ -97,10 +105,49 @@ func (m *MetadataController) processNextWorkItem() bool {
 	}
 
 	if m.endpoints != nil {
-		m.endpoints <- key
+		m.endpoints <- struct{}{}
 	}
 
 	return true
+}
+
+func (m *MetadataController) addNode(obj interface{}) {
+	node, ok := obj.(*corev1.Node)
+	if !ok {
+		return
+	}
+
+	_ = m.store.getOrCreate(node.Name)
+
+	log.Debugf("Detected node %s", node.Name)
+
+	if m.nodes != nil {
+		m.nodes <- struct{}{}
+	}
+}
+
+func (m *MetadataController) deleteNode(obj interface{}) {
+	node, ok := obj.(*corev1.Node)
+	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Debugf("Couldn't get object from tombstone %#v", obj)
+			return
+		}
+		node, ok = tombstone.Obj.(*corev1.Node)
+		if !ok {
+			log.Debugf("Tombstone contained object that is not a node %#v", obj)
+			return
+		}
+	}
+
+	m.store.delete(node.Name)
+
+	log.Debugf("Forgot node %s", node.Name)
+
+	if m.nodes != nil {
+		m.nodes <- struct{}{}
+	}
 }
 
 func (m *MetadataController) addEndpoints(obj interface{}) {
@@ -212,11 +259,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 	svc := endpoints.Name
 	namespace := endpoints.Namespace
 	for nodeName, ns := range nodeToPods {
-		metaBundle, err := getMetadataMapBundle(nodeName)
-		if err != nil {
-			log.Tracef("Could not get metadata for node %s", nodeName)
-			metaBundle = newMetadataMapperBundle()
-		}
+		metaBundle := m.store.getOrCreate(nodeName)
 
 		metaBundle.m.Lock()
 		metaBundle.Services.Delete(namespace, svc) // cleanup pods deleted from the service
@@ -227,12 +270,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 		}
 		metaBundle.m.Unlock()
 
-		cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-		if metaBundle.Empty() {
-			agentcache.Cache.Delete(cacheKey)
-			continue
-		}
-		agentcache.Cache.Set(cacheKey, metaBundle, agentcache.NoExpiration)
+		m.store.set(nodeName, metaBundle)
 	}
 
 	return nil
@@ -246,8 +284,8 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {
-		metaBundle, err := getMetadataMapBundle(node.Name)
-		if err != nil {
+		metaBundle, ok := m.store.get(node.Name)
+		if !ok {
 			// Nothing to delete.
 			continue
 		}
@@ -256,12 +294,7 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 		metaBundle.Services.Delete(namespace, svc)
 		metaBundle.m.Unlock()
 
-		cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, node.Name)
-		if metaBundle.Empty() {
-			agentcache.Cache.Delete(cacheKey)
-			continue
-		}
-		agentcache.Cache.Set(cacheKey, metaBundle, agentcache.NoExpiration)
+		m.store.set(node.Name, metaBundle)
 	}
 	return nil
 }
