@@ -16,7 +16,8 @@ import (
 func TestSourceAreGroupedByIntegrations(t *testing.T) {
 	sources := config.NewLogSources()
 	go func() {
-		for range sources.GetSourceStreamForType("foo") {
+		sources := sources.GetSourceStreamForType("foo")
+		for range sources {
 			// ensure that another component is consuming the channel to prevent
 			// the producer to get stuck.
 		}

@@ -26,13 +26,12 @@ func NewLogSources() *LogSources {
 // AddSource adds a new source.
 func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
 		return
 	}
-	stream := s.GetSourceStreamForType(source.Config.Type)
+	stream := s.getSourceStreamForType(source.Config.Type)
+	s.mu.Unlock()
 	stream <- source
 }
 
@@ -50,6 +49,12 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 
 // GetSourceStreamForType returns the stream of valid sources matching the provided type.
 func (s *LogSources) GetSourceStreamForType(sourceType string) chan *LogSource {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.getSourceStreamForType(sourceType)
+}
+
+func (s *LogSources) getSourceStreamForType(sourceType string) chan *LogSource {
 	stream, exists := s.streamByType[sourceType]
 	if !exists {
 		stream = make(chan *LogSource)
@@ -60,5 +65,7 @@ func (s *LogSources) GetSourceStreamForType(sourceType string) chan *LogSource {
 
 // GetSources returns all the sources currently held.
 func (s *LogSources) GetSources() []*LogSource {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.sources
 }
