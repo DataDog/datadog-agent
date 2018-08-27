@@ -12,7 +12,6 @@ import (
 	"os"
 	"time"
 
-	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
 	"github.com/spf13/pflag"
@@ -22,6 +21,9 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 )
 
@@ -78,23 +80,23 @@ func StartServer() error {
 		return err
 	}
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
-	store, err := custommetrics.NewConfigMapStore(client.Cl, as.GetResourcesNamespace(), datadogHPAConfigMap)
+	store, err := custommetrics.NewConfigMapStore(client.Cl, common.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		return err
 	}
-
-	datadogCl, err := hpa.NewDatadogClient()
+	dogCl, err := hpa.NewDatadogClient()
 	if err != nil {
 		return err
 	}
-
-	// HPA watcher
-	hpaClient, err := hpa.NewHPAWatcherClient(client.Cl, datadogCl, store)
+	stopHPA := make(chan struct{})
+	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return err
 	}
-	hpaClient.Start()
-
+	errHPAController := as.StartAutoscalersController(le, dogCl, stopHPA)
+	if errHPAController != nil {
+		return errHPAController
+	}
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.
 	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)

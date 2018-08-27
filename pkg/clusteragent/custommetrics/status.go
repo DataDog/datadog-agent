@@ -10,23 +10,18 @@ package custommetrics
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"k8s.io/client-go/kubernetes"
 )
 
 // GetStatus returns status info for the Custom Metrics Server.
-func GetStatus() map[string]interface{} {
+func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
-	apiCl, err := apiserver.GetAPIClient()
-	if err != nil {
-		status["Error"] = err.Error()
-		return status
-	}
-
 	configMapName := GetConfigmapName()
-	configMapNamespace := apiserver.GetResourcesNamespace()
+	configMapNamespace := common.GetResourcesNamespace()
 	status["Cmname"] = fmt.Sprintf("%s/%s", configMapNamespace, configMapName)
 
-	store, err := NewConfigMapStore(apiCl.Cl, configMapNamespace, configMapName)
+	store, err := NewConfigMapStore(apiCl, configMapNamespace, configMapName)
 	if err != nil {
 		status["StoreError"] = err.Error()
 		return status

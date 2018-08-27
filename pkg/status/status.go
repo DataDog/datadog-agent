@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -129,7 +130,13 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
-	stats["custommetrics"] = custommetrics.GetStatus()
+
+	apiCl, err := apiserver.GetAPIClient()
+	if err != nil {
+		stats["custommetrics"] = map[string]string{"Error": err.Error()}
+		return stats, nil
+	}
+	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 
 	return stats, nil
 }

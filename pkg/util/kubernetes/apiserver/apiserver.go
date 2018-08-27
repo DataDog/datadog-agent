@@ -10,7 +10,6 @@ package apiserver
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +24,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -32,6 +33,7 @@ import (
 var (
 	globalAPIClient  *APIClient
 	ErrNotFound      = errors.New("entity not found")
+	ErrIsEmpty       = errors.New("entity is empty")
 	ErrOutdated      = errors.New("entity is outdated")
 	ErrNotLeader     = errors.New("not Leader")
 	isConnectVerbose = false
@@ -253,7 +255,7 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
-	namespace := GetResourcesNamespace()
+	namespace := common.GetResourcesNamespace()
 	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
 		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
@@ -295,7 +297,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 // UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
-	namespace := GetResourcesNamespace()
+	namespace := common.GetResourcesNamespace()
 	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
 	if err != nil {
 		return err
@@ -388,22 +390,6 @@ func getNodeList(cl *APIClient) ([]v1.Node, error) {
 	return nodes.Items, nil
 }
 
-// GetResourcesNamespace is used to fetch the namespace of the resources used by the Kubernetes check (e.g. Leader Election, Event collection).
-func GetResourcesNamespace() string {
-	namespace := config.Datadog.GetString("kube_resources_namespace")
-	if namespace != "" {
-		return namespace
-	}
-	log.Debugf("No configured namespace for the resource, fetching from the current context")
-	namespacePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-	val, e := ioutil.ReadFile(namespacePath)
-	if e == nil && val != nil {
-		return string(val)
-	}
-	log.Errorf("There was an error fetching the namespace from the context, using default")
-	return "default"
-}
-
 // GetRESTObject allows to retrive a custom resource from the APIserver
 func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do()
@@ -417,11 +403,8 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 // StartMetadataController runs the metadata controller to collect cluster metadata. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
 func StartMetadataController(stopCh chan struct{}) error {
-	var (
-		timeoutSeconds      = time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
-		resyncPeriodSeconds = time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	)
-
+	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(timeoutSeconds * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
@@ -435,5 +418,34 @@ func StartMetadataController(stopCh chan struct{}) error {
 	informerFactory.Start(stopCh)
 	go metaController.Run(stopCh)
 
+	return nil
+}
+
+// StartAutoscalersController runs the Autoscaler controller to collect the HorizontalPodAutoscaler data.
+// only called once, when we have confirmed we could correctly connect to the API server.
+// We pass the LeaderElection and Datadog Client Interfaces to avoid import cycles and allow unit/integration tests.
+// TODO refactor Controllers to share the same Informer Factory and the config options.
+func StartAutoscalersController(le LeaderElectorInterface, dogCl hpa.DatadogClient, stopCh chan struct{}) error {
+	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getKubeClient(timeoutSeconds * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return err
+	}
+
+	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
+	autoscalerController, err := NewAutoscalersController(
+		client,
+		le,
+		dogCl,
+		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
+	)
+	if err != nil {
+		return err
+	}
+
+	informerFactory.Start(stopCh)
+	go autoscalerController.Run(stopCh)
 	return nil
 }
