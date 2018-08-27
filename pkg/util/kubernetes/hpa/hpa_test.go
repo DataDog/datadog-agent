@@ -32,7 +32,7 @@ func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datado
 	return nil, nil
 }
 
-func TestHPAProcessor_UpdateExternalMetrics(t *testing.T) {
+func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string
@@ -93,7 +93,7 @@ func TestHPAProcessor_UpdateExternalMetrics(t *testing.T) {
 	}
 }
 
-func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
+func TestProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 	tests := []struct {
 		desc     string
 		list     []*autoscalingv2.HorizontalPodAutoscaler
@@ -161,7 +161,7 @@ func TestHPAProcessor_ComputeDeleteExternalMetrics(t *testing.T) {
 	}
 }
 
-func TestHPAProcessor_ProcessHPAs(t *testing.T) {
+func TestProcessor_ProcessHPAs(t *testing.T) {
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string

@@ -29,8 +29,8 @@ type Processor struct {
 	datadogClient  DatadogClient
 }
 
-// NewHPAProcessor returns a new Processor
-func NewHPAProcessor(datadogCl DatadogClient) (*Processor, error) {
+// NewProcessor returns a new Processor
+func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
 	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
 	return &Processor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,

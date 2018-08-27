@@ -88,7 +88,7 @@ func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInter
 	}
 
 	// Setup the client to process the HPA and metrics
-	h.hpaProc, err = hpa.NewHPAProcessor(dogCl)
+	h.hpaProc, err = hpa.NewProcessor(dogCl)
 	if err != nil {
 		log.Errorf("Could not instantiate the HPA Processor: %v", err.Error())
 		return nil, err
