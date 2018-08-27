@@ -14,9 +14,10 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	python "github.com/sbinet/go-python"
 )
 
@@ -91,6 +92,10 @@ func Initialize(paths ...string) *python.PyThreadState {
 	// store the Python version after killing \n chars within the string
 	if res := C.Py_GetVersion(); res != nil {
 		PythonVersion = strings.Replace(C.GoString(res), "\n", "", -1)
+
+		// Set python version in the cache
+		key := cache.BuildAgentKey("pythonVersion")
+		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
 	}
 
 	// store the Python path

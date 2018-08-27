@@ -43,7 +43,7 @@ func getSystemStats() *systemStats {
 			Platform:  runtime.GOOS,
 			Processor: cpuInfo.ModelName,
 			CPUCores:  cpuInfo.Cores,
-			Pythonv:   strings.Split(getPythonVersion(), " ")[0],
+			Pythonv:   strings.Split(GetPythonVersion(), " ")[0],
 		}
 
 		// fill the platform dependent bits of info
