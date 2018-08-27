@@ -26,13 +26,13 @@ func NewLogSources() *LogSources {
 // AddSource adds a new source.
 func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
 		return
 	}
 	stream := s.getSourceStreamForType(source.Config.Type)
-	s.mu.Unlock()
-	stream <- source
+	go func() { stream <- source }()
 }
 
 // RemoveSource removes a source.
