@@ -7,37 +7,37 @@ package config
 
 import "sync"
 
-// SourceOrigin represents the origin of the source.
-type SourceOrigin int
+// Provider represents the origin of the source.
+type Provider int
 
 const (
-	// SourceOriginService indicates the source was created from a service listener.
-	SourceOriginService SourceOrigin = iota
-	// SourceOriginConfig indicates the source was created from a config provider.
-	SourceOriginConfig
+	// ServiceProvider indicates the source was created from a service listener.
+	ServiceProvider Provider = iota
+	// ConfigProvider indicates the source was created from a config provider.
+	ConfigProvider
 )
 
 // LogSource holds a reference to and integration name and a log configuration, and allows to track errors and
 // successful operations on it. Both name and configuration are static for now and determined at creation time.
 // Changing the status is designed to be thread safe.
 type LogSource struct {
-	Name   string
-	Config *LogsConfig
-	Status *LogStatus
-	Origin SourceOrigin
-	inputs map[string]bool
-	lock   *sync.Mutex
+	Name     string
+	Config   *LogsConfig
+	Status   *LogStatus
+	Provider Provider
+	inputs   map[string]bool
+	lock     *sync.Mutex
 }
 
 // NewLogSource creates a new log source.
-func NewLogSource(name string, config *LogsConfig, origin SourceOrigin) *LogSource {
+func NewLogSource(name string, config *LogsConfig, provider Provider) *LogSource {
 	return &LogSource{
-		Name:   name,
-		Config: config,
-		Status: NewLogStatus(),
-		Origin: origin,
-		inputs: make(map[string]bool),
-		lock:   &sync.Mutex{},
+		Name:     name,
+		Config:   config,
+		Status:   NewLogStatus(),
+		Provider: provider,
+		inputs:   make(map[string]bool),
+		lock:     &sync.Mutex{},
 	}
 }
 

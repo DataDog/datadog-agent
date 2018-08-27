@@ -26,7 +26,7 @@ type ProviderTestSuite struct {
 
 // newLogSources returns a new log source initialized with the right path.
 func (suite *ProviderTestSuite) newLogSources(path string) []*config.LogSource {
-	return []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}, config.SourceOriginConfig)}
+	return []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}, config.ConfigProvider)}
 }
 
 func (suite *ProviderTestSuite) SetupTest() {

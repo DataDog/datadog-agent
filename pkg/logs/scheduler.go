@@ -74,17 +74,17 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 		return nil, err
 	}
 
-	var origin config.SourceOrigin
+	var provider config.Provider
 	switch integrationConfig.Origin {
 	case integration.NewConfig:
-		origin = config.SourceOriginConfig
+		provider = config.ConfigProvider
 	case integration.NewService:
-		origin = config.SourceOriginService
+		provider = config.ServiceProvider
 	}
 
 	var sources []*config.LogSource
 	for _, cfg := range configs {
-		source := config.NewLogSource(integrationConfig.Name, cfg, origin)
+		source := config.NewLogSource(integrationConfig.Name, cfg, provider)
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)

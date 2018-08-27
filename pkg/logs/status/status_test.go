@@ -22,9 +22,9 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 			// the producer to get stuck.
 		}
 	}()
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}, config.SourceOriginConfig))
-	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}, config.SourceOriginConfig))
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}, config.SourceOriginConfig))
+	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}, config.ConfigProvider))
+	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}, config.ConfigProvider))
+	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}, config.ConfigProvider))
 
 	Initialize(sources)
 

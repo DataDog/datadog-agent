@@ -42,7 +42,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	suite.inputChan = make(chan message.Message)
 	suite.a = New(suite.inputChan, "")
 	suite.a.registryPath = suite.testPath
-	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath}, config.SourceOriginConfig)
+	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath}, config.ConfigProvider)
 }
 
 func (suite *AuditorTestSuite) TearDownTest() {
@@ -85,7 +85,7 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
 	offset := suite.a.GetOffset(suite.source.Config.Path)
 	suite.Equal("42", offset)
 
-	othersource := config.NewLogSource("", &config.LogsConfig{Path: "anotherpath"}, config.SourceOriginConfig)
+	othersource := config.NewLogSource("", &config.LogsConfig{Path: "anotherpath"}, config.ConfigProvider)
 	offset = suite.a.GetOffset(othersource.Config.Path)
 	suite.Equal("", offset)
 }

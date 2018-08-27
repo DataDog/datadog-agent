@@ -14,7 +14,7 @@ import (
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, sourceOrigin config.SourceOrigin) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, provider config.Provider) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -27,10 +27,10 @@ func Position(registry auditor.Registry, identifier string, sourceOrigin config.
 		if err != nil {
 			offset, whence = 0, io.SeekEnd
 		}
-	case sourceOrigin == config.SourceOriginService:
+	case provider == config.ServiceProvider:
 		// a new service has been discovered, tail from the beginning
 		offset, whence = 0, io.SeekStart
-	case sourceOrigin == config.SourceOriginConfig:
+	case provider == config.ConfigProvider:
 		// a new config has been discovered, tail from the end
 		offset, whence = 0, io.SeekEnd
 	}

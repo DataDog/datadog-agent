@@ -173,7 +173,7 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 func (s *Scanner) startNewTailer(file *File) bool {
 	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), file.Source.Origin)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), file.Source.Provider)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}

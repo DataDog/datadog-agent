@@ -46,7 +46,7 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 			return nil
 		}
 		cfg.Type = config.DockerType
-		return config.NewLogSource(c.getSourceName(), cfg, config.SourceOriginService)
+		return config.NewLogSource(c.getSourceName(), cfg, config.ServiceProvider)
 	}
 	var candidate *config.LogSource
 	for _, source := range sources {

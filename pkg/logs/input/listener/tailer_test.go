@@ -21,7 +21,7 @@ const port = 10493
 func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
 	msgChan := make(chan message.Message)
 	r, w := net.Pipe()
-	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{Port: port}, config.SourceOriginConfig), r, msgChan, read)
+	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{Port: port}, config.ConfigProvider), r, msgChan, read)
 	tailer.Start()
 
 	var msg message.Message
@@ -45,7 +45,7 @@ func TestReadShouldFailWithError(t *testing.T) {
 	msgChan := make(chan message.Message)
 	r, w := net.Pipe()
 	read := func(*Tailer) ([]byte, error) { return nil, errors.New("") }
-	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{Port: port}, config.SourceOriginConfig), r, msgChan, read)
+	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{Port: port}, config.ConfigProvider), r, msgChan, read)
 	tailer.Start()
 
 	w.Write([]byte("foo\n"))

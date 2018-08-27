@@ -142,7 +142,7 @@ func TestMask(t *testing.T) {
 
 func TestTruncate(t *testing.T) {
 
-	source := config.NewLogSource("", &config.LogsConfig{}, config.SourceOriginConfig)
+	source := config.NewLogSource("", &config.LogsConfig{}, config.ConfigProvider)
 	var redactedMessage []byte
 
 	_, redactedMessage = applyRedactingRules(newMessage([]byte("hello"), source, ""))
