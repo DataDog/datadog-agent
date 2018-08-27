@@ -10,22 +10,31 @@ package apiserver
 import (
 	"sync"
 
+	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/patrickmn/go-cache"
 )
 
+// globalMetaBundleStore uses the global cache instance for the Agent.
+var globalMetaBundleStore = &metaBundleStore{
+	cache: agentcache.Cache,
+}
+
 // metaBundleStore is a cache for MetadataMapperBundles for each node in the cluster
 // and allows multiple goroutines to safely get or create meta bundles for the same nodes
 // without overwriting each other.
 type metaBundleStore struct {
-	mu      sync.RWMutex
-	cache   *cache.Cache
-	keyFunc func(...string) string
+	mu sync.RWMutex
+
+	// we don't expire items in the cache and instead rely on the `MetadataController`
+	// to delete items for nodes that were deleted in the apiserver to prevent data
+	// from going missing until the next resync period.
+	cache *cache.Cache
 }
 
 func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
-	cacheKey := m.keyFunc(metadataMapperCachePrefix, nodeName)
+	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
 	var metaBundle *MetadataMapperBundle
 
@@ -47,7 +56,7 @@ func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
 }
 
 func (m *metaBundleStore) getOrCreate(nodeName string) *MetadataMapperBundle {
-	cacheKey := m.keyFunc(metadataMapperCachePrefix, nodeName)
+	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
 	var metaBundle *MetadataMapperBundle
 
@@ -71,7 +80,7 @@ func (m *metaBundleStore) getOrCreate(nodeName string) *MetadataMapperBundle {
 }
 
 func (m *metaBundleStore) set(nodeName string, metaBundle *MetadataMapperBundle) {
-	cacheKey := m.keyFunc(metadataMapperCachePrefix, nodeName)
+	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -80,7 +89,7 @@ func (m *metaBundleStore) set(nodeName string, metaBundle *MetadataMapperBundle)
 }
 
 func (m *metaBundleStore) delete(nodeName string) {
-	cacheKey := m.keyFunc(metadataMapperCachePrefix, nodeName)
+	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()

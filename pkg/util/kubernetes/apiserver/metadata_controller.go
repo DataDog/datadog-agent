@@ -44,7 +44,7 @@ type MetadataController struct {
 	// Endpoints that need to be added to services mapping.
 	queue workqueue.RateLimitingInterface
 
-	// used in unit tests to wait until objects are synced
+	// used in unit tests to wait until objects are synced (tombstones will be ignored)
 	endpoints, nodes chan struct{}
 }
 
@@ -67,10 +67,7 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInf
 	m.endpointsLister = endpointsInformer.Lister()
 	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
 
-	m.store = &metaBundleStore{
-		cache:   agentcache.Cache, // global cache instance
-		keyFunc: agentcache.BuildAgentKey,
-	}
+	m.store = globalMetaBundleStore // default to global store
 
 	return m
 }

@@ -21,6 +21,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+
+	gocache "github.com/patrickmn/go-cache"
 )
 
 func alwaysReady() bool { return true }
@@ -29,6 +31,12 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	metaController, informerFactory := newFakeMetadataController(client)
+
+	// don't use the global store so we can can inspect the store without
+	// it being modified by other tests.
+	metaController.store = &metaBundleStore{
+		cache: gocache.New(gocache.NoExpiration, 5*time.Second),
+	}
 
 	pod1 := newFakePod(
 		"default",
