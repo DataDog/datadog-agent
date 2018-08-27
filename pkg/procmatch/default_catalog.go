@@ -3,7 +3,7 @@ package procmatch
 
 var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 	Integration{
-		Name: "activemq",
+		Name: "ActiveMQ",
 		Signatures: []string{
 			"activemq",
 		},
@@ -17,13 +17,13 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "cassandra",
+		Name: "Cassandra",
 		Signatures: []string{
 			"java org.apache.cassandra.service.CassandraDaemon",
 		},
 	},
 	Integration{
-		Name: "ceph",
+		Name: "Ceph",
 		Signatures: []string{
 			"ceph-mon",
 			"ceph-mgr",
@@ -31,7 +31,7 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "consul",
+		Name: "Consul",
 		Signatures: []string{
 			"consul agent",
 			"consul_agent",
@@ -39,19 +39,19 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "couch",
+		Name: "CouchDB",
 		Signatures: []string{
 			"couchjs",
 		},
 	},
 	Integration{
-		Name: "couchbase",
+		Name: "Couchbase",
 		Signatures: []string{
 			"beam.smp couchbase",
 		},
 	},
 	Integration{
-		Name: "docker_daemon",
+		Name: "Docker",
 		Signatures: []string{
 			"dockerd",
 			"docker-containerd",
@@ -61,7 +61,7 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "elastic",
+		Name: "Elasticsearch",
 		Signatures: []string{
 			"java org.elasticsearch.bootstrap.Elasticsearch",
 		},
@@ -81,20 +81,20 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "gearmand",
+		Name: "Gearman",
 		Signatures: []string{
 			"gearmand",
 			"gearman",
 		},
 	},
 	Integration{
-		Name: "gunicorn",
+		Name: "Gunicorn",
 		Signatures: []string{
 			"gunicorn: master",
 		},
 	},
 	Integration{
-		Name: "haproxy",
+		Name: "HAProxy",
 		Signatures: []string{
 			"haproxy",
 			"haproxy-master",
@@ -102,50 +102,50 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "kafka",
+		Name: "Kafka",
 		Signatures: []string{
 			"java kafka.kafka",
 		},
 	},
 	Integration{
-		Name: "kong",
+		Name: "Kong",
 		Signatures: []string{
 			"kong start",
 		},
 	},
 	Integration{
-		Name: "kyototycoon",
+		Name: "Kyoto Tycoon",
 		Signatures: []string{
 			"ktserver",
 		},
 	},
 	Integration{
-		Name: "lighttpd",
+		Name: "Lighttpd",
 		Signatures: []string{
 			"lighttpd",
 		},
 	},
 	Integration{
-		Name: "marathon",
+		Name: "Marathon",
 		Signatures: []string{
 			"start --master mesos marathon",
 		},
 	},
 	Integration{
-		Name: "mcache",
+		Name: "Memcached",
 		Signatures: []string{
 			"memcached",
 		},
 	},
 	Integration{
-		Name: "mesos_master",
+		Name: "Mesos Master",
 		Signatures: []string{
 			"mesos-master.sh --ip=127.0.0.1 --work_dir=/var/lib/mesos",
 			"mesos-agent.sh --master --work_dir=/var/lib/mesos",
 		},
 	},
 	Integration{
-		Name: "mongo",
+		Name: "MongoDB",
 		Signatures: []string{
 			"mongod",
 		},
@@ -157,31 +157,31 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "nagios",
+		Name: "Nagios",
 		Signatures: []string{
 			"nagios",
 		},
 	},
 	Integration{
-		Name: "nginx",
+		Name: "Nginx",
 		Signatures: []string{
 			"nginx: master process",
 		},
 	},
 	Integration{
-		Name: "openstack",
+		Name: "OpenStack",
 		Signatures: []string{
 			"stack.sh",
 		},
 	},
 	Integration{
-		Name: "pgbouncer",
+		Name: "PGBouncer",
 		Signatures: []string{
 			"pgbouncer",
 		},
 	},
 	Integration{
-		Name: "php_fpm",
+		Name: "PHP-FPM",
 		Signatures: []string{
 			"php-fpm",
 			"php7.0-fpm",
@@ -194,14 +194,14 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "postfix",
+		Name: "Postfix",
 		Signatures: []string{
 			"postfix start",
 			"sendmail -bd",
 		},
 	},
 	Integration{
-		Name: "postgres",
+		Name: "Postgres",
 		Signatures: []string{
 			"postgres -D",
 			"pg_ctl start -l logfile",
@@ -209,38 +209,38 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "powerdns_recursor",
+		Name: "PowerDNS Recursor",
 		Signatures: []string{
 			"pdns_server",
 			"systemctl start pdns@",
 		},
 	},
 	Integration{
-		Name: "rabbitmq",
+		Name: "RabbitMQ",
 		Signatures: []string{
 			"rabbitmq",
 		},
 	},
 	Integration{
-		Name: "redisdb",
+		Name: "Redis",
 		Signatures: []string{
 			"redis-server",
 		},
 	},
 	Integration{
-		Name: "riakcs",
+		Name: "Riak CS",
 		Signatures: []string{
 			"riak-cs start",
 		},
 	},
 	Integration{
-		Name: "solr",
+		Name: "Solr",
 		Signatures: []string{
 			"solr start",
 		},
 	},
 	Integration{
-		Name: "ssh_check",
+		Name: "SSH",
 		Signatures: []string{
 			"ssh",
 			"sftp",
@@ -249,39 +249,39 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	Integration{
-		Name: "supervisord",
+		Name: "Supervisord",
 		Signatures: []string{
 			"python supervisord",
 			"supervisord",
 		},
 	},
 	Integration{
-		Name: "teamcity",
+		Name: "Teamcity",
 		Signatures: []string{
 			"teamcity-server.sh",
 			"teamcity-server",
 		},
 	},
 	Integration{
-		Name: "tokumx",
+		Name: "TokuMX",
 		Signatures: []string{
 			"mongod --config /etc/tokumx.conf",
 		},
 	},
 	Integration{
-		Name: "tomcat",
+		Name: "Tomcat",
 		Signatures: []string{
 			"java tomcat",
 		},
 	},
 	Integration{
-		Name: "varnish",
+		Name: "Varnish",
 		Signatures: []string{
 			"service varnish start",
 		},
 	},
 	Integration{
-		Name: "zk",
+		Name: "ZooKeeper",
 		Signatures: []string{
 			"zkServer.sh start",
 			"java zoo.cfg",
