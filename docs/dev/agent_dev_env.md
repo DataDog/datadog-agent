@@ -21,6 +21,34 @@ are used in the official build. Such values are listed in the `invoke.yaml`
 file at the root of this repo and can be overridden by setting `INVOKE_*` env
 variables (see Invoke docs for more details).
 
+### Invoke (python) dependencies
+
+The invoke scripts have some python dependencies themselves. We can pull all of
+these in by using the [requirements](https://github.com/DataDog/datadog-agent/blob/master/requirements.txt) file.
+
+```bash
+pip install -r requirements.txt
+```
+
+The file also includes and pins invoke, so should you decide to call `pip` like above
+it will install/update `invoke` to the version therein specified. You can also bootstrap
+invoke with it, no additional prior `pip` or `brew` commands necessary.
+
+
+### Note
+
+We don't want to pollute your system-wide python installation, so a python virtual
+environment is recommended (though optional). It will help keep an isolated development
+environment and ensure a clean system python.
+
+- Install the virtualenv module: 
+```pip install virtualenv```
+- Create the virtual environment: 
+```virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv```
+- Enable the virtual environment: 
+```source $GOPATH/src/github.com/DataDog/datadog-agent/venv/bin/activate```
+
+
 ## Golang
 
 You must install [go](https://golang.org/doc/install) version 1.10.2 or above. Make
