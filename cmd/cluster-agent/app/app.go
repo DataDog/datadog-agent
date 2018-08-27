@@ -169,6 +169,13 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Start the cluster-check discovery if configured
 	clusterCheckHandler := setupClusterCheck()
+	// start the cmd HTTPS server
+	sc := clusteragent.ServerContext{
+		ClusterCheckHandler: clusterCheckHandler,
+	}
+	if err = api.StartServer(sc); err != nil {
+		return log.Errorf("Error while starting api server, exiting: %v", err)
+	}
 
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
@@ -183,14 +190,6 @@ func start(cmd *cobra.Command, args []string) error {
 				log.Errorf("Could not start the custom metrics API server: %s", err.Error())
 			}
 		}
-	}
-
-	// start the cmd HTTPS server
-	sc := clusteragent.ServerContext{
-		ClusterCheckHandler: clusterCheckHandler,
-	}
-	if err = api.StartServer(sc); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
 	// Block here until we receive the interrupt signal
