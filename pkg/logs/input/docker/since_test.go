@@ -24,21 +24,21 @@ func TestSince(t *testing.T) {
 	var since time.Time
 	var err error
 
-	since, err = Since(registry, "", false)
+	since, err = Since(registry, "", config.SourceOriginConfig)
 	assert.Nil(t, err)
 	assert.True(t, since.Equal(now) || since.After(now))
 
-	since, err = Since(registry, "", true)
+	since, err = Since(registry, "", config.SourceOriginService)
 	assert.Nil(t, err)
 	assert.Equal(t, time.Time{}, since)
 
 	registry.SetOffset("2008-01-12T01:01:01.000000001Z")
-	since, err = Since(registry, "", false)
+	since, err = Since(registry, "", config.SourceOriginConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "2008-01-12T01:01:01.000000002Z", since.Format(config.DateFormat))
 
 	registry.SetOffset("foo")
-	since, err = Since(registry, "", false)
+	since, err = Since(registry, "", config.SourceOriginConfig)
 	assert.NotNil(t, err)
 	assert.True(t, since.After(now))
 }

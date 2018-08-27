@@ -162,12 +162,7 @@ func (s *Scanner) setupTailer(cli *client.Client, container types.Container, sou
 	log.Info("Detected container ", container.Image, " - ", ShortContainerID(container.ID))
 	tailer := NewTailer(cli, container.ID, source, outputChan)
 
-	var tailFromBeginning bool
-	if source.Origin == config.SourceOriginService {
-		tailFromBeginning = true
-	}
-
-	since, err := Since(s.registry, tailer.Identifier(), tailFromBeginning)
+	since, err := Since(s.registry, tailer.Identifier(), source.Origin)
 	if err != nil {
 		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(container.ID), err)
 	}

@@ -15,20 +15,24 @@ import (
 )
 
 // Since returns the date from when logs should be collected.
-func Since(registry auditor.Registry, identifier string, tailFromBeginning bool) (time.Time, error) {
+func Since(registry auditor.Registry, identifier string, sourceOrigin config.SourceOrigin) (time.Time, error) {
 	var since time.Time
 	var err error
 	offset := registry.GetOffset(identifier)
-	if offset != "" {
+	switch {
+	case offset != "":
+		// an offset was registered, tail from the offset
 		since, err = time.Parse(config.DateFormat, offset)
 		if err != nil {
 			since = time.Now().UTC()
 		} else {
 			since = since.Add(time.Nanosecond)
 		}
-	} else if tailFromBeginning {
+	case sourceOrigin == config.SourceOriginService:
+		// a new service has been discovered, tail from the beginning
 		since = time.Time{}
-	} else {
+	case sourceOrigin == config.SourceOriginConfig:
+		// a new config has been discovered, tail from the end
 		since = time.Now().UTC()
 	}
 	return since, err
