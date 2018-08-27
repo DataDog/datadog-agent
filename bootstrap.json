@@ -14,7 +14,7 @@
             "type": "python"
         },
         "github.com/golang/dep/cmd/dep": {
-            "version": "v0.4.1",
+            "version": "v0.5.0",
             "type": "go"
         },
         "golang.org/x/lint/golint": {
