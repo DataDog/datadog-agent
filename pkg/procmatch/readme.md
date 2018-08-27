@@ -48,17 +48,9 @@ For testing purposes you can also modify the generated file `/default_catalog.go
 
 The catalog is generated [here](/gen/generate_catalog.go), you will first need to clone the [datadog integration-core repo](https://github.com/DataDog/integrations-core).
 
-Then you can run `INTEGRATIONS_CORE_DIR=<path_to_integration_repo go generate` inside _procmatch_ directory.
+Then you can run `INTEGRATIONS_CORE_DIR=<path_to_integration_repo> go generate` inside _procmatch_ directory.
 
 The generation script reads process signatures from the `manifest.json` files.
-
-## Using an other catalog
-
-You can also use your own catalog
-
-```golang
-m, err := NewMatcher(myCustomCatalog)
-```
 
 ## Adding tests for an integration
 
