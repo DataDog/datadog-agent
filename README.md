@@ -24,8 +24,8 @@ To build the Agent you need:
    This will also pull in `invoke` if not yet installed.
  * (Optional) [Invoke](http://www.pyinvoke.org/installing.html), you can install
    it via `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS 
-   with `brew install pyinvoke`. If you installed the python dependencies you can 
-   skip this step.
+   with `brew install pyinvoke`. If you installed the python dependencies like 
+   above you can skip this step.
 
 Note: you may want to use a python virtual environment to avoid polluting your
       system-wide python environment with the agent build/dev dependencies.

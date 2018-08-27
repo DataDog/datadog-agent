@@ -21,9 +21,10 @@ are used in the official build. Such values are listed in the `invoke.yaml`
 file at the root of this repo and can be overridden by setting `INVOKE_*` env
 variables (see Invoke docs for more details).
 
-### Invoke (python) dependencies
+### Python Development Dependencies
 
-The invoke scripts have some python dependencies themselves. We can pull all of
+The invoke scripts may have some python dependencies themselves. Additionally 
+we have some other dev dependenices (reno, or docker). We can pull all of
 these in by using the [requirements](https://github.com/DataDog/datadog-agent/blob/master/requirements.txt) file.
 
 ```bash
