@@ -15,6 +15,7 @@ stages:
 
 variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
+  DEPPROJECTROOT: /src/github.com/DataDog/datadog-agent
   OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
   OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   # make sure the types of RPM packages are kept separate
