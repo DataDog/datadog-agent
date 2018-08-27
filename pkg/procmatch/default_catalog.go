@@ -25,7 +25,9 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 	Integration{
 		Name: "ceph",
 		Signatures: []string{
-			"ceph-*",
+			"ceph-mon",
+			"ceph-mgr",
+			"ceph-osd",
 		},
 	},
 	Integration{
@@ -45,7 +47,7 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 	Integration{
 		Name: "couchbase",
 		Signatures: []string{
-			"beam.smp",
+			"beam.smp couchbase",
 		},
 	},
 	Integration{
@@ -157,8 +159,7 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 	Integration{
 		Name: "nagios",
 		Signatures: []string{
-			"service snmpd restart",
-			"systemctl restart snmpd.service",
+			"nagios",
 		},
 	},
 	Integration{
@@ -257,7 +258,7 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 	Integration{
 		Name: "teamcity",
 		Signatures: []string{
-			"runnAll.sh start",
+			"teamcity-server.sh",
 			"teamcity-server",
 		},
 	},
