@@ -32,6 +32,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         fi
     fi
 
+    if [ -d "$INSTALL_DIR/embedded/lib/python2.7" ]; then
+        rm -rf $INSTALL_DIR/embedded/lib/python2.7
+    fi
+
     if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
         # Nothing specific on Debian
         :
