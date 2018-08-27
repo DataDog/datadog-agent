@@ -34,7 +34,7 @@ func GetPayload(hostname string) *Payload {
 
 	p := &Payload{
 		Os:            osName,
-		PythonVersion: getPythonVersion(),
+		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
@@ -68,11 +68,9 @@ func GetMeta() *Meta {
 	return getMeta()
 }
 
-// getPythonVersion returns the version string as provided by the embedded Python
-// interpreter. The string is stored in the Agent cache when the interpreter is
-// initialized (see pkg/collector/py/utils.go), an empty value is expected when
-// using this package without embedding Python.
-func getPythonVersion() string {
+// GetPythonVersion returns the version string as provided by the embedded Python
+// interpreter.
+func GetPythonVersion() string {
 	// retrieve the Python version from the Agent cache
 	if x, found := cache.Cache.Get(cache.BuildAgentKey("pythonVersion")); found {
 		return x.(string)

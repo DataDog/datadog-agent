@@ -10,6 +10,7 @@ import (
 	"expvar"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -51,6 +52,8 @@ func GetStatus() (map[string]interface{}, error) {
 		return nil, err
 	}
 	stats["pid"] = os.Getpid()
+	pythonVersion := host.GetPythonVersion()
+	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()

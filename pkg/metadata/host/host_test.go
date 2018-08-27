@@ -38,10 +38,10 @@ func TestGetSystemStats(t *testing.T) {
 }
 
 func TestGetPythonVersion(t *testing.T) {
-	require.Equal(t, "n/a", getPythonVersion())
+	require.Equal(t, "n/a", GetPythonVersion())
 	key := cache.BuildAgentKey("pythonVersion")
 	cache.Cache.Set(key, "Python 2.8", cache.NoExpiration)
-	require.Equal(t, "Python 2.8", getPythonVersion())
+	require.Equal(t, "Python 2.8", GetPythonVersion())
 }
 
 func TestGetCPUInfo(t *testing.T) {
