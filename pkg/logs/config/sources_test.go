@@ -13,18 +13,20 @@ import (
 
 func TestAddSource(t *testing.T) {
 	sources := NewLogSources()
+	registerConsumer(sources, "boo")
 	assert.Equal(t, 0, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("foo", nil, ConfigProvider))
+	sources.AddSource(NewLogSource("foo", &LogsConfig{Type: "boo"}, ConfigProvider))
 	assert.Equal(t, 1, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("bar", nil, ConfigProvider))
+	sources.AddSource(NewLogSource("bar", &LogsConfig{Type: "boo"}, ConfigProvider))
 	assert.Equal(t, 2, len(sources.GetSources()))
 }
 
 func TestRemoveSource(t *testing.T) {
 	sources := NewLogSources()
-	source1 := NewLogSource("foo", nil, ConfigProvider)
+	registerConsumer(sources, "boo")
+	source1 := NewLogSource("foo", &LogsConfig{Type: "boo"}, ConfigProvider)
 	sources.AddSource(source1)
-	source2 := NewLogSource("bar", nil, ConfigProvider)
+	source2 := NewLogSource("bar", &LogsConfig{Type: "boo"}, ConfigProvider)
 	sources.AddSource(source2)
 	assert.Equal(t, 2, len(sources.GetSources()))
 	sources.RemoveSource(source1)
@@ -36,7 +38,18 @@ func TestRemoveSource(t *testing.T) {
 
 func TestGetSources(t *testing.T) {
 	sources := NewLogSources()
+	registerConsumer(sources, "boo")
 	assert.Equal(t, 0, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("", nil, ConfigProvider))
+	sources.AddSource(NewLogSource("", &LogsConfig{Type: "boo"}, ConfigProvider))
 	assert.Equal(t, 1, len(sources.GetSources()))
+}
+
+func registerConsumer(sources *LogSources, sourceType string) {
+	go func() {
+		sources := sources.GetSourceStreamForType(sourceType)
+		for range sources {
+			// ensure that another component is consuming the channel to prevent
+			// the producer to get stuck.
+		}
+	}()
 }
