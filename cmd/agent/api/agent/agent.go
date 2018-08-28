@@ -48,6 +48,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
+	r.HandleFunc("/discovery", getDiscoveredIntegrations).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -241,4 +242,26 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonTags)
+}
+
+func getDiscoveredIntegrations(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for discovered integrations. Discovering integrations.")
+
+	response, err := autodiscovery.DiscoverIntegrations()
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		log.Errorf("Error getting discovered integrations. Error: %v", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	jsonIntegrations, err := json.Marshal(response)
+	if err != nil {
+		log.Errorf("Unable to marshal discovered integrations response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(jsonIntegrations)
 }
