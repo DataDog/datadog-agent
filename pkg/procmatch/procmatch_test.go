@@ -22,30 +22,30 @@ func TestMatchIntegration(t *testing.T) {
 		integration string
 	}{
 		{"java org.elasticsearch.bootstrap.Elasticsearch ‑Xms28000m ‑Xmx28000m ‑XX:+UseCompressedOops ‑Djna.tmpdir=/tmp/elasticsearch/jna ‑XX:+UseConcMarkSweepGC ‑XX:CMSInitiatingOccupancyFraction=75 ‑XX:+UseCMSInitiatingOccupancyOnly ‑XX:+DisableExplicitGC ‑XX:+AlwaysPreTouch ‑server ‑Xss1m ‑Djava.awt.headless=true ‑Dfile.encoding=UTF-8 ‑Djna.nosys=true ‑Djdk.io.permissionsUseCanonicalPath=true ‑Dio.netty.noUnsafe=true ‑Dio.netty.noKeySetOptimization=true ‑Dio.netty.recycler.maxCapacityPerThread=0 ‑Dlog4j.shutdownHookEnabled=false ‑Dlog4j2.disable.jmx=true ‑Dlog4j.skipJansi=true ‑Des.path.home=/usr/share/elasticsearch ‑Des.path.conf=/config ‑cp /usr/share/elasticsearch/lib/* ‑p /var/run/elasticsearch.pid ‑Epath.logs=/logs ‑Epath.data=/data ",
-			"Elasticsearch"},
+			"elastic"},
 		{"gunicorn: master [mcnulty]",
-			"Gunicorn"},
+			"gunicorn"},
 		{"java kafka.Kafka /usr/local/kafka/config/server.properties ‑Xmx4G ‑Xms4G ‑server ‑XX:+UseCompressedOops ‑XX:PermSize=48m ‑XX:MaxPermSize=48m ‑XX:+UseG1GC ‑XX:MaxGCPauseMillis=20 ‑XX:InitiatingHeapOccupancyPercent=35 ‑Djava.awt.headless=true ‑Xloggc:/mnt/log/kafka/kafkaServer-gc.log ‑verbose:gc ‑XX:+PrintGCDetails ‑XX:+PrintGCDateStamps ‑XX:+PrintGCTimeStamps ‑Dcom.sun.management.jmxremote ‑Dcom.sun.management.jmxremote.authenticate=false ‑Dcom.sun.management.jmxremote.ssl=false ‑Dcom.sun.management.jmxremote.port=9999",
-			"Kafka"},
+			"kafka"},
 		{"haproxy ‑p /run/haproxy.pid ‑db ‑f /usr/local/etc/haproxy/haproxy.cfg ‑Ds",
-			"HAProxy"},
+			"haproxy"},
 		{"mongod ‑-config /config/mongodb.conf",
-			"MongoDB"},
+			"mongo"},
 		{"java -Xmx4000m -Xms4000m -XX:ReservedCodeCacheSize=256m -port 9999 kafka.Kafka",
-			"Kafka"},
+			"kafka"},
 		{"java -Xmx4000m -Xms4000m -XX:ReservedCodeCacheSize=256m -port 9999 kafka.Kafka",
-			"Kafka"},
+			"kafka"},
 		{"/usr/local/bin/consul agent -config-dir /etc/consul.d",
-			"Consul"},
+			"consul"},
 		{"/usr/bin/python /usr/local/bin/supervisord -c /etc/supervisord.conf",
-			"Supervisord"},
+			"supervisord"},
 		{"/usr/sbin/pgbouncer -d /etc/pgbouncer/pgbouncer.ini",
-			"PGBouncer"},
+			"pgbouncer"},
 	}
 
 	for _, c := range cases {
-		name := testMatcher.Match(c.cmdline)
-		assertIntegration(t, c.integration, name)
+		matched := testMatcher.Match(c.cmdline)
+		assertIntegration(t, c.integration, matched.Name)
 	}
 }
 
@@ -55,16 +55,16 @@ func TestOverlappingSignatures(t *testing.T) {
 		integration string
 	}{
 		{"java org.elasticsearch.bootstrap.Elasticsearch -p=mypath",
-			"Elasticsearch"},
+			"elastic"},
 		{"java org.elasticsearch.bootstrap.Elasticsearch",
-			"Elasticsearch"},
+			"elastic"},
 		{"java ***** kafka.kafka",
-			"Kafka"},
+			"kafka"},
 	}
 
 	for _, c := range cases {
-		name := testMatcher.Match(c.cmdline)
-		assertIntegration(t, c.integration, name)
+		matched := testMatcher.Match(c.cmdline)
+		assertIntegration(t, c.integration, matched.Name)
 	}
 }
 
@@ -72,8 +72,8 @@ func TestOverlappingSignatures(t *testing.T) {
 func TestDefaultCatalogOnGraph(t *testing.T) {
 	for _, integration := range DefaultCatalog {
 		for _, cmd := range integration.Signatures {
-			name := testMatcher.Match(cmd)
-			assertIntegration(t, integration.Name, name)
+			matched := testMatcher.Match(cmd)
+			assertIntegration(t, integration.Name, matched.Name)
 		}
 	}
 }
