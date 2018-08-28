@@ -25,10 +25,10 @@ var controllerCatalog = map[string]func(controllerContext) error{
 }
 
 type controllerContext struct {
-	InformerFactory informers.SharedInformerFactory
-	Client          kubernetes.Interface
-	LeaderElector   LeaderElectorInterface
-	StopCh          chan struct{}
+	informerFactory informers.SharedInformerFactory
+	client          kubernetes.Interface
+	leaderElector   LeaderElectorInterface
+	stopCh          chan struct{}
 }
 
 // StartControllers runs the Kubernetes controllers for the Datadog Cluster Agent. This is
@@ -46,10 +46,10 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 	informerFactory.Start(stopCh)
 
 	ctx := controllerContext{
-		InformerFactory: informerFactory,
-		Client:          client,
-		LeaderElector:   le,
-		StopCh:          stopCh,
+		informerFactory: informerFactory,
+		client:          client,
+		leaderElector:   le,
+		stopCh:          stopCh,
 	}
 
 	enabledControllers := sets.NewString("metadata") // always enabled
@@ -73,10 +73,10 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 
 func startMetadataController(ctx controllerContext) error {
 	metaController := NewMetadataController(
-		ctx.InformerFactory.Core().V1().Nodes(),
-		ctx.InformerFactory.Core().V1().Endpoints(),
+		ctx.informerFactory.Core().V1().Nodes(),
+		ctx.informerFactory.Core().V1().Endpoints(),
 	)
-	go metaController.Run(ctx.StopCh)
+	go metaController.Run(ctx.stopCh)
 
 	return nil
 }
@@ -87,15 +87,15 @@ func startAutoscalersController(ctx controllerContext) error {
 		return err
 	}
 	autoscalersController, err := NewAutoscalersController(
-		ctx.Client,
-		ctx.LeaderElector,
+		ctx.client,
+		ctx.leaderElector,
 		dogCl,
-		ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
+		ctx.informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
 	if err != nil {
 		return err
 	}
-	go autoscalersController.Run(ctx.StopCh)
+	go autoscalersController.Run(ctx.stopCh)
 
 	return nil
 }
