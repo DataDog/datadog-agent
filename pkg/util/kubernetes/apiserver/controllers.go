@@ -14,14 +14,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 )
 
-var controllerCatalog = map[string]func(controllerContext) error{
-	"metadata":    startMetadataController,
-	"autoscalers": startMetadataController,
+type controllerFuncs struct {
+	enabled func() bool
+	start   func(controllerContext) error
+}
+
+var controllerCatalog = map[string]controllerFuncs{
+	"metadata": {
+		func() bool { return config.Datadog.GetBool("kubernetes_collect_metadata_tags") },
+		startMetadataController,
+	},
+	"autoscalers": {
+		func() bool { return config.Datadog.GetBool("external_metrics_provider.enabled") },
+		startAutoscalersController,
+	},
 }
 
 type controllerContext struct {
@@ -52,20 +62,12 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 		stopCh:          stopCh,
 	}
 
-	enabledControllers := sets.NewString()
-	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
-		enabledControllers.Insert("metadata")
-	}
-	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		enabledControllers.Insert("autoscalers")
-	}
-
-	for name, controllerFn := range controllerCatalog {
-		if !enabledControllers.Has(name) {
+	for name, controllerFuncs := range controllerCatalog {
+		if !controllerFuncs.enabled() {
 			log.Infof("%q is disabled", name)
 			continue
 		}
-		err := controllerFn(ctx)
+		err := controllerFuncs.start(ctx)
 		if err != nil {
 			log.Errorf("Error starting %q", name)
 		}
