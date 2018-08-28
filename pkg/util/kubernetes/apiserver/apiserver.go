@@ -17,7 +17,6 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -25,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -398,54 +396,4 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	}
 
 	return result.Into(output)
-}
-
-// StartMetadataController runs the metadata controller to collect cluster metadata. This is
-// only called once, when we have confirmed we could correctly connect to the API server.
-func StartMetadataController(stopCh chan struct{}) error {
-	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
-	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(timeoutSeconds * time.Second)
-	if err != nil {
-		log.Infof("Could not get apiserver client: %v", err)
-		return err
-	}
-	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
-	metaController := NewMetadataController(
-		informerFactory.Core().V1().Nodes(),
-		informerFactory.Core().V1().Endpoints(),
-	)
-	informerFactory.Start(stopCh)
-	go metaController.Run(stopCh)
-
-	return nil
-}
-
-// StartAutoscalersController runs the Autoscaler controller to collect the HorizontalPodAutoscaler data.
-// only called once, when we have confirmed we could correctly connect to the API server.
-// We pass the LeaderElection and Datadog Client Interfaces to avoid import cycles and allow unit/integration tests.
-// TODO refactor Controllers to share the same Informer Factory and the config options.
-func StartAutoscalersController(le LeaderElectorInterface, dogCl hpa.DatadogClient, stopCh chan struct{}) error {
-	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
-	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(timeoutSeconds * time.Second)
-	if err != nil {
-		log.Infof("Could not get apiserver client: %v", err)
-		return err
-	}
-
-	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
-	autoscalerController, err := NewAutoscalersController(
-		client,
-		le,
-		dogCl,
-		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
-	)
-	if err != nil {
-		return err
-	}
-
-	informerFactory.Start(stopCh)
-	go autoscalerController.Run(stopCh)
-	return nil
 }

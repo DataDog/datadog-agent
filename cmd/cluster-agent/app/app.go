@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -152,10 +153,13 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Errorf("Could not connect to the apiserver: %v", err)
 	} else {
-		// Start controllers
+		le, err := leaderelection.GetLeaderEngine()
+		if err != nil {
+			return err
+		}
 		stopCh = make(chan struct{})
-		if err := apiserver.StartMetadataController(stopCh); err != nil {
-			log.Errorf("Could not start metadata controller: %v", err)
+		if err := apiserver.StartControllers(le, stopCh); err != nil {
+			log.Errorf("Could not start controllers: %v", err)
 		}
 	}
 
