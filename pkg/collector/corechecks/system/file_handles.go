@@ -83,7 +83,7 @@ func (c *fhCheck) Run() error {
 	fhInUse := (allocatedFh - allocatedUnusedFh) / maxFh
 	log.Debugf("file handles in use: %f", fhInUse)
 
-	sender.Gauge("system.fs.file_handles.allocated", fhInUse, "", nil)
+	sender.Gauge("system.fs.file_handles.allocated", allocatedFh, "", nil)
 	sender.Gauge("system.fs.file_handles.allocated_unused", allocatedUnusedFh, "", nil)
 	sender.Gauge("system.fs.file_handles.in_use", fhInUse, "", nil)
 	sender.Gauge("system.fs.file_handles.used", allocatedFh-allocatedUnusedFh, "", nil)
