@@ -28,7 +28,10 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -293,4 +296,102 @@ func execCommand(inputPayload string) ([]byte, error) {
 		return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, copyError)
 	}
 	return stdout.buf.Bytes(), nil
+}
+
+//
+// validateFilePermissions
+//
+// check to ensure that the given file has acceptable access controls set
+//
+// returns 1 if file perms are acceptable
+//         0 if file perms not acceptable
+//        -1 on error (with error value set)
+//
+
+func checkAcceptableFilePermissions(filename string) (retval int, err error) {
+	if _, err := os.Stat(filename); err != nil {
+		if os.IsNotExist(err) {
+			return -1, err
+		}
+	}
+	var fileDacl *winutil.Acl
+	err = winutil.GetNamedSecurityInfo(filename,
+		winutil.SE_FILE_OBJECT,
+		winutil.DACL_SECURITY_INFORMATION,
+		nil,
+		nil,
+		&fileDacl,
+		nil,
+		nil)
+	if err != nil {
+		return -1, err
+	}
+
+	var aclSizeInfo winutil.AclSizeInformation
+	err = winutil.GetAclInformation(fileDacl, aclSizeInfo, winutil.AclSizeInformationEnum)
+	if err != nil {
+		return -1, err
+	}
+
+	// create the sids that are acceptable to us (local system account and administrators
+	// group)
+	// TODO add dd-agent-user when appropriate
+
+	// windows.SECURITY_NT_AUTHORITY
+
+	var localSystem *windows.SID
+	var administrators *windows.SID
+	err = windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
+		1, // local system has 1 valid subauth
+		windows.SECURITY_LOCAL_SYSTEM_RID,
+		0, 0, 0, 0, 0, 0, 0,
+		&localSystem)
+	if err != nil {
+		return -1, err
+	}
+	defer windows.FreeSid(localSystem)
+	err = windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
+		2, // administrators group has 2 valid subauths
+		windows.SECURITY_BUILTIN_DOMAIN_RID,
+		windows.DOMAIN_ALIAS_RID_ADMINS,
+		0, 0, 0, 0, 0, 0,
+		&administrators)
+	if err != nil {
+		return -1, err
+	}
+	defer windows.FreeSid(administrators)
+	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
+		var pAce *winutil.AccessAllowedAce
+		err = winutil.GetAce(fileDacl, i, &pAce)
+		if err != nil {
+			// continue checking other ace entries
+			continue
+		}
+		var compareSid *windows.SID
+		compareSid = (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
+
+		//
+		// if need be, can also check the specific allowed/denied permissions.
+		// allowed/denied permissions are in pAce.Mask
+		//
+		if pAce.AceType == winutil.ACCESS_DENIED_ACE_TYPE {
+			// if we're denying access to local system or administrators,
+			// it's wrong.  Otherwise, any explicit access denied is OK
+			if windows.EqualSid(compareSid, localSystem) ||
+				windows.EqualSid(compareSid, administrators) {
+				return 0, fmt.Errorf("Can't deny access to LOCAL_SYSTEM or Administrators")
+			}
+			// otherwise, it's fine; deny access to whomever
+		}
+		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
+			if !(windows.EqualSid(compareSid, localSystem) ||
+				windows.EqualSid(compareSid, administrators)) {
+				return 0, fmt.Errorf("Can't allow access to users/groups other than LOCAL_SYSTEM or Administrators")
+			}
+		}
+	}
+
+	// if we make it all the way here, nothing bad has been found.  It's a
+	// win!
+	return 1, nil
 }
