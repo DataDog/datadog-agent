@@ -12,14 +12,19 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func build(m *testing.M, cmd string, args ...string) {
-	_, err := exec.Command(cmd, args...).Output()
+var (
+	binExtension = ""
+)
+
+func build(m *testing.M, outBin, pkg string) {
+	_, err := exec.Command("go", "build", "-o", outBin+binExtension, pkg).Output()
 	if err != nil {
 		fmt.Printf("Could not compile test secretBackendCommand: %s", err)
 		os.Exit(1)
@@ -27,23 +32,27 @@ func build(m *testing.M, cmd string, args ...string) {
 }
 
 func TestMain(m *testing.M) {
+	if runtime.GOOS == "windows" {
+		binExtension = ".exe"
+	}
+
 	// We rely on Go for the test executable since it's the only common
 	// tool we're sure to have on Windows, OSX and Linux.
-	build(m, "go", "build", "-o", "./test/argument/argument", "./test/argument")
-	build(m, "go", "build", "-o", "./test/error/error", "./test/error")
-	build(m, "go", "build", "-o", "./test/input/input", "./test/input")
-	build(m, "go", "build", "-o", "./test/response_too_long/response_too_long", "./test/response_too_long")
-	build(m, "go", "build", "-o", "./test/simple/simple", "./test/simple")
-	build(m, "go", "build", "-o", "./test/timeout/timeout", "./test/timeout")
+	build(m, "./test/argument/argument", "./test/argument")
+	build(m, "./test/error/error", "./test/error")
+	build(m, "./test/input/input", "./test/input")
+	build(m, "./test/response_too_long/response_too_long", "./test/response_too_long")
+	build(m, "./test/simple/simple", "./test/simple")
+	build(m, "./test/timeout/timeout", "./test/timeout")
 
 	res := m.Run()
 
-	os.Remove("test/argument/argument")
-	os.Remove("test/error/error")
-	os.Remove("test/input/input")
-	os.Remove("test/response_too_long/response_too_long")
-	os.Remove("test/simple/simple")
-	os.Remove("test/timeout/timeout")
+	os.Remove("test/argument/argument" + binExtension)
+	os.Remove("test/error/error" + binExtension)
+	os.Remove("test/input/input" + binExtension)
+	os.Remove("test/response_too_long/response_too_long" + binExtension)
+	os.Remove("test/simple/simple" + binExtension)
+	os.Remove("test/timeout/timeout" + binExtension)
 
 	os.Exit(res)
 }
@@ -85,28 +94,28 @@ func TestExecCommandError(t *testing.T) {
 	require.NotNil(t, err)
 
 	// test timeout
-	secretBackendCommand = "./test/timeout/timeout"
+	secretBackendCommand = "./test/timeout/timeout" + binExtension
 	setCorrectRight(secretBackendCommand)
 	secretBackendTimeout = 2
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
-	require.Equal(t, "error while running './test/timeout/timeout': command timeout", err.Error())
+	require.Equal(t, "error while running './test/timeout/timeout"+binExtension+"': command timeout", err.Error())
 
 	// test simple (no error)
-	secretBackendCommand = "./test/simple/simple"
+	secretBackendCommand = "./test/simple/simple" + binExtension
 	setCorrectRight(secretBackendCommand)
 	resp, err := execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
 
 	// test error
-	secretBackendCommand = "./test/error/error"
+	secretBackendCommand = "./test/error/error" + binExtension
 	setCorrectRight(secretBackendCommand)
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 
 	// test arguments
-	secretBackendCommand = "./test/argument/argument"
+	secretBackendCommand = "./test/argument/argument" + binExtension
 	setCorrectRight(secretBackendCommand)
 	secretBackendArguments = []string{"arg1"}
 	_, err = execCommand(inputPayload)
@@ -117,19 +126,19 @@ func TestExecCommandError(t *testing.T) {
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"arg_password\"}}"), resp)
 
 	// test input
-	secretBackendCommand = "./test/input/input"
+	secretBackendCommand = "./test/input/input" + binExtension
 	setCorrectRight(secretBackendCommand)
 	resp, err = execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"input_password\"}}"), resp)
 
 	// test buffer limit
-	secretBackendCommand = "./test/response_too_long/response_too_long"
+	secretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
 	setCorrectRight(secretBackendCommand)
 	secretBackendOutputMaxSize = 20
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
-	assert.Equal(t, "error while running './test/response_too_long/response_too_long': command output was too long: exceeded 20 bytes", err.Error())
+	assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())
 }
 
 func TestFetchSecretExecError(t *testing.T) {

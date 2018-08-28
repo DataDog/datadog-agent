@@ -26,6 +26,7 @@ func TestWrongPath(t *testing.T) {
 func TestGroupOtherRights(t *testing.T) {
 	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
 	require.Nil(t, err)
+	defer os.Remove(tmpfile.Name())
 
 	// file exists
 	require.NotNil(t, checkRights("/does not exists"))
