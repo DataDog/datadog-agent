@@ -1,0 +1,86 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: stackstate-agent
+spec:
+  template:
+    metadata:
+      labels:
+        app: stackstate-agent
+      name: stackstate-agent
+    spec:
+      serviceAccountName: stackstate-agent
+      containers:
+      - image: stackstate/stackstate-agent:latest
+        imagePullPolicy: Always
+        name: stackstate-agent
+        ports:
+          - containerPort: 8125
+            # hostPort: 8125
+            name: dogstatsdport
+            protocol: UDP
+          - containerPort: 8126
+            # hostPort: 8126
+            name: traceport
+            protocol: TCP
+        env:
+          - name: DD_APM_ENABLED
+            value: "true"
+          - name: DD_API_KEY
+            value: "DUMMY_API_KEY"
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: "true"
+          - name: DD_LEADER_ELECTION
+            value: "true"
+          - name: KUBERNETES
+            value: "yes"
+          - name: DD_COLLECT_DOCKER_NETWORK
+            value: "true"
+          - name: DD_CONNECTIONS_CHECK
+            value: "true"
+          - name: DD_PROCESS_AGENT_ENABLED
+            value: "true"
+          - name: DD_PROCESS_AGENT_URL
+            value: "http://37.139.15.66:7077/stsAgent"
+          - name: DD_KUBERNETES_KUBELET_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+          - name: dockersocket
+            mountPath: /var/run/docker.sock
+          - name: procdir
+            mountPath: /host/proc
+            readOnly: true
+          - name: passwd
+            mountPath: /etc/passwd
+            readOnly: true
+          - name: cgroups
+            mountPath: /host/sys/fs/cgroup
+            readOnly: true
+        livenessProbe:
+          exec:
+            command:
+            - ./probe.sh
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+        - hostPath:
+            path: /var/run/docker.sock
+          name: dockersocket
+        - hostPath:
+            path: /proc
+          name: procdir
+        - hostPath:
+            path: /etc/passwd
+          name: passwd
+        - hostPath:
+            path: /sys/fs/cgroup
+          name: cgroups
