@@ -24,6 +24,7 @@ func init() {
 	fmap["lastErrorMessage"] = lastErrorMessage
 	fmap["pythonLoaderError"] = pythonLoaderError
 	fmap["instances"] = instances
+	fmap["status"] = displayStatus
 }
 
 const (
@@ -157,4 +158,14 @@ func instances(checks map[string]interface{}) map[string][]interface{} {
 		}
 	}
 	return instances
+}
+
+func displayStatus(check map[string]interface{}) template.HTML {
+	if check["LastError"].(string) != "" {
+		return template.HTML("[<span class=\"error\">ERROR</span>]")
+	}
+	if len(check["LastWarnings"].([]interface{})) != 0 {
+		return template.HTML("[<span class=\"warning\">WARNING</span>]")
+	}
+	return template.HTML("[<span class=\"ok\">OK</span>]")
 }

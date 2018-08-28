@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/dustin/go-humanize"
+	"github.com/fatih/color"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -32,6 +33,7 @@ func Fmap() template.FuncMap {
 		"toUnsortedList":     toUnsortedList,
 		"formatTitle":        formatTitle,
 		"add":                add,
+		"status":             status,
 	}
 }
 
@@ -166,4 +168,14 @@ func formatTitle(title string) string {
 
 	// Capitalize the first letter
 	return strings.Title(title)
+}
+
+func status(check map[string]interface{}) string {
+	if check["LastError"].(string) != "" {
+		return fmt.Sprintf("[%s]", color.RedString("ERROR"))
+	}
+	if len(check["LastWarnings"].([]interface{})) != 0 {
+		return fmt.Sprintf("[%s]", color.YellowString("WARNING"))
+	}
+	return fmt.Sprintf("[%s]", color.GreenString("OK"))
 }

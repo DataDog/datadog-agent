@@ -8,7 +8,7 @@
         {{end -}}
 
         {{- range .Checks}}
-          <span class="stat_subtitle">{{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}</span>
+          <span class="stat_subtitle">{{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }} {{status .}}</span>
           <span class="stat_subdata">
               Total Runs: {{.TotalRuns}}<br>
               Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
