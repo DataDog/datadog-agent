@@ -26,9 +26,9 @@ templates:
         keys:
           # The first match will be used. Doing that so new branches
           # use master's cache but don't pollute it back.
-          - v2-godeps-{{ .Branch }}-{{ .Revision }}-{{ checksum "Gopkg.lock" }}
-          # - v2-godeps-{{ .Branch }}-
-          # - v2-godeps-master-
+          - v2-godeps-{{ .Branch }}-{{ .Revision }}
+          - v2-godeps-{{ .Branch }}-
+          - v2-godeps-master-
     - run: &enter_venv
         name: add virtualenv to bashrc 
         command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
@@ -62,7 +62,7 @@ jobs:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
       - save_cache:
-          key: v2-godeps-{{ .Branch }}-{{ .Revision }}-{{ checksum "Gopkg.lock" }}
+          key: v2-godeps-{{ .Branch }}-{{ .Revision }}
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
             - /go/src/github.com/DataDog/datadog-agent/venv
