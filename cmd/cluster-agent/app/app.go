@@ -149,7 +149,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
-	_, err = apiserver.GetAPIClient() // make sure we can connect to the apiserver
+	apiCl, err := apiserver.GetAPIClient() // make sure we can connect to the apiserver
 	if err != nil {
 		log.Errorf("Could not connect to the apiserver: %v", err)
 	} else {
@@ -157,8 +157,17 @@ func start(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		stopCh = make(chan struct{})
-		if err := apiserver.StartControllers(le, stopCh); err != nil {
+
+		stopCh := make(chan struct{})
+		apiCl.InformerFactory.Start(stopCh)
+
+		ctx := apiserver.ControllerContext{
+			InformerFactory: apiCl.InformerFactory,
+			Client:          apiCl.Cl,
+			LeaderElector:   le,
+			StopCh:          stopCh,
+		}
+		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
 		}
 	}
@@ -204,7 +213,6 @@ func start(cmd *cobra.Command, args []string) error {
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		custommetrics.StopServer()
 	}
-	api.StopServer()
 	if stopCh != nil {
 		close(stopCh)
 	}

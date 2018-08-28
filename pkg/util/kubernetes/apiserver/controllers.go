@@ -8,8 +8,6 @@
 package apiserver
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,7 +18,7 @@ import (
 
 type controllerFuncs struct {
 	enabled func() bool
-	start   func(controllerContext) error
+	start   func(ControllerContext) error
 }
 
 var controllerCatalog = map[string]controllerFuncs{
@@ -34,33 +32,16 @@ var controllerCatalog = map[string]controllerFuncs{
 	},
 }
 
-type controllerContext struct {
-	informerFactory informers.SharedInformerFactory
-	client          kubernetes.Interface
-	leaderElector   LeaderElectorInterface
-	stopCh          chan struct{}
+type ControllerContext struct {
+	InformerFactory informers.SharedInformerFactory
+	Client          kubernetes.Interface
+	LeaderElector   LeaderElectorInterface
+	StopCh          chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
-func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
-	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
-	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(timeoutSeconds * time.Second)
-	if err != nil {
-		log.Infof("Could not get apiserver client: %v", err)
-		return err
-	}
-
-	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
-
-	ctx := controllerContext{
-		informerFactory: informerFactory,
-		client:          client,
-		leaderElector:   le,
-		stopCh:          stopCh,
-	}
-
+func StartControllers(ctx ControllerContext) error {
 	for name, cntrlFuncs := range controllerCatalog {
 		if !cntrlFuncs.enabled() {
 			log.Infof("%q is disabled", name)
@@ -71,40 +52,34 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 			log.Errorf("Error starting %q", name)
 		}
 	}
-
-	// we must start the informer factory after starting the controllers because the informer
-	// factory uses lazy initialization (delays the creation of an informer until the first
-	// time it's needed).
-	informerFactory.Start(stopCh)
-
 	return nil
 }
 
-func startMetadataController(ctx controllerContext) error {
+func startMetadataController(ctx ControllerContext) error {
 	metaController := NewMetadataController(
-		ctx.informerFactory.Core().V1().Nodes(),
-		ctx.informerFactory.Core().V1().Endpoints(),
+		ctx.InformerFactory.Core().V1().Nodes(),
+		ctx.InformerFactory.Core().V1().Endpoints(),
 	)
-	go metaController.Run(ctx.stopCh)
+	go metaController.Run(ctx.StopCh)
 
 	return nil
 }
 
-func startAutoscalersController(ctx controllerContext) error {
+func startAutoscalersController(ctx ControllerContext) error {
 	dogCl, err := hpa.NewDatadogClient()
 	if err != nil {
 		return err
 	}
 	autoscalersController, err := NewAutoscalersController(
-		ctx.client,
-		ctx.leaderElector,
+		ctx.Client,
+		ctx.LeaderElector,
 		dogCl,
-		ctx.informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
+		ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
 	if err != nil {
 		return err
 	}
-	go autoscalersController.Run(ctx.stopCh)
+	go autoscalersController.Run(ctx.StopCh)
 
 	return nil
 }
