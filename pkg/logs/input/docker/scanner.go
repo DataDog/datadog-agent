@@ -126,7 +126,7 @@ func (s *Scanner) scan() {
 				continue
 			}
 			// setup a new tailer
-			succeeded := s.setupTailer(s.cli, container, source, s.pipelineProvider.NextPipelineChan())
+			succeeded := s.setupTailer(s.cli, container, source, true, s.pipelineProvider.NextPipelineChan())
 			if !succeeded {
 				// the setup failed, let's try to tail this container in the next scan
 				continue
@@ -150,19 +150,23 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 		if _, isTailed := s.tailers[container.ID]; isTailed {
 			continue
 		}
+		c := NewContainer(container)
+		if c.GetLabel() != "" {
+			continue
+		}
 		if NewContainer(container).IsMatch(source) {
-			s.setupTailer(s.cli, container, source, s.pipelineProvider.NextPipelineChan())
+			s.setupTailer(s.cli, container, source, false, s.pipelineProvider.NextPipelineChan())
 		}
 	}
 }
 
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, outputChan chan message.Message) bool {
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", ShortContainerID(container.ID))
 	tailer := NewTailer(cli, container.ID, source, outputChan)
 
-	since, err := Since(s.registry, tailer.Identifier(), source.Provider)
+	since, err := Since(s.registry, tailer.Identifier(), tailFromBeginning)
 	if err != nil {
 		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(container.ID), err)
 	}

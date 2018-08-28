@@ -30,7 +30,7 @@ func NewContainer(container types.Container) *Container {
 // findSource returns the source that most closely matches the container,
 // if no source is found return nil
 func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
-	if label := c.getLabel(); label != "" {
+	if label := c.GetLabel(); label != "" {
 		configs, err := config.ParseJSON([]byte(label))
 		if err != nil || len(configs) == 0 {
 			log.Errorf("Could not parse docker label for container %v: %v", c.Container.ID, err)
@@ -154,8 +154,8 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 // this feature is commonly named 'ad' or 'autodicovery'.
 const configPath = "com.datadoghq.ad.logs"
 
-// getLabel returns the autodiscovery config label if it exists.
-func (c *Container) getLabel() string {
+// GetLabel returns the autodiscovery config label if it exists.
+func (c *Container) GetLabel() string {
 	label, exists := c.Labels[configPath]
 	if exists {
 		return label

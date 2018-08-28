@@ -15,7 +15,7 @@ import (
 )
 
 // Since returns the date from when logs should be collected.
-func Since(registry auditor.Registry, identifier string, provider config.Provider) (time.Time, error) {
+func Since(registry auditor.Registry, identifier string, tailFromBeginning bool) (time.Time, error) {
 	var since time.Time
 	var err error
 	offset := registry.GetOffset(identifier)
@@ -28,10 +28,10 @@ func Since(registry auditor.Registry, identifier string, provider config.Provide
 		} else {
 			since = since.Add(time.Nanosecond)
 		}
-	case provider == config.ServiceProvider:
+	case tailFromBeginning:
 		// a new service has been discovered, tail from the beginning
 		since = time.Time{}
-	case provider == config.ConfigProvider:
+	default:
 		// a new config has been discovered, tail from the end
 		since = time.Now().UTC()
 	}

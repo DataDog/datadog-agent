@@ -10,11 +10,10 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, provider config.Provider) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, tailFromBeginning bool) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -27,10 +26,10 @@ func Position(registry auditor.Registry, identifier string, provider config.Prov
 		if err != nil {
 			offset, whence = 0, io.SeekEnd
 		}
-	case provider == config.ServiceProvider:
+	case tailFromBeginning:
 		// a new service has been discovered, tail from the beginning
 		offset, whence = 0, io.SeekStart
-	case provider == config.ConfigProvider:
+	default:
 		// a new config has been discovered, tail from the end
 		offset, whence = 0, io.SeekEnd
 	}

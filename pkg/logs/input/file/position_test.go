@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 func TestPosition(t *testing.T) {
@@ -22,24 +21,24 @@ func TestPosition(t *testing.T) {
 	var offset int64
 	var whence int
 
-	offset, whence, err = Position(registry, "", config.ConfigProvider)
+	offset, whence, err = Position(registry, "", false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
-	offset, whence, err = Position(registry, "", config.ServiceProvider)
+	offset, whence, err = Position(registry, "", true)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("123456789")
-	offset, whence, err = Position(registry, "", config.ConfigProvider)
+	offset, whence, err = Position(registry, "", false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(123456789), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("foo")
-	offset, whence, err = Position(registry, "", config.ConfigProvider)
+	offset, whence, err = Position(registry, "", false)
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
