@@ -6,17 +6,17 @@ import (
 )
 
 type signature struct {
-	integration string
+	integration Integration
 	words       []string
 }
 
 // getSignatures retrieves the signatures structured
-func (i Integration) getSignatures() []signature {
+func (i IntegrationEntry) getSignatures() []signature {
 	sigs := []signature{}
 
 	for _, rawSig := range i.Signatures {
 		sigs = append(sigs, signature{
-			integration: i.Name,
+			integration: Integration{DisplayName: i.DisplayName, Name: i.Name},
 			words:       strings.FieldsFunc(strings.ToLower(rawSig), splitCmdline),
 		})
 	}

@@ -6,7 +6,7 @@ type graphMatcher struct {
 	graph *signatureGraph
 }
 
-func (m graphMatcher) Match(cmdline string) string {
+func (m graphMatcher) Match(cmdline string) Integration {
 	return m.graph.searchIntegration(cmdline)
 }
 

@@ -26,7 +26,7 @@ func main() {
     }
 
     cmd := "java org.elasticsearch.bootstrap.elasticsearch"
-    fmt.Printf("Integration: %s\n", matcher.Match(cmd))
+    fmt.Printf("Integration: %s\n", matcher.Match(cmd).Name)
     // Outputs:
     // Integration: elastic
 }

@@ -23,7 +23,7 @@ type node struct {
 	// The integration field indicates if this node actually represents a valid integration.
 	// While walking through the graph, if we reach a node whose integration != "", it means that we found
 	// a potential integration to the cmdline
-	integration string
+	integration Integration
 
 	// We use a map to link a node to its children so at which time that we try to move on the graph
 	// we can do it in a O(1) operation
@@ -34,7 +34,7 @@ type node struct {
 func buildSignatureGraph(signatures []signature) (*signatureGraph, error) {
 	graph := &signatureGraph{
 		root: &node{
-			integration: "",
+			integration: Integration{},
 			children:    make(map[string]*node),
 		},
 	}
@@ -61,7 +61,7 @@ func expandNode(n *node, sigs []signature) error {
 		word := sig.words[0]
 
 		newNode := &node{
-			integration: "",
+			integration: Integration{},
 			children:    make(map[string]*node),
 		}
 		n.children[word] = newNode
@@ -86,9 +86,9 @@ func expandNode(n *node, sigs []signature) error {
 			if s.words[0] == word {
 				toRemove = append(toRemove, i)
 
-				if len(s.words) == 1 && newNode.integration != "" && s.integration != newNode.integration {
+				if len(s.words) == 1 && newNode.integration.Name != "" && s.integration.Name != newNode.integration.Name {
 					return fmt.Errorf("Two different signatures are leading to the same node with different integration."+
-						"Current :%s with %s + %s, other %s with %s\n", sig.integration, word, sig.words, s.integration, s.words)
+						"Current :%s with %s + %s, other %s with %s\n", sig.integration.Name, word, sig.words, s.integration.Name, s.words)
 				}
 
 				// Verify if this signature has been completely processed
@@ -132,16 +132,16 @@ func splitCmdline(r rune) bool {
 	return r == '/' || unicode.IsSpace(r)
 }
 
-func (g *signatureGraph) searchIntegration(cmdline string) string {
-	integration := ""
+func (g *signatureGraph) searchIntegration(cmdline string) Integration {
+	integration := Integration{}
 	walk(g.root, strings.FieldsFunc(strings.ToLower(cmdline), splitCmdline), &integration)
 	return integration
 }
 
 // walk takes the words from a cmdline and use them to move trough the graph
-func walk(node *node, cmdline []string, integration *string) {
+func walk(node *node, cmdline []string, integration *Integration) {
 	// If we reach a node with an integration, it's potentially the cmdline integration
-	if node.integration != "" {
+	if node.integration.Name != "" {
 		*integration = node.integration
 	}
 
@@ -165,12 +165,12 @@ func bfs(n *node) {
 
 	for len(queue) > 0 {
 		actual := queue[0]
-		fmt.Printf("Node: %s \n", actual.integration)
+		fmt.Printf("Node: %s \n", actual.integration.Name)
 
 		queue = queue[1:]
 
 		for word, child := range actual.children {
-			fmt.Printf("\t%s -> %s\n", word, child.integration)
+			fmt.Printf("\t%s -> %s\n", word, child.integration.Name)
 			queue = append(queue, child)
 		}
 	}

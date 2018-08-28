@@ -2,56 +2,64 @@
 package procmatch
 
 var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
-	Integration{
-		Name: "ActiveMQ",
+	IntegrationEntry{
+		DisplayName: "ActiveMQ",
+		Name:        "activemq",
 		Signatures: []string{
 			"activemq",
 		},
 	},
-	Integration{
-		Name: "Apache",
+	IntegrationEntry{
+		DisplayName: "Apache",
+		Name:        "Apache",
 		Signatures: []string{
 			"httpd",
 			"apache",
 			"apache2",
 		},
 	},
-	Integration{
-		Name: "Cassandra",
+	IntegrationEntry{
+		DisplayName: "Cassandra",
+		Name:        "cassandra",
 		Signatures: []string{
 			"java org.apache.cassandra.service.CassandraDaemon",
 		},
 	},
-	Integration{
-		Name: "Ceph",
+	IntegrationEntry{
+		DisplayName: "Ceph",
+		Name:        "ceph",
 		Signatures: []string{
 			"ceph-mon",
 			"ceph-mgr",
 			"ceph-osd",
 		},
 	},
-	Integration{
-		Name: "Consul",
+	IntegrationEntry{
+		DisplayName: "Consul",
+		Name:        "consul",
 		Signatures: []string{
 			"consul agent",
 			"consul_agent",
 			"consul-agent",
 		},
 	},
-	Integration{
-		Name: "CouchDB",
+	IntegrationEntry{
+		DisplayName: "CouchDB",
+		Name:        "couch",
 		Signatures: []string{
 			"couchjs",
 		},
 	},
-	Integration{
-		Name: "Couchbase",
+	IntegrationEntry{
+		DisplayName: "Couchbase",
+		Name:        "couchbase",
 		Signatures: []string{
 			"beam.smp couchbase",
 		},
 	},
-	Integration{
-		Name: "Docker",
+	IntegrationEntry{
+		DisplayName: "Docker",
+		Name:        "docker_daemon",
 		Signatures: []string{
 			"dockerd",
 			"docker-containerd",
@@ -60,128 +68,148 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 			"docker-containerd-shim",
 		},
 	},
-	Integration{
-		Name: "Elasticsearch",
+	IntegrationEntry{
+		DisplayName: "Elasticsearch",
+		Name:        "elastic",
 		Signatures: []string{
 			"java org.elasticsearch.bootstrap.Elasticsearch",
 		},
 	},
-	Integration{
-		Name: "etcd",
+	IntegrationEntry{
+		DisplayName: "etcd",
+		Name:        "etcd",
 		Signatures: []string{
 			"etcd",
 		},
 	},
-	Integration{
-		Name: "fluentd",
+	IntegrationEntry{
+		DisplayName: "fluentd",
+		Name:        "fluentd",
 		Signatures: []string{
 			"td-agent",
 			"fluentd",
 			"ruby td-agent",
 		},
 	},
-	Integration{
-		Name: "Gearman",
+	IntegrationEntry{
+		DisplayName: "Gearman",
+		Name:        "gearmand",
 		Signatures: []string{
 			"gearmand",
 			"gearman",
 		},
 	},
-	Integration{
-		Name: "Gunicorn",
+	IntegrationEntry{
+		DisplayName: "Gunicorn",
+		Name:        "gunicorn",
 		Signatures: []string{
 			"gunicorn: master",
 		},
 	},
-	Integration{
-		Name: "HAProxy",
+	IntegrationEntry{
+		DisplayName: "HAProxy",
+		Name:        "haproxy",
 		Signatures: []string{
 			"haproxy",
 			"haproxy-master",
 			"haproxy-controller",
 		},
 	},
-	Integration{
-		Name: "Kafka",
+	IntegrationEntry{
+		DisplayName: "Kafka",
+		Name:        "kafka",
 		Signatures: []string{
 			"java kafka.kafka",
 		},
 	},
-	Integration{
-		Name: "Kong",
+	IntegrationEntry{
+		DisplayName: "Kong",
+		Name:        "kong",
 		Signatures: []string{
 			"kong start",
 		},
 	},
-	Integration{
-		Name: "Kyoto Tycoon",
+	IntegrationEntry{
+		DisplayName: "Kyoto Tycoon",
+		Name:        "kyototycoon",
 		Signatures: []string{
 			"ktserver",
 		},
 	},
-	Integration{
-		Name: "Lighttpd",
+	IntegrationEntry{
+		DisplayName: "Lighttpd",
+		Name:        "lighttpd",
 		Signatures: []string{
 			"lighttpd",
 		},
 	},
-	Integration{
-		Name: "Marathon",
+	IntegrationEntry{
+		DisplayName: "Marathon",
+		Name:        "marathon",
 		Signatures: []string{
 			"start --master mesos marathon",
 		},
 	},
-	Integration{
-		Name: "Memcached",
+	IntegrationEntry{
+		DisplayName: "Memcached",
+		Name:        "mcache",
 		Signatures: []string{
 			"memcached",
 		},
 	},
-	Integration{
-		Name: "Mesos Master",
+	IntegrationEntry{
+		DisplayName: "Mesos Master",
+		Name:        "mesos_master",
 		Signatures: []string{
 			"mesos-master.sh --ip=127.0.0.1 --work_dir=/var/lib/mesos",
 			"mesos-agent.sh --master --work_dir=/var/lib/mesos",
 		},
 	},
-	Integration{
-		Name: "MongoDB",
+	IntegrationEntry{
+		DisplayName: "MongoDB",
+		Name:        "mongo",
 		Signatures: []string{
 			"mongod",
 		},
 	},
-	Integration{
-		Name: "MySQL",
+	IntegrationEntry{
+		DisplayName: "MySQL",
+		Name:        "MySQL",
 		Signatures: []string{
 			"mysqld",
 		},
 	},
-	Integration{
-		Name: "Nagios",
+	IntegrationEntry{
+		DisplayName: "Nagios",
+		Name:        "nagios",
 		Signatures: []string{
 			"nagios",
 		},
 	},
-	Integration{
-		Name: "Nginx",
+	IntegrationEntry{
+		DisplayName: "Nginx",
+		Name:        "nginx",
 		Signatures: []string{
 			"nginx: master process",
 		},
 	},
-	Integration{
-		Name: "OpenStack",
+	IntegrationEntry{
+		DisplayName: "OpenStack",
+		Name:        "openstack",
 		Signatures: []string{
 			"stack.sh",
 		},
 	},
-	Integration{
-		Name: "PGBouncer",
+	IntegrationEntry{
+		DisplayName: "PGBouncer",
+		Name:        "pgbouncer",
 		Signatures: []string{
 			"pgbouncer",
 		},
 	},
-	Integration{
-		Name: "PHP-FPM",
+	IntegrationEntry{
+		DisplayName: "PHP-FPM",
+		Name:        "php_fpm",
 		Signatures: []string{
 			"php-fpm",
 			"php7.0-fpm",
@@ -193,54 +221,62 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 			"php7.0-fpm.service",
 		},
 	},
-	Integration{
-		Name: "Postfix",
+	IntegrationEntry{
+		DisplayName: "Postfix",
+		Name:        "postfix",
 		Signatures: []string{
 			"postfix start",
 			"sendmail -bd",
 		},
 	},
-	Integration{
-		Name: "Postgres",
+	IntegrationEntry{
+		DisplayName: "Postgres",
+		Name:        "postgres",
 		Signatures: []string{
 			"postgres -D",
 			"pg_ctl start -l logfile",
 			"postgres -c &#39;pg_ctl start -D -l",
 		},
 	},
-	Integration{
-		Name: "PowerDNS Recursor",
+	IntegrationEntry{
+		DisplayName: "PowerDNS Recursor",
+		Name:        "powerdns_recursor",
 		Signatures: []string{
 			"pdns_server",
 			"systemctl start pdns@",
 		},
 	},
-	Integration{
-		Name: "RabbitMQ",
+	IntegrationEntry{
+		DisplayName: "RabbitMQ",
+		Name:        "rabbitmq",
 		Signatures: []string{
 			"rabbitmq",
 		},
 	},
-	Integration{
-		Name: "Redis",
+	IntegrationEntry{
+		DisplayName: "Redis",
+		Name:        "redisdb",
 		Signatures: []string{
 			"redis-server",
 		},
 	},
-	Integration{
-		Name: "Riak CS",
+	IntegrationEntry{
+		DisplayName: "Riak CS",
+		Name:        "riakcs",
 		Signatures: []string{
 			"riak-cs start",
 		},
 	},
-	Integration{
-		Name: "Solr",
+	IntegrationEntry{
+		DisplayName: "Solr",
+		Name:        "solr",
 		Signatures: []string{
 			"solr start",
 		},
 	},
-	Integration{
-		Name: "SSH",
+	IntegrationEntry{
+		DisplayName: "SSH",
+		Name:        "ssh_check",
 		Signatures: []string{
 			"ssh",
 			"sftp",
@@ -248,40 +284,46 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 			"sshd:",
 		},
 	},
-	Integration{
-		Name: "Supervisord",
+	IntegrationEntry{
+		DisplayName: "Supervisord",
+		Name:        "supervisord",
 		Signatures: []string{
 			"python supervisord",
 			"supervisord",
 		},
 	},
-	Integration{
-		Name: "Teamcity",
+	IntegrationEntry{
+		DisplayName: "Teamcity",
+		Name:        "teamcity",
 		Signatures: []string{
 			"teamcity-server.sh",
 			"teamcity-server",
 		},
 	},
-	Integration{
-		Name: "TokuMX",
+	IntegrationEntry{
+		DisplayName: "TokuMX",
+		Name:        "tokumx",
 		Signatures: []string{
 			"mongod --config /etc/tokumx.conf",
 		},
 	},
-	Integration{
-		Name: "Tomcat",
+	IntegrationEntry{
+		DisplayName: "Tomcat",
+		Name:        "tomcat",
 		Signatures: []string{
 			"java tomcat",
 		},
 	},
-	Integration{
-		Name: "Varnish",
+	IntegrationEntry{
+		DisplayName: "Varnish",
+		Name:        "varnish",
 		Signatures: []string{
 			"service varnish start",
 		},
 	},
-	Integration{
-		Name: "ZooKeeper",
+	IntegrationEntry{
+		DisplayName: "ZooKeeper",
+		Name:        "zk",
 		Signatures: []string{
 			"zkServer.sh start",
 			"java zoo.cfg",
