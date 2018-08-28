@@ -41,7 +41,7 @@ type controllerContext struct {
 	stopCh          chan struct{}
 }
 
-// StartControllers runs the Kubernetes controllers for the Datadog Cluster Agent. This is
+// StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
 func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
@@ -62,12 +62,12 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 		stopCh:          stopCh,
 	}
 
-	for name, controllerFuncs := range controllerCatalog {
-		if !controllerFuncs.enabled() {
+	for name, cntrlFuncs := range controllerCatalog {
+		if !cntrlFuncs.enabled() {
 			log.Infof("%q is disabled", name)
 			continue
 		}
-		err := controllerFuncs.start(ctx)
+		err := cntrlFuncs.start(ctx)
 		if err != nil {
 			log.Errorf("Error starting %q", name)
 		}
