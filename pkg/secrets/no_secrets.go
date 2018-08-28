@@ -14,5 +14,5 @@ func Init(command string, arguments []string, timeout int, maxSize int) {}
 
 // Decrypt placeholder when compiled without the 'secrets' build tag
 func Decrypt(data []byte) ([]byte, error) {
-	return nil, nil
+	return data, nil
 }
