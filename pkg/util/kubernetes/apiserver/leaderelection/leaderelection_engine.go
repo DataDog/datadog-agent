@@ -8,8 +8,9 @@
 package leaderelection
 
 import (
-	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	json "github.com/json-iterator/go"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,8 +18,6 @@ import (
 	ld "k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func (le *LeaderEngine) getCurrentLeader() (string, *v1.ConfigMap, error) {

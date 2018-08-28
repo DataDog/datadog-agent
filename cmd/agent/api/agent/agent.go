@@ -9,12 +9,12 @@
 package agent
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
 
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"

@@ -123,16 +123,16 @@ func TestZKGetTemplates(t *testing.T) {
 	assert.Len(t, res[0].ADIdentifiers, 1)
 	assert.Equal(t, "/config/", res[0].ADIdentifiers[0])
 	assert.Equal(t, "first_name", res[0].Name)
-	assert.Equal(t, "{\"a\":\"b\"}", string(res[0].InitConfig))
+	assert.JSONEq(t, "{\"a\":\"b\"}", string(res[0].InitConfig))
 	require.Len(t, res[0].Instances, 1)
-	assert.Equal(t, "{\"test\":21,\"test2\":\"data\"}", string(res[0].Instances[0]))
+	assert.JSONEq(t, "{\"test\":21,\"test2\":\"data\"}", string(res[0].Instances[0]))
 
 	assert.Len(t, res[1].ADIdentifiers, 1)
 	assert.Equal(t, "/config/", res[1].ADIdentifiers[0])
 	assert.Equal(t, "second_name", res[1].Name)
-	assert.Equal(t, "{}", string(res[1].InitConfig))
+	assert.JSONEq(t, "{}", string(res[1].InitConfig))
 	require.Len(t, res[1].Instances, 1)
-	assert.Equal(t, "{\"data1\":\"21\",\"data2\":{\"number\":21}}", string(res[1].Instances[0]))
+	assert.JSONEq(t, "{\"data1\":\"21\",\"data2\":{\"number\":21}}", string(res[1].Instances[0]))
 }
 
 func TestZKCollect(t *testing.T) {
@@ -160,23 +160,23 @@ func TestZKCollect(t *testing.T) {
 	assert.Len(t, res[0].ADIdentifiers, 1)
 	assert.Equal(t, "/datadog/check_configs/config_folder_1", res[0].ADIdentifiers[0])
 	assert.Equal(t, "first_name", res[0].Name)
-	assert.Equal(t, "{}", string(res[0].InitConfig))
+	assert.JSONEq(t, "{}", string(res[0].InitConfig))
 	require.Len(t, res[0].Instances, 1)
-	assert.Equal(t, "{}", string(res[0].Instances[0]))
+	assert.JSONEq(t, "{}", string(res[0].Instances[0]))
 
 	assert.Len(t, res[1].ADIdentifiers, 1)
 	assert.Equal(t, "/datadog/check_configs/config_folder_1", res[1].ADIdentifiers[0])
 	assert.Equal(t, "second_name", res[1].Name)
-	assert.Equal(t, "{}", string(res[1].InitConfig))
+	assert.JSONEq(t, "{}", string(res[1].InitConfig))
 	require.Len(t, res[1].Instances, 1)
-	assert.Equal(t, "{}", string(res[1].Instances[0]))
+	assert.JSONEq(t, "{}", string(res[1].Instances[0]))
 
 	assert.Len(t, res[2].ADIdentifiers, 1)
 	assert.Equal(t, "/datadog/check_configs/config_folder_2", res[2].ADIdentifiers[0])
 	assert.Equal(t, "third_name", res[2].Name)
-	assert.Equal(t, "{}", string(res[2].InitConfig))
+	assert.JSONEq(t, "{}", string(res[2].InitConfig))
 	require.Len(t, res[2].Instances, 1)
-	assert.Equal(t, "{}", string(res[2].Instances[0]))
+	assert.JSONEq(t, "{}", string(res[2].Instances[0]))
 }
 
 func TestZKIsUpToDate(t *testing.T) {

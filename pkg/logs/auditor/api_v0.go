@@ -6,10 +6,11 @@
 package auditor
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
+
+	json "github.com/json-iterator/go"
 )
 
 // v0: In the first version of the auditor, we were only recording file offsets

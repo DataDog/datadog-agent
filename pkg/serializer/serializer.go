@@ -6,7 +6,6 @@
 package serializer
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -16,8 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	json "github.com/json-iterator/go"
 )
 
 const (

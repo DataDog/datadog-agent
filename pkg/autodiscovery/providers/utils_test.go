@@ -16,6 +16,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
+// testing helper function to retrieve configuration from a list of configs
+func getConfigByName(configs []integration.Config, name string, adIdentifiers []string) *integration.Config {
+	for _, config := range configs {
+		if config.Name == name {
+			match := true
+			for i, identifier := range config.ADIdentifiers {
+				if identifier != adIdentifiers[i] {
+					match = false
+					break
+				}
+			}
+			if match {
+				return &config
+			}
+		}
+	}
+
+	return nil
+}
+
 func TestParseJSONValue(t *testing.T) {
 	// empty value
 	res, err := parseJSONValue("")
@@ -43,8 +63,8 @@ func TestParseJSONValue(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, res)
 	require.Len(t, res, 2)
-	assert.Equal(t, integration.Data("{\"test\":1}"), res[0])
-	assert.Equal(t, integration.Data("{\"test\":2}"), res[1])
+	assert.JSONEq(t, string(integration.Data("{\"test\":1}")), string(res[0]))
+	assert.JSONEq(t, string(integration.Data("{\"test\":2}")), string(res[1]))
 }
 
 func TestParseCheckNames(t *testing.T) {
@@ -106,13 +126,13 @@ func TestBuildTemplates(t *testing.T) {
 	assert.Len(t, res[0].ADIdentifiers, 1)
 	assert.Equal(t, "id", res[0].ADIdentifiers[0])
 	assert.Equal(t, res[0].Name, "a")
-	assert.Equal(t, res[0].InitConfig, integration.Data("{\"test\": 1}"))
+	assert.JSONEq(t, string(res[0].InitConfig), string(integration.Data("{\"test\": 1}")))
 	assert.Equal(t, res[0].Instances, []integration.Data{integration.Data("{}")})
 
 	assert.Len(t, res[1].ADIdentifiers, 1)
 	assert.Equal(t, "id", res[1].ADIdentifiers[0])
 	assert.Equal(t, res[1].Name, "b")
-	assert.Equal(t, res[1].InitConfig, integration.Data("{}"))
+	assert.JSONEq(t, string(res[1].InitConfig), string(integration.Data("{}")))
 	assert.Equal(t, res[1].Instances, []integration.Data{integration.Data("{1:2}")})
 }
 
@@ -206,7 +226,20 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
 			configs, err := extractTemplatesFromMap(tc.adIdentifier, tc.source, tc.prefix)
-			assert.EqualValues(tc.output, configs)
+
+			for _, config := range configs {
+				expectedCfg := getConfigByName(tc.output, config.Name, []string{tc.adIdentifier})
+				require.NotNil(t, expectedCfg)
+
+				assert.Equal(expectedCfg.Name, config.Name)
+				assert.EqualValues(expectedCfg.ADIdentifiers, []string{tc.adIdentifier})
+				assert.JSONEq(string(expectedCfg.InitConfig), string(config.InitConfig))
+
+				// NOTE: this could break if Instances has a different order
+				for jdx, instance := range config.Instances {
+					assert.JSONEq(string(expectedCfg.Instances[jdx]), string(instance))
+				}
+			}
 
 			if tc.err == nil {
 				assert.Nil(err)

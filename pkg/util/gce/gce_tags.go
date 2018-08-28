@@ -8,9 +8,10 @@
 package gce
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
+
+	json "github.com/json-iterator/go"
 )
 
 // Slice of attributes to exclude from the tags (because they're too long, useless or sensitive)

@@ -7,7 +7,7 @@ package app
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json" // Not intensively called, no need for jsoniter
 	"fmt"
 	"io/ioutil"
 
@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+
 	"github.com/spf13/cobra"
 )
 

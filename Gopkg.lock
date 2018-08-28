@@ -607,11 +607,12 @@
   revision = "0b12d6b5"
 
 [[projects]]
-  digest = "1:31c6f3c4f1e15fcc24fcfc9f5f24603ff3963c56d6fa162116493b4025fb6acc"
+  digest = "1:b79fc583e4dc7055ed86742e22164ac41bf8c0940722dbcb600f1a3ace1a8cb5"
   name = "github.com/json-iterator/go"
   packages = ["."]
   pruneopts = ""
-  revision = "f2b4162afba35581b6d4a50d3b8f34e33c144682"
+  revision = "1624edc4454b8682399def8740d46db5e4362ba4"
+  version = "v1.1.5"
 
 [[projects]]
   digest = "1:bf3f3d50a823d94ff1042d76d30ef35be1c12f133ca1c0699b2126c6307abaa3"
@@ -1604,6 +1605,7 @@
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
+    "github.com/json-iterator/go",
     "github.com/k-sone/snmpgo",
     "github.com/kardianos/osext",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server",
@@ -1626,6 +1628,7 @@
     "github.com/shirou/gopsutil/mem",
     "github.com/shirou/gopsutil/process",
     "github.com/shirou/w32",
+    "github.com/spf13/afero",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
     "github.com/spf13/viper",
