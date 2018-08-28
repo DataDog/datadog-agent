@@ -52,7 +52,10 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 		stopCh:          stopCh,
 	}
 
-	enabledControllers := sets.NewString("metadata") // always enabled
+	enabledControllers := sets.NewString()
+	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
+		enabledControllers.Insert("metadata")
+	}
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		enabledControllers.Insert("autoscalers")
 	}
