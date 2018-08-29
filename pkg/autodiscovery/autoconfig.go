@@ -241,7 +241,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 			// set config's provider and origin
 			config.Provider = pd.provider.String()
 			config.Origin = integration.NewConfig
-			rc := ac.storeAndResolve(config)
+			rc := ac.processNewConfig(config)
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 	}
@@ -254,8 +254,8 @@ func (ac *AutoConfig) schedule(configs []integration.Config) {
 	ac.scheduler.Schedule(configs)
 }
 
-// storeAndResolve store (in template cache) and resolves a given config into a slice of resolved configs
-func (ac *AutoConfig) storeAndResolve(config integration.Config) []integration.Config {
+// processNewConfig store (in template cache) and resolves a given config into a slice of resolved configs
+func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.Config {
 	var configs []integration.Config
 
 	// add default metrics to collect to JMX checks
@@ -507,7 +507,7 @@ func (ac *AutoConfig) pollConfigs() {
 						// set config's provider and origin
 						config.Provider = pd.provider.String()
 						config.Origin = integration.NewConfig
-						resolvedConfigs := ac.storeAndResolve(config)
+						resolvedConfigs := ac.processNewConfig(config)
 						ac.schedule(resolvedConfigs)
 					}
 				}
@@ -688,6 +688,17 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})
+	}
+	if len(templates) == 0 {
+		ac.schedule([]integration.Config{
+			// FIXME: send all the new services to the logs package for now because the logs package is still
+			// responsible for filtering out containers, as soon as we drop the docker filters in logs configs,
+			// we'll only use `logs_config.container_collect_all` to filer on services.
+			{
+				LogsConfig: integration.Data{},
+				Entity:     svc.GetEntity(),
+			},
+		})
 	}
 }
 

@@ -46,6 +46,7 @@ type Config struct {
 	LogsConfig    Data     `json:"logs"`           // the logs config in Yaml (logs-agent only)
 	ADIdentifiers []string `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
 	Provider      string   `json:"provider"`       // the provider that issued the config
+	Entity        string   `json:"-"`              // the id of the entity (optional)
 	ClusterCheck  bool     `json:"-"`              // cluster-check configuration flag, don't expose in JSON
 	Origin        Origin   `json:"-"`              // configuration's origin
 }
