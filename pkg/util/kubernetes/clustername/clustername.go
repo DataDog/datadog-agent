@@ -11,34 +11,46 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var (
+type clusterNameData struct {
 	clusterName string
-	initDone    = false
-	mutex       = &sync.Mutex{}
-)
+	initDone    bool
+	mutex       *sync.Mutex
+}
 
-func autoDiscoverClusterName() {
-	// TODO
+func newClusterNameData() *clusterNameData {
+	return &clusterNameData{
+		clusterName: "",
+		initDone:    false,
+		mutex:       &sync.Mutex{},
+	}
+}
+
+var defaultClusterNameData *clusterNameData
+
+func init() {
+	defaultClusterNameData = newClusterNameData()
+}
+
+func getClusterName(data *clusterNameData) string {
+	data.mutex.Lock()
+	defer data.mutex.Unlock()
+
+	if !data.initDone {
+		data.clusterName = config.Datadog.GetString("cluster_name")
+		// TODO: autodiscover clustername through k8s providers' API
+		data.initDone = true
+	}
+	return data.clusterName
 }
 
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
 func GetClusterName() string {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if !initDone {
-		clusterName = config.Datadog.GetString("cluster_name")
-		if clusterName == "" {
-			autoDiscoverClusterName()
-		}
-		initDone = true
-	}
-	return clusterName
+	return getClusterName(defaultClusterNameData)
 }
 
 // ResetClusterName resets the clustername, which allows it to be detected again. Used for tests
 func ResetClusterName() {
-	mutex.Lock()
-	defer mutex.Unlock()
-	initDone = false
+	defaultClusterNameData.mutex.Lock()
+	defer defaultClusterNameData.mutex.Unlock()
+	defaultClusterNameData.initDone = false
 }
