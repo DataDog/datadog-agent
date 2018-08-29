@@ -157,10 +157,7 @@ func start(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-
 		stopCh := make(chan struct{})
-		apiCl.InformerFactory.Start(stopCh)
-
 		ctx := apiserver.ControllerContext{
 			InformerFactory: apiCl.InformerFactory,
 			Client:          apiCl.Cl,

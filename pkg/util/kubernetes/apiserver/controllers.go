@@ -52,6 +52,12 @@ func StartControllers(ctx ControllerContext) error {
 			log.Errorf("Error starting %q", name)
 		}
 	}
+
+	// we must start the informer factory after starting the controllers because the informer
+	// factory uses lazy initialization (delays the creation of an informer until the first
+	// time it's needed).
+	ctx.InformerFactory.Start(ctx.StopCh)
+
 	return nil
 }
 
