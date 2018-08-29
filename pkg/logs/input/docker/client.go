@@ -11,6 +11,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 )
@@ -59,4 +61,21 @@ func computeClientAPIVersion(serverVersion string) (string, error) {
 		return serverVersion, nil
 	}
 	return maxVersion, nil
+}
+
+// GetContainer returns the container matching id,
+// if it does not exist, returns an error.
+func GetContainer(client *client.Client, id string) (types.Container, error) {
+	args := filters.NewArgs()
+	args.Add("id", id)
+	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{
+		Filters: args,
+	})
+	if err != nil {
+		return types.Container{}, err
+	}
+	if len(containers) != 1 {
+		return types.Container{}, fmt.Errorf("no container matches id: %v", id)
+	}
+	return containers[0], nil
 }
