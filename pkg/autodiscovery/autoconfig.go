@@ -681,6 +681,7 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 		}
 		templates = append(templates, tpls...)
 	}
+
 	for _, template := range templates {
 		// resolve the template
 		resolvedConfig, err := ac.resolveTemplateForService(template, svc)
@@ -694,17 +695,16 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})
 	}
-	if len(templates) == 0 {
-		ac.schedule([]integration.Config{
-			// FIXME: send all the new services to the logs package for now because the logs package is still
-			// responsible for filtering out containers, as soon as we drop the docker filters in logs configs,
-			// we'll only use `logs_config.container_collect_all` to filer on services.
-			{
-				LogsConfig: integration.Data{},
-				Entity:     svc.GetEntity(),
-			},
-		})
-	}
+	// FIXME: send all the new services to the logs package for now because the logs package is still
+	// responsible for filtering out containers, as soon as we drop the docker filters in logs configs,
+	// we'll only use `logs_config.container_collect_all` to filer on services.
+	ac.schedule([]integration.Config{
+		{
+			LogsConfig: integration.Data{},
+			Entity:     svc.GetEntity(),
+		},
+	})
+
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
