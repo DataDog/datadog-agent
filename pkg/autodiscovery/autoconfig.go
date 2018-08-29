@@ -700,8 +700,9 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// we'll only use `logs_config.container_collect_all` to filer on services.
 	ac.schedule([]integration.Config{
 		{
-			LogsConfig: integration.Data{},
-			Entity:     svc.GetEntity(),
+			LogsConfig:   integration.Data{},
+			Entity:       svc.GetEntity(),
+			CreationTime: svc.GetCreationTime(),
 		},
 	})
 

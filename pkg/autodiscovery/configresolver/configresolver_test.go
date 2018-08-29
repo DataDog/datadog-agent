@@ -27,6 +27,7 @@ type dummyService struct {
 	Ports         []listeners.ContainerPort
 	Pid           int
 	Hostname      string
+	CreationTime  integration.CreationTime
 }
 
 // GetEntity returns the service entity name
@@ -62,6 +63,11 @@ func (s *dummyService) GetPid() (int, error) {
 // GetHostname return a dummy hostname
 func (s *dummyService) GetHostname() (string, error) {
 	return s.Hostname, nil
+}
+
+// GetCreationTime return a dummy creation time
+func (s *dummyService) GetCreationTime() integration.CreationTime {
+	return s.CreationTime
 }
 
 func TestParseTemplateVar(t *testing.T) {

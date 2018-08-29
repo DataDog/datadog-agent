@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -44,6 +45,7 @@ type KubeContainerService struct {
 	adIdentifiers []string
 	hosts         map[string]string
 	ports         []ContainerPort
+	creationTime  integration.CreationTime
 }
 
 func init() {
@@ -71,6 +73,13 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 
 	go func() {
 		for {
+			pods, err := l.watcher.PullChanges()
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			l.processNewPods(pods, true)
+
 			select {
 			case <-l.stop:
 				l.health.Deregister()
@@ -83,12 +92,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 					log.Error(err)
 					continue
 				}
-				for _, pod := range updatedPods {
-					// Ignore pending/failed/succeeded/unknown states
-					if pod.Status.Phase == "Running" {
-						l.processNewPod(pod)
-					}
-				}
+				l.processNewPods(updatedPods, false)
 				// Compute deleted pods
 				expiredContainerList, err := l.watcher.Expire()
 				if err != nil {
@@ -108,15 +112,27 @@ func (l *KubeletListener) Stop() {
 	l.stop <- true
 }
 
-func (l *KubeletListener) processNewPod(pod *kubelet.Pod) {
-	for _, container := range pod.Status.Containers {
-		l.createService(container.ID, pod)
+func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, start bool) {
+	for _, pod := range pods {
+		// Ignore pending/failed/succeeded/unknown states
+		if pod.Status.Phase == "Running" {
+			for _, container := range pod.Status.Containers {
+				l.createService(container.ID, pod, start)
+			}
+		}
 	}
 }
 
-func (l *KubeletListener) createService(entity string, pod *kubelet.Pod) {
+func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, start bool) {
+	var crTime integration.CreationTime
+	if start {
+		crTime = integration.Before
+	} else {
+		crTime = integration.After
+	}
 	svc := KubeContainerService{
-		entity: entity,
+		entity:       entity,
+		creationTime: crTime,
 	}
 	podName := pod.Metadata.Name
 
@@ -247,4 +263,9 @@ func (s *KubeContainerService) GetTags() ([]string, error) {
 // GetHostname returns nil and an error because port is not supported in Kubelet
 func (s *KubeContainerService) GetHostname() (string, error) {
 	return "", ErrNotSupported
+}
+
+// GetCreationTime returns the creation time of the container compare to the agent start.
+func (s *KubeContainerService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
 }

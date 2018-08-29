@@ -37,18 +37,29 @@ const (
 	NewConfig
 )
 
+// CreationTime represents the moment when the service was launched compare to the agent start.
+type CreationTime int
+
+const (
+	// Before indicates the service was launched before the agent start
+	Before CreationTime = iota
+	// After indicates the service was launched after the agent start
+	After
+)
+
 // Config is a generic container for configuration files
 type Config struct {
-	Name          string   `json:"check_name"`     // the name of the check
-	Instances     []Data   `json:"instances"`      // array of Yaml configurations
-	InitConfig    Data     `json:"init_config"`    // the init_config in Yaml (python check only)
-	MetricConfig  Data     `json:"metric_config"`  // the metric config in Yaml (jmx check only)
-	LogsConfig    Data     `json:"logs"`           // the logs config in Yaml (logs-agent only)
-	ADIdentifiers []string `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
-	Provider      string   `json:"provider"`       // the provider that issued the config
-	Entity        string   `json:"-"`              // the id of the entity (optional)
-	ClusterCheck  bool     `json:"-"`              // cluster-check configuration flag, don't expose in JSON
-	Origin        Origin   `json:"-"`              // configuration's origin
+	Name          string       `json:"check_name"`     // the name of the check
+	Instances     []Data       `json:"instances"`      // array of Yaml configurations
+	InitConfig    Data         `json:"init_config"`    // the init_config in Yaml (python check only)
+	MetricConfig  Data         `json:"metric_config"`  // the metric config in Yaml (jmx check only)
+	LogsConfig    Data         `json:"logs"`           // the logs config in Yaml (logs-agent only)
+	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
+	Provider      string       `json:"provider"`       // the provider that issued the config
+	Entity        string       `json:"-"`              // the id of the entity (optional)
+	ClusterCheck  bool         `json:"-"`              // cluster-check configuration flag, don't expose in JSON
+	Origin        Origin       `json:"-"`              // configuration's origin
+	CreationTime  CreationTime `json:"-"`              // creation time of service
 }
 
 // Equal determines whether the passed config is the same

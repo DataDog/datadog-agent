@@ -8,6 +8,7 @@ package listeners
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,13 +25,14 @@ type ContainerPort struct {
 // It should be matched with a check template by the ConfigResolver using the
 // ADIdentifiers field.
 type Service interface {
-	GetEntity() string                    // unique entity name
-	GetADIdentifiers() ([]string, error)  // identifiers on which templates will be matched
-	GetHosts() (map[string]string, error) // network --> IP address
-	GetPorts() ([]ContainerPort, error)   // network ports
-	GetTags() ([]string, error)           // tags
-	GetPid() (int, error)                 // process identifier
-	GetHostname() (string, error)         // hostname.domainname for the entity
+	GetEntity() string                         // unique entity name
+	GetADIdentifiers() ([]string, error)       // identifiers on which templates will be matched
+	GetHosts() (map[string]string, error)      // network --> IP address
+	GetPorts() ([]ContainerPort, error)        // network ports
+	GetTags() ([]string, error)                // tags
+	GetPid() (int, error)                      // process identifier
+	GetHostname() (string, error)              // hostname.domainname for the entity
+	GetCreationTime() integration.CreationTime // creation time of the service
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling
