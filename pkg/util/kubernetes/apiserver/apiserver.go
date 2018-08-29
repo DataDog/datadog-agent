@@ -17,6 +17,7 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -48,6 +49,9 @@ const (
 // APIClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
+	// InformerFactory gives access to informers.
+	InformerFactory informers.SharedInformerFactory
+
 	// used to setup the APIClient
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
@@ -98,6 +102,17 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(clientConfig)
 }
 
+func getInformerFactory() (informers.SharedInformerFactory, error) {
+	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getKubeClient(timeoutSeconds * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+}
+
 func (c *APIClient) connect() error {
 	var err error
 	c.Cl, err = getKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
@@ -105,6 +120,13 @@ func (c *APIClient) connect() error {
 		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
+
+	// informer factory uses its own clientset with a larger timeout
+	c.InformerFactory, err = getInformerFactory()
+	if err != nil {
+		return err
+	}
+
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
 	if APIversion.Empty() {
