@@ -213,9 +213,9 @@ func (h *AutoscalersController) gc() {
 		return
 	}
 
-	deleted := hpa.ComputeDeleteExternalMetrics(list, emList)
+	deleted := hpa.DiffExternalMetrics(list, emList)
 	if h.store.DeleteExternalMetricValues(deleted); err != nil {
-		log.Errorf("Could not delete the external metrics in the store: %v")
+		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
 	}
 	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
@@ -298,12 +298,12 @@ func (h *AutoscalersController) updateAutoscaler(_, obj interface{}) {
 // Processing the Delete Events in the Eventhandler as obj is deleted from the local store thereafter.
 // Only here can we retrieve the content of the HPA to properly process and delete it.
 func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
-	hpa, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+	deletedHPA, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if ok {
-		log.Debugf("Deleting Metrics from HPA %s/%s", hpa.Namespace, hpa.Name)
-		toDelete := h.hpaProc.ProcessHPAs(hpa)
+		log.Debugf("Deleting Metrics from HPA %s/%s", deletedHPA.Namespace, deletedHPA.Name)
+		toDelete := hpa.Inspect(deletedHPA)
 		h.store.DeleteExternalMetricValues(toDelete)
-		h.queue.Done(hpa)
+		h.queue.Done(deletedHPA)
 		return
 	}
 
@@ -313,16 +313,16 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 		return
 	}
 
-	autoscaler, ok := tombstone.Obj.(*autoscalingv2.HorizontalPodAutoscaler)
+	deletedHPA, ok = tombstone.Obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if !ok {
 		log.Errorf("Tombstone contained object that is not an Autoscaler: %#v", obj)
 		return
 	}
 
-	log.Debugf("Deleting Metrics from HPA %s/%s", hpa.Namespace, hpa.Name)
-	toDelete := h.hpaProc.ProcessHPAs(autoscaler)
+	log.Debugf("Deleting Metrics from HPA %s/%s", deletedHPA.Namespace, deletedHPA.Name)
+	toDelete := hpa.Inspect(deletedHPA)
 	h.store.DeleteExternalMetricValues(toDelete)
-	h.queue.Done(hpa)
+	h.queue.Done(deletedHPA)
 }
 
 func (h *AutoscalersController) enqueue(obj interface{}) {

@@ -234,7 +234,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 			namespace := address.TargetRef.Namespace
 			podName := address.TargetRef.Name
 			if podName == "" || namespace == "" {
-				log.Tracef("Incomplete reference for object %s/%s on service %s/%s, skipping",
+				log.Tracef("Incomplete reference for object %s on service %s/%s, skipping",
 					address.TargetRef.UID, endpoints.Namespace, endpoints.Name)
 				continue
 			}
