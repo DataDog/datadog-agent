@@ -53,7 +53,6 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 	}
 
 	informerFactory := informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second)
-	informerFactory.Start(stopCh)
 
 	ctx := controllerContext{
 		informerFactory: informerFactory,
@@ -72,6 +71,11 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 			log.Errorf("Error starting %q", name)
 		}
 	}
+
+	// we must start the informer factory after starting the controllers because the informer
+	// factory uses lazy initialization (delays the creation of an informer until the first
+	// time it's needed).
+	informerFactory.Start(stopCh)
 
 	return nil
 }
