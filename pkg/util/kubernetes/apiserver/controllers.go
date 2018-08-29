@@ -72,8 +72,9 @@ func StartControllers(le LeaderElectorInterface, stopCh chan struct{}) error {
 		}
 	}
 
-	// we must start the informer factory after starting controllers because the informers
-	// are created lazily.
+	// we must start the informer factory after starting the controllers because the informer
+	// factory uses lazy initialization (delays the creation of an informer until the first
+	// time it's needed).
 	informerFactory.Start(stopCh)
 
 	return nil
