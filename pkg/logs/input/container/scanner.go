@@ -20,11 +20,9 @@ import (
 // by default returns a docker scanner unless it could not be set up properly,
 // in which case returns a kubernetes scanner if `logs_config.containers_all` is set to true.
 func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) (restart.Restartable, error) {
-	var scanner restart.Restartable
-	var err error
 	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
 		// attempt to initialize a docker scanner
-		scanner, err = docker.NewScanner(sources, pipelineProvider, registry)
+		launcher, err := docker.NewLauncher(sources, pipelineProvider, registry)
 		if err == nil {
 			source := config.NewLogSource("container_collect_all", &config.LogsConfig{
 				Type:    config.DockerType,
@@ -32,21 +30,21 @@ func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, 
 				Source:  "docker",
 			})
 			sources.AddSource(source)
-			return scanner, nil
+			return launcher, nil
 		}
 		// attempt to initialize a kubernetes scanner
 		log.Warnf("Could not setup the docker scanner, falling back to the kubernetes one: %v", err)
-		scanner, err = kubernetes.NewScanner(sources)
+		scanner, err := kubernetes.NewScanner(sources)
 		if err == nil {
 			return scanner, nil
 		}
 		log.Warnf("Could not setup the kubernetes scanner: %v", err)
 		return nil, err
 	}
-	scanner, err = docker.NewScanner(sources, pipelineProvider, registry)
+	launcher, err := docker.NewLauncher(sources, pipelineProvider, registry)
 	if err != nil {
 		log.Warnf("Could not setup the docker scanner: %v", err)
 		return nil, err
 	}
-	return scanner, nil
+	return launcher, nil
 }
