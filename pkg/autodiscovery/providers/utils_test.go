@@ -278,6 +278,10 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 				expectedCfg := getConfigByName(tc.output, config.Name, []string{tc.adIdentifier})
 				require.NotNil(t, expectedCfg)
 
+				if expectedCfg.LogsConfig != nil {
+					assert.JSONEq(string(expectedCfg.LogsConfig), string(config.LogsConfig))
+					continue
+				}
 				assert.Equal(expectedCfg.Name, config.Name)
 				assert.EqualValues(expectedCfg.ADIdentifiers, []string{tc.adIdentifier})
 				assert.JSONEq(string(expectedCfg.InitConfig), string(config.InitConfig))

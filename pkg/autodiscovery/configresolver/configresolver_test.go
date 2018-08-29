@@ -135,6 +135,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.1")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -153,6 +154,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.2")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -171,6 +173,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.5")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -189,6 +192,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.3")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -207,6 +211,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: 127.0.0.4")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -220,6 +225,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: %%host%%")},
+				Entity:        "a5901276aed1",
 			},
 			errorString: "no network found for container a5901276aed1, ignoring it",
 		},
@@ -240,6 +246,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("port: 3")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -258,6 +265,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("port: 1")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -276,6 +284,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("port: 2")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -337,6 +346,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("test: test_value")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		{
@@ -383,6 +393,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("test: imhere")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		//// other tags testing
@@ -402,6 +413,7 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("pid: 1337\ntags:\n- foo\n")},
+				Entity:        "a5901276aed1",
 			},
 		},
 		//// unknown tag
