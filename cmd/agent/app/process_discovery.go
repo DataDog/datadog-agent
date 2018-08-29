@@ -159,5 +159,13 @@ func prettifyCmd(cmd string) string {
 	}
 
 	fields[0] = color.BlueString(fields[0])
+
+	for i := 0; i < len(fields); i++ {
+		// CLI option
+		if strings.HasPrefix(fields[i], "-") {
+			fields[i] = color.CyanString(fields[i])
+		}
+	}
+
 	return strings.Join(fields, " ")
 }
