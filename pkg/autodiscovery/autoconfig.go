@@ -254,6 +254,11 @@ func (ac *AutoConfig) schedule(configs []integration.Config) {
 	ac.scheduler.Schedule(configs)
 }
 
+// unschedule takes a slice of configs and unschedule them
+func (ac *AutoConfig) unschedule(configs []integration.Config) {
+	ac.scheduler.Unschedule(configs)
+}
+
 // processNewConfig store (in template cache) and resolves a given config into a slice of resolved configs
 func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.Config {
 	var configs []integration.Config
@@ -709,4 +714,12 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	ac.store.removeConfigsForService(svc.GetEntity())
 	ac.processRemovedConfigs(configs)
 	ac.store.removeTagsHashForService(svc.GetEntity())
+	// FIXME: as soon as we have deprecated the filter parameters in the logs configuration,
+	// we'll need to check first if `logs_config.container_collect_all` is enabled.
+	ac.unschedule([]integration.Config{
+		{
+			LogsConfig: integration.Data{},
+			Entity:     svc.GetEntity(),
+		},
+	})
 }
