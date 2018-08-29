@@ -394,6 +394,8 @@ agent_android_apk:
     - cd $SRC_PATH
     - pip install -U pip
     - inv -e deps --android
+    # go dep 0.5.0 is vendoring the github.com/DataDog/datadog-agent pkg too, remove it
+    - if [ -d "$SRC_PATH/vendor/github.com/DataDog/datadog-agent" ]; then rm -rf $SRC_PATH/vendor/github.com/DataDog/datadog-agent; fi
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
