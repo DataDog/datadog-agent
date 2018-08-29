@@ -18,11 +18,7 @@ type clusterNameData struct {
 }
 
 func newClusterNameData() *clusterNameData {
-	return &clusterNameData{
-		clusterName: "",
-		initDone:    false,
-		mutex:       &sync.Mutex{},
-	}
+	return &clusterNameData{}
 }
 
 var defaultClusterNameData *clusterNameData
@@ -48,9 +44,13 @@ func GetClusterName() string {
 	return getClusterName(defaultClusterNameData)
 }
 
+func resetClusterName(data *clusterNameData) {
+	data.mutex.Lock()
+	defer data.mutex.Unlock()
+	data.initDone = false
+}
+
 // ResetClusterName resets the clustername, which allows it to be detected again. Used for tests
 func ResetClusterName() {
-	defaultClusterNameData.mutex.Lock()
-	defer defaultClusterNameData.mutex.Unlock()
-	defaultClusterNameData.initDone = false
+	resetClusterName(defaultClusterNameData)
 }
