@@ -434,7 +434,13 @@ func Load() error {
 	}
 
 	loadProxyFromEnv()
+	sanitizeAPIKey()
 	return nil
+}
+
+// Avoid log ingestion breaking because of a newline in the API key
+func sanitizeAPIKey() {
+	Datadog.Set("api_key", strings.TrimSpace(Datadog.GetString("api_key")))
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config

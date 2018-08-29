@@ -344,3 +344,21 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_NO_PROXY")
 	Datadog.Set("proxy", nil)
 }
+
+func TestSanitizeAPIKey(t *testing.T) {
+	Datadog.Set("api_key", "foo")
+	sanitizeAPIKey()
+	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+
+	Datadog.Set("api_key", "foo\n")
+	sanitizeAPIKey()
+	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+
+	Datadog.Set("api_key", "foo\n\n")
+	sanitizeAPIKey()
+	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+
+	Datadog.Set("api_key", " \n  foo   \n")
+	sanitizeAPIKey()
+	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+}
