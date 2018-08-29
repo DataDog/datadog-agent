@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -87,6 +88,11 @@ func requestDiscoveredIntegrations() error {
 		fmt.Println("")
 	}
 
+	if len(discovered) == 0 {
+		fmt.Println("There was no new integration found.")
+		return nil
+	}
+
 	for integration, processes := range discovered {
 		_, isRunning := running[integration]
 		_, isFailing := failing[integration]
@@ -95,7 +101,7 @@ func requestDiscoveredIntegrations() error {
 		if !(isRunning || isFailing) {
 			fmt.Fprintln(color.Output, fmt.Sprintf("Discovered '%s' for processes:", color.GreenString(integration)))
 			for _, proc := range processes {
-				fmt.Fprintln(color.Output, fmt.Sprintf("\t- %s", color.BlueString(proc.Cmd)))
+				fmt.Fprintln(color.Output, fmt.Sprintf("\t- %s", prettifyCmd(proc.Cmd)))
 			}
 			fmt.Println("")
 		}
@@ -138,4 +144,15 @@ func requestIntegrations(c *http.Client) (map[string]struct{}, map[string]struct
 	}
 
 	return running, failing, nil
+}
+
+func prettifyCmd(cmd string) string {
+	fields := strings.Fields(cmd)
+
+	if len(fields) == 0 {
+		return ""
+	}
+
+	fields[0] = color.BlueString(fields[0])
+	return strings.Join(fields, " ")
 }
