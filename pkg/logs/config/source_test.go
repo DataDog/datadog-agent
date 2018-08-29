@@ -17,7 +17,7 @@ type LogSourceSuite struct {
 }
 
 func (s *LogSourceSuite) TestInputs() {
-	s.source = NewLogSource("", nil, ConfigProvider)
+	s.source = NewLogSource("", nil)
 	s.Equal(0, len(s.source.GetInputs()))
 	s.source.AddInput("foo")
 	s.Equal(1, len(s.source.GetInputs()))

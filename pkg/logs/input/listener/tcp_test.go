@@ -23,7 +23,7 @@ const tcpTestPort = 10512
 func TestTCPShouldReceivesMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}, config.ConfigProvider), defaultFrameSize)
+	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), defaultFrameSize)
 	listener.Start()
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
@@ -42,7 +42,7 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}, config.ConfigProvider), 100)
+	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 100)
 	listener.Start()
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))

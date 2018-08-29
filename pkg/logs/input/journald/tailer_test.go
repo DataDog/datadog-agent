@@ -22,18 +22,18 @@ func TestIdentifier(t *testing.T) {
 	var source *config.LogSource
 
 	// expect default identifier
-	source = config.NewLogSource("", &config.LogsConfig{}, config.ConfigProvider)
+	source = config.NewLogSource("", &config.LogsConfig{})
 	tailer = NewTailer(source, nil)
 	assert.Equal(t, "journald:default", tailer.Identifier())
 
 	// expect identifier to be overidden
-	source = config.NewLogSource("", &config.LogsConfig{Path: "any_path"}, config.ConfigProvider)
+	source = config.NewLogSource("", &config.LogsConfig{Path: "any_path"})
 	tailer = NewTailer(source, nil)
 	assert.Equal(t, "journald:any_path", tailer.Identifier())
 }
 
 func TestShouldDropEntry(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{ExcludeUnits: []string{"foo", "bar"}}, config.ConfigProvider)
+	source := config.NewLogSource("", &config.LogsConfig{ExcludeUnits: []string{"foo", "bar"}})
 	tailer := NewTailer(source, nil)
 	err := tailer.setup()
 	assert.Nil(t, err)
@@ -61,7 +61,7 @@ func TestShouldDropEntry(t *testing.T) {
 }
 
 func TestApplicationName(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{}, config.ConfigProvider)
+	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
 	assert.Equal(t, "foo", tailer.getApplicationName(
@@ -95,7 +95,7 @@ func TestApplicationName(t *testing.T) {
 }
 
 func TestContent(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{}, config.ConfigProvider)
+	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
 	assert.JSONEq(t, string([]byte(`{"journald":{"_A":"foo.service"},"message":"bar"}`)), string(tailer.getContent(
@@ -120,7 +120,7 @@ func TestContent(t *testing.T) {
 }
 
 func TestSeverity(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{}, config.ConfigProvider)
+	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
 	priorityValues := []string{"0", "1", "2", "3", "4", "5", "6", "7", "foo"}
@@ -137,7 +137,7 @@ func TestSeverity(t *testing.T) {
 }
 
 func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
-	source := config.NewLogSource("", &config.LogsConfig{}, config.ConfigProvider)
+	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
 	assert.Equal(t, "docker", tailer.getApplicationName(

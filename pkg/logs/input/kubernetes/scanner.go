@@ -143,7 +143,7 @@ func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus)
 	cfg.Type = config.FileType
 	cfg.Path = s.getPath(pod, container)
 	cfg.Tags = append(cfg.Tags, s.getTags(container)...)
-	return config.NewLogSource(s.getSourceName(pod, container), cfg, config.ServiceProvider), nil
+	return config.NewLogSource(s.getSourceName(pod, container), cfg), nil
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,

@@ -32,7 +32,7 @@ func TestRawEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
-	source := config.NewLogSource("", logsConfig, config.ConfigProvider)
+	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
@@ -64,7 +64,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig, config.ConfigProvider)
+	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "a"
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -94,7 +94,7 @@ func TestRawEncoderEmpty(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig, config.ConfigProvider)
+	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -123,7 +123,7 @@ func TestProtoEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
-	source := config.NewLogSource("", logsConfig, config.ConfigProvider)
+	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
@@ -155,7 +155,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
-	source := config.NewLogSource("", logsConfig, config.ConfigProvider)
+	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
@@ -183,7 +183,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	cfg := &config.LogsConfig{}
-	src := config.NewLogSource("", cfg, config.ConfigProvider)
+	src := config.NewLogSource("", cfg)
 	msg := newMessage([]byte(""), src, "")
 	encoded, err := protoEncoder.encode(msg, []byte("a\xfez"))
 	assert.NotNil(t, encoded)

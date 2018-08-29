@@ -26,7 +26,7 @@ func DefaultSources() []*LogSource {
 		tcpForwardSource := NewLogSource("tcp_forward", &LogsConfig{
 			Type: TCPType,
 			Port: tcpForwardPort,
-		}, ConfigProvider)
+		})
 		sources = append(sources, tcpForwardSource)
 	}
 	return sources

@@ -30,7 +30,7 @@ func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, 
 				Type:    config.DockerType,
 				Service: "docker",
 				Source:  "docker",
-			}, config.ConfigProvider)
+			})
 			sources.AddSource(source)
 			return scanner, nil
 		}

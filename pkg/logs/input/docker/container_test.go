@@ -21,9 +21,9 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 	var container *Container
 
 	sources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"}, config.ConfigProvider),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}, config.ConfigProvider),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"}, config.ConfigProvider),
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"}),
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"}),
 	}
 
 	container = NewContainer(types.Container{Image: "myapp"})
@@ -51,8 +51,8 @@ func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
 	var container *Container
 
 	sources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType}, config.ConfigProvider),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}, config.ConfigProvider),
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType}),
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
 	}
 
 	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}})

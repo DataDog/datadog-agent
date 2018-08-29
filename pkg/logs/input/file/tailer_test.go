@@ -50,7 +50,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	suite.source = config.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
-	}, config.ServiceProvider)
+	})
 	sleepDuration := 10 * time.Millisecond
 	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath, sleepDuration)
 }
