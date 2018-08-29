@@ -99,7 +99,12 @@ func requestDiscoveredIntegrations() error {
 
 		// Do not show integrations that are already configured
 		if !(isRunning || isFailing) {
-			fmt.Fprintln(color.Output, fmt.Sprintf("Discovered '%s' for processes:", color.GreenString(integration)))
+			header := "Discovered '%s' for processes:"
+			if len(processes) == 1 {
+				header = "Discovered '%s' for process:"
+			}
+
+			fmt.Fprintln(color.Output, fmt.Sprintf(header, color.GreenString(integration)))
 			for _, proc := range processes {
 				fmt.Fprintln(color.Output, fmt.Sprintf("\t- %s", prettifyCmd(proc.Cmd)))
 			}
