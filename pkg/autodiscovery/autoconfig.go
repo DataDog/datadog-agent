@@ -688,9 +688,7 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})
 	}
-	// FIXME: send all the new services to the logs package for now because the logs package is still
-	// responsible for filtering out containers, as soon as we drop the docker filters in logs configs,
-	// we'll only use `logs_config.container_collect_all` to filer on services.
+	// FIXME: schedule new services as well
 	ac.schedule([]integration.Config{
 		{
 			LogsConfig:   integration.Data{},
@@ -708,8 +706,7 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	ac.store.removeConfigsForService(svc.GetEntity())
 	ac.processRemovedConfigs(configs)
 	ac.store.removeTagsHashForService(svc.GetEntity())
-	// FIXME: as soon as we have deprecated the filter parameters in the logs configuration,
-	// we'll need to check first if `logs_config.container_collect_all` is enabled.
+	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{
 		{
 			LogsConfig: integration.Data{},
