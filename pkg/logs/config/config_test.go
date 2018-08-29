@@ -55,7 +55,7 @@ func TestBuildServerConfigShouldSucceedWithDefaultAndValidOverride(t *testing.T)
 	assert.Equal(t, "agent-intake.logs.datadoghq.com:10516", serverConfig.Address())
 
 	LogsAgent.Set("logs_config.use_port_443", true)
-	serverConfig, err = buildServerConfig()
+	serverConfig, err = BuildServerConfig()
 	assert.Nil(t, err)
 	assert.Equal(t, "agent-443-intake.logs.datadoghq.com", serverConfig.Name)
 	assert.Equal(t, 443, serverConfig.Port)
