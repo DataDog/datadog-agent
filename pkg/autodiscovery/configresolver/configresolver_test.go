@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package autodiscovery
+package configresolver
 
 import (
 	"fmt"
@@ -15,41 +15,53 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
 
-func TestNewConfigResolver(t *testing.T) {
-	cr := newConfigResolver(nil, nil)
-	assert.NotNil(t, cr)
+type dummyService struct {
+	ID            string
+	ADIdentifiers []string
+	Hosts         map[string]string
+	Ports         []listeners.ContainerPort
+	Pid           int
+	Hostname      string
 }
 
-func TestResolveTemplate(t *testing.T) {
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	tc := NewTemplateCache()
-	cr := newConfigResolver(ac, tc)
-	tpl := integration.Config{
-		Name:          "cpu",
-		ADIdentifiers: []string{"redis"},
-	}
-	// add the template to the cache
-	tc.Set(tpl)
+// GetEntity returns the service entity name
+func (s *dummyService) GetEntity() string {
+	return s.ID
+}
 
-	// no services
-	res := cr.ResolveTemplate(tpl)
-	assert.Len(t, res, 0)
+// GetADIdentifiers returns dummy identifiers
+func (s *dummyService) GetADIdentifiers() ([]string, error) {
+	return s.ADIdentifiers, nil
+}
 
-	service := dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-	}
-	cr.processNewService(&service)
+// GetHosts returns dummy hosts
+func (s *dummyService) GetHosts() (map[string]string, error) {
+	return s.Hosts, nil
+}
 
-	// there are no template vars but it's ok
-	res = cr.ResolveTemplate(tpl)
-	assert.Len(t, res, 1)
+// GetPorts returns dummy ports
+func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
+	return s.Ports, nil
+}
+
+// GetTags returns mil
+func (s *dummyService) GetTags() ([]string, error) {
+	return nil, nil
+}
+
+// GetPid return a dummy pid
+func (s *dummyService) GetPid() (int, error) {
+	return s.Pid, nil
+}
+
+// GetHostname return a dummy hostname
+func (s *dummyService) GetHostname() (string, error) {
+	return s.Hostname, nil
 }
 
 func TestParseTemplateVar(t *testing.T) {
@@ -407,10 +419,6 @@ func TestResolve(t *testing.T) {
 			errorString: "yaml: found character that cannot start any token",
 		},
 	}
-	ac := &AutoConfig{
-		store: newStore(),
-	}
-	cr := newConfigResolver(ac, NewTemplateCache())
 	validTemplates := 0
 
 	for i, tc := range testCases {
@@ -418,7 +426,7 @@ func TestResolve(t *testing.T) {
 			// Make sure we don't modify the template object
 			checksum := tc.tpl.Digest()
 
-			cfg, err := cr.resolve(tc.tpl, tc.svc)
+			cfg, err := Resolve(tc.tpl, tc.svc)
 			if tc.errorString != "" {
 				assert.EqualError(t, err, tc.errorString)
 			} else {
@@ -428,10 +436,6 @@ func TestResolve(t *testing.T) {
 				validTemplates++
 			}
 		})
-
-		// Assert the valid configs are stored in the AC and the store
-		assert.Equal(t, validTemplates, len(ac.GetLoadedConfigs()))
-		assert.Equal(t, len(ac.store.getConfigsForService(tc.svc.GetEntity())), validTemplates)
 	}
 }
 

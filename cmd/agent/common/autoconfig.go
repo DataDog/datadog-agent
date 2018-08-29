@@ -89,6 +89,6 @@ func SetupAutoConfig(confdPath string) {
 //   2. load all the configurations available at startup
 //   3. run all the Checks for each configuration found
 func StartAutoConfig() {
-	AC.StartPolling()
+	AC.StartConfigPolling()
 	AC.LoadAndRun()
 }

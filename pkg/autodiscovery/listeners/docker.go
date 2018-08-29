@@ -26,7 +26,7 @@ import (
 
 // DockerListener implements the ServiceListener interface.
 // It listens for Docker events and reports container updates to Auto Discovery
-// It also holds a cache of services that the ConfigResolver can query to
+// It also holds a cache of services that the AutoConfig can query to
 // match templates against.
 type DockerListener struct {
 	dockerUtil *docker.DockerUtil
@@ -110,7 +110,7 @@ func (l *DockerListener) Stop() {
 }
 
 // init looks at currently running Docker containers,
-// creates services for them, and pass them to the ConfigResolver.
+// creates services for them, and pass them to the AutoConfig.
 // It is typically called at start up.
 func (l *DockerListener) init() {
 	l.m.Lock()
@@ -146,7 +146,7 @@ func (l *DockerListener) init() {
 }
 
 // processEvent takes a ContainerEvent, tries to find a service linked to it, and
-// figure out if the ConfigResolver could be interested to inspect it.
+// figure out if the AutoConfig could be interested to inspect it.
 func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 	cID := e.ContainerID
 
@@ -172,7 +172,7 @@ func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 }
 
 // createService takes a container ID, create a service for it in its cache
-// and tells the ConfigResolver that this service started.
+// and tells the AutoConfig that this service started.
 func (l *DockerListener) createService(cID string) {
 	var svc Service
 
@@ -226,7 +226,7 @@ func (l *DockerListener) createService(cID string) {
 }
 
 // removeService takes a container ID, removes the related service from its cache
-// and tells the ConfigResolver that this service stopped.
+// and tells the AutoConfig that this service stopped.
 func (l *DockerListener) removeService(cID string) {
 	l.m.RLock()
 	svc, ok := l.services[cID]
