@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add a cluster-name attribute in the agent, to be used in kubernetes clusters so that host aliases are unique.
+    Kubernetes: to avoid hostname collisions between clusters, a new ``cluster_name`` option is available. It will be added as a suffix to the host alias detected from the kubelet in order to make these aliases unique across different clusters.
