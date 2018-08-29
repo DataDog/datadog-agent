@@ -55,7 +55,7 @@ func TestParseJSONWithInvalidFormatShouldFail(t *testing.T) {
 	}
 }
 
-func TestParseYamlWithValidFormatShouldSucceed(t *testing.T) {
+func TestParseYAMLWithValidFormatShouldSucceed(t *testing.T) {
 	data := []byte(`
 logs:
   - type: file
@@ -71,7 +71,7 @@ logs:
         pattern: ^[0-9]+$
 `)
 
-	configs, err := ParseYaml(data)
+	configs, err := ParseYAML(data)
 	assert.Nil(t, err)
 	assert.Equal(t, 3, len(configs))
 
@@ -105,7 +105,7 @@ logs:
 	assert.Equal(t, "^[0-9]+$", rule.Pattern)
 }
 
-func TestParseYamlWithInvalidFormatShouldFail(t *testing.T) {
+func TestParseYAMLWithInvalidFormatShouldFail(t *testing.T) {
 	invalidFormats := []string{`
 foo:
   - type: file
@@ -119,7 +119,7 @@ foo:
 `}
 
 	for _, format := range invalidFormats {
-		configs, _ := ParseYaml([]byte(format))
+		configs, _ := ParseYAML([]byte(format))
 		assert.Equal(t, 0, len(configs))
 	}
 }

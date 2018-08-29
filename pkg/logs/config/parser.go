@@ -27,9 +27,9 @@ func ParseJSON(data []byte) ([]*LogsConfig, error) {
 const yaml = "yaml"
 const logsPath = "logs"
 
-// ParseYaml parses the data formatted in Yaml,
+// ParseYAML parses the data formatted in YAML,
 // returns an error if the parsing failed.
-func ParseYaml(data []byte) ([]*LogsConfig, error) {
+func ParseYAML(data []byte) ([]*LogsConfig, error) {
 	var configs []*LogsConfig
 	var err error
 	v := viper.New()

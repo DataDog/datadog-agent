@@ -64,7 +64,7 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 
 	switch integrationConfig.Provider {
 	case providers.File:
-		configs, err = config.ParseYaml(integrationConfig.LogsConfig)
+		configs, err = config.ParseYAML(integrationConfig.LogsConfig)
 	case providers.Docker, providers.Kubernetes:
 		configs, err = config.ParseJSON(integrationConfig.LogsConfig)
 	default:
