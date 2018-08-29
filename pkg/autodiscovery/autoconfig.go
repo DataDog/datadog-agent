@@ -238,9 +238,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 
 		// resolve configs if needed
 		for _, config := range cfgs {
-			// set config's provider and origin
 			config.Provider = pd.provider.String()
-			config.Origin = integration.NewConfig
 			rc := ac.processNewConfig(config)
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
@@ -509,9 +507,7 @@ func (ac *AutoConfig) pollConfigs() {
 					ac.processRemovedConfigs(removedConfigs)
 
 					for _, config := range newConfigs {
-						// set config's provider and origin
 						config.Provider = pd.provider.String()
-						config.Origin = integration.NewConfig
 						resolvedConfigs := ac.processNewConfig(config)
 						ac.schedule(resolvedConfigs)
 					}
@@ -688,9 +684,6 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 		if err != nil {
 			continue
 		}
-
-		// set the config origin
-		resolvedConfig.Origin = integration.NewService
 
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})

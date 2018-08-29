@@ -27,16 +27,6 @@ type RawMap map[interface{}]interface{}
 // JSONMap is the generic type to hold JSON configurations
 type JSONMap map[string]interface{}
 
-// Origin is the origin of the config
-type Origin int
-
-const (
-	// NewService indicates the config was created from a service event
-	NewService Origin = iota
-	// NewConfig indicates the config was created from a config event
-	NewConfig
-)
-
 // CreationTime represents the moment when the service was launched compare to the agent start.
 type CreationTime int
 
@@ -58,7 +48,6 @@ type Config struct {
 	Provider      string       `json:"provider"`       // the provider that issued the config
 	Entity        string       `json:"-"`              // the id of the entity (optional)
 	ClusterCheck  bool         `json:"-"`              // cluster-check configuration flag, don't expose in JSON
-	Origin        Origin       `json:"-"`              // configuration's origin
 	CreationTime  CreationTime `json:"-"`              // creation time of service
 }
 
