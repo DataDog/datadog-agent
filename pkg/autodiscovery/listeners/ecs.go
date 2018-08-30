@@ -89,7 +89,7 @@ func (l *ECSListener) Stop() {
 // refreshServices queries the task metadata endpoint for fresh info
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
-func (l *ECSListener) refreshServices(start bool) {
+func (l *ECSListener) refreshServices(firstRun bool) {
 	meta, err := ecs.GetTaskMetadata()
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
@@ -116,7 +116,7 @@ func (l *ECSListener) refreshServices(start bool) {
 			log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
 			continue
 		}
-		s, err := l.createService(c, start)
+		s, err := l.createService(c, firstRun)
 		if err != nil {
 			log.Errorf("couldn't create a service out of container %s - Auto Discovery will ignore it", c.DockerID)
 			continue
@@ -138,9 +138,9 @@ func (l *ECSListener) refreshServices(start bool) {
 	}
 }
 
-func (l *ECSListener) createService(c ecs.Container, start bool) (ECSService, error) {
+func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService, error) {
 	var crTime integration.CreationTime
-	if start {
+	if firstRun {
 		crTime = integration.Before
 	} else {
 		crTime = integration.After

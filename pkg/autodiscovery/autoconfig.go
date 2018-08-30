@@ -709,8 +709,9 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{
 		{
-			LogsConfig: integration.Data{},
-			Entity:     svc.GetEntity(),
+			LogsConfig:   integration.Data{},
+			Entity:       svc.GetEntity(),
+			CreationTime: svc.GetCreationTime(),
 		},
 	})
 }

@@ -72,14 +72,13 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.delService = delSvc
 
 	go func() {
-		for {
-			pods, err := l.watcher.PullChanges()
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-			l.processNewPods(pods, true)
+		pods, err := l.watcher.PullChanges()
+		if err != nil {
+			log.Error(err)
+		}
+		l.processNewPods(pods, true)
 
+		for {
 			select {
 			case <-l.stop:
 				l.health.Deregister()
@@ -112,20 +111,20 @@ func (l *KubeletListener) Stop() {
 	l.stop <- true
 }
 
-func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, start bool) {
+func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
 	for _, pod := range pods {
 		// Ignore pending/failed/succeeded/unknown states
 		if pod.Status.Phase == "Running" {
 			for _, container := range pod.Status.Containers {
-				l.createService(container.ID, pod, start)
+				l.createService(container.ID, pod, firstRun)
 			}
 		}
 	}
 }
 
-func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, start bool) {
+func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRun bool) {
 	var crTime integration.CreationTime
-	if start {
+	if firstRun {
 		crTime = integration.Before
 	} else {
 		crTime = integration.After
