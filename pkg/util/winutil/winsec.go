@@ -89,11 +89,11 @@ const (
 	UNPROTECTED_SACL_SECURITY_INFORMATION = 0x10000000
 )
 
-func GetAclInformation(acl *Acl, info AclSizeInformation, class uint32) error {
-	length := unsafe.Sizeof(info)
+func GetAclInformation(acl *Acl, info *AclSizeInformation, class uint32) error {
+	length := unsafe.Sizeof(*info)
 	ret, _, _ := procGetAclInformation.Call(
 		uintptr(unsafe.Pointer(acl)),
-		uintptr(unsafe.Pointer(&info)),
+		uintptr(unsafe.Pointer(info)),
 		uintptr(length),
 		uintptr(class))
 

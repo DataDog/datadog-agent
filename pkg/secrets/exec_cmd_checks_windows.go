@@ -299,7 +299,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 }
 
 //
-// validateFilePermissions
+// checkAcceptableFilePermissions
 //
 // check to ensure that the given file has acceptable access controls set
 //
@@ -328,7 +328,7 @@ func checkAcceptableFilePermissions(filename string) (retval int, err error) {
 	}
 
 	var aclSizeInfo winutil.AclSizeInformation
-	err = winutil.GetAclInformation(fileDacl, aclSizeInfo, winutil.AclSizeInformationEnum)
+	err = winutil.GetAclInformation(fileDacl, &aclSizeInfo, winutil.AclSizeInformationEnum)
 	if err != nil {
 		return -1, err
 	}
@@ -360,6 +360,50 @@ func checkAcceptableFilePermissions(filename string) (retval int, err error) {
 		return -1, err
 	}
 	defer windows.FreeSid(administrators)
+
+	//
+	// when getting the SID for the secret user, unlike above, we provide
+	// the buffer.  So this SID should *not* be passed to FreeSid() (the
+	// way the other ones are.  So much for API consistency
+	//
+	// also, *must* provide adequate buffer for the domain name, or the
+	// function will fail (even though we aren't going to use it for anything)
+	//
+	var secretusersyscall *syscall.SID
+	var cchRefDomain uint32
+	var sidUse uint32
+	var sidlen uint32
+	var domainptr uint16
+	err = syscall.LookupAccountName(nil, // local system lookup
+		windows.StringToUTF16Ptr(username),
+		secretusersyscall,
+		&sidlen,
+		&domainptr,
+		&cchRefDomain,
+		&sidUse)
+	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
+		// we have no idea what happened here
+		return -1, err
+	}
+	// make the appropriate buffer allocations
+	sidbuf := make([]uint8, sidlen+1)
+	domainbuf := make([]uint16, cchRefDomain+1)
+	secretusersyscall = (*syscall.SID)(unsafe.Pointer(&sidbuf[0]))
+	// call it again
+	err = syscall.LookupAccountName(nil, // local system lookup
+		windows.StringToUTF16Ptr(username),
+		secretusersyscall,
+		&sidlen,
+		&domainbuf[0],
+		&cchRefDomain,
+		&sidUse)
+	if err != nil {
+		// we have no idea what happened here
+		return -1, err
+	}
+	var secretuser *windows.SID
+	secretuser = (*windows.SID)(unsafe.Pointer(secretusersyscall))
+	bSecretUserExplicitlyAllowed := false
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
 		var pAce *winutil.AccessAllowedAce
 		err = winutil.GetAce(fileDacl, i, &pAce)
@@ -370,6 +414,9 @@ func checkAcceptableFilePermissions(filename string) (retval int, err error) {
 		var compareSid *windows.SID
 		compareSid = (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
 
+		compareIsLocalSystem := windows.EqualSid(compareSid, localSystem)
+		compareIsAdministrators := windows.EqualSid(compareSid, administrators)
+		compareIsSecretUser := windows.EqualSid(compareSid, secretuser)
 		//
 		// if need be, can also check the specific allowed/denied permissions.
 		// allowed/denied permissions are in pAce.Mask
@@ -377,20 +424,24 @@ func checkAcceptableFilePermissions(filename string) (retval int, err error) {
 		if pAce.AceType == winutil.ACCESS_DENIED_ACE_TYPE {
 			// if we're denying access to local system or administrators,
 			// it's wrong.  Otherwise, any explicit access denied is OK
-			if windows.EqualSid(compareSid, localSystem) ||
-				windows.EqualSid(compareSid, administrators) {
-				return 0, fmt.Errorf("Can't deny access to LOCAL_SYSTEM or Administrators")
+			if compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser {
+				return 0, fmt.Errorf("Can't deny access to LOCAL_SYSTEM or Administrators or secret user")
 			}
 			// otherwise, it's fine; deny access to whomever
 		}
 		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
-			if !(windows.EqualSid(compareSid, localSystem) ||
-				windows.EqualSid(compareSid, administrators)) {
-				return 0, fmt.Errorf("Can't allow access to users/groups other than LOCAL_SYSTEM or Administrators")
+			if !(compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser) {
+				return 0, fmt.Errorf("Can't allow access to users/groups other than LOCAL_SYSTEM or Administrators or secret user")
+			}
+			if compareIsSecretUser {
+				bSecretUserExplicitlyAllowed = true
 			}
 		}
 	}
-
+	if !bSecretUserExplicitlyAllowed {
+		// there was never an ACE explictly allowing the secret user, so we can't use it
+		return 0, fmt.Errorf("Secret user not allowed to execute")
+	}
 	// if we make it all the way here, nothing bad has been found.  It's a
 	// win!
 	return 1, nil
