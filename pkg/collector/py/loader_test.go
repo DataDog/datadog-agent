@@ -9,7 +9,7 @@
 package py
 
 import (
-	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -74,9 +74,9 @@ func TestLoadVersion(t *testing.T) {
 }
 
 func TestLoadVersionLock(t *testing.T) {
-	glock := newStickyLock()
+	runtime.LockOSThread()
 	TestLoadVersion(t)
-	glock.unlock()
+	runtime.UnlockOSThread()
 }
 
 func TestLoadandRun(t *testing.T) {
@@ -98,15 +98,14 @@ func TestLoadandRun(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, 1, len(instances))
 	err = instances[0].Run()
-	fmt.Println(err)
 	assert.Nil(t, err)
 
 }
 
 func TestLoadandRunLock(t *testing.T) {
-	glock := newStickyLock()
+	runtime.LockOSThread()
 	TestLoadandRun(t)
-	glock.unlock()
+	runtime.UnlockOSThread()
 }
 
 func TestNewPythonCheckLoader(t *testing.T) {
