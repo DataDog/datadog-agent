@@ -55,7 +55,6 @@ before_script:
   - cd $SRC_PATH
   - pip install -U pip
   - inv -e deps
-  - if [ -d "$SRC_PATH/vendor/github.com/DataDog/datadog-agent" ]; then rm -rf $SRC_PATH/vendor/github.com/DataDog/datadog-agent; fi
 
 #
 # Trigger conditions
@@ -150,7 +149,6 @@ run_security_scan_test:
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
     - pip install -r requirements.txt
     - inv deps
-    - if [ -d "$SRC_PATH/vendor/github.com/DataDog/datadog-agent" ]; then rm -rf $SRC_PATH/vendor/github.com/DataDog/datadog-agent; fi
   script:
     - set +x     # don't print the api key to the logs
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
@@ -362,7 +360,6 @@ build_windows_msi_x64:
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv -e deps
-    - if exist %GOPATH%\src\github.com\DataDog\datadog-agent\vendor\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent\vendor\github.com\DataDog\datadog-agent
   stage: package_build
   variables:
     WINDOWS_BUILDER: 'true'
@@ -397,8 +394,6 @@ agent_android_apk:
     - cd $SRC_PATH
     - pip install -U pip
     - inv -e deps --android
-    # go dep 0.5.0 is vendoring the github.com/DataDog/datadog-agent pkg too, remove it
-    - if [ -d "$SRC_PATH/vendor/github.com/DataDog/datadog-agent" ]; then rm -rf $SRC_PATH/vendor/github.com/DataDog/datadog-agent; fi
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
