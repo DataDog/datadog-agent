@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
@@ -35,14 +36,17 @@ func Start() error {
 		sources.AddSource(source)
 	}
 
+	// setup the services
+	services := service.NewServices()
+
 	// initialize the config scheduler
-	scheduler = NewScheduler(sources)
+	scheduler = NewScheduler(sources, services)
 
 	// setup the status
 	status.Initialize(sources)
 
 	// setup and start the agent
-	agent = NewAgent(sources, serverConfig)
+	agent = NewAgent(sources, services, serverConfig)
 	log.Info("Starting logs-agent")
 	agent.Start()
 	isRunning = true

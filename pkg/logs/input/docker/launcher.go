@@ -8,38 +8,40 @@
 package docker
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 // A Launcher listens for stdout and stderr of containers
 type Launcher struct {
-	pipelineProvider pipeline.Provider
-	sources          *config.LogSources
-	activeSources    []*config.LogSource
-	tailers          map[string]*Tailer
-	cli              *client.Client
-	registry         auditor.Registry
-	stop             chan struct{}
+	pipelineProvider  pipeline.Provider
+	sources           *config.LogSources
+	services          *service.Services
+	activeSources     []*config.LogSource
+	pendingContainers map[string]*Container
+	tailers           map[string]*Tailer
+	cli               *client.Client
+	registry          auditor.Registry
+	stop              chan struct{}
 }
 
 // NewLauncher returns an initialized Launcher
-func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
+func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
 	launcher := &Launcher{
-		pipelineProvider: pipelineProvider,
-		sources:          sources,
-		tailers:          make(map[string]*Tailer),
-		registry:         registry,
-		stop:             make(chan struct{}),
+		pipelineProvider:  pipelineProvider,
+		sources:           sources,
+		services:          services,
+		tailers:           make(map[string]*Tailer),
+		pendingContainers: make(map[string]*Container),
+		registry:          registry,
+		stop:              make(chan struct{}),
 	}
 	err := launcher.setup()
 	if err != nil {
@@ -82,12 +84,39 @@ func (l *Launcher) Stop() {
 	stopper.Stop()
 }
 
-// run checks periodically which docker containers are running until stop
+// run starts and stops new tailers.
 func (l *Launcher) run() {
 	for {
 		select {
+		case newService := <-l.services.GetAddedServices(service.Docker):
+			dockerContainer, err := GetContainer(l.cli, newService.Identifier)
+			if err != nil {
+				log.Warnf("Could not find container with id: %v", err)
+				continue
+			}
+			container := NewContainer(dockerContainer, newService)
+			if source := container.FindSource(l.activeSources); source != nil {
+				l.startTailer(source, container)
+			} else {
+				l.pendingContainers[newService.Identifier] = container
+			}
+		case removedService := <-l.services.GetRemovedServices(service.Docker):
+			containerID := removedService.Identifier
+			l.stopTailer(containerID)
+			if _, exists := l.pendingContainers[containerID]; exists {
+				delete(l.pendingContainers, containerID)
+			}
 		case source := <-l.sources.GetSourceStreamForType(config.DockerType):
-			l.launch(source)
+			l.activeSources = append(l.activeSources, source)
+			pendingContainers := make(map[string]*Container)
+			for _, container := range l.pendingContainers {
+				if container.IsMatch(source) {
+					l.startTailer(source, container)
+				} else {
+					pendingContainers[container.service.Identifier] = container
+				}
+			}
+			l.pendingContainers = pendingContainers
 		case <-l.stop:
 			// no docker container should be tailed anymore
 			return
@@ -95,50 +124,31 @@ func (l *Launcher) run() {
 	}
 }
 
-// launch launches a new tailer for the source.
-func (l *Launcher) launch(source *config.LogSource) {
-	// containerID := source.EntityID
-	containerID := ""
-	if _, isTailed := l.tailers[containerID]; isTailed {
-		return
-	}
-	container, err := GetContainer(l.cli, containerID)
-	if err != nil {
-		log.Warnf("Could not inspect container %v: %v", containerID, err)
-		return
-	}
-	if !NewContainer(container).IsMatch(source) {
-		return
-	}
-	l.startTailer(source, container)
-}
-
 // startTailer starts a new tailer for the source and the container.
-func (l *Launcher) startTailer(source *config.LogSource, container types.Container) {
-	log.Infof("Detected container %v - %v", container.Image, ShortContainerID(container.ID))
-	tailer := NewTailer(l.cli, container.ID, source, l.pipelineProvider.NextPipelineChan())
+func (l *Launcher) startTailer(source *config.LogSource, container *Container) {
+	containerID := container.service.Identifier
+	containerImage := container.container.Image
 
-	since, err := Since(l.registry, tailer.Identifier(), true)
+	log.Infof("Detected container %v - %v", containerImage, ShortContainerID(containerID))
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan())
+
+	since, err := Since(l.registry, tailer.Identifier(), service.After) // FIXME: use the service creation time instead
 	if err != nil {
-		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(container.ID), err)
+		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
 	}
 
 	err = tailer.Start(since)
 	if err != nil {
-		log.Warnf("Could not start tailer: %v", container.ID, err)
+		log.Warnf("Could not start tailer: %v", containerID, err)
 	}
 
-	l.tailers[container.ID] = tailer
+	l.tailers[containerID] = tailer
 }
 
-// dismiss stops the tailer corresponding to the log source.
-func (l *Launcher) dismiss(source *config.LogSource) {
-	// containerID := source.EntityID
-	containerID := ""
-	tailer, isTailed := l.tailers[containerID]
-	if !isTailed {
-		return
+// stopTailer stops the tailer corresponding to the log source.
+func (l *Launcher) stopTailer(containerID string) {
+	if tailer, isTailed := l.tailers[containerID]; isTailed {
+		go tailer.Stop()
+		delete(l.tailers, containerID)
 	}
-	go tailer.Stop()
-	delete(l.tailers, tailer.ContainerID)
 }

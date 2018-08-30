@@ -7,9 +7,11 @@ package logs
 
 import (
 	"fmt"
+	// "strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -17,13 +19,15 @@ import (
 
 // Scheduler registers to autodiscovery to schedule/unschedule log-collection.
 type Scheduler struct {
-	sources *config.LogSources
+	sources  *config.LogSources
+	services *service.Services
 }
 
 // NewScheduler returns a new scheduler.
-func NewScheduler(sources *config.LogSources) *Scheduler {
+func NewScheduler(sources *config.LogSources, services *service.Services) *Scheduler {
 	return &Scheduler{
-		sources: sources,
+		sources:  sources,
+		services: services,
 	}
 }
 
@@ -36,20 +40,46 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		if !s.isLogConfig(config) {
 			continue
 		}
-		log.Infof("Received new logs config for integration: %v", config.Name)
-		sources, err := s.toSources(config)
-		if err != nil {
-			log.Warnf("Invalid configuration: %v", err)
-			continue
-		}
-		for _, source := range sources {
-			s.sources.AddSource(source)
+		if config.Provider != "" {
+			log.Infof("Received new logs config for integration: %v", config.Name)
+			sources, err := s.toSources(config)
+			if err != nil {
+				log.Warnf("Invalid configuration: %v", err)
+				continue
+			}
+			for _, source := range sources {
+				s.sources.AddSource(source)
+			}
+		} else {
+			// log.Infof("Received a new service with entity: %v", config.Entity)
+			service, err := s.toService(config)
+			if err != nil {
+				log.Warnf("Invalid service: %v", err)
+				continue
+			}
+			s.services.AddService(service)
 		}
 	}
 }
 
-// Unschedule does nothing.
-func (s *Scheduler) Unschedule(configs []integration.Config) {}
+// Unschedule removes services that have been stopped.
+func (s *Scheduler) Unschedule(configs []integration.Config) {
+	for _, config := range configs {
+		if !s.isLogConfig(config) {
+			continue
+		}
+		if config.Provider != "" {
+			continue
+		}
+		// log.Infof("New service to remove with entity: %v", config.Entity)
+		service, err := s.toService(config)
+		if err != nil {
+			log.Warnf("Invalid service: %v", err)
+			continue
+		}
+		s.services.RemoveService(service)
+	}
+}
 
 // isLogConfig returns true if config contains a logs config.
 func (s *Scheduler) isLogConfig(config integration.Config) bool {
@@ -76,6 +106,7 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 
 	var sources []*config.LogSource
 	for _, cfg := range configs {
+		// cfg.Identifier = integrationConfig.Entity
 		source := config.NewLogSource(integrationConfig.Name, cfg)
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
@@ -91,4 +122,27 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 	}
 
 	return sources, nil
+}
+
+// toService creates a new service for an integrationConfig.
+func (s *Scheduler) toService(integrationConfig integration.Config) (*service.Service, error) {
+	// components := strings.Split(config.Entity, "://")
+	// if len(components) != 2 {
+	// 	return nil, fmt.Errorf("entity is malformed : %v", config.Entity)
+	// }
+	// provider, identifier := components[0], components[1]
+	// switch provider {
+	// case service.Docker:
+	// 	var crTime service.CreationTime
+	// 	switch integrationConfig.CreationTime {
+	// 	case integration.Before:
+	// 		crTime = service.Before
+	// 	case integration.After:
+	// 		crTime = service.After
+	// 	}
+	// 	return service.NewService(provider, indentifier, crTime), nil
+	// default:
+	// return nil, fmt.Errorf("%v is not supported yet", provider)
+	// }
+	return nil, nil
 }
