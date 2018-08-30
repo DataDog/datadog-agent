@@ -11,22 +11,28 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
+	"github.com/dustin/go-humanize"
 	json "github.com/json-iterator/go"
 	"golang.org/x/text/unicode/norm"
 )
 
-func init() {
-	fmap = template.FuncMap{
+// Fmap return a fresh copy of a map of utility functions for templating
+func Fmap() template.FuncMap {
+	return template.FuncMap{
 		"doNotEscape":        doNotEscape,
 		"lastError":          lastError,
 		"lastErrorTraceback": lastErrorTraceback,
-		"lastErrorMessage":   LastErrorMessage,
+		"lastErrorMessage":   lastErrorMessage,
 		"configError":        configError,
 		"printDashes":        printDashes,
-		"formatUnixTime":     FormatUnixTime,
-		"humanize":           MkHuman,
+		"formatUnixTime":     formatUnixTime,
+		"humanize":           mkHuman,
+		"humanizeDuration":   mkHumanDuration,
 		"toUnsortedList":     toUnsortedList,
+		"formatTitle":        formatTitle,
+		"add":                add,
 	}
 }
 
@@ -54,8 +60,8 @@ func lastErrorTraceback(value string) template.HTML {
 	return template.HTML(lastErrorArray[0]["traceback"])
 }
 
-// LastErrorMessage converts the last error message to html
-func LastErrorMessage(value string) template.HTML {
+// lastErrorMessage converts the last error message to html
+func lastErrorMessage(value string) template.HTML {
 	var lastErrorArray []map[string]string
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err == nil && len(lastErrorArray) > 0 {
@@ -66,8 +72,8 @@ func LastErrorMessage(value string) template.HTML {
 	return template.HTML(value)
 }
 
-// FormatUnixTime formats the unix time to make it more readable
-func FormatUnixTime(unixTime float64) string {
+// formatUnixTime formats the unix time to make it more readable
+func formatUnixTime(unixTime float64) string {
 	var (
 		sec  int64
 		nsec int64
@@ -94,18 +100,28 @@ func toUnsortedList(s map[string]interface{}) string {
 	return fmt.Sprintf("%s", res)
 }
 
-// MkHuman makes large numbers more readable
-func MkHuman(f float64) string {
-	i := int64(f)
-	str := fmt.Sprintf("%d", i)
-
-	if i > 1000000 {
-		str = "over 1M"
-	} else if i > 100000 {
-		str = "over 100K"
+// mkHuman makes large numbers more readable
+func mkHuman(f float64) string {
+	var str string
+	if f > 1000000.0 {
+		str = humanize.SIWithDigits(f, 1, "")
+	} else {
+		str = humanize.Commaf(f)
 	}
 
 	return str
+}
+
+// mkHumanDuration makes time values more readable
+func mkHumanDuration(f float64, unit string) string {
+	var duration time.Duration
+	if unit != "" {
+		duration, _ = time.ParseDuration(fmt.Sprintf("%f%s", f, unit))
+	} else {
+		duration = time.Duration(int64(f)) * time.Second
+	}
+
+	return duration.String()
 }
 
 func stringLength(s string) int {
@@ -123,4 +139,32 @@ func stringLength(s string) int {
 		ia.Next()
 	}
 	return nc
+}
+
+// add two integer together
+func add(x, y int) int {
+	return x + y
+}
+
+// formatTitle split a camel case string into space-separated words
+func formatTitle(title string) string {
+	if title == "os" {
+		return "OS"
+	}
+
+	// Split camel case words
+	var words []string
+	var l int
+
+	for s := title; s != ""; s = s[l:] {
+		l = strings.IndexFunc(s[1:], unicode.IsUpper) + 1
+		if l <= 0 {
+			l = len(s)
+		}
+		words = append(words, s[:l])
+	}
+	title = strings.Join(words, " ")
+
+	// Capitalize the first letter
+	return strings.Title(title)
 }

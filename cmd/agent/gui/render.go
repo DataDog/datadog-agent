@@ -3,33 +3,27 @@ package gui
 import (
 	"bytes"
 	"expvar"
-	"fmt"
 	"html/template"
 	"io"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
-	"unicode"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/status"
 
 	json "github.com/json-iterator/go"
 )
 
-var fmap = template.FuncMap{
-	"lastErrorTraceback": lastErrorTraceback,
-	"lastErrorMessage":   lastErrorMessage,
-	"pythonLoaderError":  pythonLoaderError,
-	"formatUnixTime":     formatUnixTime,
-	"humanizeF":          mkHuman,
-	"humanizeI":          mkHumanI,
-	"formatTitle":        formatTitle,
-	"add":                add,
-	"instances":          instances,
+var fmap = status.Fmap()
+
+func init() {
+	fmap["lastErrorTraceback"] = lastErrorTraceback
+	fmap["lastErrorMessage"] = lastErrorMessage
+	fmap["pythonLoaderError"] = pythonLoaderError
+	fmap["instances"] = instances
 }
 
 const (
@@ -138,41 +132,6 @@ func lastErrorTraceback(value string) template.HTML {
 	return template.HTML(traceback)
 }
 
-func mkHumanI(i int64) string {
-	return mkHuman(float64(i))
-}
-
-func mkHuman(f float64) string {
-	if f > 1000000 {
-		return fmt.Sprintf("%.1fM", f/1000000.0)
-	} else if f > 100000 {
-		return fmt.Sprintf("%.1fK", f/1000.0)
-	}
-	return fmt.Sprintf("%.0f", f)
-}
-
-func formatTitle(title string) string {
-	if title == "os" {
-		return "OS"
-	}
-
-	// Split camel case words
-	var words []string
-	var l int
-
-	for s := title; s != ""; s = s[l:] {
-		l = strings.IndexFunc(s[1:], unicode.IsUpper) + 1
-		if l <= 0 {
-			l = len(s)
-		}
-		words = append(words, s[:l])
-	}
-	title = strings.Join(words, " ")
-
-	// Capitalize the first letter
-	return strings.Title(title)
-}
-
 func lastErrorMessage(value string) string {
 	var lastErrorArray []map[string]string
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
@@ -182,25 +141,6 @@ func lastErrorMessage(value string) string {
 		}
 	}
 	return "UNKNOWN ERROR"
-}
-
-func formatUnixTime(unixTime float64) string {
-	var (
-		sec  int64
-		nsec int64
-	)
-	ts := fmt.Sprintf("%f", unixTime)
-	secs := strings.Split(ts, ".")
-	sec, _ = strconv.ParseInt(secs[0], 10, 64)
-	if len(secs) == 2 {
-		nsec, _ = strconv.ParseInt(secs[1], 10, 64)
-	}
-	t := time.Unix(sec, nsec)
-	return t.Format(timeFormat)
-}
-
-func add(x, y int) int {
-	return x + y
 }
 
 func instances(checks map[string]interface{}) map[string][]interface{} {

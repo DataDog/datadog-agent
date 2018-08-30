@@ -24,7 +24,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   Clocks
   ======
     {{- if .ntpOffset }}
-    NTP offset: {{.ntpOffset}} s
+    NTP offset: {{ humanizeDuration .ntpOffset "s"}}
     {{- end }}
     System UTC time: {{.time}}
 
@@ -32,7 +32,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   =========
   {{- range $name, $value := .hostinfo -}}
     {{- if and (ne $name "hostname") (ne $name "hostid") ($value) }}
-    {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{ $value }}{{ end }}
+    {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{if eq $name "uptime" }}{{ humanizeDuration $value "s"}}{{ else }}{{ $value }}{{ end }}{{ end }}
     {{- end }}
   {{- end }}
 

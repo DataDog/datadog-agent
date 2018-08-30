@@ -21,7 +21,7 @@ import (
 
 var (
 	here, _        = executable.Folder()
-	fmap           template.FuncMap
+	fmap           = Fmap()
 	templateFolder string
 )
 
