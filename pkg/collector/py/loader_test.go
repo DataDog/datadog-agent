@@ -73,6 +73,7 @@ func TestLoadVersion(t *testing.T) {
 	assert.Equal(t, "1.0.0", instances[0].Version())
 }
 
+// Some bugs can appear only if python use the same OS thread for several actions. We lock there to be sure to test this case
 func TestLoadVersionLock(t *testing.T) {
 	runtime.LockOSThread()
 	TestLoadVersion(t)
