@@ -41,7 +41,10 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			continue
 		}
 		if config.Provider != "" {
-			log.Infof("Received new logs config for integration: %v", config.Name)
+			// new configuration
+			if config.Name != "" {
+				log.Infof("Received a new logs config: %v", config.Name)
+			}
 			sources, err := s.toSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
@@ -51,7 +54,8 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.sources.AddSource(source)
 			}
 		} else {
-			log.Infof("Received a new service with entity: %v", config.Entity)
+			// new service
+			log.Infof("Received a new service: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -71,7 +75,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		if config.Provider != "" {
 			continue
 		}
-		log.Infof("New service to remove with entity: %v", config.Entity)
+		log.Infof("New service to remove: entity: %v", config.Entity)
 		service, err := s.toService(config)
 		if err != nil {
 			log.Warnf("Invalid service: %v", err)
@@ -108,22 +112,25 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 	for _, cfg := range configs {
 		integrationName := integrationConfig.Name
 		if integrationConfig.Entity != "" {
-			components := strings.Split(integrationConfig.Entity, "://")
-			if len(components) != 2 {
-				return nil, fmt.Errorf("entity is malformed : %v", integrationConfig.Entity)
+			service, identifier, err := s.parseEntity(integrationConfig.Entity)
+			if err != nil {
+				log.Warnf("Invalid service: %v", err)
+				continue
 			}
-			service, identifier := components[0], components[1]
-			integrationName = service
 			cfg.Type = service
 			cfg.Identifier = identifier
+			integrationName = service
 		}
+
 		source := config.NewLogSource(integrationName, cfg)
 		sources = append(sources, source)
+
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
 			source.Status.Error(err)
 			continue
 		}
+
 		if err := cfg.Compile(); err != nil {
 			log.Warnf("Could not compile logs configuration: %v", err)
 			source.Status.Error(err)
@@ -136,22 +143,34 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 
 // toService creates a new service for an integrationConfig.
 func (s *Scheduler) toService(integrationConfig integration.Config) (*service.Service, error) {
-	components := strings.Split(integrationConfig.Entity, "://")
-	if len(components) != 2 {
-		return nil, fmt.Errorf("entity is malformed : %v", integrationConfig.Entity)
+	provider, identifier, err := s.parseEntity(integrationConfig.Entity)
+	if err != nil {
+		return nil, err
 	}
-	provider, identifier := components[0], components[1]
 	switch provider {
 	case service.Docker:
-		var crTime service.CreationTime
-		switch integrationConfig.CreationTime {
-		case integration.Before:
-			crTime = service.Before
-		case integration.After:
-			crTime = service.After
-		}
-		return service.NewService(provider, identifier, crTime), nil
+		return service.NewService(provider, identifier, s.getCreationTime(integrationConfig)), nil
 	default:
 		return nil, fmt.Errorf("%v is not supported yet", provider)
 	}
+}
+
+// parseEntity breaks down an entity into a service provider and a service identifier.
+func (s *Scheduler) parseEntity(entity string) (string, string, error) {
+	components := strings.Split(integrationConfig.Entity, "://")
+	if len(components) != 2 {
+		return "", "", fmt.Errorf("entity is malformed : %v", integrationConfig.Entity)
+	}
+	return components[0], components[1]
+}
+
+// integrationToServiceCRTime maps an integration creation time to a service creation time.
+var integrationToServiceCRTime = map[integrationConfig.CreationTime]service.CreationTime{
+	integration.Before: service.Before,
+	integration.After:  service.After,
+}
+
+// getCreationTime returns the service creation time for the integration configuration.
+func (s *Scheduler) getCreationTime(integrationConfig integration.Config) service.CreationTime {
+	return integrationToServiceCRTime[integrationConfig.CreationTime]
 }

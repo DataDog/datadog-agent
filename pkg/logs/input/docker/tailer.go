@@ -70,7 +70,7 @@ func (t *Tailer) Identifier() string {
 // Stop stops the tailer from reading new container logs,
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing container ", ShortContainerID(t.ContainerID))
+	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 	t.reader.Close()
 	t.source.RemoveInput(t.ContainerID)
@@ -83,6 +83,7 @@ func (t *Tailer) Stop() {
 // start from now if the container has been created before the agent started
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
+	log.Infof("Start tailing container: %v", containerImage, ShortContainerID(containerID))
 	return t.tail(since.Format(config.DateFormat))
 }
 

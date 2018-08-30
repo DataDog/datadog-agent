@@ -42,16 +42,16 @@ func (c *Container) ContainsLabel() bool {
 	return exists
 }
 
-// findSource returns the source that most closely matches the container,
+// findSource returns the source that most likely matches the container,
 // if no source is found return nil
 func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 	var candidate *config.LogSource
 	for _, source := range sources {
-		if !c.IsMatch(source) {
-			continue
-		}
 		if c.isIdentifierMatch(source.Config.Identifier) {
 			return source
+		}
+		if !c.IsMatch(source) {
+			continue
 		}
 		if candidate == nil {
 			candidate = source
@@ -80,8 +80,8 @@ func (c *Container) computeScore(source *config.LogSource) int {
 
 // IsMatch returns true if the source matches with the container.
 func (c *Container) IsMatch(source *config.LogSource) bool {
-	if source.Config.Identifier != "" && c.isIdentifierMatch(source.Config.Identifier) {
-		return true
+	if source.Config.Identifier != "" && !c.isIdentifierMatch(source.Config.Identifier) {
+		return false
 	}
 	if source.Config.Image != "" && !c.isImageMatch(source.Config.Image) {
 		return false
