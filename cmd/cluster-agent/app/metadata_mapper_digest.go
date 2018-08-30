@@ -51,9 +51,9 @@ func getMetadataMap(nodeName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	var urlstr string
 	if nodeName == "" {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/metadata", config.Datadog.GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v2beta1/tags", config.Datadog.GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/metadata/%s", config.Datadog.GetInt("cluster_agent.cmd_port"), nodeName)
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v2beta1/tags/pods/%s", config.Datadog.GetInt("cluster_agent.cmd_port"), nodeName)
 	}
 
 	// Set session token

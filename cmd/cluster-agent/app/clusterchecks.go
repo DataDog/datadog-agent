@@ -41,7 +41,7 @@ var clusterChecksCmd = &cobra.Command{
 func getClusterChecks() error {
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", config.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v2beta1/clusterchecks", config.Datadog.GetInt("cluster_agent.cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()

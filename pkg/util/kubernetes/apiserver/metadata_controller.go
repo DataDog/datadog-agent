@@ -322,9 +322,22 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 	log.Tracef("CacheKey: %s, with %d services", cacheKey, len(serviceList))
-	for _, s := range serviceList {
-		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
-	}
-
 	return metaList, nil
+}
+
+// GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
+func GetNodeLabels(nodeName string) (map[string]string, error) {
+	as, err := GetAPIClient()
+	if err != nil {
+		return nil, err
+	}
+	// TODO handle the wait on sync to avoid cache miss
+	node, err := as.InformerFactory.Core().V1().Nodes().Lister().Get(nodeName)
+	if err != nil {
+		return nil, err
+	}
+	if node == nil {
+		return nil, fmt.Errorf("cannot get node %s from the informer's cache", nodeName)
+	}
+	return node.Labels, nil
 }

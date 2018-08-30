@@ -3,39 +3,91 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package v1
+package v2beta1
 
 import (
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"net/http"
-
-	"github.com/gorilla/mux"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
+	"github.com/paulbellamy/ratecounter"
 )
 
 var (
-	apiStats         = expvar.NewMap("apiv1")
-	metadataStats    = new(expvar.Map).Init()
-	metadataErrors   = &expvar.Int{}
-	metadataRequests = &expvar.Int{}
+	apiStats                  = expvar.NewMap("apiv2")
+	metadataStats             = new(expvar.Map).Init()
+	metadataErrors            = &expvar.Int{}
+	metadataRequestsPerSecond = &expvar.Int{}
+	metadataRequestsCounter   = ratecounter.NewRateCounter(1 * time.Second)
 )
 
 func init() {
 	apiStats.Set("Metadata", metadataStats)
 	metadataStats.Set("Errors", metadataErrors)
-	metadataStats.Set("Requests", metadataRequests)
+	metadataStats.Set("RequestsPerSecond", metadataRequestsPerSecond)
 }
 
 // Install registers v1 API endpoints
 func Install(r *mux.Router, sc clusteragent.ServerContext) {
-	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
-	r.HandleFunc("/metadata/{nodeName}", getNodeMetadata).Methods("GET")
-	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")
+	r.HandleFunc("/tags/pods/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
+	r.HandleFunc("/tags/pods/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("/tags", getAllMetadata).Methods("GET")
+	r.HandleFunc("/tags/nodes/{nodeName}", getNodeMeta).Methods("GET")
+	installClusterCheckEndpoints(r, sc)
+}
+
+// getNodeMeta is only used when the node agent hits the DCA for the list o
+func getNodeMeta(w http.ResponseWriter, r *http.Request) {
+	/*
+		Input
+			localhost:5001/api/v2beta1/tags/nodes/localhost
+		Outputs
+			Status: 200
+			Returns: []string
+			Example: ["label1:value1", "label2:value2"]
+
+			Status: 404
+			Returns: string
+			Example: 404 page not found
+
+			Status: 500
+			Returns: string
+			Example: "no cached metadata found for the node localhost"
+	*/
+	metadataRequestsCounter.Incr(1)
+	metadataRequestsPerSecond.Set(metadataRequestsCounter.Rate())
+	vars := mux.Vars(r)
+	var labelBytes []byte
+	nodeName := vars["nodeName"]
+	nodeLabels, err := as.GetNodeLabels(nodeName)
+	if err != nil {
+		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		metadataErrors.Add(1)
+		return
+	}
+	labelBytes, err = json.Marshal(nodeLabels)
+	if err != nil {
+		log.Errorf("Could not process the labels of the node %s from the informer's cache: %v", nodeName, err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		metadataErrors.Add(1)
+		return
+	}
+	if len(labelBytes) != 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(labelBytes)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(fmt.Sprintf("Could not find labels on the node: %s", nodeName)))
+
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.
@@ -47,7 +99,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		Outputs
 			Status: 200
 			Returns: []string
-			Example: ["kube_service:my-nginx-service"]
+			Example: ["my-nginx-service"]
 
 			Status: 404
 			Returns: string
@@ -58,7 +110,8 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
 	*/
 
-	metadataRequests.Add(1)
+	metadataRequestsCounter.Incr(1)
+	metadataRequestsPerSecond.Set(metadataRequestsCounter.Rate())
 
 	vars := mux.Vars(r)
 	var metaBytes []byte
@@ -71,9 +124,6 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
 		metadataErrors.Add(1)
 		return
-	}
-	for _, s := range metaList {
-		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
 	}
 	metaBytes, err := json.Marshal(metaList)
 	if err != nil {

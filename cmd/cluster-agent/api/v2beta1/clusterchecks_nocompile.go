@@ -5,7 +5,7 @@
 
 // +build !clusterchecks
 
-package v1
+package v2beta1
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
