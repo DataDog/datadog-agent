@@ -157,15 +157,15 @@ func (s *Scheduler) toService(integrationConfig integration.Config) (*service.Se
 
 // parseEntity breaks down an entity into a service provider and a service identifier.
 func (s *Scheduler) parseEntity(entity string) (string, string, error) {
-	components := strings.Split(integrationConfig.Entity, "://")
+	components := strings.Split(entity, "://")
 	if len(components) != 2 {
-		return "", "", fmt.Errorf("entity is malformed : %v", integrationConfig.Entity)
+		return "", "", fmt.Errorf("entity is malformed : %v", entity)
 	}
-	return components[0], components[1]
+	return components[0], components[1], nil
 }
 
 // integrationToServiceCRTime maps an integration creation time to a service creation time.
-var integrationToServiceCRTime = map[integrationConfig.CreationTime]service.CreationTime{
+var integrationToServiceCRTime = map[integration.CreationTime]service.CreationTime{
 	integration.Before: service.Before,
 	integration.After:  service.After,
 }
