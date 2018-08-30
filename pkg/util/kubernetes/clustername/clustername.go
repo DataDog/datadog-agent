@@ -14,7 +14,7 @@ import (
 type clusterNameData struct {
 	clusterName string
 	initDone    bool
-	mutex       *sync.Mutex
+	mutex       sync.Mutex
 }
 
 func newClusterNameData() *clusterNameData {

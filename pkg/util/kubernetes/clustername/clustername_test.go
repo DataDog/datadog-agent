@@ -14,7 +14,7 @@ import (
 )
 
 func TestGetClusterName(t *testing.T) {
-	data := &clusterNameData{}
+	data := newClusterNameData()
 
 	var testClusterName = "Laika"
 	config.Datadog.Set("cluster_name", testClusterName)
@@ -26,6 +26,6 @@ func TestGetClusterName(t *testing.T) {
 	var newClusterName = "Youri"
 	config.Datadog.Set("cluster_name", newClusterName)
 	assert.Equal(t, testClusterName, getClusterName(data))
-	freshData := &clusterNameData{}
+	freshData := newClusterNameData()
 	assert.Equal(t, newClusterName, getClusterName(freshData))
 }
