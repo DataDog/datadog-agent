@@ -1,9 +1,10 @@
-package autodiscovery
+package procdiscovery
 
 import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/procmatch"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/shirou/gopsutil/process"
 )
 
@@ -15,20 +16,30 @@ type IntegrationProcess struct {
 }
 
 // DiscoveredIntegrations is a map whose keys are integrations names and values are lists of IntegrationProcess
-type DiscoveredIntegrations map[string][]IntegrationProcess
+type DiscoveredIntegrations struct {
+	Discovered map[string][]IntegrationProcess
+	Running    map[string]struct{}
+	Failing    map[string]struct{}
+}
 
 // DiscoverIntegrations retrieves processes running on the host and tries to find possible integrations
 func DiscoverIntegrations() (DiscoveredIntegrations, error) {
+	di := DiscoveredIntegrations{}
 	matcher, err := procmatch.NewDefault()
 
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't build default process matcher: %s", err)
+		return di, fmt.Errorf("Couldn't build default process matcher: %s", err)
 	}
 
 	processes, err := process.Processes()
 
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't retrieve process list: %s", err)
+		return di, fmt.Errorf("Couldn't retrieve process list: %s", err)
+	}
+
+	running, failing, err := retrieveIntegrations()
+	if err != nil {
+		return di, err
 	}
 
 	// processList is a set of processes (removes duplicate processes)
@@ -60,6 +71,34 @@ func DiscoverIntegrations() (DiscoveredIntegrations, error) {
 			Name:        matched.Name,
 		})
 	}
+	di.Discovered = integrations
+	di.Running = running
+	di.Failing = failing
 
-	return integrations, nil
+	return di, nil
+}
+
+func retrieveIntegrations() (map[string]struct{}, map[string]struct{}, error) {
+	running := map[string]struct{}{}
+	failing := map[string]struct{}{}
+
+	status, err := status.GetStatus()
+
+	if err != nil {
+		return running, failing, fmt.Errorf("Couldn't retrieve agent status: %s", err)
+	}
+
+	if checks, ok := status["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{}); ok {
+		for key := range checks {
+			running[key] = struct{}{}
+		}
+	}
+
+	if errors, ok := status["checkSchedulerStats"].(map[string]interface{})["LoaderErrors"].(map[string]interface{}); ok {
+		for key := range errors {
+			failing[key] = struct{}{}
+		}
+	}
+
+	return running, failing, nil
 }

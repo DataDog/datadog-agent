@@ -247,7 +247,7 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 func getDiscoveredIntegrations(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for discovered integrations. Discovering integrations.")
 
-	response, err := autodiscovery.DiscoverIntegrations()
+	response, err := procdiscovery.DiscoverIntegrations()
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting discovered integrations. Error: %v", err)
