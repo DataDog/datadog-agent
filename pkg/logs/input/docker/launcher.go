@@ -132,7 +132,7 @@ func (l *Launcher) startTailer(source *config.LogSource, container *Container) {
 	log.Infof("Detected container %v - %v", containerImage, ShortContainerID(containerID))
 	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan())
 
-	since, err := Since(l.registry, tailer.Identifier(), service.After) // FIXME: use the service creation time instead
+	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
 	if err != nil {
 		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
 	}

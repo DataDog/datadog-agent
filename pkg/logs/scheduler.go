@@ -7,7 +7,7 @@ package logs
 
 import (
 	"fmt"
-	// "strings"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -51,7 +51,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.sources.AddSource(source)
 			}
 		} else {
-			// log.Infof("Received a new service with entity: %v", config.Entity)
+			log.Infof("Received a new service with entity: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -71,7 +71,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		if config.Provider != "" {
 			continue
 		}
-		// log.Infof("New service to remove with entity: %v", config.Entity)
+		log.Infof("New service to remove with entity: %v", config.Entity)
 		service, err := s.toService(config)
 		if err != nil {
 			log.Warnf("Invalid service: %v", err)
@@ -106,8 +106,18 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 
 	var sources []*config.LogSource
 	for _, cfg := range configs {
-		// cfg.Identifier = integrationConfig.Entity
-		source := config.NewLogSource(integrationConfig.Name, cfg)
+		integrationName := integrationConfig.Name
+		if integrationConfig.Entity != "" {
+			components := strings.Split(integrationConfig.Entity, "://")
+			if len(components) != 2 {
+				return nil, fmt.Errorf("entity is malformed : %v", integrationConfig.Entity)
+			}
+			service, identifier := components[0], components[1]
+			integrationName = service
+			cfg.Type = service
+			cfg.Identifier = identifier
+		}
+		source := config.NewLogSource(integrationName, cfg)
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
@@ -126,23 +136,22 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 
 // toService creates a new service for an integrationConfig.
 func (s *Scheduler) toService(integrationConfig integration.Config) (*service.Service, error) {
-	// components := strings.Split(config.Entity, "://")
-	// if len(components) != 2 {
-	// 	return nil, fmt.Errorf("entity is malformed : %v", config.Entity)
-	// }
-	// provider, identifier := components[0], components[1]
-	// switch provider {
-	// case service.Docker:
-	// 	var crTime service.CreationTime
-	// 	switch integrationConfig.CreationTime {
-	// 	case integration.Before:
-	// 		crTime = service.Before
-	// 	case integration.After:
-	// 		crTime = service.After
-	// 	}
-	// 	return service.NewService(provider, indentifier, crTime), nil
-	// default:
-	// return nil, fmt.Errorf("%v is not supported yet", provider)
-	// }
-	return nil, nil
+	components := strings.Split(integrationConfig.Entity, "://")
+	if len(components) != 2 {
+		return nil, fmt.Errorf("entity is malformed : %v", integrationConfig.Entity)
+	}
+	provider, identifier := components[0], components[1]
+	switch provider {
+	case service.Docker:
+		var crTime service.CreationTime
+		switch integrationConfig.CreationTime {
+		case integration.Before:
+			crTime = service.Before
+		case integration.After:
+			crTime = service.After
+		}
+		return service.NewService(provider, identifier, crTime), nil
+	default:
+		return nil, fmt.Errorf("%v is not supported yet", provider)
+	}
 }
