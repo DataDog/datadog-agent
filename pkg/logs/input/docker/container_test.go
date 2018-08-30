@@ -42,14 +42,14 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[2])
 
-	container = NewContainer(types.Container{ID: "1234567890", Labels: map[string]string{"mylabel": "anything"}}, nil)
-	source = container.FindSource(sources)
-	assert.Nil(t, source)
-
-	container = NewContainer(types.Container{Image: "myapp", ID: "0987654321"}, nil)
+	container = NewContainer(types.Container{ID: "1234567890", Labels: map[string]string{"com.datadoghq.ad.logs": "[{}]"}}, nil)
 	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[3])
+
+	container = NewContainer(types.Container{ID: "0987654321", Labels: map[string]string{"com.datadoghq.ad.logs": "[{}]"}}, nil)
+	source = container.FindSource(sources)
+	assert.Nil(t, source)
 
 	container = NewContainer(types.Container{Image: "wrongapp"}, nil)
 	source = container.FindSource(sources)

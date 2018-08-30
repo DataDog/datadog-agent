@@ -50,6 +50,9 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 			candidate = source
 		}
 	}
+	if c.ContainsLabel() && !c.isIdentifierMatch(candidate.Config.Identifier) {
+		return nil
+	}
 	return candidate
 }
 
