@@ -3,14 +3,14 @@
 ## Requirements
 
 -  android sdk and ndk (installed with android studio for example)
-- `gomobile` (through `go get golang.org/x/mobile/cmd/gomobile`) [godoc](https://godoc.org/golang.org/x/mobile/cmd/gomobile)
 - jdk (warning: on macos `brew cask install java8`, jdk10 provided by Oracle doesn't work)
 
 
 ## Before building
 
 - `ANDROID_HOME` environment variable set to the android sdk path (if installed with android studio:  `$HOME/Android/Sdk` on linux and `$HOME/Library/Android/sdk` on macos).
-- initialize gomobile with `gomobile init -ndk /path/to/ndk` (ndk is at `$ANDROID_HOME/ndk-bundle` if installed with android studio).
+- `ANDROID_NDK_HOME` environment variable set to the android bdk path (ndk is at `$ANDROID_HOME/ndk-bundle` if installed with android studio).
+- install and initialize gomobile with `invoke deps --android`.
 
 `datadog-agent` is installed as a system service on Android and has to be signed with the platform key.
 
