@@ -29,11 +29,20 @@ func NewContainer(container types.Container) *Container {
 
 // findSource returns the source that most closely matches the container,
 // if no source is found return nil
-func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
-	if label := c.getLabel(); label != "" {
-		cfg, err := config.Parse(label)
-		if err != nil {
+func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
+	if label := c.GetLabel(); label != "" {
+		configs, err := config.ParseJSON([]byte(label))
+		if err != nil || len(configs) == 0 {
+			log.Errorf("Could not parse docker label for container %v: %v", c.Container.ID, err)
+			return nil
+		}
+		cfg := configs[0]
+		if err := cfg.Validate(); err != nil {
 			log.Errorf("Invalid docker label for container %v: %v", c.Container.ID, err)
+			return nil
+		}
+		if err := cfg.Compile(); err != nil {
+			log.Errorf("Could not compile docker label for container %v: %v", c.Container.ID, err)
 			return nil
 		}
 		cfg.Type = config.DockerType
@@ -41,13 +50,7 @@ func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 	}
 	var candidate *config.LogSource
 	for _, source := range sources {
-		if source.Config.Image != "" && !c.isImageMatch(source.Config.Image) {
-			continue
-		}
-		if source.Config.Label != "" && !c.isLabelMatch(source.Config.Label) {
-			continue
-		}
-		if source.Config.Name != "" && !c.isNameMatch(source.Config.Name) {
+		if !c.IsMatch(source) {
 			continue
 		}
 		if candidate == nil {
@@ -73,6 +76,20 @@ func (c *Container) computeScore(source *config.LogSource) int {
 		score++
 	}
 	return score
+}
+
+// isMatch returns true if the source matches with the container.
+func (c *Container) IsMatch(source *config.LogSource) bool {
+	if source.Config.Image != "" && !c.isImageMatch(source.Config.Image) {
+		return false
+	}
+	if source.Config.Label != "" && !c.isLabelMatch(source.Config.Label) {
+		return false
+	}
+	if source.Config.Name != "" && !c.isNameMatch(source.Config.Name) {
+		return false
+	}
+	return true
 }
 
 // digestPrefix represents a prefix that can be added to an image name.
@@ -137,8 +154,8 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 // this feature is commonly named 'ad' or 'autodicovery'.
 const configPath = "com.datadoghq.ad.logs"
 
-// getLabel returns the autodiscovery config label if it exists.
-func (c *Container) getLabel() string {
+// GetLabel returns the autodiscovery config label if it exists.
+func (c *Container) GetLabel() string {
 	label, exists := c.Labels[configPath]
 	if exists {
 		return label

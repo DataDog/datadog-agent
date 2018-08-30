@@ -1,4 +1,0 @@
-logs:
-  - type: file
-    service: hasnopath
-

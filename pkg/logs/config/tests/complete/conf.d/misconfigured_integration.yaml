@@ -1,7 +1,0 @@
-init_config:
-
-instances:
-  - whatever: anything
-
-logs:
-  - type: udp

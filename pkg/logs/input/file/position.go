@@ -18,15 +18,19 @@ func Position(registry auditor.Registry, identifier string, tailFromBeginning bo
 	var whence int
 	var err error
 	value := registry.GetOffset(identifier)
-	if value != "" {
+	switch {
+	case value != "":
+		// an offset was registered, tail from the offset
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			offset, whence = 0, io.SeekEnd
 		}
-	} else if tailFromBeginning {
+	case tailFromBeginning:
+		// a new service has been discovered, tail from the beginning
 		offset, whence = 0, io.SeekStart
-	} else {
+	default:
+		// a new config has been discovered, tail from the end
 		offset, whence = 0, io.SeekEnd
 	}
 	return offset, whence, err

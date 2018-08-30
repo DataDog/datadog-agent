@@ -286,8 +286,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// If logs was found, add it to the config
 	if cf.LogsConfig != nil {
-		rawLogsConfig, _ := yaml.Marshal(cf.LogsConfig)
-		config.LogsConfig = rawLogsConfig
+		logsConfig := make(map[string]interface{})
+		logsConfig["logs"] = cf.LogsConfig
+		config.LogsConfig, _ = yaml.Marshal(logsConfig)
 	}
 
 	// Copy auto discovery identifiers

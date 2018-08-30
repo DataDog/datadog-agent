@@ -6,25 +6,28 @@
 package config
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAddSource(t *testing.T) {
-	sources := NewEmptyLogSources()
+	sources := NewLogSources()
+	registerConsumer(sources, "boo")
 	assert.Equal(t, 0, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("foo", nil))
+	sources.AddSource(NewLogSource("foo", &LogsConfig{Type: "boo"}))
 	assert.Equal(t, 1, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("bar", nil))
+	sources.AddSource(NewLogSource("bar", &LogsConfig{Type: "boo"}))
 	assert.Equal(t, 2, len(sources.GetSources()))
 }
 
 func TestRemoveSource(t *testing.T) {
-	source1 := NewLogSource("foo", nil)
-	source2 := NewLogSource("bar", nil)
-	sources := NewLogSources([]*LogSource{source1, source2})
+	sources := NewLogSources()
+	registerConsumer(sources, "boo")
+	source1 := NewLogSource("foo", &LogsConfig{Type: "boo"})
+	sources.AddSource(source1)
+	source2 := NewLogSource("bar", &LogsConfig{Type: "boo"})
+	sources.AddSource(source2)
 	assert.Equal(t, 2, len(sources.GetSources()))
 	sources.RemoveSource(source1)
 	assert.Equal(t, 1, len(sources.GetSources()))
@@ -34,44 +37,19 @@ func TestRemoveSource(t *testing.T) {
 }
 
 func TestGetSources(t *testing.T) {
-	sources := NewEmptyLogSources()
+	sources := NewLogSources()
+	registerConsumer(sources, "boo")
 	assert.Equal(t, 0, len(sources.GetSources()))
-	sources.AddSource(NewLogSource("", nil))
+	sources.AddSource(NewLogSource("", &LogsConfig{Type: "boo"}))
 	assert.Equal(t, 1, len(sources.GetSources()))
 }
 
-func TestGetValidSources(t *testing.T) {
-	source1 := NewLogSource("foo", nil)
-	source2 := NewLogSource("bar", nil)
-	sources := NewLogSources([]*LogSource{source1, source2})
-	assert.Equal(t, 2, len(sources.GetValidSources()))
-	source1.Status.Error(errors.New("invalid"))
-	assert.Equal(t, 1, len(sources.GetValidSources()))
-	source1.Status.Success()
-	assert.Equal(t, 2, len(sources.GetValidSources()))
-}
-
-func TestGetSourcesWithType(t *testing.T) {
-	source1 := NewLogSource("foo", nil)
-	source2 := NewLogSource("bar", &LogsConfig{})
-	source3 := NewLogSource("baz", &LogsConfig{Type: "foo"})
-	source4 := NewLogSource("qux", &LogsConfig{Type: "foo"})
-	source4.Status.Error(errors.New("test"))
-	sources := NewLogSources([]*LogSource{source1, source2, source3, source4})
-	assert.Equal(t, 2, len(sources.GetSourcesWithType("foo")))
-}
-
-func TestGetValidSourcesWithType(t *testing.T) {
-	source1 := NewLogSource("foo", nil)
-	source2 := NewLogSource("bar", &LogsConfig{})
-	source3 := NewLogSource("baz", &LogsConfig{Type: "foo"})
-	source4 := NewLogSource("qux", &LogsConfig{Type: "foo"})
-	source4.Status.Error(errors.New("test"))
-	sources := NewLogSources([]*LogSource{source1, source2, source3, source4})
-	assert.Equal(t, 1, len(sources.GetValidSourcesWithType("foo")))
-}
-
-// NewEmptyLogSources creates a new log sources with no initial entries.
-func NewEmptyLogSources() *LogSources {
-	return NewLogSources(make([]*LogSource, 0))
+func registerConsumer(sources *LogSources, sourceType string) {
+	go func() {
+		sources := sources.GetSourceStreamForType(sourceType)
+		for range sources {
+			// ensure that another component is consuming the channel to prevent
+			// the producer to get stuck.
+		}
+	}()
 }

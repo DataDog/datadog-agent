@@ -29,6 +29,7 @@ const scanPeriod = 10 * time.Second
 type Scanner struct {
 	pipelineProvider pipeline.Provider
 	sources          *config.LogSources
+	activeSources    []*config.LogSource
 	tailers          map[string]*Tailer
 	cli              *client.Client
 	registry         auditor.Registry
@@ -71,8 +72,6 @@ func (s *Scanner) setup() error {
 
 // Start starts the Scanner
 func (s *Scanner) Start() {
-	// start tailing monitored containers
-	s.scan(false)
 	go s.run()
 }
 
@@ -94,9 +93,12 @@ func (s *Scanner) run() {
 	defer scanTicker.Stop()
 	for {
 		select {
+		case source := <-s.sources.GetSourceStreamForType(config.DockerType):
+			s.activeSources = append(s.activeSources, source)
+			s.launchTailers(source)
 		case <-scanTicker.C:
 			// check all the containers running on the host and start new tailers if needed
-			s.scan(true)
+			s.scan()
 		case <-s.stop:
 			// no docker container should be tailed anymore
 			return
@@ -107,23 +109,24 @@ func (s *Scanner) run() {
 // scan checks for new containers we're expected to
 // tail, as well as stopped containers or containers that
 // restarted
-func (s *Scanner) scan(tailFromBeginning bool) {
+func (s *Scanner) scan() {
 	runningContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
 	// monitor new containers, and restart tailers if needed
 	for _, container := range runningContainers {
-		source := NewContainer(container).findSource(s.sources.GetSourcesWithType(config.DockerType))
-		if source == nil {
-			continue
-		}
 		tailer, isTailed := s.tailers[container.ID]
 		if isTailed && tailer.shouldStop {
 			continue
 		}
 		if !isTailed {
+			// search the best source matching the container
+			source := NewContainer(container).FindSource(s.activeSources)
+			if source == nil {
+				continue
+			}
 			// setup a new tailer
-			succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pipelineProvider.NextPipelineChan())
+			succeeded := s.setupTailer(s.cli, container, source, true, s.pipelineProvider.NextPipelineChan())
 			if !succeeded {
 				// the setup failed, let's try to tail this container in the next scan
 				continue
@@ -141,20 +144,39 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 	}
 }
 
+// launch launches new tailers for a new source.
+func (s *Scanner) launchTailers(source *config.LogSource) {
+	for _, container := range s.listContainers() {
+		if _, isTailed := s.tailers[container.ID]; isTailed {
+			continue
+		}
+		c := NewContainer(container)
+		if c.GetLabel() != "" {
+			continue
+		}
+		if NewContainer(container).IsMatch(source) {
+			s.setupTailer(s.cli, container, source, false, s.pipelineProvider.NextPipelineChan())
+		}
+	}
+}
+
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
 func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", ShortContainerID(container.ID))
 	tailer := NewTailer(cli, container.ID, source, outputChan)
+
 	since, err := Since(s.registry, tailer.Identifier(), tailFromBeginning)
 	if err != nil {
 		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(container.ID), err)
 	}
+
 	err = tailer.Start(since)
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
+
 	s.tailers[container.ID] = tailer
 	return true
 }
@@ -179,7 +201,7 @@ func (s *Scanner) listContainers() []types.Container {
 
 // reportErrorToAllSources changes the status of all sources to Error with err
 func (s *Scanner) reportErrorToAllSources(err error) {
-	for _, source := range s.sources.GetValidSourcesWithType(config.DockerType) {
+	for _, source := range s.activeSources {
 		source.Status.Error(err)
 	}
 }

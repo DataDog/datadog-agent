@@ -27,22 +27,22 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 	}
 
 	container = NewContainer(types.Container{Image: "myapp"})
-	source = container.findSource(sources)
+	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[0])
 
 	container = NewContainer(types.Container{Image: "wrongapp", Labels: map[string]string{"mylabel": "anything"}})
-	source = container.findSource(sources)
+	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[1])
 
 	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}})
-	source = container.findSource(sources)
+	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[2])
 
 	container = NewContainer(types.Container{Image: "wrongapp"})
-	source = container.findSource(sources)
+	source = container.FindSource(sources)
 	assert.Nil(t, source)
 }
 
@@ -56,17 +56,17 @@ func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
 	}
 
 	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}})
-	source = container.findSource(sources)
+	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[1])
 
 	container = NewContainer(types.Container{Image: "wrongapp"})
-	source = container.findSource(sources)
+	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	assert.Equal(t, source, sources[0])
 
 	container = NewContainer(types.Container{Image: "wrongapp", Labels: map[string]string{"wronglabel": "anything", "com.datadoghq.ad.logs": "[{\"source\":\"any_source\",\"service\":\"any_service\"}]"}})
-	source = container.findSource(sources)
+	source = container.FindSource(sources)
 	assert.NotNil(t, source)
 	for _, s := range sources {
 		assert.NotEqual(t, source, s)
@@ -78,7 +78,7 @@ func TestFindSourceWithInvalidContainerLabelShouldReturnNil(t *testing.T) {
 	var container *Container
 
 	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.Nil(t, source)
 }
 
@@ -214,12 +214,12 @@ func TestFindSourceFromLabelWithWrongLabelNameShouldFail(t *testing.T) {
 	var container *Container
 
 	container = NewContainer(types.Container{Labels: labels})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.Nil(t, source)
 
 	labels = map[string]string{"com.datadoghq.ad.name": "any_name"}
 	container = NewContainer(types.Container{Labels: labels})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.Nil(t, source)
 }
 
@@ -230,12 +230,12 @@ func TestFindSourceFromLabelWithWrongFormatShouldFail(t *testing.T) {
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{}"}
 	container = NewContainer(types.Container{Labels: labels})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.Nil(t, source)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}
 	container = NewContainer(types.Container{Labels: labels})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.Nil(t, source)
 }
 
@@ -246,7 +246,7 @@ func TestFindSourceFromLabelWithInvalidProcessingRuleShouldFail(t *testing.T) {
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line"}]}]`}
 	container = NewContainer(types.Container{Labels: labels})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.Nil(t, source)
 }
 
@@ -254,17 +254,17 @@ func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
 	var labels map[string]string
 	var source *config.LogSource
 	var container *Container
-	var rule config.LogsProcessingRule
+	var rule config.ProcessingRule
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{}]`}
 	container = NewContainer(types.Container{Labels: labels, Image: "any_image"})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.NotNil(t, source)
 	assert.Equal(t, "any_image", source.Name)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service"}]`}
 	container = NewContainer(types.Container{Labels: labels, Image: "any_image"})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.NotNil(t, source)
 	assert.Equal(t, "any_image", source.Name)
 	assert.Equal(t, "any_source", source.Config.Source)
@@ -272,7 +272,7 @@ func TestFindSourceFromLabelWithValidFormatShouldSucceed(t *testing.T) {
 
 	labels = map[string]string{"com.datadoghq.ad.logs": `[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`}
 	container = NewContainer(types.Container{Labels: labels})
-	source = container.findSource(nil)
+	source = container.FindSource(nil)
 	assert.NotNil(t, source)
 	assert.Equal(t, "", source.Name)
 	assert.Equal(t, "any_source", source.Config.Source)

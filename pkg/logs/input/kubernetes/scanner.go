@@ -123,10 +123,16 @@ const kubernetesIntegration = "kubernetes"
 func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
 	if annotation := s.getAnnotation(pod, container); annotation != "" {
-		var err error
-		cfg, err = config.Parse(annotation)
-		if err != nil {
-			return nil, err
+		configs, err := config.ParseJSON([]byte(annotation))
+		if err != nil || len(configs) == 0 {
+			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
+		}
+		cfg = configs[0]
+		if err := cfg.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
+		}
+		if err := cfg.Compile(); err != nil {
+			return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
 		}
 	} else {
 		cfg = &config.LogsConfig{
