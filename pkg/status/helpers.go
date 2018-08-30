@@ -14,7 +14,6 @@ import (
 	"unicode"
 
 	"github.com/dustin/go-humanize"
-	json "github.com/json-iterator/go"
 	"golang.org/x/text/unicode/norm"
 )
 

@@ -21,10 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	json "github.com/json-iterator/go"
+	"github.com/json-iterator/go"
 )
 
-var timeFormat = "2006-01-02 15:04:05.000000 UTC"
+var (
+	json       = jsoniter.ConfigCompatibleWithStandardLibrary
+	timeFormat = "2006-01-02 15:04:05.000000 UTC"
+)
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
