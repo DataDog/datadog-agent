@@ -30,10 +30,10 @@ func Since(registry auditor.Registry, identifier string, creationTime service.Cr
 			since = since.Add(time.Nanosecond)
 		}
 	case creationTime == service.After:
-		// a new service has been discovered, tail from the beginning
+		// a new service has been discovered and was launched after the agent start, tail from the beginning
 		since = time.Time{}
 	case creationTime == service.Before:
-		// a new config has been discovered, tail from the end
+		// a new config has been discovered and was launched before the agent start, tail from the end
 		since = time.Now().UTC()
 	}
 	return since, err
