@@ -6,6 +6,8 @@ NOTE: Changes made to this template should be reflected on the following templat
 Forwarder
 =========
 {{ if .Transactions }}
+  Transactions
+  ============
   {{- range $key, $value := .Transactions }}
     {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode")}}
   {{$key}}: {{humanize $value}}
@@ -13,9 +15,9 @@ Forwarder
   {{- end}}
   {{- if .Transactions.DroppedOnInput }}
 
-  Warning: the forwarder dropped transactions because all workers were busy.
-  You should review your network performance, and tune the forwarder_num_workers
-  and forwarder_timeout options.
+    Warning: the forwarder dropped transactions because all workers were busy.
+    You should review your network performance, and tune the forwarder_num_workers
+    and forwarder_timeout options.
   {{- end}}
   {{- if .Transactions.Errors }}
 
