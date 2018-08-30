@@ -82,38 +82,6 @@ func TestWork(t *testing.T) {
 	assert.False(t, c3.hasRun)
 }
 
-func TestLogging(t *testing.T) {
-	r := NewRunner()
-	c := TestCheck{}
-	s := &check.Stats{
-		CheckID:   c.ID(),
-		CheckName: c.String(),
-	}
-	s.TotalRuns = 0
-	checkStats.Stats[c.ID()] = s
-
-	doLog, lastLog := shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.False(t, lastLog)
-
-	s.TotalRuns = 5
-	doLog, lastLog = shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.True(t, lastLog)
-
-	s.TotalRuns = 6
-	doLog, lastLog = shouldLog(c.ID())
-	assert.False(t, doLog)
-	assert.False(t, lastLog)
-
-	s.TotalRuns = 20
-	doLog, lastLog = shouldLog(c.ID())
-	assert.True(t, doLog)
-	assert.False(t, lastLog)
-
-	r.Stop()
-}
-
 type TimingoutCheck struct {
 	TestCheck
 }
