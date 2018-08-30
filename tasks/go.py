@@ -213,6 +213,19 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
 
     # source level deps
     ctx.run("dep ensure{}".format(verbosity))
+
+    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+    #
+    # This may happen as a result of having to introduce DEPPROJECTROOT
+    # in our builders to get around a known-issue with go dep, and the
+    # strange GOPATH situation in our builders.
+    #
+    # This is only a workaround, we should eliminate the need to resort
+    # to DEPPROJECTROOT.
+    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+        print("Removing vendored github.com/DataDog/datadog-agent")
+        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
+
     # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
     # in because it's necessary on other platforms
     if not android and sys.platform == 'win32':
