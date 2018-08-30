@@ -238,10 +238,8 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 
 		// resolve configs if needed
 		for _, config := range cfgs {
-			// set config's provider and origin
 			config.Provider = pd.provider.String()
-			config.Origin = integration.NewConfig
-			rc := ac.storeAndResolve(config)
+			rc := ac.processNewConfig(config)
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 	}
@@ -254,8 +252,13 @@ func (ac *AutoConfig) schedule(configs []integration.Config) {
 	ac.scheduler.Schedule(configs)
 }
 
-// storeAndResolve store (in template cache) and resolves a given config into a slice of resolved configs
-func (ac *AutoConfig) storeAndResolve(config integration.Config) []integration.Config {
+// unschedule takes a slice of configs and unschedule them
+func (ac *AutoConfig) unschedule(configs []integration.Config) {
+	ac.scheduler.Unschedule(configs)
+}
+
+// processNewConfig store (in template cache) and resolves a given config into a slice of resolved configs
+func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.Config {
 	var configs []integration.Config
 
 	// add default metrics to collect to JMX checks
@@ -504,10 +507,8 @@ func (ac *AutoConfig) pollConfigs() {
 					ac.processRemovedConfigs(removedConfigs)
 
 					for _, config := range newConfigs {
-						// set config's provider and origin
 						config.Provider = pd.provider.String()
-						config.Origin = integration.NewConfig
-						resolvedConfigs := ac.storeAndResolve(config)
+						resolvedConfigs := ac.processNewConfig(config)
 						ac.schedule(resolvedConfigs)
 					}
 				}
@@ -517,7 +518,7 @@ func (ac *AutoConfig) pollConfigs() {
 }
 
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
-	ac.scheduler.Unschedule(configs)
+	ac.unschedule(configs)
 	for _, c := range configs {
 		ac.store.removeLoadedConfig(c)
 		// if the config is a template, remove it from the cache
@@ -676,6 +677,7 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 		}
 		templates = append(templates, tpls...)
 	}
+
 	for _, template := range templates {
 		// resolve the template
 		resolvedConfig, err := ac.resolveTemplateForService(template, svc)
@@ -683,12 +685,18 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 			continue
 		}
 
-		// set the config origin
-		resolvedConfig.Origin = integration.NewService
-
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})
 	}
+	// FIXME: schedule new services as well
+	ac.schedule([]integration.Config{
+		{
+			LogsConfig:   integration.Data{},
+			Entity:       svc.GetEntity(),
+			CreationTime: svc.GetCreationTime(),
+		},
+	})
+
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
@@ -698,4 +706,12 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	ac.store.removeConfigsForService(svc.GetEntity())
 	ac.processRemovedConfigs(configs)
 	ac.store.removeTagsHashForService(svc.GetEntity())
+	// FIXME: unschedule remove services as well
+	ac.unschedule([]integration.Config{
+		{
+			LogsConfig:   integration.Data{},
+			Entity:       svc.GetEntity(),
+			CreationTime: svc.GetCreationTime(),
+		},
+	})
 }

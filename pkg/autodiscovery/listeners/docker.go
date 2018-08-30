@@ -18,6 +18,7 @@ import (
 	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -47,6 +48,7 @@ type DockerService struct {
 	ports         []ContainerPort
 	pid           int
 	hostname      string
+	creationTime  integration.CreationTime
 }
 
 func init() {
@@ -138,6 +140,7 @@ func (l *DockerListener) init() {
 				adIdentifiers: l.getConfigIDFromPs(co),
 				hosts:         l.getHostsFromPs(co),
 				ports:         l.getPortsFromPs(co),
+				creationTime:  integration.Before,
 			}
 		}
 		l.newService <- svc
@@ -193,7 +196,8 @@ func (l *DockerListener) createService(cID string) {
 		}
 	} else {
 		svc = &DockerService{
-			cID: cID,
+			cID:          cID,
+			creationTime: integration.After,
 		}
 	}
 
@@ -488,6 +492,11 @@ func (s *DockerService) GetHostname() (string, error) {
 
 	s.hostname = cInspect.Config.Hostname
 	return s.hostname, nil
+}
+
+// GetCreationTime returns the creation time of the container compare to the agent start.
+func (s *DockerService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
 }
 
 // findKubernetesInLabels traverses a map of container labels and

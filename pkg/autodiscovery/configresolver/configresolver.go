@@ -38,8 +38,11 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		Instances:     make([]integration.Data, len(tpl.Instances)),
 		InitConfig:    make(integration.Data, len(tpl.InitConfig)),
 		MetricConfig:  tpl.MetricConfig,
+		LogsConfig:    tpl.LogsConfig,
 		ADIdentifiers: tpl.ADIdentifiers,
 		Provider:      tpl.Provider,
+		Entity:        svc.GetEntity(),
+		CreationTime:  svc.GetCreationTime(),
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)

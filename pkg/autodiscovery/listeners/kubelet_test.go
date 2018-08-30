@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-func getMockedPod() *kubelet.Pod {
+func getMockedPods() []*kubelet.Pod {
 	containerSpecs := []kubelet.ContainerSpec{
 		{
 			Name:  "foo",
@@ -89,13 +89,15 @@ func getMockedPod() *kubelet.Pod {
 		HostIP:     "127.0.0.2",
 		Containers: containerStatuses,
 	}
-	return &kubelet.Pod{
-		Spec:   kubeletSpec,
-		Status: kubeletStatus,
-		Metadata: kubelet.PodMetadata{
-			Name: "mock-pod",
-			Annotations: map[string]string{
-				"ad.datadoghq.com/baz.instances": "[]",
+	return []*kubelet.Pod{
+		{
+			Spec:   kubeletSpec,
+			Status: kubeletStatus,
+			Metadata: kubelet.PodMetadata{
+				Name: "mock-pod",
+				Annotations: map[string]string{
+					"ad.datadoghq.com/baz.instances": "[]",
+				},
 			},
 		},
 	}
@@ -107,7 +109,7 @@ func TestProcessNewPod(t *testing.T) {
 		newService: services,
 		services:   make(map[string]Service),
 	}
-	listener.processNewPod(getMockedPod())
+	listener.processNewPods(getMockedPods(), false)
 
 	select {
 	case service := <-services:

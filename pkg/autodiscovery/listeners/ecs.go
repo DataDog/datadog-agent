@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -42,6 +43,7 @@ type ECSService struct {
 	clusterName   string
 	taskFamily    string
 	taskVersion   string
+	creationTime  integration.CreationTime
 }
 
 func init() {
@@ -65,6 +67,7 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.delService = delSvc
 
 	go func() {
+		l.refreshServices(true)
 		for {
 			select {
 			case <-l.stop:
@@ -72,7 +75,7 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 				return
 			case <-l.health.C:
 			case <-l.t.C:
-				l.refreshServices()
+				l.refreshServices(false)
 			}
 		}
 	}()
@@ -86,7 +89,7 @@ func (l *ECSListener) Stop() {
 // refreshServices queries the task metadata endpoint for fresh info
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
-func (l *ECSListener) refreshServices() {
+func (l *ECSListener) refreshServices(firstRun bool) {
 	meta, err := ecs.GetTaskMetadata()
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
@@ -113,7 +116,7 @@ func (l *ECSListener) refreshServices() {
 			log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
 			continue
 		}
-		s, err := l.createService(c)
+		s, err := l.createService(c, firstRun)
 		if err != nil {
 			log.Errorf("couldn't create a service out of container %s - Auto Discovery will ignore it", c.DockerID)
 			continue
@@ -135,13 +138,20 @@ func (l *ECSListener) refreshServices() {
 	}
 }
 
-func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
+func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService, error) {
+	var crTime integration.CreationTime
+	if firstRun {
+		crTime = integration.Before
+	} else {
+		crTime = integration.After
+	}
 	svc := ECSService{
-		cID:         c.DockerID,
-		runtime:     containers.RuntimeNameDocker,
-		clusterName: l.task.ClusterName,
-		taskFamily:  l.task.Family,
-		taskVersion: l.task.Version,
+		cID:          c.DockerID,
+		runtime:      containers.RuntimeNameDocker,
+		clusterName:  l.task.ClusterName,
+		taskFamily:   l.task.Family,
+		taskVersion:  l.task.Version,
+		creationTime: crTime,
 	}
 
 	// ADIdentifiers
@@ -214,4 +224,9 @@ func (s *ECSService) GetPid() (int, error) {
 // GetHostname returns nil and an error because port is not supported in Fargate-based ECS
 func (s *ECSService) GetHostname() (string, error) {
 	return "", ErrNotSupported
+}
+
+// GetCreationTime returns the creation time of the container compare to the agent start.
+func (s *ECSService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
 }
