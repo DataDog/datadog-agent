@@ -9,9 +9,6 @@ import (
 	// stdlib
 	"fmt"
 
-	// 3p
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -76,7 +73,6 @@ func (cr *ContextResolver) expireContexts(expireTimestamp float64) []ckey.Contex
 	for contextKey, lastSeen := range cr.lastSeenByKey {
 		if lastSeen < expireTimestamp {
 			expiredContextKeys = append(expiredContextKeys, contextKey)
-			log.Debugf("Context key '%s' expired", contextKey)
 		}
 	}
 
