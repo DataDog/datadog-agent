@@ -5,6 +5,8 @@ import json
 import os.path
 import sys
 
+MAX_FILE_SIZE_BYTES = 1024
+
 
 def list_secret_names(input_json):
     query = json.loads(input_json)
@@ -27,7 +29,7 @@ def read_file(root_folder, filename):
         raise ValueError("file {} is outside of the specified folder {}".format(realpath, root_folder))
 
     with open(realpath, "r") as f:
-        return f.read()
+        return f.read(MAX_FILE_SIZE_BYTES)
 
 
 def is_valid_folder(arg):

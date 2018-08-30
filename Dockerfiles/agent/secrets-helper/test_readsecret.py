@@ -66,6 +66,14 @@ class TestReadFile(unittest.TestCase):
         contents = read_file(self.folder, filename)
         self.assertEqual(contents, "ok_contents")
 
+    def test_file_size_limit(self):
+        filename = "big_file"
+        with open(os.path.join(self.folder, filename), "w") as f:
+            for i in range(0, 2048):
+                f.write("big")
+        contents = read_file(self.folder, filename)
+        self.assertEqual(len(contents), 1024)
+
 
 class TestIsValidFolder(unittest.TestCase):
     def setUp(self):
