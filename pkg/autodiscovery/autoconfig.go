@@ -518,7 +518,7 @@ func (ac *AutoConfig) pollConfigs() {
 }
 
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
-	ac.scheduler.Unschedule(configs)
+	ac.unschedule(configs)
 	for _, c := range configs {
 		ac.store.removeLoadedConfig(c)
 		// if the config is a template, remove it from the cache
