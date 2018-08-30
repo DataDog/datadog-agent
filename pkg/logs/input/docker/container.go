@@ -32,22 +32,12 @@ func NewContainer(container types.Container, service *service.Service) *Containe
 	}
 }
 
-// configPath refers to the configuration that can be passed over a docker label,
-// this feature is commonly named 'ad' or 'autodicovery'.
-const configPath = "com.datadoghq.ad.logs"
-
-// ContainsLabel returns true if the container contains an autodiscovery label.
-func (c *Container) ContainsLabel() bool {
-	_, exists := c.container.Labels[configPath]
-	return exists
-}
-
 // findSource returns the source that most likely matches the container,
 // if no source is found return nil
 func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 	var candidate *config.LogSource
 	for _, source := range sources {
-		if c.isIdentifierMatch(source.Config.Identifier) {
+		if source.Config.Identifier != "" && c.isIdentifierMatch(source.Config.Identifier) {
 			return source
 		}
 		if !c.IsMatch(source) {
