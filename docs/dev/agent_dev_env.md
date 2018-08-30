@@ -1,25 +1,43 @@
 # Setting up your development environment
 
-## Invoke
+## Invoke + Python Dependencies
 
-[Invoke](http://www.pyinvoke.org/installing.html) is a task runner written in
-Python that is extensively used in this project to orchestrate builds and test
+[Invoke](http://www.pyinvoke.org/) is a task runner written in Python
+that is extensively used in this project to orchestrate builds and test
 runs.
 
-The easiest way to install it on any supported platform is using `pip`:
-```
-pip install invoke
+Though you may install invoke in a variety of way we suggest you use
+the provided [requirements](https://github.com/DataDog/datadog-agent/blob/master/requirements.txt)
+file and `pip`: 
+
+```bash
+pip install -r requirements.txt
 ```
 
-OSX users can install it via [Homebrew](https://brew.sh) with:
-```
-brew install pyinvoke
-```
+This procedure ensures you not only get the correct version of invoke, but
+also any additional python dependencies our development workflow may require,
+at their expected versions. 
+It will also pull other handy development tools/deps (reno, or docker).
 
 Tasks are usually parameterized and Invoke comes with some default values that
 are used in the official build. Such values are listed in the `invoke.yaml`
 file at the root of this repo and can be overridden by setting `INVOKE_*` env
 variables (see Invoke docs for more details).
+
+
+### Note
+
+We don't want to pollute your system-wide python installation, so a python virtual
+environment is recommended (though optional). It will help keep an isolated development
+environment and ensure a clean system python.
+
+- Install the virtualenv module: 
+```pip install virtualenv```
+- Create the virtual environment: 
+```virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv```
+- Enable the virtual environment: 
+```source $GOPATH/src/github.com/DataDog/datadog-agent/venv/bin/activate```
+
 
 ## Golang
 
