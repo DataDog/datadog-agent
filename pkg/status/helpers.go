@@ -34,6 +34,7 @@ func Fmap() template.FuncMap {
 		"formatTitle":        formatTitle,
 		"add":                add,
 		"status":             status,
+		"version":            getVersion,
 	}
 }
 
@@ -178,4 +179,25 @@ func status(check map[string]interface{}) string {
 		return fmt.Sprintf("[%s]", color.YellowString("WARNING"))
 	}
 	return fmt.Sprintf("[%s]", color.GreenString("OK"))
+}
+
+func getVersion(instances map[string]interface{}) string {
+	fmt.Println(instances)
+	if len(instances) == 0 {
+		return ""
+	}
+	for _, instance := range instances {
+		instanceMap := instance.(map[string]interface{})
+		version, ok := instanceMap["CheckVersion"]
+		if !ok {
+			return ""
+		}
+		str, ok := version.(string)
+		if !ok {
+			return ""
+		}
+		fmt.Println(str)
+		return str
+	}
+	return ""
 }

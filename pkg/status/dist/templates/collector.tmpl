@@ -14,24 +14,28 @@ Collector
     No checks have run yet
   {{end -}}
 
-  {{- range .Checks}}
-    {{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }} {{ status .}}
-    {{printDashes .CheckName "-"}}{{- if .CheckVersion }}{{printDashes .CheckVersion "-"}}---{{ end }}
-      Total Runs: {{.TotalRuns}}
-      Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
-      Events: {{.Events}}, Total: {{humanize .TotalEvents}}
-      Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
-      Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
-      {{if .LastError -}}
-      Error: {{lastErrorMessage .LastError}}
-      {{lastErrorTraceback .LastError -}}
-      {{- end }}
-      {{- if .LastWarnings -}}
-        {{- range .LastWarnings }}
-      Warning: {{.}}
-        {{ end -}}
-      {{- end }}
-  {{ end }}
+  {{- range $CheckName, $CheckInstances := .Checks}}
+    {{ $version := version $CheckInstances }}
+    {{$CheckName}} {{ if $version }} ({{$version}}){{ end }}
+    {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
+    {{- range $CheckInstances }}
+        Instance ID: {{- if eq (len $CheckInstances) 1 }} {{$CheckName}}{{else}} {{.CheckID}}{{end}} {{status .}}
+        Total Runs: {{.TotalRuns}}
+        Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
+        Events: {{.Events}}, Total: {{humanize .TotalEvents}}
+        Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
+        Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
+        {{if .LastError -}}
+        Error: {{lastErrorMessage .LastError}}
+        {{lastErrorTraceback .LastError -}}
+        {{- end }}
+        {{- if .LastWarnings -}}
+          {{- range .LastWarnings }}
+        Warning: {{.}}
+          {{ end -}}
+        {{- end }}
+    {{- end }}
+  {{- end }}
 {{- end }}
 
 {{- with .pyLoaderStats }}

@@ -8,6 +8,7 @@ package runner
 import (
 	"expvar"
 	"fmt"
+	"strings"
 
 	"strconv"
 	"sync"
@@ -44,13 +45,13 @@ func init() {
 	runnerStats = expvar.NewMap("runner")
 	runnerStats.Set("Checks", expvar.Func(expCheckStats))
 	checkStats = &runnerCheckStats{
-		Stats: make(map[check.ID]*check.Stats),
+		Stats: make(map[string]map[check.ID]*check.Stats),
 	}
 }
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
-	Stats map[check.ID]*check.Stats
+	Stats map[string]map[check.ID]*check.Stats
 	M     sync.RWMutex
 }
 
@@ -324,11 +325,18 @@ func shouldLog(id check.ID) (doLog bool, lastLog bool) {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
 
-	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
+	var nameFound, idFound bool
+	var s *check.Stats
 
-	s, found := checkStats.Stats[id]
+	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
+	name := strings.Split(string(id), ":")[0]
+
+	stats, nameFound := checkStats.Stats[name]
+	if nameFound {
+		s, idFound = stats[id]
+	}
 	// this is the first time we see the check, log it
-	if !found {
+	if !idFound {
 		doLog = true
 		lastLog = false
 		return
@@ -346,10 +354,15 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
-	s, found = checkStats.Stats[c.ID()]
+	stats, found := checkStats.Stats[c.String()]
+	if !found {
+		stats = make(map[check.ID]*check.Stats)
+		checkStats.Stats[c.String()] = stats
+	}
+	s, found = stats[c.ID()]
 	if !found {
 		s = check.NewStats(c)
-		checkStats.Stats[c.ID()] = s
+		stats[c.ID()] = s
 	}
 	checkStats.M.Unlock()
 
@@ -364,7 +377,7 @@ func expCheckStats() interface{} {
 }
 
 // GetCheckStats returns the check stats map
-func GetCheckStats() map[check.ID]*check.Stats {
+func GetCheckStats() map[string]map[check.ID]*check.Stats {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
 
@@ -375,8 +388,11 @@ func GetCheckStats() map[check.ID]*check.Stats {
 func RemoveCheckStats(checkID check.ID) {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
-
-	delete(checkStats.Stats, checkID)
+	checkName := strings.Split(string(checkID), ":")[0]
+	stats, found := checkStats.Stats[checkName]
+	if found {
+		delete(stats, checkID)
+	}
 }
 
 func getHostname() string {

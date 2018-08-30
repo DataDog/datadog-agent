@@ -23,7 +23,6 @@ func init() {
 	fmap["lastErrorTraceback"] = lastErrorTraceback
 	fmap["lastErrorMessage"] = lastErrorMessage
 	fmap["pythonLoaderError"] = pythonLoaderError
-	fmap["instances"] = instances
 	fmap["status"] = displayStatus
 }
 
@@ -142,22 +141,6 @@ func lastErrorMessage(value string) string {
 		}
 	}
 	return "UNKNOWN ERROR"
-}
-
-func instances(checks map[string]interface{}) map[string][]interface{} {
-	instances := make(map[string][]interface{})
-	for _, ch := range checks {
-		if check, ok := ch.(map[string]interface{}); ok {
-			if name, ok := check["CheckName"].(string); ok {
-				if len(instances[name]) == 0 {
-					instances[name] = []interface{}{check}
-				} else {
-					instances[name] = append(instances[name], check)
-				}
-			}
-		}
-	}
-	return instances
 }
 
 func displayStatus(check map[string]interface{}) template.HTML {

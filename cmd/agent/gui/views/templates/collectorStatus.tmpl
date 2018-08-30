@@ -6,25 +6,28 @@
         {{- if and (not .Runs) (not .Checks)}}
           No checks have run yet
         {{end -}}
-
-        {{- range .Checks}}
-          <span class="stat_subtitle">{{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }} {{status .}}</span>
-          <span class="stat_subdata">
-              Total Runs: {{.TotalRuns}}<br>
-              Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
-              Events: {{.Events}}, Total: {{humanize .TotalEvents}}<br>
-              Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
-              Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
-            {{- if .LastError}}
-              <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
-                    {{lastErrorTraceback .LastError -}}
-            {{- end -}}
-            {{- if .LastWarnings}}
-              {{- range .LastWarnings }}
-                <span class="warning">Warning</span>: {{.}}<br>
+        {{- range $CheckName, $CheckInstances := .Checks}}
+          {{ $version := version $CheckInstances}}
+          <span class="stat_subtitle">{{$CheckName}}{{ if $version }} ({{$version}}){{ end }}</span>
+          {{- range $CheckInstances }}
+            <span class="stat_subdata">
+                Instance ID: {{- if eq (len $CheckInstances) 1 }} {{$CheckName}}{{else}} {{.CheckID}}{{end}} {{status .}}<br>
+                Total Runs: {{.TotalRuns}}<br>
+                Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
+                Events: {{.Events}}, Total: {{humanize .TotalEvents}}<br>
+                Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
+                Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
+              {{- if .LastError}}
+                <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
+                      {{lastErrorTraceback .LastError -}}
               {{- end -}}
-            {{- end -}}
-          </span>
+              {{- if .LastWarnings}}
+                {{- range .LastWarnings }}
+                  <span class="warning">Warning</span>: {{.}}<br>
+                {{- end -}}
+              {{- end -}}
+            </span>
+          {{ end }}
         {{- end -}}
       {{- end -}}
       <span/>
