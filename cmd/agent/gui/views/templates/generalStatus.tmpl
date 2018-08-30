@@ -22,7 +22,7 @@
     <span class="stat_data">
       System UTC Time: {{.time}}
       {{- if .ntpOffset}}
-        <br>NTP Offset: {{.ntpOffset}}s
+        <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
       {{end}}
       <br>Go Version: {{.platform.goV}}
       <br>Python Version: {{.platform.pythonV}}
@@ -37,8 +37,9 @@
           {{- if ne $type "hostid" -}}
             {{if $value}}
               {{formatTitle $type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value -}}
+                              {{- else -}}{{- if eq $type "uptime" -}}{{- humanizeDuration $value "s" -}}
                               {{- else -}}{{- $value -}}
-                              {{- end -}}<br>
+                              {{- end -}}{{- end -}}<br>
             {{end -}}
           {{end -}}
         {{end -}}
@@ -115,7 +116,7 @@
       {{- with .forwarderStats -}}
         {{- if .TransactionsCreated -}}
           {{- range $key, $value := .TransactionsCreated}}
-            {{formatTitle $key}}: {{$value}}<br>
+            {{formatTitle $key}}: {{humanize $value}}<br>
           {{- end -}}
         {{- end}}
         {{- if .APIKeyStatus}}
@@ -164,34 +165,34 @@
     <span class="stat_data">
       {{- with .aggregatorStats -}}
         {{- if .ChecksMetricSample}}
-          Checks Metric Sample: {{.ChecksMetricSample}}<br>
+          Checks Metric Sample: {{humanize .ChecksMetricSample}}<br>
         {{- end -}}
         {{- if .Event}}
-          Event: {{.Event}}<br>
+          Event: {{humanize .Event}}<br>
         {{- end -}}
         {{- if .EventsFlushed}}
-          Events Flushed: {{.EventsFlushed}}<br>
+          Events Flushed: {{humanize .EventsFlushed}}<br>
         {{- end -}}
         {{- if .NumberOfFlush}}
-          Number Of Flushes: {{.NumberOfFlush}}<br>
+          Number Of Flushes: {{humanize .NumberOfFlush}}<br>
         {{- end -}}
         {{- if .SeriesFlushed}}
-          Series Flushed: {{.SeriesFlushed}}<br>
+          Series Flushed: {{humanize .SeriesFlushed}}<br>
         {{- end -}}
         {{- if .ServiceCheck}}
-          Service Check: {{.ServiceCheck}}<br>
+          Service Check: {{humanize .ServiceCheck}}<br>
         {{- end -}}
         {{- if .ServiceCheckFlushed}}
-          Service Checks Flushed: {{.ServiceCheckFlushed}}<br>
+          Service Checks Flushed: {{humanize .ServiceCheckFlushed}}<br>
         {{- end -}}
         {{- if .SketchesFlushed}}
-          Sketches Flushed: {{.SketchesFlushed}}<br>
+          Sketches Flushed: {{humanize .SketchesFlushed}}<br>
         {{- end -}}
         {{- if .HostnameUpdate}}
-          Hostname Update: {{.HostnameUpdate}}<br>
+          Hostname Update: {{humanize .HostnameUpdate}}<br>
         {{- end -}}
         {{- if .DogstatsdMetricSample}}
-          Dogstatsd Metric Sample: {{.DogstatsdMetricSample}}<br>
+          Dogstatsd Metric Sample: {{humanize .DogstatsdMetricSample}}<br>
         {{- end}}
       {{- end -}}
     </span>

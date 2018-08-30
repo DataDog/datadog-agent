@@ -16,7 +16,7 @@ Collector
       Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
       Events: {{.Events}}, Total: {{humanize .TotalEvents}}
       Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
-      Average Execution Time : {{.AverageExecutionTime}}ms
+      Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
       {{if .LastError -}}
       Error: {{lastErrorMessage .LastError}}
       {{lastErrorTraceback .LastError -}}
