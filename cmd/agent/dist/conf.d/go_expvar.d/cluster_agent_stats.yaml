@@ -51,9 +51,7 @@ instances:
         type: rate
 
       - path: custommetrics/External/Total
-        type: gauge
       - path: custommetrics/External/Valid
-        type: gauge
 
       - path: datadog-api/Errors
         type: rate
