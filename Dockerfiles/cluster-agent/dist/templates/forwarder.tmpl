@@ -3,7 +3,7 @@ Forwarder
 =========
 {{ if .Transactions }}
   {{- range $key, $value := .Transactions }}
-    {{- if and (ne $key "Errors") (ne $key "ErrorsByType")}}
+    {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode")}}
   {{$key}}: {{humanize $value}}
     {{- end}}
   {{- end}}
@@ -17,18 +17,22 @@ Forwarder
 
   Transaction Errors
   ==================
-    Errors: {{.Transactions.Errors}}
+    Total number: {{.Transactions.Errors}}
     Errors By Type:
           {{- range $type, $count := .Transactions.ErrorsByType }}
-            {{- if and (ne $type "HTTPErrorsByCode") ($count) }}
+            {{- if $count }}
       {{$type}}: {{$count}}
             {{- end}}
           {{- end}}
-      {{- if .Transactions.ErrorsByType.HTTPErrorsByCode }}
-      HTTP Errors By Code:
-          {{- range $code, $count := .Transactions.ErrorsByType.HTTPErrorsByCode }}
-        {{$code}}: {{$count}}
-          {{- end}}
+  {{- end}}
+  {{- if .Transactions.HTTPErrors }}
+
+  HTTP Errors
+  ==================
+    Total number: {{.Transactions.HTTPErrors}}
+    HTTP Errors By Code:
+      {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+      {{$code}}: {{$count}}
       {{- end}}
   {{- end}}
 {{- end}}

@@ -74,7 +74,7 @@ instances:
         type: rate
       - path: forwarder/Transactions/ErrorsByType/SentRequestErrors
         type: rate
-      - path: forwarder/Transactions/ErrorsByType/HTTPErrors
+      - path: forwarder/Transactions/HTTPErrors
         type: rate
 
 

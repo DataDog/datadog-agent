@@ -123,7 +123,7 @@
     <span class="stat_data">
       {{- with .forwarderStats -}}
         {{- range $key, $value := .Transactions }}
-            {{- if and (ne $key "Errors") (ne $key "ErrorsByType")}}
+            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode")}}
           {{formatTitle $key}}: {{humanize $value}}<br>
             {{- end}}
         {{- end}}
@@ -134,17 +134,20 @@
               Errors By Type:<br>
               <span class="stat_subdata">
                 {{- range $type, $count := .Transactions.ErrorsByType }}
-                  {{- if and (ne $type "HTTPErrorsByCode") ($count) }}
                     {{$type}}: {{$count}}<br>
-                  {{- end}}
                 {{- end}}
-                {{- if .Transactions.ErrorsByType.HTTPErrorsByCode }}
-                  HTTP Errors By Code:<br>
-                  <span class="stat_subdata">
-                    {{- range $code, $count := .Transactions.ErrorsByType.HTTPErrorsByCode }}
-                      {{$code}}: {{$count}}<br>
-                    {{- end}}
-                  </span>
+              </span>
+            </span>
+          </span>
+        {{- end}}
+        {{- if .Transactions.HTTPErrors }}
+          <span class="stat_subtitle">HTTP Errors</span>
+            <span class="stat_subdata">
+              Errors: {{.Transactions.HTTPErrors}}<br>
+              HTTP Errors By Code:<br>
+              <span class="stat_subdata">
+                {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+                    {{$code}}: {{$count}}<br>
                 {{- end}}
               </span>
             </span>

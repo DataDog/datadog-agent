@@ -70,6 +70,8 @@ func initTransactionExpvars() {
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("Success", &transactionsSuccessful)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
+	transactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
+	transactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 	transactionsExpvars.Set("Errors", &transactionsErrors)
 	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
 	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
@@ -77,8 +79,6 @@ func initTransactionExpvars() {
 	transactionsErrorsByType.Set("ConnectionErrors", &transactionsConnectionErrors)
 	transactionsErrorsByType.Set("WroteRequestErrors", &transactionsWroteRequestErrors)
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
-	transactionsErrorsByType.Set("HTTPErrors", &transactionsHTTPErrors)
-	transactionsErrorsByType.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
