@@ -23,10 +23,12 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Only supports systemd and upstart
         if command -v systemctl >/dev/null 2>&1; then
             systemctl stop $SERVICE_NAME-process || true
+            systemctl stop $SERVICE_NAME-network || true
             systemctl stop $SERVICE_NAME-trace || true
             systemctl stop $SERVICE_NAME || true
         elif command -v initctl >/dev/null 2>&1; then
             initctl stop $SERVICE_NAME-process || true
+            initctl stop $SERVICE_NAME-network || true
             initctl stop $SERVICE_NAME-trace || true
             initctl stop $SERVICE_NAME || true
         elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then

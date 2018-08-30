@@ -6,6 +6,7 @@
 // +build !windows,!android
 
 //go:generate go run ../../pkg/config/render_config.go agent ../../pkg/config/config_template.yaml ./dist/datadog.yaml
+//go:generate go run ../../pkg/config/render_config.go network-tracer ../../pkg/config/config_template.yaml ./dist/network-tracer.yaml
 
 package main
 

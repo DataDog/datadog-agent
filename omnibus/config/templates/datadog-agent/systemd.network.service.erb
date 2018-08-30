@@ -1,0 +1,14 @@
+[Unit]
+Description="Datadog Network Tracer"
+After=network.target
+StartLimitIntervalSec=10
+StartLimitBurst=5
+
+[Service]
+Type=simple
+PIDFile=<%= install_dir %>/run/network-tracer.pid
+Restart=on-failure
+ExecStart=<%= install_dir %>/embedded/bin/network-tracer --config=<%= etc_dir %>/network-tracer.yaml --pid=<%= install_dir %>/run/network-tracer.pid
+
+[Install]
+WantedBy=multi-user.target

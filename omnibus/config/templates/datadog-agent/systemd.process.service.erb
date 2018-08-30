@@ -10,7 +10,7 @@ Type=simple
 PIDFile=<%= install_dir %>/run/process-agent.pid
 User=dd-agent
 Restart=on-failure
-ExecStart=<%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --pid=<%= install_dir %>/run/process-agent.pid
+ExecStart=<%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --network-config=<%= etc_dir %>/network-tracer.yaml --pid=<%= install_dir %>/run/process-agent.pid
 
 [Install]
 WantedBy=multi-user.target

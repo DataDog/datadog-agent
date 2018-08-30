@@ -1,10 +1,11 @@
 # Embedded supervisor for the agent6 image
 
-The Datadog Agent is currently split in three binaries running cooperatively:
+The Datadog Agent is currently split in four binaries running cooperatively:
 
   - the main `agent`, collecting metrics, events and logs
   - the `trace-agent`, collecting APM traces
   - the `process-agent`, collecting live container and process data
+  - the `network-tracer`, collecting network data, accessible by the process-agent
 
 In order to provide an all-in-one image, we are including a process supervisor.
 We are using [`s6`](https://skarnet.org/software/s6/s6-svc.html) via the
@@ -13,7 +14,6 @@ We are using [`s6`](https://skarnet.org/software/s6/s6-svc.html) via the
 - it is light and customisable
 - it correctly handles signals and process reaping
 - it has been battle tested in docker containers since 2015
-
 
 ## Entrypoint scripts
 
@@ -36,8 +36,8 @@ The supported way to pass envvars to the agent is to set container envvars.
 The image starts three services:
 
 - `agent` is the main agent. The container will exit if it stops.
-- `trace-agent` and `process-agent` are auxiliary services. They will be
-restarted after crashing, but not if exiting normally (for example, the
+- `trace-agent`, `process-agent`, and `network-tracer` are auxiliary services.
+They will be restarted after crashing, but not if exiting normally (for example, the
 `trace-agent` will disable itself if `DD_APM_ENABLED` is false).
 
 ## Useful commands
@@ -46,7 +46,6 @@ Each agent runs as a separate service. You can use the
 [`s6-svstat`](https://skarnet.org/software/s6/s6-svstat.html) and
 [`s6-svc`](https://skarnet.org/software/s6/s6-svc.html)
 commands to manage them:
-
 
 #### Get the process-agent status
 ```
