@@ -14,7 +14,7 @@ spec:
       containers:
       - image: datadog/cluster-agent:latest
         imagePullPolicy: Always
-        name: datadog-agent
+        name: datadog-cluster-agent
         env:
           - name: DD_API_KEY
             value: '<YOUR_API_KEY>'

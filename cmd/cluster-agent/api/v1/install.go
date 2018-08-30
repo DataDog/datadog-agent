@@ -9,7 +9,6 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -17,21 +16,19 @@ import (
 
 	"github.com/gorilla/mux"
 	json "github.com/json-iterator/go"
-	"github.com/paulbellamy/ratecounter"
 )
 
 var (
-	apiStats                  = expvar.NewMap("apiv1")
-	metadataStats             = new(expvar.Map).Init()
-	metadataErrors            = &expvar.Int{}
-	metadataRequestsPerSecond = &expvar.Int{}
-	metadataRequestsCounter   = ratecounter.NewRateCounter(1 * time.Second)
+	apiStats         = expvar.NewMap("apiv1")
+	metadataStats    = new(expvar.Map).Init()
+	metadataErrors   = &expvar.Int{}
+	metadataRequests = &expvar.Int{}
 )
 
 func init() {
 	apiStats.Set("Metadata", metadataStats)
 	metadataStats.Set("Errors", metadataErrors)
-	metadataStats.Set("RequestsPerSecond", metadataRequestsPerSecond)
+	metadataStats.Set("Requests", metadataRequests)
 }
 
 // Install registers v1 API endpoints
@@ -62,8 +59,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
 	*/
 
-	metadataRequestsCounter.Incr(1)
-	metadataRequestsPerSecond.Set(metadataRequestsCounter.Rate())
+	metadataRequests.Add(1)
 
 	vars := mux.Vars(r)
 	var metaBytes []byte

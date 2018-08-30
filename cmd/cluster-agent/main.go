@@ -29,7 +29,7 @@ import (
 func main() {
 	// go_expvar server
 	go http.ListenAndServe(
-		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("expvar_port")),
+		fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("expvar_port")),
 		http.DefaultServeMux)
 
 	if err := app.ClusterAgentCmd.Execute(); err != nil {

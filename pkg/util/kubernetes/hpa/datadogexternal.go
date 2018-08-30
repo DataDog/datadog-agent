@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -22,15 +21,14 @@ import (
 )
 
 var (
-	datadogStats          = expvar.NewMap("datadog-api")
-	datadogErrors         = &expvar.Int{}
-	datadogQueriesPerHour = &expvar.Int{}
-	datadogQueriesCounter = ratecounter.NewRateCounter(1 * time.Hour)
+	datadogStats   = expvar.NewMap("datadog-api")
+	datadogErrors  = &expvar.Int{}
+	datadogQueries = &expvar.Int{}
 )
 
 func init() {
 	datadogStats.Set("Errors", datadogErrors)
-	datadogStats.Set("QueriesPerHour", datadogQueriesPerHour)
+	datadogStats.Set("Queries", datadogQueries)
 }
 
 // queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
@@ -50,8 +48,7 @@ func (p *Processor) queryDatadogExternal(metricName string, tags map[string]stri
 	// TODO: offer other aggregations than avg.
 	query := fmt.Sprintf("avg:%s{%s}", metricName, tagString)
 
-	datadogQueriesCounter.Incr(1)
-	datadogQueriesPerHour.Set(datadogQueriesCounter.Rate())
+	datadogQueries.Add(1)
 
 	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 
