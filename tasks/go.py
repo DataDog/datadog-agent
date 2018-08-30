@@ -213,6 +213,12 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
 
     # source level deps
     ctx.run("dep ensure{}".format(verbosity))
+
+    # if for whatever reason the agent gets vendored too - nuke it
+    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+        print("Removing vendored github.com/DataDog/datadog-agent")
+        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
+
     # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
     # in because it's necessary on other platforms
     if not android and sys.platform == 'win32':
