@@ -6,13 +6,12 @@
         {{- if and (not .Runs) (not .Checks)}}
           No checks have run yet
         {{end -}}
-        {{- range $CheckName, $CheckSlice := .Checks}}
-          {{- with index $CheckSlice 0}}
-            <span class="stat_subtitle">{{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}</span>
-          {{ end }}
-          {{- range $CheckSlice }}
+        {{- range $CheckName, $CheckInstances := .Checks}}
+          {{ $version := version $CheckInstances}}
+          <span class="stat_subtitle">{{$CheckName}}{{ if $version }} ({{$version}}){{ end }}</span>
+          {{- range $CheckInstances }}
             <span class="stat_subdata">
-                Instance ID: {{- if eq (len $CheckSlice) 1 }} {{ $CheckName}}{{else}} {{.CheckID}}{{end}}<br>
+                Instance ID: {{- if eq (len $CheckInstances) 1 }} {{$CheckName}}{{else}} {{.CheckID}}{{end}} {{status .}}<br>
                 Total Runs: {{.TotalRuns}}<br>
                 Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
                 Events: {{.Events}}, Total: {{humanize .TotalEvents}}<br>

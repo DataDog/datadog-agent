@@ -9,13 +9,12 @@ Collector
     No checks have run yet
   {{end -}}
 
-  {{- range $CheckName, $CheckSlice := .Checks}}
-    {{$CheckName}}
-    {{printDashes $CheckName "-"}}
-    {{- range $CheckSlice }}
-        {{- if .CheckVersion }}
-        Version: {{.CheckVersion}}{{ end }}
-        Instance ID: {{- if eq (len $CheckSlice) 1 }} {{$CheckName}}{{else}} {{.CheckID}}{{end}}
+  {{- range $CheckName, $CheckInstances := .Checks}}
+    {{ $version := version $CheckInstances}}
+    {{$CheckName}} {{ if $version }} ({{$version}}){{ end }}
+    {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
+    {{- range $CheckInstances }}
+        Instance ID: {{- if eq (len $CheckInstances) 1 }} {{$CheckName}}{{else}} {{.CheckID}}{{end}} {{status .}}
         Total Runs: {{.TotalRuns}}
         Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
         Events: {{.Events}}, Total: {{humanize .TotalEvents}}
