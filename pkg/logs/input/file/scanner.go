@@ -66,7 +66,7 @@ func (s *Scanner) run() {
 	defer scanTicker.Stop()
 	for {
 		select {
-		case source := <-s.sources.GetSourceStreamForType(config.DockerType):
+		case source := <-s.sources.GetSourceStreamForType(config.FileType):
 			s.activeSources = append(s.activeSources, source)
 			s.launchTailers(source)
 		case <-scanTicker.C:
