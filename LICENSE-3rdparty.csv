@@ -94,4 +94,3 @@ core,golang.org/x/sys,BSD-3-Clause
 core,golang.org/x/text,BSD-3-Clause
 core,gopkg.in/yaml.v2,Apache-2.0
 core,gopkg.in/zorkian/go-datadog-api.v2,"BSD-3-Clause"
-core,github.com/paulbellamy/ratecounter,MIT
