@@ -775,14 +775,6 @@
   version = "v2.1.0"
 
 [[projects]]
-  digest = "1:77b116e940614d08e80805258f116f7d6d28c59ce7b1544de258a8cb76d19eca"
-  name = "github.com/paulbellamy/ratecounter"
-  packages = ["."]
-  pruneopts = ""
-  revision = "524851a93235ac051e3540563ed7909357fe24ab"
-  version = "v0.2.0"
-
-[[projects]]
   digest = "1:63e142fc50307bcb3c57494913cfc9c12f6061160bdf97a678f78c71615f939b"
   name = "github.com/pborman/uuid"
   packages = ["."]
@@ -1617,7 +1609,6 @@
     "github.com/mitchellh/reflectwalk",
     "github.com/openshift/api/quota/v1",
     "github.com/patrickmn/go-cache",
-    "github.com/paulbellamy/ratecounter",
     "github.com/pkg/errors",
     "github.com/samuel/go-zookeeper/zk",
     "github.com/sbinet/go-python",
