@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
-// A Launcher listens for stdout and stderr of containers
+// A Launcher starts and stops tailers for containers.
 type Launcher struct {
 	pipelineProvider  pipeline.Provider
 	sources           *config.LogSources
@@ -32,7 +32,7 @@ type Launcher struct {
 	stop              chan struct{}
 }
 
-// NewLauncher returns an initialized Launcher
+// NewLauncher returns a new launcher
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
 	launcher := &Launcher{
 		pipelineProvider:  pipelineProvider,
@@ -51,7 +51,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 }
 
 // setup initializes the docker client and the tagger,
-// returns an error if it failed.
+// returns an error if it fails.
 func (l *Launcher) setup() error {
 	var err error
 	// create a new docker client
@@ -73,7 +73,7 @@ func (l *Launcher) Start() {
 }
 
 // Stop stops the Launcher and its tailers in parallel,
-// this call returns only when all the tailers are stopped
+// this call returns only when all the tailers are stopped.
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
@@ -96,7 +96,7 @@ func (l *Launcher) run() {
 			}
 			container := NewContainer(dockerContainer, newService)
 			if source := container.FindSource(l.activeSources); source != nil {
-				l.startTailer(source, container)
+				l.startTailer(container, source)
 			} else {
 				l.pendingContainers[newService.Identifier] = container
 			}
@@ -111,7 +111,7 @@ func (l *Launcher) run() {
 			pendingContainers := make(map[string]*Container)
 			for _, container := range l.pendingContainers {
 				if container.IsMatch(source) {
-					l.startTailer(source, container)
+					l.startTailer(container, source)
 				} else {
 					pendingContainers[container.service.Identifier] = container
 				}
@@ -124,8 +124,8 @@ func (l *Launcher) run() {
 	}
 }
 
-// startTailer starts a new tailer for the source and the container.
-func (l *Launcher) startTailer(source *config.LogSource, container *Container) {
+// startTailer starts a new tailer for the container.
+func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	containerID := container.service.Identifier
 	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan())
 
@@ -142,7 +142,7 @@ func (l *Launcher) startTailer(source *config.LogSource, container *Container) {
 	l.tailers[containerID] = tailer
 }
 
-// stopTailer stops the tailer corresponding to the log source.
+// stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
 	if tailer, isTailed := l.tailers[containerID]; isTailed {
 		go tailer.Stop()

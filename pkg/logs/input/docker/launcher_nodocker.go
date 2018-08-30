@@ -11,13 +11,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 // Launcher is not supported on windows environment
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
+func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
 	return &Launcher{}, nil
 }
 

@@ -147,3 +147,13 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 	}
 	return false
 }
+
+// configPath refers to the configuration that can be passed over a docker label,
+// this feature is commonly named 'ad' or 'autodicovery'.
+const configPath = "com.datadoghq.ad.logs"
+
+// ContainsLabel returns true if the container contains an autodiscovery label.
+func (c *Container) ContainsLabel() bool {
+	_, exists := c.container.Labels[configPath]
+	return exists
+}
