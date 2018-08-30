@@ -38,17 +38,13 @@
   name = "github.com/gogo/protobuf"
   version = "~v1.0.0"
 
-[[constraint]]
-  name = "github.com/kubernetes/client-go"
-  branch = "release-7.0"
-  # revision = "23781f4d6632d88e869066eaebb743857aa1ef9b"
-  # version = "v7.0.0"
-
 [[override]]
   name = "github.com/kubernetes/client-go"
-  branch = "release-7.0"
-  # revision = "23781f4d6632d88e869066eaebb743857aa1ef9b"
-  # version = "v7.0.0"
+  version = "~v7.0.0"
+
+[[override]]
+  name = "k8s.io/client-go"
+  version = "~v7.0.0"
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
