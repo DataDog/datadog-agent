@@ -8,16 +8,19 @@ package runner
 import (
 	"errors"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/stretchr/testify/assert"
 )
 
 // FIXTURE
 type TestCheck struct {
+	sync.Mutex
 	doErr  bool
 	hasRun bool
 }
@@ -28,6 +31,8 @@ func (c *TestCheck) Stop()                                              {}
 func (c *TestCheck) Configure(integration.Data, integration.Data) error { return nil }
 func (c *TestCheck) Interval() time.Duration                            { return 1 }
 func (c *TestCheck) Run() error {
+	c.Lock()
+	defer c.Unlock()
 	if c.doErr {
 		msg := "A tremendous error occurred."
 		return errors.New(msg)
@@ -36,9 +41,18 @@ func (c *TestCheck) Run() error {
 	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
+func (c *TestCheck) ID() check.ID {
+	c.Lock()
+	defer c.Unlock()
+	return check.ID(c.String())
+}
 func (c *TestCheck) GetWarnings() []error                      { return nil }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) HasRun() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.hasRun
+}
 
 func TestNewRunner(t *testing.T) {
 	r := NewRunner()
@@ -69,7 +83,9 @@ func TestWork(t *testing.T) {
 
 	r.pending <- &c1
 	r.pending <- &c2
-	assert.True(t, c1.hasRun)
+	// wait to be sure the worker tried to run the check
+	time.Sleep(100 * time.Millisecond)
+	assert.True(t, c1.HasRun())
 	r.Stop()
 
 	// fake a check is already running
@@ -79,7 +95,7 @@ func TestWork(t *testing.T) {
 	r.pending <- c3
 	// wait to be sure the worker tried to run the check
 	time.Sleep(100 * time.Millisecond)
-	assert.False(t, c3.hasRun)
+	assert.False(t, c3.HasRun())
 }
 
 func TestLogging(t *testing.T) {
