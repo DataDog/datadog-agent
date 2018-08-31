@@ -6,6 +6,7 @@
 package auditor
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -13,10 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	json "github.com/json-iterator/go"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 const defaultFlushPeriod = 1 * time.Second

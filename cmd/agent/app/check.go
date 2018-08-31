@@ -6,11 +6,11 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/fatih/color"
-	json "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"

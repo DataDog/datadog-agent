@@ -6,6 +6,8 @@
 package agentchecks
 
 import (
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
@@ -13,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	json "github.com/json-iterator/go"
 )
 
 // GetPayload builds a payload of all the agentchecks metadata

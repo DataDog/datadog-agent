@@ -12,17 +12,18 @@
 package agent
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	json "github.com/json-iterator/go"
 	yaml "gopkg.in/yaml.v2"
 )
 

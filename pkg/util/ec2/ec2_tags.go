@@ -8,6 +8,7 @@
 package ec2
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	json "github.com/json-iterator/go"
 )
 
 // GetTags grabs the host tags from the EC2 api

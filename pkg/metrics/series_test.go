@@ -6,10 +6,10 @@
 package metrics
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
-	json "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -121,7 +121,7 @@ func TestMarshalJSONSeries(t *testing.T) {
 	payload, err := series.MarshalJSON()
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.JSONEq(t, string(payload), string([]byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device\":\"/dev/sda1\",\"type\":\"gauge\",\"interval\":0,\"source_type_name\":\"System\"}]}\n")))
+	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device\":\"/dev/sda1\",\"type\":\"gauge\",\"interval\":0,\"source_type_name\":\"System\"}]}\n"))
 }
 
 func TestSplitSerieasOneMetric(t *testing.T) {

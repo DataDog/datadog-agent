@@ -11,10 +11,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/docker/docker/api/types"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 // Container represents a container to tail logs from.

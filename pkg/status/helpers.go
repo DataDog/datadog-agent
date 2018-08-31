@@ -6,6 +6,7 @@
 package status
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"strconv"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
-	json "github.com/json-iterator/go"
+
 	"golang.org/x/text/unicode/norm"
 )
 

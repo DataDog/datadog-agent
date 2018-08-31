@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -151,19 +150,8 @@ func TestParseKubeletPodlist(t *testing.T) {
 			checks, err := parseKubeletPodlist([]*kubelet.Pod{tc.pod})
 			assert.NoError(t, err)
 			assert.Equal(t, len(tc.expectedCfg), len(checks))
-			for _, config := range checks {
-				expectedCfg := getConfigByName(tc.expectedCfg, config.Name, config.ADIdentifiers)
-				require.NotNil(t, expectedCfg)
+			assert.EqualValues(t, tc.expectedCfg, checks)
 
-				assert.Equal(t, expectedCfg.Name, config.Name)
-				assert.EqualValues(t, expectedCfg.ADIdentifiers, config.ADIdentifiers)
-				assert.JSONEq(t, string(expectedCfg.InitConfig), string(config.InitConfig))
-
-				// NOTE: this could break if Instances has a different order
-				for jdx, instance := range config.Instances {
-					assert.JSONEq(t, string(expectedCfg.Instances[jdx]), string(instance))
-				}
-			}
 		})
 	}
 }
