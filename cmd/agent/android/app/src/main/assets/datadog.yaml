@@ -90,7 +90,7 @@ logs_config:
   dev_mode_use_proto: false
   open_files_limit: 100
   run_path: ""
-logs_enabled: true
+logs_enabled: false
 logset: ""
 metadata_collectors:
 - interval: 60
