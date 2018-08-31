@@ -15,7 +15,7 @@ import (
 )
 
 func TestGetHostname(t *testing.T) {
-	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
+	expected := "i-rj9aql2pwopjn4sm24ix"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
