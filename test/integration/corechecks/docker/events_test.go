@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 func init() {
@@ -26,6 +29,9 @@ func TestEvents(t *testing.T) {
 		"lowcardenvtag:eventlowenv",
 	}
 
+	localHostname, err := util.GetHostname()
+	assert.Nil(t, err)
+
 	expectedBusyboxEvent := metrics.Event{
 		Ts:        nowTimestamp,
 		EventType: "docker",
@@ -40,6 +46,7 @@ func TestEvents(t *testing.T) {
 		AggregationKey: "docker:datadog/docker-library:busybox_1_28_0",
 		SourceTypeName: "docker",
 		Priority:       metrics.EventPriorityNormal,
+		Host:           localHostname,
 	}
 	sender.AssertEvent(t, expectedBusyboxEvent, time.Minute)
 
@@ -56,6 +63,7 @@ func TestEvents(t *testing.T) {
 		AggregationKey: "docker:datadog/docker-library:redis_3_2_11-alpine",
 		SourceTypeName: "docker",
 		Priority:       metrics.EventPriorityNormal,
+		Host:           localHostname,
 	}
 	sender.AssertEvent(t, expectedRedisEvent, time.Minute)
 

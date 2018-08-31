@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -327,8 +328,10 @@ ITER_EVENTS:
 			log.Debugf("Filtered out the following events: %s", formatStringIntMap(filteredByType))
 		}
 	}
+
+	clusterName := clustername.GetClusterName()
 	for _, bundle := range eventsByObject {
-		datadogEv, err := bundle.formatEvents(k.KubeAPIServerHostname, modified)
+		datadogEv, err := bundle.formatEvents(modified, clusterName)
 		if err != nil {
 			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error())
 			continue
