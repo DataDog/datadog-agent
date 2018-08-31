@@ -9,6 +9,9 @@ import (
 	"sync"
 )
 
+// capacity of the channels
+const capacity = 10
+
 // LogSources stores a list of log sources.
 type LogSources struct {
 	mu           sync.Mutex
@@ -32,7 +35,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 		return
 	}
 	stream := s.getSourceStreamForType(source.Config.Type)
-	go func() { stream <- source }()
+	stream <- source
 }
 
 // RemoveSource removes a source.
@@ -57,7 +60,7 @@ func (s *LogSources) GetSourceStreamForType(sourceType string) chan *LogSource {
 func (s *LogSources) getSourceStreamForType(sourceType string) chan *LogSource {
 	stream, exists := s.streamByType[sourceType]
 	if !exists {
-		stream = make(chan *LogSource)
+		stream = make(chan *LogSource, capacity)
 		s.streamByType[sourceType] = stream
 	}
 	return stream

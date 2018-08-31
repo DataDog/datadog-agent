@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 // Agent represents the data pipeline that collects, decodes,
@@ -33,7 +34,7 @@ type Agent struct {
 }
 
 // NewAgent returns a new Agent
-func NewAgent(sources *config.LogSources, serverConfig *config.ServerConfig) *Agent {
+func NewAgent(sources *config.LogSources, services *service.Services, serverConfig *config.ServerConfig) *Agent {
 	// setup the auditor
 	messageChan := make(chan message.Message, config.ChanSize)
 	auditor := auditor.New(messageChan, config.LogsAgent.GetString("logs_config.run_path"))
@@ -49,7 +50,7 @@ func NewAgent(sources *config.LogSources, serverConfig *config.ServerConfig) *Ag
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
 	}
-	if input, err := container.NewScanner(sources, pipelineProvider, auditor); err == nil {
+	if input, err := container.NewScanner(sources, services, pipelineProvider, auditor); err == nil {
 		inputs = append(inputs, input)
 	}
 

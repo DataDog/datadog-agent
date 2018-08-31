@@ -51,12 +51,11 @@ type Tailer struct {
 // NewTailer returns a new Tailer
 func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *Tailer {
 	return &Tailer{
-		ContainerID: containerID,
-		outputChan:  outputChan,
-		decoder:     decoder.InitializeDecoder(source),
-		source:      source,
-		cli:         cli,
-
+		ContainerID:   containerID,
+		outputChan:    outputChan,
+		decoder:       decoder.InitializeDecoder(source),
+		source:        source,
+		cli:           cli,
 		sleepDuration: defaultSleepDuration,
 		stop:          make(chan struct{}, 1),
 		done:          make(chan struct{}, 1),
@@ -71,7 +70,7 @@ func (t *Tailer) Identifier() string {
 // Stop stops the tailer from reading new container logs,
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing container ", ShortContainerID(t.ContainerID))
+	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 	t.reader.Close()
 	t.source.RemoveInput(t.ContainerID)
@@ -84,6 +83,7 @@ func (t *Tailer) Stop() {
 // start from now if the container has been created before the agent started
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
+	log.Infof("Start tailing container: %v", ShortContainerID(t.ContainerID))
 	return t.tail(since.Format(config.DateFormat))
 }
 

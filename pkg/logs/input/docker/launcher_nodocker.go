@@ -11,18 +11,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
-// Scanner is not supported on windows environment
-type Scanner struct{}
+// Launcher is not supported on windows environment
+type Launcher struct{}
 
-// NewScanner returns a new Scanner
-func NewScanner(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Scanner, error) {
-	return &Scanner{}, nil
+// NewLauncher returns a new Launcher
+func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
+	return &Launcher{}, nil
 }
 
 // Start does nothing
-func (s *Scanner) Start() {}
+func (l *Launcher) Start() {}
 
 // Stop does nothing
-func (s *Scanner) Stop() {}
+func (l *Launcher) Stop() {}

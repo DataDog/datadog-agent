@@ -51,9 +51,10 @@ type LogsConfig struct {
 	IncludeUnits []string `mapstructure:"include_units" json:"include_units"` // Journald
 	ExcludeUnits []string `mapstructure:"exclude_units" json:"exclude_units"` // Journald
 
-	Image string // Docker
-	Label string // Docker
-	Name  string // Docker
+	Image      string // Docker
+	Label      string // Docker
+	Name       string // Docker
+	Identifier string // Docker
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event

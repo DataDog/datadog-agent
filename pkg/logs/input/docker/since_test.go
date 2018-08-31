@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 func TestSince(t *testing.T) {
@@ -24,21 +25,21 @@ func TestSince(t *testing.T) {
 	var since time.Time
 	var err error
 
-	since, err = Since(registry, "", false)
+	since, err = Since(registry, "", service.Before)
 	assert.Nil(t, err)
 	assert.True(t, since.Equal(now) || since.After(now))
 
-	since, err = Since(registry, "", true)
+	since, err = Since(registry, "", service.After)
 	assert.Nil(t, err)
 	assert.Equal(t, time.Time{}, since)
 
 	registry.SetOffset("2008-01-12T01:01:01.000000001Z")
-	since, err = Since(registry, "", false)
+	since, err = Since(registry, "", service.Before)
 	assert.Nil(t, err)
 	assert.Equal(t, "2008-01-12T01:01:01.000000002Z", since.Format(config.DateFormat))
 
 	registry.SetOffset("foo")
-	since, err = Since(registry, "", false)
+	since, err = Since(registry, "", service.Before)
 	assert.NotNil(t, err)
 	assert.True(t, since.After(now))
 }
