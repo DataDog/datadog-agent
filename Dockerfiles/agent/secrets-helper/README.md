@@ -14,7 +14,7 @@ to be used with [the agent's external secret feature](https://github.com/DataDog
 
 - For now, this script is incompatible with [OpenShift restricted SCC operations](https://github.com/DataDog/datadog-agent/blob/6.4.x/Dockerfiles/agent/OPENSHIFT.md#restricted-scc-operations) and requires that the Agent runs as the `root` user.
 
-- `ENV[]` tokens found in `datadog.yaml` and in Autodiscovery templates will be replaced, but replacing `ENV[]` tokens in config values passed as enviroment variables is not supported as of 6.5.0
+- `ENC[]` tokens found in `datadog.yaml` and in Autodiscovery templates will be replaced, but replacing `ENC[]` tokens in config values passed as enviroment variables is not supported as of 6.5.0
 
 ## Setup examples
 
