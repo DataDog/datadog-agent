@@ -8,8 +8,9 @@
 ---
 upgrade:
   - |
-    Prometheus custom checks are now limited to 2000 metrics by default,
-    to prevent overage charges on configuration errors or input changes.
+    Prometheus custom checks are now limited to 2000 metrics by default
+    to provide users control over the maximum number of custom metrics
+    sent in the case of configuration errors or input changes.
     This limit can be changed with the ``max_returned_metrics`` option
     in the check configuration.
 
