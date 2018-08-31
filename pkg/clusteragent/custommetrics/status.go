@@ -30,15 +30,15 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	externalStatus := make(map[string]interface{})
 	status["External"] = externalStatus
 
-	externalMetrics, err := store.ListAllExternalMetricValues()
+	bundle, err := store.GetMetrics()
 	if err != nil {
 		externalStatus["ListError"] = err.Error()
 		return status
 	}
-	externalStatus["Metrics"] = externalMetrics
-	externalStatus["Total"] = len(externalMetrics)
+	externalStatus["Metrics"] = bundle.External
+	externalStatus["Total"] = len(bundle.External)
 	valid := 0
-	for _, metric := range externalMetrics {
+	for _, metric := range bundle.External {
 		if metric.Valid {
 			valid += 1
 		}
