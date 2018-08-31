@@ -159,7 +159,7 @@ func getClusterAgentEndpoint() (string, error) {
 
 // GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
 func (c *DCAClient) GetVersion() (string, error) {
-	const dcaVersionPath = "/version"
+	const dcaVersionPath = "version"
 	var version version.Version
 	var err error
 
