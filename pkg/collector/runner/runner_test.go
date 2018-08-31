@@ -20,6 +20,7 @@ import (
 type TestCheck struct {
 	doErr  bool
 	hasRun bool
+	done   chan struct{}
 }
 
 func (c *TestCheck) String() string                                     { return "TestCheck" }
@@ -34,6 +35,9 @@ func (c *TestCheck) Run() error {
 	}
 
 	c.hasRun = true
+	if c.done != nil {
+		close(c.done)
+	}
 	return nil
 }
 func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
@@ -64,11 +68,12 @@ func TestGetChan(t *testing.T) {
 func TestWork(t *testing.T) {
 	defaultNumWorkers = 1
 	r := NewRunner()
-	c1 := TestCheck{}
+	c1 := TestCheck{done: make(chan struct{})}
 	c2 := TestCheck{doErr: true}
 
 	r.pending <- &c1
 	r.pending <- &c2
+	<-c1.done
 	assert.True(t, c1.hasRun)
 	r.Stop()
 
