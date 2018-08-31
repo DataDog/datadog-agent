@@ -17,9 +17,10 @@ import (
 )
 
 // clusterStore holds the state of cluster-check management.
-// It is written to by the dispatcher and read from by the api handler
+// Lock is to be held by the users (dispatcher and api handler)
+// so they can make atomic operations involving several calls.
 type clusterStore struct {
-	m              sync.RWMutex
+	sync.RWMutex
 	digestToConfig map[string]integration.Config // All configurations to dispatch
 	digestToNode   map[string]string             // Node running a config
 	nodes          map[string]*nodeStore         // All nodes known to the cluster-agent
@@ -28,58 +29,44 @@ type clusterStore struct {
 func newClusterStore() *clusterStore {
 	return &clusterStore{
 		digestToConfig: make(map[string]integration.Config),
+		digestToNode:   make(map[string]string),
 		nodes:          make(map[string]*nodeStore),
 	}
 }
 
 func (s *clusterStore) addConfig(config integration.Config, targetNodeName string) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
+	var targetNode, currentNode *nodeStore
+	var foundCurrent bool
 	digest := config.Digest()
+
+	if targetNodeName != "" {
+		targetNode, _ = s.getNodeStore(targetNodeName, true)
+		currentNode, foundCurrent = s.getNodeStoreForDigest(digest)
+	}
+
+	// Register config
 	s.digestToConfig[digest] = config
 
 	// Dispatch to target node
-	if targetNodeName == "" {
+	if targetNode == nil {
 		return
 	}
-	targetNode, _ := s.getNodeStore(targetNodeName, true)
 	targetNode.Lock()
 	targetNode.addConfig(config)
 	targetNode.Unlock()
-
-	currentNodeName := s.digestToNode[digest]
 	s.digestToNode[digest] = targetNodeName
 
 	// Remove potential duplicate
-	if currentNodeName != "" {
-		currentNode, found := s.getNodeStore(currentNodeName, false)
-		if !found {
-			return
-		}
+	if foundCurrent {
 		currentNode.Lock()
 		currentNode.removeConfig(digest)
 		currentNode.Unlock()
 	}
-
 }
 
 func (s *clusterStore) removeConfig(digest string) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	_, found := s.digestToConfig[digest]
-	if !found {
-		log.Debug("unknown digest %s, skipping", digest)
-		return
-	}
-
-	currentNodeName, found := s.digestToNode[digest]
-	if found {
-		currentNode, found := s.getNodeStore(currentNodeName, false)
-		if !found {
-			return
-		}
+	currentNode, foundCurrent := s.getNodeStoreForDigest(digest)
+	if foundCurrent {
 		currentNode.Lock()
 		currentNode.removeConfig(digest)
 		currentNode.Unlock()
@@ -89,9 +76,6 @@ func (s *clusterStore) removeConfig(digest string) {
 }
 
 func (s *clusterStore) getAllConfigs() []integration.Config {
-	s.m.RLock()
-	defer s.m.RUnlock()
-
 	var configSlice []integration.Config
 	for _, c := range s.digestToConfig {
 		configSlice = append(configSlice, c)
@@ -104,7 +88,6 @@ func (s *clusterStore) getNodeConfigs(nodeName string) []integration.Config {
 	if node == nil {
 		return nil
 	}
-
 	node.RLock()
 	defer node.RUnlock()
 	return node.getConfigs()
@@ -115,7 +98,6 @@ func (s *clusterStore) getNodeLastChange(nodeName string) int64 {
 	if node == nil {
 		return -1
 	}
-
 	node.RLock()
 	defer node.RUnlock()
 	return node.lastConfigChange
@@ -125,7 +107,6 @@ func (s *clusterStore) storeNodeStatus(nodeName string, status types.NodeStatus)
 	node, _ := s.getNodeStore(nodeName, true)
 	node.Lock()
 	defer node.Unlock()
-
 	node.lastStatus = status
 	node.lastPing = timestampNow()
 }
@@ -134,24 +115,36 @@ func (s *clusterStore) storeNodeStatus(nodeName string, status types.NodeStatus)
 // is not yet registered in the store, an entry will be inserted and returned,
 // or an empty pointer will be returned
 func (s *clusterStore) getNodeStore(nodeName string, create bool) (*nodeStore, bool) {
-	s.m.RLock()
 	node, ok := s.nodes[nodeName]
-	s.m.RUnlock()
 	if ok {
 		return node, true
 	}
 
 	if !create {
-		log.Debug("unknown node %s, skipping", nodeName)
+		log.Debugf("unknown node %s, skipping", nodeName)
 		return nil, false
 	}
 
-	log.Debug("unknown node %s, registering", nodeName)
-	s.m.Lock()
-	defer s.m.Unlock()
-	node = &nodeStore{}
+	log.Debugf("unknown node %s, registering", nodeName)
+	node = newNodeStore()
 	s.nodes[nodeName] = node
 	return node, false
+}
+
+func (s *clusterStore) getNodeNameForDigest(digest string) (string, bool) {
+	if digest == "" {
+		return "", false
+	}
+	name, found := s.digestToNode[digest]
+	return name, found
+}
+
+func (s *clusterStore) getNodeStoreForDigest(digest string) (*nodeStore, bool) {
+	nodeName, found := s.getNodeNameForDigest(digest)
+	if !found {
+		return nil, false
+	}
+	return s.getNodeStore(nodeName, false)
 }
 
 func timestampNow() int64 {

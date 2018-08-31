@@ -56,6 +56,8 @@ func (d *dispatcher) add(config integration.Config) {
 
 	// TODO: add dispatching logic
 	hostname, _ := util.GetHostname()
+	d.store.Lock()
+	defer d.store.Unlock()
 	d.store.addConfig(config, hostname)
 }
 
@@ -66,5 +68,7 @@ func (d *dispatcher) remove(config integration.Config) {
 	}
 	digest := config.Digest()
 	log.Debugf("removing configuration %s:%s", config.Name, digest)
+	d.store.Lock()
+	defer d.store.Unlock()
 	d.store.removeConfig(digest)
 }

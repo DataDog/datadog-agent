@@ -56,6 +56,13 @@ update the store accordingly
   - watch node statuses and de-register stale nodes
   - re-dispatch orphaned configs
 
+### clusterStore and nodeStore
+
+These classes hold the dispatching state and provide convenience methods to make sure the
+state stays consistent.
+To ensure `dispatcher` operations (that require several reads / writes to the store) are
+atomic, the stores are designed with an external locking, held by the `Handler` and
+`dispatcher` on access.
 
 ## Node-agent communication
 

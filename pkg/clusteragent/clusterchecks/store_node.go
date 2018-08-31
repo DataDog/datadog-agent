@@ -25,6 +25,12 @@ type nodeStore struct {
 	digestToConfig   map[string]integration.Config
 }
 
+func newNodeStore() *nodeStore {
+	return &nodeStore{
+		digestToConfig: make(map[string]integration.Config),
+	}
+}
+
 func (s *nodeStore) addConfig(config integration.Config) {
 	s.lastConfigChange = timestampNow()
 	s.digestToConfig[config.Digest()] = config

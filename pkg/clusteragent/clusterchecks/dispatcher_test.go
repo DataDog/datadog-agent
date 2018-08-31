@@ -15,11 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-func TestSchedule(t *testing.T) {
+func TestScheduleUnschedule(t *testing.T) {
 	store := newClusterStore()
 	dispatcher := newDispatcher(store)
-
-	assert.Len(t, store.getAllConfigs(), 0)
+	requireNotLocked(t, store)
 
 	config1 := integration.Config{
 		Name:         "non-cluster-check",
@@ -31,10 +30,16 @@ func TestSchedule(t *testing.T) {
 	}
 
 	dispatcher.Schedule([]integration.Config{config1, config2})
+	requireNotLocked(t, store)
+
 	registered := store.getAllConfigs()
 	assert.Len(t, registered, 1)
 	assert.Contains(t, registered, config2)
+	requireNotLocked(t, store)
 
 	dispatcher.Unschedule([]integration.Config{config1, config2})
+	requireNotLocked(t, store)
+
 	assert.Len(t, store.getAllConfigs(), 0)
+	requireNotLocked(t, store)
 }

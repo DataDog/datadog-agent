@@ -19,6 +19,8 @@ func (h *Handler) ShouldRedirect() string {
 
 // GetAllConfigs returns all configurations known to the store, for reporting
 func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
+	h.store.RLock()
+	defer h.store.RUnlock()
 	response := types.ConfigResponse{
 		Configs: h.store.getAllConfigs(),
 	}
@@ -27,6 +29,8 @@ func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
 
 // GetConfigs returns  configurations dispatched to a given node
 func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
+	h.store.RLock()
+	defer h.store.RUnlock()
 	response := types.ConfigResponse{
 		Configs: h.store.getNodeConfigs(nodeName),
 	}
@@ -35,6 +39,8 @@ func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
 
 // GetConfigs returns configurations dispatched to a given node
 func (h *Handler) PostStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
+	h.store.Lock()
+	defer h.store.Unlock()
 	h.store.storeNodeStatus(nodeName, status)
 	lastChange := h.store.getNodeLastChange(nodeName)
 
