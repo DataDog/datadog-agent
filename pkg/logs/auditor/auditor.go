@@ -213,7 +213,7 @@ func (a *Auditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry, error)
 	if err != nil {
 		return nil, err
 	}
-	version, exists := r["Version"].(float64)
+	version, exists := r["Version"].(uint64)
 	if !exists {
 		return nil, fmt.Errorf("registry retrieved from disk must have a version number")
 	}
