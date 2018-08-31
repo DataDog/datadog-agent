@@ -57,6 +57,10 @@ func (c *ClusterChecksConfigProvider) String() string {
 	return ClusterChecks
 }
 
+func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {
+	return c.lastPing.Add(c.graceDuration).After(time.Now())
+}
+
 // IsUpToDate queries the cluster-agent to update its status and
 // query if new configurations are available
 func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
@@ -73,7 +77,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
 
 	reply, err := c.dcaClient.PostClusterCheckStatus(c.nodeName, status)
 	if err != nil {
-		if c.lastPing.Add(c.graceDuration).After(time.Now()) {
+		if c.withinGracePeriod() {
 			log.Debug("Cannot reach DCA, but still within grace time, keeping config: %s", err)
 			return true, nil
 		}
@@ -95,9 +99,18 @@ func (c *ClusterChecksConfigProvider) Collect() ([]integration.Config, error) {
 	}
 
 	reply, err := c.dcaClient.GetClusterCheckConfigs(c.nodeName)
-	c.lastChange = reply.LastChange
+	if err != nil {
+		if c.withinGracePeriod() {
+			// Bubble-up the error to keep the known configurations
+			return nil, err
+		}
+		// Catch the error to flush the configurations
+		log.Debug("Cannot reach DCA, but grace time elapsed, purging config: %s", err)
+		return nil, err
+	}
 
-	return reply.Configs, err
+	c.lastChange = reply.LastChange
+	return reply.Configs, nil
 }
 
 func init() {
