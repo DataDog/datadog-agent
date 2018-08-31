@@ -11,7 +11,7 @@
           <span class="stat_subtitle">{{$CheckName}}{{ if $version }} ({{$version}}){{ end }}</span>
           {{- range $CheckInstances }}
             <span class="stat_subdata">
-                Instance ID: {{- if eq (len $CheckInstances) 1 }} {{$CheckName}}{{else}} {{.CheckID}}{{end}} {{status .}}<br>
+                Instance ID: {{.CheckID}} {{status .}}<br>
                 Total Runs: {{.TotalRuns}}<br>
                 Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
                 Events: {{.Events}}, Total: {{humanize .TotalEvents}}<br>
