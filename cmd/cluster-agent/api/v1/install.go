@@ -12,7 +12,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/paulbellamy/ratecounter"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
