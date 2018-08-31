@@ -44,7 +44,6 @@ func getResponse(url string) (*http.Response, error) {
 		return nil, err
 	}
 
-	req.Header.Add("Metadata", "true")
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
