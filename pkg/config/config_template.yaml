@@ -35,7 +35,7 @@ api_key:
 
 # Make the agent use "hostname -f" on unix-based systems as a last resort
 # way of determining the hostname instead of Golang "os.Hostname()"
-# This will be enabled by default in version 6.4
+# This will be enabled by default in version 6.6
 # More information at  https://dtdg.co/flag-hostname-fqdn
 # hostname_fqdn: false
 
