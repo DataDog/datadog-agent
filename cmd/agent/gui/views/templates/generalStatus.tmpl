@@ -138,6 +138,10 @@
       {{ if (not .is_running) }}
         Logs Agent is not running </br>
       {{ else }}
+      {{- if .warnings }}
+        <span class="warning stat_subtitle">Warnings</span>
+          {{ range $warning := .warnings }}{{ $warning }}{{ end }}
+      {{- end}}
       {{- range .integrations -}}
         <span class="stat_subtitle">{{- .name }}</span>
         <span class="stat_subdata">
@@ -146,12 +150,16 @@
             {{- range $key, $value := .configuration }}
             {{$key}}: {{$value}}</br>
             {{- end }}
+            {{- if .overview }}
+            Overview: {{.overview}}</br>
+            {{- end }}
             {{- if .status }}
             Status: {{ .status }}</br>
             {{- end }}
             {{- if .inputs }}
-            Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
+            Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
             {{- end }}
+            </br>
           {{- end }}
         </span>
         {{ end }}

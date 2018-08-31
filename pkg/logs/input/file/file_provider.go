@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/warning"
 )
 
 // File represents a file to tail
@@ -53,8 +54,9 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 
-	for i := 0; i < len(sources) && len(filesToTail) < p.filesLimit; i++ {
+	for i := 0; i < len(sources); i++ {
 		source := sources[i]
+		tailedFileCounter := 0
 		files, err := p.CollectFiles(source)
 		if err != nil {
 			source.Status.Error(err)
@@ -66,14 +68,21 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 		for j := 0; j < len(files) && len(filesToTail) < p.filesLimit; j++ {
 			file := files[j]
 			filesToTail = append(filesToTail, file)
+			tailedFileCounter++
+		}
+
+		if p.containsWildcard(source.Config.Path) {
+			source.Overview = fmt.Sprintf("%d files tailed out of %d files matching", tailedFileCounter, len(files))
 		}
 	}
 
 	if len(filesToTail) == p.filesLimit {
 		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
+		warning.Raise(OpenFilesLimitWarningType, NewOpenFilesLimitWarning(p.filesLimit))
 		return filesToTail
 	}
 
+	warning.Remove(OpenFilesLimitWarningType)
 	return filesToTail
 }
 

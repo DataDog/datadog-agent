@@ -1,0 +1,46 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2018 Datadog, Inc.
+
+package warning
+
+var w = newWarnings()
+
+// Warning is a generic interface that generate warning messages
+type Warning interface {
+	Render() string
+}
+
+// Warnings holds a warning message
+type warnings struct {
+	raised map[string]Warning
+}
+
+// NewWarnings initialize Warnings with the default values
+func newWarnings() *warnings {
+	return &warnings{
+		raised: make(map[string]Warning),
+	}
+}
+
+// Raise opens a RaisedWarning
+func Raise(key string, warning Warning) {
+	w.raised[key] = warning
+}
+
+// Get returns the message for a key
+func Get() []Warning {
+	warnings := make([]Warning, len(w.raised))
+	i := 0
+	for _, warning := range w.raised {
+		warnings[i] = warning
+		i++
+	}
+	return warnings
+}
+
+// Remove marks a RaisedWarning as solved
+func Remove(key string) {
+	delete(w.raised, key)
+}

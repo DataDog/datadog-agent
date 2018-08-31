@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/warning"
 )
 
 var (
@@ -21,6 +22,7 @@ type Source struct {
 	Configuration map[string]interface{} `json:"configuration"`
 	Status        string                 `json:"status"`
 	Inputs        []string               `json:"inputs"`
+	Overview      string                 `json:"overview"`
 }
 
 // Integration provides some information about a logs integration.
@@ -31,8 +33,9 @@ type Integration struct {
 
 // Status provides some information about logs-agent.
 type Status struct {
-	IsRunning    bool          `json:"is_running"`
-	Integrations []Integration `json:"integrations"`
+	IsRunning       bool          `json:"is_running"`
+	Integrations    []Integration `json:"integrations"`
+	WarningMessages []string      `json:"warnings"`
 }
 
 // Builder is used to build the status.
@@ -70,18 +73,28 @@ func Get() Status {
 			} else if source.Status.IsError() {
 				status = source.Status.GetError()
 			}
+
 			sources = append(sources, Source{
 				Type:          source.Config.Type,
 				Configuration: toDictionary(source.Config),
 				Status:        status,
 				Inputs:        source.GetInputs(),
+				Overview:      source.Overview,
 			})
 		}
 		integrations = append(integrations, Integration{Name: name, Sources: sources})
 	}
+
+	warnings := warning.Get()
+	warningMessages := make([]string, len(warnings))
+	for i, w := range warnings {
+		warningMessages[i] = w.Render()
+	}
+
 	return Status{
-		IsRunning:    true,
-		Integrations: integrations,
+		IsRunning:       true,
+		Integrations:    integrations,
+		WarningMessages: warningMessages,
 	}
 }
 

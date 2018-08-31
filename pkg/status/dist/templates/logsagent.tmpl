@@ -7,6 +7,13 @@ Logs Agent
 {{ if (not .is_running) }}
   Logs Agent is not running
 {{ else }}
+{{- if .warnings }}
+  warnings
+  {{printDashes "warnings" "-"}}
+    {{- range $warning := .warnings }}
+    {{ $warning }}
+    {{- end }}
+{{ end }}
 {{- range .integrations }}
   {{ .name }}
   {{printDashes .name "-"}}
@@ -14,6 +21,9 @@ Logs Agent
     Type: {{ .type }}
     {{- range $key, $value := .configuration }}
     {{$key}}: {{$value}}
+    {{- end }}
+    {{- if .overview }}
+    Overview: {{.overview}}
     {{- end }}
     Status: {{ .status }}
     {{- if .inputs }}

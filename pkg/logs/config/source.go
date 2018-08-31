@@ -11,11 +11,12 @@ import "sync"
 // successful operations on it. Both name and configuration are static for now and determined at creation time.
 // Changing the status is designed to be thread safe.
 type LogSource struct {
-	Name   string
-	Config *LogsConfig
-	Status *LogStatus
-	inputs map[string]bool
-	lock   *sync.Mutex
+	Name     string
+	Config   *LogsConfig
+	Status   *LogStatus
+	inputs   map[string]bool
+	Overview string
+	lock     *sync.Mutex
 }
 
 // NewLogSource creates a new log source.
