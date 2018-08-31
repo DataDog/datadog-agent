@@ -209,10 +209,10 @@ func GetHostname() (string, error) {
 		}
 	}
 
-	// REMOVEME: This should be removed in 6.5
+	// REMOVEME: This should be removed in 6.6
 	h, err := os.Hostname()
 	if err == nil && !config.Datadog.GetBool("hostname_fqdn") && fqdn != "" && hostName == h && h != fqdn {
-		log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However starting from version 6.5, it will be resolved as '%s' by default. To enable the behavior of 6.5+, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
+		log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However starting from version 6.6, it will be resolved as '%s' by default. To enable the behavior of 6.6+, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
 	}
 
 	// If at this point we don't have a name, bail out
