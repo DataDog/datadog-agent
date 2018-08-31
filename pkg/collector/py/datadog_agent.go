@@ -163,9 +163,6 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	}
 	cmd := exec.Command(subprocessCmd, subprocessArgs...)
 
-	glock := C.PyGILState_Ensure()
-	defer C.PyGILState_Release(glock)
-
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		cErr := C.CString(fmt.Sprintf("internal error creating stdout pipe: %v", err))
@@ -209,6 +206,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 			retCode = status.ExitStatus()
 		}
 	}
+
+	glock := C.PyGILState_Ensure()
+	defer C.PyGILState_Release(glock)
 
 	if raise > 0 {
 		// raise on error
