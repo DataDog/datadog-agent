@@ -2,6 +2,7 @@ package gui
 
 import (
 	"bytes"
+	"encoding/json"
 	"expvar"
 	"html/template"
 	"io"
@@ -13,8 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/status"
-
-	json "github.com/json-iterator/go"
 )
 
 var fmap = status.Fmap()

@@ -8,6 +8,7 @@
 package ecs
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -15,8 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	json "github.com/json-iterator/go"
 )
 
 const (

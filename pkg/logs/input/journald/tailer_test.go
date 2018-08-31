@@ -98,25 +98,25 @@ func TestContent(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{})
 	tailer := NewTailer(source, nil)
 
-	assert.JSONEq(t, string([]byte(`{"journald":{"_A":"foo.service"},"message":"bar"}`)), string(tailer.getContent(
+	assert.Equal(t, []byte(`{"journald":{"_A":"foo.service"},"message":"bar"}`), tailer.getContent(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_MESSAGE: "bar",
 				"_A": "foo.service",
 			},
-		})))
+		}))
 
-	assert.Equal(t, string([]byte(`{"journald":{"_A":"foo.service"}}`)), string(tailer.getContent(
+	assert.Equal(t, []byte(`{"journald":{"_A":"foo.service"}}`), tailer.getContent(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				"_A": "foo.service",
 			},
-		})))
+		}))
 
-	assert.Equal(t, string([]byte(`{"journald":{}}`)), string(tailer.getContent(
+	assert.Equal(t, []byte(`{"journald":{}}`), tailer.getContent(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{},
-		})))
+		}))
 }
 
 func TestSeverity(t *testing.T) {

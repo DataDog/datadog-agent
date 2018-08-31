@@ -7,6 +7,7 @@ package flare
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	json "github.com/json-iterator/go"
 )
 
 var datadogSupportURL = "/support/flare"

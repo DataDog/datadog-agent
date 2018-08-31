@@ -9,6 +9,7 @@ package flare
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/docker/docker/api/types"
-	json "github.com/json-iterator/go"
 )
 
 func zipDockerSelfInspect(tempDir, hostname string) error {
@@ -44,10 +44,13 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	}
 
 	// Serialise as JSON
-	jsonStats, err := json.MarshalIndent(co, "", "\t")
+	jsonStats, err := json.Marshal(co)
 	if err != nil {
 		return err
 	}
+	var out bytes.Buffer
+	json.Indent(&out, jsonStats, "", "\t")
+	serialized := out.Bytes()
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
 	w, err := NewRedactingWriter(f, os.ModePerm, true)
@@ -65,7 +68,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		},
 	})
 
-	_, err = w.Write(jsonStats)
+	_, err = w.Write(serialized)
 	return err
 }
 

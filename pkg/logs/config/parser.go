@@ -7,9 +7,9 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
-	json "github.com/json-iterator/go"
 	"github.com/spf13/viper"
 )
 

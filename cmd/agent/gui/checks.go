@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -18,9 +19,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/gorilla/mux"
-	json "github.com/json-iterator/go"
 	yaml "gopkg.in/yaml.v2"
 )
 

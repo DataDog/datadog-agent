@@ -9,7 +9,7 @@ package app
 
 import (
 	"bytes"
-	"encoding/json" // Not intensively called, no need for jsoniter
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 

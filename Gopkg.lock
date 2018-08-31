@@ -1597,7 +1597,6 @@
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
-    "github.com/json-iterator/go",
     "github.com/k-sone/snmpgo",
     "github.com/kardianos/osext",
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server",
