@@ -19,13 +19,14 @@ import (
 
 // NewScanner returns a new container scanner,
 // by default returns a docker scanner unless it could not be set up properly,
-// in which case returns a kubernetes scanner if `logs_config.containers_all` is set to true.
+// in which case fallbacks to a kubernetes scanner if `logs_config.containers_all` is enabled.
+// FIXME: Add a configuration parameter to either enable the docker integration or the kubernetes one.
 func NewScanner(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (restart.Restartable, error) {
 	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
 		// attempt to initialize a docker scanner
 		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
 		if err == nil {
-			source := config.NewLogSource("container_collect_all", &config.LogsConfig{
+			source := config.NewLogSource("docker", &config.LogsConfig{
 				Type:    config.DockerType,
 				Service: "docker",
 				Source:  "docker",

@@ -35,7 +35,7 @@ func NewContainer(container types.Container, service *service.Service) *Containe
 // findSource returns the source that most likely matches the container,
 // if no source is found return nil
 func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
-	var candidate *config.LogSource
+	var bestMatch *config.LogSource
 	for _, source := range sources {
 		if source.Config.Identifier != "" && c.isIdentifierMatch(source.Config.Identifier) {
 			return source
@@ -43,17 +43,17 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 		if !c.IsMatch(source) {
 			continue
 		}
-		if candidate == nil {
-			candidate = source
+		if bestMatch == nil {
+			bestMatch = source
 		}
-		if c.computeScore(candidate) < c.computeScore(source) {
-			candidate = source
+		if c.computeScore(bestMatch) < c.computeScore(source) {
+			bestMatch = source
 		}
 	}
-	if c.ContainsLabel() && !c.isIdentifierMatch(candidate.Config.Identifier) {
+	if c.ContainsLabel() && !c.isIdentifierMatch(bestMatch.Config.Identifier) {
 		return nil
 	}
-	return candidate
+	return bestMatch
 }
 
 // computeScore returns the matching score between the container and the source.

@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -19,7 +20,7 @@ var (
 	// logs-agent
 	agent *Agent
 	// scheduler is plugged to autodiscovery to collect integration configs and schedule log collection for different kind of inputs
-	scheduler *Scheduler
+	adScheduler *scheduler.Scheduler
 )
 
 // Start starts logs-agent
@@ -40,7 +41,7 @@ func Start() error {
 	services := service.NewServices()
 
 	// initialize the config scheduler
-	scheduler = NewScheduler(sources, services)
+	adScheduler = scheduler.NewScheduler(sources, services)
 
 	// setup the status
 	status.Initialize(sources)
@@ -77,6 +78,6 @@ func GetStatus() status.Status {
 }
 
 // GetScheduler returns the logs-config scheduler if set.
-func GetScheduler() *Scheduler {
-	return scheduler
+func GetScheduler() *scheduler.Scheduler {
+	return adScheduler
 }
