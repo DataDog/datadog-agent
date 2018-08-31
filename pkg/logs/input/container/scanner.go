@@ -26,7 +26,7 @@ func NewScanner(sources *config.LogSources, services *service.Services, pipeline
 		// attempt to initialize a docker scanner
 		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
 		if err == nil {
-			source := config.NewLogSource("docker", &config.LogsConfig{
+			source := config.NewLogSource("container_collect_all", &config.LogsConfig{
 				Type:    config.DockerType,
 				Service: "docker",
 				Source:  "docker",
