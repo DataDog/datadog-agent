@@ -121,6 +121,11 @@ func (h *AutoscalersController) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting HPA Controller ... ")
 	defer log.Infof("Stopping HPA Controller")
 
+	if err := h.le.EnsureLeaderElectionRuns(); err != nil {
+		log.Errorf("Leader election process failed to start: %v", err)
+		return
+	}
+
 	if !cache.WaitForCacheSync(stopCh, h.autoscalersListerSynced) {
 		return
 	}
@@ -218,7 +223,7 @@ func (h *AutoscalersController) gc() {
 		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
 	}
-	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
+	log.Debugf("Done gc run. Deleted %d metrics", len(deleted))
 }
 
 func (h *AutoscalersController) worker() {

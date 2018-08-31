@@ -80,6 +80,8 @@ type fakeLeaderElector struct {
 	isLeader bool
 }
 
+func (le *fakeLeaderElector) EnsureLeaderElectionRuns() error { return nil }
+
 func (le *fakeLeaderElector) IsLeader() bool { return le.isLeader }
 
 type fakeDatadogClient struct {

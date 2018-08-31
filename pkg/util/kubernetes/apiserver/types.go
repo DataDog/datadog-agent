@@ -9,5 +9,6 @@ package apiserver
 
 // LeaderElectorInterface is the interface avoiding the import cycle between the LeaderElection and the APIServer
 type LeaderElectorInterface interface {
+	EnsureLeaderElectionRuns() error
 	IsLeader() bool
 }
