@@ -1,6 +1,7 @@
 package procdiscovery
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/procmatch"
@@ -82,22 +83,36 @@ func retrieveIntegrations() (map[string]struct{}, map[string]struct{}, error) {
 	running := map[string]struct{}{}
 	failing := map[string]struct{}{}
 
-	status, err := status.GetStatus()
+	statusRaw, err := status.GetStatus()
 
 	if err != nil {
 		return running, failing, fmt.Errorf("Couldn't retrieve agent status: %s", err)
 	}
 
-	if checks, ok := status["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{}); ok {
-		for key := range checks {
-			running[key] = struct{}{}
-		}
+	statusBytes, err := json.Marshal(statusRaw)
+	if err != nil {
+		return running, failing, fmt.Errorf("Couldn't marshal agent status: %s", err)
 	}
 
-	if errors, ok := status["checkSchedulerStats"].(map[string]interface{})["LoaderErrors"].(map[string]interface{}); ok {
-		for key := range errors {
-			failing[key] = struct{}{}
-		}
+	var status struct {
+		RunnerStats struct {
+			Checks map[string]interface{}
+		} `json:"runnerStats"`
+		CheckSchedulerStats struct {
+			LoaderErrors map[string]interface{}
+		} `json:"checkSchedulerStats"`
+	}
+
+	err = json.Unmarshal(statusBytes, &status)
+	if err != nil {
+		return running, failing, fmt.Errorf("Couldn't decode agent status response: %s", err)
+	}
+
+	for key := range status.RunnerStats.Checks {
+		running[key] = struct{}{}
+	}
+	for key := range status.CheckSchedulerStats.LoaderErrors {
+		failing[key] = struct{}{}
 	}
 
 	return running, failing, nil
