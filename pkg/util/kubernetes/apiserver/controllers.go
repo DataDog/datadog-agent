@@ -14,6 +14,7 @@ import (
 
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 )
 
 type controllerFuncs struct {
@@ -42,6 +43,9 @@ type ControllerContext struct {
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
 func StartControllers(ctx ControllerContext) error {
+	if !cache.WaitForCacheSync(ctx.StopCh, ctx.InformerFactory.Core().V1().Nodes().Informer().HasSynced) {
+		return log.Errorf("Not able to sync the local cache of nodes")
+	}
 	for name, cntrlFuncs := range controllerCatalog {
 		if !cntrlFuncs.enabled() {
 			log.Infof("%q is disabled", name)

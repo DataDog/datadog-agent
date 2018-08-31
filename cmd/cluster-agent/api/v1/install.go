@@ -37,21 +37,21 @@ func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	// The /metadata endpoints are deprecated. They will be removed as of 1.0.
 	// Agents < 6.5.0 are using /metadata.
 	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
-	r.HandleFunc("/metadata/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("/metadata/{nodeName}", getPodMetadataForNode).Methods("GET")
 	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
-	r.HandleFunc("/tags/pod/{nodeName}", getNodeMetadata).Methods("GET")
-	r.HandleFunc("/tags", getAllMetadata).Methods("GET")
-	r.HandleFunc("/tags/node/{nodeName}", getNodeMeta).Methods("GET")
+	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
+	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
+	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
 	installClusterCheckEndpoints(r, sc)
 
 }
 
-// getNodeMeta is only used when the node agent hits the DCA for the list o
-func getNodeMeta(w http.ResponseWriter, r *http.Request) {
+// getNodeMetadata is only used when the node agent hits the DCA for the list of labels
+func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
-			localhost:5001/api/v1/tags/nodes/localhost
+			localhost:5001/api/v1/tags/node/localhost
 		Outputs
 			Status: 200
 			Returns: []string
@@ -65,6 +65,9 @@ func getNodeMeta(w http.ResponseWriter, r *http.Request) {
 			Returns: string
 			Example: "no cached metadata found for the node localhost"
 	*/
+
+	metadataRequests.Add(1)
+
 	vars := mux.Vars(r)
 	var labelBytes []byte
 	nodeName := vars["nodeName"]
@@ -126,9 +129,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		metadataErrors.Add(1)
 		return
 	}
-	for _, s := range metaList {
-		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
-	}
+
 	metaBytes, err := json.Marshal(metaList)
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName)
@@ -145,8 +146,8 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)))
 }
 
-// getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.
-func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
+// getPodMetadataForNode has the same signature as getAllMetadata, but is only scoped on one node.
+func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
 	log.Infof("Fetching metadata map on all pods of the node %s", nodeName)

@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    The Node Agent can rely on the Datadog CLuster Agent to collect Node Labels.
+    The Node Agent can rely on the Datadog Cluster Agent to collect Node Labels.
 
