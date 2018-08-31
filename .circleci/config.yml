@@ -30,7 +30,7 @@ templates:
           - v2-godeps-{{ .Branch }}-
           - v2-godeps-master-
     - run: &enter_venv
-        name: add virtualenv to bashrc 
+        name: add virtualenv to bashrc
         command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
 
 jobs:
@@ -131,6 +131,9 @@ jobs:
       - restore_cache: *restore_deps
       - setup_remote_docker
       - run: *enter_venv
+      - run:
+          name: run docker image tests
+          command: inv -e docker.test
       - run:
           name: run docker image integration tests
           command: inv -e docker.integration-tests
