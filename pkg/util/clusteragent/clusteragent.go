@@ -47,9 +47,9 @@ type DCAClient struct {
 	clusterAgentAPIRequestHeaders http.Header
 }
 
-// ResetGlobalClusterAgentClient is a helper to remove the current DCAClient global
+// resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
 // It is ONLY to be used for tests
-func ResetGlobalClusterAgentClient() {
+func resetGlobalClusterAgentClient() {
 	globalClusterAgentClient = nil
 }
 

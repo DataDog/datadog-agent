@@ -19,11 +19,10 @@ import (
 )
 
 var (
-	apiStats                  = expvar.NewMap("apiv1")
-	metadataStats             = new(expvar.Map).Init()
-	metadataErrors            = &expvar.Int{}
-	metadataRequests          = &expvar.Int{}
-	metadataRequestsPerSecond = &expvar.Int{}
+	apiStats         = expvar.NewMap("apiv1")
+	metadataStats    = new(expvar.Map).Init()
+	metadataErrors   = &expvar.Int{}
+	metadataRequests = &expvar.Int{}
 )
 
 func init() {
@@ -85,7 +84,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 		metadataErrors.Add(1)
 		return
 	}
-	if len(labelBytes) != 0 {
+	if len(labelBytes) > 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(labelBytes)
 		return

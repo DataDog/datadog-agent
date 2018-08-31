@@ -303,7 +303,6 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.
 func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-	var metaList []string
 	metaBundleInterface, found := agentcache.Cache.Get(cacheKey)
 	if !found {
 		log.Tracef("no metadata was found for the pod %s on node %s", podName, nodeName)
@@ -322,6 +321,7 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 	log.Tracef("CacheKey: %s, with %d services", cacheKey, len(serviceList))
+	var metaList []string
 	for _, s := range serviceList {
 		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
 	}
@@ -334,8 +334,7 @@ func GetNodeLabels(nodeName string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	enabled := config.Datadog.GetBool("kubernetes_collect_metadata_tags")
-	if !enabled {
+	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
 		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")
 	}
 	node, err := as.InformerFactory.Core().V1().Nodes().Lister().Get(nodeName)

@@ -36,7 +36,7 @@ type dummyClusterAgent struct {
 }
 
 func newDummyClusterAgent() (*dummyClusterAgent, error) {
-	ResetGlobalClusterAgentClient()
+	resetGlobalClusterAgentClient()
 	dca := &dummyClusterAgent{
 		node: map[string]map[string]string{
 			"node/node1": {

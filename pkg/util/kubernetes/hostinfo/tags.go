@@ -25,7 +25,6 @@ func GetTags() ([]string, error) {
 		// Nothing to extract
 		return nil, nil
 	}
-	var nodeLabels map[string]string
 
 	// viper lower-cases map keys from yaml, but not from envvars
 	for label, value := range labelsToTags {
@@ -37,6 +36,7 @@ func GetTags() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	var nodeLabels map[string]string
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		cl, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
@@ -47,7 +47,6 @@ func GetTags() ([]string, error) {
 			return nil, err
 		}
 	} else {
-
 		client, err := apiserver.GetAPIClient()
 		if err != nil {
 			return nil, err
