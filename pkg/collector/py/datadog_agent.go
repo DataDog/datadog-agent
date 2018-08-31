@@ -154,6 +154,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	//            to release it - we can let the caller do that.
 
 	// https://github.com/golang/go/wiki/cgo#turning-c-arrays-into-go-slices
+
+	threadState := C.PyEval_SaveThread()
+
 	length := int(argc)
 	subprocessArgs := make([]string, length-1)
 	cmdSlice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
@@ -165,6 +168,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		glock := RestoreThreadStateAndLock(threadState)
+		defer C.PyGILState_Release(glock)
+
 		cErr := C.CString(fmt.Sprintf("internal error creating stdout pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
@@ -181,6 +187,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		glock := RestoreThreadStateAndLock(threadState)
+		defer C.PyGILState_Release(glock)
+
 		cErr := C.CString(fmt.Sprintf("internal error creating stderr pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
@@ -207,7 +216,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		}
 	}
 
-	glock := C.PyGILState_Ensure()
+	glock := RestoreThreadStateAndLock(threadState)
 	defer C.PyGILState_Release(glock)
 
 	if raise > 0 {

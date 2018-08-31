@@ -142,3 +142,14 @@ func setPythonHome() {
 	pPythonHome := C.CString(pythonHome)
 	C.Py_SetPythonHome(pPythonHome)
 }
+
+func RestoreThreadStateAndLock(state *C.PyThreadState) C.PyGILState_STATE {
+	C.PyEval_RestoreThread(state)
+
+	//Note: Technically the GIL is already acquired here, but we want
+	//      a reference to the GIL, so lets just reacquire it (NOP),
+	//      and return get the glock reference to release at will.
+	glock := C.PyGILState_Ensure()
+
+	return glock
+}
