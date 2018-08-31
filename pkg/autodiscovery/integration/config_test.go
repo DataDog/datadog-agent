@@ -41,6 +41,20 @@ func TestConfigEqual(t *testing.T) {
 	assert.True(t, config.Equal(another))
 	another.ADIdentifiers = []string{"bar", "foo"}
 	assert.False(t, config.Equal(another))
+
+	checkConfigWithOrderedTags := &Config{
+		Name:       "test",
+		InitConfig: Data("foo"),
+		// Instances:  []Data{Data("tags: [\"bar:foo\", \"foo:bar\"]")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+	checkConfigWithUnorderedTags := &Config{
+		Name:       "test",
+		InitConfig: Data("foo"),
+		// Instances:  []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+	assert.Equal(t, checkConfigWithOrderedTags.Digest(), checkConfigWithUnorderedTags.Digest())
 }
 
 func TestString(t *testing.T) {
@@ -102,9 +116,9 @@ func TestDigest(t *testing.T) {
 		Name:       "foo",
 		InitConfig: Data(""),
 		Instances:  []Data{Data("foo:bar")},
-		LogsConfig: Data("bar:foo"),
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
-	assert.Equal(t, "66ba0a850883b699", simpleConfigWithLogs.Digest())
+	assert.Equal(t, "d315dd2bad449674", simpleConfigWithLogs.Digest())
 }
 
 // this is here to prevent compiler optimization on the benchmarking code
