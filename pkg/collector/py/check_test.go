@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	python "github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -73,6 +74,28 @@ func TestRun(t *testing.T) {
 	check, _ := getCheckInstance("testcheck", "TestCheck")
 	err := check.Run()
 	assert.Nil(t, err)
+}
+
+func TestSubprocessRun(t *testing.T) {
+	check, _ := getCheckInstance("testsubprocess", "TestSubprocessCheck")
+	err := check.Run()
+	assert.Nil(t, err)
+}
+
+func TestSubprocessRunConcurrent(t *testing.T) {
+
+	instances := make([]*PythonCheck, 30)
+	for i := range instances {
+		check, _ := getCheckInstance("testsubprocess", "TestSubprocessCheck")
+		instances[i] = check
+	}
+
+	for _, check := range instances {
+		go func(c *PythonCheck) {
+			err := c.Run()
+			assert.Nil(t, err)
+		}(check)
+	}
 }
 
 func TestWarning(t *testing.T) {
