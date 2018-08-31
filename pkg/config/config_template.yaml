@@ -532,6 +532,9 @@ api_key:
 # kubernetes_node_labels_as_tags:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
+#
+# Kubernetes cluster identifier used to avoid host alias collisions. Empty by default.
+# clustername: cluster_identifier
 {{ end -}}
 
 {{- if .ProcessAgent }}
