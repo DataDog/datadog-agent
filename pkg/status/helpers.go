@@ -182,7 +182,6 @@ func status(check map[string]interface{}) string {
 }
 
 func getVersion(instances map[string]interface{}) string {
-	fmt.Println(instances)
 	if len(instances) == 0 {
 		return ""
 	}
@@ -196,7 +195,6 @@ func getVersion(instances map[string]interface{}) string {
 		if !ok {
 			return ""
 		}
-		fmt.Println(str)
 		return str
 	}
 	return ""
