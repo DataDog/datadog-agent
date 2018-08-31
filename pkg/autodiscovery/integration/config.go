@@ -197,6 +197,7 @@ func (c *Config) Digest() string {
 	for _, i := range c.ADIdentifiers {
 		h.Write([]byte(i))
 	}
+	h.Write([]byte(c.LogsConfig))
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

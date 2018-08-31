@@ -90,8 +90,21 @@ func TestMergeAdditionalTags(t *testing.T) {
 }
 
 func TestDigest(t *testing.T) {
-	config := &Config{}
-	assert.Equal(t, 16, len(config.Digest()))
+	emptyConfig := &Config{}
+	assert.Equal(t, "cbf29ce484222325", emptyConfig.Digest())
+	simpleConfig := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("foo:bar")},
+	}
+	assert.Equal(t, "126b7a7a3ef3b734", simpleConfig.Digest())
+	simpleConfigWithLogs := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("foo:bar")},
+		LogsConfig: Data("bar:foo"),
+	}
+	assert.Equal(t, "66ba0a850883b699", simpleConfigWithLogs.Digest())
 }
 
 // this is here to prevent compiler optimization on the benchmarking code
