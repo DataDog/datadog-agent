@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2beta1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -38,7 +37,6 @@ func SetupHandlers(r *mux.Router, sc clusteragent.ServerContext) {
 
 	// Install versioned apis
 	v1.Install(r.PathPrefix("/api/v1").Subrouter(), sc)
-	v2beta1.Install(r.PathPrefix("/api/v2beta1").Subrouter(), sc)
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {

@@ -5,7 +5,7 @@
 
 // +build clusterchecks
 
-package v2beta1
+package v1
 
 import (
 	"encoding/json"

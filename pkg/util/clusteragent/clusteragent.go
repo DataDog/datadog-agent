@@ -193,11 +193,11 @@ func (c *DCAClient) GetVersion() (string, error) {
 
 // GetNodeLabels returns the node labels from the Cluster Agent.
 func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
-	const dcaNodeMeta = "/api/v2beta1/tags/nodes"
+	const dcaNodeMeta = "/api/v1/tags/node"
 	var err error
 	var labels map[string]string
 
-	// https://host:port/api/v1/node/{nodeName}
+	// https://host:port/api/v1/tags/node/{nodeName}
 	rawURL := fmt.Sprintf("%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaNodeMeta, nodeName)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
@@ -227,7 +227,7 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
 // Kubernetes metadata.
 func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	const dcaMetadataPath = "api/v1/metadata"
+	const dcaMetadataPath = "api/v1/tags/pod"
 	var metadataNames metadataNames
 	var err error
 

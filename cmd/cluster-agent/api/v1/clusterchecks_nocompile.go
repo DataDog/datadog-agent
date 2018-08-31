@@ -5,9 +5,9 @@
 
 // +build !clusterchecks
 
-package v2beta1
+package v1
 
-import (
+import 	(
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/gorilla/mux"
 )
