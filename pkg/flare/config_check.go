@@ -95,10 +95,10 @@ func PrintConfig(w io.Writer, c integration.Config) {
 	}
 	for _, inst := range c.Instances {
 		var ID string
-		if len(c.Instances) == 1 {
-			ID = c.Name
+		if len(c.Instances) > 1 || len(c.ADIdentifiers) > 0 {
+			ID = string(check.BuildID(c.Name, inst, c.InitConfig))
 		} else {
-			ID = string(check.BuildID(c.Name, c.InitConfig, inst))
+			ID = c.Name
 		}
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s:", color.BlueString("Instance ID"), color.CyanString(ID)))
 		fmt.Fprint(w, fmt.Sprintf("%s", inst))
