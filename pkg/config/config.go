@@ -107,7 +107,7 @@ func init() {
 	BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	BindEnvAndSetDefault("enable_metadata_collection", true)
 	BindEnvAndSetDefault("enable_gohai", true)
-	BindEnvAndSetDefault("check_runners", int64(1))
+	BindEnvAndSetDefault("check_runners", int64(4))
 	BindEnvAndSetDefault("auth_token_file_path", "")
 	BindEnvAndSetDefault("bind_host", "localhost")
 	BindEnvAndSetDefault("hostname_fqdn", false)

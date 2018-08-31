@@ -1,0 +1,24 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The introduction of multiple runners for checks implies check
+    instances may now run concurrently. This will affect checks which
+    are not thread-safe as they may, depending on the scheduling, access
+    unsynchronized structures concurrently with the corresponding data
+    race ensuing. Please be cautious. If you wish to run checks in a fully
+    sequential fashion, you may set the `check_runners` option in your
+    `datadog.yaml` config or via the `DD_CHECK_RUNNERS` to 1. Also, please
+    feel free to reach out to us if you need more information or help
+    with the new multiple runner/concurrency model.
+features:
+  - |
+    Bump the default number of check runners to 4. This has some
+    concurrency implications as we will now run multiple checks in
+    parallel.
