@@ -281,7 +281,7 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	clustername.ResetClusterName() // reset state as clustername was already read
 
 	// defer a reset of the state so that future hostname fetches are not impacted
-	defer config.Datadog.Set("cluster_name", nil)
+	defer config.Datadog.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
 	hostname, err = kubeutil.GetHostname()
