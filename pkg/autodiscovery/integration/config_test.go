@@ -25,12 +25,12 @@ func TestConfigEqual(t *testing.T) {
 	config.Name = another.Name
 	assert.True(t, config.Equal(another))
 
-	another.InitConfig = Data("fooBarBaz")
+	another.InitConfig = Data("{fooBarBaz}")
 	assert.False(t, config.Equal(another))
 	config.InitConfig = another.InitConfig
 	assert.True(t, config.Equal(another))
 
-	another.Instances = []Data{Data("justFoo")}
+	another.Instances = []Data{Data("{justFoo}")}
 	assert.False(t, config.Equal(another))
 	config.Instances = another.Instances
 	assert.True(t, config.Equal(another))
@@ -44,14 +44,14 @@ func TestConfigEqual(t *testing.T) {
 
 	checkConfigWithOrderedTags := &Config{
 		Name:       "test",
-		InitConfig: Data("foo"),
-		// Instances:  []Data{Data("tags: [\"bar:foo\", \"foo:bar\"]")},
+		InitConfig: Data("{foo}"),
+		Instances:  []Data{Data("tags: [\"bar:foo\", \"foo:bar\"]")},
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 	checkConfigWithUnorderedTags := &Config{
 		Name:       "test",
-		InitConfig: Data("foo"),
-		// Instances:  []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+		InitConfig: Data("{foo}"),
+		Instances:  []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")},
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 	assert.Equal(t, checkConfigWithOrderedTags.Digest(), checkConfigWithUnorderedTags.Digest())
@@ -109,16 +109,16 @@ func TestDigest(t *testing.T) {
 	simpleConfig := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Instances:  []Data{Data("foo:bar")},
+		Instances:  []Data{Data("{foo:bar}")},
 	}
-	assert.Equal(t, "126b7a7a3ef3b734", simpleConfig.Digest())
+	assert.Equal(t, "d8cbc7186ba13533", simpleConfig.Digest())
 	simpleConfigWithLogs := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Instances:  []Data{Data("foo:bar")},
+		Instances:  []Data{Data("{foo:bar}")},
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
-	assert.Equal(t, "d315dd2bad449674", simpleConfigWithLogs.Digest())
+	assert.Equal(t, "6253da85b1624771", simpleConfigWithLogs.Digest())
 }
 
 // this is here to prevent compiler optimization on the benchmarking code

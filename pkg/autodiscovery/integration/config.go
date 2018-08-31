@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"regexp"
+	"sort"
 	"strconv"
 
 	yaml "gopkg.in/yaml.v2"
@@ -191,7 +192,19 @@ func (c *Config) Digest() string {
 	h := fnv.New64()
 	h.Write([]byte(c.Name))
 	for _, i := range c.Instances {
-		h.Write([]byte(i))
+		inst := RawMap{}
+		err := yaml.Unmarshal(i, &inst)
+		if err != nil {
+			continue
+		}
+		tagList, _ := inst["tags"].([]string)
+		sort.Strings(tagList)
+		inst["tags"] = tagList
+		out, err := yaml.Marshal(&inst)
+		if err != nil {
+			continue
+		}
+		h.Write(out)
 	}
 	h.Write([]byte(c.InitConfig))
 	for _, i := range c.ADIdentifiers {
