@@ -145,6 +145,18 @@ api_key:
 # python package.
 # procfs_path: /proc
 
+# The `check_runners` refers to the number of concurrent check runners available
+# for check instance execution. The scheduler will attempt to spread the
+# instances over the collection interval and will _at most_ be running the
+# number of check runners instances concurrently. Setting the value to 1
+# would result in checks running sequentially.
+#
+# We do NOT recommend you change the default number of check runners. Please
+# contact support if you feel you need to modify this setting.
+#
+# check_runners: 4
+
+
 # BETA: Encrypted Secrets (Linux only)
 #
 # This feature is in beta and its options or behaviour might break between
