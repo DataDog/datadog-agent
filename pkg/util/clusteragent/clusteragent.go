@@ -47,6 +47,12 @@ type DCAClient struct {
 	clusterAgentAPIRequestHeaders http.Header
 }
 
+// ResetGlobalClusterAgentClient is a helper to remove the current DCAClient global
+// It is ONLY to be used for tests
+func ResetGlobalClusterAgentClient() {
+	globalClusterAgentClient = nil
+}
+
 // GetClusterAgentClient returns or init the DCAClient
 func GetClusterAgentClient() (*DCAClient, error) {
 	if globalClusterAgentClient == nil {
@@ -193,7 +199,7 @@ func (c *DCAClient) GetVersion() (string, error) {
 
 // GetNodeLabels returns the node labels from the Cluster Agent.
 func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
-	const dcaNodeMeta = "/api/v1/tags/node"
+	const dcaNodeMeta = "api/v1/tags/node"
 	var err error
 	var labels map[string]string
 

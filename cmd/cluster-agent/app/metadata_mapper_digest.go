@@ -53,7 +53,7 @@ func getMetadataMap(nodeName string) error {
 	if nodeName == "" {
 		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags", config.Datadog.GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pods/%s", config.Datadog.GetInt("cluster_agent.cmd_port"), nodeName)
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod/%s", config.Datadog.GetInt("cluster_agent.cmd_port"), nodeName)
 	}
 
 	// Set session token
