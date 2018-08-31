@@ -50,7 +50,12 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 			bestMatch = source
 		}
 	}
-	if c.ContainsLabel() && !c.isIdentifierMatch(bestMatch.Config.Identifier) {
+	if bestMatch == nil {
+		// no source found for this container
+		return nil
+	}
+	if c.ContainsADLabel() && !c.isIdentifierMatch(bestMatch.Config.Identifier) {
+		// containers with an autodiscovery label must have the same identifier as the source it matches with
 		return nil
 	}
 	return bestMatch
@@ -155,8 +160,8 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 // this feature is commonly named 'ad' or 'autodicovery'.
 const configPath = "com.datadoghq.ad.logs"
 
-// ContainsLabel returns true if the container contains an autodiscovery label.
-func (c *Container) ContainsLabel() bool {
+// ContainsADLabel returns true if the container contains an autodiscovery label.
+func (c *Container) ContainsADLabel() bool {
 	_, exists := c.container.Labels[configPath]
 	return exists
 }
