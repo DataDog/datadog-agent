@@ -143,6 +143,16 @@ func setPythonHome() {
 	C.Py_SetPythonHome(pPythonHome)
 }
 
+// SaveThreadState is a wrapper around the Python C-API PyEval_SaveThread
+// call. It releases the GIL, and resets the python thread state to NULL.
+// The previous thread state is returned.
+func SaveThreadState() *C.PyThreadState {
+	return C.PyEval_SaveThread()
+}
+
+// RestoreThreadStateAndLock is a wrapper around the Python C-API PyEval_RestoreThread
+// call. It acquires the GIL, and restores the thread state we pass as a parameter.
+// The GIL lock state is returned.
 func RestoreThreadStateAndLock(state *C.PyThreadState) C.PyGILState_STATE {
 	C.PyEval_RestoreThread(state)
 

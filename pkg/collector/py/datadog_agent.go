@@ -155,7 +155,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	// https://github.com/golang/go/wiki/cgo#turning-c-arrays-into-go-slices
 
-	threadState := C.PyEval_SaveThread()
+	threadState := SaveThreadState()
 
 	length := int(argc)
 	subprocessArgs := make([]string, length-1)
