@@ -83,6 +83,8 @@ func TestWork(t *testing.T) {
 
 	r.pending <- &c1
 	r.pending <- &c2
+	// wait to be sure the worker tried to run the check
+	time.Sleep(100 * time.Millisecond)
 	assert.True(t, c1.HasRun())
 	r.Stop()
 
