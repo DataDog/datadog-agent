@@ -100,6 +100,7 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
 		assert.Equal(t, res.Mtype, metrics.GaugeType)
+		assert.ElementsMatch(t, res.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -185,6 +186,7 @@ func TestUPDReceive(t *testing.T) {
 	select {
 	case res := <-eventOut:
 		assert.NotNil(t, res)
+		assert.ElementsMatch(t, res.Tags, []string{"tag1", "tag2:test"})
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -286,6 +288,39 @@ func TestHistToDist(t *testing.T) {
 		assert.Equal(t, distMetric.Name, "dist.daemon")
 		assert.EqualValues(t, distMetric.Value, 666.0)
 		assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+}
+
+func TestExtraTags(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
+	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
+
+	metricOut := make(chan *metrics.MetricSample)
+	eventOut := make(chan metrics.Event)
+	serviceOut := make(chan metrics.ServiceCheck)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	conn, err := net.Dial("udp", url)
+	require.NoError(t, err, "cannot connect to DSD socket")
+	defer conn.Close()
+
+	// Test metric
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	select {
+	case res := <-metricOut:
+		assert.NotNil(t, res)
+		assert.Equal(t, res.Name, "daemon")
+		assert.EqualValues(t, res.Value, 666.0)
+		assert.Equal(t, res.Mtype, metrics.GaugeType)
+		assert.ElementsMatch(t, res.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
