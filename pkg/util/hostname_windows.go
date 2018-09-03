@@ -6,9 +6,23 @@
 package util
 
 import (
-	"fmt"
+	"C"
+	"os"
+	"syscall"
+	"unsafe"
 )
 
 func getSystemFQDN() (string, error) {
-	return "", fmt.Errorf("getSystemFQDN is not implemented on windows")
+	hn, err := os.Hostname()
+	if err != nil {
+		return "", err
+	}
+
+	he, err := syscall.GetHostByName(hn)
+	if err != nil {
+		return "", err
+	}
+	namestring := C.GoString((*C.char)(unsafe.Pointer(he.Name)))
+
+	return namestring, nil
 }
