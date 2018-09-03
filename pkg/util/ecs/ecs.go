@@ -178,7 +178,7 @@ func detectAgentURL() (string, error) {
 		}
 
 		// Try all networks available on the ecs container.
-		ecsConfig, err := du.Inspect(DefaultECSContainer, false)
+		ecsConfig, err := du.Inspect(config.Datadog.GetString("ecs_agent_name"), false)
 		if err != nil {
 			return "", err
 		}

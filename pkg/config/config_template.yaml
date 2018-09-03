@@ -492,6 +492,9 @@ api_key:
 # URL where the ECS agent can be found. Standard cases will be autodetected.
 # ecs_agent_url: http://localhost:51678
 #
+# Name of the ecs-agent docker container, for autodetection.
+# ecs_agent_name: ecs-agent
+#
 {{ end -}}
 {{- if .Kubelet }}
 # Kubernetes kubelet connectivity
