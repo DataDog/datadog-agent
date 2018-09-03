@@ -10,7 +10,7 @@
     },
     "6.5.0-rc.1": {
 		"INTEGRATIONS_CORE_VERSION": "6.5.x",
-		"TRACE_AGENT_VERSION": "6.5.0.rc.1",
+		"TRACE_AGENT_VERSION": "6.5.0.rc1",
 		"PROCESS_AGENT_VERSION": "6.5.0",
 		"OMNIBUS_SOFTWARE_VERSION": "6.5.0-rc.1",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
