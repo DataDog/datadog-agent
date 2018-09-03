@@ -211,13 +211,11 @@ func GetHostname() (string, error) {
 	}
 
 	h, err := os.Hostname()
-	if runtime.GOOS != "windows" {
-		// REMOVEME: This should be removed in 6.5
-		if err == nil && !config.Datadog.GetBool("hostname_fqdn") && fqdn != "" && hostName == h && h != fqdn {
+	if err == nil && !config.Datadog.GetBool("hostname_fqdn") && fqdn != "" && hostName == h && h != fqdn {
+		if runtime.GOOS != "windows" {
+			// REMOVEME: This should be removed in 6.6
 			log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However starting from version 6.6, it will be resolved as '%s' by default. To enable the behavior of 6.6+, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
-		}
-	} else { // OS is Windows
-		if err == nil && !config.Datadog.GetBool("hostname_fqdn") && fqdn != "" && hostName == h && h != fqdn {
+		} else { // OS is Windows
 			log.Warnf("The agent resolved your hostname as '%s', and will be reported this way to maintain compatibility with version 5. To enable reporting as '%s', please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
 		}
 	}
