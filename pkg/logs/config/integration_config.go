@@ -70,6 +70,8 @@ type LogsConfig struct {
 func (c *LogsConfig) Validate() error {
 	switch {
 	case c.Type == "":
+		// a logs-config must have a type to be forwarded to the right input,
+		// otherwise it's dropped.
 		return fmt.Errorf("a config must have a type")
 	case c.Type == FileType && c.Path == "":
 		return fmt.Errorf("file source must have a path")

@@ -166,6 +166,8 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 		}
 		tailFromBeginning := false
 		if source.Config.Identifier != "" {
+			// this is a dynamic source that has been created after discovering a new service (most likely a new container),
+			// so all logs will be collected.
 			tailFromBeginning := true
 		}
 		s.startNewTailer(file, tailFromBeginning)
