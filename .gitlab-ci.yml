@@ -1037,7 +1037,7 @@ latest_release:
 
 dca_tag_release:
   <<: *docker_tag_job_definition
-  <<: *run_on_cluster_agent_tag
+  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
   variables:
@@ -1047,7 +1047,7 @@ dca_tag_release:
 
 dca_latest_release:
   <<: *docker_tag_job_definition
-  <<: *run_on_cluster_agent_tag
+  <<: *run_when_triggered_on_tag
   stage: deploy
   when: manual
   variables:
