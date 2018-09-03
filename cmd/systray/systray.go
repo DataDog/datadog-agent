@@ -10,6 +10,7 @@ import (
 	"flag"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

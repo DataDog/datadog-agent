@@ -36,7 +36,7 @@ var (
 		"process_enabled": "process_config.enabled"}
 )
 
-const (
+var (
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = filepath.Join(os.Getenv("ProgramData"), "datadog")
 	// DefaultLogFile points to the log file that will be used if not configured
