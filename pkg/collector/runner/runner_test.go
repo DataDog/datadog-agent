@@ -7,6 +7,7 @@ package runner
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"sync"
 	"testing"
@@ -24,12 +25,14 @@ type TestCheck struct {
 	sync.Mutex
 	doErr  bool
 	hasRun bool
+	id     string
 	done   chan interface{}
 }
 
-func newTestCheck(doErr bool) *TestCheck {
+func newTestCheck(doErr bool, id string) *TestCheck {
 	return &TestCheck{
 		doErr: doErr,
+		id:    id,
 		done:  make(chan interface{}, 1),
 	}
 }
@@ -54,7 +57,7 @@ func (c *TestCheck) Run() error {
 func (c *TestCheck) ID() check.ID {
 	c.Lock()
 	defer c.Unlock()
-	return check.ID(c.String())
+	return check.ID(fmt.Sprintf("%s:%s", c.String(), c.id))
 }
 func (c *TestCheck) GetWarnings() []error                      { return nil }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
@@ -86,10 +89,9 @@ func TestGetChan(t *testing.T) {
 }
 
 func TestWork(t *testing.T) {
-	defaultNumWorkers = 1
 	r := NewRunner()
-	c1 := newTestCheck(false)
-	c2 := newTestCheck(true)
+	c1 := newTestCheck(false, "1")
+	c2 := newTestCheck(true, "2")
 
 	r.pending <- c1
 	r.pending <- c2
@@ -97,14 +99,14 @@ func TestWork(t *testing.T) {
 	select {
 	case <-c1.done:
 	case <-time.After(1 * time.Second):
-		require.Fail(t, "Check was never ran")
+		require.Fail(t, "Check hasn't run 1 second after being scheduled")
 	}
 	assert.True(t, c1.HasRun())
 	r.Stop()
 
 	// fake a check is already running
 	r = NewRunner()
-	c3 := newTestCheck(false)
+	c3 := newTestCheck(false, "3")
 	r.runningChecks[c3.ID()] = c3
 	r.pending <- c3
 	// wait to be sure the worker tried to run the check
@@ -114,7 +116,7 @@ func TestWork(t *testing.T) {
 
 func TestLogging(t *testing.T) {
 	r := NewRunner()
-	c := newTestCheck(false)
+	c := newTestCheck(false, "1")
 	s := &check.Stats{
 		CheckID:   c.ID(),
 		CheckName: c.String(),
@@ -161,13 +163,13 @@ func TestStopCheck(t *testing.T) {
 	err := r.StopCheck("foo")
 	assert.Nil(t, err)
 
-	c1 := newTestCheck(false)
+	c1 := newTestCheck(false, "1")
 	r.runningChecks[c1.ID()] = c1
 	err = r.StopCheck(c1.ID())
 	assert.Nil(t, err)
 
-	c2 := &TimingoutCheck{TestCheck: TestCheck{done: make(chan interface{}, 1)}}
+	c2 := &TimingoutCheck{TestCheck: *newTestCheck(false, "2")}
 	r.runningChecks[c2.ID()] = c2
 	err = r.StopCheck(c2.ID())
-	assert.Equal(t, "timeout during stop operation on check id TestCheck", err.Error())
+	assert.Equal(t, "timeout during stop operation on check id TestCheck:2", err.Error())
 }
