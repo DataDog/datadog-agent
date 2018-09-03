@@ -8,8 +8,6 @@
 package clusterchecks
 
 import (
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -17,15 +15,18 @@ import (
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
-	m        sync.Mutex
-	store    *clusterStore
-	stopChan chan struct{}
+	store *clusterStore
 }
 
 func newDispatcher(store *clusterStore) *dispatcher {
 	return &dispatcher{
 		store: store,
 	}
+}
+
+// Stop implements the scheduler.Scheduler interface
+// no-op for now
+func (d *dispatcher) Stop() {
 }
 
 // Schedule implements the scheduler.Scheduler interface
@@ -42,11 +43,6 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	}
 }
 
-// Stop implements the scheduler.Scheduler interface
-// no-op for now
-func (d *dispatcher) Stop() {
-}
-
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) {
 	if !config.ClusterCheck {
@@ -56,9 +52,7 @@ func (d *dispatcher) add(config integration.Config) {
 
 	// TODO: add dispatching logic
 	hostname, _ := util.GetHostname()
-	d.store.Lock()
-	defer d.store.Unlock()
-	d.store.addConfig(config, hostname)
+	d.addConfig(config, hostname)
 }
 
 // remove deletes a given configuration
@@ -68,7 +62,5 @@ func (d *dispatcher) remove(config integration.Config) {
 	}
 	digest := config.Digest()
 	log.Debugf("removing configuration %s:%s", config.Name, digest)
-	d.store.Lock()
-	defer d.store.Unlock()
-	d.store.removeConfig(digest)
+	d.removeConfig(digest)
 }
