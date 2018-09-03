@@ -69,6 +69,8 @@ type LogsConfig struct {
 // Validate returns an error if the config is misconfigured
 func (c *LogsConfig) Validate() error {
 	switch {
+	case c.Type == "":
+		return fmt.Errorf("a config must have a type")
 	case c.Type == FileType && c.Path == "":
 		return fmt.Errorf("file source must have a path")
 	case c.Type == TCPType && c.Port == 0:

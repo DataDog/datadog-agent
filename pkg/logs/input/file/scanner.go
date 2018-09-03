@@ -164,7 +164,11 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 		if _, isTailed := s.tailers[file.Path]; isTailed {
 			continue
 		}
-		s.startNewTailer(file, false)
+		tailFromBeginning := false
+		if source.Config.Identifier != "" {
+			tailFromBeginning := true
+		}
+		s.startNewTailer(file, tailFromBeginning)
 	}
 }
 

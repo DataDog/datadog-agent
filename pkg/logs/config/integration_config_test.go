@@ -30,6 +30,7 @@ func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 
 func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 	invalidConfigs := []*LogsConfig{
+		{},
 		{Type: FileType},
 		{Type: TCPType},
 		{Type: UDPType},
