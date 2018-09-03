@@ -121,11 +121,16 @@ api_key:
 # Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
 
-# The Agent runs workers in parallel to execute checks. By default the number
-# of workers is set to 1. If set to 0 the agent will automatically determine
-# the best number of runners needed based on the number of checks running. This
-# would optimize the check collection time but may produce CPU spikes.
-# check_runners: 1
+# The `check_runners` refers to the number of concurrent check runners available
+# for check instance execution. The scheduler will attempt to spread the
+# instances over the collection interval and will _at most_ be running the
+# number of check runners instances concurrently. Setting the value to 1
+# would result in checks running sequentially.
+#
+# We do NOT recommend you change the default number of check runners. Please
+# contact support if you feel you need to modify this setting.
+#
+# check_runners: 4
 
 # Metadata collection should always be enabled, except if you are running several
 # agents/dsd instances per host. In that case, only one agent should have it on.
@@ -144,17 +149,6 @@ api_key:
 # down to integrations and affect their behavior if they rely on the psutil
 # python package.
 # procfs_path: /proc
-
-# The `check_runners` refers to the number of concurrent check runners available
-# for check instance execution. The scheduler will attempt to spread the
-# instances over the collection interval and will _at most_ be running the
-# number of check runners instances concurrently. Setting the value to 1
-# would result in checks running sequentially.
-#
-# We do NOT recommend you change the default number of check runners. Please
-# contact support if you feel you need to modify this setting.
-#
-# check_runners: 4
 
 
 # BETA: Encrypted Secrets (Linux only)
