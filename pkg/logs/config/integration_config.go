@@ -70,8 +70,9 @@ type LogsConfig struct {
 func (c *LogsConfig) Validate() error {
 	switch {
 	case c.Type == "":
-		// a logs-config must have a type to be forwarded to the right input,
-		// otherwise it's dropped.
+		// user don't have to specify a logs-config type when defining
+		// an autodiscovery label because so we must override it at some point,
+		// this check is mostly used for sanity purposed to detect an override miss.
 		return fmt.Errorf("a config must have a type")
 	case c.Type == FileType && c.Path == "":
 		return fmt.Errorf("file source must have a path")
