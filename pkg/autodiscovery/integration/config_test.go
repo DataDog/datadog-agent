@@ -128,7 +128,11 @@ func BenchmarkID(b *testing.B) {
 	var id string // store return value to avoid the compiler to strip the function call
 	config := &Config{}
 	config.InitConfig = make([]byte, 32000)
+	config.Instances = []Data{make([]byte, 32000)}
+	config.LogsConfig = make([]byte, 32000)
 	rand.Read(config.InitConfig)
+	rand.Read(config.Instances[0])
+	rand.Read(config.LogsConfig)
 	for n := 0; n < b.N; n++ {
 		id = config.Digest()
 	}
