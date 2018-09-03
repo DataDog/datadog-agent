@@ -108,7 +108,7 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 		return nil, err
 	}
 
-	var service *Service
+	var service *service.Service
 	if integrationConfig.Entity != "" {
 		var err error
 		service, err = s.toService(integrationConfig)
