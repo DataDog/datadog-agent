@@ -164,7 +164,14 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 		if _, isTailed := s.tailers[file.Path]; isTailed {
 			continue
 		}
-		s.startNewTailer(file, false)
+		var tailFromBeginning bool
+		if source.Config.Identifier != "" {
+			// only sources generated from a service discovery will contain a config identifier,
+			// in which case we want to collect all logs.
+			// FIXME: better detect a source that has been generated from a service discovery.
+			tailFromBeginning = true
+		}
+		s.startNewTailer(file, tailFromBeginning)
 	}
 }
 

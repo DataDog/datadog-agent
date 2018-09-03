@@ -108,29 +108,31 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 		return nil, err
 	}
 
+	var service *service.Service
+	if integrationConfig.Entity != "" {
+		var err error
+		service, err = s.toService(integrationConfig)
+		if err != nil {
+			log.Warnf("Invalid service: %v", err)
+		}
+	}
+
 	var sources []*config.LogSource
 	for _, cfg := range configs {
 		integrationName := integrationConfig.Name
-		if integrationConfig.Entity != "" {
-			service, identifier, err := s.parseEntity(integrationConfig.Entity)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			cfg.Type = service
-			cfg.Identifier = identifier
-			integrationName = service
+		if cfg.Type == "" && service != nil {
+			cfg.Type = service.Type
+			cfg.Identifier = service.Identifier
+			integrationName = service.Type
 		}
 
 		source := config.NewLogSource(integrationName, cfg)
 		sources = append(sources, source)
-
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
 			source.Status.Error(err)
 			continue
 		}
-
 		if err := cfg.Compile(); err != nil {
 			log.Warnf("Could not compile logs configuration: %v", err)
 			source.Status.Error(err)
