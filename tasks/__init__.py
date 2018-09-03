@@ -6,7 +6,7 @@ from invoke import Collection
 
 from . import agent, android, benchmarks, customaction, docker, dogstatsd, pylauncher, cluster_agent, systray, release
 
-from .go import fmt, lint, vet, cyclo, ineffassign, misspell, deps, reset
+from .go import fmt, lint, vet, cyclo, ineffassign, misspell, deps, lint_licenses, reset
 from .test import test, integration_tests, version, lint_teamassignment, lint_releasenote, lint_filenames, e2e_tests
 from .build_tags import audit_tag_impact
 
@@ -23,6 +23,7 @@ ns.add_task(misspell)
 ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
+ns.add_task(lint_licenses)
 ns.add_task(reset)
 ns.add_task(version)
 ns.add_task(lint_teamassignment)

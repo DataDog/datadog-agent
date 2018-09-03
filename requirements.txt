@@ -4,3 +4,4 @@ reno==2.9.2
 docker==3.0.1
 requests==2.19.1
 PyYAML==3.13
+toml==0.9.4
