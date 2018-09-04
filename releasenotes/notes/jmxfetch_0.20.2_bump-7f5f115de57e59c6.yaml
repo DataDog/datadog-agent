@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+other:
   - |
     JMXFetch upgraded to 0.20.2; ships updated FasterXML.
