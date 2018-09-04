@@ -5,6 +5,7 @@
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files:
 #include <windows.h>
+#include <ntsecapi.h>
 #include <AccCtrl.h>
 #include <AclAPI.h>
 #include <sddl.h>
@@ -12,6 +13,7 @@
 #include <strsafe.h>
 #include <msiquery.h>
 #include <lmaccess.h>
+#include <lmerr.h>
 
 // std c++ lib
 #include <string>
@@ -22,3 +24,6 @@
 
 // TODO: reference additional headers your program requires here
 #include "winacl.h"
+#include "userrights.h"
+
+void toMbcs(std::string& target, LPCWSTR src);
