@@ -4,7 +4,6 @@
 # Copyright 2016-2019 Datadog, Inc.
 
 name "datadog-process-agent"
-always_build true
 require "./lib/ostools.rb"
 
 process_agent_version = ENV['PROCESS_AGENT_VERSION']
