@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes panic when using fargate task by filtering Container Type to NORMAL only
