@@ -45,7 +45,7 @@ func NewUDPListener(pipelineProvider pipeline.Provider, source *config.LogSource
 
 // Start opens a new UDP connection and starts a tailer.
 func (l *UDPListener) Start() {
-	log.Infof("Starting UDP forwarder on port: %d", l.source.Config.Port)
+	log.Infof("Starting UDP forwarder on port: %d, with read buffer size: %d", l.source.Config.Port, l.frameSize)
 	err := l.startNewTailer()
 	if err != nil {
 		log.Errorf("Can't start UDP forwarder on port %d: %v", l.source.Config.Port, err)

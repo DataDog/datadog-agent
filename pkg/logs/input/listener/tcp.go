@@ -45,7 +45,7 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *config.LogSource
 
 // Start starts the listener to accepts new incoming connections.
 func (l *TCPListener) Start() {
-	log.Infof("Starting TCP forwarder on port %d", l.source.Config.Port)
+	log.Infof("Starting TCP forwarder on port %d, with read buffer size: %d", l.source.Config.Port, l.frameSize)
 	err := l.startListener()
 	if err != nil {
 		log.Errorf("Can't start TCP forwarder on port %d: %v", l.source.Config.Port, err)
