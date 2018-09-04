@@ -25,6 +25,8 @@ template: |
           upgrade:
             - |
               List upgrade notes here, or remove this section.
+              Only list known/potential breaking changes, or behavior changes
+              that users should absolutely know about before upgrading.
           deprecations:
             - |
               List deprecations notes here, or remove this section.
@@ -37,7 +39,7 @@ template: |
           other:
             - |
               Add here every other information you want in the CHANGELOG that
-              don't feat in any other section. This section should rarely be
+              don't fit in any other section. This section should rarely be
               used.
 sections:
   # The prelude section is implicitly included.
