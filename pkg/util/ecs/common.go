@@ -54,6 +54,7 @@ func getECSContainers() ([]Container, error) {
 	}
 	var containers []Container
 	for _, container := range meta.Containers {
+		// Filter out all non normal containers
 		if container.Type == targetContainerType {
 			containers = append(containers, container)
 		}
