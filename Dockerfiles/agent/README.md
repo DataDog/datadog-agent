@@ -233,7 +233,7 @@ The agent can collect node labels from the APIserver and report them as host tag
 ### Kubernetes node name as aliases
 
 By default, the agent is using the kubernetes _node name_ as an alias that can be used to forward metrics and events. This allows to submit events and metrics from remote hosts.
-However, if you have several clusters where some nodes could have similar node names, some host alias collisions could occur. To prevent those, the agent supports the use of a cluster-unique identifier (such as the actual cluster name), through the environment variable `DD_CLUSTERNAME`. That identifier will be added to the node name as a host alias, and avoid collision issues altogether. No separator will be used between the node name and the identifier, so it should be added directly to the identifier if desired.
+However, if you have several clusters where some nodes could have similar node names, some host alias collisions could occur. To prevent those, the agent supports the use of a cluster-unique identifier (such as the actual cluster name), through the environment variable `DD_CLUSTER_NAME`. That identifier will be added to the node name as a host alias, and avoid collision issues altogether.
 
 ### Legacy Kubernetes Versions
 
