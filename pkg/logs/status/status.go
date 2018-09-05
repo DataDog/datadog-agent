@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/warning"
 )
 
 var (
@@ -85,7 +84,7 @@ func Get() Status {
 		integrations = append(integrations, Integration{Name: name, Sources: sources})
 	}
 
-	warnings := warning.Get()
+	warnings := GetWarnings()
 	warningMessages := make([]string, len(warnings))
 	for i, w := range warnings {
 		warningMessages[i] = w.Render()

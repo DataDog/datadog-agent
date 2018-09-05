@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package warning
+package status
 
 import "sync"
 
@@ -35,8 +35,8 @@ func Raise(key string, warning Warning) {
 	w.raised[key] = warning
 }
 
-// Get returns the message for a key
-func Get() []Warning {
+// GetWarnings returns the message for a key
+func GetWarnings() []Warning {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	warnings := make([]Warning, len(w.raised))

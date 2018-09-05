@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package warning
+package status
 
 import (
 	"testing"
@@ -31,16 +31,16 @@ func TestRaise(t *testing.T) {
 	assert.Equal(t, concreteWarning2, w.raised["bar"])
 }
 
-func TestGet(t *testing.T) {
+func TestGetWarnings(t *testing.T) {
 	w = newWarnings()
-	assert.Empty(t, Get())
+	assert.Empty(t, GetWarnings())
 
 	concreteWarning1 := mockConcreteWarning{id: 1}
 	concreteWarning2 := mockConcreteWarning{id: 2}
 	w.raised["foo"] = concreteWarning1
-	assert.Equal(t, []Warning{concreteWarning1}, Get())
+	assert.Equal(t, []Warning{concreteWarning1}, GetWarnings())
 	w.raised["bar"] = concreteWarning2
-	assert.Equal(t, []Warning{concreteWarning1, concreteWarning2}, Get())
+	assert.Equal(t, []Warning{concreteWarning1, concreteWarning2}, GetWarnings())
 }
 
 func TestRemove(t *testing.T) {
@@ -54,5 +54,5 @@ func TestRemove(t *testing.T) {
 	assert.Equal(t, 2, len(w.raised))
 	Remove("foo")
 	assert.Equal(t, 1, len(w.raised))
-	assert.Equal(t, []Warning{concreteWarning2}, Get())
+	assert.Equal(t, []Warning{concreteWarning2}, GetWarnings())
 }

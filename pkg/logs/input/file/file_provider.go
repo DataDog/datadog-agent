@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/warning"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 // File represents a file to tail
@@ -78,11 +78,11 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 
 	if len(filesToTail) == p.filesLimit {
 		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
-		warning.Raise(OpenFilesLimitWarningType, NewOpenFilesLimitWarning(p.filesLimit))
+		status.Raise(OpenFilesLimitWarningType, NewOpenFilesLimitWarning(p.filesLimit))
 		return filesToTail
 	}
 
-	warning.Remove(OpenFilesLimitWarningType)
+	status.Remove(OpenFilesLimitWarningType)
 	return filesToTail
 }
 
