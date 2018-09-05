@@ -25,7 +25,8 @@ const maxUDPFrameLen = 65535
 func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), defaultFrameSize)
+	frameSize := 9000
+	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
 	listener.Start()
 
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
@@ -33,17 +34,17 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 
 	var msg message.Message
 
-	fmt.Fprintf(conn, strings.Repeat("a", defaultFrameSize-100)+"\n")
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize-100)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", defaultFrameSize-100), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", frameSize-100), string(msg.Content()))
 
-	fmt.Fprintf(conn, strings.Repeat("a", defaultFrameSize)+"\n")
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", defaultFrameSize), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content()))
 
-	fmt.Fprintf(conn, strings.Repeat("a", defaultFrameSize-200)+"\n")
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize-200)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", defaultFrameSize-200), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", frameSize-200), string(msg.Content()))
 
 	listener.Stop()
 }
