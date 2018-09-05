@@ -40,7 +40,7 @@ func GetTags() ([]string, error) {
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		cl, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
-			log.Errorf("Could not connect to the Cluster Agent to collect node labels for %s: %v", nodeName, err)
+			return nil, err
 		}
 		nodeLabels, err = cl.GetNodeLabels(nodeName)
 		if err != nil {
