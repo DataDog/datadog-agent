@@ -103,12 +103,12 @@ const tagSeparator = ":"
 // The imageFilter must respect the format '[<repository>/]image[:<tag>]'.
 func (c *Container) isImageMatch(imageFilter string) bool {
 	// Trim digest if present
-	splitted := strings.SplitN(c.container.Image, digestPrefix, 2)
-	image := splitted[0]
+	split := strings.SplitN(c.container.Image, digestPrefix, 2)
+	image := split[0]
 	if !strings.Contains(imageFilter, tagSeparator) {
 		// trim tag if present
-		splitted := strings.SplitN(image, tagSeparator, 2)
-		image = splitted[0]
+		split := strings.SplitN(image, tagSeparator, 2)
+		image = split[0]
 	}
 	// Expect prefix to end with '/'
 	repository := strings.TrimSuffix(image, imageFilter)
