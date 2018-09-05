@@ -14,17 +14,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 // Scheduler registers to autodiscovery to schedule/unschedule log-collection.
 type Scheduler struct {
-	sources  *config.LogSources
+	sources  *logsConfig.LogSources
 	services *service.Services
 }
 
 // NewScheduler returns a new scheduler.
-func NewScheduler(sources *config.LogSources, services *service.Services) *Scheduler {
+func NewScheduler(sources *logsConfig.LogSources, services *service.Services) *Scheduler {
 	return &Scheduler{
 		sources:  sources,
 		services: services,
@@ -42,9 +42,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		}
 		if config.Provider != "" {
 			// new configuration
-			if config.Name != "" {
-				log.Infof("Received a new logs config: %v", config.Name)
-			}
+			log.Infof("Received a new logs config: %v", s.configName(config))
 			sources, err := s.toSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
@@ -90,43 +88,54 @@ func (s *Scheduler) isLogConfig(config integration.Config) bool {
 	return config.LogsConfig != nil
 }
 
+// configName returns the name of the configuration
+func (s *Scheduler) configName(config integration.Config) string {
+	if config.Name != "" {
+		return config.Name
+	}
+	service, err := s.toService(config)
+	if err == nil {
+		return service.Type
+	}
+	return config.Provider
+}
+
 // toSources creates new logs-sources from an integration config,
 // returns an error if the parsing failed.
-func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.LogSource, error) {
-	var configs []*config.LogsConfig
+func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSource, error) {
+	var configs []*logsConfig.LogsConfig
 	var err error
 
-	switch integrationConfig.Provider {
+	switch config.Provider {
 	case providers.File:
-		configs, err = config.ParseYAML(integrationConfig.LogsConfig)
+		configs, err = logsConfig.ParseYAML(config.LogsConfig)
 	case providers.Docker, providers.Kubernetes:
-		configs, err = config.ParseJSON(integrationConfig.LogsConfig)
+		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	default:
-		err = fmt.Errorf("parsing logs config from %v is not supported yet", integrationConfig.Provider)
+		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
 	}
 	if err != nil {
 		return nil, err
 	}
 
 	var service *service.Service
-	if integrationConfig.Entity != "" {
+	if config.Entity != "" {
 		var err error
-		service, err = s.toService(integrationConfig)
+		service, err = s.toService(config)
 		if err != nil {
 			log.Warnf("Invalid service: %v", err)
 		}
 	}
 
-	var sources []*config.LogSource
+	configName := s.configName(config)
+	var sources []*logsConfig.LogSource
 	for _, cfg := range configs {
-		integrationName := integrationConfig.Name
 		if cfg.Type == "" && service != nil {
 			cfg.Type = service.Type
 			cfg.Identifier = service.Identifier
-			integrationName = service.Type
 		}
 
-		source := config.NewLogSource(integrationName, cfg)
+		source := logsConfig.NewLogSource(configName, cfg)
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
@@ -144,14 +153,14 @@ func (s *Scheduler) toSources(integrationConfig integration.Config) ([]*config.L
 }
 
 // toService creates a new service for an integrationConfig.
-func (s *Scheduler) toService(integrationConfig integration.Config) (*service.Service, error) {
-	provider, identifier, err := s.parseEntity(integrationConfig.Entity)
+func (s *Scheduler) toService(config integration.Config) (*service.Service, error) {
+	provider, identifier, err := s.parseEntity(config.Entity)
 	if err != nil {
 		return nil, err
 	}
 	switch provider {
 	case service.Docker:
-		return service.NewService(provider, identifier, s.getCreationTime(integrationConfig)), nil
+		return service.NewService(provider, identifier, s.getCreationTime(config)), nil
 	default:
 		return nil, fmt.Errorf("%v is not supported yet", provider)
 	}
@@ -173,6 +182,6 @@ var integrationToServiceCRTime = map[integration.CreationTime]service.CreationTi
 }
 
 // getCreationTime returns the service creation time for the integration configuration.
-func (s *Scheduler) getCreationTime(integrationConfig integration.Config) service.CreationTime {
-	return integrationToServiceCRTime[integrationConfig.CreationTime]
+func (s *Scheduler) getCreationTime(config integration.Config) service.CreationTime {
+	return integrationToServiceCRTime[config.CreationTime]
 }
