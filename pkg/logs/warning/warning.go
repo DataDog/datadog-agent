@@ -5,6 +5,8 @@
 
 package warning
 
+import "sync"
+
 var w = newWarnings()
 
 // Warning is a generic interface that generate warning messages
@@ -15,22 +17,28 @@ type Warning interface {
 // Warnings holds a warning message
 type warnings struct {
 	raised map[string]Warning
+	lock   *sync.Mutex
 }
 
 // NewWarnings initialize Warnings with the default values
 func newWarnings() *warnings {
 	return &warnings{
 		raised: make(map[string]Warning),
+		lock:   &sync.Mutex{},
 	}
 }
 
 // Raise opens a RaisedWarning
 func Raise(key string, warning Warning) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
 	w.raised[key] = warning
 }
 
 // Get returns the message for a key
 func Get() []Warning {
+	w.lock.Lock()
+	defer w.lock.Unlock()
 	warnings := make([]Warning, len(w.raised))
 	i := 0
 	for _, warning := range w.raised {
@@ -42,5 +50,7 @@ func Get() []Warning {
 
 // Remove marks a RaisedWarning as solved
 func Remove(key string) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
 	delete(w.raised, key)
 }
