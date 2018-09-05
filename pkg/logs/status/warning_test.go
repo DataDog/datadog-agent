@@ -19,40 +19,17 @@ func (c mockConcreteWarning) Render() string {
 	return "foo"
 }
 
-func TestRaise(t *testing.T) {
+func TestWarnings(t *testing.T) {
 	w = newWarnings()
 	concreteWarning1 := mockConcreteWarning{id: 1}
 	concreteWarning2 := mockConcreteWarning{id: 2}
 
-	assert.Empty(t, w.raised)
-	Raise("foo", concreteWarning1)
-	assert.Equal(t, concreteWarning1, w.raised["foo"])
-	Raise("bar", concreteWarning2)
-	assert.Equal(t, concreteWarning2, w.raised["bar"])
-}
-
-func TestGetWarnings(t *testing.T) {
-	w = newWarnings()
 	assert.Empty(t, GetWarnings())
-
-	concreteWarning1 := mockConcreteWarning{id: 1}
-	concreteWarning2 := mockConcreteWarning{id: 2}
-	w.raised["foo"] = concreteWarning1
+	Raise("foo", concreteWarning1)
 	assert.Equal(t, []Warning{concreteWarning1}, GetWarnings())
-	w.raised["bar"] = concreteWarning2
-	assert.Equal(t, []Warning{concreteWarning1, concreteWarning2}, GetWarnings())
-}
+	Raise("bar", concreteWarning2)
+	assert.ElementsMatch(t, []Warning{concreteWarning1, concreteWarning2}, GetWarnings())
 
-func TestRemove(t *testing.T) {
-	w = newWarnings()
-	assert.Empty(t, w.raised)
-
-	concreteWarning1 := mockConcreteWarning{id: 1}
-	concreteWarning2 := mockConcreteWarning{id: 2}
-	w.raised["foo"] = concreteWarning1
-	w.raised["bar"] = concreteWarning2
-	assert.Equal(t, 2, len(w.raised))
 	Remove("foo")
-	assert.Equal(t, 1, len(w.raised))
 	assert.Equal(t, []Warning{concreteWarning2}, GetWarnings())
 }
