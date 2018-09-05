@@ -12,10 +12,10 @@
           {{- range $CheckInstances }}
             <span class="stat_subdata">
                 Instance ID: {{.CheckID}} {{status .}}<br>
-                Total Runs: {{.TotalRuns}}<br>
-                Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
-                Events: {{.Events}}, Total: {{humanize .TotalEvents}}<br>
-                Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
+                Total Runs: {{humanize .TotalRuns}}<br>
+                Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
+                Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
+                Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
                 Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
               {{- if .LastError}}
                 <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>

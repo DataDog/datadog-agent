@@ -15,10 +15,10 @@ Collector
     {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
     {{- range $CheckInstances }}
         Instance ID: {{.CheckID}} {{status .}}
-        Total Runs: {{.TotalRuns}}
-        Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
-        Events: {{.Events}}, Total: {{humanize .TotalEvents}}
-        Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
+        Total Runs: {{humanize .TotalRuns}}
+        Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
+        Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
+        Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
         Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
         {{if .LastError -}}
         Error: {{lastErrorMessage .LastError}}
