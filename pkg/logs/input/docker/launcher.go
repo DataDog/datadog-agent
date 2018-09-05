@@ -127,6 +127,11 @@ func (l *Launcher) run() {
 // startTailer starts a new tailer for the container.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	containerID := container.service.Identifier
+	if _, isTailed := l.tailers[containerID]; isTailed {
+		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
+		return
+	}
+
 	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan())
 
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
