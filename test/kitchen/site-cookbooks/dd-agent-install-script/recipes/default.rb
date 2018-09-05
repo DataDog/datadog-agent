@@ -50,7 +50,7 @@ execute 'run agent install script' do
   cwd wrk_dir
   command <<-EOF
     sed -i '1iDD_API_KEY=#{node['dd-agent-install-script']['api_key']}' install-script
-    sed -i '1iDD_URL="datad0g.com"' install-script
+    sed -i '1iREPO_URL="datad0g.com"' install-script
     bash install-script
     sleep 10
   EOF

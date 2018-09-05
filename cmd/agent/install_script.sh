@@ -64,10 +64,10 @@ if [ -n "$DD_HOST_TAGS" ]; then
     host_tags=$DD_HOST_TAGS
 fi
 
-if [ -n "$DD_URL" ]; then
-  dd_url=$DD_URL
+if [ -n "$REPO_URL" ]; then
+  repo_url=$REPO_URL
 else
-  dd_url="datadoghq.com"
+  repo_url="datadoghq.com"
 fi
 
 dd_upgrade=
@@ -127,7 +127,7 @@ if [ $OS = "RedHat" ]; then
         ARCHI="x86_64"
     fi
 
-    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.${dd_url}/stable/6/$ARCHI/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public\n       https://yum.${dd_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/yum.repos.d/datadog.repo"
+    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.${repo_url}/stable/6/$ARCHI/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.${repo_url}/DATADOG_RPM_KEY.public\n       https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/yum.repos.d/datadog.repo"
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
     $sudo_cmd yum -y clean metadata
@@ -143,7 +143,7 @@ elif [ $OS = "Debian" ]; then
       $sudo_cmd apt-get install -y dirmngr
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
-    $sudo_cmd sh -c "echo 'deb https://apt.${dd_url}/ stable 6' > /etc/apt/sources.list.d/datadog.list"
+    $sudo_cmd sh -c "echo 'deb https://apt.${repo_url}/ stable 6' > /etc/apt/sources.list.d/datadog.list"
     $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 382E94DE
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
@@ -173,10 +173,10 @@ elif [ $OS = "SUSE" ]; then
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
-  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://yum.${dd_url}/suse/stable/6/x86_64\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public' > /etc/zypp/repos.d/datadog.repo"
+  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://yum.${repo_url}/suse/stable/6/x86_64\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${repo_url}/DATADOG_RPM_KEY.public' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Importing the Datadog GPG Key\n\033[0m"
-  $sudo_cmd rpm --import https://yum.${dd_url}/DATADOG_RPM_KEY.public
+  $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY.public
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
