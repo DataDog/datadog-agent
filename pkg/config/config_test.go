@@ -157,6 +157,10 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.eu", newURL)
 
+	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.eu", newURL)
+
 	newURL, err = AddAgentVersionToDomain("https://app.myproxy.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://app.myproxy.com", newURL)
