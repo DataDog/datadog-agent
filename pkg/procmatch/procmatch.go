@@ -9,15 +9,17 @@ type Matcher interface {
 
 // Integration represents an integration
 type Integration struct {
-	Name        string // Name of the integration
-	DisplayName string // DisplayName of the integration
+	MetricPrefix string // Metric prefix of the integration
+	Name         string // Name of the integration
+	DisplayName  string // DisplayName of the integration
 }
 
 // IntegrationEntry represents an integration entry in the catalog
 type IntegrationEntry struct {
-	Name        string   // Name of the integration
-	DisplayName string   // DisplayName of the integration
-	Signatures  []string // Signatures of the integration's command line processes
+	MetricPrefix string   // Metric prefix of the integration
+	Name         string   // Name of the integration
+	DisplayName  string   // DisplayName of the integration
+	Signatures   []string // Signatures of the integration's command line processes
 }
 
 // IntegrationCatalog represents a list of Integrations

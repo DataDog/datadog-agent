@@ -3,15 +3,17 @@ package procmatch
 
 var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 	IntegrationEntry{
-		DisplayName: "ActiveMQ",
-		Name:        "activemq",
+		DisplayName:  "ActiveMQ",
+		MetricPrefix: "activemq.",
+		Name:         "activemq",
 		Signatures: []string{
 			"activemq",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Apache",
-		Name:        "Apache",
+		DisplayName:  "Apache",
+		MetricPrefix: "apache.",
+		Name:         "Apache",
 		Signatures: []string{
 			"httpd",
 			"apache",
@@ -19,15 +21,17 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Cassandra",
-		Name:        "cassandra",
+		DisplayName:  "Cassandra",
+		MetricPrefix: "cassandra.",
+		Name:         "cassandra",
 		Signatures: []string{
 			"java org.apache.cassandra.service.CassandraDaemon",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Ceph",
-		Name:        "ceph",
+		DisplayName:  "Ceph",
+		MetricPrefix: "ceph.",
+		Name:         "ceph",
 		Signatures: []string{
 			"ceph-mon",
 			"ceph-mgr",
@@ -35,8 +39,9 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Consul",
-		Name:        "consul",
+		DisplayName:  "Consul",
+		MetricPrefix: "consul.",
+		Name:         "consul",
 		Signatures: []string{
 			"consul agent",
 			"consul_agent",
@@ -44,22 +49,25 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "CouchDB",
-		Name:        "couch",
+		DisplayName:  "CouchDB",
+		MetricPrefix: "couch.",
+		Name:         "couch",
 		Signatures: []string{
 			"couchjs",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Couchbase",
-		Name:        "couchbase",
+		DisplayName:  "Couchbase",
+		MetricPrefix: "couchbase.",
+		Name:         "couchbase",
 		Signatures: []string{
 			"beam.smp couchbase",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Docker",
-		Name:        "docker_daemon",
+		DisplayName:  "Docker",
+		MetricPrefix: "docker.",
+		Name:         "docker_daemon",
 		Signatures: []string{
 			"dockerd",
 			"docker-containerd",
@@ -69,22 +77,25 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Elasticsearch",
-		Name:        "elastic",
+		DisplayName:  "Elasticsearch",
+		MetricPrefix: "elasticsearch.",
+		Name:         "elastic",
 		Signatures: []string{
 			"java org.elasticsearch.bootstrap.Elasticsearch",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "etcd",
-		Name:        "etcd",
+		DisplayName:  "etcd",
+		MetricPrefix: "etcd.",
+		Name:         "etcd",
 		Signatures: []string{
 			"etcd",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "fluentd",
-		Name:        "fluentd",
+		DisplayName:  "fluentd",
+		MetricPrefix: "fluentd.",
+		Name:         "fluentd",
 		Signatures: []string{
 			"td-agent",
 			"fluentd",
@@ -92,23 +103,26 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Gearman",
-		Name:        "gearmand",
+		DisplayName:  "Gearman",
+		MetricPrefix: "gearmand.",
+		Name:         "gearmand",
 		Signatures: []string{
 			"gearmand",
 			"gearman",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Gunicorn",
-		Name:        "gunicorn",
+		DisplayName:  "Gunicorn",
+		MetricPrefix: "gunicorn.",
+		Name:         "gunicorn",
 		Signatures: []string{
 			"gunicorn: master",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "HAProxy",
-		Name:        "haproxy",
+		DisplayName:  "HAProxy",
+		MetricPrefix: "haproxy.",
+		Name:         "haproxy",
 		Signatures: []string{
 			"haproxy",
 			"haproxy-master",
@@ -116,100 +130,114 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Kafka",
-		Name:        "kafka",
+		DisplayName:  "Kafka",
+		MetricPrefix: "kafka.",
+		Name:         "kafka",
 		Signatures: []string{
 			"java kafka.kafka",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Kong",
-		Name:        "kong",
+		DisplayName:  "Kong",
+		MetricPrefix: "kong.",
+		Name:         "kong",
 		Signatures: []string{
 			"kong start",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Kyoto Tycoon",
-		Name:        "kyototycoon",
+		DisplayName:  "Kyoto Tycoon",
+		MetricPrefix: "kyototycoon.",
+		Name:         "kyototycoon",
 		Signatures: []string{
 			"ktserver",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Lighttpd",
-		Name:        "lighttpd",
+		DisplayName:  "Lighttpd",
+		MetricPrefix: "lighttpd.",
+		Name:         "lighttpd",
 		Signatures: []string{
 			"lighttpd",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Marathon",
-		Name:        "marathon",
+		DisplayName:  "Marathon",
+		MetricPrefix: "marathon.",
+		Name:         "marathon",
 		Signatures: []string{
 			"start --master mesos marathon",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Memcached",
-		Name:        "mcache",
+		DisplayName:  "Memcached",
+		MetricPrefix: "memcache.",
+		Name:         "mcache",
 		Signatures: []string{
 			"memcached",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Mesos Master",
-		Name:        "mesos_master",
+		DisplayName:  "Mesos Master",
+		MetricPrefix: "mesos.",
+		Name:         "mesos_master",
 		Signatures: []string{
 			"mesos-master.sh --ip=127.0.0.1 --work_dir=/var/lib/mesos",
 			"mesos-agent.sh --master --work_dir=/var/lib/mesos",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "MongoDB",
-		Name:        "mongo",
+		DisplayName:  "MongoDB",
+		MetricPrefix: "mongodb.",
+		Name:         "mongo",
 		Signatures: []string{
 			"mongod",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "MySQL",
-		Name:        "MySQL",
+		DisplayName:  "MySQL",
+		MetricPrefix: "mysql.",
+		Name:         "MySQL",
 		Signatures: []string{
 			"mysqld",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Nagios",
-		Name:        "nagios",
+		DisplayName:  "Nagios",
+		MetricPrefix: "nagios.",
+		Name:         "nagios",
 		Signatures: []string{
 			"nagios",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Nginx",
-		Name:        "nginx",
+		DisplayName:  "Nginx",
+		MetricPrefix: "nginx.",
+		Name:         "nginx",
 		Signatures: []string{
 			"nginx: master process",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "OpenStack",
-		Name:        "openstack",
+		DisplayName:  "OpenStack",
+		MetricPrefix: "openstack.",
+		Name:         "openstack",
 		Signatures: []string{
 			"stack.sh",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "PGBouncer",
-		Name:        "pgbouncer",
+		DisplayName:  "PGBouncer",
+		MetricPrefix: "pgbouncer.",
+		Name:         "pgbouncer",
 		Signatures: []string{
 			"pgbouncer",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "PHP-FPM",
-		Name:        "php_fpm",
+		DisplayName:  "PHP-FPM",
+		MetricPrefix: "php_fpm.",
+		Name:         "php_fpm",
 		Signatures: []string{
 			"php-fpm",
 			"php7.0-fpm",
@@ -222,16 +250,18 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Postfix",
-		Name:        "postfix",
+		DisplayName:  "Postfix",
+		MetricPrefix: "postfix.",
+		Name:         "postfix",
 		Signatures: []string{
 			"postfix start",
 			"sendmail -bd",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Postgres",
-		Name:        "postgres",
+		DisplayName:  "Postgres",
+		MetricPrefix: "postgresql.",
+		Name:         "postgres",
 		Signatures: []string{
 			"postgres -D",
 			"pg_ctl start -l logfile",
@@ -239,44 +269,50 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "PowerDNS Recursor",
-		Name:        "powerdns_recursor",
+		DisplayName:  "PowerDNS Recursor",
+		MetricPrefix: "powerdns.",
+		Name:         "powerdns_recursor",
 		Signatures: []string{
 			"pdns_server",
 			"systemctl start pdns@",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "RabbitMQ",
-		Name:        "rabbitmq",
+		DisplayName:  "RabbitMQ",
+		MetricPrefix: "rabbitmq.",
+		Name:         "rabbitmq",
 		Signatures: []string{
 			"rabbitmq",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Redis",
-		Name:        "redisdb",
+		DisplayName:  "Redis",
+		MetricPrefix: "redis.",
+		Name:         "redisdb",
 		Signatures: []string{
 			"redis-server",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Riak CS",
-		Name:        "riakcs",
+		DisplayName:  "Riak CS",
+		MetricPrefix: "riakcs.",
+		Name:         "riakcs",
 		Signatures: []string{
 			"riak-cs start",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Solr",
-		Name:        "solr",
+		DisplayName:  "Solr",
+		MetricPrefix: "solr.",
+		Name:         "solr",
 		Signatures: []string{
 			"solr start",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "SSH",
-		Name:        "ssh_check",
+		DisplayName:  "SSH",
+		MetricPrefix: "ssh.",
+		Name:         "ssh_check",
 		Signatures: []string{
 			"ssh",
 			"sftp",
@@ -285,45 +321,51 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Supervisord",
-		Name:        "supervisord",
+		DisplayName:  "Supervisord",
+		MetricPrefix: "supervisord.",
+		Name:         "supervisord",
 		Signatures: []string{
 			"python supervisord",
 			"supervisord",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Teamcity",
-		Name:        "teamcity",
+		DisplayName:  "Teamcity",
+		MetricPrefix: "teamcity.",
+		Name:         "teamcity",
 		Signatures: []string{
 			"teamcity-server.sh",
 			"teamcity-server",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "TokuMX",
-		Name:        "tokumx",
+		DisplayName:  "TokuMX",
+		MetricPrefix: "tokumx.",
+		Name:         "tokumx",
 		Signatures: []string{
 			"mongod --config /etc/tokumx.conf",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Tomcat",
-		Name:        "tomcat",
+		DisplayName:  "Tomcat",
+		MetricPrefix: "tomcat.",
+		Name:         "tomcat",
 		Signatures: []string{
 			"java tomcat",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "Varnish",
-		Name:        "varnish",
+		DisplayName:  "Varnish",
+		MetricPrefix: "varnish.",
+		Name:         "varnish",
 		Signatures: []string{
 			"service varnish start",
 		},
 	},
 	IntegrationEntry{
-		DisplayName: "ZooKeeper",
-		Name:        "zk",
+		DisplayName:  "ZooKeeper",
+		MetricPrefix: "zookeeper.",
+		Name:         "zk",
 		Signatures: []string{
 			"zkServer.sh start",
 			"java zoo.cfg",
