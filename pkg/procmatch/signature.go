@@ -16,7 +16,7 @@ func (i IntegrationEntry) getSignatures() []signature {
 
 	for _, rawSig := range i.Signatures {
 		sigs = append(sigs, signature{
-			integration: Integration{DisplayName: i.DisplayName, Name: i.Name},
+			integration: Integration{DisplayName: i.DisplayName, MetricPrefix: i.MetricPrefix, Name: i.Name},
 			words:       strings.FieldsFunc(strings.ToLower(rawSig), splitCmdline),
 		})
 	}
