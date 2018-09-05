@@ -130,7 +130,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	configName := s.configName(config)
 	var sources []*logsConfig.LogSource
 	for _, cfg := range configs {
-		if cfg.Type == "" && service != nil {
+		if service != nil {
 			cfg.Type = service.Type
 			cfg.Identifier = service.Identifier
 		}
