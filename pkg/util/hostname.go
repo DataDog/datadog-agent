@@ -118,6 +118,10 @@ func GetHostname() (string, error) {
 		return name, err
 	}
 
+	expErr := new(expvar.String)
+	expErr.Set(err.Error())
+	hostnameErrors.Set("configuration/environment", expErr)
+
 	log.Debugf("Unable to get the hostname from the config file: %s", err)
 	log.Debug("Trying to determine a reliable host name automatically...")
 
