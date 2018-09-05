@@ -323,7 +323,9 @@ func BindEnvAndSetDefault(key string, val interface{}) {
 var (
 	ddURLs = map[string]interface{}{
 		"app.datadoghq.com": nil,
+		"app.datadoghq.eu":  nil,
 		"app.datad0g.com":   nil,
+		"app.datad0g.eu":    nil,
 	}
 )
 
