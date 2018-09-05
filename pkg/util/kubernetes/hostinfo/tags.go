@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetTags gets the tags from the kubernetes apiserver
@@ -32,10 +31,15 @@ func GetTags() ([]string, error) {
 		labelsToTags[strings.ToLower(label)] = value
 	}
 
-	nodeName, err := kubelet.HostnameProvider("")
+	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
 	}
+	nodeName, err := ku.GetNodename()
+	if err != nil {
+		return nil, err
+	}
+
 	var nodeLabels map[string]string
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		cl, err := clusteragent.GetClusterAgentClient()

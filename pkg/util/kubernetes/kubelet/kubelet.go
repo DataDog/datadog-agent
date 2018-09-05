@@ -122,7 +122,7 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 
 // GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
 func (ku *KubeUtil) GetHostname() (string, error) {
-	nodeName, err := ku.getNodename()
+	nodeName, err := ku.GetNodename()
 	if err != nil {
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
@@ -136,8 +136,8 @@ func (ku *KubeUtil) GetHostname() (string, error) {
 	}
 }
 
-// getNodename returns the nodename of the first pod.spec.nodeName in the PodList
-func (ku *KubeUtil) getNodename() (string, error) {
+// GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
+func (ku *KubeUtil) GetNodename() (string, error) {
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
 		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
