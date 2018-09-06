@@ -154,6 +154,5 @@ const configPath = "com.datadoghq.ad.logs"
 
 // ContainsADIdentifier returns true if the container contains an autodiscovery identifier.
 func (c *Container) ContainsADIdentifier() bool {
-	_, exists := c.container.Labels[configPath]
-	return exists
+	return ContainsADIdentifier(c)
 }

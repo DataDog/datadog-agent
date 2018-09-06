@@ -5,6 +5,10 @@
 
 package service
 
+import (
+	"fmt"
+)
+
 // CreationTime represents the moment when the service was created compared to the agent start.
 type CreationTime int
 
@@ -29,4 +33,9 @@ func NewService(provider string, identifier string, createdTime CreationTime) *S
 		Identifier:   identifier,
 		CreationTime: createdTime,
 	}
+}
+
+// GetEntityID return the entity identifier of the service
+func (s *Service) GetEntityID() string {
+	return fmt.Sprintf("%s://%s", s.Type, s.Identifier)
 }
