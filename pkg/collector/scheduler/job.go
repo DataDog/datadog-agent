@@ -177,6 +177,10 @@ func (jq *jobQueue) process(out chan<- check.Check) bool {
 		// blocking could interfere with scheduling new jobs
 		jobs := []check.Check{}
 		jobs = append(jobs, bucket.jobs...)
+		log.Errorf("job queue")
+		for _, job := range jobs {
+			log.Errorf(string(job.ID()))
+		}
 		bucket.mu.RUnlock()
 
 		log.Tracef("Jobs in bucket: %v", jobs)

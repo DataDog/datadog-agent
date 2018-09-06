@@ -60,6 +60,7 @@ type Runner struct {
 	pending          chan check.Check         // The channel where checks come from
 	done             chan bool                // Guard for the main loop
 	runningChecks    map[check.ID]check.Check // The list of checks running
+	stoppedChecks    map[check.ID]struct{}    // The list of checks that were stopped
 	m                sync.Mutex               // To control races on runningChecks
 	running          uint32                   // Flag to see if the Runner is, well, running
 	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
@@ -77,6 +78,7 @@ func NewRunner() *Runner {
 		// initialize the channel
 		pending:          make(chan check.Check),
 		runningChecks:    make(map[check.ID]check.Check),
+		stoppedChecks:    make(map[check.ID]struct{}),
 		running:          1,
 		staticNumWorkers: numWorkers != 0,
 	}
@@ -201,16 +203,25 @@ func (r *Runner) GetChan() chan<- check.Check {
 func (r *Runner) StopCheck(id check.ID) error {
 	done := make(chan bool)
 
+	log.Errorf("Trying to stop %s", string(id))
 	r.m.Lock()
-	defer r.m.Unlock()
+	defer func() {
+		r.m.Unlock()
+		log.Errorf("StopCheck: lock for %s released", string(id))
+	}()
+
+	log.Errorf("StopCheck: lock for %s acquired", string(id))
 
 	if c, isRunning := r.runningChecks[id]; isRunning {
-		log.Debugf("Stopping check %s", c)
+		log.Errorf("Stopping check %s %s", string(id), c)
 		go func() {
+			// Remember that the check was stopped so that even if it runs we can discard its stats
+			r.stoppedChecks[id] = struct{}{}
 			c.Stop()
 			close(done)
 		}()
 	} else {
+		log.Errorf("check %s is not running", string(id))
 		return nil
 	}
 
@@ -230,9 +241,10 @@ func (r *Runner) work() {
 
 	for check := range r.pending {
 		// see if the check is already running
+		log.Errorf("trying to run %s", string(check.ID()))
 		r.m.Lock()
 		if _, isRunning := r.runningChecks[check.ID()]; isRunning {
-			log.Debugf("Check %s is already running, skip execution...", check)
+			log.Errorf("Check %s is already running, skip execution...", check)
 			r.m.Unlock()
 			continue
 		} else {
@@ -244,9 +256,9 @@ func (r *Runner) work() {
 		doLog, lastLog := shouldLog(check.ID())
 
 		if doLog {
-			log.Infof("Running check %s", check)
+			log.Errorf("Running check %s", check)
 		} else {
-			log.Debugf("Running check %s", check)
+			log.Errorf("Running check %s", check)
 		}
 
 		// run the check
@@ -297,10 +309,16 @@ func (r *Runner) work() {
 		// HACK: If a long-running check execute successfully we don't want it to
 		// show up in the status & GUI. This situation can happen when checks
 		// get unscheduled.
-		if !longRunning || len(warnings) != 0 || err != nil {
+		// If check was stopped we don't want its stats to appear in the status
+		r.m.Lock()
+		if _, stopped := r.stoppedChecks[check.ID()]; !stopped && (!longRunning || len(warnings) != 0 || err != nil) {
 			mStats, _ := check.GetMetricStats()
 			addWorkStats(check, time.Since(t0), err, warnings, mStats)
+		} else if stopped {
+			log.Errorf("check %s was stopped, discarding stats...", string(check.ID()))
+			delete(r.stoppedChecks, check.ID())
 		}
+		r.m.Unlock()
 
 		l := "Done running check %s"
 		if doLog {
@@ -354,6 +372,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
+	log.Errorf("Add stats for %s", string(c.ID()))
 	stats, found := checkStats.Stats[c.String()]
 	if !found {
 		stats = make(map[check.ID]*check.Stats)
@@ -388,6 +407,8 @@ func GetCheckStats() map[string]map[check.ID]*check.Stats {
 func RemoveCheckStats(checkID check.ID) {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
+	log.Errorf("Remove stats for %s", string(checkID))
+
 	checkName := strings.Split(string(checkID), ":")[0]
 	stats, found := checkStats.Stats[checkName]
 	if found {
