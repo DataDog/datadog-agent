@@ -127,6 +127,18 @@ api_key:
 # number of check runners instances concurrently. Setting the value to 1
 # would result in checks running sequentially.
 #
+# NOTE: due to the nature of the python interpreter and it's global interpreter
+# lock (GIL) only one native thread may be running on the python interpreter at
+# a time. The introduction of concurrent check runners implies concurrently
+# executing checks must contend for the GIL. This has the side-effect of increasing
+# wall-time execution times for the checks. The aggregate system/user-time for all
+# checks however, should be decreased. Concurrency works particularly well with I/O
+# bound tasks (or at least IO intensive) as the GIL will typically be released while 
+# waiting for IO, allowing for other checks to grab a hold of the GIL and continue
+# execution. With CPU bound checks with a low IO activity, we will see a certain
+# check hogging the GIL delaying all other checks from execution. Essentially
+# forcing a sequential behavior that will delay other checks.
+#
 # We do NOT recommend you change the default number of check runners. Please
 # contact support if you feel you need to modify this setting.
 #
