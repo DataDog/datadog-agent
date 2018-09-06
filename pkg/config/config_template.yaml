@@ -164,7 +164,7 @@ api_key:
 # procfs_path: /proc
 
 
-# BETA: Encrypted Secrets (Linux only)
+# BETA: Encrypted Secrets
 #
 # This feature is in beta and its options or behaviour might break between
 # minor or bugfix releases of the Agent.
