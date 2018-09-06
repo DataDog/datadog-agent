@@ -24,7 +24,8 @@ build do
   else
     binary = "process-agent-amd64-#{version}"
     target_binary = "process-agent"
-    url = "https://s3.amazonaws.com/datad0g-process-agent/#{binary}"
+    url = "https://s3.amazonaws.com/stackstate-process-agent-test/binaries/master/process-agent-amd64-#{binary}"
+    #url = "https://s3.amazonaws.com/datad0g-process-agent/#{binary}"
     curl_cmd = "curl -f #{url} -o #{binary}"
     command curl_cmd
     command "chmod +x #{binary}"
