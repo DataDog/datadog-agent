@@ -50,14 +50,6 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 			bestMatch = source
 		}
 	}
-	if bestMatch == nil {
-		// no source found for this container
-		return nil
-	}
-	if c.ContainsADLabel() && !c.isIdentifierMatch(bestMatch.Config.Identifier) {
-		// containers with an autodiscovery label must have the same identifier as the source it matches with
-		return nil
-	}
 	return bestMatch
 }
 
@@ -78,7 +70,7 @@ func (c *Container) computeScore(source *config.LogSource) int {
 
 // IsMatch returns true if the source matches with the container.
 func (c *Container) IsMatch(source *config.LogSource) bool {
-	if source.Config.Identifier != "" && !c.isIdentifierMatch(source.Config.Identifier) {
+	if (source.Config.Identifier != "" || c.ContainsADIdentifier()) && !c.isIdentifierMatch(source.Config.Identifier) {
 		return false
 	}
 	if source.Config.Image != "" && !c.isImageMatch(source.Config.Image) {
@@ -111,12 +103,12 @@ const tagSeparator = ":"
 // The imageFilter must respect the format '[<repository>/]image[:<tag>]'.
 func (c *Container) isImageMatch(imageFilter string) bool {
 	// Trim digest if present
-	splitted := strings.SplitN(c.container.Image, digestPrefix, 2)
-	image := splitted[0]
+	split := strings.SplitN(c.container.Image, digestPrefix, 2)
+	image := split[0]
 	if !strings.Contains(imageFilter, tagSeparator) {
 		// trim tag if present
-		splitted := strings.SplitN(image, tagSeparator, 2)
-		image = splitted[0]
+		split := strings.SplitN(image, tagSeparator, 2)
+		image = split[0]
 	}
 	// Expect prefix to end with '/'
 	repository := strings.TrimSuffix(image, imageFilter)
@@ -160,8 +152,7 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 // this feature is commonly named 'ad' or 'autodicovery'.
 const configPath = "com.datadoghq.ad.logs"
 
-// ContainsADLabel returns true if the container contains an autodiscovery label.
-func (c *Container) ContainsADLabel() bool {
-	_, exists := c.container.Labels[configPath]
-	return exists
+// ContainsADIdentifier returns true if the container contains an autodiscovery identifier.
+func (c *Container) ContainsADIdentifier() bool {
+	return ContainsADIdentifier(c)
 }

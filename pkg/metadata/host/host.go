@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -83,6 +84,13 @@ func GetPythonVersion() string {
 // This should include GCE, Azure, Cloud foundry, kubernetes
 func getHostAliases() []string {
 	aliases := []string{}
+
+	alibabaAlias, err := alibaba.GetHostAlias()
+	if err != nil {
+		log.Debugf("no Alibaba Host Alias: %s", err)
+	} else if alibabaAlias != "" {
+		aliases = append(aliases, alibabaAlias)
+	}
 
 	azureAlias, err := azure.GetHostAlias()
 	if err != nil {

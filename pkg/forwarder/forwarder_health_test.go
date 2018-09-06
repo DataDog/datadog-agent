@@ -33,9 +33,9 @@ func TestHasValidAPIKey(t *testing.T) {
 	fh.init()
 	assert.True(t, fh.hasValidAPIKey())
 
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending by _key1 on endpoint "+ts1.URL))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending by _key2 on endpoint "+ts1.URL))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending by key3 on endpoint "+ts2.URL))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending in _key1 for endpoint "+ts1.URL))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending in _key2 for endpoint "+ts1.URL))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending in key3 for endpoint "+ts2.URL))
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
@@ -64,7 +64,7 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	fh.init()
 	assert.True(t, fh.hasValidAPIKey())
 
-	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending by _key1 on endpoint "+ts1.URL))
-	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get("API key ending by _key2 on endpoint "+ts1.URL))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending by key3 on endpoint "+ts2.URL))
+	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending in _key1 for endpoint "+ts1.URL))
+	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get("API key ending in _key2 for endpoint "+ts1.URL))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending in key3 for endpoint "+ts2.URL))
 }

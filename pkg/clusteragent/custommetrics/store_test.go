@@ -40,6 +40,7 @@ func TestNewConfigMapStore(t *testing.T) {
 	store, err = NewConfigMapStore(client, "default", "bar")
 	require.NoError(t, err)
 	require.NotNil(t, store.(*configMapStore).cm)
+	assert.NotEmpty(t, store.(*configMapStore).cm.Annotations[storeLastUpdatedAnnotationKey])
 }
 
 func TestConfigMapStoreExternalMetrics(t *testing.T) {

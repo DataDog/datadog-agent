@@ -105,7 +105,7 @@ func StopServer() {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		if strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || path == "/version" {
+		if isExternalPath(path) {
 			if err := util.ValidateDCARequest(w, r); err != nil {
 				return
 			}
@@ -116,4 +116,12 @@ func validateToken(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isExternal returns whether the path is an endpoint used by Node Agents.
+func isExternalPath(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
+		path == "/version" ||
+		strings.HasPrefix(path, "/api/v1/tags/pod/") && len(strings.Split(path, "/")) == 8 ||
+		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6
 }

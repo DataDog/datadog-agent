@@ -96,7 +96,7 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			chunks, err := toSplit.SplitPayload(numChunks)
 			log.Debugf("payload was split into %f chunks", len(chunks))
 			if err != nil {
-				log.Warnf("Some payloads could not be splitted, dropping them")
+				log.Warnf("Some payloads could not be split, dropping them")
 				splitterPayloadDrops.Add(1)
 				return smallEnoughPayloads, err
 			}
@@ -128,7 +128,7 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 		}
 	}
 	if len(marshallers) != 0 {
-		log.Warnf("Some payloads could not be splitted enough, dropping them")
+		log.Warnf("Some payloads could not be split, dropping them")
 		splitterPayloadDrops.Add(1)
 	}
 

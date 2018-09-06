@@ -47,6 +47,12 @@ type DCAClient struct {
 	clusterAgentAPIRequestHeaders http.Header
 }
 
+// resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
+// It is ONLY to be used for tests
+func resetGlobalClusterAgentClient() {
+	globalClusterAgentClient = nil
+}
+
 // GetClusterAgentClient returns or init the DCAClient
 func GetClusterAgentClient() (*DCAClient, error) {
 	if globalClusterAgentClient == nil {
@@ -153,7 +159,7 @@ func getClusterAgentEndpoint() (string, error) {
 
 // GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
 func (c *DCAClient) GetVersion() (string, error) {
-	const dcaVersionPath = "/version"
+	const dcaVersionPath = "version"
 	var version version.Version
 	var err error
 
@@ -191,10 +197,43 @@ func (c *DCAClient) GetVersion() (string, error) {
 	return dcaVersion, nil
 }
 
+// GetNodeLabels returns the node labels from the Cluster Agent.
+func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
+	const dcaNodeMeta = "api/v1/tags/node"
+	var err error
+	var labels map[string]string
+
+	// https://host:port/api/v1/tags/node/{nodeName}
+	rawURL := fmt.Sprintf("%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaNodeMeta, nodeName)
+
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(body, &labels)
+	return labels, err
+}
+
 // GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
 // Kubernetes metadata.
 func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	const dcaMetadataPath = "api/v1/metadata"
+	const dcaMetadataPath = "api/v1/tags/pod"
 	var metadataNames metadataNames
 	var err error
 

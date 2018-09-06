@@ -39,6 +39,7 @@ func TestGetSource(t *testing.T) {
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
 	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "kubernetes", source.Config.Source)
 	assert.Equal(t, "kubernetes", source.Config.Service)
 }
@@ -69,6 +70,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
 	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
 	assert.True(t, contains(source.Config.Tags, "tag1", "tag2"))

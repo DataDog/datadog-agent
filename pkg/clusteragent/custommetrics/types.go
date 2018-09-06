@@ -22,3 +22,7 @@ type ObjectReference struct {
 	Namespace string `json:"namespace"`
 	UID       string `json:"uid"`
 }
+
+type MetricsBundle struct {
+	External []ExternalMetricValue
+}

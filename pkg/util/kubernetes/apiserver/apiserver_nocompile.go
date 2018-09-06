@@ -50,3 +50,9 @@ func GetMetadataMapBundleOnAllNodes(_ *APIClient) (map[string]interface{}, error
 	log.Errorf("GetMetadataMapBundleOnAllNodes not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
+
+// GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
+func GetNodeLabels(nodeName string) (map[string]string, error) {
+	log.Errorf("GetNodeLabels not implemented %s", ErrNotCompiled.Error())
+	return nil, nil
+}

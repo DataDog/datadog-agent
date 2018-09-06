@@ -110,6 +110,10 @@ func init() {
 	BindEnvAndSetDefault("check_runners", int64(4))
 	BindEnvAndSetDefault("auth_token_file_path", "")
 	BindEnvAndSetDefault("bind_host", "localhost")
+
+	// if/when the default is changed to true, make the default platform
+	// dependent; default should remain false on Windows to maintain backward
+	// compatibility with Agent5 behavior/win
 	BindEnvAndSetDefault("hostname_fqdn", false)
 	BindEnvAndSetDefault("cluster_name", "")
 
@@ -319,7 +323,9 @@ func BindEnvAndSetDefault(key string, val interface{}) {
 var (
 	ddURLs = map[string]interface{}{
 		"app.datadoghq.com": nil,
+		"app.datadoghq.eu":  nil,
 		"app.datad0g.com":   nil,
+		"app.datad0g.eu":    nil,
 	}
 )
 

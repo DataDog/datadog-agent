@@ -425,7 +425,6 @@ func TestMetadataController(t *testing.T) {
 	require.NoError(t, err)
 
 	requireReceive(t, metaController.endpoints, "endpoints")
-
 	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 	require.NoError(t, err)
 	assert.Len(t, metadataNames, 1)

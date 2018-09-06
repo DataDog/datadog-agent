@@ -128,12 +128,6 @@ func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus)
 			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
 		}
 		cfg = configs[0]
-		if err := cfg.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
-		}
-		if err := cfg.Compile(); err != nil {
-			return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
-		}
 	} else {
 		cfg = &config.LogsConfig{
 			Source:  kubernetesIntegration,
@@ -142,7 +136,14 @@ func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus)
 	}
 	cfg.Type = config.FileType
 	cfg.Path = s.getPath(pod, container)
+	cfg.Identifier = container.ID
 	cfg.Tags = append(cfg.Tags, s.getTags(container)...)
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
+	}
+	if err := cfg.Compile(); err != nil {
+		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
+	}
 	return config.NewLogSource(s.getSourceName(pod, container), cfg), nil
 }
 

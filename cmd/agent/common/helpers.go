@@ -16,7 +16,6 @@ import (
 // SetupConfig fires up the configuration system
 func SetupConfig(confFilePath string) error {
 	// set the paths where a config file is expected
-	log.Printf("Config file path %s", confFilePath)
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
@@ -27,13 +26,11 @@ func SetupConfig(confFilePath string) error {
 		}
 	}
 	config.Datadog.AddConfigPath(DefaultConfPath)
-	log.Printf("calling config.load")
 	// load the configuration
 	err := config.Load()
 	if err != nil {
 		log.Printf("config.load %v", err)
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
-	log.Printf("config.load success")
 	return nil
 }
