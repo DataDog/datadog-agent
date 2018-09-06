@@ -21,7 +21,8 @@ const (
 	annotationConfigPathSuffix = "logs"
 )
 
-// ContainsADIdentifier returns true if the container contains an autodiscovery identifier.
+// ContainsADIdentifier returns true if the container contains an autodiscovery identifier,
+// searching first in the docker labels, then in the pod specs.
 func ContainsADIdentifier(c *Container) bool {
 	var exists bool
 	_, exists = c.container.Labels[labelConfigPath]
@@ -39,8 +40,8 @@ func ContainsADIdentifier(c *Container) bool {
 	}
 	for _, container := range pod.Status.Containers {
 		if container.ID == entityID {
-			// looks for the container name specified in the pod manifest as its different from the name of the container
-			// returns by the docker socket which is a concatenation of the container name specified in the pod manifest and a hash
+			// looks for the container name specified in the pod manifest as it's different from the name of the container
+			// returns by a docker inspect which is a concatenation of the container name specified in the pod manifest and a hash
 			_, exists = pod.Metadata.Annotations[annotationConfigPath(container.Name)]
 			return exists
 		}

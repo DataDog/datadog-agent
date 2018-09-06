@@ -19,7 +19,8 @@ var (
 	isRunning bool
 	// logs-agent
 	agent *Agent
-	// scheduler is plugged to autodiscovery to collect integration configs and schedule log collection for different kind of inputs
+	// scheduler is plugged to autodiscovery to collect integration configs
+	// and schedule log collection for different kind of inputs
 	adScheduler *scheduler.Scheduler
 )
 

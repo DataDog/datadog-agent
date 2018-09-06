@@ -17,7 +17,11 @@ import (
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
-// Scheduler registers to autodiscovery to schedule/unschedule log-collection.
+// Scheduler creates and deletes new sources and services to start or stop
+// log collection on different kind of inputs.
+// A source represents a logs-config that can be defined either in a configuration file,
+// in a docker label or a pod annotation.
+// A service represents a process that is actually running on the host like a container for example.
 type Scheduler struct {
 	sources  *logsConfig.LogSources
 	services *service.Services
@@ -34,14 +38,17 @@ func NewScheduler(sources *logsConfig.LogSources, services *service.Services) *S
 // Stop does nothing.
 func (s *Scheduler) Stop() {}
 
-// Schedule creates new log-sources from configs.
+// Schedule creates new sources and services from a list of integration configs.
+// An integration config can be mapped to a list of sources when it contains a Provider,
+// while an integration config can be mapped to a service when it contains an Entity.
+// An entity represents a unique identifier for a process that be reused to query logs.
 func (s *Scheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
 		if !s.isLogConfig(config) {
 			continue
 		}
-		if config.Provider != "" {
-			// new configuration
+		switch {
+		case s.newSources(config):
 			log.Infof("Received a new logs config: %v", s.configName(config))
 			sources, err := s.toSources(config)
 			if err != nil {
@@ -51,8 +58,8 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			for _, source := range sources {
 				s.sources.AddSource(source)
 			}
-		} else {
-			// new service
+			break
+		case s.newService(config):
 			log.Infof("Received a new service: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
@@ -60,26 +67,37 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				continue
 			}
 			s.services.AddService(service)
+		default:
+			// invalid integration config
+			break
 		}
 	}
 }
 
-// Unschedule removes services that have been stopped.
+// Unschedule removes all the sources and services matching the integration configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
 		if !s.isLogConfig(config) {
 			continue
 		}
-		if config.Provider != "" {
-			continue
+		switch {
+		case s.newSources(config):
+			// new sources to remove
+			// do nothing as we don't need support the feature for now
+			break
+		case s.newService(config):
+			// new service to remove
+			log.Infof("New service to remove: entity: %v", config.Entity)
+			service, err := s.toService(config)
+			if err != nil {
+				log.Warnf("Invalid service: %v", err)
+				continue
+			}
+			s.services.RemoveService(service)
+		default:
+			// invalid integration config
+			break
 		}
-		log.Infof("New service to remove: entity: %v", config.Entity)
-		service, err := s.toService(config)
-		if err != nil {
-			log.Warnf("Invalid service: %v", err)
-			continue
-		}
-		s.services.RemoveService(service)
 	}
 }
 
@@ -88,7 +106,17 @@ func (s *Scheduler) isLogConfig(config integration.Config) bool {
 	return config.LogsConfig != nil
 }
 
-// configName returns the name of the configuration
+// newSources returns true if the config can be mapped to sources.
+func (s *Scheduler) newSources(config integration.Config) bool {
+	return config.Provider != ""
+}
+
+// newService returns true if the config can be mapped to a service.
+func (s *Scheduler) newService(config integration.Config) bool {
+	return config.Provider == "" && config.Entity != ""
+}
+
+// configName returns the name of the configuration.
 func (s *Scheduler) configName(config integration.Config) string {
 	if config.Name != "" {
 		return config.Name
@@ -100,7 +128,7 @@ func (s *Scheduler) configName(config integration.Config) string {
 	return config.Provider
 }
 
-// toSources creates new logs-sources from an integration config,
+// toSources creates new sources from an integration config,
 // returns an error if the parsing failed.
 func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSource, error) {
 	var configs []*logsConfig.LogsConfig
@@ -108,10 +136,13 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 
 	switch config.Provider {
 	case providers.File:
+		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
 	case providers.Docker, providers.Kubernetes:
+		// config attached to a docker label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	default:
+		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
 	}
 	if err != nil {
@@ -120,10 +151,13 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 
 	var service *service.Service
 	if config.Entity != "" {
+		// all configs attached to a docker label or a pod annotation contains an entity;
+		// this entity is used later on by an input to match a service with a source
+		// to start collecting logs.
 		var err error
 		service, err = s.toService(config)
 		if err != nil {
-			log.Warnf("Invalid service: %v", err)
+			return nil, fmt.Errorf("invalid entity: %v", err)
 		}
 	}
 
@@ -131,8 +165,10 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	var sources []*logsConfig.LogSource
 	for _, cfg := range configs {
 		if service != nil {
+			// a config defined in a docker label or a pod annotation does not always contain a type,
+			// override it here to ensure that the config won't be dropped at validation.
 			cfg.Type = service.Type
-			cfg.Identifier = service.Identifier
+			cfg.Identifier = service.Identifier // used for matching a source with a service
 		}
 
 		source := logsConfig.NewLogSource(configName, cfg)

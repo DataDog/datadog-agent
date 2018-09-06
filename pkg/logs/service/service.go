@@ -19,7 +19,7 @@ const (
 	After
 )
 
-// Service represents a service to tail logs for.
+// Service represents a process to tail logs for.
 type Service struct {
 	Type         string
 	Identifier   string

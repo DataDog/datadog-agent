@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
-// Launcher is not supported on windows environment
+// Launcher is not supported on non docker environment
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher

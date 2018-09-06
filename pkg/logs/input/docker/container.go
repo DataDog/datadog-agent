@@ -38,6 +38,7 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 	var bestMatch *config.LogSource
 	for _, source := range sources {
 		if source.Config.Identifier != "" && c.isIdentifierMatch(source.Config.Identifier) {
+			// perfect match between the source and the container
 			return source
 		}
 		if !c.IsMatch(source) {
@@ -71,6 +72,8 @@ func (c *Container) computeScore(source *config.LogSource) int {
 // IsMatch returns true if the source matches with the container.
 func (c *Container) IsMatch(source *config.LogSource) bool {
 	if (source.Config.Identifier != "" || c.ContainsADIdentifier()) && !c.isIdentifierMatch(source.Config.Identifier) {
+		// there is only one source matching a container when it contains an autodiscovery identifier,
+		// the one which has an identifier equals to the container identifier.
 		return false
 	}
 	if source.Config.Image != "" && !c.isImageMatch(source.Config.Image) {
