@@ -61,7 +61,7 @@ func Get() Status {
 	}
 	// Convert to json
 	var integrations []Integration
-	warningsDeduplicator := make(map[string]bool)
+	warningsDeduplicator := make(map[string]struct{})
 	for name, sourceList := range sources {
 		var sources []Source
 		for _, source := range sourceList {
@@ -83,13 +83,13 @@ func Get() Status {
 			})
 
 			for _, warning := range source.Messages.GetWarnings() {
-				warningsDeduplicator[warning] = true
+				warningsDeduplicator[warning] = struct{}{}
 			}
 		}
 		integrations = append(integrations, Integration{Name: name, Sources: sources})
 	}
 
-	warnings := make([]string, 0)
+	var warnings []string
 	for warning := range warningsDeduplicator {
 		warnings = append(warnings, warning)
 	}
