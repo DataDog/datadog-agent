@@ -5,7 +5,7 @@
 
 package service
 
+// Service providers
 const (
-	// Docker service provider
 	Docker = "docker"
 )

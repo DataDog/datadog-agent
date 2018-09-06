@@ -12,7 +12,7 @@ import (
 // capacity of the channels
 const capacity = 10
 
-// Services provides new and removed services,
+// Services provides new and removed services.
 type Services struct {
 	addedPerType   map[string]chan *Service
 	removedPerType map[string]chan *Service
@@ -27,12 +27,12 @@ func NewServices() *Services {
 	}
 }
 
-// AddService sends a new service to the proper channel.
+// AddService sends a new service to the channel matching its type.
 func (s *Services) AddService(service *Service) {
 	s.getAddedServices(service.Type) <- service
 }
 
-// RemoveService sends a removed service to the proper channel.
+// RemoveService sends a removed service to the channel matching its type.
 func (s *Services) RemoveService(service *Service) {
 	s.getRemovedServices(service.Type) <- service
 }

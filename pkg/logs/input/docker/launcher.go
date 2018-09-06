@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
-// A Launcher starts and stops tailers for containers.
+// A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider  pipeline.Provider
 	sources           *config.LogSources
@@ -84,39 +84,51 @@ func (l *Launcher) Stop() {
 	stopper.Stop()
 }
 
-// run starts and stops new tailers.
+// run starts and stops new tailers when it receives a new source
+// or a new service which is mapped to a container.
 func (l *Launcher) run() {
 	for {
 		select {
 		case newService := <-l.services.GetAddedServices(service.Docker):
+			// detected a new container running on the host,
 			dockerContainer, err := GetContainer(l.cli, newService.Identifier)
 			if err != nil {
 				log.Warnf("Could not find container with id: %v", err)
 				continue
 			}
 			container := NewContainer(dockerContainer, newService)
-			if source := container.FindSource(l.activeSources); source != nil {
+			source := container.FindSource(l.activeSources)
+			switch {
+			case source != nil:
+				// a source matches with the container, start a new tailer
 				l.startTailer(container, source)
-			} else {
+			default:
+				// no source matches with the container but a matching source may not have been
+				// emitted yet or the container may contain an autodiscovery identifier
+				// so it's put in a cache until a matching source is found.
 				l.pendingContainers[newService.Identifier] = container
 			}
-		case removedService := <-l.services.GetRemovedServices(service.Docker):
-			containerID := removedService.Identifier
-			l.stopTailer(containerID)
-			if _, exists := l.pendingContainers[containerID]; exists {
-				delete(l.pendingContainers, containerID)
-			}
 		case source := <-l.sources.GetSourceStreamForType(config.DockerType):
+			// detected a new source that has been created either from a configuration file,
+			// a docker label or a pod annotation.
 			l.activeSources = append(l.activeSources, source)
 			pendingContainers := make(map[string]*Container)
 			for _, container := range l.pendingContainers {
 				if container.IsMatch(source) {
+					// found a container matching the new source, start a new tailer
 					l.startTailer(container, source)
 				} else {
+					// keep the container in cache until
 					pendingContainers[container.service.Identifier] = container
 				}
 			}
+			// keep the containers that have not found any source yet for next iterations
 			l.pendingContainers = pendingContainers
+		case removedService := <-l.services.GetRemovedServices(service.Docker):
+			// detected that a container has been stopped.
+			containerID := removedService.Identifier
+			l.stopTailer(containerID)
+			delete(l.pendingContainers, containerID)
 		case <-l.stop:
 			// no docker container should be tailed anymore
 			return
@@ -124,7 +136,7 @@ func (l *Launcher) run() {
 	}
 }
 
-// startTailer starts a new tailer for the container.
+// startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	containerID := container.service.Identifier
 	if _, isTailed := l.tailers[containerID]; isTailed {
@@ -134,16 +146,19 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 
 	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan())
 
+	// conpute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
 	if err != nil {
 		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
 	}
 
+	// start the tailer
 	err = tailer.Start(since)
 	if err != nil {
 		log.Warnf("Could not start tailer: %v", containerID, err)
 	}
 
+	// keep the tailer in track to stop it later on
 	l.tailers[containerID] = tailer
 }
 
