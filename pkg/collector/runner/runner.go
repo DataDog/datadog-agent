@@ -392,6 +392,9 @@ func RemoveCheckStats(checkID check.ID) {
 	stats, found := checkStats.Stats[checkName]
 	if found {
 		delete(stats, checkID)
+		if len(stats) == 0 {
+			delete(checkStats.Stats, checkName)
+		}
 	}
 }
 
