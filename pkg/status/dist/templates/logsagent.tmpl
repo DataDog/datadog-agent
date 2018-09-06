@@ -7,10 +7,10 @@ Logs Agent
 {{ if (not .is_running) }}
   Logs Agent is not running
 {{ else }}
-{{- if .warnings }}
+{{- if .messages }}
   warnings
   {{printDashes "warnings" "-"}}
-    {{- range $warning := .warnings }}
+    {{- range $warning := .messages }}
     {{ $warning }}
     {{- end }}
 {{ end }}
@@ -22,10 +22,10 @@ Logs Agent
     {{- range $key, $value := .configuration }}
     {{$key}}: {{$value}}
     {{- end }}
-    {{- if .overview }}
-    Overview: {{.overview}}
-    {{- end }}
     Status: {{ .status }}
+      {{- if .messages }}
+      {{range $message := .messages }}{{ $message }}{{end}}
+      {{- end }}
     {{- if .inputs }}
     Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
     {{- end }}

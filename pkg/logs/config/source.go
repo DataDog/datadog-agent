@@ -5,7 +5,9 @@
 
 package config
 
-import "sync"
+import (
+	"sync"
+)
 
 // LogSource holds a reference to and integration name and a log configuration, and allows to track errors and
 // successful operations on it. Both name and configuration are static for now and determined at creation time.
@@ -15,18 +17,19 @@ type LogSource struct {
 	Config   *LogsConfig
 	Status   *LogStatus
 	inputs   map[string]bool
-	Overview string
 	lock     *sync.Mutex
+	Messages *Messages
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, config *LogsConfig) *LogSource {
 	return &LogSource{
-		Name:   name,
-		Config: config,
-		Status: NewLogStatus(),
-		inputs: make(map[string]bool),
-		lock:   &sync.Mutex{},
+		Name:     name,
+		Config:   config,
+		Status:   NewLogStatus(),
+		inputs:   make(map[string]bool),
+		lock:     &sync.Mutex{},
+		Messages: NewMessages(),
 	}
 }
 

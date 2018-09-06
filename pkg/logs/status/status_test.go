@@ -43,3 +43,30 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusDeduplicateWarnings(t *testing.T) {
+	sources := config.NewLogSources()
+	go func() {
+		sources := sources.GetSourceStreamForType("foo")
+		for range sources {
+			// ensure that another component is consuming the channel to prevent
+			// the producer to get stuck.
+		}
+	}()
+	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
+	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}))
+	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
+
+	Initialize(sources)
+
+	logSources := sources.GetSources()
+	assert.Equal(t, 3, len(logSources))
+
+	logSources[0].Messages.AddWarning("bar", "Unique Warning")
+	for _, source := range logSources {
+		source.Messages.AddWarning("foo", "Identical Warning")
+	}
+
+	status := Get()
+	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Messages)
+}
