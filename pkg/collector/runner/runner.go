@@ -60,6 +60,7 @@ type Runner struct {
 	pending          chan check.Check         // The channel where checks come from
 	done             chan bool                // Guard for the main loop
 	runningChecks    map[check.ID]check.Check // The list of checks running
+	stoppedChecks    map[check.ID]struct{}    // The list of checks that were stopped
 	m                sync.Mutex               // To control races on runningChecks
 	running          uint32                   // Flag to see if the Runner is, well, running
 	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
@@ -77,6 +78,7 @@ func NewRunner() *Runner {
 		// initialize the channel
 		pending:          make(chan check.Check),
 		runningChecks:    make(map[check.ID]check.Check),
+		stoppedChecks:    make(map[check.ID]struct{}),
 		running:          1,
 		staticNumWorkers: numWorkers != 0,
 	}
@@ -207,6 +209,8 @@ func (r *Runner) StopCheck(id check.ID) error {
 	if c, isRunning := r.runningChecks[id]; isRunning {
 		log.Debugf("Stopping check %s", c)
 		go func() {
+			// Remember that the check was stopped so that even if it runs we can discard its stats
+			r.stoppedChecks[id] = struct{}{}
 			c.Stop()
 			close(done)
 		}()
@@ -297,10 +301,15 @@ func (r *Runner) work() {
 		// HACK: If a long-running check execute successfully we don't want it to
 		// show up in the status & GUI. This situation can happen when checks
 		// get unscheduled.
-		if !longRunning || len(warnings) != 0 || err != nil {
+		// If check was stopped we don't want its stats to appear in the status
+		r.m.Lock()
+		if _, stopped := r.stoppedChecks[check.ID()]; !stopped && (!longRunning || len(warnings) != 0 || err != nil) {
 			mStats, _ := check.GetMetricStats()
 			addWorkStats(check, time.Since(t0), err, warnings, mStats)
+		} else if stopped {
+			delete(r.stoppedChecks, check.ID())
 		}
+		r.m.Unlock()
 
 		l := "Done running check %s"
 		if doLog {
