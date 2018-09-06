@@ -93,13 +93,24 @@ func (s *Scheduler) Enter(check check.Check) error {
 	return nil
 }
 
+// PrintQueues print
+func (s *Scheduler) PrintQueues() {
+	for _, queue := range s.jobQueues {
+		for _, job := range queue.buckets {
+			for _, check := range job.jobs {
+				fmt.Println(string(check.ID()))
+			}
+		}
+	}
+}
+
 // Cancel remove a Check from the scheduled queue. If the check is not
 // in the scheduler, this is a noop.
 func (s *Scheduler) Cancel(id check.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Infof("Unscheduling check %v ", check.IDToCheckName(id))
+	log.Errorf("Unscheduling %s check %v ", string(id), check.IDToCheckName(id))
 
 	if _, ok := s.checkToQueue[id]; !ok {
 		return nil
