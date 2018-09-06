@@ -36,7 +36,7 @@ func (m *Messages) AddWarning(key string, warning string) {
 	m.AddMessage("warning_"+key, warning)
 }
 
-// GetMessages returns all the messages for an array of keys
+// GetMessages returns all the messages
 func (m *Messages) GetMessages() []string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -50,7 +50,7 @@ func (m *Messages) GetMessages() []string {
 	return messages
 }
 
-// GetWarnings returns all the warnings for an array of keys
+// GetWarnings returns all the warnings
 func (m *Messages) GetWarnings() []string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -64,14 +64,14 @@ func (m *Messages) GetWarnings() []string {
 	return warnings
 }
 
-// RemoveMessage marks a RaisedMessage as solved
+// RemoveMessage removes a message
 func (m *Messages) RemoveMessage(key string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	delete(m.messages, key)
 }
 
-// RemoveWarning marks a RaisedWarning as solved
+// RemoveWarning removes a warning
 func (m *Messages) RemoveWarning(key string) {
 	m.RemoveMessage("warning_" + key)
 }
