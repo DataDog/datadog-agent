@@ -224,7 +224,7 @@ else
       no_start=true
     fi
   fi
-  if [ $DD_URL ]; then
+  if [ -n "$DD_URL" ]; then
     $sudo_cmd sh -c "sed -i 's/# dd_url:.*/dd_url: $DD_URL/' $CONF"
   fi
   if [ $dd_hostname ]; then
