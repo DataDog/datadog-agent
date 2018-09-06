@@ -51,8 +51,10 @@ func ValidHostname(hostname string) error {
 	} else if isLocal(hostname) {
 		return fmt.Errorf("%s is a local hostname", hostname)
 	} else if len(hostname) > maxLength {
+		log.Errorf("ValidHostname: name exceeded the maximum length of %d characters", maxLength)
 		return fmt.Errorf("name exceeded the maximum length of %d characters", maxLength)
 	} else if !validHostnameRfc1123.MatchString(hostname) {
+		log.Errorf("ValidHostname: %s is not RFC1123 compliant", hostname)
 		return fmt.Errorf("%s is not RFC1123 compliant", hostname)
 	}
 	return nil
@@ -117,6 +119,10 @@ func GetHostname() (string, error) {
 		hostnameProvider.Set("configuration")
 		return name, err
 	}
+
+	expErr := new(expvar.String)
+	expErr.Set(err.Error())
+	hostnameErrors.Set("configuration/environment", expErr)
 
 	log.Debugf("Unable to get the hostname from the config file: %s", err)
 	log.Debug("Trying to determine a reliable host name automatically...")
