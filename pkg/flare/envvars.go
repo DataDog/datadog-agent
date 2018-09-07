@@ -45,11 +45,9 @@ var envvarNameWhitelist = []string{
 	"DD_PROCESS_AGENT_ENABLED",
 }
 
-func init() {
-	envvarNameWhitelist = append(envvarNameWhitelist, config.ConfigEnvVars...)
-}
-
 func getWhitelistedEnvvars() []string {
+	// update whitelisted env variables with those that are config option bindings
+	envvarNameWhitelist = append(envvarNameWhitelist, config.ConfigEnvVars...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
