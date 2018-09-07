@@ -110,3 +110,43 @@ func TestCompute(t *testing.T) {
 	require.Contains(t, high, "foo:bar")
 	require.Contains(t, high, "high:yes-high")
 }
+
+func TestCopy(t *testing.T) {
+	list := NewTagList()
+	list.AddHigh("foo", "bar")
+	list.AddLow("faa", "baz")
+	list.AddLow("low", "yes")
+
+	list2 := list.Copy()
+	list2.AddHigh("foo2", "bar2")
+	list2.AddLow("faa2", "baz2")
+
+	list3 := list.Copy()
+	list3.AddHigh("foo3", "bar3")
+	list3.AddLow("faa3", "baz3")
+
+	low, high := list.Compute()
+	require.Len(t, low, 2)
+	require.Contains(t, low, "faa:baz")
+	require.Contains(t, low, "low:yes")
+	require.Len(t, high, 1)
+	require.Contains(t, high, "foo:bar")
+
+	low2, high2 := list2.Compute()
+	require.Len(t, low2, 3)
+	require.Contains(t, low2, "faa:baz")
+	require.Contains(t, low2, "low:yes")
+	require.Contains(t, low2, "faa2:baz2")
+	require.Len(t, high2, 2)
+	require.Contains(t, high2, "foo:bar")
+	require.Contains(t, high2, "foo2:bar2")
+
+	low3, high3 := list3.Compute()
+	require.Len(t, low3, 3)
+	require.Contains(t, low3, "faa:baz")
+	require.Contains(t, low3, "low:yes")
+	require.Contains(t, low3, "faa3:baz3")
+	require.Len(t, high3, 2)
+	require.Contains(t, high3, "foo:bar")
+	require.Contains(t, high3, "foo3:bar3")
+}
