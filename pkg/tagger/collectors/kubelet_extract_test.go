@@ -36,6 +36,34 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
+	dockerEntityID2 := "docker://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerTwoContainersStatus := kubelet.Status{
+		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityID,
+				Image: "datadog/docker-dd-agent:latest5",
+				Name:  "dd-agent",
+			},
+			{
+				ID:    dockerEntityID2,
+				Image: "datadog/docker-filter:latest",
+				Name:  "filter",
+			},
+		},
+	}
+	dockerTwoContainersSpec := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "dd-agent",
+				Image: "datadog/docker-dd-agent:latest5",
+			},
+			{
+				Name:  "filter",
+				Image: "datadog/docker-filter:latest",
+			},
+		},
+	}
+
 	criEntityId := "cri-containerd://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
 	criContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
@@ -60,7 +88,7 @@ func TestParsePods(t *testing.T) {
 		pod               *kubelet.Pod
 		labelsAsTags      map[string]string
 		annotationsAsTags map[string]string
-		expectedInfo      *TagInfo
+		expectedInfo      []*TagInfo
 	}{
 		{
 			desc:         "empty pod",
@@ -86,24 +114,94 @@ func TestParsePods(t *testing.T) {
 				Spec:   dockerContainerSpec,
 			},
 			labelsAsTags: map[string]string{},
-			expectedInfo: &TagInfo{
-				Source: "kubelet",
-				Entity: dockerEntityID,
-				LowCardTags: []string{
-					"kube_namespace:default",
-					"kube_container_name:dd-agent",
-					"kube_daemon_set:dd-agent-rc",
-					"image_tag:latest5",
-					"image_name:datadog/docker-dd-agent",
-					"short_image:docker-dd-agent",
-				},
-				HighCardTags: []string{
-					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"pod_name:dd-agent-rc-qd876",
-					"display_container_name:dd-agent_dd-agent-rc-qd876",
+			expectedInfo: []*TagInfo{
+				{
+					Source: "kubelet",
+					Entity: dockerEntityID,
+					LowCardTags: []string{
+						"kube_namespace:default",
+						"kube_container_name:dd-agent",
+						"kube_daemon_set:dd-agent-rc",
+						"image_tag:latest5",
+						"image_name:datadog/docker-dd-agent",
+						"short_image:docker-dd-agent",
+					},
+					HighCardTags: []string{
+						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+						"pod_name:dd-agent-rc-qd876",
+						"display_container_name:dd-agent_dd-agent-rc-qd876",
+					},
 				},
 			},
 		},
+		{
+			desc: "two containers + pod",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "dd-agent-rc-qd876",
+					Namespace: "default",
+					UID:       "5e8e05",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "DaemonSet",
+							Name: "dd-agent-rc",
+							ID:   "6a76e51c-88d7-11e7-9a0f-42010a8401cc",
+						},
+					},
+				},
+				Status: dockerTwoContainersStatus,
+				Spec:   dockerTwoContainersSpec,
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{
+				{
+					Source: "kubelet",
+					Entity: "kubernetes_pod://5e8e05",
+					LowCardTags: []string{
+						"kube_namespace:default",
+						"kube_daemon_set:dd-agent-rc",
+					},
+					HighCardTags: []string{
+						"pod_name:dd-agent-rc-qd876",
+					},
+				},
+				{
+					Source: "kubelet",
+					Entity: dockerEntityID,
+					LowCardTags: []string{
+						"kube_namespace:default",
+						"kube_container_name:dd-agent",
+						"kube_daemon_set:dd-agent-rc",
+						"image_tag:latest5",
+						"image_name:datadog/docker-dd-agent",
+						"short_image:docker-dd-agent",
+					},
+					HighCardTags: []string{
+						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+						"pod_name:dd-agent-rc-qd876",
+						"display_container_name:dd-agent_dd-agent-rc-qd876",
+					},
+				},
+				{
+					Source: "kubelet",
+					Entity: dockerEntityID2,
+					LowCardTags: []string{
+						"kube_namespace:default",
+						"kube_container_name:filter",
+						"kube_daemon_set:dd-agent-rc",
+						"image_tag:latest",
+						"image_name:datadog/docker-filter",
+						"short_image:docker-filter",
+					},
+					HighCardTags: []string{
+						"container_id:ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+						"pod_name:dd-agent-rc-qd876",
+						"display_container_name:filter_dd-agent-rc-qd876",
+					},
+				},
+			},
+		},
+
 		{
 			desc: "standalone replicaset",
 			pod: &kubelet.Pod{
@@ -119,18 +217,20 @@ func TestParsePods(t *testing.T) {
 				Spec:   dockerContainerSpec,
 			},
 			labelsAsTags: map[string]string{},
-			expectedInfo: &TagInfo{
-				Source: "kubelet",
-				Entity: dockerEntityID,
-				LowCardTags: []string{
-					"kube_container_name:dd-agent",
-					"kube_replica_set:kubernetes-dashboard",
-					"image_tag:latest5",
-					"image_name:datadog/docker-dd-agent",
-					"short_image:docker-dd-agent",
-				},
-				HighCardTags: []string{
-					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+			expectedInfo: []*TagInfo{
+				{
+					Source: "kubelet",
+					Entity: dockerEntityID,
+					LowCardTags: []string{
+						"kube_container_name:dd-agent",
+						"kube_replica_set:kubernetes-dashboard",
+						"image_tag:latest5",
+						"image_name:datadog/docker-dd-agent",
+						"short_image:docker-dd-agent",
+					},
+					HighCardTags: []string{
+						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					},
 				},
 			},
 		},
@@ -149,19 +249,21 @@ func TestParsePods(t *testing.T) {
 				Spec:   dockerContainerSpec,
 			},
 			labelsAsTags: map[string]string{},
-			expectedInfo: &TagInfo{
-				Source: "kubelet",
-				Entity: dockerEntityID,
-				LowCardTags: []string{
-					"kube_container_name:dd-agent",
-					"kube_deployment:frontend",
-					"image_tag:latest5",
-					"image_name:datadog/docker-dd-agent",
-					"short_image:docker-dd-agent",
-				},
-				HighCardTags: []string{
-					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"kube_replica_set:frontend-2891696001",
+			expectedInfo: []*TagInfo{
+				{
+					Source: "kubelet",
+					Entity: dockerEntityID,
+					LowCardTags: []string{
+						"kube_container_name:dd-agent",
+						"kube_deployment:frontend",
+						"image_tag:latest5",
+						"image_name:datadog/docker-dd-agent",
+						"short_image:docker-dd-agent",
+					},
+					HighCardTags: []string{
+						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+						"kube_replica_set:frontend-2891696001",
+					},
 				},
 			},
 		},
@@ -180,19 +282,21 @@ func TestParsePods(t *testing.T) {
 				Spec:   dockerContainerSpec,
 			},
 			labelsAsTags: map[string]string{},
-			expectedInfo: &TagInfo{
-				Source: "kubelet",
-				Entity: dockerEntityID,
-				LowCardTags: []string{
-					"kube_container_name:dd-agent",
-					"kube_deployment:front-end",
-					"image_tag:latest5",
-					"image_name:datadog/docker-dd-agent",
-					"short_image:docker-dd-agent",
-				},
-				HighCardTags: []string{
-					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"kube_replica_set:front-end-768dd754b7",
+			expectedInfo: []*TagInfo{
+				{
+					Source: "kubelet",
+					Entity: dockerEntityID,
+					LowCardTags: []string{
+						"kube_container_name:dd-agent",
+						"kube_deployment:front-end",
+						"image_tag:latest5",
+						"image_name:datadog/docker-dd-agent",
+						"short_image:docker-dd-agent",
+					},
+					HighCardTags: []string{
+						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+						"kube_replica_set:front-end-768dd754b7",
+					},
 				},
 			},
 		},
@@ -218,21 +322,23 @@ func TestParsePods(t *testing.T) {
 				"gitcommit": "+GitCommit",
 				"tier":      "tier",
 			},
-			expectedInfo: &TagInfo{
-				Source: "kubelet",
-				Entity: dockerEntityID,
-				LowCardTags: []string{
-					"kube_container_name:dd-agent",
-					"team:Kenafeh",
-					"component:kube-proxy",
-					"tier:node",
-					"image_tag:latest5",
-					"image_name:datadog/docker-dd-agent",
-					"short_image:docker-dd-agent",
-				},
-				HighCardTags: []string{
-					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
+			expectedInfo: []*TagInfo{
+				{
+					Source: "kubelet",
+					Entity: dockerEntityID,
+					LowCardTags: []string{
+						"kube_container_name:dd-agent",
+						"team:Kenafeh",
+						"component:kube-proxy",
+						"tier:node",
+						"image_tag:latest5",
+						"image_name:datadog/docker-dd-agent",
+						"short_image:docker-dd-agent",
+					},
+					HighCardTags: []string{
+						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+						"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
+					},
 				},
 			},
 		},
@@ -263,21 +369,23 @@ func TestParsePods(t *testing.T) {
 				"ownerteam": "team",
 				"gitcommit": "+GitCommit",
 			},
-			expectedInfo: &TagInfo{
-				Source: "kubelet",
-				Entity: dockerEntityID,
-				LowCardTags: []string{
-					"kube_container_name:dd-agent",
-					"team:Kenafeh",
-					"component:kube-proxy",
-					"tier:node",
-					"image_tag:latest5",
-					"image_name:datadog/docker-dd-agent",
-					"short_image:docker-dd-agent",
-				},
-				HighCardTags: []string{
-					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
+			expectedInfo: []*TagInfo{
+				{
+					Source: "kubelet",
+					Entity: dockerEntityID,
+					LowCardTags: []string{
+						"kube_container_name:dd-agent",
+						"team:Kenafeh",
+						"component:kube-proxy",
+						"tier:node",
+						"image_tag:latest5",
+						"image_name:datadog/docker-dd-agent",
+						"short_image:docker-dd-agent",
+					},
+					HighCardTags: []string{
+						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+						"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
+					},
 				},
 			},
 		},
@@ -294,13 +402,15 @@ func TestParsePods(t *testing.T) {
 				Status: dockerContainerStatus,
 			},
 			labelsAsTags: map[string]string{},
-			expectedInfo: &TagInfo{
-				Source:      "kubelet",
-				Entity:      dockerEntityID,
-				LowCardTags: []string{"kube_container_name:dd-agent", "oshift_deployment_config:gitlab-ce"},
-				HighCardTags: []string{
-					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"oshift_deployment:gitlab-ce-1",
+			expectedInfo: []*TagInfo{
+				{
+					Source:      "kubelet",
+					Entity:      dockerEntityID,
+					LowCardTags: []string{"kube_container_name:dd-agent", "oshift_deployment_config:gitlab-ce"},
+					HighCardTags: []string{
+						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+						"oshift_deployment:gitlab-ce-1",
+					},
 				},
 			},
 		},
@@ -320,21 +430,23 @@ func TestParsePods(t *testing.T) {
 				Spec:   criContainerSpec,
 			},
 			labelsAsTags: map[string]string{},
-			expectedInfo: &TagInfo{
-				Source: "kubelet",
-				Entity: criEntityId,
-				LowCardTags: []string{
-					"kube_container_name:redis-master",
-					"kube_deployment:redis-master",
-					"image_name:gcr.io/google_containers/redis",
-					"image_tag:e2e",
-					"short_image:redis",
-				},
-				HighCardTags: []string{
-					"pod_name:redis-master-bpnn6",
-					"display_container_name:redis-master_redis-master-bpnn6",
-					"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
-					"kube_replica_set:redis-master-546dc4865f",
+			expectedInfo: []*TagInfo{
+				{
+					Source: "kubelet",
+					Entity: criEntityId,
+					LowCardTags: []string{
+						"kube_container_name:redis-master",
+						"kube_deployment:redis-master",
+						"image_name:gcr.io/google_containers/redis",
+						"image_tag:e2e",
+						"short_image:redis",
+					},
+					HighCardTags: []string{
+						"pod_name:redis-master-bpnn6",
+						"display_container_name:redis-master_redis-master-bpnn6",
+						"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
+						"kube_replica_set:redis-master-546dc4865f",
+					},
 				},
 			},
 		},
@@ -350,8 +462,7 @@ func TestParsePods(t *testing.T) {
 			if tc.expectedInfo == nil {
 				assert.Len(t, infos, 0)
 			} else {
-				assert.Len(t, infos, 1)
-				assertTagInfoEqual(t, tc.expectedInfo, infos[0])
+				assertTagInfoListEqual(t, tc.expectedInfo, infos)
 			}
 		})
 	}
