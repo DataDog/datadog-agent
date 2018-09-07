@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var envvarNameWhitelist = []string{
@@ -34,6 +36,17 @@ var envvarNameWhitelist = []string{
 	"GODEBUG",
 	"GOMAXPROCS",
 	"GOTRACEBACK",
+
+	// Trace agent
+	"DD_APM_ENABLED",
+	"DD_APM_NON_LOCAL_TRAFFIC",
+
+	// Process agent
+	"DD_PROCESS_AGENT_ENABLED",
+}
+
+func init() {
+	envvarNameWhitelist = append(envvarNameWhitelist, config.ConfigEnvVars...)
 }
 
 func getWhitelistedEnvvars() []string {

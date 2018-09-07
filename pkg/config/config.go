@@ -29,8 +29,9 @@ const DefaultForwarderRecoveryInterval = 2
 
 // Datadog is the global configuration object
 var (
-	Datadog = viper.New()
-	proxies *Proxy
+	Datadog       = viper.New()
+	proxies       *Proxy
+	ConfigEnvVars []string
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -318,6 +319,11 @@ func init() {
 func BindEnvAndSetDefault(key string, val interface{}) {
 	Datadog.SetDefault(key, val)
 	Datadog.BindEnv(key)
+	if !strings.Contains(key, "_key") {
+		// we hardcode the prefix and the separator because we can't get them from viper
+		envVarName := strings.Join([]string{"DD", strings.ToUpper(key)}, "_")
+		ConfigEnvVars = append(ConfigEnvVars, envVarName)
+	}
 }
 
 var (
