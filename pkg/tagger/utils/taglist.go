@@ -84,3 +84,20 @@ func (l *TagList) Compute() ([]string, []string) {
 	}
 	return low, high
 }
+
+// Copy creates a deep copy of the taglist object for reuse
+func (l *TagList) Copy() *TagList {
+	return &TagList{
+		lowCardTags:  deepCopyMap(l.lowCardTags),
+		highCardTags: deepCopyMap(l.highCardTags),
+		splitList:    l.splitList, // constant, can be shared
+	}
+}
+
+func deepCopyMap(in map[string]bool) map[string]bool {
+	out := make(map[string]bool, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
