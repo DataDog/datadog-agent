@@ -203,11 +203,17 @@ func (r *Runner) GetChan() chan<- check.Check {
 func (r *Runner) StopCheck(id check.ID) error {
 	done := make(chan bool)
 
+	log.Errorf("Trying to stop %s", string(id))
 	r.m.Lock()
-	defer r.m.Unlock()
+	defer func() {
+		r.m.Unlock()
+		log.Errorf("StopCheck: lock for %s released", string(id))
+	}()
+
+	log.Errorf("StopCheck: lock for %s acquired", string(id))
 
 	if c, isRunning := r.runningChecks[id]; isRunning {
-		log.Debugf("Stopping check %s", c)
+		log.Errorf("Stopping check %s %s", string(id), c)
 		go func() {
 			// Remember that the check was stopped so that even if it runs we can discard its stats
 			r.stoppedChecks[id] = struct{}{}
@@ -215,6 +221,7 @@ func (r *Runner) StopCheck(id check.ID) error {
 			close(done)
 		}()
 	} else {
+		log.Errorf("check %s is not running", string(id))
 		return nil
 	}
 
@@ -234,9 +241,10 @@ func (r *Runner) work() {
 
 	for check := range r.pending {
 		// see if the check is already running
+		log.Errorf("trying to run %s", string(check.ID()))
 		r.m.Lock()
 		if _, isRunning := r.runningChecks[check.ID()]; isRunning {
-			log.Debugf("Check %s is already running, skip execution...", check)
+			log.Errorf("Check %s is already running, skip execution...", check)
 			r.m.Unlock()
 			continue
 		} else {
@@ -248,9 +256,9 @@ func (r *Runner) work() {
 		doLog, lastLog := shouldLog(check.ID())
 
 		if doLog {
-			log.Infof("Running check %s", check)
+			log.Errorf("Running check %s", check)
 		} else {
-			log.Debugf("Running check %s", check)
+			log.Errorf("Running check %s", check)
 		}
 
 		// run the check
@@ -307,6 +315,7 @@ func (r *Runner) work() {
 			mStats, _ := check.GetMetricStats()
 			addWorkStats(check, time.Since(t0), err, warnings, mStats)
 		} else if stopped {
+			log.Errorf("check %s was stopped, discarding stats...", string(check.ID()))
 			delete(r.stoppedChecks, check.ID())
 		}
 		r.m.Unlock()
@@ -363,6 +372,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
+	log.Errorf("Remove stats for %s", string(c.ID()))
 	stats, found := checkStats.Stats[c.String()]
 	if !found {
 		stats = make(map[check.ID]*check.Stats)
@@ -397,6 +407,8 @@ func GetCheckStats() map[string]map[check.ID]*check.Stats {
 func RemoveCheckStats(checkID check.ID) {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
+	log.Errorf("Remove stats for %s", string(checkID))
+
 	checkName := strings.Split(string(checkID), ":")[0]
 	stats, found := checkStats.Stats[checkName]
 	if found {
