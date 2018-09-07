@@ -1,0 +1,10 @@
+init_config:
+
+instances:
+  - ## Tagging
+    ##
+
+    # You can add extra tags to your Docker metrics with the tags list option.
+    # Example: ["extra_tag", "env:testing"]
+    #
+    # tags: []
