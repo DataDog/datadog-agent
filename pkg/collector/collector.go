@@ -176,20 +176,20 @@ func (c *Collector) StopCheck(id check.ID) error {
 	}
 
 	// stop the instance, this might time out
-	fmt.Println("Before StopCheck")
+	log.Errorf("Before StopCheck %s", string(id))
 	c.scheduler.PrintQueues()
 
 	err = c.runner.StopCheck(id)
 	if err != nil {
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
 	}
-	fmt.Println("After StopCheck")
+	log.Errorf("After StopCheck %s", string(id))
 	c.scheduler.PrintQueues()
 
 	// remove the check from the stats map
 	runner.RemoveCheckStats(id)
 
-	fmt.Println("After RemoveCheck")
+	log.Errorf("After RemoveCheck %s", string(id))
 	c.scheduler.PrintQueues()
 
 	// vaporize the check
