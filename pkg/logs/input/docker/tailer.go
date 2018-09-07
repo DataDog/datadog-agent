@@ -31,7 +31,7 @@ const defaultSleepDuration = 1 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
 
 // Tailer tails logs coming from stdout and stderr of a docker container
-// With docker api, there is no way to know if a log comes from strout or stderr
+// With docker api, there is no way to know if a log comes from stdout or stderr
 // so if we want to capture the severity, we need to tail both in two goroutines
 type Tailer struct {
 	ContainerID   string
@@ -46,10 +46,11 @@ type Tailer struct {
 	shouldStop    bool
 	stop          chan struct{}
 	done          chan struct{}
+	unexpectedEOF chan string
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *Tailer {
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message, unexpectedEOF chan string) *Tailer {
 	return &Tailer{
 		ContainerID:   containerID,
 		outputChan:    outputChan,
@@ -59,6 +60,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		sleepDuration: defaultSleepDuration,
 		stop:          make(chan struct{}, 1),
 		done:          make(chan struct{}, 1),
+		unexpectedEOF: unexpectedEOF,
 	}
 }
 
@@ -139,6 +141,11 @@ func (t *Tailer) readForever() {
 				if err != io.EOF {
 					t.source.Status.Error(err)
 					log.Error("Err: ", err)
+				}
+				if err == io.ErrUnexpectedEOF {
+					log.Warn("Unexpected EOF: The tailer of container ", ShortContainerID(t.ContainerID), " will restart")
+					t.wait() // TODO: Implement a better retry policy
+					t.unexpectedEOF <- t.ContainerID
 				}
 				return
 			}
