@@ -7,16 +7,8 @@
 
 package docker
 
-import (
-	"github.com/docker/docker/api/types"
-)
-
-// configPath refers to the configuration that can be passed over a docker label,
-// this feature is commonly named 'ad' or 'autodicovery'.
-const configPath = "com.datadoghq.ad.logs"
-
 // ContainsADIdentifier returns true if the container contains an autodiscovery identifier.
 func ContainsADIdentifier(c *Container) bool {
-	_, exists := container.Labels[configPath]
+	_, exists := c.container.Labels[configPath]
 	return exists
 }
