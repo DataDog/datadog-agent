@@ -8,6 +8,8 @@
 package docker
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/client"
@@ -177,24 +179,43 @@ func (l *Launcher) stopTailer(containerID string) {
 }
 
 func (l *Launcher) restartTailer(containerID string) {
-	oldTailer, _ := l.tailers[containerID]
-	source := oldTailer.source
-	oldTailer.Stop()
+	backoffDuration := 1 * time.Microsecond
+	backoffMax := 60 * time.Microsecond
+	var tailer *Tailer
+	var source *config.LogSource
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.lostSocket)
+	for i := 0; ; i++ {
+		if backoffDuration > backoffMax {
+			backoffDuration = backoffMax
+		}
 
-	// compute the offset to prevent from missing or duplicating logs
-	since, err := Since(l.registry, tailer.Identifier(), service.Before)
-	if err != nil {
-		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
+		time.Sleep(backoffDuration)
+
+		if i == 0 {
+			oldTailer, _ := l.tailers[containerID]
+			source = oldTailer.source
+			oldTailer.Stop()
+		}
+
+		tailer = NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.lostSocket)
+
+		// compute the offset to prevent from missing or duplicating logs
+		since, err := Since(l.registry, tailer.Identifier(), service.Before)
+		if err != nil {
+			log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
+			backoffDuration *= 2
+			continue
+		}
+
+		// start the tailer
+		err = tailer.Start(since)
+		if err != nil {
+			log.Warnf("Could not start tailer: %v", containerID, err)
+			backoffDuration *= 2
+			continue
+		}
+		// keep the tailer in track to stop it later on
+		l.tailers[containerID] = tailer
+		return
 	}
-
-	// start the tailer
-	err = tailer.Start(since)
-	if err != nil {
-		log.Warnf("Could not start tailer: %v", containerID, err)
-	}
-
-	// keep the tailer in track to stop it later on
-	l.tailers[containerID] = tailer
 }

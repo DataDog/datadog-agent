@@ -144,7 +144,6 @@ func (t *Tailer) readForever() {
 				}
 				if err == io.ErrUnexpectedEOF {
 					log.Warn("Unexpected EOF: The tailer of container ", ShortContainerID(t.ContainerID), " will restart")
-					t.wait() // TODO: Implement a better retry policy
 					t.unexpectedEOF <- t.ContainerID
 				}
 				return
