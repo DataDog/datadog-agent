@@ -17,6 +17,17 @@ upgrade:
     `datadog.yaml` config or via the `DD_CHECK_RUNNERS` to 1. Also, please
     feel free to reach out to us if you need more information or help
     with the new multiple runner/concurrency model.
+  - Due to the nature of the python interpreter and it's global interpreter
+    lock (GIL) only one native thread may be running on the python interpreter at
+    a time. The introduction of concurrent check runners implies concurrently
+    executing checks must contend for the GIL. This has the side-effect of increasing
+    wall-time execution times for the checks. The aggregate system/user-time for all
+    checks however, should be decreased. Concurrency works particularly well with I/O
+    bound tasks (or at least IO intensive) as the GIL will typically be released while 
+    waiting for IO, allowing for other checks to grab a hold of the GIL and continue
+    execution. For CPU bound checks with a low IO activity, it becomes increasingly
+    likely for these check instances to hog the GIL delaying all other checks from
+    execution - essentially forcing a sequential behavior.
 features:
   - |
     Bump the default number of check runners to 4. This has some

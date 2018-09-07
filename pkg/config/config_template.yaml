@@ -135,9 +135,9 @@ api_key:
 # checks however, should be decreased. Concurrency works particularly well with I/O
 # bound tasks (or at least IO intensive) as the GIL will typically be released while 
 # waiting for IO, allowing for other checks to grab a hold of the GIL and continue
-# execution. With CPU bound checks with a low IO activity, we will see a certain
-# check hogging the GIL delaying all other checks from execution. Essentially
-# forcing a sequential behavior that will delay other checks.
+# execution. For CPU bound checks with a low IO activity, it becomes increasingly
+# likely for these check instances to hog the GIL delaying all other checks from
+# execution - essentially forcing a sequential behavior.
 #
 # We do NOT recommend you change the default number of check runners. Please
 # contact support if you feel you need to modify this setting.
