@@ -372,7 +372,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
-	log.Errorf("Remove stats for %s", string(c.ID()))
+	log.Errorf("Add stats for %s", string(c.ID()))
 	stats, found := checkStats.Stats[c.String()]
 	if !found {
 		stats = make(map[check.ID]*check.Stats)
