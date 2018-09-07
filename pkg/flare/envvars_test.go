@@ -45,20 +45,20 @@ func TestEnvvarWhitelisting(t *testing.T) {
 			},
 			out: []string{
 				"DOCKER_HOST=tcp://10.0.0.10:8888",
-				"DD_PROCESS_AGENT_ENABLED": "true",
+				"DD_PROCESS_AGENT_ENABLED=true",
 				"GOGC=120",
 			},
 		},
 		{
 			name: "bound env var config",
 			in: map[string]string{
-				"DOCKER_HOST":              "tcp://10.0.0.10:8888",
-				"hpa_watcher_polling_freq": "12",
-				"GOGC":                     "120",
+				"DOCKER_HOST":                 "tcp://10.0.0.10:8888",
+				"DD_HPA_WATCHER_POLLING_FREQ": "12",
+				"GOGC":                        "120",
 			},
 			out: []string{
 				"DOCKER_HOST=tcp://10.0.0.10:8888",
-				"DD_PROCESS_AGENT_ENABLED": "true",
+				"DD_HPA_WATCHER_POLLING_FREQ=12",
 				"GOGC=120",
 			},
 		},
