@@ -40,9 +40,29 @@ var envvarNameWhitelist = []string{
 	// Trace agent
 	"DD_APM_ENABLED",
 	"DD_APM_NON_LOCAL_TRAFFIC",
+	"DD_RECEIVER_PORT",
+	"DD_IGNORE_RESOURCE",
+	"DD_APM_DD_URL",
+	"DD_APM_ANALYZED_SPANS",
+	"DD_CONNECTION_LIMIT",
 
 	// Process agent
 	"DD_PROCESS_AGENT_ENABLED",
+	"DD_PROCESS_AGENT_URL",
+	"DD_SCRUB_ARGS",
+	"DD_CUSTOM_SENSITIVE_WORDS",
+	"DD_STRIP_PROCESS_ARGS",
+	"DD_LOGS_STDOUT",
+	"DD_AGENT_PY",
+	"DD_AGENT_PY_ENV",
+	"LOG_LEVEL",
+	"LOG_TO_CONSOLE",
+	"DD_COLLECT_DOCKER_NETWORK",
+	"DD_CONTAINER_BLACKLIST",
+	"DD_CONTAINER_WHITELIST",
+	"DD_CONTAINER_CACHE_DURATION",
+	"DD_PROCESS_AGENT_CONTAINER_SOURCE",
+	"DD_NETWORK_TRACING_ENABLED",
 }
 
 func getWhitelistedEnvvars() []string {
@@ -73,11 +93,6 @@ func zipEnvvars(tempDir, hostname string) error {
 		}
 	} else {
 		fmt.Fprintln(&b, "Found no whitelisted envvar")
-	}
-
-	fmt.Fprintln(&b, "Looked for these whitelisted envvars:")
-	for _, envvar := range envvarNameWhitelist {
-		fmt.Fprintln(&b, " - ", envvar)
 	}
 
 	f := filepath.Join(tempDir, hostname, "envvars.log")
