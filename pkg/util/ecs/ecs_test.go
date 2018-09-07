@@ -163,8 +163,8 @@ func TestLocateECSHTTP(t *testing.T) {
 }
 
 func TestGetAgentContainerURLS(t *testing.T) {
-	config.Datadog.SetDefault("ecs_agent_name", "ecs-agent-custom")
-	defer config.Datadog.SetDefault("ecs_agent_name", "ecs-agent")
+	config.Datadog.SetDefault("ecs_agent_container_name", "ecs-agent-custom")
+	defer config.Datadog.SetDefault("ecs_agent_container_name", "ecs-agent")
 
 	// Setting mocked data in cache
 	nets := make(map[string]*network.EndpointSettings)

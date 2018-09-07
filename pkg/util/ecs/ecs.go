@@ -26,8 +26,6 @@ import (
 const (
 	// DefaultAgentPort is the default port used by the ECS Agent.
 	DefaultAgentPort = 51678
-	// DefaultECSContainer is the default container used by ECS.
-	DefaultECSContainer = "ecs-agent"
 	// Cache the fact we're running on ECS Fargate
 	isFargateInstanceCacheKey = "IsFargateInstanceCacheKey"
 )
@@ -229,7 +227,7 @@ func getAgentContainerURLS() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	ecsConfig, err := du.Inspect(config.Datadog.GetString("ecs_agent_name"), false)
+	ecsConfig, err := du.Inspect(config.Datadog.GetString("ecs_agent_container_name"), false)
 	if err != nil {
 		return nil, err
 	}
