@@ -174,6 +174,15 @@ func TestEnvNestedConfig(t *testing.T) {
 	os.Unsetenv("DD_FOO_BAR_NESTED")
 }
 
+func TestBindEnvAndSetDefault(t *testing.T) {
+	BindEnvAndSetDefault("app_key", "")
+	assert.NotContains(t, ConfigEnvVars, "DD_APP_KEY")
+	BindEnvAndSetDefault("logset", "")
+	assert.Contains(t, ConfigEnvVars, "DD_LOGSET")
+	BindEnvAndSetDefault("logs_config.run_path", "")
+	assert.Contains(t, ConfigEnvVars, "DD_LOGS_CONFIG.RUN_PATH")
+}
+
 func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
 	// circleCI set some proxy setting
 	ciValue := os.Getenv("NO_PROXY")
