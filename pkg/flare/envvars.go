@@ -46,12 +46,11 @@ var envvarNameWhitelist = []string{
 }
 
 func getWhitelistedEnvvars() []string {
-	// update whitelisted env variables with those that are config option bindings
-	envvarNameWhitelist = append(envvarNameWhitelist, config.ConfigEnvVars...)
+	envVarWhiteList := append(envvarNameWhitelist, config.ConfigEnvVars...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
-		for _, whitelisted := range envvarNameWhitelist {
+		for _, whitelisted := range envVarWhiteList {
 			if parts[0] == whitelisted {
 				found = append(found, envvar)
 				continue
