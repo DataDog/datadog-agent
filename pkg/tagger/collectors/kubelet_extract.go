@@ -99,10 +99,11 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// container tags
 		for _, container := range pod.Status.Containers {
-			lowC := append(low, fmt.Sprintf("kube_container_name:%s", container.Name))
-			highC := append(high, fmt.Sprintf("container_id:%s", kubelet.TrimRuntimeFromCID(container.ID)))
+			cTags := tags.Copy()
+			cTags.AddLow("kube_container_name", container.Name)
+			cTags.AddHigh("container_id", kubelet.TrimRuntimeFromCID(container.ID))
 			if container.Name != "" && pod.Metadata.Name != "" {
-				highC = append(highC, fmt.Sprintf("display_container_name:%s_%s", container.Name, pod.Metadata.Name))
+				cTags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", container.Name, pod.Metadata.Name))
 			}
 
 			// check image tag in spec
@@ -113,22 +114,23 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 						log.Debugf("Cannot split %s: %s", containerSpec.Image, err)
 						break
 					}
-					lowC = append(lowC, fmt.Sprintf("image_name:%s", imageName))
-					lowC = append(lowC, fmt.Sprintf("short_image:%s", shortImage))
+					cTags.AddLow("image_name", imageName)
+					cTags.AddLow("short_image", shortImage)
 					if imageTag == "" {
 						// k8s default to latest if tag is omitted
 						imageTag = "latest"
 					}
-					lowC = append(lowC, fmt.Sprintf("image_tag:%s", imageTag))
+					cTags.AddLow("image_tag", imageTag)
 					break
 				}
 			}
 
+			cLow, cHigh := cTags.Compute()
 			info := &TagInfo{
 				Source:       kubeletCollectorName,
 				Entity:       container.ID,
-				HighCardTags: highC,
-				LowCardTags:  lowC,
+				HighCardTags: cHigh,
+				LowCardTags:  cLow,
 			}
 			output = append(output, info)
 		}
