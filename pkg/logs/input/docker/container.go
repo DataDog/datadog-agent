@@ -18,6 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
+// configPath refers to the configuration that can be passed over a docker label,
+// this feature is commonly named 'ad' or 'autodicovery'.
+const configPath = "com.datadoghq.ad.logs"
+
 // Container represents a container to tail logs from.
 type Container struct {
 	container types.Container
@@ -150,10 +154,6 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 	}
 	return false
 }
-
-// configPath refers to the configuration that can be passed over a docker label,
-// this feature is commonly named 'ad' or 'autodicovery'.
-const configPath = "com.datadoghq.ad.logs"
 
 // ContainsADIdentifier returns true if the container contains an autodiscovery identifier.
 func (c *Container) ContainsADIdentifier() bool {

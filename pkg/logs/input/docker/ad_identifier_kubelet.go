@@ -16,7 +16,6 @@ import (
 // configPath refers to the configuration that can be passed over a docker label or a pod annotation,
 // this feature is commonly named 'ad' or 'autodicovery'.
 const (
-	labelConfigPath            = "com.datadoghq.ad.logs"
 	annotationConfigPathPrefix = "ad.datadoghq.com"
 	annotationConfigPathSuffix = "logs"
 )
@@ -25,7 +24,7 @@ const (
 // searching first in the docker labels, then in the pod specs.
 func ContainsADIdentifier(c *Container) bool {
 	var exists bool
-	_, exists = c.container.Labels[labelConfigPath]
+	_, exists = c.container.Labels[configPath]
 	if exists {
 		return true
 	}
