@@ -203,20 +203,15 @@ func (r *Runner) GetChan() chan<- check.Check {
 func (r *Runner) StopCheck(id check.ID) error {
 	done := make(chan bool)
 
-	log.Errorf("Trying to stop %s", string(id))
 	r.m.Lock()
-	defer func() {
-		r.m.Unlock()
-		log.Errorf("StopCheck: lock for %s released", string(id))
-	}()
+	defer r.m.Unlock()
 
-	log.Errorf("StopCheck: lock for %s acquired", string(id))
-
+	// mark checks as stopped even if it's not yet running - might get scheduled
+	r.stoppedChecks[id] = struct{}{}
 	if c, isRunning := r.runningChecks[id]; isRunning {
 		log.Errorf("Stopping check %s %s", string(id), c)
 		go func() {
 			// Remember that the check was stopped so that even if it runs we can discard its stats
-			r.stoppedChecks[id] = struct{}{}
 			c.Stop()
 			close(done)
 		}()
@@ -311,11 +306,11 @@ func (r *Runner) work() {
 		// get unscheduled.
 		// If check was stopped we don't want its stats to appear in the status
 		r.m.Lock()
-		if _, stopped := r.stoppedChecks[check.ID()]; !stopped && (!longRunning || len(warnings) != 0 || err != nil) {
+		if _, stopped := r.stoppedChecks[check.ID()]; !stopped &&
+			(!longRunning || len(warnings) != 0 || err != nil) {
 			mStats, _ := check.GetMetricStats()
 			addWorkStats(check, time.Since(t0), err, warnings, mStats)
 		} else if stopped {
-			log.Errorf("check %s was stopped, discarding stats...", string(check.ID()))
 			delete(r.stoppedChecks, check.ID())
 		}
 		r.m.Unlock()
@@ -405,8 +400,8 @@ func GetCheckStats() map[string]map[check.ID]*check.Stats {
 
 // RemoveCheckStats removes a check from the check stats map
 func RemoveCheckStats(checkID check.ID) {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
+	checkStats.M.Lock()
+	defer checkStats.M.Unlock()
 	log.Errorf("Remove stats for %s", string(checkID))
 
 	checkName := strings.Split(string(checkID), ":")[0]

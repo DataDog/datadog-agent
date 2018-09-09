@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -37,6 +38,7 @@ type PythonCheck struct {
 	config       *python.PyObject
 	interval     time.Duration
 	lastWarnings []error
+	stopped      atomic.Value
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -50,12 +52,19 @@ func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 		interval:     check.DefaultCheckInterval,
 		lastWarnings: []error{},
 	}
+	pyCheck.stopped.Store(false)
+
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 	return pyCheck
 }
 
 // Run a Python check
 func (c *PythonCheck) Run() error {
+	stopped := c.stopped.Load().(bool)
+	if stopped {
+		return nil
+	}
+
 	// Lock the GIL and release it at the end of the run
 	gstate := newStickyLock()
 	defer gstate.unlock()
@@ -121,8 +130,10 @@ func (c *PythonCheck) RunSimple() error {
 	return errors.New(resultStr)
 }
 
-// Stop does nothing
-func (c *PythonCheck) Stop() {}
+// Stop just sets the atomic flag
+func (c *PythonCheck) Stop() {
+	c.stopped.Store(false)
+}
 
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {
