@@ -93,24 +93,13 @@ func (s *Scheduler) Enter(check check.Check) error {
 	return nil
 }
 
-// PrintQueues print
-func (s *Scheduler) PrintQueues() {
-	for _, queue := range s.jobQueues {
-		for _, job := range queue.buckets {
-			for _, check := range job.jobs {
-				fmt.Println(string(check.ID()))
-			}
-		}
-	}
-}
-
 // Cancel remove a Check from the scheduled queue. If the check is not
 // in the scheduler, this is a noop.
 func (s *Scheduler) Cancel(id check.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Errorf("Unscheduling %s check %v ", string(id), check.IDToCheckName(id))
+	log.Infof("Unscheduling %s check %v ", string(id), check.IDToCheckName(id))
 
 	if _, ok := s.checkToQueue[id]; !ok {
 		return nil
@@ -187,6 +176,15 @@ func (s *Scheduler) Stop() error {
 	}
 }
 
+// IsCheckScheduled returns whether a check is in the schedule or not
+func (s *Scheduler) IsCheckScheduled(id check.ID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, found := s.checkToQueue[id]
+	return found
+}
+
 // stopQueues shuts down the timers for each active queue
 // Blocks until all the queues have fully stopped
 func (s *Scheduler) stopQueues() {
@@ -220,7 +218,7 @@ func (s *Scheduler) startQueues() {
 // startQueue starts a queue (non-blocking operation) if it's not running yet
 func (s *Scheduler) startQueue(q *jobQueue) {
 	if !q.running {
-		q.run(s.checksPipe)
+		q.run(s)
 		q.running = true
 	}
 }

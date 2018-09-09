@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -58,9 +59,8 @@ type runnerCheckStats struct {
 // Runner ...
 type Runner struct {
 	pending          chan check.Check         // The channel where checks come from
-	done             chan bool                // Guard for the main loop
 	runningChecks    map[check.ID]check.Check // The list of checks running
-	stoppedChecks    map[check.ID]struct{}    // The list of checks that were stopped
+	scheduler        *scheduler.Scheduler     // Scheduler runner operates on
 	m                sync.Mutex               // To control races on runningChecks
 	running          uint32                   // Flag to see if the Runner is, well, running
 	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
@@ -78,7 +78,6 @@ func NewRunner() *Runner {
 		// initialize the channel
 		pending:          make(chan check.Check),
 		runningChecks:    make(map[check.ID]check.Check),
-		stoppedChecks:    make(map[check.ID]struct{}),
 		running:          1,
 		staticNumWorkers: numWorkers != 0,
 	}
@@ -198,30 +197,31 @@ func (r *Runner) GetChan() chan<- check.Check {
 	return r.pending
 }
 
+// SetScheduler sets the scheduler for the runner
+func (r *Runner) SetScheduler(s *scheduler.Scheduler) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	r.scheduler = s
+}
+
 // StopCheck invokes the `Stop` method on a check if it's running. If the check
 // is not running, this is a noop
 func (r *Runner) StopCheck(id check.ID) error {
 	done := make(chan bool)
 
-	log.Errorf("Trying to stop %s", string(id))
 	r.m.Lock()
-	defer func() {
-		r.m.Unlock()
-		log.Errorf("StopCheck: lock for %s released", string(id))
-	}()
-
-	log.Errorf("StopCheck: lock for %s acquired", string(id))
+	defer r.m.Unlock()
 
 	if c, isRunning := r.runningChecks[id]; isRunning {
-		log.Errorf("Stopping check %s %s", string(id), c)
+		log.Debugf("Stopping check %s %s", string(id), c)
 		go func() {
 			// Remember that the check was stopped so that even if it runs we can discard its stats
-			r.stoppedChecks[id] = struct{}{}
 			c.Stop()
 			close(done)
 		}()
 	} else {
-		log.Errorf("check %s is not running", string(id))
+		log.Debugf("check %s is not running", string(id))
 		return nil
 	}
 
@@ -241,10 +241,9 @@ func (r *Runner) work() {
 
 	for check := range r.pending {
 		// see if the check is already running
-		log.Errorf("trying to run %s", string(check.ID()))
 		r.m.Lock()
 		if _, isRunning := r.runningChecks[check.ID()]; isRunning {
-			log.Errorf("Check %s is already running, skip execution...", check)
+			log.Debugf("Check %s is already running, skip execution...", check)
 			r.m.Unlock()
 			continue
 		} else {
@@ -256,9 +255,9 @@ func (r *Runner) work() {
 		doLog, lastLog := shouldLog(check.ID())
 
 		if doLog {
-			log.Errorf("Running check %s", check)
+			log.Infof("Running check %s", check)
 		} else {
-			log.Errorf("Running check %s", check)
+			log.Debugf("Running check %s", check)
 		}
 
 		// run the check
@@ -306,17 +305,14 @@ func (r *Runner) work() {
 		runnerStats.Add("RunningChecks", -1)
 		runnerStats.Add("Runs", 1)
 
-		// HACK: If a long-running check execute successfully we don't want it to
-		// show up in the status & GUI. This situation can happen when checks
-		// get unscheduled.
-		// If check was stopped we don't want its stats to appear in the status
 		r.m.Lock()
-		if _, stopped := r.stoppedChecks[check.ID()]; !stopped && (!longRunning || len(warnings) != 0 || err != nil) {
-			mStats, _ := check.GetMetricStats()
-			addWorkStats(check, time.Since(t0), err, warnings, mStats)
-		} else if stopped {
-			log.Errorf("check %s was stopped, discarding stats...", string(check.ID()))
-			delete(r.stoppedChecks, check.ID())
+		if !longRunning || len(warnings) != 0 || err != nil {
+			// If the scheduler isn't assigned (it should), just add stats
+			// otherwise only do so if the check is in the scheduler
+			if r.scheduler == nil || r.scheduler.IsCheckScheduled(check.ID()) {
+				mStats, _ := check.GetMetricStats()
+				addWorkStats(check, time.Since(t0), err, warnings, mStats)
+			}
 		}
 		r.m.Unlock()
 
@@ -372,7 +368,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
-	log.Errorf("Add stats for %s", string(c.ID()))
+	log.Debugf("Add stats for %s", string(c.ID()))
 	stats, found := checkStats.Stats[c.String()]
 	if !found {
 		stats = make(map[check.ID]*check.Stats)
@@ -405,9 +401,9 @@ func GetCheckStats() map[string]map[check.ID]*check.Stats {
 
 // RemoveCheckStats removes a check from the check stats map
 func RemoveCheckStats(checkID check.ID) {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
-	log.Errorf("Remove stats for %s", string(checkID))
+	checkStats.M.Lock()
+	defer checkStats.M.Unlock()
+	log.Debugf("Remove stats for %s", string(checkID))
 
 	checkName := strings.Split(string(checkID), ":")[0]
 	stats, found := checkStats.Stats[checkName]
