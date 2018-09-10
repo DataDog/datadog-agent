@@ -275,7 +275,7 @@ func (r *Runner) work() {
 		if doLog {
 			log.Infof("Running check %s", check)
 		} else {
-			log.Infof("Running check %s", check)
+			log.Debugf("Running check %s", check)
 		}
 
 		// run the check
@@ -389,7 +389,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
-	log.Errorf("Add stats for %s", string(c.ID()))
+	log.Debugf("Add stats for %s", string(c.ID()))
 	stats, found := checkStats.Stats[c.String()]
 	if !found {
 		stats = make(map[check.ID]*check.Stats)
@@ -424,7 +424,7 @@ func GetCheckStats() map[string]map[check.ID]*check.Stats {
 func RemoveCheckStats(checkID check.ID) {
 	checkStats.M.Lock()
 	defer checkStats.M.Unlock()
-	log.Errorf("Remove stats for %s", string(checkID))
+	log.Debugf("Remove stats for %s", string(checkID))
 
 	checkName := strings.Split(string(checkID), ":")[0]
 	stats, found := checkStats.Stats[checkName]

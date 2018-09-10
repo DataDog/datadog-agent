@@ -84,7 +84,6 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 		for _, id := range ids {
 			// `StopCheck` might time out so we don't risk to block
 			// the polling loop forever
-			log.Debugf("Stop check instance id: %s", string(id))
 			err := s.collector.StopCheck(id)
 			if err != nil {
 				log.Errorf("Error stopping check %s: %s", id, err)
