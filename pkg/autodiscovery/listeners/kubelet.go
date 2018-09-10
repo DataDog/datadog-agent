@@ -146,7 +146,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	for _, container := range pod.Status.Containers {
 		if container.ID == svc.entity {
 			if l.filter.IsExcluded(container.Name, container.Image) {
-				log.Debugf("container %s is filtered out", container.ID)
+				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, container.Image)
 				return
 			}
 			containerName = container.Name

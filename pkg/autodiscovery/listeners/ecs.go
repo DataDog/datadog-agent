@@ -123,7 +123,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 			continue
 		}
 		if l.filter.IsExcluded(c.DockerName, c.Image) {
-			log.Debugf("container %s is filtered out", c.DockerID)
+			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
 			continue
 		}
 		s, err := l.createService(c, firstRun)

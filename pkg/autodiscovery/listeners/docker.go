@@ -132,8 +132,7 @@ func (l *DockerListener) init() {
 
 	for _, co := range containers {
 		if l.isExcluded(co) {
-			log.Debugf("container %s is filtered out", co.ID)
-			continue
+			continue // helper method already logs
 		}
 		var svc Service
 
@@ -202,7 +201,7 @@ func (l *DockerListener) createService(cID string) {
 			image = ""
 		}
 		if l.filter.IsExcluded(cInspect.Name, image) {
-			log.Debugf("container %s is filtered out", cInspect.ID)
+			log.Debugf("container %s filtered out: name %q image %q", cID[:12], cInspect.Name, image)
 			return
 		}
 		if findKubernetesInLabels(cInspect.Config.Labels) {
@@ -335,6 +334,7 @@ func (l *DockerListener) isExcluded(co types.Container) bool {
 	}
 	for _, name := range co.Names {
 		if l.filter.IsExcluded(name, image) {
+			log.Debugf("container %s filtered out: name %q image %q", co.ID[:12], name, image)
 			return true
 		}
 	}
