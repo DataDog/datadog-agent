@@ -37,6 +37,7 @@ var (
 	TestWg            sync.WaitGroup
 	defaultNumWorkers = 4
 	maxNumWorkers     = 25
+	bookInterval      = 5 * time.Minute
 	runnerStats       *expvar.Map
 	checkStats        *runnerCheckStats
 )
@@ -58,8 +59,9 @@ type runnerCheckStats struct {
 // Runner ...
 type Runner struct {
 	pending          chan check.Check         // The channel where checks come from
-	done             chan bool                // Guard for the main loop
 	runningChecks    map[check.ID]check.Check // The list of checks running
+	bookTicker       *time.Ticker             // Ticker for periodic book-keeping
+	stoppedChecks    map[check.ID]time.Time   // The list of checks that were stopped
 	m                sync.Mutex               // To control races on runningChecks
 	running          uint32                   // Flag to see if the Runner is, well, running
 	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
@@ -77,6 +79,8 @@ func NewRunner() *Runner {
 		// initialize the channel
 		pending:          make(chan check.Check),
 		runningChecks:    make(map[check.ID]check.Check),
+		bookTicker:       time.NewTicker(bookInterval),
+		stoppedChecks:    make(map[check.ID]time.Time),
 		running:          1,
 		staticNumWorkers: numWorkers != 0,
 	}
@@ -84,6 +88,9 @@ func NewRunner() *Runner {
 	if !r.staticNumWorkers {
 		numWorkers = defaultNumWorkers
 	}
+
+	// start book-keeping
+	go r.bookKeeping()
 
 	// start the workers
 	for i := 0; i < numWorkers; i++ {
@@ -178,6 +185,9 @@ func (r *Runner) Stop() {
 	}
 	r.m.Unlock()
 
+	// stop the book-keeping
+	r.bookTicker.Stop()
+
 	go func() {
 		wg.Wait()
 		close(globalDone)
@@ -204,13 +214,17 @@ func (r *Runner) StopCheck(id check.ID) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	// mark checks as stopped even if it's not yet running - might get scheduled
+	r.stoppedChecks[id] = time.Now()
 	if c, isRunning := r.runningChecks[id]; isRunning {
-		log.Debugf("Stopping check %s", c)
+		log.Debugf("Stopping check %s %s", string(id), c)
 		go func() {
+			// Remember that the check was stopped so that even if it runs we can discard its stats
 			c.Stop()
 			close(done)
 		}()
 	} else {
+		log.Debugf("check %s is not running", string(id))
 		return nil
 	}
 
@@ -219,6 +233,21 @@ func (r *Runner) StopCheck(id check.ID) error {
 		return nil
 	case <-time.After(stopCheckTimeout):
 		return fmt.Errorf("timeout during stop operation on check id %s", id)
+	}
+}
+
+// booKeeping ensures we cleanup after ourselves periodically
+// This runs rarely and structures iterated should be small so
+// run-times should be acceptable.
+func (r *Runner) bookKeeping() {
+	for now := range r.bookTicker.C {
+		r.m.Lock()
+		for id, t := range r.stoppedChecks {
+			if now.Sub(t) > bookInterval {
+				delete(r.stoppedChecks, id)
+			}
+		}
+		r.m.Unlock()
 	}
 }
 
@@ -297,10 +326,16 @@ func (r *Runner) work() {
 		// HACK: If a long-running check execute successfully we don't want it to
 		// show up in the status & GUI. This situation can happen when checks
 		// get unscheduled.
-		if !longRunning || len(warnings) != 0 || err != nil {
+		// If check was stopped we don't want its stats to appear in the status
+		r.m.Lock()
+		if _, stopped := r.stoppedChecks[check.ID()]; !stopped &&
+			(!longRunning || len(warnings) != 0 || err != nil) {
 			mStats, _ := check.GetMetricStats()
 			addWorkStats(check, time.Since(t0), err, warnings, mStats)
+		} else if stopped {
+			delete(r.stoppedChecks, check.ID())
 		}
+		r.m.Unlock()
 
 		l := "Done running check %s"
 		if doLog {
@@ -354,6 +389,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
+	log.Debugf("Add stats for %s", string(c.ID()))
 	stats, found := checkStats.Stats[c.String()]
 	if !found {
 		stats = make(map[check.ID]*check.Stats)
@@ -386,12 +422,17 @@ func GetCheckStats() map[string]map[check.ID]*check.Stats {
 
 // RemoveCheckStats removes a check from the check stats map
 func RemoveCheckStats(checkID check.ID) {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
+	checkStats.M.Lock()
+	defer checkStats.M.Unlock()
+	log.Debugf("Remove stats for %s", string(checkID))
+
 	checkName := strings.Split(string(checkID), ":")[0]
 	stats, found := checkStats.Stats[checkName]
 	if found {
 		delete(stats, checkID)
+		if len(stats) == 0 {
+			delete(checkStats.Stats, checkName)
+		}
 	}
 }
 

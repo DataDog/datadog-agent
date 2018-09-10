@@ -137,7 +137,7 @@ func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data
 	// unschedule the instance
 	err := c.scheduler.Cancel(id)
 	if err != nil {
-		return fmt.Errorf("an error occurred while cancelling the check schedule: %s", err)
+		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
 	}
 
 	// stop the instance
@@ -172,10 +172,9 @@ func (c *Collector) StopCheck(id check.ID) error {
 	// unschedule the instance
 	err := c.scheduler.Cancel(id)
 	if err != nil {
-		return fmt.Errorf("an error occurred while cancelling the check schedule: %s", err)
+		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
 	}
 
-	// stop the instance, this might time out
 	err = c.runner.StopCheck(id)
 	if err != nil {
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
