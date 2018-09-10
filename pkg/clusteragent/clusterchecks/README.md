@@ -6,7 +6,6 @@ node-agents' collector, the cluster-agent is only responsible for spreading
 the load across available nodes.
 
 
-
 ## Architecture
 
 ```
@@ -27,9 +26,9 @@ the load across available nodes.
       |                          |
       |            +-------------v-----------+
       |            |        dispatcher       |
-      |            |   Runs the dispatching  |
-      |            |   logic in a goroutine  |
-      +------------>                         |
+      +------------>   Runs the dispatching  |
+                   |   logic in a goroutine  |
+                   |                         |
                    |   +-----------------+   |
                    |   |  clusterStore   |   |
                    |   | holds the state |   |
@@ -42,7 +41,7 @@ The `Handler` class holds the init logic and the glue between components. It has
 scope:
 
   - initialise the other classes and register them
-  - handle the api calls from the node-agents, read configs and write node statuses
+  - handle the api calls from the node-agents, through the dispatcher
   - watch the leader-election status when configured, and handle the dispatcher's lifecycle accordingly
 
 ### dispatcher
@@ -53,6 +52,7 @@ The `dispatcher` has the following scope:
 update the store accordingly
   - watch node statuses and de-register stale nodes
   - re-dispatch orphaned configs
+  - expose its state to the Handler
 
 ### clusterStore and nodeStore
 
