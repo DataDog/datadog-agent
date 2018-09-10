@@ -141,9 +141,7 @@ func (t *Tailer) readForever() {
 				if err != io.EOF {
 					t.source.Status.Error(err)
 					log.Error("Err: ", err)
-				}
-				if err == io.ErrUnexpectedEOF { // TODO: Catch the networking errors instead of just the Unexpected EOF
-					log.Warn("Unexpected EOF: The tailer of container ", ShortContainerID(t.ContainerID), " will restart")
+					log.Warn("The tailer of container ", ShortContainerID(t.ContainerID), " will restart")
 					t.erroredContainerID <- t.ContainerID
 				}
 				return

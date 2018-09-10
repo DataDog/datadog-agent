@@ -179,8 +179,8 @@ func (l *Launcher) stopTailer(containerID string) {
 }
 
 func (l *Launcher) restartTailer(containerID string) {
-	backoffDuration := 1 * time.Microsecond
-	backoffMax := 60 * time.Microsecond
+	backoffDuration := 1 * time.Second
+	backoffMax := 60 * time.Second
 	var tailer *Tailer
 	var source *config.LogSource
 
@@ -188,8 +188,6 @@ func (l *Launcher) restartTailer(containerID string) {
 		if backoffDuration > backoffMax {
 			backoffDuration = backoffMax
 		}
-
-		time.Sleep(backoffDuration)
 
 		if i == 0 {
 			oldTailer, _ := l.tailers[containerID]
@@ -203,6 +201,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		since, err := Since(l.registry, tailer.Identifier(), service.Before)
 		if err != nil {
 			log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
+			time.Sleep(backoffDuration)
 			backoffDuration *= 2
 			continue
 		}
@@ -211,6 +210,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		err = tailer.Start(since)
 		if err != nil {
 			log.Warnf("Could not start tailer: %v", containerID, err)
+			time.Sleep(backoffDuration)
 			backoffDuration *= 2
 			continue
 		}
