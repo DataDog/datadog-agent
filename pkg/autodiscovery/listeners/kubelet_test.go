@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -60,6 +62,18 @@ func getMockedPods() []*kubelet.Pod {
 				},
 			},
 		},
+		{
+			Name:  "excluded",
+			Image: "datadoghq.com/baz:latest",
+			Ports: []kubelet.ContainerPortSpec{
+				{
+					ContainerPort: 1122,
+					HostPort:      1133,
+					Name:          "barport",
+					Protocol:      "TCP",
+				},
+			},
+		},
 	}
 	kubeletSpec := kubelet.Spec{
 		HostNetwork: false,
@@ -81,6 +95,11 @@ func getMockedPods() []*kubelet.Pod {
 			Name:  "baz",
 			Image: "datadoghq.com/baz:latest",
 			ID:    "docker://containerid",
+		},
+		{
+			Name:  "excluded",
+			Image: "datadoghq.com/baz:latest",
+			ID:    "docker://excluded",
 		},
 	}
 	kubeletStatus := kubelet.Status{
@@ -104,11 +123,23 @@ func getMockedPods() []*kubelet.Pod {
 }
 
 func TestProcessNewPod(t *testing.T) {
-	services := make(chan Service, 3)
+	config.Datadog.SetDefault("ac_include", []string{"name:baz"})
+	config.Datadog.SetDefault("ac_exclude", []string{"image:datadoghq.com/baz.*"})
+	containers.ResetSharedFilter()
+
+	defer func() {
+		config.Datadog.SetDefault("ac_include", []string{})
+		config.Datadog.SetDefault("ac_exclude", []string{})
+		containers.ResetSharedFilter()
+	}()
+
+	services := make(chan Service, 5)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
 	}
+	listener.filter, _ = containers.GetSharedFilter()
+
 	listener.processNewPods(getMockedPods(), false)
 
 	select {
@@ -126,7 +157,7 @@ func TestProcessNewPod(t *testing.T) {
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 	default:
-		t.FailNow()
+		assert.FailNow(t, "first service not in channel")
 	}
 
 	select {
@@ -144,7 +175,7 @@ func TestProcessNewPod(t *testing.T) {
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 	default:
-		t.FailNow()
+		assert.FailNow(t, "second service not in channel")
 	}
 
 	select {
@@ -162,6 +193,14 @@ func TestProcessNewPod(t *testing.T) {
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 	default:
-		t.FailNow()
+		assert.FailNow(t, "third service not in channel")
+	}
+
+	// Fourth container is filtered out
+	select {
+	case <-services:
+		assert.FailNow(t, "four services in channel, filtering is broken")
+	default:
+		// all good
 	}
 }

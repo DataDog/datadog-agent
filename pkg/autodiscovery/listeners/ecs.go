@@ -24,6 +24,7 @@ import (
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
 	task       ecs.TaskMetadata
+	filter     *containers.Filter
 	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
 	delService chan<- Service
@@ -52,9 +53,14 @@ func init() {
 
 // NewECSListener creates an ECSListener
 func NewECSListener() (ServiceListener, error) {
+	filter, err := containers.GetSharedFilter()
+	if err != nil {
+		return nil, err
+	}
 	return &ECSListener{
 		services: make(map[string]Service),
 		stop:     make(chan bool),
+		filter:   filter,
 		t:        time.NewTicker(2 * time.Second),
 		health:   health.Register("ad-ecslistener"),
 	}, nil
@@ -114,6 +120,10 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 		}
 		if c.KnownStatus != "RUNNING" {
 			log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
+			continue
+		}
+		if l.filter.IsExcluded(c.DockerName, c.Image) {
+			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
 			continue
 		}
 		s, err := l.createService(c, firstRun)
