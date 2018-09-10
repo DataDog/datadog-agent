@@ -23,7 +23,6 @@ type Handler struct {
 	m          sync.Mutex
 	autoconfig *autodiscovery.AutoConfig
 	dispatcher *dispatcher
-	store      *clusterStore
 	running    bool
 }
 
@@ -45,8 +44,7 @@ func (h *Handler) StartDiscovery() error {
 	}
 
 	// Clean initial state
-	h.store = newClusterStore()
-	h.dispatcher = newDispatcher(h.store)
+	h.dispatcher = newDispatcher()
 	h.running = true
 
 	// Register our scheduler and ask for a config replay
@@ -68,7 +66,6 @@ func (h *Handler) StopDiscovery() error {
 
 	// Release memory
 	h.dispatcher = nil
-	h.store = nil
 
 	return nil
 }

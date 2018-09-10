@@ -18,9 +18,9 @@ type dispatcher struct {
 	store *clusterStore
 }
 
-func newDispatcher(store *clusterStore) *dispatcher {
+func newDispatcher() *dispatcher {
 	return &dispatcher{
-		store: store,
+		store: newClusterStore(),
 	}
 }
 

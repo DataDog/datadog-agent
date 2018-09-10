@@ -17,8 +17,7 @@ import (
 )
 
 func TestScheduleUnschedule(t *testing.T) {
-	store := newClusterStore()
-	dispatcher := newDispatcher(store)
+	dispatcher := newDispatcher()
 	stored, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Len(t, stored, 0)
@@ -42,12 +41,11 @@ func TestScheduleUnschedule(t *testing.T) {
 	stored, err = dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Len(t, stored, 0)
-	requireNotLocked(t, store)
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestScheduleReschedule(t *testing.T) {
-	store := newClusterStore()
-	dispatcher := newDispatcher(store)
+	dispatcher := newDispatcher()
 
 	config := integration.Config{
 		Name:         "cluster-check",
@@ -79,12 +77,11 @@ func TestScheduleReschedule(t *testing.T) {
 	assert.Len(t, stored, 1)
 	assert.Contains(t, stored, config)
 
-	requireNotLocked(t, store)
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestProcessNodeStatus(t *testing.T) {
-	store := newClusterStore()
-	dispatcher := newDispatcher(store)
+	dispatcher := newDispatcher()
 
 	status1 := types.NodeStatus{LastChange: 0}
 	//status2 := types.NodeStatus{LastChange: 1000}
@@ -93,7 +90,7 @@ func TestProcessNodeStatus(t *testing.T) {
 	upToDate, err := dispatcher.processNodeStatus("node1", status1)
 	assert.NoError(t, err)
 	assert.True(t, upToDate)
-	node1, found := store.getNodeStore("node1", false)
+	node1, found := dispatcher.store.getNodeStore("node1", false)
 	assert.True(t, found)
 	assert.Equal(t, status1, node1.lastStatus)
 	assert.True(t, timestampNow() >= node1.lastPing)
@@ -115,5 +112,5 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, upToDate)
 
-	requireNotLocked(t, store)
+	requireNotLocked(t, dispatcher.store)
 }
