@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"google.golang.org/grpc"
@@ -41,15 +42,18 @@ type CRIUtil struct {
 // init makes an empty CRIUtil bootstrap itself.
 // This is not exposed as public API but is called by the retrier embed.
 func (c *CRIUtil) init() error {
-	// TODO config?
-	c.queryTimeout = 5 * time.Second
+	c.queryTimeout = config.Datadog.GetDuration("cri_query_timeout") * time.Second
+	socket_path := config.Datadog.GetString("cri_socket_path")
 
-	addr := "/var/run/containerd/containerd.sock"
-	dialer := func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", addr, timeout)
+	if socket_path == "" {
+		return fmt.Errorf("no cri_socket_path path was set")
 	}
 
-	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithTimeout(c.queryTimeout), grpc.WithDialer(dialer))
+	dialer := func(socket_path string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", socket_path, timeout)
+	}
+
+	conn, err := grpc.Dial(socket_path, grpc.WithInsecure(), grpc.WithTimeout(c.queryTimeout), grpc.WithDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}

@@ -23,8 +23,7 @@ const (
 
 // CRIConfig holds the config of the check
 type CRIConfig struct {
-	RuntimeEndpoint string   `yaml:"runtime_endpoint"`
-	Tags            []string `yaml:"tags"`
+	Tags []string `yaml:"tags"`
 }
 
 // CRICheck grabs CRI metrics

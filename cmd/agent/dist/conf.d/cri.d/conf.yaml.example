@@ -1,10 +1,10 @@
 init_config:
 
 instances:
-  - ## Tagging
-    ##
 
-    # You can add extra tags to your Docker metrics with the tags list option.
-    # Example: ["extra_tag", "env:testing"]
+    ## @param tags  - list of key:value elements - optional
+    ## List of tags to attach to every metrics, events and service checks emitted by this integration.
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
     #
-    # tags: []
+    # - tags:
+    #   - <KEY_1>:<VALUE_1>,<KEY_2>:<VALUE_3>
