@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,6 +32,7 @@ import (
 // match templates against.
 type DockerListener struct {
 	dockerUtil *docker.DockerUtil
+	filter     *containers.Filter
 	services   map[string]Service
 	newService chan<- Service
 	delService chan<- Service
@@ -61,8 +63,13 @@ func NewDockerListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, err
 	}
+	filter, err := containers.GetSharedFilter()
+	if err != nil {
+		return nil, err
+	}
 	return &DockerListener{
 		dockerUtil: d,
+		filter:     filter,
 		services:   make(map[string]Service),
 		stop:       make(chan bool),
 		health:     health.Register("ad-dockerlistener"),
@@ -124,6 +131,10 @@ func (l *DockerListener) init() {
 	}
 
 	for _, co := range containers {
+		if l.isExcluded(co) {
+			log.Debugf("container %s is filtered out", co.ID)
+			continue
+		}
 		var svc Service
 
 		if findKubernetesInLabels(co.Labels) {
@@ -184,8 +195,19 @@ func (l *DockerListener) createService(cID string) {
 	cInspect, err := l.dockerUtil.Inspect(cID, false)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
-	} else if findKubernetesInLabels(cInspect.Config.Labels) {
-		isKube = true
+	} else {
+		image, err := l.dockerUtil.ResolveImageName(cInspect.Image)
+		if err != nil {
+			log.Warnf("error while resolving image name: %s", err)
+			image = ""
+		}
+		if l.filter.IsExcluded(cInspect.Name, image) {
+			log.Debugf("container %s is filtered out", cInspect.ID)
+			return
+		}
+		if findKubernetesInLabels(cInspect.Config.Labels) {
+			isKube = true
+		}
 	}
 
 	if isKube {
@@ -303,6 +325,20 @@ func (l *DockerListener) getPortsFromPs(co types.Container) []ContainerPort {
 // GetEntity returns the unique entity name linked to that service
 func (s *DockerService) GetEntity() string {
 	return docker.ContainerIDToEntityName(s.cID)
+}
+
+func (l *DockerListener) isExcluded(co types.Container) bool {
+	image, err := l.dockerUtil.ResolveImageName(co.Image)
+	if err != nil {
+		log.Warnf("error while resolving image name: %s", err)
+		image = ""
+	}
+	for _, name := range co.Names {
+		if l.filter.IsExcluded(name, image) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.

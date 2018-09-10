@@ -30,6 +30,7 @@ const (
 // KubeletListener listen to kubelet pod creation
 type KubeletListener struct {
 	watcher    *kubelet.PodWatcher
+	filter     *containers.Filter
 	services   map[string]Service
 	newService chan<- Service
 	delService chan<- Service
@@ -57,8 +58,13 @@ func NewKubeletListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, err
 	}
+	filter, err := containers.GetSharedFilter()
+	if err != nil {
+		return nil, err
+	}
 	return &KubeletListener{
 		watcher:  watcher,
+		filter:   filter,
 		services: make(map[string]Service),
 		ticker:   time.NewTicker(15 * time.Second),
 		stop:     make(chan bool),
@@ -139,6 +145,10 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	var containerName string
 	for _, container := range pod.Status.Containers {
 		if container.ID == svc.entity {
+			if l.filter.IsExcluded(container.Name, container.Image) {
+				log.Debugf("container %s is filtered out", container.ID)
+				return
+			}
 			containerName = container.Name
 
 			// Add container uid as ID
