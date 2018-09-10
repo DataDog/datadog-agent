@@ -62,21 +62,11 @@ spec:
                   containerPort: 6379
                 resources:
                   requests:
-                    memory: "32Mi"
-                    cpu: "5m"
+                    memory: "64Mi"
+                    cpu: "50m"
                   limits:
-                    memory: "32Mi"
-                    cpu: "5m"
-              - name: redis-sidecar
-                image: redis
-                command: ["sleep", "1000d"]
-                resources:
-                  requests:
-                    memory: "32Mi"
-                    cpu: "5m"
-                  limits:
-                    memory: "32Mi"
-                    cpu: "5m"
+                    memory: "128Mi"
+                    cpu: "100m"
 
     - name: cpu-stress
       value: |
@@ -193,7 +183,6 @@ spec:
               polling: true
             leader_election: true
             kubernetes_metadata_tag_update_freq: 20
-            ac_exclude: ["name:redis-sidecar"]
 
           kubelet.yaml: |
             init_config:
@@ -822,24 +811,13 @@ spec:
         while (1) {
           var nb = db.series.find({
             metric: {$regex: "redis*"},
-            tags: {$all: ["kube_service:redis", "kube_container_name:redis"]}
+            tags: "kube_service:redis"
           }).count();
           print("find: " + nb)
           if (nb != 0) {
             break;
           }
           sleep(2000);
-        }
-
-        // Make sure we don't collect metrics for the excluded redis sidecar.
-        // Wait a whole collector cycle as bucket scheduling might delay the run
-        sleep(15000);
-        var nb = db.series.find({
-          metric: {$regex: "redis*"},
-          tags: {$all: ["kube_service:redis", "kube_container_name:redis-sidecar"]}
-        }).count();
-        if (nb != 0) {
-          throw new Error("Detected metrics for excluded container redis-sidecar");
         }
 
   - name: find-metrics-cpu-kubelet
