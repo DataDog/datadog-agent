@@ -214,14 +214,14 @@ func (r *Runner) StopCheck(id check.ID) error {
 	defer r.m.Unlock()
 
 	if c, isRunning := r.runningChecks[id]; isRunning {
-		log.Debugf("Stopping check %s %s", string(id), c)
+		log.Debugf("Stopping check %s", c.ID())
 		go func() {
 			// Remember that the check was stopped so that even if it runs we can discard its stats
 			c.Stop()
 			close(done)
 		}()
 	} else {
-		log.Debugf("check %s is not running", string(id))
+		log.Debugf("Check %s is not running, not stopping it", id)
 		return nil
 	}
 
