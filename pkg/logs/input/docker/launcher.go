@@ -23,31 +23,31 @@ import (
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
-	pipelineProvider  pipeline.Provider
-	sources           chan *config.LogSource
-	addedServices     chan *service.Service
-	removedServices   chan *service.Service
-	activeSources     []*config.LogSource
-	pendingContainers map[string]*Container
-	tailers           map[string]*Tailer
-	cli               *client.Client
-	registry          auditor.Registry
-	stop              chan struct{}
-	lostSocket        chan string
+	pipelineProvider   pipeline.Provider
+	sources            chan *config.LogSource
+	addedServices      chan *service.Service
+	removedServices    chan *service.Service
+	activeSources      []*config.LogSource
+	pendingContainers  map[string]*Container
+	tailers            map[string]*Tailer
+	cli                *client.Client
+	registry           auditor.Registry
+	stop               chan struct{}
+	erroredContainerID chan string
 }
 
 // NewLauncher returns a new launcher
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
 	launcher := &Launcher{
-		pipelineProvider:  pipelineProvider,
-		sources:           sources.GetSourceStreamForType(config.DockerType),
-		addedServices:     services.GetAddedServices(service.Docker),
-		removedServices:   services.GetRemovedServices(service.Docker),
-		tailers:           make(map[string]*Tailer),
-		pendingContainers: make(map[string]*Container),
-		registry:          registry,
-		stop:              make(chan struct{}),
-		lostSocket:        make(chan string, 1),
+		pipelineProvider:   pipelineProvider,
+		sources:            sources.GetSourceStreamForType(config.DockerType),
+		addedServices:      services.GetAddedServices(service.Docker),
+		removedServices:    services.GetRemovedServices(service.Docker),
+		tailers:            make(map[string]*Tailer),
+		pendingContainers:  make(map[string]*Container),
+		registry:           registry,
+		stop:               make(chan struct{}),
+		erroredContainerID: make(chan string, 1),
 	}
 	err := launcher.setup()
 	if err != nil {
@@ -135,7 +135,7 @@ func (l *Launcher) run() {
 			containerID := service.Identifier
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
-		case containerId := <-l.lostSocket:
+		case containerId := <-l.erroredContainerID:
 			l.restartTailer(containerId)
 		case <-l.stop:
 			// no docker container should be tailed anymore
@@ -152,7 +152,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		return
 	}
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.lostSocket)
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
@@ -197,7 +197,7 @@ func (l *Launcher) restartTailer(containerID string) {
 			oldTailer.Stop()
 		}
 
-		tailer = NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.lostSocket)
+		tailer = NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 		// compute the offset to prevent from missing or duplicating logs
 		since, err := Since(l.registry, tailer.Identifier(), service.Before)

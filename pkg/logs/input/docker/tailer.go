@@ -31,8 +31,8 @@ const defaultSleepDuration = 1 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
 
 // Tailer tails logs coming from stdout and stderr of a docker container
-// With docker api, there is no way to know if a log comes from stdout or stderr
-// so if we want to capture the severity, we need to tail both in two goroutines
+// Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
+// To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
 type Tailer struct {
 	ContainerID   string
 	outputChan    chan message.Message
@@ -42,25 +42,25 @@ type Tailer struct {
 	source        *config.LogSource
 	containerTags []string
 
-	sleepDuration time.Duration
-	shouldStop    bool
-	stop          chan struct{}
-	done          chan struct{}
-	unexpectedEOF chan string
+	sleepDuration      time.Duration
+	shouldStop         bool
+	stop               chan struct{}
+	done               chan struct{}
+	erroredContainerID chan string
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message, unexpectedEOF chan string) *Tailer {
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
-		ContainerID:   containerID,
-		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source),
-		source:        source,
-		cli:           cli,
-		sleepDuration: defaultSleepDuration,
-		stop:          make(chan struct{}, 1),
-		done:          make(chan struct{}, 1),
-		unexpectedEOF: unexpectedEOF,
+		ContainerID:        containerID,
+		outputChan:         outputChan,
+		decoder:            decoder.InitializeDecoder(source),
+		source:             source,
+		cli:                cli,
+		sleepDuration:      defaultSleepDuration,
+		stop:               make(chan struct{}, 1),
+		done:               make(chan struct{}, 1),
+		erroredContainerID: erroredContainerID,
 	}
 }
 
@@ -142,9 +142,9 @@ func (t *Tailer) readForever() {
 					t.source.Status.Error(err)
 					log.Error("Err: ", err)
 				}
-				if err == io.ErrUnexpectedEOF {
+				if err == io.ErrUnexpectedEOF { // TODO: Catch the networking errors instead of just the Unexpected EOF
 					log.Warn("Unexpected EOF: The tailer of container ", ShortContainerID(t.ContainerID), " will restart")
-					t.unexpectedEOF <- t.ContainerID
+					t.erroredContainerID <- t.ContainerID
 				}
 				return
 			}
