@@ -16,8 +16,8 @@ import (
 )
 
 // clusterStore holds the state of cluster-check management.
-// Lock is to be held by the users (dispatcher and api handler)
-// so they can make atomic operations involving several calls.
+// Lock is to be held by the dispatcher so it can make atomic
+// operations involving several calls.
 type clusterStore struct {
 	sync.RWMutex
 	digestToConfig map[string]integration.Config // All configurations to dispatch
@@ -53,8 +53,8 @@ func (s *clusterStore) getNodeStore(nodeName string, create bool) (*nodeStore, b
 	return node, false
 }
 
-// nodeStore holds the state store for one node. Lock is to be held
-// by the user (dispatcher)
+// nodeStore holds the state store for one node.
+// Lock is to be held by the user (dispatcher)
 type nodeStore struct {
 	sync.RWMutex
 	lastPing         int64

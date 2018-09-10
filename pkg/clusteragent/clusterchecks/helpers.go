@@ -14,7 +14,7 @@ import (
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
-// allows for thread-safe usage by other classes, as long as the field values in
+// allows for thread-safe usage by other external, as long as the field values in
 // the config objects are not modified.
 func makeConfigArray(configMap map[string]integration.Config) []integration.Config {
 	configSlice := make([]integration.Config, 0, len(configMap))

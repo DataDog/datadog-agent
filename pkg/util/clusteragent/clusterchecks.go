@@ -21,6 +21,8 @@ const (
 	dcaClusterChecksConfigsPath = dcaClusterChecksPath + "/configs"
 )
 
+// TODO: cache redirects to leader, and invalide cache on http errors
+
 // PostClusterCheckStatus is called by the clustercheck config provider
 func (c *DCAClient) PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
 	var response types.StatusResponse

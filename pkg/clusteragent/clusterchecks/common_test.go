@@ -20,8 +20,8 @@ type lockable interface {
 	Unlock()
 }
 
-// requireNotLocked tries to lock an object to make sure it
-// is not left locked after an operation
+// requireNotLocked tries to lock a clusterStore to
+// make sure it is not left locked after an operation
 func requireNotLocked(t *testing.T, s *clusterStore) bool {
 	t.Helper()
 	if isLocked(s) {

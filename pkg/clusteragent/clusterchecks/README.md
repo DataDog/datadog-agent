@@ -10,32 +10,30 @@ the load across available nodes.
 ## Architecture
 
 ```
-                                  +-------------+
-                                  | node-agents |
-                                  +-+-----------+
-                                    | queries (/v1/api/clusterchecks/)
-                                    |
-   +----------+                     |
-   | AutoConf < - - - - - - - \     |
-   +-----+----+        setups |     |
-         |                    |     |
-         |                    |     v          watches   +----------------+
-         |                    \-  Handler  --------------> leaderelection |
-   sends |                      Public API               +----------------+
- configs |                   init logic, glue.
-         |                          |
-         |                          |
-         |                          |
-         |                          |
-         |                          | init
-         v                          | reads
-     dispatcher               init  | writes          clusterStore
-Runs the dispatching  < - - - - - - +------------>  holds the state
-logic in a goroutine                                       ^
-         |                                                 |
-         |                   reads, writes                 |
-         \-------------------------------------------------/
-
+                               +-------------+
+                               | node agents |
+                               +-+-----------+
+                                 |
+                                 | queries (/v1/api/clusterchecks/)
+                                 |
+                       +---------v----------+
++----------+  setups   |       Handler      |   watches   +----------------+
+| AutoConf <-----------+     Public API     +-------------> leaderelection |
++-----+----+           |  init logic, glue  |             +----------------+
+      |                +---------+----------+
+      |                          |
+      | sends                    | inits
+      | configs                  | passes queries
+      |                          |
+      |            +-------------v-----------+
+      |            |        dispatcher       |
+      |            |   Runs the dispatching  |
+      |            |   logic in a goroutine  |
+      +------------>                         |
+                   |   +-----------------+   |
+                   |   |  clusterStore   |   |
+                   |   | holds the state |   |
+                   +---+-----------------+---+
 ```
 
 ### Handler
@@ -61,11 +59,8 @@ update the store accordingly
 These classes hold the dispatching state and provide convenience methods to make sure the
 state stays consistent.
 To ensure `dispatcher` operations (that require several reads / writes to the store) are
-atomic, the stores are designed with an external locking, held by the `Handler` and
-`dispatcher` on access.
+atomic, the stores are designed with an external locking, held by the `dispatcher` on access.
 
 ## Node-agent communication
 
 The node-agent queries the cluster-agent through the autodiscovery `ClusterChecksConfigProvider`.
-
-

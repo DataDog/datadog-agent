@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-// TODO: handle non-leader / warmup phases, handler function will
+// TODO: handle non-leader / warmup phases, handler methods will
 // become more complex at that stage
 
 // ShouldRedirect returns the leader's hostname if the cluster-agent
