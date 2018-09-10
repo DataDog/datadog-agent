@@ -37,6 +37,7 @@ var (
 	TestWg            sync.WaitGroup
 	defaultNumWorkers = 4
 	maxNumWorkers     = 25
+	bookInterval      = 5 * time.Minute
 	runnerStats       *expvar.Map
 	checkStats        *runnerCheckStats
 )
@@ -58,9 +59,9 @@ type runnerCheckStats struct {
 // Runner ...
 type Runner struct {
 	pending          chan check.Check         // The channel where checks come from
-	done             chan bool                // Guard for the main loop
 	runningChecks    map[check.ID]check.Check // The list of checks running
-	stoppedChecks    map[check.ID]struct{}    // The list of checks that were stopped
+	bookTicker       *time.Ticker             // Ticker for periodic book-keeping
+	stoppedChecks    map[check.ID]time.Time   // The list of checks that were stopped
 	m                sync.Mutex               // To control races on runningChecks
 	running          uint32                   // Flag to see if the Runner is, well, running
 	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
@@ -78,7 +79,8 @@ func NewRunner() *Runner {
 		// initialize the channel
 		pending:          make(chan check.Check),
 		runningChecks:    make(map[check.ID]check.Check),
-		stoppedChecks:    make(map[check.ID]struct{}),
+		bookTicker:       time.NewTicker(bookInterval),
+		stoppedChecks:    make(map[check.ID]time.Time),
 		running:          1,
 		staticNumWorkers: numWorkers != 0,
 	}
@@ -86,6 +88,9 @@ func NewRunner() *Runner {
 	if !r.staticNumWorkers {
 		numWorkers = defaultNumWorkers
 	}
+
+	// start book-keeping
+	go r.bookKeeping()
 
 	// start the workers
 	for i := 0; i < numWorkers; i++ {
@@ -180,6 +185,9 @@ func (r *Runner) Stop() {
 	}
 	r.m.Unlock()
 
+	// stop the book-keeping
+	r.bookTicker.Stop()
+
 	go func() {
 		wg.Wait()
 		close(globalDone)
@@ -207,7 +215,7 @@ func (r *Runner) StopCheck(id check.ID) error {
 	defer r.m.Unlock()
 
 	// mark checks as stopped even if it's not yet running - might get scheduled
-	r.stoppedChecks[id] = struct{}{}
+	r.stoppedChecks[id] = time.Now()
 	if c, isRunning := r.runningChecks[id]; isRunning {
 		log.Debugf("Stopping check %s %s", string(id), c)
 		go func() {
@@ -228,6 +236,21 @@ func (r *Runner) StopCheck(id check.ID) error {
 	}
 }
 
+// booKeeping ensures we cleanup after ourselves periodically
+// This runs rarely and structures iterated should be small so
+// run-times should be acceptable.
+func (r *Runner) bookKeeping() {
+	for now := range r.bookTicker.C {
+		r.m.Lock()
+		for id, t := range r.stoppedChecks {
+			if now.Sub(t) > bookInterval {
+				delete(r.stoppedChecks, id)
+			}
+		}
+		r.m.Unlock()
+	}
+}
+
 // work waits for checks and run them as long as they arrive on the channel
 func (r *Runner) work() {
 	log.Debug("Ready to process checks...")
@@ -236,10 +259,9 @@ func (r *Runner) work() {
 
 	for check := range r.pending {
 		// see if the check is already running
-		log.Errorf("trying to run %s", string(check.ID()))
 		r.m.Lock()
 		if _, isRunning := r.runningChecks[check.ID()]; isRunning {
-			log.Errorf("Check %s is already running, skip execution...", check)
+			log.Debugf("Check %s is already running, skip execution...", check)
 			r.m.Unlock()
 			continue
 		} else {
@@ -251,9 +273,9 @@ func (r *Runner) work() {
 		doLog, lastLog := shouldLog(check.ID())
 
 		if doLog {
-			log.Errorf("Running check %s", check)
+			log.Infof("Running check %s", check)
 		} else {
-			log.Errorf("Running check %s", check)
+			log.Infof("Running check %s", check)
 		}
 
 		// run the check
