@@ -37,6 +37,10 @@ type DockerListenerTestSuite struct {
 }
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
+	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
+	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
+	containers.ResetSharedFilter()
+
 	tagger.Init()
 
 	config.SetupLogger(
@@ -58,11 +62,13 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	}
 }
 
-func (suite *DockerListenerTestSuite) SetupTest() {
-	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
-	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
+func (suite *DockerListenerTestSuite) TearDownSuite() {
+	config.Datadog.SetDefault("ac_include", []string{})
+	config.Datadog.SetDefault("ac_exclude", []string{})
 	containers.ResetSharedFilter()
+}
 
+func (suite *DockerListenerTestSuite) SetupTest() {
 	dl, err := listeners.NewDockerListener()
 	if err != nil {
 		panic(err)
@@ -74,10 +80,6 @@ func (suite *DockerListenerTestSuite) SetupTest() {
 }
 
 func (suite *DockerListenerTestSuite) TearDownTest() {
-	config.Datadog.SetDefault("ac_include", []string{})
-	config.Datadog.SetDefault("ac_exclude", []string{})
-	containers.ResetSharedFilter()
-
 	suite.listener.Stop()
 	suite.listener = nil
 	suite.stopContainers()
