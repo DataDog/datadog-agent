@@ -43,17 +43,17 @@ type CRIUtil struct {
 // This is not exposed as public API but is called by the retrier embed.
 func (c *CRIUtil) init() error {
 	c.queryTimeout = config.Datadog.GetDuration("cri_query_timeout") * time.Second
-	socket_path := config.Datadog.GetString("cri_socket_path")
+	socketPath := config.Datadog.GetString("cri_socket_path")
 
-	if socket_path == "" {
+	if socketPath == "" {
 		return fmt.Errorf("no cri_socket_path path was set")
 	}
 
-	dialer := func(socket_path string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout("unix", socket_path, timeout)
+	dialer := func(socketPath string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", socketPath, timeout)
 	}
 
-	conn, err := grpc.Dial(socket_path, grpc.WithInsecure(), grpc.WithTimeout(c.queryTimeout), grpc.WithDialer(dialer))
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithTimeout(c.queryTimeout), grpc.WithDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}
@@ -91,7 +91,7 @@ func GetCRIUtil() (*CRIUtil, error) {
 	return globalCRIUtil, nil
 }
 
-// Version sends a VersionRequest to the server, and parses the returned VersionResponse.
+// ListContainerStats sends a ListContainerStatsRequest to the server, and parses the returned response
 func (c *CRIUtil) ListContainerStats() (map[string]*pb.ContainerStats, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
