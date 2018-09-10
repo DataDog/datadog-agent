@@ -69,9 +69,7 @@ spec:
                     cpu: "5m"
               - name: redis-sidecar
                 image: redis
-                ports:
-                - name: redis
-                  containerPort: 6380
+                command: ["sleep", "1000d"]
                 resources:
                   requests:
                     memory: "32Mi"
@@ -833,6 +831,7 @@ spec:
           sleep(2000);
         }
 
+        // Make sure we don't collect metrics for the excluded redis sidecar.
         // Wait a whole collector cycle as bucket scheduling might delay the run
         sleep(15000);
         var nb = db.series.find({
