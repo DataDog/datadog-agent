@@ -110,6 +110,7 @@ func (s *Scheduler) Cancel(id check.ID) error {
 	if err != nil {
 		return fmt.Errorf("unable to remove the Job from the queue: %s", err)
 	}
+	delete(s.checkToQueue, id)
 
 	schedulerChecksEntered.Add(-1)
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
