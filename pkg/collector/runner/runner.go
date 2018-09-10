@@ -209,14 +209,14 @@ func (r *Runner) StopCheck(id check.ID) error {
 	// mark checks as stopped even if it's not yet running - might get scheduled
 	r.stoppedChecks[id] = struct{}{}
 	if c, isRunning := r.runningChecks[id]; isRunning {
-		log.Errorf("Stopping check %s %s", string(id), c)
+		log.Debugf("Stopping check %s %s", string(id), c)
 		go func() {
 			// Remember that the check was stopped so that even if it runs we can discard its stats
 			c.Stop()
 			close(done)
 		}()
 	} else {
-		log.Errorf("check %s is not running", string(id))
+		log.Debugf("check %s is not running", string(id))
 		return nil
 	}
 
