@@ -24,7 +24,7 @@ type DiscoveredIntegrations struct {
 }
 
 // DiscoverIntegrations retrieves processes running on the host and tries to find possible integrations
-func DiscoverIntegrations() (DiscoveredIntegrations, error) {
+func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
 	di := DiscoveredIntegrations{}
 	matcher, err := procmatch.NewDefault()
 
@@ -38,9 +38,13 @@ func DiscoverIntegrations() (DiscoveredIntegrations, error) {
 		return di, fmt.Errorf("Couldn't retrieve process list: %s", err)
 	}
 
-	running, failing, err := retrieveIntegrations()
-	if err != nil {
-		return di, err
+	if !discoverOnly {
+		running, failing, err := retrieveIntegrations()
+		if err != nil {
+			return di, err
+		}
+		di.Running = running
+		di.Failing = failing
 	}
 
 	// processList is a set of processes (removes duplicate processes)
@@ -73,8 +77,6 @@ func DiscoverIntegrations() (DiscoveredIntegrations, error) {
 		})
 	}
 	di.Discovered = integrations
-	di.Running = running
-	di.Failing = failing
 
 	return di, nil
 }

@@ -11,8 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/procdiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/procdiscovery"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
