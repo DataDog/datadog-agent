@@ -9,9 +9,6 @@ import (
 	"sync"
 )
 
-// capacity of the channels
-const capacity = 10
-
 // Services provides new and removed services.
 type Services struct {
 	addedPerType   map[string]chan *Service
@@ -53,7 +50,7 @@ func (s *Services) getAddedServices(serviceType string) chan *Service {
 	if added, exists := s.addedPerType[serviceType]; exists {
 		return added
 	}
-	added := make(chan *Service, capacity)
+	added := make(chan *Service)
 	s.addedPerType[serviceType] = added
 	return added
 }
@@ -64,7 +61,7 @@ func (s *Services) getRemovedServices(serviceType string) chan *Service {
 	if removed, exists := s.removedPerType[serviceType]; exists {
 		return removed
 	}
-	removed := make(chan *Service, capacity)
+	removed := make(chan *Service)
 	s.removedPerType[serviceType] = removed
 	return removed
 }

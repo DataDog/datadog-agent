@@ -14,15 +14,34 @@ import (
 )
 
 // Launcher is not supported on no systemd environment.
-type Launcher struct{}
+type Launcher struct {
+	sources *config.LogSources
+	stop    chan struct{}
+}
 
 // NewLauncher returns a new Launcher
 func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
-	return &Launcher{}
+	return &Launcher{
+		sources: sources,
+		stop:    make(chan struct{}),
+	}
 }
 
 // Start does nothing
-func (l *Launcher) Start() {}
+func (l *Launcher) Start() {
+	go func() {
+		for {
+			select {
+			case <-l.sources.GetSourceStreamForType(config.JournaldType):
+				continue
+			case <-l.stop:
+				return
+			}
+		}
+	}()
+}
 
 // Stop does nothing
-func (l *Launcher) Stop() {}
+func (l *Launcher) Stop() {
+	l.stop <- struct{}{}
+}
