@@ -44,11 +44,15 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{- end }}
   {{- end }}
     hostname provider: {{.hostnameStats.provider}}
+  {{- if gt (len .hostnameStats.errors) 0 }}
+    unused hostname providers:
+  {{- end }}
   {{- range $name, $value := .hostnameStats.errors -}}
-    {{- if ne $name "all" }}
-    error: {{$name}}: {{$value}}
-    {{- else }}
-    error: {{$value}}
-    {{- end}}
+      {{- if ne $name "all" }}
+      {{$name}}: {{$value}}
+      {{- end}}
+  {{- end }}
+  {{- if .hostnameStats.errors.all }}
+    error: {{.hostnameStats.errors.all}}
   {{- end }}
 {{/* this line intentionally left blank */}}
