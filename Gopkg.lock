@@ -1542,6 +1542,14 @@
   revision = "b742be413d0a6f781c123bed504c8fb39264c57d"
 
 [[projects]]
+  digest = "1:13614139aef760b502fe057a8d34e9c4257d1581fb85498b0053267596e0514c"
+  name = "k8s.io/kubernetes"
+  packages = ["pkg/kubelet/apis/cri/runtime/v1alpha2"]
+  pruneopts = ""
+  revision = "bb9ffb1654d4a729bb4cec18ff088eacc153c239"
+  version = "v1.11.2"
+
+[[projects]]
   digest = "1:f25f07a85862183de4ac853ef22fe8b7fd9fb08f7e26c21577e6e7133ecbd540"
   name = "k8s.io/metrics"
   packages = [
@@ -1638,6 +1646,7 @@
     "golang.org/x/sys/windows/svc/eventlog",
     "golang.org/x/sys/windows/svc/mgr",
     "golang.org/x/text/unicode/norm",
+    "google.golang.org/grpc",
     "gopkg.in/yaml.v2",
     "gopkg.in/zorkian/go-datadog-api.v2",
     "k8s.io/api/autoscaling/v2beta1",
@@ -1670,6 +1679,7 @@
     "k8s.io/client-go/tools/leaderelection/resourcelock",
     "k8s.io/client-go/tools/record",
     "k8s.io/client-go/util/workqueue",
+    "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2",
     "k8s.io/metrics/pkg/apis/custom_metrics",
     "k8s.io/metrics/pkg/apis/external_metrics",
   ]

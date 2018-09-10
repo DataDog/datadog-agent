@@ -152,3 +152,7 @@
 [[constraint]]
   name = "github.com/clbanning/mxj"
   version = "1.8.0"
+
+[[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "1.11.2"
