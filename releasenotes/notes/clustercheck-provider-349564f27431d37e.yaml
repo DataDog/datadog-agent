@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The agent is now able to retrieve and run cluster check configurations
+    from the cluster-agent, via the ``clusterchecks` config provider.
