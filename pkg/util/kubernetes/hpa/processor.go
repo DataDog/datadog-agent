@@ -8,16 +8,17 @@
 package hpa
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
-	"fmt"
+	"gopkg.in/zorkian/go-datadog-api.v2"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	datadog "gopkg.in/zorkian/go-datadog-api.v2"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
 )
 
 type DatadogClient interface {
@@ -67,7 +68,6 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 			em.Value = metric.value
 			em.Timestamp = metav1.Now().Unix()
 			updated = append(updated, em)
-			fmt.Println("updated ", updated)
 			continue
 		}
 		em.Valid = true
@@ -133,7 +133,5 @@ func getKey(name string, labels map[string]string) string {
 		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
 	}
 	tags := strings.Join(datadogTags, ",")
-	t := fmt.Sprintf("%s{%s}", name, tags)
-	fmt.Println("t is ", t)
-	return t
+	return fmt.Sprintf("%s{%s}", name, tags)
 }

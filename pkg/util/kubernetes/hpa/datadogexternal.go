@@ -63,15 +63,14 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Metri
 
 	processedMetrics := make(map[string]Metric)
 	for _, name := range metricNames {
-		// If the returned Series is empty for one or more processedMetrics
-		// and retry later.
+		// If the returned Series is empty for one or more processedMetrics, add it as invalid now
+		// so it can be retried later.
 		processedMetrics[name] = Metric{
 			timestamp: time.Now().Unix(),
 		}
 	}
 
-	// Go through processedMetrics output, extract last value and timestamp - If not found, valid = false
-	// metric.name without aggregator
+	// Go through processedMetrics output, extract last value and timestamp - If no series found return invalid metrics.
 	if len(seriesSlice) == 0 {
 		return processedMetrics, log.Errorf("Returned series slice empty")
 	}
@@ -82,16 +81,16 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Metri
 			continue
 		}
 		var metric Metric
-		// find the most recent value
-		// We need this as if multiple processedMetrics are queried, they align the timestamps and can result in empty values.
+		// Find the most recent value.
 		for i := len(serie.Points) - 1; i >= 0; i-- {
 			if serie.Points[i][1] == nil {
-				// If a batch has several metrics with different granularity, some points can be nil.
+				// We need this as if multiple metrics are queried, their points' timestamps align this can result in empty values.
 				continue
 			}
 			metric.value = int64(*serie.Points[i][1])            // store the original value
 			metric.timestamp = int64(*serie.Points[i][0] / 1000) // Datadog's API returns timestamps in ms
 			metric.valid = true
+
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
 			processedMetrics[m] = metric
 
