@@ -12,7 +12,7 @@ if process_agent_version.nil? || process_agent_version.empty?
   process_agent_version = 'master'
 end
 default_version process_agent_version
-fixed_version = '5.0.1-12daf82'
+fixed_version = '5.26.0-a8a1943'
 build do
   if windows?
     binary = "process-agent-windows-#{version}.exe"
