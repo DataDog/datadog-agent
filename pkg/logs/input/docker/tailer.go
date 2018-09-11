@@ -137,18 +137,20 @@ func (t *Tailer) readForever() {
 		default:
 			inBuf := make([]byte, 4096)
 			n, err := t.reader.Read(inBuf)
-			if err != nil {
-				if isClosedConnError(err) {
-					log.Warn("Closed conn")
+			if err != nil { // an error occurred, stop from reading new logs
+				switch {
+				case isClosedConnError(err):
+					// This error is raised when the agent is stopping
 					return
-				}
-				// an error occurred, stop from reading new logs
-				if err != io.EOF {
+				case err == io.EOF:
+					// This error is raised when the agent is stopping
+					return
+				default:
 					t.source.Status.Error(err)
 					log.Errorf("Error reading logs for container %v: %v", ShortContainerID(t.ContainerID), err)
 					t.erroredContainerID <- t.ContainerID
+					return
 				}
-				return
 			}
 			if n == 0 {
 				// wait for new data to come
