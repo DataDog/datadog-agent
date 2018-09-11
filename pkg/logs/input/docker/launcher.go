@@ -179,6 +179,7 @@ func (l *Launcher) stopTailer(containerID string) {
 }
 
 func (l *Launcher) restartTailer(containerID string) {
+	log.Warnf("Tailing will restart for %v", ShortContainerID(containerID))
 	backoffDuration := 1 * time.Second
 	backoffMax := 60 * time.Second
 	var tailer *Tailer
