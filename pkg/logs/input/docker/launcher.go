@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -34,6 +35,7 @@ type Launcher struct {
 	registry           auditor.Registry
 	stop               chan struct{}
 	erroredContainerID chan string
+	lock               *sync.Mutex
 }
 
 // NewLauncher returns a new launcher
@@ -48,6 +50,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		registry:           registry,
 		stop:               make(chan struct{}),
 		erroredContainerID: make(chan string),
+		lock:               &sync.Mutex{},
 	}
 	err := launcher.setup()
 	if err != nil {
@@ -213,7 +216,9 @@ func (l *Launcher) restartTailer(containerID string) {
 			continue
 		}
 		// keep the tailer in track to stop it later on
+		l.lock.Lock()
 		l.tailers[containerID] = tailer
+		l.lock.Unlock()
 		return
 	}
 }
