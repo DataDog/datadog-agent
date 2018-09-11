@@ -143,11 +143,11 @@ func (jq *jobQueue) stats() map[string]interface{} {
 // run schedules the checks in the queue by posting them to the
 // execution pipeline.
 // Not blocking, runs in a new goroutine.
-func (jq *jobQueue) run(out chan<- check.Check) {
+func (jq *jobQueue) run(s *Scheduler) {
 
 	go func() {
 		log.Debugf("Job queue is running...")
-		for jq.process(out) {
+		for jq.process(s) {
 			// empty
 		}
 		jq.stopped <- true
@@ -156,7 +156,7 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 
 // process  enqueues the checks at a tick, and returns whether the queue
 // should listen to the following tick (or stop)
-func (jq *jobQueue) process(out chan<- check.Check) bool {
+func (jq *jobQueue) process(s *Scheduler) bool {
 
 	select {
 	case <-jq.stop:
@@ -182,9 +182,13 @@ func (jq *jobQueue) process(out chan<- check.Check) bool {
 		log.Tracef("Jobs in bucket: %v", jobs)
 
 		for _, check := range jobs {
+			if !s.IsCheckScheduled(check.ID()) {
+				continue
+			}
+
 			select {
 			// blocking, we'll be here as long as it takes
-			case out <- check:
+			case s.checksPipe <- check:
 			case <-jq.stop:
 				jq.health.Deregister()
 				return false
