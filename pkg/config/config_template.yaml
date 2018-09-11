@@ -139,9 +139,9 @@ api_key:
 # the GIL, which will cause a CPU overhead compared to running these check instances
 # sequentially (i.e. on one check runner).
 #
-# This is a highly sensitive setting and we do NOT recommend changing the default 
-# number of check runners in the general case. The level of concurrency has effects
-# on the agent's: RSS memory, CPU load, resource contention overhead, etc.
+# This is a sensitive setting and we do NOT recommend changing the default number
+# of check runners in the general case. The level of concurrency has effects on
+# the agent's: RSS memory, CPU load, resource contention overhead, etc.
 #
 # check_runners: 4
 
