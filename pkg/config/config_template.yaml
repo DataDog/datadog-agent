@@ -127,17 +127,19 @@ api_key:
 # number of check runners instances concurrently. Setting the value to 1
 # would result in checks running sequentially.
 #
-# NOTE: due to the nature of the python interpreter and it's global interpreter
+# NOTE: due to the nature of the python interpreter and its global interpreter
 # lock (GIL) only one native thread may be running on the python interpreter at
-# a time. The introduction of concurrent check runners implies concurrently
-# executing checks must contend for the GIL. This has the side-effect of increasing
-# wall-time execution times for the checks. The aggregate system/user-time for all
-# checks however, should be decreased. Concurrency works particularly well with I/O
-# bound tasks (or at least IO intensive) as the GIL will typically be released while 
-# waiting for IO, allowing for other checks to grab a hold of the GIL and continue
-# execution. For CPU bound checks with a low IO activity, it becomes increasingly
-# likely for these check instances to hog the GIL delaying all other checks from
-# execution - essentially forcing a sequential behavior.
+# a time. Concurrent check runners imply concurrently executing checks must contend
+# for the GIL. This has the side-effect of increasing wall-time execution times for
+# the checks. The aggregate system/user-time for all checks however, should be
+# decreased. Concurrency works particularly well with I/O bound tasks (or at least
+# IO intensive) as the GIL will typically be released while waiting for IO, allowing
+# for other checks to grab a hold of the GIL and continue execution. For CPU bound
+# checks with a low IO activity, it becomes increasingly likely for these check
+# instances to hog the GIL (typically for 100 bytecode instructions at a time) before
+# giving up the GIL pre-emptively. This is desirable, though increased concurrency
+# has the burden of context switching within the python interpreter, with its added
+# overhead.
 #
 # We do NOT recommend you change the default number of check runners. Please
 # contact support if you feel you need to modify this setting.
