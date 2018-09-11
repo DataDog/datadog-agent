@@ -173,7 +173,7 @@ func (h *AutoscalersController) pushToGlobalStore() error {
 	if !h.le.IsLeader() {
 		return nil
 	}
-	log.Infof("Batch call pushing %v metrics", localStore)
+	log.Debugf("Batch call pushing %v metrics", len(localStore))
 	err := h.store.SetExternalMetricValues(localStore)
 	return err
 }
@@ -191,7 +191,6 @@ func (h *AutoscalersController) updateExternalMetrics() {
 	}
 
 	updated := h.hpaProc.UpdateExternalMetrics(emList)
-	log.Infof("emList submited is %#v, and updated is %#v", emList, updated)
 	h.toStore.m.Lock()
 	h.toStore.data = append(h.toStore.data, updated...)
 	h.toStore.m.Unlock()
@@ -219,7 +218,7 @@ func (h *AutoscalersController) gc() {
 		log.Errorf("Could not delete the external metrics in the store: %v", err)
 		return
 	}
-	log.Infof("Done GC run. Deleted %d metrics", len(deleted))
+	log.Debugf("Done GC run. Deleted %d metrics", len(deleted))
 }
 
 func (h *AutoscalersController) worker() {
@@ -269,7 +268,7 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 		new := h.hpaProc.ProcessHPAs(hpa)
 		h.toStore.m.Lock()
 		h.toStore.data = append(h.toStore.data, new...)
-		log.Infof("Local batch cache of HPA is %v", h.toStore.data)
+		log.Tracef("Local batch cache of HPA is %v", h.toStore.data)
 		h.toStore.m.Unlock()
 	}
 	return err
@@ -281,7 +280,7 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
 		return
 	}
-	log.Infof("Adding autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
+	log.Debugf("Adding autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
 	h.enqueue(newAutoscaler)
 }
 
@@ -293,7 +292,7 @@ func (h *AutoscalersController) updateAutoscaler(_, obj interface{}) {
 		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
 		return
 	}
-	log.Infof("Updating autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
+	log.Tracef("Updating autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
 	h.enqueue(newAutoscaler)
 }
 
