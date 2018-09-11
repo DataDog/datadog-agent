@@ -32,13 +32,8 @@ func Start() error {
 		return err
 	}
 
-	// setup the log-sources
+	// setup the sources and the services
 	sources := config.NewLogSources()
-	for _, source := range config.DefaultSources() {
-		sources.AddSource(source)
-	}
-
-	// setup the services
 	services := service.NewServices()
 
 	// initialize the config scheduler
@@ -52,6 +47,11 @@ func Start() error {
 	log.Info("Starting logs-agent")
 	agent.Start()
 	isRunning = true
+
+	// add the default sources
+	for _, source := range config.DefaultSources() {
+		sources.AddSource(source)
+	}
 
 	return nil
 }
