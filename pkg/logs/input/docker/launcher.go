@@ -206,7 +206,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		// start the tailer
 		err = tailer.Start(since)
 		if err != nil {
-			log.Warnf("Could not start tailer for container %v: %v", containerID, err)
+			log.Warnf("Could not start tailer for container %v: %v", ShortContainerID(containerID), err)
 			time.Sleep(backoffDuration)
 			backoffDuration *= 2
 			continue
