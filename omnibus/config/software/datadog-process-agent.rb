@@ -12,7 +12,7 @@ if process_agent_version.nil? || process_agent_version.empty?
   process_agent_version = 'master'
 end
 default_version process_agent_version
-
+fixed_version = 5.0.1-12daf82
 build do
   if windows?
     binary = "process-agent-windows-#{version}.exe"
@@ -22,7 +22,8 @@ build do
     command curl_cmd
     command "mv #{binary} #{install_dir}/bin/agent/#{target_binary}"
   else
-    binary = "process-agent-amd64-#{version}"
+    #binary = "process-agent-amd64-#{version}"
+    binary = "process-agent-amd64-#{fixed_version}"
     target_binary = "process-agent"
     url = "https://s3.amazonaws.com/stackstate-process-agent-test/binaries/master/#{binary}"
     #url = "https://s3.amazonaws.com/datad0g-process-agent/#{binary}"
