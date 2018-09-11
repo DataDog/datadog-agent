@@ -200,16 +200,13 @@ func (l *Launcher) restartTailer(containerID string) {
 		// compute the offset to prevent from missing or duplicating logs
 		since, err := Since(l.registry, tailer.Identifier(), service.Before)
 		if err != nil {
-			log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
-			time.Sleep(backoffDuration)
-			backoffDuration *= 2
-			continue
+			log.Warnf("Could not recover tailing from last committed offset, start tailing from now for container: %v", ShortContainerID(containerID), err)
 		}
 
 		// start the tailer
 		err = tailer.Start(since)
 		if err != nil {
-			log.Warnf("Could not start tailer: %v", containerID, err)
+			log.Warnf("Could not start tailer for container: %v", containerID, err)
 			time.Sleep(backoffDuration)
 			backoffDuration *= 2
 			continue
