@@ -9,8 +9,8 @@
 upgrade:
   - |
     The introduction of multiple runners for checks implies check
-    instances may now run concurrently. This should help us make
-    better use of resources, in particular it will help us prevent
+    instances may now run concurrently. This should help the agent
+    make better use of resources, in particular it will help prevent
     or reduce the side-effects of slow checks delaying the execution
     of all other checks.
 

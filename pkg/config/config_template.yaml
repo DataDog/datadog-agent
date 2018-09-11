@@ -134,15 +134,14 @@ api_key:
 # the checks. The aggregate system/user-time for all checks however, should be
 # decreased. Concurrency works particularly well with I/O bound tasks (or at least
 # IO intensive) as the GIL will typically be released while waiting for IO, allowing
-# for other checks to grab a hold of the GIL and continue execution. For CPU bound
-# checks with a low IO activity, it becomes increasingly likely for these check
-# instances to hog the GIL (typically for 100 bytecode instructions at a time) before
-# giving up the GIL pre-emptively. This is desirable, though increased concurrency
-# has the burden of context switching within the python interpreter, with its added
-# overhead.
+# for other checks to grab a hold of the GIL and continue execution. For CPU-bound
+# checks with a low activity, it's likely that the check instances will contend for
+# the GIL, which will cause a CPU overhead compared to running these check instances
+# sequentially (i.e. on one check runner).
 #
-# We do NOT recommend you change the default number of check runners. Please
-# contact support if you feel you need to modify this setting.
+# This is a highly sensitive setting and we do NOT recommend changing the default 
+# number of check runners in the general case. The level of concurrency has effects
+# on the agent's: RSS memory, CPU load, resource contention overhead, etc.
 #
 # check_runners: 4
 
