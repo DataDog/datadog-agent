@@ -9,25 +9,22 @@
 upgrade:
   - |
     The introduction of multiple runners for checks implies check
-    instances may now run concurrently. This will affect checks which
-    are not thread-safe as they may, depending on the scheduling, access
-    unsynchronized structures concurrently with the corresponding data
-    race ensuing. Please be cautious. If you wish to run checks in a fully
-    sequential fashion, you may set the `check_runners` option in your
-    `datadog.yaml` config or via the `DD_CHECK_RUNNERS` to 1. Also, please
-    feel free to reach out to us if you need more information or help
-    with the new multiple runner/concurrency model.
-  - Due to the nature of the python interpreter and it's global interpreter
-    lock (GIL) only one native thread may be running on the python interpreter at
-    a time. The introduction of concurrent check runners implies concurrently
-    executing checks must contend for the GIL. This has the side-effect of increasing
-    wall-time execution times for the checks. The aggregate system/user-time for all
-    checks however, should be decreased. Concurrency works particularly well with I/O
-    bound tasks (or at least IO intensive) as the GIL will typically be released while 
-    waiting for IO, allowing for other checks to grab a hold of the GIL and continue
-    execution. For CPU bound checks with a low IO activity, it becomes increasingly
-    likely for these check instances to hog the GIL delaying all other checks from
-    execution - essentially forcing a sequential behavior.
+    instances may now run concurrently. This should help us make
+    better use of resources, in particular it will help us prevent
+    or reduce the side-effects of slow checks delaying the execution
+    of all other checks.
+
+    The change will affect custom checks not enforcing thread safety as
+    they may, depending on the schedule, access unsynchronized structures
+    concurrently with the corresponding data race ensuing. If you wish to
+    run checks in a fully sequential fashion, you may set the `check_runners`
+    option in your `datadog.yaml` config or via the `DD_CHECK_RUNNERS` to 1.
+    Also, please feel free to reach out to us if you need more information
+    or help with the new multiple runner/concurrency model.
+
+    For more details please read the technical note in the `datadog.yaml`_. 
+
+    .. _datadog.yaml: https://github.com/DataDog/datadog-agent/blob/master/pkg/config/config_template.yaml#L130-L140
 features:
   - |
     Bump the default number of check runners to 4. This has some
