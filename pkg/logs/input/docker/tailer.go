@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -124,6 +125,13 @@ func (t *Tailer) tail(since string) error {
 	return nil
 }
 
+// isConnClosedError returns true if the error is related to a closed connection,
+// for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
+func isClosedConnError(err error) bool {
+	return strings.Contains(err.Error(), "use of closed network connection")
+
+}
+
 // readForever reads from the reader as fast as it can,
 // and sleeps when there is nothing to read
 func (t *Tailer) readForever() {
@@ -137,6 +145,10 @@ func (t *Tailer) readForever() {
 			inBuf := make([]byte, 4096)
 			n, err := t.reader.Read(inBuf)
 			if err != nil {
+				if isClosedConnError(err) {
+					log.Warn("Closed conn")
+					return
+				}
 				// an error occurred, stop from reading new logs
 				if err != io.EOF {
 					t.source.Status.Error(err)

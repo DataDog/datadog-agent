@@ -47,7 +47,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		pendingContainers:  make(map[string]*Container),
 		registry:           registry,
 		stop:               make(chan struct{}),
-		erroredContainerID: make(chan string, 1),
+		erroredContainerID: make(chan string),
 	}
 	err := launcher.setup()
 	if err != nil {
@@ -136,7 +136,7 @@ func (l *Launcher) run() {
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
 		case containerId := <-l.erroredContainerID:
-			l.restartTailer(containerId)
+			go l.restartTailer(containerId)
 		case <-l.stop:
 			// no docker container should be tailed anymore
 			return
