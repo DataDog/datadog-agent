@@ -120,7 +120,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 // - The creation of a HPA manifest with an External metrics type.
 // - The validation of the metrics against Datadog
 // Every replica answering to a ListAllExternalMetrics will populate its cache with a copy of the global cache.
-// If the copy does not exist or is too old (< 1 HPA controller run by default to avoid propagated delay) we refresh it.
+// If the copy does not exist or is too old (>1 HPA controller default run cycle) we refresh it.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricName string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
 

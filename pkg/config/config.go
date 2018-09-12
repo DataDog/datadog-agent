@@ -309,7 +309,7 @@ func init() {
 	BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window of the metric from Datadog
 	BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
 	BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // value in seconds
-	BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 20) // value in seconds
+	BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
 	// Cluster check Autodiscovery
 	BindEnvAndSetDefault("cluster_checks.enabled", false)
 
