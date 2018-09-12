@@ -24,7 +24,7 @@ import (
 
 const (
 	backoffInitialDuration = 1 * time.Second
-	backoffMax             = 60 * time.Second
+	backoffMaxDuration     = 60 * time.Second
 )
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
@@ -189,12 +189,14 @@ func (l *Launcher) stopTailer(containerID string) {
 func (l *Launcher) restartTailer(containerID string) {
 	log.Warnf("Tailing will restart for %v", ShortContainerID(containerID))
 	backoffDuration := backoffInitialDuration
+	cumulatedBackoffDuration := 0 * time.Second
 	var tailer *Tailer
 	var source *config.LogSource
 
-	for { // TODO: Change backoff policy to expire
-		if backoffDuration > backoffMax {
-			backoffDuration = backoffMax
+	for {
+		if backoffDuration > backoffMaxDuration {
+			log.Warnf("Could not restart container %v. Stop tailing", ShortContainerID(containerID))
+			return
 		}
 
 		oldTailer, exists := l.tailers[containerID]
@@ -217,6 +219,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		if err != nil {
 			log.Warnf("Could not start tailer for container %v: %v", ShortContainerID(containerID), err)
 			time.Sleep(backoffDuration)
+			cumulatedBackoffDuration += backoffDuration
 			backoffDuration *= 2
 			continue
 		}
