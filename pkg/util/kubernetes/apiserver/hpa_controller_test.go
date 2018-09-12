@@ -171,7 +171,6 @@ func TestAutoscalerController(t *testing.T) {
 	storedHPA, err := hctrl.autoscalersLister.HorizontalPodAutoscalers(mockedHPA.Namespace).Get(mockedHPA.Name)
 	require.NoError(t, err)
 	require.Equal(t, storedHPA, mockedHPA)
-	fmt.Println(storedHPA) // DEV check local
 	select {
 	case <-ticker.C:
 		hctrl.toStore.m.Lock()
