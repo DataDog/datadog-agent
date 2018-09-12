@@ -29,7 +29,7 @@ kubectl apply -f <NAME_OF_THE_KUBE_STATE_MANIFESTS_FOLDER>
 Before deploying the agent there are few configuration settings to take care of, open the `stackstate-agent.yaml` and:
 
 * replace `<STACKSTATE_BACKEND_IP>` with your Stackstate backend IP
-* if you want to collect only containers information (and no processes) remove the env variable `DD_PROCESS_AGENT_ENABLED` (or set it to `false`)
+* if you want to collect only containers information (and no processes) remove the env variable `DD_PROCESS_AGENT_ENABLED`
 * if you want to disable connections gathering remove the env variable `DD_CONNECTIONS_CHECK` (or set it to `false`)
 
 Now you can deploy the DaemonSet with the following command:
