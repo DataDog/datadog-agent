@@ -115,6 +115,7 @@ bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd)
 	return false;
 }
 
+
 // returned value must be freed with LsaClose()
 
 LSA_HANDLE GetPolicyHandle()

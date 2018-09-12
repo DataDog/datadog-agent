@@ -16,6 +16,7 @@ std::wstring ddAgentUserDescription(L"User context under which the DataDog Agent
 
 std::wstring traceService(L"datadog-trace-agent");
 std::wstring processService(L"datadog-process-agent");
+std::wstring agentService(L"datadogagent");
 
 std::wstring propertyDDUserCreated(L"DDUSERCREATED");
 std::wstring propertySecretUserCreated(L"SECRETUSERCREATED");
@@ -25,6 +26,7 @@ std::wstring propertyRollbackState(L"CustomActionData");
 std::wstring logfilename(L"c:\\ProgramData\\DataDog\\logs\\agent.log");
 std::wstring authtokenfilename(L"c:\\ProgramData\\Datadog\\auth_token");
 std::wstring datadogyamlfile(L"c:\\ProgramData\\Datadog\\datadog.yaml");
+std::wstring confddir(L"c:\\ProgramData\\Datadog\\conf.d");
 
 void toMbcs(std::string& target, LPCWSTR src) {
     size_t len = wcslen(src);

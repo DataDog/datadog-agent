@@ -78,16 +78,16 @@ extern "C" UINT __stdcall AddDatadogSecretUser(
     }
 */
     if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+        WcaLog(LOGMSG_STANDARD, "failed to remove network login right");
         goto LExit;
     }
     if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+        WcaLog(LOGMSG_STANDARD, "failed to remove remote interactive login right");
         goto LExit;
     }
 #endif
     if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+        WcaLog(LOGMSG_STANDARD, "failed to add service login right");
         goto LExit;
     }
     hr = 0;
@@ -106,12 +106,36 @@ extern "C" UINT __stdcall RemoveDDUser(MSIHANDLE hInstall)
 {
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
+    PSID sid = NULL;
+    LSA_HANDLE hLsa = NULL;
 
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: DeleteDDUser");
     ExitOnFailure(hr, "Failed to initialize");
     logProcCount();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
+    // change the rights on this user
+    sid = GetSidForUser(NULL, (LPCWSTR)ddAgentUserName.c_str());
+    if (!sid) {
+        goto LExit;
+    }
+    if ((hLsa = GetPolicyHandle()) == NULL) {
+        goto LExit;
+    }
+
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
+    }
+
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
+    }
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
+    }
+    if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
+    }
 
     er = DeleteUser(ddAgentUserName);
     if (0 != er) {
@@ -121,6 +145,12 @@ extern "C" UINT __stdcall RemoveDDUser(MSIHANDLE hInstall)
     } 
 
 LExit:
+    if (sid) {
+        delete[](BYTE *) sid;
+    }
+    if (hLsa) {
+        LsaClose(hLsa);
+    }
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
 
@@ -157,7 +187,8 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
     WcaLog(LOGMSG_STANDARD, "%d setting token file perms",er);
     er = addDdUserPermsToFile(datadogyamlfile);
     WcaLog(LOGMSG_STANDARD, "%d setting token file perms",er);
-
+    er = addDdUserPermsToFile(confddir);
+    WcaLog(LOGMSG_STANDARD, "%d setting confd dir perms",er);
 
 // change the rights on this user
     hr = -1;
@@ -171,21 +202,21 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
 
 #ifndef _NO_DD_USER_RIGHTS_REMOVAL
     if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+        WcaLog(LOGMSG_STANDARD, "failed to add deny interactive login right");
         goto LExit;
     }
 
     if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+        WcaLog(LOGMSG_STANDARD, "failed to add deny network login right");
         goto LExit;
     }
     if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+        WcaLog(LOGMSG_STANDARD, "failed to add deny remote interactive login right");
         goto LExit;
     }
 #endif
     if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
+        WcaLog(LOGMSG_STANDARD, "failed to add service login right");
         goto LExit;
     }
     // add the user to the "performance monitor users" group
@@ -234,6 +265,13 @@ extern "C" UINT __stdcall EnableServicesForDDUser(MSIHANDLE hInstall)
         hr = -1;
         goto LExit;
     }
+    // need to enable user rights for the datadogagent service (main service)
+    // so that it can restart itself
+    er = EnableServiceForUser(agentService, ddAgentUserName);
+    if (0 != er) {
+        hr = -1;
+        goto LExit;
+    }
 
 
 LExit:
@@ -246,6 +284,9 @@ extern "C" UINT __stdcall RemoveDatadogSecretUser(MSIHANDLE hInstall)
 {
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
+    LSA_HANDLE hLsa = NULL;
+    PSID sid = NULL;
+    
 
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: RemoveDatadogSecretUser");
@@ -253,6 +294,28 @@ extern "C" UINT __stdcall RemoveDatadogSecretUser(MSIHANDLE hInstall)
 
     WcaLog(LOGMSG_STANDARD, "Initialized.");
     logProcCount();
+    // change the rights on this user
+    sid = GetSidForUser(NULL, (LPCWSTR)secretUserUsername.c_str());
+    if (!sid) {
+        goto LExit;
+    }
+    if ((hLsa = GetPolicyHandle()) == NULL) {
+        goto LExit;
+    }
+
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
+    }
+
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
+    }
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
+    }
+    if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
+    }
     er = DeleteUser(secretUserUsername);
     if (0 != er) {
         // don't actually fail on failure.  We're doing an uninstall,
@@ -270,6 +333,12 @@ extern "C" UINT __stdcall RemoveDatadogSecretUser(MSIHANDLE hInstall)
 
 
 LExit:
+    if (sid) {
+        delete[](BYTE *) sid;
+    }
+    if (hLsa) {
+        LsaClose(hLsa);
+    }
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
 
@@ -352,7 +421,6 @@ extern "C" BOOL WINAPI DllMain(
     case DLL_PROCESS_ATTACH:
         WcaGlobalInitialize(hInst);
         // initialize random number generator
-        srand(GetTickCount());
         break;
 
     case DLL_PROCESS_DETACH:

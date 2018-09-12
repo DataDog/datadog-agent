@@ -22,12 +22,7 @@ class TestAggregatorCheck(AgentCheck):
         self.gauge("testmetric", 0, tags=None)
         self.gauge("testmetricnonevalue", None) # metrics with None values should be ignored by AgentCheck
         self.gauge("testmetricstringvalue", "2") # string values should be cast to floats
-        try:
-            self.gauge("testmetricstringvalue", "notcastabletofloat") # values not castable to floats should raise an exception
-        except ValueError:
-            pass
-        else:
-            raise Exception("Expected gauge to raise ValueError")
+        self.gauge("testmetricstringvalue", "notcastabletofloat") # values not castable to floats shouldn't raise an exception, but won't be submitted
 
         self.increment("test.increment", tags=['foo', 'bar'])
         self.decrement("test.decrement", tags=['foo', 'bar', 'baz'])
