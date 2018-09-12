@@ -124,6 +124,15 @@ func NewFilterFromConfig() (*Filter, error) {
 	return NewFilter(whitelist, blacklist)
 }
 
+// NewFilterFromConfigIncludePause creates a new container filter, sourcing patterns
+// from the pkg/config options, but ignoring the exclude_pause_container option, for
+// use in autodiscovery
+func NewFilterFromConfigIncludePause() (*Filter, error) {
+	whitelist := config.Datadog.GetStringSlice("ac_include")
+	blacklist := config.Datadog.GetStringSlice("ac_exclude")
+	return NewFilter(whitelist, blacklist)
+}
+
 // IsExcluded returns a bool indicating if the container should be excluded
 // based on the filters in the containerFilter instance.
 func (cf Filter) IsExcluded(containerName, containerImage string) bool {
