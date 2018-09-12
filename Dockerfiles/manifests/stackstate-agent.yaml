@@ -59,6 +59,8 @@ spec:
             memory: "256Mi"
             cpu: "200m"
         volumeMounts:
+          - name: sys-kernel-debug
+            mountPath: /sys/kernel/debug
           - name: dockersocket
             mountPath: /var/run/docker.sock
           - name: procdir
@@ -76,7 +78,12 @@ spec:
             - ./probe.sh
           initialDelaySeconds: 15
           periodSeconds: 5
+      hostNetwork: true
+      hostPID: true
       volumes:
+        - hostPath:
+            path: /sys/kernel/debug
+          name: sys-kernel-debug
         - hostPath:
             path: /var/run/docker.sock
           name: dockersocket

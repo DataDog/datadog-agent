@@ -26,6 +26,14 @@ Now you can deploy the DaemonSet with the following command:
 kubectl create -f stackstate-agent.yaml
 ```
 
+## Configuration SetUp
+
+* To enable `process and containers`, set the env variable `DD_PROCESS_AGENT_ENABLED` to `true` and data will be sent to `/api/v1/collector` endpoint.
+* To enable only `containers`, don't set the env variable `DD_PROCESS_AGENT_ENABLED` and the data will be sent to `/api/v1/container` endpoint.
+* To enable `connections`, set the env variable `DD_CONNECTIONS_CHECK` to `true` and make sure `DD_PROCESS_AGENT_ENABLED` is `true` as well.
+* To override the endpoint for `process-agent`, set the env variable `DD_PROCESS_AGENT_URL` with custom one.
+* To override the endpoint for stackstate backend, set the env variable `DD_DD_URL` with custom one.
+
 # Kubernetes Host Setup
 
 Installing the Agent directly on your host (rather than having the Agent run in a Pod) provides additional visibility into your ecosystem, independent of Kubernetes.
