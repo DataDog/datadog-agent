@@ -46,7 +46,7 @@ func (c *CRIUtil) init() error {
 	socketPath := config.Datadog.GetString("cri_socket_path")
 
 	if socketPath == "" {
-		return fmt.Errorf("no cri_socket_path path was set")
+		return fmt.Errorf("no cri_socket_path was set")
 	}
 
 	dialer := func(socketPath string, timeout time.Duration) (net.Conn, error) {
