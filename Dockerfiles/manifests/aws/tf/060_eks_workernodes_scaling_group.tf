@@ -55,7 +55,7 @@ resource "aws_launch_configuration" "eks-launch-configuration" {
   name_prefix                 = "eks-${local.cluster_name}"
   security_groups             = ["${aws_security_group.eks-nodes-sg.id}"]
   user_data_base64            = "${base64encode(local.eks-node-userdata)}"
-  key_name                    = "${var.ec2_keyname}"
+  key_name                    = "${var.SSH_KEY_PAIR}"
 
   lifecycle {
     create_before_destroy = true
