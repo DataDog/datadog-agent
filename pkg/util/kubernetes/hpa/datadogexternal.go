@@ -37,6 +37,11 @@ type Metric struct {
 	valid     bool
 }
 
+const (
+	value     = 1
+	timestamp = 0
+)
+
 // queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
 func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Metric, error) {
@@ -83,12 +88,12 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Metri
 		var metric Metric
 		// Find the most recent value.
 		for i := len(serie.Points) - 1; i >= 0; i-- {
-			if serie.Points[i][1] == nil {
+			if serie.Points[i][value] == nil {
 				// We need this as if multiple metrics are queried, their points' timestamps align this can result in empty values.
 				continue
 			}
-			metric.value = int64(*serie.Points[i][1])            // store the original value
-			metric.timestamp = int64(*serie.Points[i][0] / 1000) // Datadog's API returns timestamps in ms
+			metric.value = int64(*serie.Points[i][value])                // store the original value
+			metric.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in ms
 			metric.valid = true
 
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)

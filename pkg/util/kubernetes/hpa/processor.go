@@ -115,8 +115,7 @@ func (p *Processor) validateExternalMetric(emList []custommetrics.ExternalMetric
 		q := getKey(e.MetricName, e.Labels)
 		batch = append(batch, q)
 	}
-	val, err := p.queryDatadogExternal(batch)
-	return val, err
+	return p.queryDatadogExternal(batch)
 }
 
 func invalidate(emList []custommetrics.ExternalMetricValue) []custommetrics.ExternalMetricValue {

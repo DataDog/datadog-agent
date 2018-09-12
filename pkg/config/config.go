@@ -303,13 +303,13 @@ func init() {
 	BindEnvAndSetDefault("external_metrics_provider.enabled", false)
 	BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
 	BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)
-	BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)            // 10 seconds to batch calls to the configmap persistent store (GlobalStore)
-	BindEnvAndSetDefault("external_metrics_provider.max_age", 90)                 // 3 cycles from the HPA controller is enough to consider a metric stale
+	BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)            // value in seconds. Frequency of batch calls to the configmap persistent store (GlobalStore)
+	BindEnvAndSetDefault("external_metrics_provider.max_age", 90)                 // value in seconds. 3 cycles from the HPA controller is enough to consider a metric stale
 	BindEnvAndSetDefault("external_metrics.aggregator", "avg")                    // aggregator used for the external metrics. Choose from [avg,sum,max,min]
 	BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window of the metric from Datadog
-	BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // 5 minutes
-	BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // 1 minute
-	BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 20) // 20 seconds
+	BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
+	BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // value in seconds
+	BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 20) // value in seconds
 	// Cluster check Autodiscovery
 	BindEnvAndSetDefault("cluster_checks.enabled", false)
 

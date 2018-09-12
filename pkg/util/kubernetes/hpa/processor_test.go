@@ -419,7 +419,6 @@ func TestProcessor_Batching(t *testing.T) {
 			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
 			hpaCl.UpdateExternalMetrics(tt.metrics)
 			assert.Equal(t, tt.expectedNumCalls, batchCallsNum)
-
 		})
 	}
 }
