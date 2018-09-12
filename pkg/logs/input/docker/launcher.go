@@ -22,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
+const (
+	backoffInitialDuration = 1 * time.Second
+	backoffMax             = 60 * time.Second
+)
+
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider   pipeline.Provider
@@ -183,17 +188,16 @@ func (l *Launcher) stopTailer(containerID string) {
 
 func (l *Launcher) restartTailer(containerID string) {
 	log.Warnf("Tailing will restart for %v", ShortContainerID(containerID))
-	backoffDuration := 1 * time.Second
-	backoffMax := 60 * time.Second
+	backoffDuration := backoffInitialDuration
 	var tailer *Tailer
 	var source *config.LogSource
 
-	for i := 0; ; i++ {
+	for i := 0; ; i++ { // TODO: Change backoff policy to expire
 		if backoffDuration > backoffMax {
 			backoffDuration = backoffMax
 		}
 
-		if i == 0 {
+		if i == 0 { // TODO: Make the check more robust on oldTailer.Stop()
 			oldTailer, _ := l.tailers[containerID]
 			source = oldTailer.source
 			oldTailer.Stop()

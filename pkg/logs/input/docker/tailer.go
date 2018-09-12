@@ -143,7 +143,8 @@ func (t *Tailer) readForever() {
 					// This error is raised when the agent is stopping
 					return
 				case err == io.EOF:
-					// This error is raised when the agent is stopping
+					// This error is raised when the container is stopping
+					t.source.RemoveInput(t.ContainerID)
 					return
 				default:
 					t.source.Status.Error(err)
