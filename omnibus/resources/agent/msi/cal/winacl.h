@@ -9,6 +9,7 @@ public:
 		       ACCESS_MODE AccessMode, DWORD  Inheritance);
 
 	void BuildGrantUser(LPCWSTR name, DWORD rights);
+    void BuildGrantUser(LPCWSTR name, DWORD rights, DWORD inheritance_flags);
 	void BuildGrantGroup(LPCWSTR name);
 	//void BuildGrantUserSid(LPCWSTR name);
 	void BuildGrantSid(TRUSTEE_TYPE ttype, DWORD rights, DWORD sub1, DWORD sub2);

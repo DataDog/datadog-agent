@@ -34,6 +34,20 @@ void ExplicitAccess::BuildGrantUser(LPCWSTR name, DWORD rights) {
 	data.Trustee.ptstrName = localName;
 }
 
+void ExplicitAccess::BuildGrantUser(LPCWSTR name, DWORD rights, DWORD inheritance_flags) {
+	LPWSTR localName = _wcsdup(name);
+
+	data.grfAccessPermissions = rights;
+	data.grfAccessMode = GRANT_ACCESS;
+	data.grfInheritance = inheritance_flags;
+	data.Trustee.pMultipleTrustee = NULL;
+	data.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+	data.Trustee.TrusteeForm = TRUSTEE_IS_NAME;
+	data.Trustee.TrusteeType = TRUSTEE_IS_USER;
+	data.Trustee.ptstrName = localName;
+}
+
+
 void ExplicitAccess::BuildGrantGroup(LPCWSTR name) {
 	LPWSTR localName = _wcsdup(name);
 

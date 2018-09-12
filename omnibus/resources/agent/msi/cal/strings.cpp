@@ -25,6 +25,7 @@ std::wstring propertyRollbackState(L"CustomActionData");
 std::wstring logfilename(L"c:\\ProgramData\\DataDog\\logs\\agent.log");
 std::wstring authtokenfilename(L"c:\\ProgramData\\Datadog\\auth_token");
 std::wstring datadogyamlfile(L"c:\\ProgramData\\Datadog\\datadog.yaml");
+std::wstring confddir(L"c:\\ProgramData\\Datadog\\conf.d");
 
 void toMbcs(std::string& target, LPCWSTR src) {
     size_t len = wcslen(src);

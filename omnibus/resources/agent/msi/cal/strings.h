@@ -24,6 +24,7 @@ extern std::wstring propertyRollbackState;
 extern std::wstring logfilename;
 extern std::wstring authtokenfilename;
 extern std::wstring datadogyamlfile;
+extern std::wstring confddir;
 
 void toMbcs(std::string& target, LPCWSTR src);
 

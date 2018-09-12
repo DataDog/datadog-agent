@@ -154,7 +154,8 @@ DWORD addDdUserPermsToFile(std::wstring filename)
         return 0;
     }
     ExplicitAccess dduser;
-    dduser.BuildGrantUser(ddAgentUserName.c_str(), FILE_ALL_ACCESS);
+    dduser.BuildGrantUser(ddAgentUserName.c_str(), FILE_ALL_ACCESS, 
+                          SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
     // get the current ACLs and append, rather than just set; if the file exists,
     // the user may have already set custom ACLs on the file, and we don't want

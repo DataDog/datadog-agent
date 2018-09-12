@@ -157,7 +157,8 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
     WcaLog(LOGMSG_STANDARD, "%d setting token file perms",er);
     er = addDdUserPermsToFile(datadogyamlfile);
     WcaLog(LOGMSG_STANDARD, "%d setting token file perms",er);
-
+    er == addDdUserPermsToFile(confddir);
+    WcaLog(LOGMSG_STANDARD, "%d setting confd dir perms",er);
 
 // change the rights on this user
     hr = -1;
