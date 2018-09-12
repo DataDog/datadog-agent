@@ -734,10 +734,8 @@ testkitchen_cleanup_azure:
 
 .docker_build_job_definition: &docker_build_job_definition
   stage: image_build
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
-  services:
-    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/remote-docker:latest
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artifacts
   script:
@@ -784,10 +782,8 @@ build_dogstatsd:
 
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
-  services:
-    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/remote-docker:latest
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - apt-get update && apt-get install -y python-pip && pip install awscli
