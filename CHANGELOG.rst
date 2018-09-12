@@ -2,6 +2,195 @@
 Release Notes
 =============
 
+.. _Release Notes_6.5.0:
+
+6.5.0
+=====
+
+.. _Release Notes_6.4.2_Prelude:
+
+Prelude
+-------
+
+Release on: Unreleased 
+
+- Please refer to the `6.5.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.0>`_ for the list of changes on the Core Checks.
+
+
+.. _Release Notes_6.5.0_New Features:
+
+New Features
+------------
+
+- Autodiscovery: the ``docker`` and ``kubelet`` listeners will retry on error,
+  to support starting the agent before your container runtime (host install)
+
+- Bump the default number of check runners to 4. This has some
+  concurrency implications as we will now run multiple checks in
+  parallel.
+
+- Kubernetes: to avoid hostname collisions between clusters, a new ``cluster_name`` option is available. It will be added as a suffix to the host alias detected from the kubelet in order to make these aliases unique across different clusters.
+
+- Docker image: handle docker/kubernetes secret files with a helper script
+
+- The Node Agent can rely on the Datadog Cluster Agent to collect Node Labels.
+
+- Improved ECS fargate tagging:
+  - Honor the ``docker_labels_as_tags`` option to extract custom tags
+  - Make the ``cluster_name`` tag shorter
+  - Add the ``short_image`` and ``container_id`` tags
+  - Remove some noisy tags
+  - Fix a lifecycle issue that caused missing tags
+
+- The live containers view can now retrieve containers directly from the kubelet,
+  in order to support containerd and crio
+
+- Kubernetes events: setting event host tags to the related hosts, instead of the host collecting the events.
+
+- Added dedicated configuration parameters to send logs to a proxy by TCP.
+  Note that 'logs_config.dd_url', 'logs_config.dd_port' and 'logs_config.dev_mode_no_ssl' are deprecated and will be unvailable soon,
+  use the new parameters 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead.
+
+- Added the possibility to send logs to Datadog using the port 443.
+
+
+.. _Release Notes_6.5.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add more environment variables to the flare whitelist
+
+- When ``dd_url`` is set to ``app.datadoghq.eu``, the infra Agent also sends data
+  to versioned endpoints (similar to ``app.datadoghq.com``)
+
+- Make all numbers on the status page more human readable (using unit and SI prefix when appropriate)
+
+- Display hostname provider and errors on the status page
+
+- Kubelet Autodiscovery: reduce logging when no change is detected
+
+- On Windows, the `hostname_fqdn` flag will now be honored, and the
+  host reported by Datadog will be the fully qualified hostname.
+
+- Enable all configuration options to be set with env vars
+
+- Tags generated from GCE metadata may now be omitted by using
+  ``collect_gce_tags`` configuration option.
+
+- Introduction of a new bucketed scheduler to enable multiple 
+  check workers to increase concurrency while spreading the load
+  over the collection interval.
+
+- The 'status' command and 'status' page (in the GUI) now displays errors
+  raised by the '__init__' method of a Python check.
+
+- Exclude the rancher pause container in the agent
+
+- On status page, allow users to know which instance of a check matches which yaml instance in configcheck page
+
+- The file_handle check reports 4 new metrics for feature parity with agent 5
+
+- The ntp check will now query multiple servers by default to be more
+  resilient to servers returning wrong offsets. A now config option ``hosts``
+  is now available in the ntp check configuration file to allow users to change
+  the list of ntp servers.
+
+- Tags and sources in the tagger-list command are now sorted to ease troubleshooting.
+
+- To allow concurrent execution of subprocess calls from python, we now 
+  save the thread state and release the GIL to unblock the interpreter . We
+  can reaquire the GIL and restore the thread state when the subprocess call
+  returns.
+
+- Add a new configuration option, named `tag_value_split_separator`, allowing the specified list of raw tags to have its value split by a given separator.
+  Only applies to host tags, tags coming from container integrations. Does not apply to tags on dogstatsd metrics, and tags collected by other integrations.
+
+
+.. _Release Notes_6.5.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Autodiscovery now enforces the ac_exclude and ac_include filtering options
+  for all listeners. Please double-check your exclusion patterns before upgrading
+  and add inclusion patterns if some autodiscovered containers match these.
+
+- The introduction of multiple runners for checks implies check
+  instances may now run concurrently. This should help the agent
+  make better use of resources, in particular it will help prevent
+  or reduce the side-effects of slow checks delaying the execution
+  of all other checks.
+  
+  The change will affect custom checks not enforcing thread safety as
+  they may, depending on the schedule, access unsynchronized structures
+  concurrently with the corresponding data race ensuing. If you wish to
+  run checks in a fully sequential fashion, you may set the `check_runners`
+  option in your `datadog.yaml` config or via the `DD_CHECK_RUNNERS` to 1.
+  Also, please feel free to reach out to us if you need more information
+  or help with the new multiple runner/concurrency model.
+  
+  For more details please read the technical note in the `datadog.yaml`_. 
+  
+  .. _datadog.yaml: https://github.com/DataDog/datadog-agent/blob/master/pkg/config/config_template.yaml#L130-L140
+
+- Prometheus custom checks are now limited to 2000 metrics by default
+  to provide users control over the maximum number of custom metrics
+  sent in the case of configuration errors or input changes.
+  This limit can be changed with the ``max_returned_metrics`` option
+  in the check configuration.
+
+
+.. _Release Notes_6.5.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- All Autodiscovery listeners now enforce the ac_exclude and ac_include filtering
+  options, as described in the documentation.
+
+- Fixed "logs_config.frame_size" override that would not be taken into account.
+
+- collect io metrics for drives with path only (like: C:\C0) on Windows
+
+- Fix API_KEY validation for 'additional_endpoints' by using their respective
+  endpoint instead of the main one all the time.
+
+- Fix port ordering for the %%port_%% Autodiscovery tag on the docker listener
+
+- Fix missing ECS tags under some conditions
+
+- Change the name of the agent expvar from ``aggregator/ServiceCheckFlushed)``
+  to ``aggregator/ServiceCheckFlushed``
+
+- Fix an issue where logs wouldn't be ingested if the API key contains a trailing
+  new line
+
+- Setting the log level of the ``check`` subcommand using
+  the ``-l`` flag was not setting the log level of python integrations.
+
+- Display embedded Python version in the status page instead of the version
+  from the system Python.
+
+- Fixes a bug causing kube_service tags to be missing when kubernetes_map_services_on_ip is false.
+
+- The ntp check now handles negative offsets if the host time is in the
+  future.
+
+- Fix a possible index out of range panic in Dogstatsd origin detection
+
+- Fix a verbose debug log caused by rescheduling services with no checks associated with them.
+
+
+.. _Release Notes_6.5.0_Other Notes:
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to 0.20.2; ships updated FasterXML.
+
+- Remove noisy and useless debug log line from contextResolver
+
 
 .. _Release Notes_6.4.2:
 
