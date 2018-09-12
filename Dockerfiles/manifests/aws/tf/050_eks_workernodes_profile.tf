@@ -46,7 +46,7 @@ resource "aws_iam_role_policy_attachment" "eks-node-AmazonEC2ContainerRegistryRe
 }
 
 resource "aws_iam_instance_profile" "eks-node-instance-profile" {
-  name = "${local.env}-instance-profile"
+  name = "${var.CLUSTER_NAME}-instance-profile"
   role = "${aws_iam_role.EKSNodeRole.name}"
 }
 
@@ -57,7 +57,7 @@ resource "aws_iam_instance_profile" "eks-node-instance-profile" {
 
 resource "aws_security_group" "eks-nodes-sg" {
   name  =  "${local.cluster_name}-nodes-sg"
-  description = "Security group for all nodes in the cluster [${local.env}] "
+  description = "Security group for all nodes in the cluster [${var.CLUSTER_NAME}] "
   vpc_id = "${aws_vpc.cluster.id}"
   //    ingress {
   //      from_port       = 0

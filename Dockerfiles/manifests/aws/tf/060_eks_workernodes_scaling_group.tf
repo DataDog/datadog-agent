@@ -80,7 +80,7 @@ resource "aws_autoscaling_group" "eks-autoscaling-group" {
 
   tag {
     key                 = "Environment"
-    value               = "${local.env}"
+    value               = "${var.CLUSTER_NAME}"
     propagate_at_launch = true
   }
 
