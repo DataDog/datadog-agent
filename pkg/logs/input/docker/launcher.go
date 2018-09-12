@@ -93,7 +93,7 @@ func (l *Launcher) Stop() {
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
-		delete(l.tailers, tailer.ContainerID)
+		l.removeTailer(tailer.ContainerID)
 	}
 	stopper.Stop()
 }
@@ -175,14 +175,14 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	}
 
 	// keep the tailer in track to stop it later on
-	l.tailers[containerID] = tailer
+	l.addTailer(containerID, tailer)
 }
 
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
 	if tailer, isTailed := l.tailers[containerID]; isTailed {
 		go tailer.Stop()
-		delete(l.tailers, containerID)
+		l.removeTailer(containerID)
 	}
 }
 
@@ -192,15 +192,16 @@ func (l *Launcher) restartTailer(containerID string) {
 	var tailer *Tailer
 	var source *config.LogSource
 
-	for i := 0; ; i++ { // TODO: Change backoff policy to expire
+	for { // TODO: Change backoff policy to expire
 		if backoffDuration > backoffMax {
 			backoffDuration = backoffMax
 		}
 
-		if i == 0 { // TODO: Make the check more robust on oldTailer.Stop()
-			oldTailer, _ := l.tailers[containerID]
+		oldTailer, exists := l.tailers[containerID]
+		if exists {
 			source = oldTailer.source
 			oldTailer.Stop()
+			l.removeTailer(containerID)
 		}
 
 		tailer = NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
@@ -220,9 +221,19 @@ func (l *Launcher) restartTailer(containerID string) {
 			continue
 		}
 		// keep the tailer in track to stop it later on
-		l.lock.Lock()
-		l.tailers[containerID] = tailer
-		l.lock.Unlock()
+		l.addTailer(containerID, tailer)
 		return
 	}
+}
+
+func (l *Launcher) addTailer(containerID string, tailer *Tailer) {
+	l.lock.Lock()
+	l.tailers[containerID] = tailer
+	l.lock.Unlock()
+}
+
+func (l *Launcher) removeTailer(containerID string) {
+	l.lock.Lock()
+	delete(l.tailers, containerID)
+	l.lock.Unlock()
 }
