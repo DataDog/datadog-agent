@@ -62,6 +62,18 @@ func getMockedPods() []*kubelet.Pod {
 				},
 			},
 		},
+		{ // For now, we include default pause containers in the autodiscovery
+			Name:  "clustercheck",
+			Image: "k8s.gcr.io/pause:latest",
+			Ports: []kubelet.ContainerPortSpec{
+				{
+					ContainerPort: 1122,
+					HostPort:      1133,
+					Name:          "barport",
+					Protocol:      "TCP",
+				},
+			},
+		},
 		{
 			Name:  "excluded",
 			Image: "datadoghq.com/baz:latest",
@@ -97,6 +109,11 @@ func getMockedPods() []*kubelet.Pod {
 			ID:    "docker://containerid",
 		},
 		{
+			Name:  "clustercheck",
+			Image: "k8s.gcr.io/pause:latest",
+			ID:    "docker://clustercheck",
+		},
+		{
 			Name:  "excluded",
 			Image: "datadoghq.com/baz:latest",
 			ID:    "docker://excluded",
@@ -125,12 +142,12 @@ func getMockedPods() []*kubelet.Pod {
 func TestProcessNewPod(t *testing.T) {
 	config.Datadog.SetDefault("ac_include", []string{"name:baz"})
 	config.Datadog.SetDefault("ac_exclude", []string{"image:datadoghq.com/baz.*"})
-	containers.ResetSharedFilter()
+	config.Datadog.SetDefault("exclude_pause_container", true)
 
 	defer func() {
 		config.Datadog.SetDefault("ac_include", []string{})
 		config.Datadog.SetDefault("ac_exclude", []string{})
-		containers.ResetSharedFilter()
+		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
 	services := make(chan Service, 5)
@@ -138,7 +155,7 @@ func TestProcessNewPod(t *testing.T) {
 		newService: services,
 		services:   make(map[string]Service),
 	}
-	listener.filter, _ = containers.GetSharedFilter()
+	listener.filter, _ = containers.NewFilterFromConfigIncludePause()
 
 	listener.processNewPods(getMockedPods(), false)
 
@@ -196,10 +213,28 @@ func TestProcessNewPod(t *testing.T) {
 		assert.FailNow(t, "third service not in channel")
 	}
 
-	// Fourth container is filtered out
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://clustercheck", string(service.GetEntity()))
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://clustercheck", "k8s.gcr.io/pause:latest", "pause"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+	default:
+		assert.FailNow(t, "fourth service not in channel")
+	}
+
+	// Fifth container is filtered out
 	select {
 	case <-services:
-		assert.FailNow(t, "four services in channel, filtering is broken")
+		assert.FailNow(t, "five services in channel, filtering is broken")
 	default:
 		// all good
 	}

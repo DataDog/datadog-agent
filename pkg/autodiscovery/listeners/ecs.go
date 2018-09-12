@@ -53,7 +53,7 @@ func init() {
 
 // NewECSListener creates an ECSListener
 func NewECSListener() (ServiceListener, error) {
-	filter, err := containers.GetSharedFilter()
+	filter, err := containers.NewFilterFromConfigIncludePause()
 	if err != nil {
 		return nil, err
 	}

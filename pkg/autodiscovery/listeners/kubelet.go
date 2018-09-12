@@ -58,7 +58,7 @@ func NewKubeletListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, err
 	}
-	filter, err := containers.GetSharedFilter()
+	filter, err := containers.NewFilterFromConfigIncludePause()
 	if err != nil {
 		return nil, err
 	}
