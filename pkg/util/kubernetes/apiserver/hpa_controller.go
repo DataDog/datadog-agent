@@ -286,6 +286,8 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 
 // the AutoscalersController does not benefit from a diffing logic.
 // Adding the new obj and dropping the previous one is sufficient.
+// FIXME if the metric name or scope is changed in the HPA manifest we should propagate the change
+// to the Global store here
 func (h *AutoscalersController) updateAutoscaler(_, obj interface{}) {
 	newAutoscaler, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if !ok {
