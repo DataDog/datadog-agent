@@ -20,6 +20,7 @@ import (
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,6 +37,7 @@ type datadogProvider struct {
 	externalMetrics []externalMetric
 	resVersion      string
 	store           Store
+	timestamp       int64
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
@@ -108,6 +110,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 		})
 	}
 	p.externalMetrics = externalMetricsList
+	p.timestamp = metav1.Now().Unix()
 	log.Debugf("ListAllExternalMetrics returns %d metrics", len(externalMetricsInfoList))
 	return externalMetricsInfoList
 }
@@ -116,10 +119,17 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 // - The registering of the External Metrics Provider
 // - The creation of a HPA manifest with an External metrics type.
 // - The validation of the metrics against Datadog
-// FIXME ListAllExternalMetrics is called on another replica prior to GetExternalMetric for the first time the metrics will be missing.
-// Make sure to hit the Global store in GetExternalMetric too.
+// Every replica answering to a ListAllExternalMetrics will populate its cache with a copy of the global cache.
+// If the copy does not exist or is too old (< 1 HPA controller run by default to avoid propagated delay) we refresh it.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricName string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
+
+	copyAge := metav1.Now().Unix() - p.timestamp
+	maxAge := config.Datadog.GetInt64("external_metrics_provider.local_copy_refresh_rate")
+	if copyAge > maxAge {
+		log.Debugf("Local copy of external metrics from the global store is outdated: %d, resyncing now", copyAge)
+		p.ListAllExternalMetrics()
+	}
 
 	for _, metric := range p.externalMetrics {
 		metricFromDatadog := external_metrics.ExternalMetricValue{
