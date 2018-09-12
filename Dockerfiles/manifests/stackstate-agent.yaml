@@ -27,6 +27,8 @@ spec:
             name: traceport
             protocol: TCP
         env:
+          - name: DD_DD_URL
+            value: "http://37.139.15.66:7077/stsAgent"
           - name: DD_APM_ENABLED
             value: "true"
           - name: DD_API_KEY
