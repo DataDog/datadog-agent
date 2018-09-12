@@ -7,7 +7,7 @@ Release Notes
 6.5.0
 =====
 
-.. _Release Notes_6.4.2_Prelude:
+.. _Release Notes_6.5.0_Prelude:
 
 Prelude
 -------
@@ -15,6 +15,10 @@ Prelude
 Release on: Unreleased 
 
 - Please refer to the `6.5.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.0>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.5.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.5.0>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.5.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.5.0>`_ for the list of changes on the Process Agent.
 
 
 .. _Release Notes_6.5.0_New Features:
