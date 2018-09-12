@@ -140,6 +140,7 @@ run_security_scan_test:
   tags: ["runner:main", "size:large"]
   only:
     - master
+  <<: *skip_on_cluster_agent_tag
   before_script:
     # this image isn't built in the datadog-agent-builders repo
     # it doesn't have invoke so we install the dependencies without invoke
@@ -160,6 +161,7 @@ run_security_scan_test:
 
 # build dogstatsd static for deb-x64
 build_dogstatsd_static-deb_x64:
+  <<: *skip_on_cluster_agent_tag
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -169,6 +171,7 @@ build_dogstatsd_static-deb_x64:
 
 # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
 build_puppy_agent-deb_x64:
+  <<: *skip_on_cluster_agent_tag
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -178,6 +181,7 @@ build_puppy_agent-deb_x64:
 
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
 build_puppy_agent-deb_x64_arm:
+  <<: *skip_on_cluster_agent_tag
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -186,6 +190,7 @@ build_puppy_agent-deb_x64_arm:
 
 # build dogstatsd for deb-x64
 build_dogstatsd-deb_x64:
+  <<: *skip_on_cluster_agent_tag
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -232,6 +237,7 @@ cluster_agent-build:
 
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
+  <<: *skip_on_cluster_agent_tag
   stage: integration_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -249,6 +255,7 @@ run_dogstatsd_size_test:
 
 # build Agent package for deb-x64
 agent_deb-x64:
+  <<: *skip_on_cluster_agent_tag
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -276,6 +283,7 @@ agent_deb-x64:
 
 # build Agent package for rpm-x64
 agent_rpm-x64:
+  <<: *skip_on_cluster_agent_tag
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -307,6 +315,7 @@ agent_rpm-x64:
 
 # build Agent package for rpm-x64
 agent_suse-x64:
+  <<: *skip_on_cluster_agent_tag
   allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
@@ -341,6 +350,7 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
+  <<: *skip_on_cluster_agent_tag
   before_script:
     - if exist .omnibus rd /s/q .omnibus
     - if exist \omnibus-ruby rd /s/q \omnibus-ruby
@@ -368,6 +378,7 @@ build_windows_msi_x64:
 
 # build Agent package for android
 agent_android_apk:
+  <<: *skip_on_cluster_agent_tag
   allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:v538460-2b07be3
@@ -398,6 +409,7 @@ agent_android_apk:
 
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
+  <<: *skip_on_cluster_agent_tag
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -425,6 +437,7 @@ dogstatsd_deb-x64:
 
 # build Dogstastd package for rpm-x64
 dogstatsd_rpm-x64:
+  <<: *skip_on_cluster_agent_tag
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -457,6 +470,7 @@ dogstatsd_rpm-x64:
 
 # build Dogstastd package for rpm-x64
 dogstatsd_suse-x64:
+  <<: *skip_on_cluster_agent_tag
   allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
@@ -569,6 +583,7 @@ kitchen_windows:
     - master
     - tags
     - triggers
+  <<: *skip_on_cluster_agent_tag
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -596,6 +611,7 @@ kitchen_centos:
     - master
     - tags
     - triggers
+  <<: *skip_on_cluster_agent_tag
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -621,6 +637,7 @@ kitchen_ubuntu:
     - master
     - tags
     - triggers
+  <<: *skip_on_cluster_agent_tag
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -647,6 +664,7 @@ kitchen_suse:
     - master
     - tags
     - triggers
+  <<: *skip_on_cluster_agent_tag
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -672,6 +690,7 @@ kitchen_debian:
     - master
     - tags
     - triggers
+  <<: *skip_on_cluster_agent_tag
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -696,6 +715,7 @@ testkitchen_cleanup_s3:
     - master
     - tags
     - triggers
+  <<: *skip_on_cluster_agent_tag
   tags: [ "runner:main", "size:large" ]
   before_script:
     - ls
@@ -718,6 +738,7 @@ testkitchen_cleanup_azure:
     - master
     - tags
     - triggers
+  <<: *skip_on_cluster_agent_tag
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
@@ -751,6 +772,7 @@ testkitchen_cleanup_azure:
 # build the agent6 image
 build_agent6:
   <<: *docker_build_job_definition
+  <<: *skip_on_cluster_agent_tag
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -758,6 +780,7 @@ build_agent6:
 # build the agent6 jmx image
 build_agent6_jmx:
   <<: *docker_build_job_definition
+  <<: *skip_on_cluster_agent_tag
   variables:
     IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -774,6 +797,7 @@ build_cluster_agent:
 # build the dogstatsd image
 build_dogstatsd:
   <<: *docker_build_job_definition
+  <<: *skip_on_cluster_agent_tag
   variables:
     IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
@@ -826,6 +850,7 @@ dev_master_docker_hub:
   <<: *docker_tag_job_definition
   only:
     - master
+  <<: *skip_on_cluster_agent_tag
   variables:
     <<: *docker_hub_variables
   script:
@@ -873,6 +898,7 @@ dev_master_quay:
 # from our S3 bucket.
 check_already_deployed_version:
   <<: *run_when_triggered
+  <<: *skip_on_cluster_agent_tag
   stage: check_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
@@ -1037,7 +1063,7 @@ latest_release:
 
 dca_tag_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
+  <<: *run_on_cluster_agent_tag
   stage: deploy
   when: manual
   variables:
@@ -1047,7 +1073,7 @@ dca_tag_release:
 
 dca_latest_release:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag
+  <<: *run_on_cluster_agent_tag
   stage: deploy
   when: manual
   variables:
