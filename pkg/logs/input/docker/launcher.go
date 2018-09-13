@@ -189,7 +189,6 @@ func (l *Launcher) stopTailer(containerID string) {
 func (l *Launcher) restartTailer(containerID string) {
 	backoffDuration := backoffInitialDuration
 	cumulatedBackoff := 0 * time.Second
-	var tailer *Tailer
 	var source *config.LogSource
 
 	oldTailer, exists := l.tailers[containerID]
@@ -199,7 +198,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		l.removeTailer(containerID)
 	}
 
-	tailer = NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), service.Before)
