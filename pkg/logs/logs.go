@@ -51,6 +51,7 @@ func Start() error {
 	// add the default sources
 	for _, source := range config.DefaultSources() {
 		// ensure that adding a new source will never be blocking at agent start
+		// since a go channel is used under the hood.
 		go sources.AddSource(source)
 	}
 
