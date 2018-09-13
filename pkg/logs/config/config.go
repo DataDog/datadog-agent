@@ -23,11 +23,20 @@ func DefaultSources() []*LogSource {
 	tcpForwardPort := LogsAgent.GetInt("logs_config.tcp_forward_port")
 	if tcpForwardPort > 0 {
 		// append source to collect all logs forwarded by TCP on a given port.
-		tcpForwardSource := NewLogSource("tcp_forward", &LogsConfig{
+		source := NewLogSource("tcp_forward", &LogsConfig{
 			Type: TCPType,
 			Port: tcpForwardPort,
 		})
-		sources = append(sources, tcpForwardSource)
+		sources = append(sources, source)
+	}
+	if LogsAgent.GetBool("logs_config.container_collect_all") {
+		// append source to collect all logs from all containers
+		source := NewLogSource("container_collect_all", &LogsConfig{
+			Type:    DockerType,
+			Service: "docker",
+			Source:  "docker",
+		})
+		sources = append(sources, source)
 	}
 	return sources
 }
