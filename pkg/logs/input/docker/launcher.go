@@ -187,11 +187,25 @@ func (l *Launcher) stopTailer(containerID string) {
 }
 
 func (l *Launcher) restartTailer(containerID string) {
-	log.Warnf("Tailing will restart for %v", ShortContainerID(containerID))
 	backoffDuration := backoffInitialDuration
-	cumulatedBackoffDuration := 0 * time.Second
+	cumulatedBackoff := 0 * time.Second
 	var tailer *Tailer
 	var source *config.LogSource
+
+	oldTailer, exists := l.tailers[containerID]
+	if exists {
+		source = oldTailer.source
+		oldTailer.Stop()
+		l.removeTailer(containerID)
+	}
+
+	tailer = NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+
+	// compute the offset to prevent from missing or duplicating logs
+	since, err := Since(l.registry, tailer.Identifier(), service.Before)
+	if err != nil {
+		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(containerID), err)
+	}
 
 	for {
 		if backoffDuration > backoffMaxDuration {
@@ -199,27 +213,12 @@ func (l *Launcher) restartTailer(containerID string) {
 			return
 		}
 
-		oldTailer, exists := l.tailers[containerID]
-		if exists {
-			source = oldTailer.source
-			oldTailer.Stop()
-			l.removeTailer(containerID)
-		}
-
-		tailer = NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
-
-		// compute the offset to prevent from missing or duplicating logs
-		since, err := Since(l.registry, tailer.Identifier(), service.Before)
-		if err != nil {
-			log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(containerID), err)
-		}
-
 		// start the tailer
 		err = tailer.Start(since)
 		if err != nil {
 			log.Warnf("Could not start tailer for container %v: %v", ShortContainerID(containerID), err)
 			time.Sleep(backoffDuration)
-			cumulatedBackoffDuration += backoffDuration
+			cumulatedBackoff += backoffDuration
 			backoffDuration *= 2
 			continue
 		}
