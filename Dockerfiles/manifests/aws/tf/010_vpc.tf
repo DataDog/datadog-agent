@@ -12,7 +12,7 @@ resource "aws_vpc" "cluster" {
   tags = "${merge(
     local.common_tags,
     map(
-      "Name", "${local.env}-eks-vpc"
+      "Name", "${var.CLUSTER_NAME}-eks-vpc"
     )
   )}"
 
@@ -34,7 +34,7 @@ resource "aws_subnet" "eks-public" {
   tags = "${merge(
     local.common_tags,
     map(
-      "Name", "${local.env}-eks-public"
+      "Name", "${var.CLUSTER_NAME}-eks-public"
     )
   )}"
 
@@ -50,7 +50,7 @@ resource "aws_subnet" "eks-public-2" {
   tags = "${merge(
     local.common_tags,
     map(
-      "Name", "${local.env}-eks-public-2"
+      "Name", "${var.CLUSTER_NAME}-eks-public-2"
     )
   )}"
 
@@ -67,7 +67,7 @@ resource "aws_subnet" "eks-private" {
   tags = "${merge(
     local.common_tags,
     map(
-      "Name", "${local.env}-eks-private"
+      "Name", "${var.CLUSTER_NAME}-eks-private"
     )
   )}"
 
@@ -82,7 +82,7 @@ resource "aws_subnet" "eks-private-2" {
   tags = "${merge(
     local.common_tags,
     map(
-      "Name", "${local.env}-eks-private-2"
+      "Name", "${var.CLUSTER_NAME}-eks-private-2"
     )
   )}"
 
@@ -94,7 +94,7 @@ resource "aws_subnet" "eks-private-2" {
 resource "aws_internet_gateway" "igw" {
   vpc_id = "${aws_vpc.cluster.id}"
   tags {
-    Environment = "${local.env}"
+    Environment = "${var.CLUSTER_NAME}"
   }
 }
 
@@ -105,14 +105,14 @@ resource "aws_internet_gateway" "igw" {
 resource "aws_eip" "nat_eip" {
   vpc = true
   tags {
-    Environment = "${local.env}"
+    Environment = "${var.CLUSTER_NAME}"
   }
 }
 
 resource "aws_eip" "nat_eip_2" {
   vpc = true
   tags {
-    Environment = "${local.env}"
+    Environment = "${var.CLUSTER_NAME}"
   }
 }
 
@@ -123,7 +123,7 @@ resource "aws_nat_gateway" "nat_gateway" {
   subnet_id = "${aws_subnet.eks-public.id}"
   depends_on = ["aws_internet_gateway.igw"]
   tags {
-    Environment = "${local.env}"
+    Environment = "${var.CLUSTER_NAME}"
   }
 }
 
@@ -132,7 +132,7 @@ resource "aws_nat_gateway" "nat_gateway_2" {
   subnet_id = "${aws_subnet.eks-public-2.id}"
   depends_on = ["aws_internet_gateway.igw"]
   tags {
-    Environment = "${local.env}"
+    Environment = "${var.CLUSTER_NAME}"
   }
 
 }
@@ -144,8 +144,8 @@ resource "aws_nat_gateway" "nat_gateway_2" {
 resource "aws_route_table" "private_route_table" {
   vpc_id = "${aws_vpc.cluster.id}"
   tags {
-    Environment = "${local.env}"
-    Name = "${local.env}-private-route-table"
+    Environment = "${var.CLUSTER_NAME}"
+    Name = "${var.CLUSTER_NAME}-private-route-table"
   }
 
 }
@@ -153,8 +153,8 @@ resource "aws_route_table" "private_route_table" {
 resource "aws_route_table" "private_route_table_2" {
   vpc_id = "${aws_vpc.cluster.id}"
   tags {
-    Environment = "${local.env}"
-    Name = "${local.env}-private-route-table-2"
+    Environment = "${var.CLUSTER_NAME}"
+    Name = "${var.CLUSTER_NAME}-private-route-table-2"
   }
 
 }
@@ -181,8 +181,8 @@ resource "aws_route_table" "eks-public" {
   }
 
   tags {
-    Environment = "${local.env}"
-    Name = "${local.env}-eks-public"
+    Environment = "${var.CLUSTER_NAME}"
+    Name = "${var.CLUSTER_NAME}-eks-public"
   }
 
 }
@@ -197,8 +197,8 @@ resource "aws_route_table" "eks-public-2" {
   }
 
   tags {
-    Environment = "${local.env}"
-    Name = "${local.env}-eks-public-2"
+    Environment = "${var.CLUSTER_NAME}"
+    Name = "${var.CLUSTER_NAME}-eks-public-2"
   }
 }
 

@@ -1,28 +1,28 @@
-variable "AWS_REGION" {}
 variable "AWS_ACCESS_KEY_ID" {}
 variable "AWS_SECRET_ACCESS_KEY" {}
+variable "AWS_REGION" {
+  default = "us-east-1"
+}
+variable "CLUSTER_NAME" {}
+variable "SSH_KEY_PAIR" {
+  description = "This will be used to ssh into the EC2 instances (k8s runners)"
+  default = "EKS"
+}
 
 locals {
-  env = "sts-agent-test"
-
   availabilityzone = "${var.AWS_REGION}a"
   availabilityzone2 = "${var.AWS_REGION}b"
 
-  cluster_name= "${local.env}-cluster"
+  cluster_name= "${var.CLUSTER_NAME}-cluster"
 
 //  NOTE: The usage of the specific kubernetes.io/cluster/*
 //  resource tags below are required for EKS and Kubernetes to discover
 //  and manage networking resources.
 
   common_tags = "${map(
-    "Environment", "${local.env}",
+    "Environment", "${var.CLUSTER_NAME}",
     "kubernetes.io/cluster/${local.cluster_name}", "shared"
   )}"
-}
-
-variable "ec2_keyname" {
-  description = "key used to access instances"
-  default = "EKS"
 }
 
 

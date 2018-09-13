@@ -38,8 +38,8 @@ contexts:
 - context:
     cluster: kubernetes
     user: aws
-  name: aws-${local.env}
-current-context: aws-${local.env}
+  name: aws-${var.CLUSTER_NAME}
+current-context: aws-${var.CLUSTER_NAME}
 kind: Config
 preferences: {}
 users:

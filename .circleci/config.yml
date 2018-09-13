@@ -150,6 +150,9 @@ jobs:
         name: Ensure libtool
         command: apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
     - run:
+        name: Print Environment Variables
+        command: printenv
+    - run:
         name: Omnibus deb build
         command: inv -e agent.omnibus-build --base-dir ./omnibus --omnibus-s3-cache --skip-sign
     - run:

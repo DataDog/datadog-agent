@@ -94,6 +94,7 @@ build_publish_deb:
   - git config --global user.email "circleci@stackstate"
   - git config --global user.name "CircleCI Stackstate"
   - apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
+  - printenv
   - inv -e agent.omnibus-build --base-dir ./omnibus --omnibus-s3-cache --skip-sign
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
   - cp -r  /go/src/github.com/StackVista/stackstate-agent/omnibus/pkg $CI_PROJECT_DIR/outcomes
@@ -119,9 +120,10 @@ build_publish_image:
   script:
   - cp $CI_PROJECT_DIR/outcomes/pkg/*.deb Dockerfiles/agent
   - TAG=${CI_COMMIT_SHA:0:7}
-  - docker build -t stackstate/stackstate-agent:$TAG Dockerfiles/agent
+  - docker build -t stackstate/stackstate-agent:$TAG -t stackstate/stackstate-agent:latest Dockerfiles/agent
   - docker login -u $DOCKER_USER -p $DOCKER_PASS
   - docker push stackstate/stackstate-agent:$TAG
+  - docker push stackstate/stackstate-agent:latest
 
 #docker_test:
 #  stage: docker_test

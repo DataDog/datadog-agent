@@ -4,8 +4,8 @@
 //Needs to be configured also with an ingress rule to allow traffic from the worker nodes.
 
 resource "aws_security_group" "eks-control-plane-sg" {
-  name        = "${local.env}-control-plane"
-  description = "Cluster communication with worker nodes [${local.env}]"
+  name        = "${var.CLUSTER_NAME}-control-plane"
+  description = "Cluster communication with worker nodes [${var.CLUSTER_NAME}]"
   vpc_id      = "${aws_vpc.cluster.id}"
 
   egress {
