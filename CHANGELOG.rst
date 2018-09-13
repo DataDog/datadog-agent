@@ -40,11 +40,12 @@ New Features
 - The Node Agent can rely on the Datadog Cluster Agent to collect Node Labels.
 
 - Improved ECS fargate tagging:
-  - Honor the ``docker_labels_as_tags`` option to extract custom tags
-  - Make the ``cluster_name`` tag shorter
-  - Add the ``short_image`` and ``container_id`` tags
-  - Remove some noisy tags
-  - Fix a lifecycle issue that caused missing tags
+
+  * Honor the ``docker_labels_as_tags`` option to extract custom tags
+  * Make the ``cluster_name`` tag shorter
+  * Add the ``short_image`` and ``container_id`` tags
+  * Remove some noisy tags
+  * Fix a lifecycle issue that caused missing tags
 
 - The live containers view can now retrieve containers directly from the kubelet,
   in order to support containerd and crio
