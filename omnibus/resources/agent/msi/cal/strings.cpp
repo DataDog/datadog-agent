@@ -16,6 +16,7 @@ std::wstring ddAgentUserDescription(L"User context under which the DataDog Agent
 
 std::wstring traceService(L"datadog-trace-agent");
 std::wstring processService(L"datadog-process-agent");
+std::wstring agentService(L"datadogagent");
 
 std::wstring propertyDDUserCreated(L"DDUSERCREATED");
 std::wstring propertySecretUserCreated(L"SECRETUSERCREATED");

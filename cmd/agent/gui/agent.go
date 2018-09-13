@@ -156,11 +156,14 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 // Restarts the agent using the appropriate (platform-specific) restart function
 func restartAgent(w http.ResponseWriter, r *http.Request) {
+	log.Infof("got restart function")
 	e := restart()
 	if e != nil {
+		log.Warnf("restart failed %v", e)
 		w.Write([]byte(e.Error()))
 		return
 	}
+	log.Infof("restart success")
 	w.Write([]byte("Success"))
 }
 

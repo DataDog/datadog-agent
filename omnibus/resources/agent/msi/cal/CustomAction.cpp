@@ -235,6 +235,13 @@ extern "C" UINT __stdcall EnableServicesForDDUser(MSIHANDLE hInstall)
         hr = -1;
         goto LExit;
     }
+    // need to enable user rights for the datadogagent service (main service)
+    // so that it can restart itself
+    er = EnableServiceForUser(agentService, ddAgentUserName);
+    if (0 != er) {
+        hr = -1;
+        goto LExit;
+    }
 
 
 LExit:

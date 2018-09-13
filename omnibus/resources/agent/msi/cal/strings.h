@@ -15,6 +15,7 @@ extern std::wstring ddAgentUserDescription;
 
 extern std::wstring traceService;
 extern std::wstring processService;
+extern std::wstring agentService;
 
 extern std::wstring propertyDDUserCreated;
 extern std::wstring propertySecretUserCreated;

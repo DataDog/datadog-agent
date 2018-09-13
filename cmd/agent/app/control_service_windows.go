@@ -66,18 +66,31 @@ const (
 
 // StartService starts the agent service via the Service Control Manager
 func StartService(cmd *cobra.Command, args []string) error {
-	m, err := mgr.Connect()
+	/*
+	 * default go impolementations of mgr.Connect and mgr.OpenService use way too
+	 * open permissions by default.  Use those structures so the other methods
+	 * work properly, but initialize them here using restrictive enough permissions
+	 * that we can actually open/start the service when running as non-root.
+	 */
+	h, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
 	if err != nil {
+		log.Warnf("Failed to connect to scm %v", err)
 		return err
 	}
+	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
+
+	hSvc, err := windows.OpenService(m.Handle, syscall.StringToUTF16Ptr(ServiceName),
+		windows.SERVICE_START|windows.SERVICE_STOP)
 	if err != nil {
+		log.Warnf("Failed to open service %v", err)
 		return fmt.Errorf("could not access service: %v", err)
 	}
-	defer s.Close()
-	err = s.Start("is", "manual-started")
+	scm := &mgr.Service{Name: ServiceName, Handle: hSvc}
+	defer scm.Close()
+	err = scm.Start("is", "manual-started")
 	if err != nil {
+		log.Warnf("Failed to start service %v", err)
 		return fmt.Errorf("could not start service: %v", err)
 	}
 	return nil
@@ -97,15 +110,27 @@ func restartService(cmd *cobra.Command, args []string) error {
 
 // StopService stops the agent service via the Service Control Manager
 func StopService(serviceName string, withDeps bool) error {
-	m, err := mgr.Connect()
+	/*
+	 * default go impolementations of mgr.Connect and mgr.OpenService use way too
+	 * open permissions by default.  Use those structures so the other methods
+	 * work properly, but initialize them here using restrictive enough permissions
+	 * that we can actually open/start the service when running as non-root.
+	 */
+	h, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
 	if err != nil {
+		log.Warnf("Failed to connect to scm %v", err)
 		return err
 	}
+	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
-	s, err := m.OpenService(serviceName)
+
+	hSvc, err := windows.OpenService(m.Handle, syscall.StringToUTF16Ptr(serviceName),
+		windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS)
 	if err != nil {
+		log.Warnf("Failed to open service %v", err)
 		return fmt.Errorf("could not access service: %v", err)
 	}
+	s := &mgr.Service{Name: serviceName, Handle: hSvc}
 	defer s.Close()
 	if withDeps {
 		deps, err := enumDependentServices(s.Handle, enumServiceActive)
