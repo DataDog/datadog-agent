@@ -148,7 +148,7 @@ func (t *Tailer) readForever() {
 					return
 				default:
 					t.source.Status.Error(err)
-					log.Errorf("Error reading logs for container %v: %v", ShortContainerID(t.ContainerID), err)
+					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.ContainerID), err)
 					t.erroredContainerID <- t.ContainerID
 					return
 				}
@@ -222,5 +222,4 @@ func (t *Tailer) wait() {
 // for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
 func isClosedConnError(err error) bool {
 	return strings.Contains(err.Error(), "use of closed network connection")
-
 }

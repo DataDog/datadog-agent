@@ -195,7 +195,7 @@ func (l *Launcher) restartTailer(containerID string) {
 
 	for {
 		if backoffDuration > backoffMaxDuration {
-			log.Warnf("Could not restart container %v. Stop tailing", ShortContainerID(containerID))
+			log.Warnf("Could not resume tailing container %v", ShortContainerID(containerID))
 			return
 		}
 
@@ -211,7 +211,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		// compute the offset to prevent from missing or duplicating logs
 		since, err := Since(l.registry, tailer.Identifier(), service.Before)
 		if err != nil {
-			log.Warnf("Could not recover tailing from last committed offset, start tailing from now for container %v: %v", ShortContainerID(containerID), err)
+			log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(containerID), err)
 		}
 
 		// start the tailer
