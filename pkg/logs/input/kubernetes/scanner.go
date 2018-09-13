@@ -77,7 +77,9 @@ func (s *Scanner) run() {
 	for {
 		select {
 		case <-s.sources.GetSourceStreamForType(config.DockerType):
-			// skip all docker sources for now
+			// skip all docker sources for now as we don't need them to collect logs from container files
+			// but the scanner still needs to register to the stream to ensure that no component producing
+			//
 			continue
 		case pod := <-s.podProvider.Added:
 			log.Infof("Adding pod: %v", pod.Metadata.Name)
