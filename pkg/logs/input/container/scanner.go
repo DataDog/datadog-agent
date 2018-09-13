@@ -26,7 +26,6 @@ import (
 func NewScanner(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (restart.Restartable, error) {
 	switch {
 	case config.LogsAgent.GetBool("logs_config.container_collect_all"):
-		log.Infof("Collect all logs from all containers is enabled")
 		// attempt to initialize a docker scanner
 		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
 		if err == nil {

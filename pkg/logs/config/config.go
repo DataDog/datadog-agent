@@ -29,15 +29,6 @@ func DefaultSources() []*LogSource {
 		})
 		sources = append(sources, source)
 	}
-	if LogsAgent.GetBool("logs_config.container_collect_all") {
-		// append source to collect all logs from all containers
-		source := NewLogSource("container_collect_all", &LogsConfig{
-			Type:    DockerType,
-			Service: "docker",
-			Source:  "docker",
-		})
-		sources = append(sources, source)
-	}
 	return sources
 }
 
