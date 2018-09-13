@@ -50,7 +50,8 @@ func Start() error {
 
 	// add the default sources
 	for _, source := range config.DefaultSources() {
-		sources.AddSource(source)
+		// ensure that adding a new source will never be blocking at agent start
+		go sources.AddSource(source)
 	}
 
 	return nil
