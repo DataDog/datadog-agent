@@ -15,10 +15,10 @@ Prelude
 Released on: 2018-09-13
 
 Please note that a critical bug identified in this release affecting container
-log collection when the `container_collect_all` was set, would lead to an agent
-dedalock. The severity of the issue has led us to remove the packages for the
-affected platforms (linux, docker). If you have upgraded to this version,
-we recommend you downgrade to `6.4.2`.
+log collection when the ``container_collect_all`` was set, would lead to an agent
+deadlock. The severity of the issue has led us to remove the packages for the
+affected platforms (**Linux** and **Docker**). If you have upgraded to this version,
+on **Linux or Docker** we recommend you downgrade to ``6.4.2``.
 
 - Please refer to the `6.5.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.0>`_ for the list of changes on the Core Checks.
 
