@@ -353,7 +353,6 @@ extern "C" BOOL WINAPI DllMain(
     case DLL_PROCESS_ATTACH:
         WcaGlobalInitialize(hInst);
         // initialize random number generator
-        srand(GetTickCount());
         break;
 
     case DLL_PROCESS_DETACH:

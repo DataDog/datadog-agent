@@ -8,7 +8,8 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
     if (passbuflen < MAX_PASS_LEN + 1) {
         return false;
     }
-
+#define RANDOM_BUFFER_SIZE 128
+    unsigned char randbuf[RANDOM_BUFFER_SIZE];
     const wchar_t * availLower = L"abcdefghijklmnopqrstuvwxyz";
     const wchar_t * availUpper = L"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const wchar_t * availNum = L"1234567890";
@@ -34,17 +35,30 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
 
     int usedClasses[] = { 0, 0, 0, 0 };
 
+    NTSTATUS ret = BCryptGenRandom(NULL, randbuf, RANDOM_BUFFER_SIZE, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    if (0 != ret) {
+        WcaLog(LOGMSG_STANDARD, "Failed to generate random data for password %d\n", ret);
+        return false;
+    }
     // we'll do a random length password between 12 and 18 chars
-    int len = (rand() % (MAX_PASS_LEN - MIN_PASS_LEN)) + MIN_PASS_LEN;
+    int len = (randbuf[0] % (MAX_PASS_LEN - MIN_PASS_LEN)) + MIN_PASS_LEN;
     int times = 0;
+
     do {
+        int randbufindex = 0;
         memset(usedClasses, 0, sizeof(usedClasses));
         memset(passbuf, 0, sizeof(wchar_t) * (MAX_PASS_LEN + 1));
-        for (int i = 0; i < len; i++) {
-            int chartype = rand() % numtypes;
+        NTSTATUS ret = BCryptGenRandom(NULL, randbuf, RANDOM_BUFFER_SIZE, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+        if (0 != ret) {
+            WcaLog(LOGMSG_STANDARD, "Failed to generate random data for password %d\n", ret);
+            return false;
+        }
+
+        for (int i = 0; i < len && randbufindex < RANDOM_BUFFER_SIZE - 2; i++) {
+            int chartype = randbuf[randbufindex++] % numtypes;
 
             int max_ndx = int(classlengths[chartype] - 1);
-            int ndx = rand() % max_ndx;
+            int ndx = randbuf[randbufindex++] % max_ndx;
 
             passbuf[i] = classes[chartype][ndx];
             usedClasses[chartype]++;
@@ -56,7 +70,6 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
         (usedClasses[CHARTYPE_NUMBER] + usedClasses[CHARTYPE_SPECIAL])));
 
     WcaLog(LOGMSG_STANDARD, "Took %d passes to generate the password", times);
-
     return true;
 
 }
