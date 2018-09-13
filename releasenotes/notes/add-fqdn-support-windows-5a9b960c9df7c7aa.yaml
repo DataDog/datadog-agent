@@ -6,8 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
-
 enhancements:
   - |
     On Windows, the `hostname_fqdn` flag will now be honored, and the
