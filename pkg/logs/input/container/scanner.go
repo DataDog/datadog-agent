@@ -17,34 +17,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewScanner returns a new container scanner,
+// NewLauncher returns a new container scanner,
 // by default returns a docker launcher that uses the docker socket to collect logs.
 // The docker launcher can be used both on a non kubernetes and kubernetes environment.
 // When a docker launcher can not be initialized properly and when the log collection is enabled for all containers,
-// the scanner will attempt to initialize a kubernetes scanner which will detect all the logs files localized
+// the scanner will attempt to initialize a kubernetes scanner which will detect and tail all the logs files localized
 // in '/var/log/pods' of all the containers running on the kubernetes cluster.
-func NewScanner(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (restart.Restartable, error) {
+func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
 	switch {
 	case config.LogsAgent.GetBool("logs_config.container_collect_all"):
 		// attempt to initialize a docker scanner
 		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
 		if err == nil {
-			return launcher, nil
+			return launcher
 		}
 		// attempt to initialize a kubernetes scanner
 		log.Warnf("Could not setup the docker scanner, falling back to the kubernetes one: %v", err)
-		scanner, err := kubernetes.NewScanner(sources)
+		scanner, err := kubernetes.NewScanner(sources, services)
 		if err == nil {
-			return scanner, nil
+			return scanner
 		}
 		log.Warnf("Could not setup the kubernetes scanner: %v", err)
-		return nil, err
 	default:
 		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
-		if err != nil {
-			log.Warnf("Could not setup the docker scanner: %v", err)
-			return nil, err
+		if err == nil {
+			return launcher
 		}
-		return launcher, nil
+		log.Warnf("Could not setup the docker scanner: %v", err)
 	}
+	return NewNoopLauncher(sources, services)
 }
