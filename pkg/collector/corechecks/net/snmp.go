@@ -6,7 +6,7 @@
 // +build !windows
 // +build snmp
 
-package network
+package net
 
 /*
 #cgo pkg-config: net-snmp-5.7.3
