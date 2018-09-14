@@ -26,12 +26,12 @@ const (
 
 var (
 	protocolsMetricsMapping = map[string]map[string]string{
-		"tcp": map[string]string{
+		"tcp": {
 			"RetransSegs": "system.net.tcp.retrans_segs",
 			"InSegs":      "system.net.tcp.in_segs",
 			"OutSegs":     "system.net.tcp.out_segs",
 		},
-		"udp": map[string]string{
+		"udp": {
 			"InDatagrams":  "system.net.udp.in_datagrams",
 			"NoPorts":      "system.net.udp.no_ports",
 			"InErrors":     "system.net.udp.in_errors",
