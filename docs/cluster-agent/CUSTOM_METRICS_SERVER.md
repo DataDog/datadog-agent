@@ -37,7 +37,7 @@ The second point is not mandatory, but it enables the enrichment of the metadata
 In order to spin up the Datadog Cluster Agent, create the appropriate RBAC rules.
 The Datadog Cluster Agent is acting as a proxy between the API Server and the Node Agent, to this extent it needs to have access to some cluster level resources.
 
-`kubectl apply -f manifests/cluster-agent/rbac-cluster-agent.yaml`
+`kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml`
 
 ```
 clusterrole.rbac.authorization.k8s.io "dca" created
@@ -50,9 +50,9 @@ Start by adding your `<API_KEY>` and `<APP_KEY>` in the Deployment manifest of t
 Then enable the HPA Processing by setting the `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` variable to true.
 Finally, spin up the resources:
 
-- `kubectl apply -f manifests/cluster-agent/cluster-agent.yaml`
 - `kubectl apply -f manifests/cluster-agent/datadog-cluster-agent_service.yaml`
 - `kubectl apply -f manifests/cluster-agent/hpa-example/cluster-agent-hpa-svc.yaml`
+- `kubectl apply -f manifests/cluster-agent/cluster-agent.yaml`
 
 Note that the first service is used for the communication between the Node Agents and the Datadog Cluster Agent but the second is used by Kubernetes to register the External Metrics Provider.
 
@@ -104,7 +104,7 @@ default       datadog-agent-2qqd3                      1/1       Running   0    
 default       datadog-cluster-agent-7b7f6d5547-cmdtc   1/1       Running   0          16m
 ```
 
-Now is time to create a Horizontal Pod Autoscaler manifest. If you take a look at [the hpa-manifest.yaml file](/manifest/cluster-agent/hpa-example/hpa-manifest.yaml), you should see:
+Now is time to create a Horizontal Pod Autoscaler manifest. If you take a look at [the hpa-manifest.yaml file](../../Dockerfiles/manifests/cluster-agent/hpa-example/hpa-manifest.yaml), you should see:
 - The HPA is configured to autoscale the Deployment called nginx
 - The maximum number of replicas created is 5 and the minimum is 1
 - The metric used is `nginx.net.request_per_s` and the scope is `kube_container_name: nginx`. Note that this metric format corresponds to the Datadog one.
@@ -160,7 +160,7 @@ Reading: 0 Writing: 1 Waiting: 0
 Behind the scenes, the number of request per second also increased. 
 This metric is being collected by the Node Agent, as it autodiscovered the NGINX pod through its annotations (for more information on how autodiscovery works, see our [autodiscovery documentation](https://docs.datadoghq.com/agent/autodiscovery/#template-source-kubernetes-pod-annotations)).
 Therefore, if you stress it, you should see the uptick in your Datadog app.
-As you referenced this metric in your HPA manifest, the Datadog Cluster Agent is also pulling its latest value every 20 seconds.
+As you referenced this metric in your HPA manifest, the Datadog Cluster Agent is also pulling its latest value regularly.
 Then, as Kubernetes queries the Datadog Cluster Agent to get this value, it notices that the number is going above the threshold and autoscales accordingly.
 
 Let's do it!
@@ -225,7 +225,7 @@ The flare command generates a zip file containing the `custom-metrics-provider.l
     labels:
     - cluster: eks
     metricName: redis.key
-    ts: 1.532042322e&#43;09
+    ts: 1532042322e&#43;09
     valid: false
     value: 0
     
@@ -272,15 +272,7 @@ Also make sure you have created the RBAC from the Register the External Metrics 
 
 Make sure the Datadog Cluster Agent is running, and the service exposing the port 443 which name is registered in the APIService are up.
 
-- If you are not collecting the service tag from the Datadog Cluster Agent
-
-Make sure the service map is available by exec'ing into the Datadog Cluster Agent pod and run:
-`datadog-cluster-agent metamap`
-Then, make sure you have the same secret (or a 32 characters long) token referenced in the Agent and in the Datadog Cluster Agent.
-The best way to do this is to check the environment variables (just type `env` when in the Agent or the Datadog Cluster Agent pod).
-Then make sure you have the `DD_CLUSTER_AGENT_ENABLED` option turned on in the Node Agent's manifest.
-
-- Why am I not seeing the same value in Datadog and in Kubernetes?
+- If you are not seeing the same value in Datadog and in Kubernetes?
 
 As Kubernetes autoscales your resources the current target is weighted by the number of replicas of the scaled Deployment.
 So the value returned by the Datadog Cluster Agent is fetched from Datadog and should be proportionally equal to the current target times the number of replicas. 
@@ -304,6 +296,6 @@ default     nginxext   Deployment/nginx   824/9 (avg)   1         3         3   
 ```
 And indeed 824 * 3 replicas = 2472.
 
-*Disclaimer*: The Datadog Cluster Agent processes the metrics set in different HPA manifests and queries Datadog to get values every 20 seconds. Kubernetes queries the Datadog Cluster Agent every 30 seconds.
+*Disclaimer*: The Datadog Cluster Agent processes the metrics set in different HPA manifests and queries Datadog to get values every 30 seconds, by default. Kubernetes queries the Datadog Cluster Agent every 30 seconds, by default.
 Both frequencies are configurable.
 As this process is done asynchronously, you should not expect to see the above rule verified at all times, especially if the metric varies.

@@ -4,7 +4,7 @@ The Datadog Cluster Agent is a **beta** feature, if you are facing any issues pl
 
 ## Introduction
 
-This document aims to get you started using the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent technical documentation](../../Dockerfiles/cluster-agent/README.md) documentation.
+This document aims at getting you started using the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent technical documentation](../../Dockerfiles/cluster-agent/README.md) documentation.
 
 ## Step by step
 
@@ -14,17 +14,17 @@ This document aims to get you started using the Datadog Cluster Agent. Refer to 
 * Cluster Role
 * Cluster Role Binding
 
-Review these manifests in the [Datadog Cluster Agent RBAC folder](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml).
+Review these manifests in the [Datadog Cluster Agent RBAC folder](../../Dockerfiles/manifests/cluster-agent/rbac).
 
-**Step 2** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-cluster-agent.yaml` from the `datadog-agent` directory.
+**Step 2** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac/rbac-cluster-agent.yaml` from the `datadog-agent` directory.
 
 **Step 3** - Depending on whether you are relying on a secret to secure the communication between the Datadog Agent and the Datadog Cluster Agent, either:
 
-* Create a secret
-* Set an environment variable
+* Create a secret and access it with an environment variable 
+* Set a token in an environment variable
 
-**Step 3.1** - To create a secret, create a 32 characters long base64 encoded string: `echo -n <32_CHARACTERS_LONG_TOKEN> | base64`
-and use this string in the `dca-secret.yaml` file located in the [manifest/cluster-agent/](../../Dockerfiles/manifests/cluster-agent/dca-secret.yaml) directory. Alternately run this one line command: `kubectl create secret generic datadog-auth-token --from-literal=token=<32_CHARACTERS_LONG_TOKEN>`.
+**Step 3.1** - To create a secret, create a 32 characters long base64 encoded string: `echo -n '<ThirtyX2XcharactersXlongXtoken>' | base64`
+and use this string in the `dca-secret.yaml` file located in the [manifest/cluster-agent/](../../Dockerfiles/manifests/cluster-agent/dca-secret.yaml) directory. Alternately run this one line command: `kubectl create secret generic datadog-auth-token --from-literal=token=<ThirtyX2XcharactersXlongXtoken>`.
 
 **Step 3.2** - Upon creation, refer to this secret with the environment variable `DD_CLUSTER_AGENT_AUTH_TOKEN`  in the manifest of the cluster agent as well as in the manifest of the Agent!
 
@@ -43,7 +43,7 @@ Or otherwise:
 
 ```yaml
           - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-            value: "<32_CHARACTERS_LONG_TOKEN>"
+            value: "<ThirtyX2XcharactersXlongXtoken>"
 ```
 
 Setting the value without a secret will result in the token being readable in the PodSpec.
@@ -51,7 +51,7 @@ Setting the value without a secret will result in the token being readable in th
 **Note**: This needs to be set in the manifest of the cluster agent **AND** the node agent.
 
 **Step 3 bis** - If you do not want to rely on environment variables, you can mount the datadog.yaml file. We recommend using a ConfigMap.
-Adding the following in the manifest of the cluster agent will suffice:
+To do so, dd the following in the manifest of the cluster agent:
 
 ```yaml
 [...]
@@ -70,7 +70,7 @@ Create the ConfigMap accordingly:
 `kubectl create configmap dca-yaml --from-file datadog-cluster.yaml`
 
 **Step 4** - Once the secret is created, create the Datadog Cluster Agent along with its service.
-Don't forget to add your `<DD_API_KEY>` in the manifest of the Datadog Cluster Agent. Both manifests can be found in the [manifest/cluster-agent directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
+Don't forget to add your `<DD_API_KEY>` in the manifest of the Datadog Cluster Agent. Both manifests can be found in the [manifest/ directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
 Run: 
 
 `kubectl apply -f Dockerfiles/manifests/cluster-agent/datadog-cluster-agent_service.yaml`
@@ -107,9 +107,9 @@ First, create the RBAC for your agents. They limit the agents' access to the kub
 
 Review these manifests in these files [Datadog Agent RBAC](../../Dockerfiles/manifests/cluster-agent/rbac/rbac-agent.yaml).
 
-**Step 7** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac-agent.yaml` from the datadog-agent directory.
+**Step 7** - Run: `kubectl apply -f Dockerfiles/manifests/cluster-agent/rbac/rbac-agent.yaml` from the datadog-agent directory.
 
-To do so, add the following environment variables to the agent's manifest:
+Then, enable the Datadog Cluster Agent. Add the following environment variables to the agent's manifest:
 
 ```yaml
           - name: DD_CLUSTER_AGENT_ENABLED
@@ -119,7 +119,7 @@ To do so, add the following environment variables to the agent's manifest:
               secretKeyRef:
                 name: datadog-auth-token
                 key: token
-#            value: "<32_CHARACTERS_LONG_TOKEN>" # If you are not using the secret, just set the string.
+#            value: "<ThirtyX2XcharactersXlongXtoken>" # If you are not using the secret, just set the string.
 ```
 
 **Step 8** - Create the Daemonsets for your agents:
@@ -141,7 +141,7 @@ datadog-agent-x5wk5                      1/1       Running   0          2h
 datadog-cluster-agent-8568545574-x9tc9   1/1       Running   0          2h
 ```
 
-Then, Kubernetes events should start to flow in your Datadog account, and relevant metrics collected by your agents should be tagged with their corresponding cluster level metadata.
+Kubernetes events should start to flow in your Datadog account, and relevant metrics collected by your agents should be tagged with their corresponding cluster level metadata.
 
 ## Troubleshooting
 <a name="troubleshooting"></a>

@@ -28,7 +28,7 @@ The goal of the Datadog Cluster Agent is to enhance the experience of monitoring
 
 * It acts as a proxy between the API server and the Node Agent in order to separate concerns.
 * It provides cluster level metadata that can only be found in the API server to the Node Agents for them to enrich the metadata of the locally collected metrics.
-* It enables the collection of cluster level data such as the monitoring of services or SPOF and events. These would otherwise require a mix of [Leader Election](../../Dockerfiles/agent/README.md#leader-election-[dca]) and [Autodiscovery](../../pkg/autodiscovery/README.md) to be monitored.
+* It enables the collection of cluster level data such as the monitoring of services or SPOF and events. These would otherwise require a mix of [Leader Election](../../Dockerfiles/agent/README.md#leader-election) and [Autodiscovery](../../pkg/autodiscovery/README.md) to be monitored.
 * It implements the [External Metrics Provider](CUSTOM_METRICS_SERVER.md) interface, enabling the users to autoscale their applications out of any metrics available in their Dataadog accounts. 
 
 ## When to use the Datadog Cluster Agent
@@ -48,4 +48,4 @@ The Datadog Cluster Agent implements a Go HTTP server (from `http/net`) to expos
 This implementations is [largely sufficient](https://github.com/valyala/fasthttp#http-server-performance-comparison-with-nethttp) as the Datadog Cluster Agent should only be receiving calls from up to 5K nodes that will be made every minute by default.
 Load testing the Datadog Cluster Agent, there were no problems handling 200 rq/s for an extended period of time. We would still recommend running 3 replicas of the Datadog Cluster Agent for infrastructures beyond a thousand nodes with the Agent.
 
-Only the Custom Metrics Provider is implemented as of v1.0.0, hence you must be running Kubernetes v1.10+ to leverage this feature.
+Only the External Metrics Provider is implemented as of v1.0.0, hence you must be running Kubernetes v1.10+ to leverage this feature.
