@@ -23,7 +23,6 @@ const podsDirectoryPath = "/var/log/pods"
 
 // Scanner looks for new and deleted pods to create or delete one logs-source per container.
 type Scanner struct {
-	podProvider        *PodProvider
 	sources            *config.LogSources
 	services           *service.Services
 	sourcesByContainer map[string]*config.LogSource
@@ -54,11 +53,6 @@ func NewScanner(sources *config.LogSources, services *service.Services) (*Scanne
 // setup initializes the pod watcher and the tagger.
 func (s *Scanner) setup() error {
 	var err error
-	// initialize a pod provider to retrieve added and deleted pods.
-	s.podProvider, err = NewPodProvider()
-	if err != nil {
-		return err
-	}
 	// initialize the tagger to collect container tags
 	err = tagger.Init()
 	if err != nil {
@@ -71,33 +65,24 @@ func (s *Scanner) setup() error {
 func (s *Scanner) Start() {
 	log.Info("Starting Kubernetes scanner")
 	go s.run()
-	s.podProvider.Start() // TODO: This will be remove
 }
 
 // Stop stops the scanner
 func (s *Scanner) Stop() {
 	log.Info("Stopping Kubernetes scanner")
-	s.podProvider.Stop() // Todo this will be removed
 	s.stopped <- struct{}{}
 }
 
 // run handles new and deleted pods,
-// the kubernetes scanner consumes new and deleted pods directly using a pod watcher FIXME: update this doc
-// but as the logs-agent has been plugged to autodiscovery, the scanner should use sources and services instead.
+// the kubernetes scanner consumes new and deleted services pushed by the autodiscovery
 func (s *Scanner) run() {
 	for {
 		select {
-		case <-s.podProvider.Added:
-			continue
-			// s.addSourcesFromPod(pod)
-		case <-s.podProvider.Removed:
-			continue
-			// s.removeSourcesFromPod(pod)
 		case newService := <-s.services.GetAddedServices(service.Docker):
-			log.Infof("Adding pod the new way %v", newService.GetEntityID())
+			log.Infof("Adding container %v", newService.GetEntityID())
 			s.addSources(newService)
 		case removedService := <-s.services.GetRemovedServices(service.Docker):
-			log.Infof("removing pod the new way %v", removedService.GetEntityID())
+			log.Infof("Removing container %v", removedService.GetEntityID())
 			s.removeSources(removedService)
 		case <-s.sources.GetSourceStreamForType(config.DockerType):
 			// The annotation are resolve through the pod object. We don't need
@@ -109,7 +94,8 @@ func (s *Scanner) run() {
 	}
 }
 
-// addSources creates a new log-source from a service
+// addSources creates a new log-source from a service by resolving the
+// pod linked to the entityID of the service
 func (s *Scanner) addSources(newService *service.Service) {
 	pod, err := s.kubeutil.GetPodForEntityID(newService.GetEntityID())
 	if err != nil {
