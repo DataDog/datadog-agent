@@ -70,6 +70,17 @@ func (l *Launcher) setup() error {
 // Start starts the Launcher
 func (l *Launcher) Start() {
 	go l.run()
+
+	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
+		// append a new source to collect all logs from all containers
+		log.Infof("Will collect all logs from all containers")
+		source := config.NewLogSource("container_collect_all", &config.LogsConfig{
+			Type:    config.DockerType,
+			Service: "docker",
+			Source:  "docker",
+		})
+		l.sources.AddSource(source)
+	}
 }
 
 // Stop stops the Launcher and its tailers in parallel,
