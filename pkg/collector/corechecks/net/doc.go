@@ -4,7 +4,7 @@
 // Copyright 2018 Datadog, Inc.
 
 /*
-Package network provides core checks for networking
+Package net provides core checks for networking
 
 */
 package net
