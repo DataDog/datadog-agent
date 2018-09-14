@@ -1,0 +1,332 @@
+package network
+
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/shirou/gopsutil/net"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+type fakeNetworkStats struct {
+	counterStats             []net.IOCountersStat
+	counterStatsError        error
+	protoCountersStats       []net.ProtoCountersStat
+	protoCountersStatsError  error
+	connectionStatsUDP4      []net.ConnectionStat
+	connectionStatsUDP4Error error
+	connectionStatsUDP6      []net.ConnectionStat
+	connectionStatsUDP6Error error
+	connectionStatsTCP4      []net.ConnectionStat
+	connectionStatsTCP4Error error
+	connectionStatsTCP6      []net.ConnectionStat
+	connectionStatsTCP6Error error
+}
+
+// IOCounters returns the inner values of counterStats and counterStatsError
+func (n *fakeNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
+	return n.counterStats, n.counterStatsError
+}
+
+// ProtoCounters returns the inner values of counterStats and counterStatsError
+func (n *fakeNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
+	return n.protoCountersStats, n.protoCountersStatsError
+}
+
+// Connections returns the inner values of counterStats and counterStatsError
+func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {
+	switch kind {
+	case "udp4":
+		return n.connectionStatsUDP4, n.connectionStatsUDP4Error
+	case "udp6":
+		return n.connectionStatsUDP6, n.connectionStatsUDP6Error
+	case "tcp4":
+		return n.connectionStatsTCP4, n.connectionStatsTCP4Error
+	case "tcp6":
+		return n.connectionStatsTCP6, n.connectionStatsTCP6Error
+	}
+	return nil, nil
+}
+
+func TestDefaultConfiguration(t *testing.T) {
+	check := NetworkCheck{}
+	check.Configure([]byte(``), []byte(``))
+
+	assert.Equal(t, false, check.config.instance.CollectConnectionState)
+	assert.Equal(t, []string(nil), check.config.instance.ExcludedInterfaces)
+	assert.Equal(t, "", check.config.instance.ExcludedInterfaceRe)
+}
+
+func TestConfiguration(t *testing.T) {
+	check := NetworkCheck{}
+	rawInstanceConfig := []byte(`
+collect_connection_state: true
+excluded_interfaces:
+    - eth0
+    - lo0
+excluded_interface_re: "eth.*"
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``))
+
+	assert.Nil(t, err)
+	assert.Equal(t, true, check.config.instance.CollectConnectionState)
+	assert.ElementsMatch(t, []string{"eth0", "lo0"}, check.config.instance.ExcludedInterfaces)
+	assert.Equal(t, "eth.*", check.config.instance.ExcludedInterfaceRe)
+}
+
+func TestNetworkCheck(t *testing.T) {
+
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			net.IOCountersStat{
+				Name:        "eth0",
+				BytesRecv:   10,
+				BytesSent:   11,
+				PacketsRecv: 12,
+				Errin:       13,
+				PacketsSent: 14,
+				Errout:      15,
+			},
+			net.IOCountersStat{
+				Name:        "lo0",
+				BytesRecv:   16,
+				BytesSent:   17,
+				PacketsRecv: 18,
+				Errin:       19,
+				PacketsSent: 20,
+				Errout:      21,
+			},
+		},
+		protoCountersStats: []net.ProtoCountersStat{
+			net.ProtoCountersStat{
+				Protocol: "tcp",
+				Stats: map[string]int64{
+					"RetransSegs": 22,
+					"InSegs":      23,
+					"OutSegs":     24,
+				},
+			},
+			net.ProtoCountersStat{
+				Protocol: "udp",
+				Stats: map[string]int64{
+					"InDatagrams":  25,
+					"NoPorts":      26,
+					"InErrors":     27,
+					"OutDatagrams": 28,
+					"RcvbufErrors": 29,
+					"SndbufErrors": 30,
+					"InCsumErrors": 31,
+				},
+			},
+		},
+		connectionStatsUDP4: []net.ConnectionStat{
+			net.ConnectionStat{
+				Status: "NONE",
+			},
+		},
+		connectionStatsUDP6: []net.ConnectionStat{
+			net.ConnectionStat{
+				Status: "NONE",
+			},
+			net.ConnectionStat{
+				Status: "NONE",
+			},
+		},
+		connectionStatsTCP4: []net.ConnectionStat{
+			net.ConnectionStat{
+				Status: "ESTABLISHED",
+			},
+			net.ConnectionStat{
+				Status: "SYN_SENT",
+			},
+			net.ConnectionStat{
+				Status: "SYN_RECV",
+			},
+			net.ConnectionStat{
+				Status: "FIN_WAIT1",
+			},
+			net.ConnectionStat{
+				Status: "FIN_WAIT2",
+			},
+			net.ConnectionStat{
+				Status: "TIME_WAIT",
+			},
+			net.ConnectionStat{
+				Status: "CLOSE",
+			},
+			net.ConnectionStat{
+				Status: "CLOSE_WAIT",
+			},
+			net.ConnectionStat{
+				Status: "LAST_ACK",
+			},
+			net.ConnectionStat{
+				Status: "LISTEN",
+			},
+			net.ConnectionStat{
+				Status: "CLOSING",
+			},
+		},
+
+		connectionStatsTCP6: []net.ConnectionStat{
+			net.ConnectionStat{
+				Status: "ESTABLISHED",
+			},
+			net.ConnectionStat{
+				Status: "SYN_SENT",
+			},
+			net.ConnectionStat{
+				Status: "SYN_RECV",
+			},
+			net.ConnectionStat{
+				Status: "FIN_WAIT1",
+			},
+			net.ConnectionStat{
+				Status: "FIN_WAIT2",
+			},
+			net.ConnectionStat{
+				Status: "TIME_WAIT",
+			},
+			net.ConnectionStat{
+				Status: "CLOSE",
+			},
+			net.ConnectionStat{
+				Status: "CLOSE_WAIT",
+			},
+			net.ConnectionStat{
+				Status: "LAST_ACK",
+			},
+			net.ConnectionStat{
+				Status: "LISTEN",
+			},
+			net.ConnectionStat{
+				Status: "CLOSING",
+			},
+			net.ConnectionStat{
+				Status: "ESTABLISHED",
+			},
+			net.ConnectionStat{
+				Status: "SYN_SENT",
+			},
+			net.ConnectionStat{
+				Status: "SYN_RECV",
+			},
+			net.ConnectionStat{
+				Status: "FIN_WAIT1",
+			},
+			net.ConnectionStat{
+				Status: "FIN_WAIT2",
+			},
+			net.ConnectionStat{
+				Status: "TIME_WAIT",
+			},
+			net.ConnectionStat{
+				Status: "CLOSE",
+			},
+			net.ConnectionStat{
+				Status: "CLOSE_WAIT",
+			},
+			net.ConnectionStat{
+				Status: "LAST_ACK",
+			},
+			net.ConnectionStat{
+				Status: "LISTEN",
+			},
+			net.ConnectionStat{
+				Status: "CLOSING",
+			},
+		},
+	}
+
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	rawInstanceConfig := []byte(`
+collect_connection_state: true
+`)
+
+	networkCheck.Configure(rawInstanceConfig, []byte(``))
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Nil(t, err)
+
+	eth0Tags := []string{"device_name:eth0"}
+
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(13), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
+
+	lo0Tags := []string{"device_name:lo0"}
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(19), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(20), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(21), "", lo0Tags)
+
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.retrans_segs", float64(22), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_segs", float64(23), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_segs", float64(24), "", []string{})
+
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.retrans_segs.count", float64(22), "", []string{})
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_segs.count", float64(23), "", []string{})
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_segs.count", float64(24), "", []string{})
+
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_datagrams", float64(25), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.no_ports", float64(26), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_errors", float64(27), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.out_datagrams", float64(28), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.rcv_buf_errors", float64(29), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.snd_buf_errors", float64(30), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_csum_errors", float64(31), "", []string{})
+
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_datagrams.count", float64(25), "", []string{})
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.no_ports.count", float64(26), "", []string{})
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_errors.count", float64(27), "", []string{})
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.out_datagrams.count", float64(28), "", []string{})
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.rcv_buf_errors.count", float64(29), "", []string{})
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.snd_buf_errors.count", float64(30), "", []string{})
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_csum_errors.count", float64(31), "", []string{})
+
+	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", []string{})
+
+	mockSender.AssertCalled(t, "Gauge", "system.net.udp6.connections", float64(2), "", []string{})
+
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.estab", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_sent", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_recv", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_1", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_2", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close_wait", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.last_ack", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listen", float64(1), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.closing", float64(1), "", []string{})
+
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.estab", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.syn_sent", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.syn_recv", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_1", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_2", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.time_wait", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close_wait", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.last_ack", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.listen", float64(2), "", []string{})
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(2), "", []string{})
+
+	mockSender.AssertCalled(t, "Commit")
+}
