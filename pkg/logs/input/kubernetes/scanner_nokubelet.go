@@ -8,15 +8,18 @@
 package kubernetes
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 // Scanner is not supported on no kubelet environment
 type Scanner struct{}
 
 // NewScanner returns a new scanner
-func NewScanner(sources *config.LogSources) (*Scanner, error) {
-	return &Scanner{}, nil
+func NewScanner(sources *config.LogSources, services *service.Services) (*Scanner, error) {
+	return &Scanner{}, errors.New("the kubernetes integration is not available on your system")
 }
 
 // Start does nothing
