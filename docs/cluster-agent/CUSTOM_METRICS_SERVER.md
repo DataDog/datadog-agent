@@ -50,9 +50,9 @@ Start by adding your `<API_KEY>` and `<APP_KEY>` in the Deployment manifest of t
 Then enable the HPA Processing by setting the `DD_EXTERNAL_METRICS_PROVIDER_ENABLED` variable to true.
 Finally, spin up the resources:
 
-- `kubectl apply -f manifests/cluster-agent/datadog-cluster-agent_service.yaml`
-- `kubectl apply -f manifests/cluster-agent/hpa-example/cluster-agent-hpa-svc.yaml`
-- `kubectl apply -f manifests/cluster-agent/cluster-agent.yaml`
+- `kubectl apply -f Dockerfiles/manifests/cluster-agent/datadog-cluster-agent_service.yaml`
+- `kubectl apply -f Dockerfiles/manifests/cluster-agent/hpa-example/cluster-agent-hpa-svc.yaml`
+- `kubectl apply -f Dockerfiles/manifests/cluster-agent/cluster-agent.yaml`
 
 Note that the first service is used for the communication between the Node Agents and the Datadog Cluster Agent but the second is used by Kubernetes to register the External Metrics Provider.
 
@@ -78,7 +78,7 @@ Once the Datadog Cluster Agent is up and running, register it as an External Met
 
 To do so, apply the following RBAC rules:
 
-`kubectl apply -f manifest/hpa-example/rbac-hpa.yaml`
+`kubectl apply -f Dockerfiles/manifests/hpa-example/rbac-hpa.yaml`
 
 ```
 clusterrolebinding.rbac.authorization.k8s.io "system:auth-delegator" created
@@ -114,11 +114,11 @@ For advanced use cases, it is possible to have several metrics in the same HPA, 
 
 Now, let's create the NGINX deployment:
 
-`kubectl apply -f manifests/cluster-agent/hpa-example/nginx.yaml`
+`kubectl apply -f Dockerfiles/manifests/cluster-agent/hpa-example/nginx.yaml`
 
 Then, apply the HPA manifest.
 
-`kubectl apply -f manifests/cluster-agent/hpa-example/hpa-manifest.yaml`
+`kubectl apply -f Dockerfiles/manifests/cluster-agent/hpa-example/hpa-manifest.yaml`
 
 You should be seeing your nginx pod running with the corresponding service:
 

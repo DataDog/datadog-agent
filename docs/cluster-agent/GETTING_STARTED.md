@@ -24,7 +24,7 @@ Review these manifests in the [Datadog Cluster Agent RBAC folder](../../Dockerfi
 * Set a token in an environment variable
 
 **Step 3.1** - To create a secret, create a 32 characters long base64 encoded string: `echo -n '<ThirtyX2XcharactersXlongXtoken>' | base64`
-and use this string in the `dca-secret.yaml` file located in the [manifest/cluster-agent/](../../Dockerfiles/manifests/cluster-agent/dca-secret.yaml) directory. Alternately run this one line command: `kubectl create secret generic datadog-auth-token --from-literal=token=<ThirtyX2XcharactersXlongXtoken>`.
+and use this string in the `dca-secret.yaml` file located in the [manifest/cluster-agent directory](../../Dockerfiles/manifests/cluster-agent/dca-secret.yaml). Alternately run this one line command: `kubectl create secret generic datadog-auth-token --from-literal=token=<ThirtyX2XcharactersXlongXtoken>`.
 
 **Step 3.2** - Upon creation, refer to this secret with the environment variable `DD_CLUSTER_AGENT_AUTH_TOKEN`  in the manifest of the cluster agent as well as in the manifest of the Agent!
 
@@ -51,7 +51,7 @@ Setting the value without a secret will result in the token being readable in th
 **Note**: This needs to be set in the manifest of the cluster agent **AND** the node agent.
 
 **Step 3 bis** - If you do not want to rely on environment variables, you can mount the datadog.yaml file. We recommend using a ConfigMap.
-To do so, dd the following in the manifest of the cluster agent:
+To do so, add the following in the manifest of the cluster agent:
 
 ```yaml
 [...]
@@ -70,7 +70,7 @@ Create the ConfigMap accordingly:
 `kubectl create configmap dca-yaml --from-file datadog-cluster.yaml`
 
 **Step 4** - Once the secret is created, create the Datadog Cluster Agent along with its service.
-Don't forget to add your `<DD_API_KEY>` in the manifest of the Datadog Cluster Agent. Both manifests can be found in the [manifest/ directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
+Don't forget to add your `<DD_API_KEY>` in the manifest of the Datadog Cluster Agent. Both manifests can be found in the [manifest directory](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests)
 Run: 
 
 `kubectl apply -f Dockerfiles/manifests/cluster-agent/datadog-cluster-agent_service.yaml`
