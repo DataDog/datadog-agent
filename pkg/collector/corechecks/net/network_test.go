@@ -86,7 +86,7 @@ func TestNetworkCheck(t *testing.T) {
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
-			net.IOCountersStat{
+			{
 				Name:        "eth0",
 				BytesRecv:   10,
 				BytesSent:   11,
@@ -95,7 +95,7 @@ func TestNetworkCheck(t *testing.T) {
 				PacketsSent: 14,
 				Errout:      15,
 			},
-			net.IOCountersStat{
+			{
 				Name:        "lo0",
 				BytesRecv:   16,
 				BytesSent:   17,
@@ -106,7 +106,7 @@ func TestNetworkCheck(t *testing.T) {
 			},
 		},
 		protoCountersStats: []net.ProtoCountersStat{
-			net.ProtoCountersStat{
+			{
 				Protocol: "tcp",
 				Stats: map[string]int64{
 					"RetransSegs": 22,
@@ -114,7 +114,7 @@ func TestNetworkCheck(t *testing.T) {
 					"OutSegs":     24,
 				},
 			},
-			net.ProtoCountersStat{
+			{
 				Protocol: "udp",
 				Stats: map[string]int64{
 					"InDatagrams":  25,
@@ -128,119 +128,119 @@ func TestNetworkCheck(t *testing.T) {
 			},
 		},
 		connectionStatsUDP4: []net.ConnectionStat{
-			net.ConnectionStat{
+			{
 				Status: "NONE",
 			},
 		},
 		connectionStatsUDP6: []net.ConnectionStat{
-			net.ConnectionStat{
+			{
 				Status: "NONE",
 			},
-			net.ConnectionStat{
+			{
 				Status: "NONE",
 			},
 		},
 		connectionStatsTCP4: []net.ConnectionStat{
-			net.ConnectionStat{
+			{
 				Status: "ESTABLISHED",
 			},
-			net.ConnectionStat{
+			{
 				Status: "SYN_SENT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "SYN_RECV",
 			},
-			net.ConnectionStat{
+			{
 				Status: "FIN_WAIT1",
 			},
-			net.ConnectionStat{
+			{
 				Status: "FIN_WAIT2",
 			},
-			net.ConnectionStat{
+			{
 				Status: "TIME_WAIT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSE",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSE_WAIT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "LAST_ACK",
 			},
-			net.ConnectionStat{
+			{
 				Status: "LISTEN",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSING",
 			},
 		},
 
 		connectionStatsTCP6: []net.ConnectionStat{
-			net.ConnectionStat{
+			{
 				Status: "ESTABLISHED",
 			},
-			net.ConnectionStat{
+			{
 				Status: "SYN_SENT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "SYN_RECV",
 			},
-			net.ConnectionStat{
+			{
 				Status: "FIN_WAIT1",
 			},
-			net.ConnectionStat{
+			{
 				Status: "FIN_WAIT2",
 			},
-			net.ConnectionStat{
+			{
 				Status: "TIME_WAIT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSE",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSE_WAIT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "LAST_ACK",
 			},
-			net.ConnectionStat{
+			{
 				Status: "LISTEN",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSING",
 			},
-			net.ConnectionStat{
+			{
 				Status: "ESTABLISHED",
 			},
-			net.ConnectionStat{
+			{
 				Status: "SYN_SENT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "SYN_RECV",
 			},
-			net.ConnectionStat{
+			{
 				Status: "FIN_WAIT1",
 			},
-			net.ConnectionStat{
+			{
 				Status: "FIN_WAIT2",
 			},
-			net.ConnectionStat{
+			{
 				Status: "TIME_WAIT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSE",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSE_WAIT",
 			},
-			net.ConnectionStat{
+			{
 				Status: "LAST_ACK",
 			},
-			net.ConnectionStat{
+			{
 				Status: "LISTEN",
 			},
-			net.ConnectionStat{
+			{
 				Status: "CLOSING",
 			},
 		},
@@ -341,7 +341,7 @@ collect_connection_state: true
 func TestExcludedInterfaces(t *testing.T) {
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
-			net.IOCountersStat{
+			{
 				Name:        "eth0",
 				BytesRecv:   10,
 				BytesSent:   11,
@@ -350,7 +350,7 @@ func TestExcludedInterfaces(t *testing.T) {
 				PacketsSent: 14,
 				Errout:      15,
 			},
-			net.IOCountersStat{
+			{
 				Name:        "lo0",
 				BytesRecv:   16,
 				BytesSent:   17,
@@ -403,7 +403,7 @@ excluded_interfaces:
 func TestExcludedInterfacesRe(t *testing.T) {
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
-			net.IOCountersStat{
+			{
 				Name:        "eth0",
 				BytesRecv:   10,
 				BytesSent:   11,
@@ -412,7 +412,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 				PacketsSent: 14,
 				Errout:      15,
 			},
-			net.IOCountersStat{
+			{
 				Name:        "eth1",
 				BytesRecv:   16,
 				BytesSent:   17,
@@ -421,7 +421,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 				PacketsSent: 20,
 				Errout:      21,
 			},
-			net.IOCountersStat{
+			{
 				Name:        "lo0",
 				BytesRecv:   22,
 				BytesSent:   23,
