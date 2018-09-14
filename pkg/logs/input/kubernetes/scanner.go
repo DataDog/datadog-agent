@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 // The path to the pods log directory.
@@ -24,14 +25,16 @@ const podsDirectoryPath = "/var/log/pods"
 type Scanner struct {
 	podProvider        *PodProvider
 	sources            *config.LogSources
+	services           *service.Services
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
 }
 
 // NewScanner returns a new scanner.
-func NewScanner(sources *config.LogSources) (*Scanner, error) {
+func NewScanner(sources *config.LogSources, services *service.Services) (*Scanner, error) {
 	scanner := &Scanner{
 		sources:            sources,
+		services:           services,
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
 	}
@@ -72,7 +75,10 @@ func (s *Scanner) Stop() {
 	s.stopped <- struct{}{}
 }
 
-// run handles new and deleted pods
+// run handles new and deleted pods,
+// the kubernetes scanner consumes new and deleted pods directly using a pod watcher
+// but as the logs-agent has been plugged to autodiscovery, the scanner should use sources and services instead.
+// FIXME: consume services and sources
 func (s *Scanner) run() {
 	for {
 		select {
@@ -82,6 +88,12 @@ func (s *Scanner) run() {
 		case pod := <-s.podProvider.Removed:
 			log.Infof("Removing pod %v", pod.Metadata.Name)
 			s.removeSources(pod)
+		case <-s.services.GetAddedServices(service.Docker):
+			continue
+		case <-s.services.GetRemovedServices(service.Docker):
+			continue
+		case <-s.sources.GetSourceStreamForType(config.DockerType):
+			continue
 		case <-s.stopped:
 			return
 		}
