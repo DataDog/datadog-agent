@@ -11,6 +11,7 @@ ALL_TAGS = set([
     "clusterchecks",
     "consul",
     "cpython",
+    "cri",
     "docker",
     "ec2",
     "etcd",
@@ -35,6 +36,7 @@ LINUX_ONLY_TAGS = [
     "docker",
     "kubelet",
     "kubeapiserver",
+    "cri",
 ]
 
 DEBIAN_ONLY_TAGS = [
