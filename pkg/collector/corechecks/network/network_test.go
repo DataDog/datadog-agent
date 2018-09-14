@@ -247,7 +247,8 @@ func TestNetworkCheck(t *testing.T) {
 collect_connection_state: true
 `)
 
-	networkCheck.Configure(rawInstanceConfig, []byte(``))
+	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
+	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 
@@ -256,11 +257,10 @@ collect_connection_state: true
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err := networkCheck.Run()
+	err = networkCheck.Run()
 	assert.Nil(t, err)
 
 	eth0Tags := []string{"device_name:eth0"}
-
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -329,4 +329,145 @@ collect_connection_state: true
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(2), "", []string{})
 
 	mockSender.AssertCalled(t, "Commit")
+}
+
+func TestExcludedInterfaces(t *testing.T) {
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			net.IOCountersStat{
+				Name:        "eth0",
+				BytesRecv:   10,
+				BytesSent:   11,
+				PacketsRecv: 12,
+				Errin:       13,
+				PacketsSent: 14,
+				Errout:      15,
+			},
+			net.IOCountersStat{
+				Name:        "lo0",
+				BytesRecv:   16,
+				BytesSent:   17,
+				PacketsRecv: 18,
+				Errin:       19,
+				PacketsSent: 20,
+				Errout:      21,
+			},
+		},
+	}
+
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	rawInstanceConfig := []byte(`
+excluded_interfaces:
+    - lo0
+`)
+
+	networkCheck.Configure(rawInstanceConfig, []byte(``))
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Nil(t, err)
+
+	eth0Tags := []string{"device_name:eth0"}
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(13), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
+
+	lo0Tags := []string{"device_name:lo0"}
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(19), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(20), "", lo0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(21), "", lo0Tags)
+}
+
+func TestExcludedInterfacesRe(t *testing.T) {
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			net.IOCountersStat{
+				Name:        "eth0",
+				BytesRecv:   10,
+				BytesSent:   11,
+				PacketsRecv: 12,
+				Errin:       13,
+				PacketsSent: 14,
+				Errout:      15,
+			},
+			net.IOCountersStat{
+				Name:        "eth1",
+				BytesRecv:   16,
+				BytesSent:   17,
+				PacketsRecv: 18,
+				Errin:       19,
+				PacketsSent: 20,
+				Errout:      21,
+			},
+			net.IOCountersStat{
+				Name:        "lo0",
+				BytesRecv:   22,
+				BytesSent:   23,
+				PacketsRecv: 24,
+				Errin:       25,
+				PacketsSent: 26,
+				Errout:      27,
+			},
+		},
+	}
+
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+
+	rawInstanceConfig := []byte(`
+excluded_interface_re: "eth[0-9]"
+`)
+
+	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
+	assert.Nil(t, err)
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	eth0Tags := []string{"device_name:eth0"}
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(13), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
+
+	eth1Tags := []string{"device_name:eth1"}
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.error", float64(19), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.count", float64(20), "", eth1Tags)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_out.error", float64(21), "", eth1Tags)
+
+	lo0Tags := []string{"device_name:lo0"}
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(22), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(23), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(24), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.error", float64(25), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(26), "", lo0Tags)
+	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(27), "", lo0Tags)
 }
