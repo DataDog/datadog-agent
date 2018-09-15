@@ -26,14 +26,14 @@ func NewLogSources() *LogSources {
 // AddSource adds a new source.
 func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
 		return
 	}
+	stream, exists := s.streamByType[source.Config.Type]
+	s.mu.Unlock()
 
-	if stream, exists := s.streamByType[source.Config.Type]; exists {
+	if exists {
 		stream <- source
 	}
 }

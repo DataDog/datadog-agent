@@ -27,9 +27,10 @@ func NewServices() *Services {
 // AddService sends a new service to the channel matching its type.
 func (s *Services) AddService(service *Service) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	added, exists := s.addedPerType[service.Type]
+	s.mu.Unlock()
 
-	if added, exists := s.addedPerType[service.Type]; exists {
+	if exists {
 		added <- service
 	}
 }
@@ -37,9 +38,10 @@ func (s *Services) AddService(service *Service) {
 // RemoveService sends a removed service to the channel matching its type.
 func (s *Services) RemoveService(service *Service) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	removed, exists := s.removedPerType[service.Type]
+	s.mu.Unlock()
 
-	if removed, exists := s.removedPerType[service.Type]; exists {
+	if exists {
 		removed <- service
 	}
 }
@@ -51,7 +53,7 @@ func (s *Services) GetAddedServices(serviceType string) chan *Service {
 
 	added, exists := s.addedPerType[serviceType]
 	if !exists {
-		added := make(chan *Service)
+		added = make(chan *Service)
 		s.addedPerType[serviceType] = added
 	}
 	return added
@@ -64,7 +66,7 @@ func (s *Services) GetRemovedServices(serviceType string) chan *Service {
 
 	removed, exists := s.removedPerType[serviceType]
 	if !exists {
-		removed := make(chan *Service)
+		removed = make(chan *Service)
 		s.removedPerType[serviceType] = removed
 	}
 	return removed
