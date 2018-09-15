@@ -17,8 +17,7 @@ import (
 )
 
 // Launcher is not supported on non docker environment
-type Launcher struct {
-}
+type Launcher struct{}
 
 // NewLauncher returns a new Launcher
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {

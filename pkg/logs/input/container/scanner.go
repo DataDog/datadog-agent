@@ -45,5 +45,5 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		}
 		log.Warnf("Could not setup the docker scanner: %v", err)
 	}
-	return NewNoopLauncher(sources, services)
+	return NewNoopLauncher()
 }
