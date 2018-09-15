@@ -342,8 +342,12 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
+  ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
+  ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
   before_script:
+    - set WIN_CI_PROJECT_DIR=%CD%
     - if exist .omnibus rd /s/q .omnibus
+    - mkdir .omnibus\pkg
     - if exist \omnibus-ruby rd /s/q \omnibus-ruby
     - if exist %OMNIBUS_BASE_DIR_WIN% rd /s/q %OMNIBUS_BASE_DIR_WIN%
     - if exist \opt\datadog-agent rd /s/q \opt\datadog-agent
@@ -359,14 +363,14 @@ build_windows_msi_x64:
   tags: ["runner:windows-agent6"]
   script:
     # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf .omnibus/pkg/
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN%
+    # copy the results from the build dir to here, because artifacts must be relative to the project directory
+    - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
   artifacts:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
-
 
 # build Agent package for android
 agent_android_apk:
