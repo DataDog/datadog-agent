@@ -21,6 +21,7 @@ variables:
   # make sure the types of RPM packages are kept separate
   OMNIBUS_BASE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/
   OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg/
+  OMNIBUS_BASE_DIR_WIN: c:\omni-base\$CI_RUNNER_ID
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
@@ -344,6 +345,7 @@ build_windows_msi_x64:
   before_script:
     - if exist .omnibus rd /s/q .omnibus
     - if exist \omnibus-ruby rd /s/q \omnibus-ruby
+    - if exist %OMNIBUS_BASE_DIR_WIN% rd /s/q %OMNIBUS_BASE_DIR_WIN%
     - if exist \opt\datadog-agent rd /s/q \opt\datadog-agent
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
     - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
@@ -359,7 +361,7 @@ build_windows_msi_x64:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf .omnibus/pkg/
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache
+    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN%
   artifacts:
     expire_in: 2 weeks
     paths:
