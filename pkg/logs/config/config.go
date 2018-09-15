@@ -20,6 +20,7 @@ var LogsAgent = config.Datadog
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
 func DefaultSources() []*LogSource {
 	var sources []*LogSource
+
 	tcpForwardPort := LogsAgent.GetInt("logs_config.tcp_forward_port")
 	if tcpForwardPort > 0 {
 		// append source to collect all logs forwarded by TCP on a given port.
@@ -29,6 +30,17 @@ func DefaultSources() []*LogSource {
 		})
 		sources = append(sources, source)
 	}
+
+	if LogsAgent.GetBool("logs_config.container_collect_all") {
+		// append a new source to collect all logs from all containers
+		source := NewLogSource("container_collect_all", &LogsConfig{
+			Type:    DockerType,
+			Service: "docker",
+			Source:  "docker",
+		})
+		sources = append(sources, source)
+	}
+
 	return sources
 }
 
