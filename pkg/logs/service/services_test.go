@@ -20,8 +20,9 @@ func TestAddService(t *testing.T) {
 	added := services.GetAddedServices("foo")
 	assert.Equal(t, 0, len(added))
 
-	services.AddService(service)
-	assert.Equal(t, 1, len(added))
+	go func() { services.AddService(service) }()
+	s := <-added
+	assert.Equal(t, s, service)
 }
 
 func TestRemoveService(t *testing.T) {
@@ -30,9 +31,10 @@ func TestRemoveService(t *testing.T) {
 
 	services.RemoveService(service)
 
-	added := services.GetAddedServices("foo")
-	assert.Equal(t, 0, len(added))
+	removed := services.GetAddedServices("foo")
+	assert.Equal(t, 0, len(removed))
 
-	services.RemoveService(service)
-	assert.Equal(t, 1, len(added))
+	go func() { services.RemoveService(service) }()
+	s := <-removed
+	assert.Equal(t, s, service)
 }

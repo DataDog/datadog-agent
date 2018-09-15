@@ -56,6 +56,7 @@ func TestGetSourceStreamForType(t *testing.T) {
 	c := sources.GetSourceStreamForType("foo")
 	assert.Equal(t, 0, len(c))
 
-	sources.AddSource(source)
-	assert.Equal(t, 1, len(c))
+	go func() { sources.AddSource(source) }()
+	s := <-c
+	assert.Equal(t, s, source)
 }
