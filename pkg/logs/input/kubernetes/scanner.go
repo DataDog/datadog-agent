@@ -127,12 +127,11 @@ func (s *Scanner) addSources(newService *service.Service) {
 
 // removeSources removes a new log-source from a service
 func (s *Scanner) removeSources(removedService *service.Service) {
-	pod, err := s.kubeutil.GetPodForEntityID(removedService.GetEntityID())
-	if err != nil {
-		log.Warnf("Could not remove source for container %v: %v", removedService.Identifier, err)
-		return
+	containerID := removedService.GetEntityID()
+	if source, exists := s.sourcesByContainer[containerID]; exists {
+		delete(s.sourcesByContainer, containerID)
+		s.sources.RemoveSource(source)
 	}
-	s.removeSourcesFromPod(pod)
 }
 
 // addSourcesFromPod creates new log-sources for each container of the pod.
@@ -151,17 +150,6 @@ func (s *Scanner) addSourcesFromPod(pod *kubelet.Pod) {
 		}
 		s.sourcesByContainer[containerID] = source
 		s.sources.AddSource(source)
-	}
-}
-
-// removeSourcesFromPod removes all the log-sources of all the containers of the pod.
-func (s *Scanner) removeSourcesFromPod(pod *kubelet.Pod) {
-	for _, container := range pod.Status.Containers {
-		containerID := container.ID
-		if source, exists := s.sourcesByContainer[containerID]; exists {
-			delete(s.sourcesByContainer, containerID)
-			s.sources.RemoveSource(source)
-		}
 	}
 }
 
