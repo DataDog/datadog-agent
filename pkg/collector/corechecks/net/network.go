@@ -133,7 +133,7 @@ func (c *NetworkCheck) Run() error {
 		return err
 	}
 	for _, protocolStats := range protocolsStats {
-		// For TCP we want some extra counters comming from /proc/net/netstat if available
+		// For TCP we want some extra counters coming from /proc/net/netstat if available
 		if protocolStats.Protocol == "tcp" {
 			counters, err := netstatTCPExtCounters()
 			if err != nil {
