@@ -8,20 +8,37 @@
 package clusterchecks
 
 import (
+	"net/http"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-// TODO: handle non-leader / warmup phases, handler methods will
-// become more complex at that stage
+const notReadyReason = "Startup in progress"
 
-// ShouldRedirect returns the leader's hostname if the cluster-agent
-// is currently a follower, or an empty string if we should handle the query
-func (h *Handler) ShouldRedirect() string {
-	return ""
+// ShouldHandle indicates whether the cluster-agent should serve cluster-check
+// requests. Current known responses:
+//   - 302, string: follower, leader IP in string
+//   - 503, string: not ready, error string returned
+//   - 200, "": leader and ready for serving requests
+func (h *Handler) ShouldHandle() (int, string) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+
+	switch h.state {
+	case leader:
+		return http.StatusOK, ""
+	case follower:
+		return http.StatusFound, h.leaderIP
+	default:
+		return http.StatusServiceUnavailable, notReadyReason
+	}
 }
 
 // GetAllConfigs returns all configurations known to the store, for reporting
 func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+
 	configs, err := h.dispatcher.getAllConfigs()
 	response := types.ConfigResponse{
 		Configs: configs,
@@ -31,6 +48,9 @@ func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
 
 // GetConfigs returns configurations dispatched to a given node
 func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+
 	configs, lastChange, err := h.dispatcher.getNodeConfigs(nodeName)
 	response := types.ConfigResponse{
 		Configs:    configs,
@@ -41,10 +61,19 @@ func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
 
 // PostStatus handles status reports from the node agents
 func (h *Handler) PostStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+
+	select {
+	case h.nodeStatusChan <- struct{}{}:
+	default:
+	}
+
 	upToDate, err := h.dispatcher.processNodeStatus(nodeName, status)
 
 	response := types.StatusResponse{
 		IsUpToDate: upToDate,
 	}
+
 	return response, err
 }

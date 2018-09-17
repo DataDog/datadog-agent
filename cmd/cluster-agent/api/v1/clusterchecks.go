@@ -34,7 +34,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if redirectToLeader(w, r, sc.ClusterCheckHandler) {
+		if !shouldHandle(w, r, sc.ClusterCheckHandler) {
 			return
 		}
 
@@ -68,7 +68,7 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if redirectToLeader(w, r, sc.ClusterCheckHandler) {
+		if !shouldHandle(w, r, sc.ClusterCheckHandler) {
 			return
 		}
 
@@ -93,7 +93,7 @@ func getAllCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWrite
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if redirectToLeader(w, r, sc.ClusterCheckHandler) {
+		if !shouldHandle(w, r, sc.ClusterCheckHandler) {
 			return
 		}
 
@@ -125,12 +125,19 @@ func writeJSONResponse(w http.ResponseWriter, data interface{}) {
 
 // redirectToLeader handles the logic for followers to transparently
 // redirect the requests to the leader cluster-agent
-func redirectToLeader(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handler) bool {
-	if leader := h.ShouldRedirect(); leader != "" {
-		url := r.URL
-		url.Host = leader
-		http.Redirect(w, r, url.String(), http.StatusFound)
+func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handler) bool {
+	code, reason := h.ShouldHandle()
+
+	switch code {
+	case http.StatusOK:
 		return true
+	case http.StatusFound:
+		url := r.URL
+		url.Host = reason
+		http.Redirect(w, r, url.String(), http.StatusFound)
+		return false
+	default:
+		http.Error(w, reason, code)
+		return false
 	}
-	return false
 }

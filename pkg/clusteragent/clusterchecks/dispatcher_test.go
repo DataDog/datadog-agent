@@ -98,10 +98,9 @@ func TestScheduleReschedule(t *testing.T) {
 
 func TestProcessNodeStatus(t *testing.T) {
 	dispatcher := newDispatcher()
+	status1 := types.NodeStatus{LastChange: 10}
 
-	status1 := types.NodeStatus{LastChange: 0}
-
-	// Initial node register
+	// Warmup phase, upToDate is unconditionally true
 	upToDate, err := dispatcher.processNodeStatus("node1", status1)
 	assert.NoError(t, err)
 	assert.True(t, upToDate)
@@ -110,6 +109,12 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.Equal(t, status1, node1.lastStatus)
 	assert.True(t, timestampNow() >= node1.heartbeat)
 	assert.True(t, timestampNow() <= node1.heartbeat+1)
+
+	// Warmup is finished, timestamps differ
+	dispatcher.store.active = true
+	upToDate, err = dispatcher.processNodeStatus("node1", status1)
+	assert.NoError(t, err)
+	assert.False(t, upToDate)
 
 	// Give changes
 	node1.lastConfigChange = timestampNow()

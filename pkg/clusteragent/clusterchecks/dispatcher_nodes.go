@@ -33,8 +33,14 @@ func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int6
 // processNodeStatus returns configurations dispatched to a given node.
 // returns true if the last configuration change matches the one sent by the node agent.
 func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus) (bool, error) {
+	var upToDate bool
+
 	d.store.Lock()
 	node := d.store.getOrCreateNodeStore(nodeName)
+	if !d.store.active {
+		// Keep node-agent caches up during warmup phase
+		upToDate = true
+	}
 	d.store.Unlock()
 
 	node.Lock()
@@ -42,7 +48,11 @@ func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus)
 	node.lastStatus = status
 	node.heartbeat = timestampNow()
 
-	return (node.lastConfigChange == status.LastChange), nil
+	if node.lastConfigChange == status.LastChange {
+		upToDate = true
+	}
+
+	return upToDate, nil
 }
 
 // getLeastBusyNode returns the name of the node that is assigned

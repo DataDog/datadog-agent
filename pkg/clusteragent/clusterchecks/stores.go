@@ -20,6 +20,7 @@ import (
 // operations involving several calls.
 type clusterStore struct {
 	sync.RWMutex
+	active          bool
 	digestToConfig  map[string]integration.Config // All configurations to dispatch
 	digestToNode    map[string]string             // Node running a config
 	nodes           map[string]*nodeStore         // All nodes known to the cluster-agent
