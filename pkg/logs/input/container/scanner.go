@@ -33,7 +33,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		}
 		// attempt to initialize a kubernetes scanner
 		log.Warnf("Could not setup the docker scanner, falling back to the kubernetes one: %v", err)
-		scanner, err := kubernetes.NewScanner(sources, services)
+		scanner, err := kubernetes.NewLauncher(sources, services)
 		if err == nil {
 			return scanner
 		}

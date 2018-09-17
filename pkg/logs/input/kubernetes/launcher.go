@@ -21,8 +21,8 @@ import (
 // The path to the pods log directory.
 const podsDirectoryPath = "/var/log/pods"
 
-// Scanner looks for new and deleted pods to create or delete one logs-source per container.
-type Scanner struct {
+// Launcher looks for new and deleted pods to create or delete one logs-source per container.
+type Launcher struct {
 	sources                   *config.LogSources
 	sourcesByContainer        map[string]*config.LogSource
 	stopped                   chan struct{}
@@ -35,13 +35,13 @@ type Scanner struct {
 	containerdRemovedServices chan *service.Service
 }
 
-// NewScanner returns a new scanner.
-func NewScanner(sources *config.LogSources, services *service.Services) (*Scanner, error) {
+// NewLauncher returns a new launcher.
+func NewLauncher(sources *config.LogSources, services *service.Services) (*Launcher, error) {
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
 	}
-	scanner := &Scanner{
+	launcher := &Launcher{
 		sources:                   sources,
 		sourcesByContainer:        make(map[string]*config.LogSource),
 		stopped:                   make(chan struct{}),
@@ -53,15 +53,15 @@ func NewScanner(sources *config.LogSources, services *service.Services) (*Scanne
 		containerdAddedServices:   services.GetAddedServices(service.Containerd),
 		containerdRemovedServices: services.GetRemovedServices(service.Containerd),
 	}
-	err = scanner.setup()
+	err = launcher.setup()
 	if err != nil {
 		return nil, err
 	}
-	return scanner, nil
+	return launcher, nil
 }
 
 // setup initializes the pod watcher and the tagger.
-func (s *Scanner) setup() error {
+func (l *Launcher) setup() error {
 	var err error
 	// initialize the tagger to collect container tags
 	err = tagger.Init()
@@ -71,40 +71,40 @@ func (s *Scanner) setup() error {
 	return nil
 }
 
-// Start starts the scanner
-func (s *Scanner) Start() {
-	log.Info("Starting Kubernetes scanner")
-	go s.run()
+// Start starts the launcher
+func (l *Launcher) Start() {
+	log.Info("Starting Kubernetes launcher")
+	go l.run()
 }
 
-// Stop stops the scanner
-func (s *Scanner) Stop() {
-	log.Info("Stopping Kubernetes scanner")
-	s.stopped <- struct{}{}
+// Stop stops the launcher
+func (l *Launcher) Stop() {
+	log.Info("Stopping Kubernetes launcher")
+	l.stopped <- struct{}{}
 }
 
 // run handles new and deleted pods,
-// the kubernetes scanner consumes new and deleted services pushed by the autodiscovery
-func (s *Scanner) run() {
+// the kubernetes launcher consumes new and deleted services pushed by the autodiscovery
+func (l *Launcher) run() {
 	for {
 		select {
-		case newService := <-s.dockerAddedServices:
-			s.addSources(newService)
-		case removedService := <-s.dockerRemovedServices:
-			s.removeSources(removedService)
-		case <-s.dockerSources:
+		case newService := <-l.dockerAddedServices:
+			l.addSources(newService)
+		case removedService := <-l.dockerRemovedServices:
+			l.removeSources(removedService)
+		case <-l.dockerSources:
 			// The annotation are resolved through the pod object. We don't need
 			// to process the source here
 			continue
-		case newService := <-s.containerdAddedServices:
-			s.addSources(newService)
-		case removedService := <-s.containerdRemovedServices:
-			s.removeSources(removedService)
-		case <-s.containerdSources:
+		case newService := <-l.containerdAddedServices:
+			l.addSources(newService)
+		case removedService := <-l.containerdRemovedServices:
+			l.removeSources(removedService)
+		case <-l.containerdSources:
 			// The annotation are resolved through the pod object. We don't need
 			// to process the source here
 			continue
-		case <-s.stopped:
+		case <-l.stopped:
 			return
 		}
 	}
@@ -112,40 +112,40 @@ func (s *Scanner) run() {
 
 // addSources creates a new log-source from a service by resolving the
 // pod linked to the entityID of the service
-func (s *Scanner) addSources(newService *service.Service) {
-	pod, err := s.kubeutil.GetPodForEntityID(newService.GetEntityID())
+func (l *Launcher) addSources(newService *service.Service) {
+	pod, err := l.kubeutil.GetPodForEntityID(newService.GetEntityID())
 	if err != nil {
 		log.Warnf("Could not add source for container %v: %v", newService.Identifier, err)
 		return
 	}
-	s.addSourcesFromPod(pod)
+	l.addSourcesFromPod(pod)
 }
 
 // removeSources removes a new log-source from a service
-func (s *Scanner) removeSources(removedService *service.Service) {
+func (l *Launcher) removeSources(removedService *service.Service) {
 	containerID := removedService.GetEntityID()
-	if source, exists := s.sourcesByContainer[containerID]; exists {
-		delete(s.sourcesByContainer, containerID)
-		s.sources.RemoveSource(source)
+	if source, exists := l.sourcesByContainer[containerID]; exists {
+		delete(l.sourcesByContainer, containerID)
+		l.sources.RemoveSource(source)
 	}
 }
 
 // addSourcesFromPod creates new log-sources for each container of the pod.
 // it checks if the sources already exist to avoid tailing twice the same
 // container when pods have multiple containers
-func (s *Scanner) addSourcesFromPod(pod *kubelet.Pod) {
+func (l *Launcher) addSourcesFromPod(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
-		if _, exists := s.sourcesByContainer[containerID]; exists {
+		if _, exists := l.sourcesByContainer[containerID]; exists {
 			continue
 		}
-		source, err := s.getSource(pod, container)
+		source, err := l.getSource(pod, container)
 		if err != nil {
 			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
 			continue
 		}
-		s.sourcesByContainer[containerID] = source
-		s.sources.AddSource(source)
+		l.sourcesByContainer[containerID] = source
+		l.sources.AddSource(source)
 	}
 }
 
@@ -153,9 +153,9 @@ func (s *Scanner) addSourcesFromPod(pod *kubelet.Pod) {
 const kubernetesIntegration = "kubernetes"
 
 // getSource returns a new source for the container in pod.
-func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
+func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
-	if annotation := s.getAnnotation(pod, container); annotation != "" {
+	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {
 			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
@@ -168,16 +168,16 @@ func (s *Scanner) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus)
 		}
 	}
 	cfg.Type = config.FileType
-	cfg.Path = s.getPath(pod, container)
+	cfg.Path = l.getPath(pod, container)
 	cfg.Identifier = container.ID
-	cfg.Tags = append(cfg.Tags, s.getTags(container)...)
+	cfg.Tags = append(cfg.Tags, l.getTags(container)...)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
 	}
 	if err := cfg.Compile(); err != nil {
 		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
 	}
-	return config.NewLogSource(s.getSourceName(pod, container), cfg), nil
+	return config.NewLogSource(l.getSourceName(pod, container), cfg), nil
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,
@@ -189,13 +189,13 @@ const (
 )
 
 // getConfigPath returns the path of the logs-config annotation for container.
-func (s *Scanner) getConfigPath(container kubelet.ContainerStatus) string {
+func (l *Launcher) getConfigPath(container kubelet.ContainerStatus) string {
 	return fmt.Sprintf("%s/%s.%s", configPathPrefix, container.Name, configPathSuffix)
 }
 
 // getAnnotation returns the logs-config annotation for container if present.
-func (s *Scanner) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
-	configPath := s.getConfigPath(container)
+func (l *Launcher) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+	configPath := l.getConfigPath(container)
 	if annotation, exists := pod.Metadata.Annotations[configPath]; exists {
 		return annotation
 	}
@@ -203,17 +203,17 @@ func (s *Scanner) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerSta
 }
 
 // getSourceName returns the source name of the container to tail.
-func (s *Scanner) getSourceName(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+func (l *Launcher) getSourceName(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	return fmt.Sprintf("%s/%s/%s", pod.Metadata.Namespace, pod.Metadata.Name, container.Name)
 }
 
 // getPath returns the path where all the logs of the container of the pod are stored.
-func (s *Scanner) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+func (l *Launcher) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	return fmt.Sprintf("%s/%s/%s/*.log", podsDirectoryPath, pod.Metadata.UID, container.Name)
 }
 
 // getTags returns all the tags of the container
-func (s *Scanner) getTags(container kubelet.ContainerStatus) []string {
+func (l *Launcher) getTags(container kubelet.ContainerStatus) []string {
 	tags, _ := tagger.Tag(container.ID, true)
 	return tags
 }

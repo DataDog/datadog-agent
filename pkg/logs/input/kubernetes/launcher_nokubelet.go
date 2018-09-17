@@ -12,16 +12,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
-// Scanner is not supported on no kubelet environment
-type Scanner struct{}
+// Launcher is not supported on no kubelet environment
+type Launcher struct{}
 
-// NewScanner returns a new scanner
-func NewScanner(sources *config.LogSources, services *service.Services) (*Scanner, error) {
-	return &Scanner{}, nil
+// NewLauncher returns a new launcher
+func NewLauncher(sources *config.LogSources, services *service.Services) (*Launcher, error) {
+	return &Launcher{}, nil
 }
 
 // Start does nothing
-func (s *Scanner) Start() {}
+func (l *Launcher) Start() {}
 
 // Stop does nothing
-func (s *Scanner) Stop() {}
+func (l *Launcher) Stop() {}

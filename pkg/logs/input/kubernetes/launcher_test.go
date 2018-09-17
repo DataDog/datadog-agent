@@ -17,7 +17,7 @@ import (
 )
 
 func TestGetSource(t *testing.T) {
-	scanner := &Scanner{}
+	launcher := &Launcher{}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -34,7 +34,7 @@ func TestGetSource(t *testing.T) {
 		},
 	}
 
-	source, err := scanner.getSource(pod, container)
+	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
@@ -45,7 +45,7 @@ func TestGetSource(t *testing.T) {
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
-	scanner := &Scanner{}
+	launcher := &Launcher{}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -65,7 +65,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 		},
 	}
 
-	source, err := scanner.getSource(pod, container)
+	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
@@ -77,7 +77,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
-	scanner := &Scanner{}
+	launcher := &Launcher{}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -97,7 +97,7 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 		},
 	}
 
-	source, err := scanner.getSource(pod, container)
+	source, err := launcher.getSource(pod, container)
 	assert.NotNil(t, err)
 	assert.Nil(t, source)
 }
