@@ -23,22 +23,37 @@ const podsDirectoryPath = "/var/log/pods"
 
 // Scanner looks for new and deleted pods to create or delete one logs-source per container.
 type Scanner struct {
-	podProvider        *PodProvider
-	sources            *config.LogSources
-	services           *service.Services
-	sourcesByContainer map[string]*config.LogSource
-	stopped            chan struct{}
+	sources                   *config.LogSources
+	sourcesByContainer        map[string]*config.LogSource
+	stopped                   chan struct{}
+	kubeutil                  *kubelet.KubeUtil
+	dockerSources             chan *config.LogSource
+	dockerAddedServices       chan *service.Service
+	dockerRemovedServices     chan *service.Service
+	containerdSources         chan *config.LogSource
+	containerdAddedServices   chan *service.Service
+	containerdRemovedServices chan *service.Service
 }
 
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources, services *service.Services) (*Scanner, error) {
-	scanner := &Scanner{
-		sources:            sources,
-		services:           services,
-		sourcesByContainer: make(map[string]*config.LogSource),
-		stopped:            make(chan struct{}),
+	kubeutil, err := kubelet.GetKubeUtil()
+	if err != nil {
+		return nil, err
 	}
-	err := scanner.setup()
+	scanner := &Scanner{
+		sources:                   sources,
+		sourcesByContainer:        make(map[string]*config.LogSource),
+		stopped:                   make(chan struct{}),
+		kubeutil:                  kubeutil,
+		dockerSources:             sources.GetSourceStreamForType(config.DockerType),
+		dockerAddedServices:       services.GetAddedServices(service.Docker),
+		dockerRemovedServices:     services.GetAddedServices(service.Docker),
+		containerdSources:         sources.GetSourceStreamForType(config.ContainerdType),
+		containerdAddedServices:   services.GetAddedServices(service.Containerd),
+		containerdRemovedServices: services.GetAddedServices(service.Containerd),
+	}
+	err = scanner.setup()
 	if err != nil {
 		return nil, err
 	}
@@ -48,11 +63,6 @@ func NewScanner(sources *config.LogSources, services *service.Services) (*Scanne
 // setup initializes the pod watcher and the tagger.
 func (s *Scanner) setup() error {
 	var err error
-	// initialize a pod provider to retrieve added and deleted pods.
-	s.podProvider, err = NewPodProvider()
-	if err != nil {
-		return err
-	}
 	// initialize the tagger to collect container tags
 	err = tagger.Init()
 	if err != nil {
@@ -65,34 +75,38 @@ func (s *Scanner) setup() error {
 func (s *Scanner) Start() {
 	log.Info("Starting Kubernetes scanner")
 	go s.run()
-	s.podProvider.Start()
 }
 
 // Stop stops the scanner
 func (s *Scanner) Stop() {
 	log.Info("Stopping Kubernetes scanner")
-	s.podProvider.Stop()
 	s.stopped <- struct{}{}
 }
 
 // run handles new and deleted pods,
-// the kubernetes scanner consumes new and deleted pods directly using a pod watcher
-// but as the logs-agent has been plugged to autodiscovery, the scanner should use sources and services instead.
-// FIXME: consume services and sources
+// the kubernetes scanner consumes new and deleted services pushed by the autodiscovery
 func (s *Scanner) run() {
 	for {
 		select {
-		case pod := <-s.podProvider.Added:
-			log.Infof("Adding pod: %v", pod.Metadata.Name)
-			s.addSources(pod)
-		case pod := <-s.podProvider.Removed:
-			log.Infof("Removing pod %v", pod.Metadata.Name)
-			s.removeSources(pod)
-		case <-s.services.GetAddedServices(service.Docker):
+		case newService := <-s.dockerAddedServices:
+			log.Infof("Adding container %v", newService.GetEntityID())
+			s.addSources(newService)
+		case removedService := <-s.dockerRemovedServices:
+			log.Infof("Removing container %v", removedService.GetEntityID())
+			s.removeSources(removedService)
+		case <-s.dockerSources:
+			// The annotation are resolved through the pod object. We don't need
+			// to process the source here
 			continue
-		case <-s.services.GetRemovedServices(service.Docker):
-			continue
-		case <-s.sources.GetSourceStreamForType(config.DockerType):
+		case newService := <-s.containerdAddedServices:
+			log.Infof("Adding container %v", newService.GetEntityID())
+			s.addSources(newService)
+		case removedService := <-s.containerdRemovedServices:
+			log.Infof("Removing container %v", removedService.GetEntityID())
+			s.removeSources(removedService)
+		case <-s.containerdSources:
+			// The annotation are resolved through the pod object. We don't need
+			// to process the source here
 			continue
 		case <-s.stopped:
 			return
@@ -100,8 +114,31 @@ func (s *Scanner) run() {
 	}
 }
 
-// addSources creates new log-sources for each container of the pod.
-func (s *Scanner) addSources(pod *kubelet.Pod) {
+// addSources creates a new log-source from a service by resolving the
+// pod linked to the entityID of the service
+func (s *Scanner) addSources(newService *service.Service) {
+	pod, err := s.kubeutil.GetPodForEntityID(newService.GetEntityID())
+	if err != nil {
+		log.Warnf("Could not add source for container %v: %v", newService.Identifier, err)
+		return
+	}
+	s.addSourcesFromPod(pod)
+}
+
+// removeSources removes a new log-source from a service
+func (s *Scanner) removeSources(removedService *service.Service) {
+	pod, err := s.kubeutil.GetPodForEntityID(removedService.GetEntityID())
+	if err != nil {
+		log.Warnf("Could not remove source for container %v: %v", removedService.Identifier, err)
+		return
+	}
+	s.removeSourcesFromPod(pod)
+}
+
+// addSourcesFromPod creates new log-sources for each container of the pod.
+// it checks if the sources already exist to avoid tailing twice the same
+// container when pods have multiple containers
+func (s *Scanner) addSourcesFromPod(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
 		if _, exists := s.sourcesByContainer[containerID]; exists {
@@ -117,8 +154,8 @@ func (s *Scanner) addSources(pod *kubelet.Pod) {
 	}
 }
 
-// removeSources removes all the log-sources of all the containers of the pod.
-func (s *Scanner) removeSources(pod *kubelet.Pod) {
+// removeSourcesFromPod removes all the log-sources of all the containers of the pod.
+func (s *Scanner) removeSourcesFromPod(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
 		if source, exists := s.sourcesByContainer[containerID]; exists {
