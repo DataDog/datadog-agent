@@ -89,20 +89,16 @@ func (s *Scanner) run() {
 	for {
 		select {
 		case newService := <-s.dockerAddedServices:
-			log.Infof("Adding container %v", newService.GetEntityID())
 			s.addSources(newService)
 		case removedService := <-s.dockerRemovedServices:
-			log.Infof("Removing container %v", removedService.GetEntityID())
 			s.removeSources(removedService)
 		case <-s.dockerSources:
 			// The annotation are resolved through the pod object. We don't need
 			// to process the source here
 			continue
 		case newService := <-s.containerdAddedServices:
-			log.Infof("Adding container %v", newService.GetEntityID())
 			s.addSources(newService)
 		case removedService := <-s.containerdRemovedServices:
-			log.Infof("Removing container %v", removedService.GetEntityID())
 			s.removeSources(removedService)
 		case <-s.containerdSources:
 			// The annotation are resolved through the pod object. We don't need
