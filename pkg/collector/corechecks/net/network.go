@@ -3,13 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build linux darwin
 
 package net
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"os"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -27,9 +32,13 @@ const (
 var (
 	protocolsMetricsMapping = map[string]map[string]string{
 		"tcp": {
-			"RetransSegs": "system.net.tcp.retrans_segs",
-			"InSegs":      "system.net.tcp.in_segs",
-			"OutSegs":     "system.net.tcp.out_segs",
+			"RetransSegs":     "system.net.tcp.retrans_segs",
+			"InSegs":          "system.net.tcp.in_segs",
+			"OutSegs":         "system.net.tcp.out_segs",
+			"ListenOverflows": "system.net.tcp.listen_overflows",
+			"ListenDrops":     "system.net.tcp.listen_drops",
+			"TCPBacklogDrop":  "system.net.tcp.backlog_drops",
+			"TCPRetransFail":  "system.net.tcp.failed_retransmits",
 		},
 		"udp": {
 			"InDatagrams":  "system.net.udp.in_datagrams",
@@ -124,6 +133,17 @@ func (c *NetworkCheck) Run() error {
 		return err
 	}
 	for _, protocolStats := range protocolsStats {
+		// For TCP we want some extra counters comming from /proc/net/netstat if available
+		if protocolStats.Protocol == "tcp" {
+			counters, err := netstatTCPExtCounters()
+			if err != nil {
+				log.Debug(err)
+			} else {
+				for counter, value := range counters {
+					protocolStats.Stats[counter] = value
+				}
+			}
+		}
 		submitProtocolMetrics(sender, protocolStats)
 	}
 
@@ -205,6 +225,51 @@ func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, sta
 		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, stateMetricSuffixMapping[state]),
 			count, "", []string{})
 	}
+}
+
+func netstatTCPExtCounters() (map[string]int64, error) {
+
+	f, err := os.Open("/proc/net/snmp")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	counters := map[string]int64{}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		i := strings.IndexRune(line, ':')
+		if i == -1 {
+			return nil, errors.New("/proc/net/snmp is not fomatted correctly, expected ':'")
+		}
+		proto := strings.ToLower(line[:i])
+		if proto != "tcpext" {
+			continue
+		}
+
+		counterNames := strings.Split(line[i+2:], " ")
+
+		if !scanner.Scan() {
+			return nil, errors.New("/proc/net/snmp is not fomatted correctly, not data line")
+		}
+		line = scanner.Text()
+
+		counterValues := strings.Split(line[i+2:], " ")
+		if len(counterNames) != len(counterValues) {
+			return nil, errors.New("/proc/net/snmp is not fomatted correctly, expected same number of columns")
+		}
+
+		for j := range counterNames {
+			value, err := strconv.ParseInt(counterValues[j], 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			counters[counterNames[j]] = value
+		}
+	}
+
+	return counters, nil
 }
 
 // Configure configures the network checks
