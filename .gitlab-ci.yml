@@ -346,8 +346,11 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
+<<<<<<< HEAD
   ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
   ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
+=======
+>>>>>>> Re-add windows build
   before_script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - if exist .omnibus rd /s/q .omnibus
