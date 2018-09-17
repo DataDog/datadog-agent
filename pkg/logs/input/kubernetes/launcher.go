@@ -88,18 +88,18 @@ func (l *Launcher) Stop() {
 func (l *Launcher) run() {
 	for {
 		select {
-		case newService := <-l.dockerAddedServices:
-			l.addSources(newService)
-		case removedService := <-l.dockerRemovedServices:
-			l.removeSources(removedService)
+		case service := <-l.dockerAddedServices:
+			l.addSources(service)
+		case service := <-l.dockerRemovedServices:
+			l.removeSources(service)
 		case <-l.dockerSources:
 			// The annotation are resolved through the pod object. We don't need
 			// to process the source here
 			continue
-		case newService := <-l.containerdAddedServices:
-			l.addSources(newService)
-		case removedService := <-l.containerdRemovedServices:
-			l.removeSources(removedService)
+		case service := <-l.containerdAddedServices:
+			l.addSources(service)
+		case service := <-l.containerdRemovedServices:
+			l.removeSources(service)
 		case <-l.containerdSources:
 			// The annotation are resolved through the pod object. We don't need
 			// to process the source here
@@ -112,18 +112,18 @@ func (l *Launcher) run() {
 
 // addSources creates a new log-source from a service by resolving the
 // pod linked to the entityID of the service
-func (l *Launcher) addSources(newService *service.Service) {
-	pod, err := l.kubeutil.GetPodForEntityID(newService.GetEntityID())
+func (l *Launcher) addSources(service *service.Service) {
+	pod, err := l.kubeutil.GetPodForEntityID(service.GetEntityID())
 	if err != nil {
-		log.Warnf("Could not add source for container %v: %v", newService.Identifier, err)
+		log.Warnf("Could not add source for container %v: %v", service.Identifier, err)
 		return
 	}
 	l.addSourcesFromPod(pod)
 }
 
 // removeSources removes a new log-source from a service
-func (l *Launcher) removeSources(removedService *service.Service) {
-	containerID := removedService.GetEntityID()
+func (l *Launcher) removeSources(service *service.Service) {
+	containerID := service.GetEntityID()
 	if source, exists := l.sourcesByContainer[containerID]; exists {
 		delete(l.sourcesByContainer, containerID)
 		l.sources.RemoveSource(source)
