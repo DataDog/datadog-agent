@@ -177,6 +177,7 @@ func TestGetAgentContainerURLS(t *testing.T) {
 			Networks: nets,
 		},
 	}
+	docker.EnableTestingMode()
 	cacheKey := docker.GetInspectCacheKey("ecs-agent-custom", false)
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
