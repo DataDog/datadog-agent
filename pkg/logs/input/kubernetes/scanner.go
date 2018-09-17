@@ -23,11 +23,16 @@ const podsDirectoryPath = "/var/log/pods"
 
 // Scanner looks for new and deleted pods to create or delete one logs-source per container.
 type Scanner struct {
-	sources            *config.LogSources
-	services           *service.Services
-	sourcesByContainer map[string]*config.LogSource
-	stopped            chan struct{}
-	kubeutil           *kubelet.KubeUtil
+	sources                   *config.LogSources
+	sourcesByContainer        map[string]*config.LogSource
+	stopped                   chan struct{}
+	kubeutil                  *kubelet.KubeUtil
+	dockerSources             chan *config.LogSource
+	dockerAddedServices       chan *service.Service
+	dockerRemovedServices     chan *service.Service
+	containerdSources         chan *config.LogSource
+	containerdAddedServices   chan *service.Service
+	containerdRemovedServices chan *service.Service
 }
 
 // NewScanner returns a new scanner.
@@ -37,11 +42,16 @@ func NewScanner(sources *config.LogSources, services *service.Services) (*Scanne
 		return nil, err
 	}
 	scanner := &Scanner{
-		sources:            sources,
-		services:           services,
-		sourcesByContainer: make(map[string]*config.LogSource),
-		stopped:            make(chan struct{}),
-		kubeutil:           kubeutil,
+		sources:                   sources,
+		sourcesByContainer:        make(map[string]*config.LogSource),
+		stopped:                   make(chan struct{}),
+		kubeutil:                  kubeutil,
+		dockerSources:             sources.GetSourceStreamForType(config.DockerType),
+		dockerAddedServices:       services.GetAddedServices(service.Docker),
+		dockerRemovedServices:     services.GetAddedServices(service.Docker),
+		containerdSources:         sources.GetSourceStreamForType(config.ContainerdType),
+		containerdAddedServices:   services.GetAddedServices(service.Containerd),
+		containerdRemovedServices: services.GetAddedServices(service.Containerd),
 	}
 	err = scanner.setup()
 	if err != nil {
@@ -78,13 +88,23 @@ func (s *Scanner) Stop() {
 func (s *Scanner) run() {
 	for {
 		select {
-		case newService := <-s.services.GetAddedServices(service.Docker):
+		case newService := <-s.dockerAddedServices:
 			log.Infof("Adding container %v", newService.GetEntityID())
 			s.addSources(newService)
-		case removedService := <-s.services.GetRemovedServices(service.Docker):
+		case removedService := <-s.dockerRemovedServices:
 			log.Infof("Removing container %v", removedService.GetEntityID())
 			s.removeSources(removedService)
-		case <-s.sources.GetSourceStreamForType(config.DockerType):
+		case <-s.dockerSources:
+			// The annotation are resolved through the pod object. We don't need
+			// to process the source here
+			continue
+		case newService := <-s.containerdAddedServices:
+			log.Infof("Adding container %v", newService.GetEntityID())
+			s.addSources(newService)
+		case removedService := <-s.containerdRemovedServices:
+			log.Infof("Removing container %v", removedService.GetEntityID())
+			s.removeSources(removedService)
+		case <-s.containerdSources:
 			// The annotation are resolved through the pod object. We don't need
 			// to process the source here
 			continue
