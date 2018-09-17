@@ -5,7 +5,12 @@
 
 package service
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+)
+
 // Service providers
 const (
-	Docker = "docker"
+	Docker     = containers.RuntimeNameDocker
+	Containerd = containers.RuntimeNameContainerd
 )
