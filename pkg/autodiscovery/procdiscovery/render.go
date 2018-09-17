@@ -8,6 +8,7 @@ import (
 	"github.com/fatih/color"
 )
 
+// Render takes a discovered integrations struct and returns a CLI friendly string representation of it
 func (d DiscoveredIntegrations) Render() string {
 	var buf bytes.Buffer
 

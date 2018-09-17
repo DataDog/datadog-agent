@@ -2,10 +2,10 @@ package procdiscovery
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/procmatch"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/shirou/gopsutil/process"
 )
 
@@ -14,6 +14,7 @@ type IntegrationProcess struct {
 	Cmd         string `json:"cmd"`          // The command line that matched the integration
 	DisplayName string `json:"display_name"` // The integration display name
 	Name        string `json:"name"`         // The integration name
+	PID         int32  `json:"pid"`          // The PID of the given process
 }
 
 // DiscoveredIntegrations is a map whose keys are integrations names and values are lists of IntegrationProcess
@@ -48,13 +49,13 @@ func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
 	}
 
 	// processList is a set of processes (removes duplicate processes)
-	processList := map[string]struct{}{}
+	processList := map[string]process.Process{}
 	for _, p := range processes {
 		cmd, err := p.Cmdline()
 		if err != nil {
 			continue
 		}
-		processList[cmd] = struct{}{}
+		processList[cmd] = *p
 	}
 
 	integrations := map[string][]IntegrationProcess{}
@@ -74,6 +75,7 @@ func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
 			Cmd:         process,
 			DisplayName: matched.DisplayName,
 			Name:        matched.Name,
+			PID:         processList[process].Pid,
 		})
 	}
 	di.Discovered = integrations
@@ -85,37 +87,44 @@ func retrieveIntegrations() (map[string]struct{}, map[string]struct{}, error) {
 	running := map[string]struct{}{}
 	failing := map[string]struct{}{}
 
-	statusRaw, err := status.GetStatus()
+	st, err := getStatus()
 
 	if err != nil {
 		return running, failing, fmt.Errorf("Couldn't retrieve agent status: %s", err)
 	}
-
-	statusBytes, err := json.Marshal(statusRaw)
-	if err != nil {
-		return running, failing, fmt.Errorf("Couldn't marshal agent status: %s", err)
-	}
-
-	var status struct {
-		RunnerStats struct {
-			Checks map[string]interface{}
-		} `json:"runnerStats"`
-		CheckSchedulerStats struct {
-			LoaderErrors map[string]interface{}
-		} `json:"checkSchedulerStats"`
-	}
-
-	err = json.Unmarshal(statusBytes, &status)
-	if err != nil {
-		return running, failing, fmt.Errorf("Couldn't decode agent status response: %s", err)
-	}
-
-	for key := range status.RunnerStats.Checks {
+	for key := range st.RunnerStats.Checks {
 		running[key] = struct{}{}
 	}
-	for key := range status.CheckSchedulerStats.LoaderErrors {
+	for key := range st.CheckSchedulerStats.LoaderErrors {
 		failing[key] = struct{}{}
 	}
 
 	return running, failing, nil
+}
+
+type status struct {
+	RunnerStats struct {
+		Checks map[string]interface{}
+	} `json:"runnerStats"`
+	CheckSchedulerStats struct {
+		LoaderErrors map[string]interface{}
+	} `json:"checkSchedulerStats"`
+}
+
+func getStatus() (status, error) {
+	stats := status{}
+
+	runnerStatsJSON := []byte(expvar.Get("runner").String())
+	err := json.Unmarshal(runnerStatsJSON, &stats.RunnerStats)
+	if err != nil {
+		return stats, fmt.Errorf("An error occurred unmarshalling runner stats: %s", err)
+	}
+
+	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
+	err = json.Unmarshal(checkSchedulerStatsJSON, &stats.CheckSchedulerStats)
+	if err != nil {
+		return stats, fmt.Errorf("An error occurred unmarshalling check scheduler stats: %s", err)
+	}
+
+	return stats, nil
 }
