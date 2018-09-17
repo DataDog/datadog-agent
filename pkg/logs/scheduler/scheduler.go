@@ -197,6 +197,8 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 	switch provider {
 	case service.Docker:
 		return service.NewService(provider, identifier, s.getCreationTime(config)), nil
+	case service.Containerd:
+		return service.NewService(provider, identifier, s.getCreationTime(config)), nil
 	default:
 		return nil, fmt.Errorf("%v is not supported yet", provider)
 	}
