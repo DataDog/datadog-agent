@@ -85,7 +85,7 @@ func (s *Scanner) run() {
 			log.Infof("Removing container %v", removedService.GetEntityID())
 			s.removeSources(removedService)
 		case <-s.sources.GetSourceStreamForType(config.DockerType):
-			// The annotation are resolve through the pod object. We don't need
+			// The annotation are resolved through the pod object. We don't need
 			// to process the source here
 			continue
 		case <-s.stopped:
@@ -116,7 +116,7 @@ func (s *Scanner) removeSources(removedService *service.Service) {
 }
 
 // addSourcesFromPod creates new log-sources for each container of the pod.
-// it checks if the sources already exists to avoid tailing twice the same
+// it checks if the sources already exist to avoid tailing twice the same
 // container when pods have multiple containers
 func (s *Scanner) addSourcesFromPod(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
