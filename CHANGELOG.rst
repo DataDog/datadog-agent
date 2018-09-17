@@ -2,6 +2,41 @@
 Release Notes
 =============
 
+.. _Release Notes_6.5.1:
+
+6.5.1
+=====
+
+.. _Release Notes_6.5.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-09-17
+
+- Please refer to the `6.5.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.1>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.5.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.5.1>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.5.1 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.5.1>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.5.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix possible deadlocks that could occur when new docker sources
+  and services are pushed and:
+  
+  * The docker socket is closed at agent setup
+  * The docker socket is not mounted
+  * The kubernetes integration is enabled
+
+- Fix a deadlock that could occur when the logs-agent is enabled and the configuration
+  parameter 'logs_config.container_collect_all' or the environment variable 'DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL' are set to true.
+
+
 .. _Release Notes_6.5.0:
 
 6.5.0
