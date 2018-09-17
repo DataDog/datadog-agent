@@ -48,10 +48,10 @@ func NewScanner(sources *config.LogSources, services *service.Services) (*Scanne
 		kubeutil:                  kubeutil,
 		dockerSources:             sources.GetSourceStreamForType(config.DockerType),
 		dockerAddedServices:       services.GetAddedServices(service.Docker),
-		dockerRemovedServices:     services.GetAddedServices(service.Docker),
+		dockerRemovedServices:     services.GetRemovedServices(service.Docker),
 		containerdSources:         sources.GetSourceStreamForType(config.ContainerdType),
 		containerdAddedServices:   services.GetAddedServices(service.Containerd),
-		containerdRemovedServices: services.GetAddedServices(service.Containerd),
+		containerdRemovedServices: services.GetRemovedServices(service.Containerd),
 	}
 	err = scanner.setup()
 	if err != nil {
