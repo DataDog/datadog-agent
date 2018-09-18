@@ -6,15 +6,12 @@
 package aggregator
 
 import (
-	// stdlib
 	"sort"
 	"testing"
 
-	// 3p
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	// project
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -37,7 +34,7 @@ func (os OrderedSeries) Swap(i, j int) {
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := NewTimeSampler(10, "")
+	sampler := NewTimeSampler(10)
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
@@ -45,7 +42,7 @@ func TestCalculateBucketStart(t *testing.T) {
 }
 
 func TestBucketSampling(t *testing.T) {
-	sampler := NewTimeSampler(10, "")
+	sampler := NewTimeSampler(10)
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -76,7 +73,7 @@ func TestBucketSampling(t *testing.T) {
 }
 
 func TestContextSampling(t *testing.T) {
-	sampler := NewTimeSampler(10, "default-hostname")
+	sampler := NewTimeSampler(10)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -142,7 +139,7 @@ func TestContextSampling(t *testing.T) {
 }
 
 func TestCounterExpirySeconds(t *testing.T) {
-	sampler := NewTimeSampler(10, "default-hostname")
+	sampler := NewTimeSampler(10)
 
 	sampleCounter1 := &metrics.MetricSample{
 		Name:       "my.counter1",
@@ -267,107 +264,3 @@ func TestCounterExpirySeconds(t *testing.T) {
 	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
 	assert.Equal(t, 0, len(sampler.contextResolver.contextsByKey))
 }
-
-//func TestOne(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestFormatter(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestCounterNormalization(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestHistogramNormalization(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestCounter(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestSampledCounter(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestGauge(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestSets(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestStringSets(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestRate(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestRateErrors(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestGaugeSampleRate(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestHistogram(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestSampledHistogram(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestBatchSubmission(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestMonokeyBatchingNoTags(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestMonokeyBatchingWithTags(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestMonokeyBatchingWithTagsWithSampling(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestBadPacketsThrowErrors(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestMetricsExpiry(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestDiagnosticStats(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestHistogramCounter(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestEventTags(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestServiceCheckBasic(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestServiceCheckTags(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}
-//
-//func TestRecentPointThreshold(t *testing.T) {
-//	assert.Equal(t, 1, 1)
-//}

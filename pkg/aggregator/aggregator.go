@@ -173,9 +173,9 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInter
 		checkMetricIn:      make(chan senderMetricSample, 100),    // TODO make buffer size configurable
 		serviceCheckIn:     make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
 		eventIn:            make(chan metrics.Event, 100),         // TODO make buffer size configurable
-		sampler:            *NewTimeSampler(bucketSize, hostname),
+		sampler:            *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
-		distSampler:        newDistSampler(bucketSize, hostname),
+		distSampler:        newDistSampler(bucketSize),
 		flushInterval:      flushInterval,
 		serializer:         s,
 		hostname:           hostname,
