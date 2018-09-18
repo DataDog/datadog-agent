@@ -234,7 +234,7 @@ func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, sta
 
 func netstatTCPExtCounters() (map[string]int64, error) {
 
-	f, err := os.Open("/proc/net/snmp")
+	f, err := os.Open("/proc/net/netstat")
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 		line := scanner.Text()
 		i := strings.IndexRune(line, ':')
 		if i == -1 {
-			return nil, errors.New("/proc/net/snmp is not fomatted correctly, expected ':'")
+			return nil, errors.New("/proc/net/netstat is not fomatted correctly, expected ':'")
 		}
 		proto := strings.ToLower(line[:i])
 		if proto != "tcpext" {
@@ -256,13 +256,13 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 		counterNames := strings.Split(line[i+2:], " ")
 
 		if !scanner.Scan() {
-			return nil, errors.New("/proc/net/snmp is not fomatted correctly, not data line")
+			return nil, errors.New("/proc/net/netstat is not fomatted correctly, not data line")
 		}
 		line = scanner.Text()
 
 		counterValues := strings.Split(line[i+2:], " ")
 		if len(counterNames) != len(counterValues) {
-			return nil, errors.New("/proc/net/snmp is not fomatted correctly, expected same number of columns")
+			return nil, errors.New("/proc/net/netstat is not fomatted correctly, expected same number of columns")
 		}
 
 		for j := range counterNames {
