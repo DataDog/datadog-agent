@@ -214,7 +214,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 				}
 
 				if bytes.HasPrefix(message, []byte("_sc")) {
-					serviceCheck, err := parseServiceCheckMessage(message)
+					serviceCheck, err := parseServiceCheckMessage(message, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing service check: %s", err)
 						dogstatsdServiceCheckParseErrors.Add(1)
@@ -226,7 +226,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					dogstatsdServiceCheckPackets.Add(1)
 					serviceCheckOut <- *serviceCheck
 				} else if bytes.HasPrefix(message, []byte("_e")) {
-					event, err := parseEventMessage(message)
+					event, err := parseEventMessage(message, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing event: %s", err)
 						dogstatsdEventParseErrors.Add(1)

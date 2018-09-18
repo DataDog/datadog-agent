@@ -74,7 +74,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	})
 
 	require.Len(t, agg.serviceChecks, 2)
-	assert.Equal(t, "resolved-hostname", agg.serviceChecks[0].Host)
+	assert.Equal(t, "", agg.serviceChecks[0].Host)
 	assert.Equal(t, []string{"bar", "foo"}, agg.serviceChecks[0].Tags)
 	assert.NotZero(t, agg.serviceChecks[0].Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Equal(t, "my-hostname", agg.serviceChecks[1].Host)
@@ -105,10 +105,10 @@ func TestAddEventDefaultValues(t *testing.T) {
 	})
 
 	require.Len(t, agg.events, 2)
-	// Default values are set on Host and Ts only
+	// Default values are set on Ts
 	event1 := agg.events[0]
 	assert.Equal(t, "An event occurred", event1.Title)
-	assert.Equal(t, "resolved-hostname", event1.Host)
+	assert.Equal(t, "", event1.Host)
 	assert.NotZero(t, event1.Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Zero(t, event1.Priority)
 	assert.Zero(t, event1.Tags)

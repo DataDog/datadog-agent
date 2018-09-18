@@ -84,7 +84,7 @@ func parseTags(rawTags []byte, extractHost bool, defaultHostname string) ([]stri
 	return tagsList, host
 }
 
-func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
+func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
 	// _sc|name|status|[metadata|...]
 
 	separatorCount := bytes.Count(message, fieldSeparator)
@@ -100,6 +100,7 @@ func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
 
 	service := metrics.ServiceCheck{
 		CheckName: string(rawName),
+		Host:      defaultHostname,
 	}
 
 	if status, err := strconv.Atoi(string(rawStatus)); err != nil {
@@ -139,7 +140,7 @@ func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
 	return &service, nil
 }
 
-func parseEventMessage(message []byte) (*metrics.Event, error) {
+func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
 	// _e{title.length,text.length}:title|text
 	//  [
 	//   |d:date_happened
@@ -186,6 +187,7 @@ func parseEventMessage(message []byte) (*metrics.Event, error) {
 	event := metrics.Event{
 		Priority:  metrics.EventPriorityNormal,
 		AlertType: metrics.EventAlertTypeInfo,
+		Host:      defaultHostname,
 		Title:     string(rawTitle),
 		Text:      string(bytes.Replace(rawText, []byte("\\n"), []byte("\n"), -1)),
 	}

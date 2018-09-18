@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	// stdlib
+	"fmt"
 	"sync"
 	"testing"
 
@@ -107,7 +108,7 @@ func TestGetAndSetSender(t *testing.T) {
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
 	eventChan := make(chan metrics.Event, 10)
-	testCheckSender := newCheckSender(checkID1, senderMetricSampleChan, serviceCheckChan, eventChan)
+	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
 
 	err := SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)
@@ -122,7 +123,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
 	eventChan := make(chan metrics.Event, 10)
-	checkSender := newCheckSender(checkID1, senderMetricSampleChan, serviceCheckChan, eventChan)
+	checkSender := newCheckSender(checkID1, "default-hostname", senderMetricSampleChan, serviceCheckChan, eventChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Count("my.count_metric", 123.0, "my-hostname", []string{"foo", "bar"})
@@ -147,6 +148,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	gaugeSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, gaugeSenderSample.id)
 	assert.Equal(t, metrics.GaugeType, gaugeSenderSample.metricSample.Mtype)
+	assert.Equal(t, "my-hostname", gaugeSenderSample.metricSample.Host)
 	assert.Equal(t, false, gaugeSenderSample.commit)
 
 	rateSenderSample := <-senderMetricSampleChan
@@ -187,4 +189,78 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	event := <-eventChan
 	assert.Equal(t, submittedEvent, event)
+}
+
+func TestCheckSenderHostname(t *testing.T) {
+	defaultHostname := "default-host"
+
+	for nb, tc := range []struct {
+		disableDefaultHostname bool
+		submittedHostname      string
+		expectedHostname       string
+	}{
+		{
+			disableDefaultHostname: false,
+			submittedHostname:      "",
+			expectedHostname:       defaultHostname,
+		},
+		{
+			disableDefaultHostname: false,
+			submittedHostname:      "custom",
+			expectedHostname:       "custom",
+		},
+		{
+			disableDefaultHostname: true,
+			submittedHostname:      "",
+			expectedHostname:       "",
+		},
+		{
+			disableDefaultHostname: true,
+			submittedHostname:      "custom",
+			expectedHostname:       "custom",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %q -> %q", nb, tc.submittedHostname, tc.expectedHostname), func(t *testing.T) {
+			senderMetricSampleChan := make(chan senderMetricSample, 10)
+			serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+			eventChan := make(chan metrics.Event, 10)
+			checkSender := newCheckSender(checkID1, defaultHostname, senderMetricSampleChan, serviceCheckChan, eventChan)
+			checkSender.DisableDefaultHostname(tc.disableDefaultHostname)
+
+			checkSender.Gauge("my.metric", 1.0, tc.submittedHostname, []string{"foo", "bar"})
+			checkSender.Commit()
+			checkSender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, tc.submittedHostname, []string{"foo", "bar"}, "message")
+			submittedEvent := metrics.Event{
+				Title:          "Something happened",
+				Text:           "Description of the event",
+				Ts:             12,
+				Priority:       metrics.EventPriorityLow,
+				Host:           tc.submittedHostname,
+				Tags:           []string{"foo", "bar"},
+				AlertType:      metrics.EventAlertTypeInfo,
+				AggregationKey: "event_agg_key",
+				SourceTypeName: "docker",
+			}
+			checkSender.Event(submittedEvent)
+
+			gaugeSenderSample := <-senderMetricSampleChan
+			assert.EqualValues(t, checkID1, gaugeSenderSample.id)
+			assert.Equal(t, metrics.GaugeType, gaugeSenderSample.metricSample.Mtype)
+			assert.Equal(t, tc.expectedHostname, gaugeSenderSample.metricSample.Host)
+			assert.Equal(t, false, gaugeSenderSample.commit)
+
+			serviceCheck := <-serviceCheckChan
+			assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
+			assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
+			assert.Equal(t, tc.expectedHostname, serviceCheck.Host)
+			assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
+			assert.Equal(t, "message", serviceCheck.Message)
+
+			event := <-eventChan
+			assert.Equal(t, "Something happened", event.Title)
+			assert.Equal(t, int64(12), event.Ts)
+			assert.Equal(t, tc.expectedHostname, event.Host)
+			assert.Equal(t, []string{"foo", "bar"}, event.Tags)
+		})
+	}
 }
