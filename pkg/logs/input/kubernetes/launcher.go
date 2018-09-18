@@ -27,10 +27,8 @@ type Launcher struct {
 	sourcesByContainer        map[string]*config.LogSource
 	stopped                   chan struct{}
 	kubeutil                  *kubelet.KubeUtil
-	dockerSources             chan *config.LogSource
 	dockerAddedServices       chan *service.Service
 	dockerRemovedServices     chan *service.Service
-	containerdSources         chan *config.LogSource
 	containerdAddedServices   chan *service.Service
 	containerdRemovedServices chan *service.Service
 }
@@ -46,10 +44,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services) (*Launc
 		sourcesByContainer:        make(map[string]*config.LogSource),
 		stopped:                   make(chan struct{}),
 		kubeutil:                  kubeutil,
-		dockerSources:             sources.GetSourceStreamForType(config.DockerType),
 		dockerAddedServices:       services.GetAddedServices(service.Docker),
 		dockerRemovedServices:     services.GetRemovedServices(service.Docker),
-		containerdSources:         sources.GetSourceStreamForType(config.ContainerdType),
 		containerdAddedServices:   services.GetAddedServices(service.Containerd),
 		containerdRemovedServices: services.GetRemovedServices(service.Containerd),
 	}
@@ -92,18 +88,10 @@ func (l *Launcher) run() {
 			l.addSources(service)
 		case service := <-l.dockerRemovedServices:
 			l.removeSources(service)
-		case <-l.dockerSources:
-			// The annotation are resolved through the pod object. We don't need
-			// to process the source here
-			continue
 		case service := <-l.containerdAddedServices:
 			l.addSources(service)
 		case service := <-l.containerdRemovedServices:
 			l.removeSources(service)
-		case <-l.containerdSources:
-			// The annotation are resolved through the pod object. We don't need
-			// to process the source here
-			continue
 		case <-l.stopped:
 			return
 		}

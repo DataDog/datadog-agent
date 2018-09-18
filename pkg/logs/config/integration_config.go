@@ -8,8 +8,6 @@ package config
 import (
 	"fmt"
 	"regexp"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // Logs source types
@@ -17,8 +15,7 @@ const (
 	TCPType          = "tcp"
 	UDPType          = "udp"
 	FileType         = "file"
-	DockerType       = containers.RuntimeNameDocker
-	ContainerdType   = containers.RuntimeNameContainerd
+	DockerType       = "docker"
 	JournaldType     = "journald"
 	WindowsEventType = "windows_event"
 )
