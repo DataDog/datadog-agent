@@ -10,7 +10,9 @@ import (
 	"sync"
 )
 
-// Messages holds a message message
+// Messages holds messages and warning that can be displayed in the status
+// Warnings are display at the top of the log section in the status and
+// messages are displayed in the log source that generated the message
 type Messages struct {
 	messages map[string]string
 	lock     *sync.Mutex
