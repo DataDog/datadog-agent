@@ -8,6 +8,9 @@
 package docker
 
 import (
+	"sync"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/client"
@@ -19,31 +22,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
+const (
+	backoffInitialDuration = 1 * time.Second
+	backoffMaxDuration     = 60 * time.Second
+)
+
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
-	pipelineProvider  pipeline.Provider
-	sources           chan *config.LogSource
-	addedServices     chan *service.Service
-	removedServices   chan *service.Service
-	activeSources     []*config.LogSource
-	pendingContainers map[string]*Container
-	tailers           map[string]*Tailer
-	cli               *client.Client
-	registry          auditor.Registry
-	stop              chan struct{}
+	pipelineProvider   pipeline.Provider
+	sources            chan *config.LogSource
+	addedServices      chan *service.Service
+	removedServices    chan *service.Service
+	activeSources      []*config.LogSource
+	pendingContainers  map[string]*Container
+	tailers            map[string]*Tailer
+	cli                *client.Client
+	registry           auditor.Registry
+	stop               chan struct{}
+	erroredContainerID chan string
+	lock               *sync.Mutex
 }
 
 // NewLauncher returns a new launcher
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
 	launcher := &Launcher{
-		pipelineProvider:  pipelineProvider,
-		sources:           sources.GetSourceStreamForType(config.DockerType),
-		addedServices:     services.GetAddedServices(service.Docker),
-		removedServices:   services.GetRemovedServices(service.Docker),
-		tailers:           make(map[string]*Tailer),
-		pendingContainers: make(map[string]*Container),
-		registry:          registry,
-		stop:              make(chan struct{}),
+		pipelineProvider:   pipelineProvider,
+		sources:            sources.GetSourceStreamForType(config.DockerType),
+		addedServices:      services.GetAddedServices(service.Docker),
+		removedServices:    services.GetRemovedServices(service.Docker),
+		tailers:            make(map[string]*Tailer),
+		pendingContainers:  make(map[string]*Container),
+		registry:           registry,
+		stop:               make(chan struct{}),
+		erroredContainerID: make(chan string),
+		lock:               &sync.Mutex{},
 	}
 	err := launcher.setup()
 	if err != nil {
@@ -81,7 +93,7 @@ func (l *Launcher) Stop() {
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
-		delete(l.tailers, tailer.ContainerID)
+		l.removeTailer(tailer.ContainerID)
 	}
 	stopper.Stop()
 }
@@ -131,6 +143,8 @@ func (l *Launcher) run() {
 			containerID := service.Identifier
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
+		case containerId := <-l.erroredContainerID:
+			go l.restartTailer(containerId)
 		case <-l.stop:
 			// no docker container should be tailed anymore
 			return
@@ -146,9 +160,9 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		return
 	}
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan())
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
-	// conpute the offset to prevent from missing or duplicating logs
+	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
 	if err != nil {
 		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
@@ -161,13 +175,66 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	}
 
 	// keep the tailer in track to stop it later on
-	l.tailers[containerID] = tailer
+	l.addTailer(containerID, tailer)
 }
 
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
 	if tailer, isTailed := l.tailers[containerID]; isTailed {
 		go tailer.Stop()
-		delete(l.tailers, containerID)
+		l.removeTailer(containerID)
 	}
+}
+
+func (l *Launcher) restartTailer(containerID string) {
+	backoffDuration := backoffInitialDuration
+	cumulatedBackoff := 0 * time.Second
+	var source *config.LogSource
+
+	oldTailer, exists := l.tailers[containerID]
+	if exists {
+		source = oldTailer.source
+		oldTailer.Stop()
+		l.removeTailer(containerID)
+	}
+
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+
+	// compute the offset to prevent from missing or duplicating logs
+	since, err := Since(l.registry, tailer.Identifier(), service.Before)
+	if err != nil {
+		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(containerID), err)
+	}
+
+	for {
+		if backoffDuration > backoffMaxDuration {
+			log.Warnf("Could not resume tailing container %v", ShortContainerID(containerID))
+			return
+		}
+
+		// start the tailer
+		err = tailer.Start(since)
+		if err != nil {
+			log.Warnf("Could not start tailer for container %v: %v", ShortContainerID(containerID), err)
+			time.Sleep(backoffDuration)
+			cumulatedBackoff += backoffDuration
+			backoffDuration *= 2
+			continue
+		}
+		// keep the tailer in track to stop it later on
+		l.addTailer(containerID, tailer)
+		return
+	}
+}
+
+func (l *Launcher) addTailer(containerID string, tailer *Tailer) {
+	l.lock.Lock()
+	l.tailers[containerID] = tailer
+	l.lock.Unlock()
+}
+
+func (l *Launcher) removeTailer(containerID string) {
+	l.lock.Lock()
+	delete(l.tailers, containerID)
+	l.lock.Unlock()
 }
