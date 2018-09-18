@@ -122,7 +122,7 @@ before_script:
 run_tests_deb-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   script:
     - inv -e test --race --profile --cpus 4
 
@@ -130,7 +130,7 @@ run_tests_deb-x64:
 run_test_rpm-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   script:
     - inv -e test --race --profile --cpus 4
 
@@ -252,7 +252,7 @@ run_dogstatsd_size_test:
 agent_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
@@ -279,7 +279,7 @@ agent_deb-x64:
 agent_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
@@ -311,7 +311,7 @@ agent_suse-x64:
   allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
