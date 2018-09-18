@@ -264,3 +264,25 @@ func TestCheckSenderHostname(t *testing.T) {
 		})
 	}
 }
+
+func TestChangeAllSendersDefaultHostname(t *testing.T) {
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	checkSender := newCheckSender(checkID1, "hostname1", senderMetricSampleChan, serviceCheckChan, eventChan)
+	SetSender(checkSender, checkID1)
+
+	checkSender.Gauge("my.metric", 1.0, "", nil)
+	gaugeSenderSample := <-senderMetricSampleChan
+	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
+
+	changeAllSendersDefaultHostname("hostname2")
+	checkSender.Gauge("my.metric", 1.0, "", nil)
+	gaugeSenderSample = <-senderMetricSampleChan
+	assert.Equal(t, "hostname2", gaugeSenderSample.metricSample.Host)
+
+	changeAllSendersDefaultHostname("hostname1")
+	checkSender.Gauge("my.metric", 1.0, "", nil)
+	gaugeSenderSample = <-senderMetricSampleChan
+	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
+}

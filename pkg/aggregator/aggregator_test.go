@@ -132,6 +132,13 @@ func TestSetHostname(t *testing.T) {
 	resetAggregator()
 	agg := InitAggregator(nil, "hostname")
 	assert.Equal(t, "hostname", agg.hostname)
+	sender, err := GetSender(checkID1)
+	require.NoError(t, err)
+	checkSender, ok := sender.(*checkSender)
+	require.True(t, ok)
+	assert.Equal(t, "hostname", checkSender.defaultHostname)
+
 	agg.SetHostname("different-hostname")
 	assert.Equal(t, "different-hostname", agg.hostname)
+	assert.Equal(t, "different-hostname", checkSender.defaultHostname)
 }
