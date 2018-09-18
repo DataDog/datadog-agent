@@ -93,6 +93,7 @@ func (l *Launcher) run() {
 		case service := <-l.containerdRemovedServices:
 			l.removeSource(service)
 		case <-l.stopped:
+			log.Info("Kubernetes launcher stopped")
 			return
 		}
 	}
