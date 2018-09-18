@@ -25,6 +25,11 @@ type IntegrationEntry struct {
 // IntegrationCatalog represents a list of Integrations
 type IntegrationCatalog []IntegrationEntry
 
+type signature struct {
+	integration Integration
+	words       []string
+}
+
 // NewDefault returns the default matcher (graph one) built with the default catalog
 func NewDefault() (Matcher, error) {
 	return NewMatcher(DefaultCatalog)

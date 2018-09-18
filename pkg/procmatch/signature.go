@@ -5,11 +5,6 @@ import (
 	"strings"
 )
 
-type signature struct {
-	integration Integration
-	words       []string
-}
-
 // getSignatures retrieves the signatures structured
 func (i IntegrationEntry) getSignatures() []signature {
 	sigs := []signature{}
