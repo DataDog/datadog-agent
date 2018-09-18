@@ -142,7 +142,9 @@ func (l *ProcessListener) createService(proc procdiscovery.IntegrationProcess) {
 	}
 
 	for _, conn := range conns {
-		svc.ports = append(svc.ports, ContainerPort{Port: int(conn.Laddr.Port)})
+		if conn.Status != "NONE" {
+			svc.ports = append(svc.ports, ContainerPort{Port: int(conn.Laddr.Port)})
+		}
 	}
 
 	l.m.Lock()
