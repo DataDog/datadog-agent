@@ -7,7 +7,6 @@ package listeners
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -126,11 +125,7 @@ func (l *ProcessListener) pollProcesses() {
 // createService takes a procdiscovery.Process, create a service for it in its cache
 // and tells the ConfigResolver that this service started.
 func (l *ProcessListener) createService(proc procdiscovery.IntegrationProcess) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Errorf("Couldn't retrieve hostname: %s", err)
-		return
-	}
+	hostname := "127.0.0.1"
 
 	svc := &ProcessService{
 		adIdentifiers: []string{strings.ToLower(proc.Name), strings.ToLower(proc.DisplayName), strings.ToLower(proc.Cmd)},

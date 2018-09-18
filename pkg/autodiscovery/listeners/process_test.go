@@ -13,7 +13,7 @@ import (
 
 func getMockProcessService() *ProcessService {
 	return &ProcessService{
-		hostname:      "dogbox",
+		hostname:      "127.0.0.1",
 		adIdentifiers: []string{"redisdb", "redis", "redis-server"},
 		ports:         []ContainerPort{{Port: 8080}},
 		pid:           12345,
@@ -47,7 +47,7 @@ func TestProcGetHosts(t *testing.T) {
 	host, ok := hosts["host"]
 	assert.True(t, ok)
 
-	assert.Equal(t, "dogbox", host)
+	assert.Equal(t, "127.0.0.1", host)
 }
 
 func TestProcGetPorts(t *testing.T) {
@@ -75,7 +75,7 @@ func TestProcGetHostname(t *testing.T) {
 	hostname, err := svc.GetHostname()
 	assert.NoError(t, err)
 
-	assert.Equal(t, "dogbox", hostname)
+	assert.Equal(t, "127.0.0.1", hostname)
 }
 
 func TestProcGetTags(t *testing.T) {
