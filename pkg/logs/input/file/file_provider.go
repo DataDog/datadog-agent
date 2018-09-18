@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
+// OpenFilesLimitWarningType is the key of the message generated when too many
+// files are tailed
+const openFilesLimitWarningType = "open_files_limit_warning"
+
 // File represents a file to tail
 type File struct {
 	Path   string
@@ -53,11 +57,15 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 
-	for i := 0; i < len(sources) && len(filesToTail) < p.filesLimit; i++ {
+	for i := 0; i < len(sources); i++ {
 		source := sources[i]
+		tailedFileCounter := 0
 		files, err := p.CollectFiles(source)
 		if err != nil {
 			source.Status.Error(err)
+			if p.containsWildcard(source.Config.Path) {
+				source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", tailedFileCounter, len(files)))
+			}
 			if shouldLogErrors {
 				log.Warnf("Could not collect files: %v", err)
 			}
@@ -66,6 +74,23 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 		for j := 0; j < len(files) && len(filesToTail) < p.filesLimit; j++ {
 			file := files[j]
 			filesToTail = append(filesToTail, file)
+			tailedFileCounter++
+		}
+
+		if len(filesToTail) >= p.filesLimit {
+			source.Messages.AddWarning(
+				openFilesLimitWarningType,
+				fmt.Sprintf(
+					"The limit on the maximum number of files in use (%d) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+					p.filesLimit,
+				),
+			)
+		} else {
+			source.Messages.RemoveWarning(openFilesLimitWarningType)
+		}
+
+		if p.containsWildcard(source.Config.Path) {
+			source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", tailedFileCounter, len(files)))
 		}
 	}
 
