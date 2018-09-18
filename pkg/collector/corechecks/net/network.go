@@ -51,16 +51,16 @@ var (
 		},
 	}
 	tcpStateMetricsSuffixMapping = map[string]string{
-		"ESTABLISHED": "estab",
-		"SYN_SENT":    "syn_sent",
-		"SYN_RECV":    "syn_recv",
-		"FIN_WAIT1":   "fin_wait_1",
-		"FIN_WAIT2":   "fin_wait_2",
+		"ESTABLISHED": "established",
+		"SYN_SENT":    "opening",
+		"SYN_RECV":    "opening",
+		"FIN_WAIT1":   "closing",
+		"FIN_WAIT2":   "closing",
 		"TIME_WAIT":   "time_wait",
-		"CLOSE":       "close",
-		"CLOSE_WAIT":  "close_wait",
-		"LAST_ACK":    "last_ack",
-		"LISTEN":      "listen",
+		"CLOSE":       "closing",
+		"CLOSE_WAIT":  "closing",
+		"LAST_ACK":    "closing",
+		"LISTEN":      "listening",
 		"CLOSING":     "closing",
 	}
 
@@ -217,17 +217,17 @@ func submitProtocolMetrics(sender aggregator.Sender, protocolStats net.ProtoCoun
 }
 
 func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat) {
-	stateCount := map[string]float64{}
-	for state := range stateMetricSuffixMapping {
-		stateCount[state] = 0
+	metricCount := map[string]float64{}
+	for _, suffix := range stateMetricSuffixMapping {
+		metricCount[suffix] = 0
 	}
 
 	for _, connectionStats := range connectionsStats {
-		stateCount[connectionStats.Status]++
+		metricCount[stateMetricSuffixMapping[connectionStats.Status]]++
 	}
 
-	for state, count := range stateCount {
-		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, stateMetricSuffixMapping[state]),
+	for suffix, count := range metricCount {
+		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix),
 			count, "", []string{})
 	}
 }
