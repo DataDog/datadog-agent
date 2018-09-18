@@ -87,11 +87,11 @@ func (l *Launcher) run() {
 		case service := <-l.dockerAddedServices:
 			l.addSources(service)
 		case service := <-l.dockerRemovedServices:
-			l.removeSources(service)
+			l.removeSource(service)
 		case service := <-l.containerdAddedServices:
 			l.addSources(service)
 		case service := <-l.containerdRemovedServices:
-			l.removeSources(service)
+			l.removeSource(service)
 		case <-l.stopped:
 			return
 		}
@@ -106,11 +106,11 @@ func (l *Launcher) addSources(service *service.Service) {
 		log.Warnf("Could not add source for container %v: %v", service.Identifier, err)
 		return
 	}
-	l.addSourcesFromPod(pod)
+	l.addSourcesForPod(pod)
 }
 
-// removeSources removes a new log-source from a service
-func (l *Launcher) removeSources(service *service.Service) {
+// removeSource removes a new log-source from a service
+func (l *Launcher) removeSource(service *service.Service) {
 	containerID := service.GetEntityID()
 	if source, exists := l.sourcesByContainer[containerID]; exists {
 		delete(l.sourcesByContainer, containerID)
@@ -118,10 +118,10 @@ func (l *Launcher) removeSources(service *service.Service) {
 	}
 }
 
-// addSourcesFromPod creates new log-sources for each container of the pod.
+// addSourcesForPod creates new log-sources for each container of the pod.
 // it checks if the sources already exist to avoid tailing twice the same
 // container when pods have multiple containers
-func (l *Launcher) addSourcesFromPod(pod *kubelet.Pod) {
+func (l *Launcher) addSourcesForPod(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
 		if _, exists := l.sourcesByContainer[containerID]; exists {
