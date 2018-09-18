@@ -85,11 +85,11 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case service := <-l.dockerAddedServices:
-			l.addSources(service)
+			l.addSource(service)
 		case service := <-l.dockerRemovedServices:
 			l.removeSource(service)
 		case service := <-l.containerdAddedServices:
-			l.addSources(service)
+			l.addSource(service)
 		case service := <-l.containerdRemovedServices:
 			l.removeSource(service)
 		case <-l.stopped:
@@ -99,15 +99,34 @@ func (l *Launcher) run() {
 	}
 }
 
-// addSources creates a new log-source from a service by resolving the
+// addSource creates a new log-source from a service by resolving the
 // pod linked to the entityID of the service
-func (l *Launcher) addSources(service *service.Service) {
+func (l *Launcher) addSource(service *service.Service) {
 	pod, err := l.kubeutil.GetPodForEntityID(service.GetEntityID())
 	if err != nil {
 		log.Warnf("Could not add source for container %v: %v", service.Identifier, err)
 		return
 	}
-	l.addSourcesForPod(pod)
+
+	for _, container := range pod.Status.Containers {
+		containerID := container.ID
+		if service.Identifier == containerID {
+			// If the container is already tailed, we don't do anything
+			// That shoudn't happen
+			if _, exists := l.sourcesByContainer[containerID]; exists {
+				log.Debugf("A source already exist for container %v", containerID)
+				return
+			}
+			source, err := l.getSource(pod, container)
+			if err != nil {
+				log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
+				continue
+			}
+			l.sourcesByContainer[containerID] = source
+			l.sources.AddSource(source)
+			break
+		}
+	}
 }
 
 // removeSource removes a new log-source from a service
@@ -116,25 +135,6 @@ func (l *Launcher) removeSource(service *service.Service) {
 	if source, exists := l.sourcesByContainer[containerID]; exists {
 		delete(l.sourcesByContainer, containerID)
 		l.sources.RemoveSource(source)
-	}
-}
-
-// addSourcesForPod creates new log-sources for each container of the pod.
-// it checks if the sources already exist to avoid tailing twice the same
-// container when pods have multiple containers
-func (l *Launcher) addSourcesForPod(pod *kubelet.Pod) {
-	for _, container := range pod.Status.Containers {
-		containerID := container.ID
-		if _, exists := l.sourcesByContainer[containerID]; exists {
-			continue
-		}
-		source, err := l.getSource(pod, container)
-		if err != nil {
-			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
-			continue
-		}
-		l.sourcesByContainer[containerID] = source
-		l.sources.AddSource(source)
 	}
 }
 
