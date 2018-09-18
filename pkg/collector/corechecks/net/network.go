@@ -94,20 +94,25 @@ type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
 	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
+	NetstatTCPExtCounters() (map[string]int64, error)
 }
 
-type gopsutilNetworkStats struct{}
+type defaultNetworkStats struct{}
 
-func (g gopsutilNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
+func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return net.IOCounters(pernic)
 }
 
-func (g gopsutilNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
+func (n defaultNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
 	return net.ProtoCounters(protocols)
 }
 
-func (g gopsutilNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {
+func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {
 	return net.Connections(kind)
+}
+
+func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
+	return netstatTCPExtCounters()
 }
 
 // Run executes the check
@@ -135,7 +140,7 @@ func (c *NetworkCheck) Run() error {
 	for _, protocolStats := range protocolsStats {
 		// For TCP we want some extra counters coming from /proc/net/netstat if available
 		if protocolStats.Protocol == "tcp" {
-			counters, err := netstatTCPExtCounters()
+			counters, err := c.net.NetstatTCPExtCounters()
 			if err != nil {
 				log.Debug(err)
 			} else {
@@ -297,7 +302,7 @@ func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig int
 
 func networkFactory() check.Check {
 	return &NetworkCheck{
-		net:       gopsutilNetworkStats{},
+		net:       defaultNetworkStats{},
 		CheckBase: core.NewCheckBase(networkCheckName),
 	}
 }

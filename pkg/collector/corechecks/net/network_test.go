@@ -17,18 +17,20 @@ import (
 )
 
 type fakeNetworkStats struct {
-	counterStats             []net.IOCountersStat
-	counterStatsError        error
-	protoCountersStats       []net.ProtoCountersStat
-	protoCountersStatsError  error
-	connectionStatsUDP4      []net.ConnectionStat
-	connectionStatsUDP4Error error
-	connectionStatsUDP6      []net.ConnectionStat
-	connectionStatsUDP6Error error
-	connectionStatsTCP4      []net.ConnectionStat
-	connectionStatsTCP4Error error
-	connectionStatsTCP6      []net.ConnectionStat
-	connectionStatsTCP6Error error
+	counterStats                []net.IOCountersStat
+	counterStatsError           error
+	protoCountersStats          []net.ProtoCountersStat
+	protoCountersStatsError     error
+	connectionStatsUDP4         []net.ConnectionStat
+	connectionStatsUDP4Error    error
+	connectionStatsUDP6         []net.ConnectionStat
+	connectionStatsUDP6Error    error
+	connectionStatsTCP4         []net.ConnectionStat
+	connectionStatsTCP4Error    error
+	connectionStatsTCP6         []net.ConnectionStat
+	connectionStatsTCP6Error    error
+	netstatTCPExtCountersValues map[string]int64
+	netstatTCPExtCountersError  error
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
@@ -54,6 +56,10 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 		return n.connectionStatsTCP6, n.connectionStatsTCP6Error
 	}
 	return nil, nil
+}
+
+func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
+	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
 }
 
 func TestDefaultConfiguration(t *testing.T) {
@@ -244,6 +250,12 @@ func TestNetworkCheck(t *testing.T) {
 				Status: "CLOSING",
 			},
 		},
+		netstatTCPExtCountersValues: map[string]int64{
+			"ListenOverflows": 32,
+			"ListenDrops":     33,
+			"TCPBacklogDrop":  34,
+			"TCPRetransFail":  35,
+		},
 	}
 
 	networkCheck := NetworkCheck{
@@ -306,6 +318,11 @@ collect_connection_state: true
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.rcv_buf_errors.count", float64(29), "", []string{})
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.snd_buf_errors.count", float64(30), "", []string{})
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_csum_errors.count", float64(31), "", []string{})
+
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_overflows", float64(32), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", []string{})
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", []string{})
 
 	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", []string{})
 
