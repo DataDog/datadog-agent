@@ -24,7 +24,7 @@ const scanPeriod = 10 * time.Second
 // or update the old ones if needed
 type Scanner struct {
 	pipelineProvider    pipeline.Provider
-	sources             *config.LogSources
+	sources             chan *config.LogSource
 	activeSources       []*config.LogSource
 	tailingLimit        int
 	fileProvider        *Provider
@@ -39,7 +39,7 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 	return &Scanner{
 		pipelineProvider:    pipelineProvider,
 		tailingLimit:        tailingLimit,
-		sources:             sources,
+		sources:             sources.GetSourceStreamForType(config.FileType),
 		fileProvider:        NewProvider(tailingLimit),
 		tailers:             make(map[string]*Tailer),
 		registry:            registry,
@@ -66,7 +66,7 @@ func (s *Scanner) run() {
 	defer scanTicker.Stop()
 	for {
 		select {
-		case source := <-s.sources.GetSourceStreamForType(config.FileType):
+		case source := <-s.sources:
 			s.activeSources = append(s.activeSources, source)
 			s.launchTailers(source)
 		case <-scanTicker.C:

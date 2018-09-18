@@ -26,42 +26,48 @@ func NewServices() *Services {
 
 // AddService sends a new service to the channel matching its type.
 func (s *Services) AddService(service *Service) {
-	s.getAddedServices(service.Type) <- service
+	s.mu.Lock()
+	added, exists := s.addedPerType[service.Type]
+	s.mu.Unlock()
+
+	if exists {
+		added <- service
+	}
 }
 
 // RemoveService sends a removed service to the channel matching its type.
 func (s *Services) RemoveService(service *Service) {
-	s.getRemovedServices(service.Type) <- service
+	s.mu.Lock()
+	removed, exists := s.removedPerType[service.Type]
+	s.mu.Unlock()
+
+	if exists {
+		removed <- service
+	}
 }
 
 // GetAddedServices returns a stream of new services for a given type.
 func (s *Services) GetAddedServices(serviceType string) chan *Service {
-	return s.getAddedServices(serviceType)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	added, exists := s.addedPerType[serviceType]
+	if !exists {
+		added = make(chan *Service)
+		s.addedPerType[serviceType] = added
+	}
+	return added
 }
 
 // GetRemovedServices returns a stream of removed services for a given type.
 func (s *Services) GetRemovedServices(serviceType string) chan *Service {
-	return s.getRemovedServices(serviceType)
-}
-
-func (s *Services) getAddedServices(serviceType string) chan *Service {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if added, exists := s.addedPerType[serviceType]; exists {
-		return added
-	}
-	added := make(chan *Service)
-	s.addedPerType[serviceType] = added
-	return added
-}
 
-func (s *Services) getRemovedServices(serviceType string) chan *Service {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if removed, exists := s.removedPerType[serviceType]; exists {
-		return removed
+	removed, exists := s.removedPerType[serviceType]
+	if !exists {
+		removed = make(chan *Service)
+		s.removedPerType[serviceType] = removed
 	}
-	removed := make(chan *Service)
-	s.removedPerType[serviceType] = removed
 	return removed
 }

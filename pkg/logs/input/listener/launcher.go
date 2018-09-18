@@ -11,45 +11,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// Listener represents an objet that can accept new incomming connections.
-type Listener interface {
-	Start()
-	Stop()
-}
-
-// Listeners summons different protocol specific listeners based on configuration
-type Listeners struct {
+// Launcher summons different protocol specific listeners based on configuration
+type Launcher struct {
 	pipelineProvider pipeline.Provider
 	frameSize        int
-	sources          *config.LogSources
-	listeners        []Listener
+	tcpSources       chan *config.LogSource
+	udpSources       chan *config.LogSource
+	listeners        []restart.Restartable
 	stop             chan struct{}
 }
 
-// NewListener returns an initialized Listeners
-func NewListener(sources *config.LogSources, frameSize int, pipelineProvider pipeline.Provider) *Listeners {
-	return &Listeners{
+// NewLauncher returns an initialized Launcher
+func NewLauncher(sources *config.LogSources, frameSize int, pipelineProvider pipeline.Provider) *Launcher {
+	return &Launcher{
 		pipelineProvider: pipelineProvider,
 		frameSize:        frameSize,
-		sources:          sources,
+		tcpSources:       sources.GetSourceStreamForType(config.TCPType),
+		udpSources:       sources.GetSourceStreamForType(config.UDPType),
 		stop:             make(chan struct{}),
 	}
 }
 
 // Start starts the listener.
-func (l *Listeners) Start() {
+func (l *Launcher) Start() {
 	go l.run()
 }
 
 // run starts new network listeners.
-func (l *Listeners) run() {
+func (l *Launcher) run() {
 	for {
 		select {
-		case source := <-l.sources.GetSourceStreamForType(config.TCPType):
+		case source := <-l.tcpSources:
 			listener := NewTCPListener(l.pipelineProvider, source, l.frameSize)
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
-		case source := <-l.sources.GetSourceStreamForType(config.UDPType):
+		case source := <-l.udpSources:
 			listener := NewUDPListener(l.pipelineProvider, source, l.frameSize)
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
@@ -60,7 +56,7 @@ func (l *Listeners) run() {
 }
 
 // Stop stops all listeners
-func (l *Listeners) Stop() {
+func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, l := range l.listeners {

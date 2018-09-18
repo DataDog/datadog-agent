@@ -8,8 +8,6 @@
 package kubernetes
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
@@ -19,7 +17,7 @@ type Scanner struct{}
 
 // NewScanner returns a new scanner
 func NewScanner(sources *config.LogSources, services *service.Services) (*Scanner, error) {
-	return &Scanner{}, errors.New("the kubernetes integration is not available on your system")
+	return &Scanner{}, nil
 }
 
 // Start does nothing

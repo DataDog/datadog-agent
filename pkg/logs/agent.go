@@ -45,9 +45,9 @@ func NewAgent(sources *config.LogSources, services *service.Services, serverConf
 
 	// setup the inputs
 	inputs := []restart.Restartable{
-		container.NewLauncher(sources, services, pipelineProvider, auditor),
-		listener.NewListener(sources, config.LogsAgent.GetInt("logs_config.frame_size"), pipelineProvider),
 		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		container.NewLauncher(sources, services, pipelineProvider, auditor),
+		listener.NewLauncher(sources, config.LogsAgent.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
 	}

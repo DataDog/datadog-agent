@@ -88,12 +88,6 @@ func (s *Scanner) run() {
 		case pod := <-s.podProvider.Removed:
 			log.Infof("Removing pod %v", pod.Metadata.Name)
 			s.removeSources(pod)
-		case <-s.services.GetAddedServices(service.Docker):
-			continue
-		case <-s.services.GetRemovedServices(service.Docker):
-			continue
-		case <-s.sources.GetSourceStreamForType(config.DockerType):
-			continue
 		case <-s.stopped:
 			return
 		}

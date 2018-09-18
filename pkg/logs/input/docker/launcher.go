@@ -22,8 +22,9 @@ import (
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider  pipeline.Provider
-	sources           *config.LogSources
-	services          *service.Services
+	sources           chan *config.LogSource
+	addedServices     chan *service.Service
+	removedServices   chan *service.Service
 	activeSources     []*config.LogSource
 	pendingContainers map[string]*Container
 	tailers           map[string]*Tailer
@@ -36,8 +37,9 @@ type Launcher struct {
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
 	launcher := &Launcher{
 		pipelineProvider:  pipelineProvider,
-		sources:           sources,
-		services:          services,
+		sources:           sources.GetSourceStreamForType(config.DockerType),
+		addedServices:     services.GetAddedServices(service.Docker),
+		removedServices:   services.GetRemovedServices(service.Docker),
 		tailers:           make(map[string]*Tailer),
 		pendingContainers: make(map[string]*Container),
 		registry:          registry,
@@ -70,17 +72,6 @@ func (l *Launcher) setup() error {
 // Start starts the Launcher
 func (l *Launcher) Start() {
 	go l.run()
-
-	if config.LogsAgent.GetBool("logs_config.container_collect_all") {
-		// append a new source to collect all logs from all containers
-		log.Infof("Will collect all logs from all containers")
-		source := config.NewLogSource("container_collect_all", &config.LogsConfig{
-			Type:    config.DockerType,
-			Service: "docker",
-			Source:  "docker",
-		})
-		l.sources.AddSource(source)
-	}
 }
 
 // Stop stops the Launcher and its tailers in parallel,
@@ -100,14 +91,14 @@ func (l *Launcher) Stop() {
 func (l *Launcher) run() {
 	for {
 		select {
-		case newService := <-l.services.GetAddedServices(service.Docker):
+		case service := <-l.addedServices:
 			// detected a new container running on the host,
-			dockerContainer, err := GetContainer(l.cli, newService.Identifier)
+			dockerContainer, err := GetContainer(l.cli, service.Identifier)
 			if err != nil {
 				log.Warnf("Could not find container with id: %v", err)
 				continue
 			}
-			container := NewContainer(dockerContainer, newService)
+			container := NewContainer(dockerContainer, service)
 			source := container.FindSource(l.activeSources)
 			switch {
 			case source != nil:
@@ -117,9 +108,9 @@ func (l *Launcher) run() {
 				// no source matches with the container but a matching source may not have been
 				// emitted yet or the container may contain an autodiscovery identifier
 				// so it's put in a cache until a matching source is found.
-				l.pendingContainers[newService.Identifier] = container
+				l.pendingContainers[service.Identifier] = container
 			}
-		case source := <-l.sources.GetSourceStreamForType(config.DockerType):
+		case source := <-l.sources:
 			// detected a new source that has been created either from a configuration file,
 			// a docker label or a pod annotation.
 			l.activeSources = append(l.activeSources, source)
@@ -135,9 +126,9 @@ func (l *Launcher) run() {
 			}
 			// keep the containers that have not found any source yet for next iterations
 			l.pendingContainers = pendingContainers
-		case removedService := <-l.services.GetRemovedServices(service.Docker):
+		case service := <-l.removedServices:
 			// detected that a container has been stopped.
-			containerID := removedService.Identifier
+			containerID := service.Identifier
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
 		case <-l.stop:

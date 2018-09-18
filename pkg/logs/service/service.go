@@ -27,9 +27,9 @@ type Service struct {
 }
 
 // NewService returns a new service.
-func NewService(provider string, identifier string, createdTime CreationTime) *Service {
+func NewService(providerType string, identifier string, createdTime CreationTime) *Service {
 	return &Service{
-		Type:         provider,
+		Type:         providerType,
 		Identifier:   identifier,
 		CreationTime: createdTime,
 	}

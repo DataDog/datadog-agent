@@ -8,8 +8,6 @@
 package docker
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -17,12 +15,11 @@ import (
 )
 
 // Launcher is not supported on non docker environment
-type Launcher struct {
-}
+type Launcher struct{}
 
 // NewLauncher returns a new Launcher
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
-	return &Launcher{}, errors.New("the docker integration is not available on your system")
+	return &Launcher{}, nil
 }
 
 // Start does nothing
