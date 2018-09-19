@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"context"
 )
 
 const (
@@ -182,9 +183,11 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 }
 
 func (le *LeaderEngine) runLeaderElection() {
+	ctx := context.Background()
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
-		le.leaderElector.Run()
+
+		le.leaderElector.Run(ctx)
 		log.Info("Leader election lost")
 	}
 }

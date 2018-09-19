@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"context"
 )
 
 func (le *LeaderEngine) getCurrentLeader() (string, *v1.ConfigMap, error) {
@@ -69,7 +70,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		return nil, err
 	}
 	log.Debugf("Current registered leader is %q, building leader elector %q as candidate", currentLeader, le.HolderIdentity)
-
+	//ctx := context.WithCancel()
 	callbacks := ld.LeaderCallbacks{
 		OnNewLeader: func(identity string) {
 			le.leaderIdentityMutex.Lock()
@@ -78,7 +79,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 
 			log.Infof("New leader %q", identity)
 		},
-		OnStartedLeading: func(stop <-chan struct{}) {
+		OnStartedLeading: func(context.Context) {
 			le.leaderIdentityMutex.Lock()
 			le.leaderIdentity = le.HolderIdentity
 			le.leaderIdentityMutex.Unlock()

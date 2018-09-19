@@ -10,18 +10,18 @@ package custommetrics
 import (
 	"fmt"
 
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	"github.com/CharlyF/custom-metrics-apiserver/pkg/provider"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type externalMetric struct {
@@ -30,7 +30,7 @@ type externalMetric struct {
 }
 
 type datadogProvider struct {
-	client dynamic.ClientPool
+	client dynamic.Interface
 	mapper apimeta.RESTMapper
 
 	values          map[provider.CustomMetricInfo]int64
@@ -41,7 +41,7 @@ type datadogProvider struct {
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
-func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
+func NewDatadogProvider(client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
 	return &datadogProvider{
 		client: client,
 		mapper: mapper,
@@ -51,23 +51,13 @@ func NewDatadogProvider(client dynamic.ClientPool, mapper apimeta.RESTMapper, st
 }
 
 // GetRootScopedMetricByName - Not implemented
-func (p *datadogProvider) GetRootScopedMetricByName(groupResource schema.GroupResource, name string, metricName string) (*custom_metrics.MetricValue, error) {
+func (p *datadogProvider) GetMetricByName(name types.NamespacedName, info provider.CustomMetricInfo) (*custom_metrics.MetricValue, error) {
 	return nil, fmt.Errorf("not Implemented - GetRootScopedMetricByName")
 }
 
 // GetRootScopedMetricBySelector - Not implemented
-func (p *datadogProvider) GetRootScopedMetricBySelector(groupResource schema.GroupResource, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
+func (p *datadogProvider) GetMetricBySelector(namespace string, selector labels.Selector, info provider.CustomMetricInfo) (*custom_metrics.MetricValueList, error) {
 	return nil, fmt.Errorf("not Implemented - GetRootScopedMetricBySelector")
-}
-
-// GetNamespacedMetricByName - Not implemented
-func (p *datadogProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	return nil, fmt.Errorf("not Implemented - GetNamespacedMetricByName")
-}
-
-// GetNamespacedMetricBySelector - Not implemented
-func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
-	return nil, fmt.Errorf("not Implemented - GetNamespacedMetricBySelector")
 }
 
 // ListAllMetrics reads from a ConfigMap, similarly to ListExternalMetrics
@@ -95,7 +85,6 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 		var extMetric externalMetric
 		extMetric.info = provider.ExternalMetricInfo{
 			Metric: metric.MetricName,
-			Labels: metric.Labels,
 		}
 		extMetric.value = external_metrics.ExternalMetricValue{
 			MetricName:   metric.MetricName,
@@ -106,7 +95,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 
 		externalMetricsInfoList = append(externalMetricsInfoList, provider.ExternalMetricInfo{
 			Metric: metric.MetricName,
-			Labels: metric.Labels,
+			//Labels: metric.Labels,
 		})
 	}
 	p.externalMetrics = externalMetricsList
@@ -121,7 +110,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 // - The validation of the metrics against Datadog
 // Every replica answering to a ListAllExternalMetrics will populate its cache with a copy of the global cache.
 // If the copy does not exist or is too old (>1 HPA controller default run cycle) we refresh it.
-func (p *datadogProvider) GetExternalMetric(namespace string, metricName string, metricSelector labels.Selector) (*external_metrics.ExternalMetricValueList, error) {
+func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
 
 	copyAge := metav1.Now().Unix() - p.timestamp
@@ -133,12 +122,12 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricName string,
 
 	for _, metric := range p.externalMetrics {
 		metricFromDatadog := external_metrics.ExternalMetricValue{
-			MetricName:   metricName,
-			MetricLabels: metric.info.Labels,
+			MetricName:   metric.info.Metric,
+			MetricLabels: metric.value.MetricLabels,
 			Value:        metric.value.Value,
 		}
-		if metric.info.Metric == metricName &&
-			metricSelector.Matches(labels.Set(metric.info.Labels)) {
+		if metric.info.Metric == metric.info.Metric &&
+			metricSelector.Matches(labels.Set(metric.value.MetricLabels)) {
 			metricValue := metricFromDatadog
 			metricValue.Timestamp = metav1.Now()
 			matchingMetrics = append(matchingMetrics, metricValue)

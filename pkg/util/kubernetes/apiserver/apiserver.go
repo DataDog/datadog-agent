@@ -120,7 +120,7 @@ func (c *APIClient) connect() error {
 		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
-
+	//c.Cl.
 	// informer factory uses its own clientset with a larger timeout
 	c.InformerFactory, err = getInformerFactory()
 	if err != nil {
