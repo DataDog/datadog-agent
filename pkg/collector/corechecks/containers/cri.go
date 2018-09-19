@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -23,13 +24,18 @@ const (
 
 // CRIConfig holds the config of the check
 type CRIConfig struct {
-	Tags []string `yaml:"tags"`
+	Tags        []string `yaml:"tags"`
+	CollectDisk bool     `yaml:"collect_disk"`
 }
 
 // CRICheck grabs CRI metrics
 type CRICheck struct {
 	core.CheckBase
 	instance *CRIConfig
+}
+
+func init() {
+	core.RegisterCheck("cri", CRIFactory)
 }
 
 // CRIFactory is exported for integration testing
@@ -40,13 +46,20 @@ func CRIFactory() check.Check {
 	}
 }
 
-// Configure parses the check configuration and init the check
-func (c *CRICheck) Configure(config, initConfig integration.Data) error {
+// Parse parses the CRICheck config and set default values
+func (c *CRIConfig) Parse(data []byte) error {
+	// default values
+	c.CollectDisk = false
+
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return err
+	}
 	return nil
 }
 
-func init() {
-	core.RegisterCheck("cri", CRIFactory)
+// Configure parses the check configuration and init the check
+func (c *CRICheck) Configure(config, initConfig integration.Data) error {
+	return c.instance.Parse(config)
 }
 
 // Run executes the check
@@ -76,10 +89,12 @@ func (c *CRICheck) Run() error {
 		tags = append(tags, "runtime:"+util.Runtime)
 		tags = append(tags, c.instance.Tags...)
 		sender.Gauge("cri.mem.rss", float64(stats.GetMemory().GetWorkingSetBytes().GetValue()), "", tags)
-		sender.Gauge("cri.disk.used", float64(stats.GetWritableLayer().GetUsedBytes().GetValue()), "", tags)
-		sender.Gauge("cri.disk.inodes", float64(stats.GetWritableLayer().GetInodesUsed().GetValue()), "", tags)
 		// Cumulative CPU usage (sum across all cores) since object creation.
 		sender.Rate("cri.cpu.usage", float64(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()), "", tags)
+		if c.instance.CollectDisk {
+			sender.Gauge("cri.disk.used", float64(stats.GetWritableLayer().GetUsedBytes().GetValue()), "", tags)
+			sender.Gauge("cri.disk.inodes", float64(stats.GetWritableLayer().GetInodesUsed().GetValue()), "", tags)
+		}
 	}
 	sender.Commit()
 	return nil
