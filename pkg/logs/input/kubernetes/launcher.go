@@ -111,26 +111,33 @@ func (l *Launcher) addSource(service *service.Service) {
 		log.Warnf("Could not add source for container %v: %v", service.Identifier, err)
 		return
 	}
+	container, err := l.searchContainer(service, pod)
+	if err != nil {
+		log.Debug(err)
+	}
+	source, err := l.getSource(pod, container)
+	if err != nil {
+		log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
+		return
+	}
+	l.sourcesByContainer[container.ID] = source
+	l.sources.AddSource(source)
+}
 
+func (l *Launcher) searchContainer(service *service.Service, pod *kubelet.Pod) (kubelet.ContainerStatus, error) {
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
 		if service.GetEntityID() == containerID {
 			// If the container is already tailed, we don't do anything
 			// That shoudn't happen
 			if _, exists := l.sourcesByContainer[containerID]; exists {
-				log.Debugf("A source already exist for container %v", containerID)
-				return
+				return container, fmt.Errorf("A source already exist for container %v", containerID)
 			}
-			source, err := l.getSource(pod, container)
-			if err != nil {
-				log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
-				continue
-			}
-			l.sourcesByContainer[containerID] = source
-			l.sources.AddSource(source)
-			break
+			return container, nil
 		}
 	}
+
+	return kubelet.ContainerStatus{}, fmt.Errorf("Container %v not found", service.GetEntityID())
 }
 
 // removeSource removes a new log-source from a service
@@ -187,6 +194,7 @@ func (l *Launcher) getConfigPath(container kubelet.ContainerStatus) string {
 }
 
 // getAnnotation returns the logs-config annotation for container if present.
+// FIXME: Reuse the annotation logic from AD
 func (l *Launcher) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	configPath := l.getConfigPath(container)
 	if annotation, exists := pod.Metadata.Annotations[configPath]; exists {

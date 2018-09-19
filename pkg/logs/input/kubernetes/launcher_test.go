@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 func TestGetSource(t *testing.T) {
@@ -100,6 +101,52 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 	source, err := launcher.getSource(pod, container)
 	assert.NotNil(t, err)
 	assert.Nil(t, source)
+}
+
+func TestSearchContainer(t *testing.T) {
+	launcher := &Launcher{sourcesByContainer: make(map[string]*config.LogSource)}
+	containerFoo := kubelet.ContainerStatus{
+		Name:  "fooName",
+		Image: "fooImage",
+		ID:    "docker://fooID",
+	}
+	containerBar := kubelet.ContainerStatus{
+		Name:  "barName",
+		Image: "barImage",
+		ID:    "docker://barID",
+	}
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "podName",
+			Namespace: "podNamespace",
+			UID:       "podUID",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/foo.logs": `{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}`,
+			},
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{containerFoo, containerBar},
+		},
+	}
+
+	serviceFoo := &service.Service{
+		Type:       "docker",
+		Identifier: "fooID",
+	}
+	serviceBaz := &service.Service{
+		Type:       "docker",
+		Identifier: "bazID",
+	}
+
+	container, _ := launcher.searchContainer(serviceFoo, pod)
+	assert.Equal(t, containerFoo, container)
+
+	launcher.sourcesByContainer["docker://fooID"] = &config.LogSource{}
+	_, err := launcher.searchContainer(serviceFoo, pod)
+	assert.EqualError(t, err, "A source already exist for container docker://fooID")
+
+	_, err = launcher.searchContainer(serviceBaz, pod)
+	assert.EqualError(t, err, "Container docker://bazID not found")
 }
 
 // contains returns true if the list contains all the items.
