@@ -47,9 +47,6 @@ type Launcher struct {
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
 	launcher := &Launcher{
 		pipelineProvider:   pipelineProvider,
-		sources:            sources.GetSourceStreamForType(config.DockerType),
-		addedServices:      services.GetAddedServices(service.Docker),
-		removedServices:    services.GetRemovedServices(service.Docker),
 		tailers:            make(map[string]*Tailer),
 		pendingContainers:  make(map[string]*Container),
 		registry:           registry,
@@ -61,6 +58,13 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	if err != nil {
 		return nil, err
 	}
+	// Sources and services are added after the setup to avoid creating
+	// a channel that will lock the scheduler in case of setup failure
+	// FIXME(achntrl): Find a better way of choosing the right launcher
+	// between Docker and Kubernetes
+	launcher.sources = sources.GetSourceStreamForType(config.DockerType)
+	launcher.addedServices = services.GetAddedServices(service.Docker)
+	launcher.removedServices = services.GetRemovedServices(service.Docker)
 	return launcher, nil
 }
 

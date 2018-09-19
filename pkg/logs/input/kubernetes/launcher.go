@@ -40,19 +40,23 @@ func NewLauncher(sources *config.LogSources, services *service.Services) (*Launc
 		return nil, err
 	}
 	launcher := &Launcher{
-		sources:                   sources,
-		sourcesByContainer:        make(map[string]*config.LogSource),
-		stopped:                   make(chan struct{}),
-		kubeutil:                  kubeutil,
-		dockerAddedServices:       services.GetAddedServices(service.Docker),
-		dockerRemovedServices:     services.GetRemovedServices(service.Docker),
-		containerdAddedServices:   services.GetAddedServices(service.Containerd),
-		containerdRemovedServices: services.GetRemovedServices(service.Containerd),
+		sources:            sources,
+		sourcesByContainer: make(map[string]*config.LogSource),
+		stopped:            make(chan struct{}),
+		kubeutil:           kubeutil,
 	}
 	err = launcher.setup()
 	if err != nil {
 		return nil, err
 	}
+	// Sources and services are added after the setup to avoid creating
+	// a channel that will lock the scheduler in case of setup failure
+	// FIXME(achntrl): Find a better way of choosing the right launcher
+	// between Docker and Kubernetes
+	launcher.dockerAddedServices = services.GetAddedServices(service.Docker)
+	launcher.dockerRemovedServices = services.GetRemovedServices(service.Docker)
+	launcher.containerdAddedServices = services.GetAddedServices(service.Containerd)
+	launcher.containerdRemovedServices = services.GetRemovedServices(service.Containerd)
 	return launcher, nil
 }
 
@@ -110,7 +114,7 @@ func (l *Launcher) addSource(service *service.Service) {
 
 	for _, container := range pod.Status.Containers {
 		containerID := container.ID
-		if service.Identifier == containerID {
+		if service.GetEntityID() == containerID {
 			// If the container is already tailed, we don't do anything
 			// That shoudn't happen
 			if _, exists := l.sourcesByContainer[containerID]; exists {
