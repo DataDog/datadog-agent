@@ -14,6 +14,7 @@ import (
 	// 3p
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -116,6 +117,21 @@ func TestGetAndSetSender(t *testing.T) {
 	sender, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Equal(t, testCheckSender, sender)
+
+}
+
+func TestGetSenderDefaultHostname(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, "testhostname")
+
+	sender, err := GetSender(checkID1)
+	require.NoError(t, err)
+
+	checksender, ok := sender.(*checkSender)
+	require.True(t, ok)
+
+	assert.Equal(t, "testhostname", checksender.defaultHostname)
+	assert.Equal(t, false, checksender.disableDefaultHostname)
 
 }
 

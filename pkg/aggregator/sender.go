@@ -203,7 +203,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		Timestamp:  timeNowNano(),
 	}
 
-	if !s.disableDefaultHostname && metricSample.Host == "" {
+	if hostname == "" && !s.disableDefaultHostname {
 		metricSample.Host = s.defaultHostname
 	}
 
@@ -271,7 +271,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 		Message:   message,
 	}
 
-	if !s.disableDefaultHostname && serviceCheck.Host == "" {
+	if hostname == "" && !s.disableDefaultHostname {
 		serviceCheck.Host = s.defaultHostname
 	}
 
@@ -286,7 +286,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 func (s *checkSender) Event(e metrics.Event) {
 	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
-	if !s.disableDefaultHostname && e.Host == "" {
+	if e.Host == "" && !s.disableDefaultHostname {
 		e.Host = s.defaultHostname
 	}
 
