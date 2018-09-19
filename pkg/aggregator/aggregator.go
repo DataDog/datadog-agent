@@ -227,6 +227,7 @@ func (agg *BufferedAggregator) AddAgentStartupEvent(agentVersion string) {
 	event := metrics.Event{
 		Text:           fmt.Sprintf("Version %s", agentVersion),
 		SourceTypeName: "System",
+		Host:           agg.hostname,
 		EventType:      "Agent Startup",
 	}
 	agg.eventIn <- event
