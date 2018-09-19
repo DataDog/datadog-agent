@@ -104,7 +104,6 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestSearchContainer(t *testing.T) {
-	launcher := &Launcher{sourcesByContainer: make(map[string]*config.LogSource)}
 	containerFoo := kubelet.ContainerStatus{
 		Name:  "fooName",
 		Image: "fooImage",
@@ -138,14 +137,10 @@ func TestSearchContainer(t *testing.T) {
 		Identifier: "bazID",
 	}
 
-	container, _ := launcher.searchContainer(serviceFoo, pod)
+	container, _ := searchContainer(serviceFoo, pod)
 	assert.Equal(t, containerFoo, container)
 
-	launcher.sourcesByContainer["docker://fooID"] = &config.LogSource{}
-	_, err := launcher.searchContainer(serviceFoo, pod)
-	assert.EqualError(t, err, "A source already exist for container docker://fooID")
-
-	_, err = launcher.searchContainer(serviceBaz, pod)
+	_, err := searchContainer(serviceBaz, pod)
 	assert.EqualError(t, err, "Container docker://bazID not found")
 }
 
