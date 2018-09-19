@@ -7,6 +7,7 @@ extern std::wstring datadog_key_secret_key;
 extern std::wstring datadog_key_secrets;
 extern std::wstring datadog_acl_key_secrets;
 extern std::wstring datadog_acl_key_datadog;
+extern std::wstring installStepsKey;
 extern std::wstring datadog_service_name;
 
 extern std::wstring ddAgentUserName;
@@ -22,10 +23,21 @@ extern std::wstring propertySecretUserCreated;
 extern std::wstring propertySecretPasswordWritten;
 extern std::wstring propertyRollbackState;
 
+extern std::wstring programdataroot;
 extern std::wstring logfilename;
 extern std::wstring authtokenfilename;
 extern std::wstring datadogyamlfile;
 extern std::wstring confddir;
+extern std::wstring logdir;
+
+// installation steps
+extern std::wstring strDdUserCreated;
+extern std::wstring strDdUserPasswordChanged;
+extern std::wstring strFilePermissionsChanged;
+extern std::wstring strAddDdUserToPerfmon;
+extern std::wstring strAddDdSecretUser;
+extern std::wstring strChangedRegistryPermissions;
+
 
 void toMbcs(std::string& target, LPCWSTR src);
 
