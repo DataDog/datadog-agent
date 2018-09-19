@@ -14,7 +14,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version, pkg_config_path
-from .go import fmt, lint, vet, misspell, ineffassign
+from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
@@ -65,6 +65,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     lint_filenames(ctx)
     fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=tool_targets)
+    lint_licenses(ctx)
     print("--- Vetting:")
     vet(ctx, targets=tool_targets, use_embedded_libs=use_embedded_libs)
     print("--- Misspelling:")
