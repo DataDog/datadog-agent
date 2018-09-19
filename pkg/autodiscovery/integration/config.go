@@ -51,6 +51,12 @@ type Config struct {
 	CreationTime  CreationTime `json:"-"`              // creation time of service
 }
 
+// CommonInstanceConfig holds the reserved fields for the yaml instance data
+type CommonInstanceConfig struct {
+	MinCollectionInterval int  `yaml:"min_collection_interval"`
+	EmptyDefaultHostname  bool `yaml:"empty_default_hostname"`
+}
+
 // Equal determines whether the passed config is the same
 func (c *Config) Equal(cfg *Config) bool {
 	if cfg == nil {

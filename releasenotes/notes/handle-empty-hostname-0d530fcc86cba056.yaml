@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    All python and go checks support the new ``empty_default_hostname`` option
+    to send metrics with no hostname. This is used for cluster-level checks
