@@ -35,3 +35,16 @@ To allow kubectl to talk to your cluster `make kubeconfig` and follow the sugges
 Make sure nodes can register `make config-map-aws-auth` and wait for nodes to appear.
 
 Your are now ready.
+
+### Setup on an already provisioned Cluster
+
+Get the kubectl command and aws-iam-authenticator command
+Get the kubeconfig file form someone and put it somewhere
+Get the aws credentials and put them in ~/.aws/credentials
+
+> export KUBECONFIG=<path_to_kubeconfig>
+
+### Access the dashboard
+
+> kubectl proxy --port=8001
+> browse to http://localhost:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#!/overview?namespace=default
