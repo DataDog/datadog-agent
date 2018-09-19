@@ -24,6 +24,8 @@ spec:
             value: "true"
           - name: KUBERNETES
             value: "true"
+          - name: DD_HEALTH_PORT
+            value: "5555"
           - name: DD_KUBERNETES_KUBELET_HOST
             valueFrom:
               fieldRef:
@@ -36,8 +38,11 @@ spec:
             memory: "256Mi"
             cpu: "200m"
         livenessProbe:
-          exec:
-            command:
-            - ./probe.sh
+          httpGet:
+            path: /live
+            port: 5555
           initialDelaySeconds: 15
-          periodSeconds: 5
+          periodSeconds: 15
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3

@@ -55,7 +55,7 @@ func (c *catalog) register(name string) *Handle {
 	component := &component{
 		name:       name,
 		healthChan: make(chan struct{}, bufferSize),
-		healthy:    false,
+		healthy:    true,
 	}
 	h := &Handle{
 		C: component.healthChan,
@@ -78,19 +78,19 @@ func (c *catalog) run() {
 
 	for {
 		<-pingTicker.C
-		c.Lock()
-		if len(c.components) == 0 {
+		empty := c.pingComponents()
+		if empty {
 			break
 		}
-		c.pingComponents()
-		c.Unlock()
+
 	}
 	pingTicker.Stop()
 }
 
 // pingComponents is the actual pinging logic, separated for unit tests
-// lock is handled by the parent run method
-func (c *catalog) pingComponents() {
+func (c *catalog) pingComponents() bool {
+	c.Lock()
+	defer c.Unlock()
 	for _, component := range c.components {
 		select {
 		case component.healthChan <- struct{}{}:
@@ -100,6 +100,7 @@ func (c *catalog) pingComponents() {
 		}
 	}
 	c.latestRun = time.Now()
+	return len(c.components) == 0
 }
 
 // deregister a component from the healthcheck

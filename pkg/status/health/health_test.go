@@ -37,7 +37,7 @@ func TestCatalogGetsUnhealthyAndBack(t *testing.T) {
 	assert.Contains(t, status.Healthy, "healthcheck")
 }
 
-func TestRegisterAndUnhealthy(t *testing.T) {
+func TestRegisterAndHealthy(t *testing.T) {
 	cat := newCatalog()
 	token := cat.register("test1")
 
@@ -45,9 +45,9 @@ func TestRegisterAndUnhealthy(t *testing.T) {
 	require.True(t, found)
 
 	status := cat.getStatus()
-	assert.Len(t, status.Healthy, 1)
-	assert.Len(t, status.Unhealthy, 1)
-	assert.Contains(t, status.Unhealthy, "test1")
+	assert.Len(t, status.Healthy, 2)
+	assert.Len(t, status.Unhealthy, 0)
+	assert.Contains(t, status.Healthy, "test1")
 }
 
 func TestRegisterTriplets(t *testing.T) {
@@ -83,31 +83,13 @@ func TestDeregisterBadToken(t *testing.T) {
 	assert.Contains(t, cat.components, token1)
 }
 
-func TestGetHealthy(t *testing.T) {
-	cat := newCatalog()
-	token := cat.register("test1")
-
-	status := cat.getStatus()
-	assert.Len(t, status.Healthy, 1)
-	assert.Len(t, status.Unhealthy, 1)
-
-	for i := 1; i < 10; i++ {
-		cat.pingComponents()
-		<-token.C
-	}
-
-	status = cat.getStatus()
-	assert.Len(t, status.Healthy, 2)
-	assert.Len(t, status.Unhealthy, 0)
-}
-
 func TestUnhealthyAndBack(t *testing.T) {
 	cat := newCatalog()
 	token := cat.register("test1")
 
 	status := cat.getStatus()
-	assert.Len(t, status.Healthy, 1)
-	assert.Len(t, status.Unhealthy, 1)
+	assert.Len(t, status.Healthy, 2)
+	assert.Len(t, status.Unhealthy, 0)
 
 	for i := 1; i < 10; i++ {
 		cat.pingComponents()

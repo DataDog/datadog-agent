@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/healthport"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -137,6 +138,17 @@ func StartAgent() error {
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+
+	// Setup healthcheck port
+	var healthPort = config.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		var err error
+		common.HealthServer, err = healthport.NewHealthServer(healthPort)
+		if err != nil {
+			return log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		go common.HealthServer.ListenAndServe()
+	}
 
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)
@@ -306,6 +318,9 @@ func StopAgent() {
 	jmx.StopJmxfetch()
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
+	}
+	if common.HealthServer != nil {
+		common.HealthServer.Close()
 	}
 	logs.Stop()
 	gui.StopGUIServer()
