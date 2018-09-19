@@ -14,6 +14,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -69,7 +70,7 @@ func (c *CRICheck) Run() error {
 		return err
 	}
 
-	util, err := containers.GetCRIUtil()
+	util, err := cri.GetUtil()
 	if err != nil {
 		c.Warnf("Error initialising check: %s", err)
 		return err

@@ -5,7 +5,7 @@
 
 // +build cri
 
-package containers
+package cri
 
 import (
 	"context"
@@ -67,12 +67,13 @@ func (c *CRIUtil) init() error {
 	}
 	c.Runtime = r.RuntimeName
 	c.RuntimeVersion = r.RuntimeVersion
+	log.Debugf("Successfully connected to %s %s", c.Runtime, c.RuntimeVersion)
 
 	return nil
 }
 
-// GetCRIUtil returns a ready to use CRIUtil. It is backed by a shared singleton.
-func GetCRIUtil() (*CRIUtil, error) {
+// GetUtil returns a ready to use CRIUtil. It is backed by a shared singleton.
+func GetUtil() (*CRIUtil, error) {
 	once.Do(func() {
 		globalCRIUtil = &CRIUtil{}
 		globalCRIUtil.initRetry.SetupRetrier(&retry.Config{

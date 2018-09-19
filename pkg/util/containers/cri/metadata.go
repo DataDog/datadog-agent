@@ -5,7 +5,7 @@
 
 // +build cri
 
-package containers
+package cri
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
@@ -17,7 +17,7 @@ func init() {
 
 func getMetadata() (map[string]string, error) {
 	metadata := make(map[string]string)
-	cu, err := GetCRIUtil()
+	cu, err := GetUtil()
 	if err != nil {
 		return metadata, err
 	}
