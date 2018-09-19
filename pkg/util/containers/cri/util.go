@@ -43,6 +43,7 @@ type CRIUtil struct {
 // This is not exposed as public API but is called by the retrier embed.
 func (c *CRIUtil) init() error {
 	c.queryTimeout = config.Datadog.GetDuration("cri_query_timeout") * time.Second
+	connectionTimeout := config.Datadog.GetDuration("cri_connection_timeout") * time.Second
 	socketPath := config.Datadog.GetString("cri_socket_path")
 
 	if socketPath == "" {
@@ -53,21 +54,23 @@ func (c *CRIUtil) init() error {
 		return net.DialTimeout("unix", socketPath, timeout)
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithTimeout(c.queryTimeout), grpc.WithDialer(dialer))
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(connectionTimeout), grpc.WithDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}
 
 	c.client = pb.NewRuntimeServiceClient(conn)
-	// validating the connection fetching the version
+	// validating the connection by fetching the version
+	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
+	defer cancel()
 	request := &pb.VersionRequest{}
-	r, err := c.client.Version(context.Background(), request)
+	r, err := c.client.Version(ctx, request)
 	if err != nil {
 		return err
 	}
 	c.Runtime = r.RuntimeName
 	c.RuntimeVersion = r.RuntimeVersion
-	log.Debugf("Successfully connected to %s %s", c.Runtime, c.RuntimeVersion)
+	log.Debugf("Successfully connected to CRI %s %s", c.Runtime, c.RuntimeVersion)
 
 	return nil
 }
