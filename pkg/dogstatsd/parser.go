@@ -100,7 +100,6 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 
 	service := metrics.ServiceCheck{
 		CheckName: string(rawName),
-		Host:      defaultHostname,
 	}
 
 	if status, err := strconv.Atoi(string(rawStatus)); err != nil {
@@ -110,6 +109,11 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 	} else {
 		service.Status = serviceStatus
 	}
+
+	// Handle hostname, with a priority to the h: field, then the host:
+	// tag and finally the defaultHostname value
+	var hostFromField string
+	hostFromTags := defaultHostname
 
 	// Metadata
 	for {
@@ -127,9 +131,9 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 			}
 			service.Ts = ts
 		} else if bytes.HasPrefix(rawMetadataField, []byte("h:")) {
-			service.Host = string(rawMetadataField[2:])
+			hostFromField = string(rawMetadataField[2:])
 		} else if bytes.HasPrefix(rawMetadataField, []byte("#")) {
-			service.Tags, _ = parseTags(rawMetadataField[1:], false, "")
+			service.Tags, hostFromTags = parseTags(rawMetadataField[1:], true, defaultHostname)
 		} else if bytes.HasPrefix(rawMetadataField, []byte("m:")) {
 			service.Message = string(rawMetadataField[2:])
 		} else {
@@ -137,6 +141,11 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 		}
 	}
 
+	if hostFromField != "" {
+		service.Host = hostFromField
+	} else {
+		service.Host = hostFromTags
+	}
 	return &service, nil
 }
 
@@ -187,10 +196,14 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 	event := metrics.Event{
 		Priority:  metrics.EventPriorityNormal,
 		AlertType: metrics.EventAlertTypeInfo,
-		Host:      defaultHostname,
 		Title:     string(rawTitle),
 		Text:      string(bytes.Replace(rawText, []byte("\\n"), []byte("\n"), -1)),
 	}
+
+	// Handle hostname, with a priority to the h: field, then the host:
+	// tag and finally the defaultHostname value
+	var hostFromField string
+	hostFromTags := defaultHostname
 
 	// Metadata
 	if len(message) > 1 {
@@ -212,7 +225,7 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 				}
 				event.Priority = priority
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
-				event.Host = string(rawMetadataFields[i][2:])
+				hostFromField = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("t:")) {
 				t, err := metrics.GetAlertTypeFromString(string(rawMetadataFields[i][2:]))
 				if err != nil {
@@ -225,13 +238,19 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("s:")) {
 				event.SourceTypeName = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				event.Tags, _ = parseTags(rawMetadataFields[i][1:], false, "")
+				event.Tags, hostFromTags = parseTags(rawMetadataFields[i][1:], true, defaultHostname)
+
 			} else {
 				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
 			}
 		}
 	}
 
+	if hostFromField != "" {
+		event.Host = hostFromField
+	} else {
+		event.Host = hostFromTags
+	}
 	return &event, nil
 }
 

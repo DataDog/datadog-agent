@@ -382,8 +382,20 @@ func TestServiceCheckMetadataHostname(t *testing.T) {
 	assert.Equal(t, []string(nil), sc.Tags)
 }
 
-func TestServiceCheckMetadataEmptyHostname(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|h:"), "default-hostname")
+func TestServiceCheckMetadataHostnameInTag(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#host:localhost"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string{}, sc.Tags)
+}
+
+func TestServiceCheckMetadataEmptyHostTag(t *testing.T) {
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#host:,other:tag"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -391,7 +403,7 @@ func TestServiceCheckMetadataEmptyHostname(t *testing.T) {
 	assert.Equal(t, int64(0), sc.Ts)
 	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
-	assert.Equal(t, []string(nil), sc.Tags)
+	assert.Equal(t, []string{"other:tag"}, sc.Tags)
 }
 
 func TestServiceCheckMetadataTags(t *testing.T) {
@@ -601,8 +613,24 @@ func TestEventMetadataHostname(t *testing.T) {
 	assert.Equal(t, "", e.EventType)
 }
 
-func TestEventMetadataEmptyHostname(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|h:"), "default-hostname")
+func TestEventMetadataHostnameInTag(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#host:localhost"), "default-hostname")
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "localhost", e.Host)
+	assert.Equal(t, []string{}, e.Tags)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMetadataEmptyHostTag(t *testing.T) {
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#host:,other:tag"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -610,7 +638,7 @@ func TestEventMetadataEmptyHostname(t *testing.T) {
 	assert.Equal(t, int64(0), e.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
-	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, []string{"other:tag"}, e.Tags)
 	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
