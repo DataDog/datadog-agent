@@ -240,7 +240,7 @@ def lint_filenames(ctx):
     max_length = 255
     for file in files:
         if prefix_length + len(file) > max_length:
-            print("Error: path {} is too long".format(file))
+            print("Error: path {} is too long ({} characters too many)".format(file, prefix_length + len(file) - max_length))
             failure = True
 
     if failure:
