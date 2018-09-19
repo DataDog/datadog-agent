@@ -167,6 +167,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	err = tailer.Start(since)
 	if err != nil {
 		log.Warnf("Could not start tailer: %v", containerID, err)
+		return
 	}
 
 	// keep the tailer in track to stop it later on
