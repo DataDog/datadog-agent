@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/procdiscovery"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -42,6 +43,7 @@ type ProcessService struct {
 	pid           int
 	hostname      string
 	name          string
+	creationTime  integration.CreationTime
 }
 
 func init() {
@@ -63,6 +65,9 @@ func (l *ProcessListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
+	// poll for already running processes
+	l.pollProcesses(integration.Before)
+
 	ticker := time.NewTicker(ProcessPollInterval)
 
 	go func() {
@@ -74,7 +79,7 @@ func (l *ProcessListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 				return
 			case <-l.health.C:
 			case _ = <-ticker.C:
-				l.pollProcesses()
+				l.pollProcesses(integration.After)
 			}
 		}
 	}()
@@ -87,7 +92,7 @@ func (l *ProcessListener) Stop() {
 
 // pollProcesses requests the running processes and tries to find a service linked
 // to them and figure out if the ConfigResolver could be interested to inspect it
-func (l *ProcessListener) pollProcesses() {
+func (l *ProcessListener) pollProcesses(creationTime integration.CreationTime) {
 	fmt.Println("PROC: Polling processes....")
 	discovered, err := procdiscovery.DiscoverIntegrations(true)
 	if err != nil {
@@ -118,13 +123,13 @@ func (l *ProcessListener) pollProcesses() {
 
 	// loop on left services and create them
 	for _, proc := range pids {
-		l.createService(proc)
+		l.createService(proc, creationTime)
 	}
 }
 
 // createService takes a procdiscovery.Process, create a service for it in its cache
 // and tells the ConfigResolver that this service started.
-func (l *ProcessListener) createService(proc procdiscovery.IntegrationProcess) {
+func (l *ProcessListener) createService(proc procdiscovery.IntegrationProcess, creationTime integration.CreationTime) {
 	hostname := "127.0.0.1"
 
 	svc := &ProcessService{
@@ -133,6 +138,7 @@ func (l *ProcessListener) createService(proc procdiscovery.IntegrationProcess) {
 		hostname:      hostname,
 		name:          proc.Name,
 		ports:         []ContainerPort{},
+		creationTime:  creationTime,
 	}
 
 	conns, err := net.ConnectionsPid("all", proc.PID)
@@ -217,4 +223,9 @@ func (s *ProcessService) GetPid() (int, error) {
 // GetHostname returns the process' hostname
 func (s *ProcessService) GetHostname() (string, error) {
 	return s.hostname, nil
+}
+
+// GetCreationTime returns the creation time of the service compare to the agent start.
+func (s *ProcessService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
 }
