@@ -55,6 +55,7 @@ before_script:
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
   - pip install -U pip
+  - pip install -r requirements.txt
   - inv -e deps
 
 #
@@ -388,6 +389,7 @@ agent_android_apk:
     - rsync -azr --delete ./ $SRC_PATH
     - cd $SRC_PATH
     - pip install -U pip
+    - pip install -r requirements.txt
     - inv -e deps --android
   script:
     # remove artifacts from previous pipelines that may come from the cache
