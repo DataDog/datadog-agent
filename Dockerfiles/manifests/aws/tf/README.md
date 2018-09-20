@@ -39,8 +39,8 @@ Your are now ready.
 ### Setup on an already provisioned Cluster
 
 Get the kubectl command and aws-iam-authenticator command
-Get the kubeconfig file form someone and put it somewhere
-Get the aws credentials and put them in ~/.aws/credentials
+Get the kubeconfig file from someone and put it somewhere
+Get the aws credentials for the lupulus AWS account and put them in ~/.aws/credentials.
 
 > export KUBECONFIG=<path_to_kubeconfig>
 
