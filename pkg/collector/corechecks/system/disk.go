@@ -18,7 +18,7 @@ import (
 const (
 	diskCheckName = "disk"
 	diskMetric    = "system.disk.%s"
-	inodeMetric   = "system.fs.inode.%s"
+	inodeMetric   = "system.fs.inodes.%s"
 )
 
 type diskConfig struct {
