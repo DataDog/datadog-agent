@@ -1,5 +1,9 @@
 # Setting up your development environment
 
+## Windows development
+
+Windows platform instructions can be found [here](agent_dev_env_win.md)
+
 ## Invoke + Python Dependencies
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python
