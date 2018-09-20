@@ -114,7 +114,7 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status 
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
-	obfuscatedKey := fmt.Sprintf("API key ending in %s for endpoint %s", apiKey, domain)
+	obfuscatedKey := fmt.Sprintf("API key ending with %s on endpoint %s", apiKey, domain)
 	apiKeyStatus.Set(obfuscatedKey, status)
 }
 
