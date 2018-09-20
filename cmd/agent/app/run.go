@@ -16,7 +16,7 @@ import (
 	"os/signal"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
 )
 
