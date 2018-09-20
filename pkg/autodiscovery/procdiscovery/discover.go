@@ -6,23 +6,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/procmatch"
-	"github.com/shirou/gopsutil/process"
 )
-
-// IntegrationProcess represents a process that matches an integration
-type IntegrationProcess struct {
-	Cmd         string `json:"cmd"`          // The command line that matched the integration
-	DisplayName string `json:"display_name"` // The integration display name
-	Name        string `json:"name"`         // The integration name
-	PID         int32  `json:"pid"`          // The PID of the given process
-}
-
-// DiscoveredIntegrations is a map whose keys are integrations names and values are lists of IntegrationProcess
-type DiscoveredIntegrations struct {
-	Discovered map[string][]IntegrationProcess
-	Running    map[string]struct{}
-	Failing    map[string]struct{}
-}
 
 // DiscoverIntegrations retrieves processes running on the host and tries to find possible integrations
 func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
@@ -33,7 +17,7 @@ func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
 		return di, fmt.Errorf("Couldn't build default process matcher: %s", err)
 	}
 
-	processes, err := process.Processes()
+	processes, err := pollProcesses()
 
 	if err != nil {
 		return di, fmt.Errorf("Couldn't retrieve process list: %s", err)
@@ -49,20 +33,16 @@ func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
 	}
 
 	// processList is a set of processes (removes duplicate processes)
-	processList := map[string]process.Process{}
+	processList := map[string]process{}
 	for _, p := range processes {
-		cmd, err := p.Cmdline()
-		if err != nil {
-			continue
-		}
-		processList[cmd] = *p
+		processList[p.cmd] = p
 	}
 
 	integrations := map[string][]IntegrationProcess{}
 
 	// Try to find an integration for each process
-	for process := range processList {
-		matched := matcher.Match(process)
+	for proc := range processList {
+		matched := matcher.Match(proc)
 		if len(matched.Name) == 0 {
 			continue
 		}
@@ -72,10 +52,10 @@ func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
 		}
 
 		integrations[matched.Name] = append(integrations[matched.Name], IntegrationProcess{
-			Cmd:         process,
+			Cmd:         proc,
 			DisplayName: matched.DisplayName,
 			Name:        matched.Name,
-			PID:         processList[process].Pid,
+			PID:         processList[proc].pid,
 		})
 	}
 	di.Discovered = integrations
