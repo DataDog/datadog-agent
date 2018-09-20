@@ -2,6 +2,33 @@
 Release Notes
 =============
 
+.. _Release Notes_6.5.2:
+
+6.5.2
+=====
+
+.. _Release Notes_6.5.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-09-20
+
+- Please refer to the `6.5.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.2>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.5.2 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.5.2>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.5.2 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.5.2>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.5.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a crash in the logs package that could occur when a docker tailer initialization failed.
+
+
 .. _Release Notes_6.5.1:
 
 6.5.1
