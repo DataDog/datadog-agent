@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-var driveRegexp = regexp.MustCompile("(?i)[a-z]:\\\\")
+var driveRegexp = regexp.MustCompile(`(?i)[a-z]:\\`)
 
 // GetDriveFsType returns the filesystem name of a drive (ex: "C:\")
 func GetDriveFsType(driveName string) (string, error) {
