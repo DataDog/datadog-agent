@@ -53,8 +53,7 @@
     <!-- No need to restart Windows after the installation -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
-    <!-- TODO mark as hidden so the value isn't logged -->
-    <Property Id="DDAGENTUSER_PASSWORD" />
+    <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
 
         <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
       same version gets installed "side by side" -->
