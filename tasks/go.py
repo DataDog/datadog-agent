@@ -275,7 +275,11 @@ def lint_licenses(ctx):
     go_deps = set()
     gopkg_lock = toml.load('Gopkg.lock')
     for project in gopkg_lock['projects']:
-        go_deps.add(project['name'])
+        # FIXME: this conditional is necessary because of the issue introduced by DEPPROJECTROOT
+        # (for some reason `datadog-agent` gets added to Gopkg.lock and vendored), see comment in `deps`
+        # task for details
+        if project['name'] != 'github.com/DataDog/datadog-agent':
+            go_deps.add(project['name'])
 
     deps = go_deps | NON_GO_DEPS
 
