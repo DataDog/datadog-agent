@@ -219,21 +219,33 @@ def lint_releasenote(ctx):
 @task
 def lint_filenames(ctx):
     """
-    Scan files to ensure there are no filenames containing illegal characters
+    Scan files to ensure there are no filenames too long or containing illegal characters
     """
+    files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
+    failure = False
+
     if sys.platform == 'win32':
         print("Running on windows, no need to check filenames for illegal characters")
     else:
         print("Checking filenames for illegal characters")
         forbidden_chars = '<>:"\\|?*'
-        files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
-        failure = False
         for file in files:
             if any(char in file for char in forbidden_chars):
                 print("Error: Found illegal character in path {}".format(file))
                 failure = True
-        if failure:
-            raise Exit(code=1)
+
+    print("Checking filename length")
+    # Approximated length of the prefix of the repo during the windows release build
+    prefix_length = 160
+    # Maximum length supported by the win32 API
+    max_length = 255
+    for file in files:
+        if prefix_length + len(file) > max_length:
+            print("Error: path {} is too long ({} characters too many)".format(file, prefix_length + len(file) - max_length))
+            failure = True
+
+    if failure:
+        raise Exit(code=1)
 
 
 @task
