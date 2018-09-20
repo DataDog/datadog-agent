@@ -1,4 +1,6 @@
-# Datadog Agent 6 on Android
+# [BETA] Datadog Agent 6 on Android
+
+**This feature is in beta and its options or behavior might break between minor or bugfix releases of the Agent.**
 
 ## Requirements
 
@@ -35,5 +37,7 @@ Note: These commands assume `adb` is in your path, you can get it from `$ANDROID
 
 ## Launch the service
 
-- use `inv android.launchservice <api_key> --hostname=<hostname>` to start the service on the android device.
+- use `inv android.launchservice <api_key> --hostname=<hostname> --tags=<optional comma separated list of tags>` to start the service on the android device.
 - use `inv android.stopservice` to stop the agent.
+
+Note: these commands assume `adb` is in your path as well.
