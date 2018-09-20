@@ -13,7 +13,7 @@ if process_agent_version.nil? || process_agent_version.empty?
 end
 default_version process_agent_version
 
-fixed_version = '5.26.0-0f5cc35'
+fixed_version = ENV['PROCESS_AGENT_VERSION']
 
 build do
   if windows?
