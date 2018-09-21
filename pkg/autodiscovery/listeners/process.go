@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/net"
 )
 
 // ProcessPollInterval defines how often we should query for running processes
@@ -140,16 +139,14 @@ func (l *ProcessListener) createService(proc procdiscovery.IntegrationProcess, c
 		creationTime:  creationTime,
 	}
 
-	conns, err := net.ConnectionsPid("all", proc.PID)
+	ports, err := getProcessPorts(proc.PID)
 	if err != nil {
 		log.Errorf("Couldn't retrieve connections for process (%s, pid: %v): %s", proc.Cmd, proc.PID, err)
 		return
 	}
 
-	for _, conn := range conns {
-		if conn.Status != "NONE" {
-			svc.ports = append(svc.ports, ContainerPort{Port: int(conn.Laddr.Port)})
-		}
+	for _, port := range ports {
+		svc.ports = append(svc.ports, ContainerPort{Port: port})
 	}
 
 	l.m.Lock()
