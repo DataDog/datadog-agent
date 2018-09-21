@@ -26,8 +26,6 @@ import (
 const (
 	// DefaultAgentPort is the default port used by the ECS Agent.
 	DefaultAgentPort = 51678
-	// DefaultECSContainer is the default container used by ECS.
-	DefaultECSContainer = "ecs-agent"
 	// Cache the fact we're running on ECS Fargate
 	isFargateInstanceCacheKey = "IsFargateInstanceCacheKey"
 )
@@ -172,30 +170,17 @@ func detectAgentURL() (string, error) {
 	}
 
 	if config.IsContainerized() {
-		du, err := docker.GetDockerUtil()
+		// List all interfaces for the ecs-agent container
+		agentURLS, err := getAgentContainerURLS()
 		if err != nil {
-			return "", err
+			log.Debugf("could inspect ecs-agent container: ", err)
+		} else {
+			urls = append(urls, agentURLS...)
 		}
-
-		// Try all networks available on the ecs container.
-		ecsConfig, err := du.Inspect(DefaultECSContainer, false)
-		if err != nil {
-			return "", err
-		}
-
-		for _, network := range ecsConfig.NetworkSettings.Networks {
-			ip := network.IPAddress
-			if ip != "" {
-				urls = append(urls, fmt.Sprintf("http://%s:%d/", ip, DefaultAgentPort))
-			}
-		}
-
 		// Try the default gateway
 		gw, err := docker.DefaultGateway()
 		if err != nil {
-			// "expected" errors are handled in DefaultGateway so only
-			// unexpected errors are bubbled up, so we keep bubbling.
-			return "", err
+			log.Debugf("could not get docker default gateway: ", err)
 		}
 		if gw != nil {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", gw.String(), DefaultAgentPort))
@@ -204,6 +189,7 @@ func detectAgentURL() (string, error) {
 
 	// Always try the localhost URL.
 	urls = append(urls, fmt.Sprintf("http://localhost:%d/", DefaultAgentPort))
+
 	detected := testURLs(urls, 1*time.Second)
 	if detected != "" {
 		return detected, nil
@@ -232,4 +218,25 @@ func testURLs(urls []string, timeout time.Duration) string {
 		}
 	}
 	return ""
+}
+
+func getAgentContainerURLS() ([]string, error) {
+	var urls []string
+
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		return nil, err
+	}
+	ecsConfig, err := du.Inspect(config.Datadog.GetString("ecs_agent_container_name"), false)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, network := range ecsConfig.NetworkSettings.Networks {
+		ip := network.IPAddress
+		if ip != "" {
+			urls = append(urls, fmt.Sprintf("http://%s:%d/", ip, DefaultAgentPort))
+		}
+	}
+	return urls, nil
 }

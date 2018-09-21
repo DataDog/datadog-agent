@@ -240,6 +240,7 @@ func init() {
 
 	// ECS
 	BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
+	BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
 	BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// GCE
