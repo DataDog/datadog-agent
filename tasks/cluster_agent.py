@@ -80,7 +80,7 @@ def refresh_assets(ctx, development=True):
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    copy_tree("./Dockerfiles/cluster-agent/dist/", dist_folder)
+    copy_tree("./pkg/status/dist/", dist_folder)
     if development:
         copy_tree("./dev/dist/", dist_folder)
 

@@ -8,7 +8,9 @@ NOTE: Changes made to this template should be reflected on the following templat
 
   Status date: {{.time}}
   Pid: {{.pid}}
+  {{- if .python_version }}
   Python Version: {{.python_version}}
+  {{- end }}
   Logs: {{.config.log_file}}
   {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers}}
@@ -19,7 +21,9 @@ NOTE: Changes made to this template should be reflected on the following templat
   =====
     Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
     conf.d: {{.config.confd_path}}
+    {{- if .config.additional_checksd }}
     checks.d: {{.config.additional_checksd}}
+    {{- end }}
 
   Clocks
   ======
@@ -28,6 +32,7 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{- end }}
     System UTC time: {{.time}}
 
+{{- if .hostinfo }}
   Host Info
   =========
   {{- range $name, $value := .hostinfo -}}
@@ -35,6 +40,7 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{if eq $name "uptime" }}{{ humanizeDuration $value "s"}}{{ else }}{{ $value }}{{ end }}{{ end }}
     {{- end }}
   {{- end }}
+{{- end }}
 
   Hostnames
   =========
@@ -55,4 +61,52 @@ NOTE: Changes made to this template should be reflected on the following templat
   {{- if .hostnameStats.errors.all }}
     error: {{.hostnameStats.errors.all}}
   {{- end }}
+
+{{- if .leaderelection}}
+  Leader Election
+  ===============
+    Leader Election Status:  {{.leaderelection.status}}
+    {{- if eq .leaderelection.status "Failing"}}
+    Error: {{.leaderelection.error}}
+    {{else}}
+    Leader Name is: {{.leaderelection.leaderName}}
+    Last Acquisition of the lease: {{.leaderelection.acquiredTime}}
+    Renewed leadership: {{.leaderelection.renewedTime}}
+    Number of leader transitions: {{.leaderelection.transitions}}
+    {{- end}}
+{{- end}}
+
+{{- if .custommetrics }}
+  Custom Metrics Server
+  =====================
+    {{- if .custommetrics.Error }}
+    Error: {{ .custommetrics.Error }}
+    {{ else }}
+    ConfigMap name: {{ .custommetrics.Cmname }}
+    {{ if .custommetrics.StoreError }}
+    Error: {{ .custommetrics.StoreError }}
+    {{ else }}
+    External Metrics
+    ----------------
+      {{- if .custommetrics.External.ListError }}
+      Error: {{ .custommetrics.External.ListError }}
+      {{ else }}
+      Total: {{ .custommetrics.External.Total }}
+      Valid: {{ .custommetrics.External.Valid }}
+      {{ range $metric := .custommetrics.External.Metrics }}
+      {{- range $name, $value := $metric }}
+      {{- if or (eq $name "hpa") (eq $name "labels") }}
+      {{$name}}:
+      {{- range $k, $v := $value }}
+      - {{$k}}: {{$v}}
+      {{- end -}}
+      {{else}}
+      {{$name}}: {{$value}}
+      {{- end }}
+      {{- end }}
+      {{ end }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+{{- end }}
 {{/* this line intentionally left blank */}}
