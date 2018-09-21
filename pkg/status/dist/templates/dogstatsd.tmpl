@@ -4,21 +4,6 @@ NOTE: Changes made to this template should be reflected on the following templat
 */}}=========
 DogStatsD
 =========
-{{ if .EventPackets}}
-  Event Packets: {{.EventPackets}}
-{{ end -}}
-{{- if .EventParseErrors}}
-  Event Parse Errors: {{.EventParseErrors}}
-{{- end -}}
-{{- if .MetricPackets}}
-  Metric Packets: {{.MetricPackets}}
-{{- end -}}
-{{- if .MetricParseErrors}}
-  Metric Parse Errors: {{.MetricParseErrors}}
-{{- end -}}
-{{- if .ServiceCheckPackets}}
-  Service Check Packets: {{.ServiceCheckPackets}}
-{{- end -}}
-{{- if .ServiceCheckParseErrors}}
-  Service Check Parse Errors: {{.ServiceCheckParseErrors}}
+{{- range $key, $value := .}}
+  {{formatTitle $key}}: {{humanize $value}}
 {{- end }}

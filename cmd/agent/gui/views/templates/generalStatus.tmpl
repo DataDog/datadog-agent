@@ -134,7 +134,7 @@
               Errors By Type:<br>
               <span class="stat_subdata">
                 {{- range $type, $count := .Transactions.ErrorsByType }}
-                    {{$type}}: {{$count}}<br>
+                    {{$type}}: {{humanize $count}}<br>
                 {{- end}}
               </span>
             </span>
@@ -147,7 +147,7 @@
               HTTP Errors By Code:<br>
               <span class="stat_subdata">
                 {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
-                    {{$code}}: {{$count}}<br>
+                    {{$code}}: {{humanize $count}}<br>
                 {{- end}}
               </span>
             </span>
@@ -257,23 +257,8 @@
     <span class="stat_title">DogStatsD</span>
     <span class="stat_data">
       {{- with .dogstatsdStats -}}
-        {{ if .EventPackets}}
-          Event Packets: {{.EventPackets}}<br>
-        {{ end -}}
-        {{- if .EventParseErrors}}
-          Event Parse Errors: {{.EventParseErrors}}<br>
-        {{- end -}}
-        {{- if .MetricPackets}}
-          Metric Packets: {{.MetricPackets}}<br>
-        {{- end -}}
-        {{- if .MetricParseErrors}}
-          Metric Parse Errors: {{.MetricParseErrors}}<br>
-        {{- end -}}
-        {{- if .ServiceCheckPackets}}
-          Service Check Packets: {{.ServiceCheckPackets}}<br>
-        {{- end -}}
-        {{- if .ServiceCheckParseErrors}}
-          Service Check Parse Errors: {{.ServiceCheckParseErrors}}<br>
+        {{- range $key, $value := .}}
+          {{formatTitle $key}}: {{humanize $value}}<br>
         {{- end }}
       {{- end -}}
     </span>
