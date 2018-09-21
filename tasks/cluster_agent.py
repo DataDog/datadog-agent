@@ -5,6 +5,7 @@ Cluster Agent tasks
 import os
 import glob
 import shutil
+from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -24,7 +25,7 @@ DEFAULT_BUILD_TAGS = [
 
 @task
 def build(ctx, rebuild=False, build_include=None, build_exclude=None,
-          race=False, use_embedded_libs=False):
+          race=False, use_embedded_libs=False, development=True, skip_assets=False):
     """
     Build Cluster Agent
 
@@ -63,6 +64,24 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
     cmd = "go generate -tags '{build_tags}' {repo_path}/cmd/cluster-agent"
     ctx.run(cmd.format(build_tags=" ".join(build_tags), repo_path=REPO_PATH), env=env)
 
+    if not skip_assets:
+        refresh_assets(ctx, development=development)
+
+@task
+def refresh_assets(ctx, development=True):
+    """
+    Clean up and refresh cluster agent's assets and config files
+    """
+    # ensure BIN_PATH exists
+    if not os.path.exists(BIN_PATH):
+        os.mkdir(BIN_PATH)
+
+    dist_folder = os.path.join(BIN_PATH, "dist")
+    if os.path.exists(dist_folder):
+        shutil.rmtree(dist_folder)
+    copy_tree("./Dockerfiles/cluster-agent/dist/", dist_folder)
+    if development:
+        copy_tree("./dev/dist/", dist_folder)
 
 @task
 def clean(ctx):
