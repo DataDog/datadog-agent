@@ -69,7 +69,7 @@ func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorI
 		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
 
-	autoscalerController.autoscalersListerSynced = alwaysReady
+	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
 	return autoscalerController, informerFactory
 }
