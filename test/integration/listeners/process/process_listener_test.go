@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -134,7 +135,6 @@ func (suite *ProcessListenerTestSuite) getServices(channel chan listeners.Servic
 				}
 			}
 		case <-timeoutTicker.C:
-			fmt.Println("TIMEOUT")
 			return services, fmt.Errorf("timeout listening for services, only got %d, expecting %d", len(services), len(suite.mockProcesses))
 		}
 	}
@@ -149,7 +149,7 @@ func (suite *ProcessListenerTestSuite) TestListenAfterStart() {
 	assert.Nil(suite.T(), err)
 
 	suite.listener.Listen(suite.newSvc, suite.delSvc)
-	suite.commonSection()
+	suite.commonSection(integration.After)
 }
 
 // Starts the listener AFTER the process have started
@@ -162,13 +162,11 @@ func (suite *ProcessListenerTestSuite) TestListenBeforeStart() {
 	err := suite.startProcesses()
 	assert.Nil(suite.T(), err)
 
-	suite.commonSection()
+	suite.commonSection(integration.Before)
 }
 
 // Common section for both scenarios
-func (suite *ProcessListenerTestSuite) commonSection() {
-	// expectedIDs := map[int][]string{}
-
+func (suite *ProcessListenerTestSuite) commonSection(ct integration.CreationTime) {
 	services, err := suite.getServices(suite.newSvc, 10*time.Second)
 	assert.Nil(suite.T(), err)
 
@@ -184,6 +182,9 @@ func (suite *ProcessListenerTestSuite) commonSection() {
 		ports, err := service.GetPorts()
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), ports, 1)
+
+		creationTime := service.GetCreationTime()
+		assert.Equal(suite.T(), creationTime, ct)
 
 		assert.Contains(suite.T(), suite.mockProcesses, pid)
 		mocked := suite.mockProcesses[pid]
