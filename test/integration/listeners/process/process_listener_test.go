@@ -63,8 +63,8 @@ func (suite *ProcessListenerTestSuite) SetupTest() {
 	}
 	suite.listener = pl
 
-	suite.newSvc = make(chan listeners.Service, 10)
-	suite.delSvc = make(chan listeners.Service, 10)
+	suite.newSvc = make(chan listeners.Service, 30)
+	suite.delSvc = make(chan listeners.Service, 30)
 }
 
 func (suite *ProcessListenerTestSuite) TearDownTest() {
@@ -101,6 +101,9 @@ func (suite *ProcessListenerTestSuite) startProcesses() error {
 		script.proc = cmd.Process
 		suite.mockProcesses[cmd.Process.Pid] = script
 	}
+
+	// Wait for the processes to init their connection
+	time.Sleep(3 * time.Second)
 
 	return nil
 }
@@ -149,7 +152,7 @@ func (suite *ProcessListenerTestSuite) TestListenAfterStart() {
 	assert.Nil(suite.T(), err)
 
 	suite.listener.Listen(suite.newSvc, suite.delSvc)
-	suite.commonSection(integration.After)
+	suite.commonSection(integration.Before)
 }
 
 // Starts the listener AFTER the process have started
@@ -162,7 +165,7 @@ func (suite *ProcessListenerTestSuite) TestListenBeforeStart() {
 	err := suite.startProcesses()
 	assert.Nil(suite.T(), err)
 
-	suite.commonSection(integration.Before)
+	suite.commonSection(integration.After)
 }
 
 // Common section for both scenarios
