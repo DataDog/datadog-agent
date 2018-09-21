@@ -6,7 +6,7 @@
 package decoder
 
 import (
-	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // LineUnwrapper removes all the extra information that were added to the original log

@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"regexp"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // TRUNCATED is the warning we add at the beginning or/and at the end of a truncated message
@@ -26,13 +28,15 @@ type SingleLineHandler struct {
 	lineChan       chan []byte
 	outputChan     chan *Output
 	shouldTruncate bool
+	parser         parser.Parser
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler
-func NewSingleLineHandler(outputChan chan *Output) *SingleLineHandler {
+func NewSingleLineHandler(outputChan chan *Output, parser parser.Parser) *SingleLineHandler {
 	return &SingleLineHandler{
 		lineChan:   make(chan []byte),
 		outputChan: outputChan,
+		parser:     parser,
 	}
 }
 
@@ -82,12 +86,14 @@ func (h *SingleLineHandler) process(line []byte) {
 	if lineLen < contentLenLimit {
 		// send content
 		// add 1 to take into account '\n' that we didn't include in content
-		output := NewOutput(content, lineLen+1)
+		parsedMessage, _ := h.parser(content)
+		output := NewOutput(parsedMessage.Content, lineLen+1)
 		h.outputChan <- output
 	} else {
 		// add TRUNCATED at the end of content and send it
 		content := append(content, TRUNCATED...)
-		output := NewOutput(content, lineLen)
+		parsedMessage, _ := h.parser(content)
+		output := NewOutput(parsedMessage.Content, lineLen)
 		h.outputChan <- output
 		h.shouldTruncate = true
 	}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -263,14 +264,14 @@ func (t *Tailer) getTags(entry *sdjournal.JournalEntry) []string {
 
 // priorityStatusMapping represents the 1:1 mapping between journal entry priorities and statuses.
 var priorityStatusMapping = map[string]string{
-	"0": message.StatusEmergency,
-	"1": message.StatusAlert,
-	"2": message.StatusCritical,
-	"3": message.StatusError,
-	"4": message.StatusWarning,
-	"5": message.StatusNotice,
-	"6": message.StatusInfo,
-	"7": message.StatusDebug,
+	"0": parser.StatusEmergency,
+	"1": parser.StatusAlert,
+	"2": parser.StatusCritical,
+	"3": parser.StatusError,
+	"4": parser.StatusWarning,
+	"5": parser.StatusNotice,
+	"6": parser.StatusInfo,
+	"7": parser.StatusDebug,
 }
 
 // getStatus returns the status of the journal entry,
@@ -278,11 +279,11 @@ var priorityStatusMapping = map[string]string{
 func (t *Tailer) getStatus(entry *sdjournal.JournalEntry) string {
 	priority, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_PRIORITY]
 	if !exists {
-		return message.StatusInfo
+		return parser.StatusInfo
 	}
 	status, exists := priorityStatusMapping[priority]
 	if !exists {
-		return message.StatusInfo
+		return parser.StatusInfo
 	}
 	return status
 }

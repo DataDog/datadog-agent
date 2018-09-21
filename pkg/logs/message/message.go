@@ -5,6 +5,8 @@
 
 package message
 
+import "github.com/DataDog/datadog-agent/pkg/logs/parser"
+
 // Message represents a log line sent to datadog, with its metadata
 type Message interface {
 	Content() []byte
@@ -22,7 +24,7 @@ type message struct {
 // New returns a new Message
 func New(content []byte, origin *Origin, status string) Message {
 	if status == "" {
-		status = StatusInfo
+		status = parser.StatusInfo
 	}
 	return &message{
 		content: content,

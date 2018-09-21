@@ -9,12 +9,22 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStatusToSeverity(t *testing.T) {
 	severityLevels := [][]byte{SevEmergency, SevAlert, SevCritical, SevError, SevWarning, SevNotice, SevInfo, SevDebug}
-	statusValues := []string{StatusEmergency, StatusAlert, StatusCritical, StatusError, StatusWarning, StatusNotice, StatusInfo, StatusDebug}
+	statusValues := []string{
+		parser.StatusEmergency,
+		parser.StatusAlert,
+		parser.StatusCritical,
+		parser.StatusError,
+		parser.StatusWarning,
+		parser.StatusNotice,
+		parser.StatusInfo,
+		parser.StatusDebug,
+	}
 
 	// ensure 1:1 mapping
 	for i, status := range statusValues {

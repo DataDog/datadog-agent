@@ -8,6 +8,7 @@ package message
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,6 +19,6 @@ func TestMessage(t *testing.T) {
 
 	message.SetContent([]byte("world"))
 	assert.Equal(t, "world", string(message.Content()))
-	assert.Equal(t, StatusInfo, message.GetStatus())
+	assert.Equal(t, parser.StatusInfo, message.GetStatus())
 
 }

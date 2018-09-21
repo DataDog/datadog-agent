@@ -9,6 +9,9 @@ package kubernetes
 
 import (
 	"fmt"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -179,7 +182,13 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	if err := cfg.Compile(); err != nil {
 		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
 	}
-	return config.NewLogSource(l.getSourceName(pod, container), cfg), nil
+	var fileParser parser.Parser
+	if strings.HasPrefix(container.ID, "containerd://") {
+		fileParser = parser.ContainerdParser
+	} else {
+		fileParser = parser.IdentityParser
+	}
+	return config.NewLogSource(l.getSourceName(pod, container), cfg).AddParser(fileParser), nil
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,

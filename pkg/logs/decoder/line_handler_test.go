@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +36,7 @@ func (u MockUnwrapper) Unwrap(line []byte) []byte {
 
 func TestSingleLineHandler(t *testing.T) {
 	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan)
+	h := NewSingleLineHandler(outputChan, parser.IdentityParser)
 	h.Start()
 
 	var output *Output
@@ -76,7 +77,7 @@ func TestSingleLineHandler(t *testing.T) {
 
 func TestTrimSingleLine(t *testing.T) {
 	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan)
+	h := NewSingleLineHandler(outputChan, parser.IdentityParser)
 	h.Start()
 
 	var output *Output

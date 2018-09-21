@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,7 +36,7 @@ func TestRawEncoder(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
-	msg := newMessage([]byte(rawMessage), source, message.StatusError)
+	msg := newMessage([]byte(rawMessage), source, parser.StatusError)
 	msg.GetOrigin().LogSource = source
 	msg.GetOrigin().SetTags([]string{"a", "b:c"})
 
@@ -126,7 +127,7 @@ func TestProtoEncoder(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
-	msg := newMessage([]byte(rawMessage), source, message.StatusError)
+	msg := newMessage([]byte(rawMessage), source, parser.StatusError)
 	msg.GetOrigin().LogSource = source
 	msg.GetOrigin().SetTags([]string{"a", "b:c"})
 
@@ -146,7 +147,7 @@ func TestProtoEncoder(t *testing.T) {
 	assert.Equal(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
 
 	assert.Equal(t, redactedMessage, log.Message)
-	assert.Equal(t, message.StatusError, log.Status)
+	assert.Equal(t, parser.StatusError, log.Status)
 	assert.NotEmpty(t, log.Timestamp)
 
 }
@@ -176,7 +177,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	assert.Empty(t, log.Tags)
 
 	assert.Empty(t, log.Message)
-	assert.Equal(t, log.Status, message.StatusInfo)
+	assert.Equal(t, log.Status, parser.StatusInfo)
 	assert.NotEmpty(t, log.Timestamp)
 
 }

@@ -68,7 +68,7 @@ func InitializeDecoder(source *config.LogSource) *Decoder {
 		}
 	}
 	if lineHandler == nil {
-		lineHandler = NewSingleLineHandler(outputChan)
+		lineHandler = NewSingleLineHandler(outputChan, source.Parser)
 	}
 
 	return New(inputChan, outputChan, lineHandler)

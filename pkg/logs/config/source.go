@@ -7,6 +7,8 @@ package config
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // LogSource holds a reference to an integration name and a log configuration, and allows to track errors and
@@ -19,6 +21,7 @@ type LogSource struct {
 	inputs   map[string]bool
 	lock     *sync.Mutex
 	Messages *Messages
+	Parser   parser.Parser
 }
 
 // NewLogSource creates a new log source.
@@ -56,4 +59,10 @@ func (s *LogSource) GetInputs() []string {
 		inputs = append(inputs, input)
 	}
 	return inputs
+}
+
+// AddParser add a parser
+func (s *LogSource) AddParser(pm parser.Parser) *LogSource {
+	s.Parser = pm
+	return s
 }

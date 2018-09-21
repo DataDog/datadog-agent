@@ -21,8 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -176,17 +176,16 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		dockerMsg, err := parser.ParseMessage(output.Content)
+		dockerMsg, err := parser.DockerStandaloneParser(output.Content)
 		if err != nil {
-			log.Warn(err)
-			continue
+			log.Warn(err, string(output.Content), string(dockerMsg.Content))
 		}
 		if len(dockerMsg.Content) > 0 {
 			origin := message.NewOrigin(t.source)
 			origin.Offset = dockerMsg.Timestamp
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
-			t.outputChan <- message.New(dockerMsg.Content, origin, dockerMsg.Status)
+			t.outputChan <- message.New(dockerMsg.Content, origin, dockerMsg.Severity)
 		}
 	}
 }
