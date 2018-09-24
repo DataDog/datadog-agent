@@ -60,7 +60,7 @@ func requestDiscoveredIntegrations() error {
 
 	if len(discovered.Error) != 0 {
 		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", err)
-		return fmt.Errorf("An error occured retrieving discovered integrations: %s", discovered.Error)
+		return fmt.Errorf("An error occurred retrieving discovered integrations: %s", discovered.Error)
 	}
 
 	fmt.Fprintln(color.Output, discovered.Render())
