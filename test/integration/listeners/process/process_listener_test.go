@@ -80,8 +80,13 @@ func (suite *ProcessListenerTestSuite) startProcesses() error {
 		{cmd: "./testscripts/consul-agent/consul-agent", name: "consul"},
 	}
 
+	goCmd, err := exec.LookPath("go")
+	if err != nil {
+		return fmt.Errorf("Couldn't find golang binary in path")
+	}
+
 	for _, script := range scripts {
-		buildCmd := exec.Command("go", "build", "-o", script.cmd, fmt.Sprintf("%s.go", script.cmd))
+		buildCmd := exec.Command(goCmd, "build", "-o", script.cmd, fmt.Sprintf("%s.go", script.cmd))
 		if err := buildCmd.Start(); err != nil {
 			fmt.Println(err)
 			return fmt.Errorf("Couldn't build script %v: %s", script.cmd, err)
