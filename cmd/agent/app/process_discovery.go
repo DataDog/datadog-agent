@@ -48,13 +48,6 @@ func requestDiscoveredIntegrations() error {
 
 	response, err := util.DoGet(c, urlstr)
 	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(response, errMap)
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
-		}
-
 		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", err)
 		return err
 	}
@@ -63,6 +56,11 @@ func requestDiscoveredIntegrations() error {
 	err = json.Unmarshal(response, &discovered)
 	if err != nil {
 		return fmt.Errorf("Couldn't decode agent response: %s", err)
+	}
+
+	if len(discovered.Error) != 0 {
+		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", err)
+		return fmt.Errorf("An error occured retrieving discovered integrations: %s", discovered.Error)
 	}
 
 	fmt.Fprintln(color.Output, discovered.Render())

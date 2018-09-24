@@ -246,9 +246,7 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 }
 
 func getDiscoveredIntegrations(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got a request for discovered integrations. Discovering integrations.")
-
-	response, err := procdiscovery.DiscoverIntegrations(false)
+	di, err := procdiscovery.DiscoverIntegrations()
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting discovered integrations. Error: %v", err)
@@ -257,7 +255,19 @@ func getDiscoveredIntegrations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonIntegrations, err := json.Marshal(response)
+	checks, err := procdiscovery.GetChecks()
+	if err != nil {
+		log.Errorf("Error getting checks. Error: %v", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	jsonIntegrations, err := json.Marshal(procdiscovery.DiscoveredIntegrations{
+		Discovered: di,
+		Running:    checks.Running,
+		Failing:    checks.Failing,
+	})
 	if err != nil {
 		log.Errorf("Unable to marshal discovered integrations response: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})

@@ -13,6 +13,12 @@ type DiscoveredIntegrations struct {
 	Discovered map[string][]IntegrationProcess
 	Running    map[string]struct{}
 	Failing    map[string]struct{}
+	Error      string `json:"error"`
+}
+
+type Checks struct {
+	Running map[string]struct{}
+	Failing map[string]struct{}
 }
 
 type process struct {

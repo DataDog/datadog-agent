@@ -9,40 +9,24 @@ import (
 )
 
 // DiscoverIntegrations retrieves processes running on the host and tries to find possible integrations
-func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
-	di := DiscoveredIntegrations{}
+func DiscoverIntegrations() (map[string][]IntegrationProcess, error) {
 	matcher, err := procmatch.NewDefault()
 
 	if err != nil {
-		return di, fmt.Errorf("Couldn't build default process matcher: %s", err)
+		return nil, fmt.Errorf("Couldn't build default process matcher: %s", err)
 	}
 
 	processes, err := pollProcesses()
 
 	if err != nil {
-		return di, fmt.Errorf("Couldn't retrieve process list: %s", err)
-	}
-
-	if !discoverOnly {
-		running, failing, err := retrieveIntegrations()
-		if err != nil {
-			return di, err
-		}
-		di.Running = running
-		di.Failing = failing
-	}
-
-	// processList is a set of processes (removes duplicate processes)
-	processList := map[string]process{}
-	for _, p := range processes {
-		processList[p.cmd] = p
+		return nil, fmt.Errorf("Couldn't retrieve process list: %s", err)
 	}
 
 	integrations := map[string][]IntegrationProcess{}
 
 	// Try to find an integration for each process
-	for proc := range processList {
-		matched := matcher.Match(proc)
+	for _, proc := range processes {
+		matched := matcher.Match(proc.cmd)
 		if len(matched.Name) == 0 {
 			continue
 		}
@@ -52,15 +36,23 @@ func DiscoverIntegrations(discoverOnly bool) (DiscoveredIntegrations, error) {
 		}
 
 		integrations[matched.Name] = append(integrations[matched.Name], IntegrationProcess{
-			Cmd:         proc,
+			Cmd:         proc.cmd,
 			DisplayName: matched.DisplayName,
 			Name:        matched.Name,
-			PID:         processList[proc].pid,
+			PID:         proc.pid,
 		})
 	}
-	di.Discovered = integrations
 
-	return di, nil
+	return integrations, nil
+}
+
+func GetChecks() (Checks, error) {
+	ru, fa, err := retrieveIntegrations()
+	if err != nil {
+		return Checks{}, err
+	}
+
+	return Checks{Running: ru, Failing: fa}, nil
 }
 
 func retrieveIntegrations() (map[string]struct{}, map[string]struct{}, error) {
@@ -70,7 +62,7 @@ func retrieveIntegrations() (map[string]struct{}, map[string]struct{}, error) {
 	st, err := getStatus()
 
 	if err != nil {
-		return running, failing, fmt.Errorf("Couldn't retrieve agent status: %s", err)
+		return running, failing, fmt.Errorf("couldn't retrieve agent status: %s", err)
 	}
 	for key := range st.RunnerStats.Checks {
 		running[key] = struct{}{}
