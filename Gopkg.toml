@@ -60,7 +60,7 @@
 
 [[override]]
   name = "github.com/CharlyF/custom-metrics-apiserver"
-  revision = "8cee0380c23166fe328fedd088446df3c8254223"
+  revision = "3e7ca2be638146c574ff3be0a506a08d23ce6a46"
 
 [[constraint]]
   name = "github.com/gorilla/mux"

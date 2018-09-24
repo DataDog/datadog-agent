@@ -21,7 +21,7 @@
   revision = "d6e3b3328b783f23731bc4d058875b0371ff8109"
 
 [[projects]]
-  digest = "1:7900eeaa09c57a4a83d7b61ccc9c5e48418826211154e17fcecdbf2c14ba2a7b"
+  digest = "1:15ae950195c3095bd0c4df4f54df83ae09de31f86f11330f1bc24e6ede86d7bc"
   name = "github.com/CharlyF/custom-metrics-apiserver"
   packages = [
     "pkg/apiserver",
@@ -34,7 +34,7 @@
     "pkg/registry/external_metrics",
   ]
   pruneopts = ""
-  revision = "8cee0380c23166fe328fedd088446df3c8254223"
+  revision = "3e7ca2be638146c574ff3be0a506a08d23ce6a46"
 
 [[projects]]
   digest = "1:b5c465c820ef1df848ddc2da97e7ebfc1e152fcc2bef8262f047522692e9fc6f"
@@ -897,7 +897,6 @@
   packages = [
     "expfmt",
     "internal/bitbucket.org/ww/goautoneg",
-    "log",
     "model",
   ]
   pruneopts = ""
@@ -1250,6 +1249,7 @@
     "batch/v1beta1",
     "batch/v2alpha1",
     "certificates/v1beta1",
+    "coordination/v1beta1",
     "core/v1",
     "events/v1beta1",
     "extensions/v1beta1",
@@ -1305,6 +1305,7 @@
     "pkg/util/intstr",
     "pkg/util/json",
     "pkg/util/mergepatch",
+    "pkg/util/naming",
     "pkg/util/net",
     "pkg/util/rand",
     "pkg/util/runtime",
@@ -1446,6 +1447,8 @@
     "informers/batch/v2alpha1",
     "informers/certificates",
     "informers/certificates/v1beta1",
+    "informers/coordination",
+    "informers/coordination/v1beta1",
     "informers/core",
     "informers/core/v1",
     "informers/events",
@@ -1503,6 +1506,8 @@
     "kubernetes/typed/batch/v2alpha1/fake",
     "kubernetes/typed/certificates/v1beta1",
     "kubernetes/typed/certificates/v1beta1/fake",
+    "kubernetes/typed/coordination/v1beta1",
+    "kubernetes/typed/coordination/v1beta1/fake",
     "kubernetes/typed/core/v1",
     "kubernetes/typed/core/v1/fake",
     "kubernetes/typed/events/v1beta1",
@@ -1542,6 +1547,7 @@
     "listers/batch/v1beta1",
     "listers/batch/v2alpha1",
     "listers/certificates/v1beta1",
+    "listers/coordination/v1beta1",
     "listers/core/v1",
     "listers/events/v1beta1",
     "listers/extensions/v1beta1",
@@ -1611,6 +1617,7 @@
     "pkg/apis/custom_metrics",
     "pkg/apis/custom_metrics/install",
     "pkg/apis/custom_metrics/v1beta1",
+    "pkg/apis/custom_metrics/v1beta2",
     "pkg/apis/external_metrics",
     "pkg/apis/external_metrics/install",
     "pkg/apis/external_metrics/v1beta1",
@@ -1622,6 +1629,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/CharlyF/custom-metrics-apiserver/pkg/apiserver",
     "github.com/CharlyF/custom-metrics-apiserver/pkg/cmd",
     "github.com/CharlyF/custom-metrics-apiserver/pkg/provider",
     "github.com/DataDog/agent-payload/gogen",
@@ -1658,7 +1666,6 @@
     "github.com/go-ini/ini",
     "github.com/go-ole/go-ole",
     "github.com/gogo/protobuf/proto",
-    "github.com/golang/glog",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
@@ -1671,7 +1678,6 @@
     "github.com/openshift/api/quota/v1",
     "github.com/patrickmn/go-cache",
     "github.com/pkg/errors",
-    "github.com/prometheus/common/log",
     "github.com/samuel/go-zookeeper/zk",
     "github.com/sbinet/go-python",
     "github.com/shirou/gopsutil/cpu",
@@ -1710,10 +1716,12 @@
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
+    "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/watch",
+    "k8s.io/apiserver/pkg/server",
     "k8s.io/client-go/dynamic",
     "k8s.io/client-go/informers",
     "k8s.io/client-go/informers/autoscaling/v2beta1",
