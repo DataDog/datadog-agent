@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -173,7 +171,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 			cfg.Identifier = service.Identifier // used for matching a source with a service
 		}
 
-		source := logsConfig.NewLogSource(configName, cfg).AddParser(parser.IdentityParser)
+		source := logsConfig.NewLogSource(configName, cfg)
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)

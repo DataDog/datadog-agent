@@ -188,7 +188,9 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	} else {
 		fileParser = parser.IdentityParser
 	}
-	return config.NewLogSource(l.getSourceName(pod, container), cfg).AddParser(fileParser), nil
+	logSource := config.NewLogSource(l.getSourceName(pod, container), cfg)
+	logSource.AddParser(fileParser)
+	return logSource, nil
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,

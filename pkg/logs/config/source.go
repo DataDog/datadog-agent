@@ -33,6 +33,7 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		inputs:   make(map[string]bool),
 		lock:     &sync.Mutex{},
 		Messages: NewMessages(),
+		Parser:   parser.IdentityParser,
 	}
 }
 
@@ -62,7 +63,6 @@ func (s *LogSource) GetInputs() []string {
 }
 
 // AddParser add a parser
-func (s *LogSource) AddParser(pm parser.Parser) *LogSource {
+func (s *LogSource) AddParser(pm parser.Parser) {
 	s.Parser = pm
-	return s
 }
