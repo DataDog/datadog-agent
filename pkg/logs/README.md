@@ -20,3 +20,11 @@ Each log line comes from a source (e.g. file, network, docker), and then enters 
 `Sender` submits the messages to the intake, and notifies the auditor
 
 `Auditor` notes that messages were properly submitted, stores offsets for agent restarts
+
+## Tests
+
+```
+# Run the unit tests
+inv test --targets=./pkg/logs --timeout=10
+
+```
