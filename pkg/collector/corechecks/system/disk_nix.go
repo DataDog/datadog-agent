@@ -145,3 +145,8 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 	err := c.commonConfigure(data)
 	return err
 }
+
+// nothing to do for non-windows OS
+func formatRegexp(regexp string) string {
+	return regexp
+}

@@ -96,3 +96,8 @@ func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data
 
 	return nil
 }
+
+// set case-insensitive flag for windows
+func formatRegexp(regexp string) string {
+	return "(?i)" + regexp
+}
