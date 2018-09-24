@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
