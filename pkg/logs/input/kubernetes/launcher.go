@@ -184,9 +184,9 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	}
 	var fileParser parser.Parser
 	if strings.HasPrefix(container.ID, "containerd://") {
-		fileParser = parser.ContainerdParser
+		fileParser = parser.NewContainerdFileParser()
 	} else {
-		fileParser = parser.IdentityParser
+		fileParser = parser.NewIdentityParser()
 	}
 	logSource := config.NewLogSource(l.getSourceName(pod, container), cfg)
 	logSource.AddParser(fileParser)

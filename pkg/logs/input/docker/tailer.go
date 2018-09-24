@@ -175,16 +175,12 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		dockerMsg, err := t.source.Parser(output.Content)
-		if err != nil {
-			log.Warn(err, string(output.Content), string(dockerMsg.Content))
-		}
-		if len(dockerMsg.Content) > 0 {
+		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.source)
-			origin.Offset = dockerMsg.Timestamp
+			origin.Offset = output.Timestamp
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
-			t.outputChan <- message.New(dockerMsg.Content, origin, dockerMsg.Severity)
+			t.outputChan <- message.New(output.Content, origin, output.Severity)
 		}
 	}
 }

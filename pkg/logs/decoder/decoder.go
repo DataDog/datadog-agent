@@ -28,13 +28,17 @@ func NewInput(content []byte) *Input {
 type Output struct {
 	Content    []byte
 	RawDataLen int
+	Severity   string
+	Timestamp  string
 }
 
 // NewOutput returns a new decoder output
-func NewOutput(content []byte, rawDataLen int) *Output {
+func NewOutput(content []byte, rawDataLen int, severity string, timestamp string) *Output {
 	return &Output{
 		Content:    content,
 		RawDataLen: rawDataLen,
+		Severity:   severity,
+		Timestamp:  timestamp,
 	}
 }
 
@@ -54,17 +58,8 @@ func InitializeDecoder(source *config.LogSource) *Decoder {
 
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
-		switch rule.Type {
-		case config.MultiLine:
-			var lineUnwrapper LineUnwrapper
-			switch source.Config.Type {
-			case config.DockerType:
-				lineUnwrapper = NewDockerUnwrapper()
-			default:
-				lineUnwrapper = NewUnwrapper()
-			}
-			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, lineUnwrapper)
-			break
+		if rule.Type == config.MultiLine {
+			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, source.Parser)
 		}
 	}
 	if lineHandler == nil {

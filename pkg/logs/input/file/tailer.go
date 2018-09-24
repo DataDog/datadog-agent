@@ -130,10 +130,6 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		parsedMessage, err := t.source.Parser(output.Content)
-		if err != nil {
-			log.Warn("Parsing failed:", err)
-		}
 		offset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if !t.shouldTrackOffset() {
@@ -145,7 +141,7 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(t.tags)
-		t.outputChan <- message.New(parsedMessage.Content, origin, parsedMessage.Severity)
+		t.outputChan <- message.New(output.Content, origin, output.Severity)
 	}
 }
 

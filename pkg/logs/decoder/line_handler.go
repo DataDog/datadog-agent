@@ -86,14 +86,14 @@ func (h *SingleLineHandler) process(line []byte) {
 	if lineLen < contentLenLimit {
 		// send content
 		// add 1 to take into account '\n' that we didn't include in content
-		parsedMessage, _ := h.parser(content)
-		output := NewOutput(parsedMessage.Content, lineLen+1)
+		parsedMessage, _ := h.parser.Parse(content)
+		output := NewOutput(parsedMessage.Content, lineLen+1, parsedMessage.Severity, parsedMessage.Timestamp)
 		h.outputChan <- output
 	} else {
 		// add TRUNCATED at the end of content and send it
 		content := append(content, TRUNCATED...)
-		parsedMessage, _ := h.parser(content)
-		output := NewOutput(parsedMessage.Content, lineLen)
+		parsedMessage, _ := h.parser.Parse(content)
+		output := NewOutput(parsedMessage.Content, lineLen, parsedMessage.Severity, parsedMessage.Timestamp)
 		h.outputChan <- output
 		h.shouldTruncate = true
 	}
@@ -106,23 +106,23 @@ const defaultFlushTimeout = 1000 * time.Millisecond
 // MultiLineHandler reads lines from lineChan and uses lineBuffer to send them
 // when a new line matches with re or flushTimer is fired
 type MultiLineHandler struct {
-	lineChan      chan []byte
-	outputChan    chan *Output
-	lineBuffer    *LineBuffer
-	lineUnwrapper LineUnwrapper
-	newContentRe  *regexp.Regexp
-	flushTimeout  time.Duration
+	lineChan     chan []byte
+	outputChan   chan *Output
+	lineBuffer   *LineBuffer
+	newContentRe *regexp.Regexp
+	flushTimeout time.Duration
+	parser       parser.Parser
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler
-func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineUnwrapper LineUnwrapper) *MultiLineHandler {
+func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, flushTimeout time.Duration, parser parser.Parser) *MultiLineHandler {
 	return &MultiLineHandler{
-		lineChan:      make(chan []byte),
-		outputChan:    outputChan,
-		lineBuffer:    NewLineBuffer(),
-		lineUnwrapper: lineUnwrapper,
-		newContentRe:  newContentRe,
-		flushTimeout:  flushTimeout,
+		lineChan:     make(chan []byte),
+		outputChan:   outputChan,
+		lineBuffer:   NewLineBuffer(),
+		newContentRe: newContentRe,
+		flushTimeout: flushTimeout,
+		parser:       parser,
 	}
 }
 
@@ -169,7 +169,7 @@ func (h *MultiLineHandler) run() {
 // process accumulates lines in lineBuffer and flushes lineBuffer when a new line matches with newContentRe
 // When lines are too long, they are truncated
 func (h *MultiLineHandler) process(line []byte) {
-	unwrappedLine := h.lineUnwrapper.Unwrap(line)
+	unwrappedLine, _ := h.parser.Unwrap(line)
 	if h.newContentRe.Match(unwrappedLine) {
 		// send content from lineBuffer
 		h.sendContent()
@@ -200,7 +200,8 @@ func (h *MultiLineHandler) sendContent() {
 	content, rawDataLen := h.lineBuffer.Content()
 	content = bytes.TrimSpace(content)
 	if len(content) > 0 {
-		output := NewOutput(content, rawDataLen)
+		parsedMessage, _ := h.parser.Parse(content)
+		output := NewOutput(parsedMessage.Content, rawDataLen, parsedMessage.Severity, parsedMessage.Timestamp)
 		h.outputChan <- output
 	}
 }

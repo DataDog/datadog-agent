@@ -20,23 +20,27 @@ import (
 const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 
 // Unwrapper mocks the logic of LineUnwrapper
-type MockUnwrapper struct {
+type MockParser struct {
 	header []byte
 }
 
-// NewUnwrapper returns a new Unwrapper
-func NewMockUnwrapper(header string) LineUnwrapper {
-	return &MockUnwrapper{[]byte(header)}
+// parser.NewIdentityParser returns a new Unwrapper
+func NewMockParser(header string) parser.Parser {
+	return &MockParser{header: []byte(header)}
+}
+
+func (u *MockParser) Parse(msg []byte) (parser.ParsedLine, error) {
+	return parser.ParsedLine{Content: msg}, nil
 }
 
 // Unwrap removes header from line
-func (u MockUnwrapper) Unwrap(line []byte) []byte {
-	return bytes.Replace(line, u.header, []byte(""), 1)
+func (u *MockParser) Unwrap(line []byte) ([]byte, error) {
+	return bytes.Replace(line, u.header, []byte(""), 1), nil
 }
 
 func TestSingleLineHandler(t *testing.T) {
 	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan, parser.IdentityParser)
+	h := NewSingleLineHandler(outputChan, parser.NewIdentityParser())
 	h.Start()
 
 	var output *Output
@@ -77,7 +81,7 @@ func TestSingleLineHandler(t *testing.T) {
 
 func TestTrimSingleLine(t *testing.T) {
 	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan, parser.IdentityParser)
+	h := NewSingleLineHandler(outputChan, parser.NewIdentityParser())
 	h.Start()
 
 	var output *Output
@@ -96,7 +100,7 @@ func TestTrimSingleLine(t *testing.T) {
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *Output, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewUnwrapper())
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NewIdentityParser())
 	h.Start()
 
 	var output *Output
@@ -149,7 +153,7 @@ func TestMultiLineHandler(t *testing.T) {
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *Output, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewUnwrapper())
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NewIdentityParser())
 	h.Start()
 
 	var output *Output
@@ -175,7 +179,7 @@ func TestUnwrapMultiLine(t *testing.T) {
 
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *Output, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockUnwrapper(header))
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header))
 	h.Start()
 
 	var output *Output
