@@ -10,10 +10,7 @@ import (
 
 // pollProcesses retrieves processes running on the host
 func pollProcesses() ([]process, error) {
-	var counter *pdhutil.PdhCounterSet
-	var err error
-
-	counter, err = pdhutil.GetCounterSet("Process", "ID Process", "", nil)
+	counter, err := pdhutil.GetCounterSet("Process", "ID Process", "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get counter set: %s", err)
 	}

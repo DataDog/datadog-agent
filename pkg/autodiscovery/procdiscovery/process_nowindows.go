@@ -15,7 +15,8 @@ func pollProcesses() ([]process, error) {
 		return nil, fmt.Errorf("Couldn't retrieve process list: %s", err)
 	}
 
-	pl := []process{}
+	pl := make([]process, 0, len(processes))
+
 	for _, p := range processes {
 		cmd, err := p.Cmdline()
 		// Just ignore the process if we can't get its cmdline
