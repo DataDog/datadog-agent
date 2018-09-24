@@ -1164,12 +1164,12 @@
   revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
 
 [[projects]]
-  digest = "1:b27efd3925e02eb1ecf54f26bfefc82508afc370506083471d374d000fe6378f"
+  digest = "1:ba5a30c4cac85cf1d1b15f93803f16dcaa7ca7c0c22723aa3477dcd2b8a1b6d8"
   name = "gopkg.in/zorkian/go-datadog-api.v2"
   packages = ["."]
   pruneopts = ""
-  revision = "6c08e2322af96e867e5715aedd6ea194c42cf44f"
-  version = "v2.8.6"
+  revision = "d7b8b10db6a7eb1c1c2424b10a795a1662e80c9a"
+  version = "v2.12.0"
 
 [[projects]]
   branch = "master"
