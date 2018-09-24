@@ -31,7 +31,7 @@ func init() {
 	datadogStats.Set("Queries", datadogQueries)
 }
 
-type Metric struct {
+type Point struct {
 	value     int64
 	timestamp int64
 	valid     bool
@@ -44,9 +44,10 @@ const (
 
 // queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Metric, error) {
+func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point, error) {
 	if metricNames == nil {
-		return nil, errors.New("no processedMetrics to query")
+		log.Tracef("No processed external metrics to query")
+		return nil, nil
 	}
 	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
 
@@ -66,11 +67,11 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Metri
 		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
 
-	processedMetrics := make(map[string]Metric)
+	processedMetrics := make(map[string]Point)
 	for _, name := range metricNames {
 		// If the returned Series is empty for one or more processedMetrics, add it as invalid now
 		// so it can be retried later.
-		processedMetrics[name] = Metric{
+		processedMetrics[name] = Point{
 			timestamp: time.Now().Unix(),
 		}
 	}
@@ -85,21 +86,21 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Metri
 			log.Infof("Could not collect values for all processedMetrics in the query %s", query)
 			continue
 		}
-		var metric Metric
+		var point Point
 		// Find the most recent value.
 		for i := len(serie.Points) - 1; i >= 0; i-- {
 			if serie.Points[i][value] == nil {
 				// We need this as if multiple metrics are queried, their points' timestamps align this can result in empty values.
 				continue
 			}
-			metric.value = int64(*serie.Points[i][value])                // store the original value
-			metric.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in ms
-			metric.valid = true
+			point.value = int64(*serie.Points[i][value])                // store the original value
+			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in ms
+			point.valid = true
 
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
-			processedMetrics[m] = metric
+			processedMetrics[m] = point
 
-			log.Debugf("Validated %#v after %d/%d values", metric, i, len(serie.Points)-1)
+			log.Debugf("Validated %#v after %d/%d values", point, i, len(serie.Points)-1)
 			break
 		}
 	}

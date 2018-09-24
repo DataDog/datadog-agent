@@ -109,7 +109,7 @@ func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []cu
 }
 
 // validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
-func (p *Processor) validateExternalMetric(emList []custommetrics.ExternalMetricValue) (processed map[string]Metric, err error) {
+func (p *Processor) validateExternalMetric(emList []custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
 	var batch []string
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
