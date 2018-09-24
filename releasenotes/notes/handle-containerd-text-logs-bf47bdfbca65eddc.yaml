@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Strip header for containerd text logs and add it to the metadata of
+    the message.
