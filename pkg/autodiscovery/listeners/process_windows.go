@@ -10,7 +10,7 @@ import (
 )
 
 // This should be done another way
-func getProcessPorts(pid int32) ([]int32, error) {
+func getProcessPorts(pid int32) ([]int, error) {
 	out, err := callNetstat()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't retrieve used ports: %s", err)
@@ -29,8 +29,8 @@ func callNetstat() ([]byte, error) {
 	return cmd.Output()
 }
 
-func extractPorts(raw string, pid int32) ([]int32, error) {
-	ports := []int32{}
+func extractPorts(raw string, pid int32) ([]int, error) {
+	ports := []int{}
 
 	for _, line := range strings.Split(raw, "\n") {
 		fields := strings.Fields(line)
@@ -38,7 +38,7 @@ func extractPorts(raw string, pid int32) ([]int32, error) {
 		if len(fields) > 1 && fields[len(fields)-1] == strconv.Itoa(int(pid)) {
 			port, err := getPort(fields[1])
 			if err == nil {
-				ports = append(ports, int32(port))
+				ports = append(ports, port)
 			}
 		}
 	}
