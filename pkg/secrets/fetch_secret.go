@@ -3,18 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build secrets
 
 package secrets
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
-	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,43 +27,6 @@ func (b *limitBuffer) Write(p []byte) (n int, err error) {
 		return 0, fmt.Errorf("command output was too long: exceeded %d bytes", b.max)
 	}
 	return b.buf.Write(p)
-}
-
-func execCommand(inputPayload string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(secretBackendTimeout)*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
-	if err := checkRights(cmd.Path); err != nil {
-		return nil, err
-	}
-
-	cmd.Stdin = strings.NewReader(inputPayload)
-	// setting an empty env in case some secrets were set using the ENV (ex: API_KEY)
-	cmd.Env = []string{}
-
-	stdout := limitBuffer{
-		buf: &bytes.Buffer{},
-		max: secretBackendOutputMaxSize,
-	}
-	stderr := limitBuffer{
-		buf: &bytes.Buffer{},
-		max: secretBackendOutputMaxSize,
-	}
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		log.Errorf("secret_backend_command stderr: %s", stderr.buf.String())
-
-		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("error while running '%s': command timeout", secretBackendCommand)
-		}
-		return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, err)
-	}
-	return stdout.buf.Bytes(), nil
 }
 
 type secret struct {
@@ -89,6 +48,7 @@ func fetchSecret(secretsHandle []string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
 	}
+
 	log.Debugf("calling secret_backend_command with payload: '%s'", jsonPayload)
 	output, err := runCommand(string(jsonPayload))
 	if err != nil {

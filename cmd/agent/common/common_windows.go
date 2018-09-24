@@ -63,12 +63,12 @@ func getInstallPath() string {
 	var s string
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
-		log.Warn("Failed to open registry key %s", err)
+		log.Warnf("Failed to open registry key %s", err)
 	} else {
 		defer k.Close()
 		s, _, err = k.GetStringValue("InstallPath")
 		if err != nil {
-			log.Warn("Installpath not found in registry %s", err)
+			log.Warnf("Installpath not found in registry %s", err)
 		}
 	}
 	// if unable to figure out the install path from the registry,
@@ -99,7 +99,7 @@ func GetViewsPath() string {
 			return ""
 		}
 		viewsPath = filepath.Join(s, "bin", "agent", "dist", "views")
-		log.Debug("ViewsPath is now %s", viewsPath)
+		log.Debugf("ViewsPath is now %s", viewsPath)
 	}
 	return viewsPath
 }
@@ -136,7 +136,7 @@ func ImportRegistryConfig() error {
 			return nil
 		}
 		// otherwise, unexpected error
-		log.Warn("Unexpected error getting registry config %s", err.Error())
+		log.Warnf("Unexpected error getting registry config %s", err.Error())
 		return err
 	}
 	defer k.Close()

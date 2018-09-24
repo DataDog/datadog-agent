@@ -3,17 +3,26 @@
 **This feature is in beta and its options or behavior might break between
 minor or bugfix releases of the Agent.**
 
-This feature is only available on Linux at the moment.
-
-Starting with version `6.3.0`, the agent is able to leverage the `secrets`
-package in order to call a user-provided executable to handle retrieval or
-decryption of secrets, which are then loaded in memory by the agent. This
-feature allows users to no longer store passwords and other secrets in plain
-text in configuration files. Users have the flexibility to design their
-executable according to their preferred key management service, authentication
-method, and continuous integration workflow.
+Starting with version `6.3.0` on Linux and `6.6` on Windows, the agent is able
+to leverage the `secrets` package in order to call a user-provided executable
+to handle retrieval or decryption of secrets, which are then loaded in memory
+by the agent. This feature allows users to no longer store passwords and other
+secrets in plain text in configuration files. Users have the flexibility to
+design their executable according to their preferred key management service,
+authentication method, and continuous integration workflow.
 
 This section covers how to set up this feature.
+
+* [Defining secrets in configurations](#defining-secrets-in-configurations)
+* [Retrieving secrets from the secret backend](#retrieving-secrets-from-the-secret-backend)
+  * [Agent security requirements](#agent-security-requirements)
+    * [Linux](#linux)
+    * [Windows](#windows)
+  * [Configuration](#configuration)
+  * [The executable API](#the-executable-api)
+* [Troubleshooting](#troubleshooting)
+  * [Seeing configurations after secrets being injected](#seeing-configurations-after-secrets-being-injected)
+  * [Debugging your secret_backend_command](#debugging-your-secret_backend_command)
 
 ## Defining secrets in configurations
 
@@ -150,15 +159,69 @@ Regardless of the workflow, the user should **take great care to secure the
 executable itself**, including setting appropriate permissions and considering
 the security implications of their executable in their environment.
 
-In particular, the executable **MUST** (the agent will refuse to use it otherwise):
+### Agent security requirements
 
-- Belong to the same user running the agent (usually `dd-agent`).
+The agent will run `secret_backend_command` executable as a sub-process. The
+execution pattern differ on Linux and Windows.
+
+#### Linux
+
+On Linux, the executable set as `secret_backend_command` **MUST** (the agent
+will refuse to use it otherwise):
+
+- Belong to the same user running the agent (by default `dd-agent` or `root`
+  inside a container).
 - Have **no** rights for `group` or `other`.
 - Have at least `exec` right for the owner.
+
+Also:
 - The executable will not share any environment variables with the agent.
 - Never output sensitive information on STDERR. If the binary exit with a
   different status code than `0` the agent will log the standard error output
   of the executable to ease troubleshooting.
+
+#### Windows
+
+When installing the agent (or upgrading from a version without the secrets
+feature) you MUST add the `SECRETUSER=true` flag to activate the feature. This
+will create the right user to fetch secrets (see below). You no longer need to
+add that flag when upgrading the agent.
+
+ex:
+```
+msiexec /qn /i datadog-agent-6-latest.amd64.msi SECRETUSER=true
+```
+
+On windows, a specific user named `datadog_secretuser` is created by the
+installer, and store its randomly generated password in a registry
+(`HKLM:\SOFTWARE\Datadog\Datadog Agent\secrets\datadog_secretuser`). Only the
+Datadog agent and Administrator can access that registry.
+
+At runtime, the agent will execute `secret_backend_command` as
+`datadog_secretuser` to fetch secrets. This means the agent and the
+`secret_backend_command` executable do not share the same user nor the same
+rights.
+
+The executable set as `secret_backend_command` **MUST** (the agent
+will refuse to use it otherwise):
+
+- Have `Read and execute` right given to `datadog_secretuser`
+- Do not give any rights to any other user or group outside of `Administrator`,
+  `System` and `datadog_secretuser`
+
+Here is an example of a [powershell script](secrets_scripts/set_rights.ps1)
+that remove rights on a file to everybody except from `Administrator` and
+`System` and then add `datadog_secretuser`. Use it only as an example as your
+setup might differ.
+
+Also:
+- The executable will not share any environment variables with the agent.
+- Never output sensitive information on STDERR. If the binary exit with a
+  different status code than `0` the agent will log the standard error output
+  of the executable to ease troubleshooting.
+
+On Windows, the executable **must** be a valid Win32 application so the agent
+can execute it.
 
 ### Configuration
 
@@ -226,24 +289,47 @@ with 2 fields:
 
 Example:
 
-Here is a dummy script prefixing every secret with `decrypted_`:
+Here is a dummy Go program prefixing every secret with `decrypted_`:
 
-```py
-#!/usr/bin/python
+```golang
+package main
 
-import json
-import sys
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+)
 
-# Reading the input payload from STDIN
-payload = sys.stdin.read()
-# parsing the payload
-requested_secrets = json.loads(payload)
+type secretsPayload struct {
+	Secrets []string `json:secrets`
+	Version int      `json:version`
+}
 
-secrets = {}
-for secret_handle in requested_secrets["secrets"]:
-    secrets[secret_handle] = {"value": "decrypted_"+secret_handle, "error": None}
+func main() {
+	data, err := ioutil.ReadAll(os.Stdin)
 
-print json.dumps(secrets)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not read from stdin: %s", err)
+		os.Exit(1)
+	}
+	secrets := secretsPayload{}
+	json.Unmarshal(data, &secrets)
+
+	res := map[string]map[string]string{}
+	for _, handle := range secrets.Secrets {
+		res[handle] = map[string]string{
+			"value": "decrypted_" + handle,
+		}
+	}
+
+	output, err := json.Marshal(res)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not serialize res: %s", err)
+		os.Exit(1)
+	}
+	fmt.Printf(string(output))
+}
 ```
 
 This will update this configuration (in the check file):
@@ -265,6 +351,8 @@ instances:
 ```
 
 ### Troubleshooting
+
+#### Seeing configurations after secrets being injected
 
 To quickly see how the configurations are resolved you can use the `configcheck` command :
 
@@ -291,3 +379,46 @@ password: <decrypted_password2>
 ```
 
 Note that the agent needs to be restarted to pick up changes on configuration files.
+
+#### Debugging your secret_backend_command
+
+To test or debug outside of the agent you can simply mimic how the agent will run it:
+
+**Linux**:
+
+```bash
+sudo su dd-agent - bash -c "echo '{\"version\": \"1.0\", \"secrets\": [\"secret1\", \"secret2\"]}' | /path/to/the/secret_backend_command
+```
+
+The `dd-agent` user is created when you install the datadog-agent.
+
+**Windows**:
+
+First get the password for the `datadog_secretuser` user from the registry:
+`HKLM:\SOFTWARE\Datadog\Datadog Agent\secrets\datadog_secretuser`. That user
+is automatically created by the `datadog-agent` installer.
+
+Then you can use [this powershell script](secrets_scripts/secrets_tester.ps1) to easily test
+you executable on windows:
+```powershell
+PS C:\> .\secrets_tester.ps1 C:\path\to\your\executable "datadog_secretuser password" '{"version": "1.0", "secrets": ["secret1", "secret2"]}'
+```
+
+**Warning**: on Windows you executable need to be a valid Win32 application (a
+simple python script won't work for example).
+
+Example with a simple python script:
+```powershell
+PS C:\> .\secrets_tester.ps1 C:\test.py "datadog_secretuser password" '{"version": "1.0", "secrets": ["secret1", "secret2"]}'
+Creating new Process with C:\test.py
+Exception calling "Start" with "1" argument(s): "The specified executable is not a valid application for this OS platform."
+```
+
+Same thing when testing with `runas`:
+```powershell
+PS C:\> runas /user:datadog_secretuser C:\test.py
+Enter the password for datadog_secretuser:
+Attempting to start C:\test.py as user "datadog_secretuser" ...
+RUNAS ERROR: Unable to run - C:\test.py
+193: C:\test.py is not a valid Win32 application.
+```
