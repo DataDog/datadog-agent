@@ -92,14 +92,14 @@ func (l *ProcessListener) Stop() {
 // pollProcesses requests the running processes and tries to find a service linked
 // to them and figure out if the ConfigResolver could be interested to inspect it
 func (l *ProcessListener) pollProcesses(creationTime integration.CreationTime) {
-	discovered, err := procdiscovery.DiscoverIntegrations(true)
+	discovered, err := procdiscovery.DiscoverIntegrations()
 	if err != nil {
 		log.Errorf("process poller error while discovery: %v", err)
 	}
 
 	pids := map[int32]procdiscovery.IntegrationProcess{}
 
-	for _, procs := range discovered.Discovered {
+	for _, procs := range discovered {
 		for _, proc := range procs {
 			pids[proc.PID] = proc
 		}
