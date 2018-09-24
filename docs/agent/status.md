@@ -44,11 +44,13 @@ Forwarder
   Errors: 1
 ```
 
-CheckRunsV1: Number of sent service check payloads
-IntakeV1: Number of sent event payloads
-TimeseriesV1: Number of sent metrics payloads
-Errors: Number of errors during payload sending
+- CheckRunsV1: Number of sent service check payloads
+- IntakeV1: Number of sent event payloads
+- TimeseriesV1: Number of sent metrics payloads
+- Errors: Number of errors during payload sending
 
+The forwarder uses a number of workers to send the payloads to the backend.
+If you see a warning like this `the forwarder dropped transactions, there is probably an issue with your network`, this means that all the workers were busy. You should review your network performance, and tune the `forwarder_num_workers` and `forwarder_timeout options`.
 
 
 

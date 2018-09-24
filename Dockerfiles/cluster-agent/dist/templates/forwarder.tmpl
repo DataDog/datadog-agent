@@ -11,9 +11,8 @@ Forwarder
   {{- end}}
   {{- if .Transactions.DroppedOnInput }}
 
-    Warning: the forwarder dropped transactions because all workers were busy.
-    You should review your network performance, and tune the forwarder_num_workers
-    and forwarder_timeout options.
+    Warning: the forwarder dropped transactions, there is probably an issue with your network
+    More info at https://github.com/DataDog/datadog-agent/tree/master/docs/agent/status.md
   {{- end}}
   {{- if .Transactions.Errors }}
 
