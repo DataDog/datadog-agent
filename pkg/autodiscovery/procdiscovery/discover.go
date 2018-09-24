@@ -46,6 +46,7 @@ func DiscoverIntegrations() (map[string][]IntegrationProcess, error) {
 	return integrations, nil
 }
 
+// GetChecks retrieves the running and failing checks
 func GetChecks() (Checks, error) {
 	ru, fa, err := retrieveIntegrations()
 	if err != nil {

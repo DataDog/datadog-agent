@@ -16,6 +16,7 @@ type DiscoveredIntegrations struct {
 	Error      string `json:"error"`
 }
 
+// Checks represents the runnning and failing checks
 type Checks struct {
 	Running map[string]struct{}
 	Failing map[string]struct{}
