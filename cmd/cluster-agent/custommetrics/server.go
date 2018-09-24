@@ -89,7 +89,7 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie() (provider.ExternalMetricsPro
 }
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService
-func (o DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
+func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	if err := o.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
