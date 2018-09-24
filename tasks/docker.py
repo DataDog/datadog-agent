@@ -52,7 +52,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
     ctx.run("cp %s %s/test.bin" % (binary, temp_folder))
 
     with open("%s/Dockerfile" % temp_folder, 'w') as stream:
-        stream.write("""FROM debian:stretch-slim
+        stream.write("""FROM golang:stretch
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 ADD https://github.com/docker/compose/releases/download/1.16.1/docker-compose-Linux-x86_64 /bin/docker-compose
