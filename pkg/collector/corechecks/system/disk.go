@@ -162,6 +162,22 @@ func stringSliceContain(slice []string, x string) bool {
 	return false
 }
 
+func (c *DiskCheck) applyDeviceTags(device, mountpoint string, tags []string) []string {
+	// apply device/mountpoint specific tags
+	for re, deviceTags := range c.cfg.deviceTagRe {
+		if re == nil {
+			continue
+		}
+		if re.MatchString(device) && (mountpoint == "" || re.MatchString(mountpoint)) {
+			for _, tag := range deviceTags {
+				tags = append(tags, tag)
+			}
+
+		}
+	}
+	return tags
+}
+
 func diskFactory() check.Check {
 	return &DiskCheck{
 		CheckBase: core.NewCheckBase(diskCheckName),

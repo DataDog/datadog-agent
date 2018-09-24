@@ -80,14 +80,7 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 		}
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 
-		// apply device/mountpoint specific tags
-		for re, deviceTags := range c.cfg.deviceTagRe {
-			if re != nil && (re.MatchString(partition.Device) || re.MatchString(partition.Mountpoint)) {
-				for _, tag := range deviceTags {
-					tags = append(tags, tag)
-				}
-			}
-		}
+		tags = c.applyDeviceTags(partition.Device, partition.Mountpoint, tags)
 
 		c.sendPartitionMetrics(sender, diskUsage, tags)
 	}
@@ -106,14 +99,7 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 		copy(tags, c.cfg.customeTags)
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 
-		// apply device specific tags
-		for re, deviceTags := range c.cfg.deviceTagRe {
-			if re != nil && re.MatchString(deviceName) {
-				for _, tag := range deviceTags {
-					tags = append(tags, tag)
-				}
-			}
-		}
+		tags = c.applyDeviceTags(deviceName, "", tags)
 
 		c.sendDiskMetrics(sender, ioCounter, tags)
 	}
