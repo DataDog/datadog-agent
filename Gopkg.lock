@@ -50,17 +50,6 @@
   revision = "508b4f7bfc834501c944ab00e99b6f0e760f5ea7"
 
 [[projects]]
-  branch = "dd"
-  digest = "1:cbb07a3235d2b001d93c8439b8fc9325f5ece677533cd06c03642184eff6508f"
-  name = "github.com/DataDog/gopsutil"
-  packages = [
-    "internal/common",
-    "net",
-  ]
-  pruneopts = ""
-  revision = "771928d86fa878b9d62f073a7a6f91ee0a358105"
-
-[[projects]]
   branch = "master"
   digest = "1:5430bf8a572af357fba5aab0ac466c31c6d86f03085b3014f2494500c45e3c89"
   name = "github.com/DataDog/mmh3"
@@ -1615,7 +1604,6 @@
     "github.com/DataDog/gohai/network",
     "github.com/DataDog/gohai/platform",
     "github.com/DataDog/gohai/processes",
-    "github.com/DataDog/gopsutil/net",
     "github.com/DataDog/mmh3",
     "github.com/DataDog/zstd",
     "github.com/Microsoft/go-winio",
@@ -1662,6 +1650,7 @@
     "github.com/shirou/gopsutil/host",
     "github.com/shirou/gopsutil/load",
     "github.com/shirou/gopsutil/mem",
+    "github.com/shirou/gopsutil/net",
     "github.com/shirou/gopsutil/process",
     "github.com/shirou/w32",
     "github.com/spf13/afero",
