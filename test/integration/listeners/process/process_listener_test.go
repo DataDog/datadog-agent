@@ -76,8 +76,8 @@ func (suite *ProcessListenerTestSuite) TearDownTest() {
 func (suite *ProcessListenerTestSuite) startProcesses() error {
 	// mocking go scripts
 	scripts := []mockProcess{
-		{cmd: "./testscripts/redis-server/redis-server", name: "redisdb"},
-		{cmd: "./testscripts/consul-agent/consul-agent", name: "consul"},
+		{cmd: "./testdata/redis-server/redis-server", name: "redisdb"},
+		{cmd: "./testdata/consul-agent/consul-agent", name: "consul"},
 	}
 
 	goCmd, err := exec.LookPath("go")
@@ -88,18 +88,15 @@ func (suite *ProcessListenerTestSuite) startProcesses() error {
 	for _, script := range scripts {
 		buildCmd := exec.Command(goCmd, "build", "-o", script.cmd, fmt.Sprintf("%s.go", script.cmd))
 		if err := buildCmd.Start(); err != nil {
-			fmt.Println(err)
 			return fmt.Errorf("Couldn't build script %v: %s", script.cmd, err)
 		}
 		if err := buildCmd.Wait(); err != nil {
-			fmt.Println(err)
 			return fmt.Errorf("Couldn't wait the end of the build for script %v: %s", script.cmd, err)
 		}
 
 		cmd := exec.Command(script.cmd)
 
 		if err := cmd.Start(); err != nil {
-			fmt.Println(err)
 			return fmt.Errorf("Couldn't start process %v: %s", script.cmd, err)
 		}
 
