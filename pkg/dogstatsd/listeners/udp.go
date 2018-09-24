@@ -19,10 +19,12 @@ import (
 var (
 	udpExpvars             = expvar.NewMap("dogstatsd-udp")
 	udpPacketReadingErrors = expvar.Int{}
+	udpPackets             = expvar.Int{}
 )
 
 func init() {
 	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
+	udpExpvars.Set("Packets", &udpPackets)
 }
 
 // UDPListener implements the StatsdListener interface for UDP protocol.
@@ -74,6 +76,7 @@ func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
 		packet := l.packetPool.Get()
+		udpPackets.Add(1)
 		n, _, err := l.conn.ReadFrom(packet.buffer)
 		if err != nil {
 			// connection has been closed
