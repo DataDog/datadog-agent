@@ -31,7 +31,6 @@ var stopCh chan struct{}
 
 type DatadogMetricsAdapter struct {
 	basecmd.AdapterBase
-	Message string
 }
 
 // StartServer creates and start a k8s custom metrics API server
@@ -44,7 +43,7 @@ func StartServer() error {
 		return err
 	}
 
-	// When we implement the custom metrics provider, add cmd.WithCustomMetrics(provider) here
+	// TODO when implementing the custom metrics provider, add cmd.WithCustomMetrics(provider) here
 	cmd.WithExternalMetrics(provider)
 	cmd.Name = "datadog-custom-metrics-adapter"
 
@@ -55,7 +54,7 @@ func StartServer() error {
 
 	server, err := conf.Complete(nil).New(cmd.Name, nil, provider)
 	if err != nil {
-		log.Infof("err server %#v", err)
+		return err
 	}
 
 	return server.GenericAPIServer.PrepareRun().Run(wait.NeverStop)
@@ -106,6 +105,7 @@ func (o DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 		return nil, err
 	}
 
+	// Get the certificates from the extension-apiserver-authentication ConfigMap
 	if err := o.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing, nil); err != nil {
 		log.Errorf("Could not create Authentication configuration: %v", err)
 		return nil, err

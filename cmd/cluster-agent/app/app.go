@@ -90,7 +90,6 @@ func init() {
 
 	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
-	//custommetrics.AddFlags(startCmd.Flags())
 }
 
 func start(cmd *cobra.Command, args []string) error {

@@ -8,6 +8,7 @@
 package leaderelection
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"context"
 )
 
 const (
