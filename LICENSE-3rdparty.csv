@@ -1,5 +1,6 @@
 Component,Origin,License
 core,bitbucket.org/ww/goautoneg,BSD-3-Clause
+core,github.com/Azure/go-ansiterm,MIT
 core,github.com/DataDog/agent-payload,BSD-3-Clause
 core,github.com/DataDog/gohai,MIT
 core,github.com/DataDog/mmh3,MIT
@@ -48,10 +49,13 @@ core,github.com/golang/glog,Apache-2.0
 core,github.com/golang/groupcache,Apache-2.0
 core,github.com/golang/protobuf,BSD-3-Clause
 core,github.com/golang/snappy,BSD-3-Clause
+core,github.com/google/btree,Apache-2.0
 core,github.com/google/gofuzz,Apache-2.0
 core,github.com/googleapis/gnostic,Apache-2.0
 core,github.com/gorilla/context,BSD-3-Clause
 core,github.com/gorilla/mux,BSD-3-Clause
+core,github.com/gregjones/httpcache,MIT
+core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0
 core,github.com/hashicorp/consul,MPL-2.0
 core,github.com/hashicorp/go-cleanhttp,MPL-2.0
 core,github.com/hashicorp/go-rootcerts,MPL-2.0
@@ -59,7 +63,6 @@ core,github.com/hashicorp/golang-lru,Mozilla-Public-License-2.0
 core,github.com/hashicorp/hcl,MPL-2.0
 core,github.com/hashicorp/serf,MPL-2.0
 core,github.com/hectane/go-acl,MIT
-core,github.com/howeyc/gopass,ISC
 core,github.com/imdario/mergo,BSD-3-Clause
 core,github.com/inconshreveable/mousetrap,Apache-2.0
 core,github.com/jmespath/go-jmespath,Apache-2.0
@@ -67,7 +70,7 @@ core,github.com/jquery/jquery,MIT
 core,github.com/json-iterator/go,MIT
 core,github.com/k-sone/snmpgo,MIT
 core,github.com/kardianos/osext,BSD-3-Clause
-core,github.com/kubernetes-incubator/custom-metrics-apiserver,Apache-2.0
+core,github.com/CharlyF/custom-metrics-apiserver,Apache-2.0
 core,github.com/lxn/walk,BSD-3-Clause
 core,github.com/lxn/win,BSD-3-Clause
 core,github.com/magiconair/properties,BSD-2-Clause
@@ -86,6 +89,8 @@ core,github.com/openshift/api,Apache-2.0
 core,github.com/patrickmn/go-cache,MIT
 core,github.com/pborman/uuid,BSD-3-Clause
 core,github.com/pelletier/go-toml,MIT
+core,github.com/petar/GoLLRB,BSD-3-Clause
+core,github.com/peterbourgon/diskv,MIT
 core,github.com/pierrec/lz4,BSD-3-Clause
 core,github.com/pkg/errors,BSD-2-Clause
 core,github.com/pmezard/go-difflib,BSD-3-Clause
@@ -97,6 +102,7 @@ core,github.com/samuel/go-zookeeper,BSD-3-Clause
 core,github.com/sbinet/go-python,Python-2.0
 core,github.com/shirou/gopsutil,BSD-3-Clause
 core,github.com/shirou/w32,BSD-3-Clause
+core,github.com/Sirupsen/logrus,MIT
 core,github.com/spf13/afero,Apache-2.0
 core,github.com/spf13/cast,MIT
 core,github.com/spf13/cobra,Apache-2.0
