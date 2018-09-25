@@ -31,9 +31,10 @@ func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
 
 // GetConfigs returns configurations dispatched to a given node
 func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
-	configs, err := h.dispatcher.getNodeConfigs(nodeName)
+	configs, lastChange, err := h.dispatcher.getNodeConfigs(nodeName)
 	response := types.ConfigResponse{
-		Configs: configs,
+		Configs:    configs,
+		LastChange: lastChange,
 	}
 	return response, err
 }

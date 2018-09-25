@@ -15,18 +15,18 @@ import (
 )
 
 // getNodeConfigs returns configurations dispatched to a given node
-func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, error) {
+func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int64, error) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
 	node, found := d.store.getNodeStore(nodeName, false)
 	if !found {
-		return nil, fmt.Errorf("node %s is unknown", nodeName)
+		return nil, 0, fmt.Errorf("node %s is unknown", nodeName)
 	}
 
 	node.RLock()
 	defer node.RUnlock()
-	return makeConfigArray(node.digestToConfig), nil
+	return makeConfigArray(node.digestToConfig), node.lastConfigChange, nil
 }
 
 // processNodeStatus returns configurations dispatched to a given node.
