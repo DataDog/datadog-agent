@@ -9,7 +9,6 @@ package kubernetes
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 
@@ -126,7 +125,7 @@ func (l *Launcher) addSource(service *service.Service) {
 		log.Warn(err)
 		return
 	}
-	source, err := l.getSource(pod, container)
+	source, err := l.getSource(pod, container, service.Type)
 	if err != nil {
 		log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
 		return
@@ -158,7 +157,7 @@ func (l *Launcher) removeSource(service *service.Service) {
 const kubernetesIntegration = "kubernetes"
 
 // getSource returns a new source for the container in pod.
-func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
+func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus, serviceType string) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
@@ -183,7 +182,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
 	}
 	var fileParser parser.Parser
-	if strings.HasPrefix(container.ID, "containerd://") {
+	if serviceType == service.Containerd {
 		fileParser = parser.NewContainerdFileParser()
 	} else {
 		fileParser = parser.NewNoopParser()
