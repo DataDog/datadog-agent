@@ -3,10 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package message
+package severity
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+// Status values
+const (
+	StatusEmergency = "emergency"
+	StatusAlert     = "alert"
+	StatusCritical  = "critical"
+	StatusError     = "error"
+	StatusWarning   = "warn"
+	StatusNotice    = "notice"
+	StatusInfo      = "info"
+	StatusDebug     = "debug"
 )
 
 // Syslog severity levels
@@ -23,14 +31,14 @@ var (
 
 // statusSeverityMapping represents the 1:1 mapping between statuses and severities.
 var statusSeverityMapping = map[string][]byte{
-	parser.StatusEmergency: SevEmergency,
-	parser.StatusAlert:     SevAlert,
-	parser.StatusCritical:  SevCritical,
-	parser.StatusError:     SevError,
-	parser.StatusWarning:   SevWarning,
-	parser.StatusNotice:    SevNotice,
-	parser.StatusInfo:      SevInfo,
-	parser.StatusDebug:     SevDebug,
+	StatusEmergency: SevEmergency,
+	StatusAlert:     SevAlert,
+	StatusCritical:  SevCritical,
+	StatusError:     SevError,
+	StatusWarning:   SevWarning,
+	StatusNotice:    SevNotice,
+	StatusInfo:      SevInfo,
+	StatusDebug:     SevDebug,
 }
 
 // StatusToSeverity transforms a severity into a status.

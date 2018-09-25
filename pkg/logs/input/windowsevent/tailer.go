@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/clbanning/mxj"
 )
@@ -77,6 +77,6 @@ func (t *Tailer) toMessage(event string) (message.Message, error) {
 	return message.New(
 		jsonEvent,
 		message.NewOrigin(t.source),
-		parser.StatusInfo,
+		severity.StatusInfo,
 	), nil
 }

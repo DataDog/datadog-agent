@@ -8,6 +8,8 @@ package parser
 import (
 	"bytes"
 	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 )
 
 const (
@@ -95,12 +97,12 @@ func (p *ContainerdFileParser) Unwrap(line []byte) ([]byte, error) {
 
 // getContainerdSeverity returns the severity of the message based on the value of the
 // STREAM_TYPE field in the header
-func getContainerdSeverity(severity []byte) string {
-	switch string(severity) {
+func getContainerdSeverity(logStream []byte) string {
+	switch string(logStream) {
 	case stdout:
-		return StatusInfo
+		return severity.StatusInfo
 	case stderr:
-		return StatusError
+		return severity.StatusError
 	default:
 		return ""
 	}

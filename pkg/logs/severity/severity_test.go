@@ -3,27 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package message
+package severity
 
 import (
 	"bytes"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStatusToSeverity(t *testing.T) {
 	severityLevels := [][]byte{SevEmergency, SevAlert, SevCritical, SevError, SevWarning, SevNotice, SevInfo, SevDebug}
 	statusValues := []string{
-		parser.StatusEmergency,
-		parser.StatusAlert,
-		parser.StatusCritical,
-		parser.StatusError,
-		parser.StatusWarning,
-		parser.StatusNotice,
-		parser.StatusInfo,
-		parser.StatusDebug,
+		StatusEmergency,
+		StatusAlert,
+		StatusCritical,
+		StatusError,
+		StatusWarning,
+		StatusNotice,
+		StatusInfo,
+		StatusDebug,
 	}
 
 	// ensure 1:1 mapping

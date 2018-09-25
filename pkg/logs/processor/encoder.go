@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
+	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -53,7 +54,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent := []byte("")
 
 		// Severity
-		extraContent = append(extraContent, message.StatusToSeverity(msg.GetStatus())...)
+		extraContent = append(extraContent, severity.StatusToSeverity(msg.GetStatus())...)
 
 		// Protocol version
 		extraContent = append(extraContent, '0')

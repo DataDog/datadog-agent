@@ -8,6 +8,8 @@ package parser
 import (
 	"bytes"
 	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 )
 
 // Length of the docker message header.
@@ -46,7 +48,7 @@ func (p *DockerParser) Parse(msg []byte) (ParsedLine, error) {
 		// does not add the header. In that case, the message only contains
 		// the timestamp followed by whatever comes from what is running in the
 		// container (and maybe stdin). As a fallback, set the status to info.
-		status = StatusInfo
+		status = severity.StatusInfo
 
 	} else {
 
@@ -86,9 +88,9 @@ func (p *DockerParser) Unwrap(line []byte) ([]byte, error) {
 func getDockerSeverity(msg []byte) string {
 	switch msg[0] {
 	case 1:
-		return StatusInfo
+		return severity.StatusInfo
 	case 2:
-		return StatusError
+		return severity.StatusError
 	default:
 		return ""
 	}

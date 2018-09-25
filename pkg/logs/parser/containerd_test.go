@@ -8,6 +8,7 @@ package parser
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,8 +16,8 @@ var containerdHeaderOut = "2018-09-20T11:54:11.753589172Z stdout F"
 var containerdHeaderErr = "2018-09-20T11:54:11.753589172Z stderr F"
 
 func TestGetContainerdSeverity(t *testing.T) {
-	assert.Equal(t, StatusInfo, getContainerdSeverity([]byte("stdout")))
-	assert.Equal(t, StatusError, getContainerdSeverity([]byte("stderr")))
+	assert.Equal(t, severity.StatusInfo, getContainerdSeverity([]byte("stdout")))
+	assert.Equal(t, severity.StatusError, getContainerdSeverity([]byte("stderr")))
 	assert.Equal(t, "", getContainerdSeverity([]byte("")))
 }
 
@@ -25,7 +26,7 @@ func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := containerdHeaderOut + " " + "anything"
 	containerdMsg, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
-	assert.Equal(t, StatusInfo, containerdMsg.Severity)
+	assert.Equal(t, severity.StatusInfo, containerdMsg.Severity)
 	assert.Equal(t, []byte("anything"), containerdMsg.Content)
 }
 

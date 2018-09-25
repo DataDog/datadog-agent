@@ -13,9 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
+	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +35,7 @@ func TestRawEncoder(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
-	msg := newMessage([]byte(rawMessage), source, parser.StatusError)
+	msg := newMessage([]byte(rawMessage), source, severity.StatusError)
 	msg.GetOrigin().LogSource = source
 	msg.GetOrigin().SetTags([]string{"a", "b:c"})
 
@@ -49,7 +48,7 @@ func TestRawEncoder(t *testing.T) {
 
 	content := string(raw)
 	parts := strings.Fields(content)
-	assert.Equal(t, string(message.SevError)+"0", parts[0])
+	assert.Equal(t, string(severity.SevError)+"0", parts[0])
 	assert.Equal(t, day, parts[1][:len(day)])
 	assert.NotEmpty(t, parts[2])
 	assert.Equal(t, "Service", parts[3])
@@ -80,7 +79,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 	content := string(raw)
 	parts := strings.Fields(content)
 	assert.Equal(t, 8, len(parts))
-	assert.Equal(t, string(message.SevInfo)+"0", parts[0])
+	assert.Equal(t, string(severity.SevInfo)+"0", parts[0])
 	assert.Equal(t, day, parts[1][:len(day)])
 	assert.NotEmpty(t, parts[2])
 	assert.Equal(t, "-", parts[3])
@@ -127,7 +126,7 @@ func TestProtoEncoder(t *testing.T) {
 	source := config.NewLogSource("", logsConfig)
 
 	rawMessage := "message"
-	msg := newMessage([]byte(rawMessage), source, parser.StatusError)
+	msg := newMessage([]byte(rawMessage), source, severity.StatusError)
 	msg.GetOrigin().LogSource = source
 	msg.GetOrigin().SetTags([]string{"a", "b:c"})
 
@@ -147,7 +146,7 @@ func TestProtoEncoder(t *testing.T) {
 	assert.Equal(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
 
 	assert.Equal(t, redactedMessage, log.Message)
-	assert.Equal(t, parser.StatusError, log.Status)
+	assert.Equal(t, severity.StatusError, log.Status)
 	assert.NotEmpty(t, log.Timestamp)
 
 }
@@ -177,7 +176,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	assert.Empty(t, log.Tags)
 
 	assert.Empty(t, log.Message)
-	assert.Equal(t, log.Status, parser.StatusInfo)
+	assert.Equal(t, log.Status, severity.StatusInfo)
 	assert.NotEmpty(t, log.Timestamp)
 
 }
