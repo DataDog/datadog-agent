@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
-
 // FIXME: Use a randomly assigned port, but this means allowing '0' in the config.
 const tcpTestPort = 10512
 
