@@ -54,20 +54,20 @@ func TestScheduleReschedule(t *testing.T) {
 
 	// Register to node1
 	dispatcher.addConfig(config, "node1")
-	configs1, err := dispatcher.getNodeConfigs("node1")
+	configs1, _, err := dispatcher.getNodeConfigs("node1")
 	assert.NoError(t, err)
 	assert.Len(t, configs1, 1)
 	assert.Contains(t, configs1, config)
 
 	// Move to node2
 	dispatcher.addConfig(config, "node2")
-	configs2, err := dispatcher.getNodeConfigs("node2")
+	configs2, _, err := dispatcher.getNodeConfigs("node2")
 	assert.NoError(t, err)
 	assert.Len(t, configs2, 1)
 	assert.Contains(t, configs2, config)
 
 	// De-registered from previous node
-	configs1, err = dispatcher.getNodeConfigs("node1")
+	configs1, _, err = dispatcher.getNodeConfigs("node1")
 	assert.NoError(t, err)
 	assert.Len(t, configs1, 0)
 
