@@ -922,7 +922,9 @@ deploy_deb:
     # We first check that the current version hasn't already been deployed
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
+    - pushd $OMNIBUS_PACKAGE_DIR
     - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+    - popd
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
 
