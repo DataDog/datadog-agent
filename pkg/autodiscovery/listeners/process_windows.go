@@ -33,12 +33,15 @@ func extractPorts(raw string, pid int32) ([]int, error) {
 	ports := []int{}
 
 	for _, line := range strings.Split(raw, "\n") {
-		fields := strings.Fields(line)
+		// Get only listening ports
+		if strings.Contains(line, "LISTENING") {
+			fields := strings.Fields(line)
 
-		if len(fields) > 1 && fields[len(fields)-1] == strconv.Itoa(int(pid)) {
-			port, err := getPort(fields[1])
-			if err == nil {
-				ports = append(ports, port)
+			if len(fields) > 1 && fields[len(fields)-1] == strconv.Itoa(int(pid)) {
+				port, err := getPort(fields[1])
+				if err == nil {
+					ports = append(ports, port)
+				}
 			}
 		}
 	}
