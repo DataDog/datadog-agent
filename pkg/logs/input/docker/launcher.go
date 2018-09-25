@@ -120,7 +120,7 @@ func (l *Launcher) run() {
 			switch {
 			case source != nil:
 				// a source matches with the container, start a new tailer
-				source.AddParser(parser.NewDockerParser())
+				source.SetParser(parser.NewDockerParser())
 				l.startTailer(container, source)
 			default:
 				// no source matches with the container but a matching source may not have been
@@ -136,7 +136,7 @@ func (l *Launcher) run() {
 			for _, container := range l.pendingContainers {
 				if container.IsMatch(source) {
 					// found a container matching the new source, start a new tailer
-					source.AddParser(parser.NewDockerParser())
+					source.SetParser(parser.NewDockerParser())
 					l.startTailer(container, source)
 				} else {
 					// keep the container in cache until
