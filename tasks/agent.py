@@ -2,6 +2,7 @@
 Agent namespaced tasks
 """
 from __future__ import print_function
+import datetime
 import glob
 import os
 import shutil
@@ -223,8 +224,10 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
     """
     Build the Agent packages with Omnibus Installer.
     """
+    deps_start = datetime.datetime.now()
     if not skip_deps:
         deps(ctx, no_checks=True)  # no_checks since the omnibus build installs checks with a dedicated software def
+    deps_done = datetime.datetime.now()
 
     # omnibus config overrides
     overrides = []
@@ -239,6 +242,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
+        omnibus_start = datetime.datetime.now()
         env = load_release_versions(ctx, release_version)
         cmd = "bundle install"
         if gem_path:
@@ -259,6 +263,9 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
         ctx.run(cmd.format(**args), env=env)
+        omnibus_done = datetime.datetime.now()
+        print("go deps:       {}".format(deps_done - deps_start))
+        print("Omnibus build: {}".format(omnibus_done - omnibus_start))
 
 
 @task
