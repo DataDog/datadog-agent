@@ -33,7 +33,7 @@ func (c *DCAClient) PostClusterCheckStatus(nodeName string, status types.NodeSta
 	}
 
 	// https://host:port/api/v1/clusterchecks/status/{nodeName}
-	rawURL := fmt.Sprintf("%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaClusterChecksConfigsPath, nodeName)
+	rawURL := fmt.Sprintf("%s/%s/%s", c.ClusterAgentAPIEndpoint, dcaClusterChecksStatusPath, nodeName)
 	req, err := http.NewRequest("POST", rawURL, bytes.NewBuffer(queryBody))
 	if err != nil {
 		return response, err
