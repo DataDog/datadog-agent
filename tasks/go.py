@@ -2,6 +2,7 @@
 Golang related tasks go here
 """
 from __future__ import print_function
+import datetime
 import os
 import shutil
 import sys
@@ -193,12 +194,13 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         if not tool:
             print("Malformed bootstrap JSON, dependency {} not found". format(dependency))
             raise Exit(code=1)
-
+        print("processing checkout tool {}".format(dependency))
         process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
 
     order = deps.get("order", deps.keys())
     for dependency in order:
         tool = deps.get(dependency)
+        print("processing get tool {}".format(dependency))
         process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
 
     if android:
@@ -212,8 +214,11 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         ctx.run(cmd)
 
     # source level deps
+    print("calling dep ensure")
+    start = datetime.datetime.now()
     ctx.run("dep ensure{}".format(verbosity))
-
+    dep_done = datetime.datetime.now()
+    
     # If github.com/DataDog/datadog-agent gets vendored too - nuke it
     #
     # This may happen as a result of having to introduce DEPPROJECTROOT
@@ -239,6 +244,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         print("Removing vendored golang.org/x/mobile")
         shutil.rmtree('vendor/golang.org/x/mobile')
 
+    checks_start = datetime.datetime.now()
     if not no_checks:
         verbosity = 'v' if verbose else 'q'
         core_dir = core_dir or os.getenv('DD_CORE_DIR')
@@ -254,7 +260,10 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
                 ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
             ctx.run('pip install -{} {}'.format(verbosity, checks_base))
             ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+    checks_done = datetime.datetime.now()
 
+    print("dep ensure, elapsed:    {}".format(dep_done - start))
+    print("checks install elapsed: {}".format(checks_done - checks_start))
 
 @task
 def lint_licenses(ctx):
