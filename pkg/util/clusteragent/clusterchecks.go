@@ -47,7 +47,7 @@ func (c *DCAClient) PostClusterCheckStatus(nodeName string, status types.NodeSta
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return response, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+		return response, fmt.Errorf("unexpected response: %d - %s", resp.StatusCode, resp.Status)
 	}
 
 	b, err := ioutil.ReadAll(resp.Body)
@@ -82,7 +82,7 @@ func (c *DCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigRespons
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return configs, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+		return configs, fmt.Errorf("unexpected response: %d - %s", resp.StatusCode, resp.Status)
 	}
 
 	b, err := ioutil.ReadAll(resp.Body)
