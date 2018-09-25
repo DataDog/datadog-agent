@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +28,7 @@ const DefaultForwarderRecoveryInterval = 2
 
 // Datadog is the global configuration object
 var (
-	Datadog       = viper.New()
+	Datadog       Config
 	proxies       *Proxy
 	ConfigEnvVars []string
 )
@@ -68,15 +67,8 @@ type Proxy struct {
 }
 
 func init() {
-	// config identifiers
-	Datadog.SetConfigName("datadog")
-	Datadog.SetEnvPrefix("DD")
-	Datadog.SetTypeByDefaultValue(true)
-
-	// Replace '.' from config keys with '_' in env variables bindings.
-	// e.g. : BindEnv("foo.bar") will bind config key
-	// "foo.bar" to env variable "FOO_BAR"
-	Datadog.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	// Configure Datadog global configuration
+	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
 	// Agent
@@ -492,7 +484,7 @@ func AddAgentVersionToDomain(domain string, app string) (string, error) {
 }
 
 // getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
-func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
+func getMultipleEndpoints(config Config) (map[string][]string, error) {
 	ddURL := config.GetString("dd_url")
 
 	// Validating domain
