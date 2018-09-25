@@ -21,11 +21,12 @@ const defaultGraceDuration = 60 * time.Second
 // ClusterChecksConfigProvider implements the ConfigProvider interface
 // for the cluster check feature.
 type ClusterChecksConfigProvider struct {
-	dcaClient     *clusteragent.DCAClient
-	graceDuration time.Duration
-	lastPing      time.Time
-	lastChange    int64
-	nodeName      string
+	dcaClient      *clusteragent.DCAClient
+	graceDuration  time.Duration
+	lastPing       time.Time
+	lastChange     int64
+	nodeName       string
+	flushedConfigs bool
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
@@ -40,6 +41,9 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 	if cfg.GraceTimeSeconds > 0 {
 		c.graceDuration = time.Duration(cfg.GraceTimeSeconds) * time.Second
 	}
+
+	// Register in the cluster agent as soon as possible
+	c.IsUpToDate()
 
 	return c, nil
 }
@@ -78,14 +82,20 @@ func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
 	reply, err := c.dcaClient.PostClusterCheckStatus(c.nodeName, status)
 	if err != nil {
 		if c.withinGracePeriod() {
-			log.Debug("Cannot reach DCA, but still within grace time, keeping config: %s", err)
+			// Return true to keep the configs during the grace period
+			log.Debugf("Catching error during grace period: %s", err)
 			return true, nil
 		}
-		log.Debug("Cannot reach DCA, but grace time elapsed, purging config: %s", err)
-		return false, nil
+		// Return false, the next Collect will flush the configs
+		return false, err
 	}
 
 	c.lastPing = time.Now()
+	if reply.IsUpToDate {
+		log.Tracef("Up to date with change %d", c.lastChange)
+	} else {
+		log.Tracef("Not up to date with change %d", c.lastChange)
+	}
 	return reply.IsUpToDate, nil
 }
 
@@ -100,16 +110,18 @@ func (c *ClusterChecksConfigProvider) Collect() ([]integration.Config, error) {
 
 	reply, err := c.dcaClient.GetClusterCheckConfigs(c.nodeName)
 	if err != nil {
-		if c.withinGracePeriod() {
-			// Bubble-up the error to keep the known configurations
-			return nil, err
+		if !c.flushedConfigs {
+			// On first error after grace period, mask the error once
+			// to delete the configurations and de-schedule the checks
+			c.flushedConfigs = true
+			return nil, nil
 		}
-		// Catch the error to flush the configurations
-		log.Debug("Cannot reach DCA, but grace time elapsed, purging config: %s", err)
 		return nil, err
 	}
 
+	c.flushedConfigs = false
 	c.lastChange = reply.LastChange
+	log.Tracef("Storing last change %d", c.lastChange)
 	return reply.Configs, nil
 }
 
