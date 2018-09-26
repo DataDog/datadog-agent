@@ -95,7 +95,6 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 
 		externalMetricsInfoList = append(externalMetricsInfoList, provider.ExternalMetricInfo{
 			Metric: metric.MetricName,
-			//Labels: metric.Labels,
 		})
 	}
 	p.externalMetrics = externalMetricsList
