@@ -28,7 +28,7 @@ func NewNoopParser() *NoopParser {
 
 // Parse does nothing for NoopParser
 func (p *NoopParser) Parse(msg []byte) (ParsedLine, error) {
-	return ParsedLine{Content: msg, Severity: ""}, nil
+	return ParsedLine{Content: msg}, nil
 }
 
 // Unwrap does nothing for NoopParser

@@ -122,7 +122,7 @@ func removePartialDockerMetadata(msgToClean []byte) []byte {
 }
 
 // getDockerMetadataLength returns the length of the 8 bytes header, timestamp, and space
-// that is in front of each config.
+// that is in front of each message.
 func getDockerMetadataLength(msg []byte) int {
 	if len(msg) < dockerHeaderLength {
 		return 0
