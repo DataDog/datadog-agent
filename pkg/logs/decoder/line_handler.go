@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TRUNCATED is the warning we add at the beginning or/and at the end of a truncated message
@@ -86,13 +87,21 @@ func (h *SingleLineHandler) process(line []byte) {
 	if lineLen < contentLenLimit {
 		// send content
 		// add 1 to take into account '\n' that we didn't include in content
-		parsedMessage, _ := h.parser.Parse(content)
+		parsedMessage, err := h.parser.Parse(content)
+		if err != nil {
+			log.Warn(err)
+			return
+		}
 		output := NewOutput(parsedMessage.Content, lineLen+1, parsedMessage.Severity, parsedMessage.Timestamp)
 		h.outputChan <- output
 	} else {
 		// add TRUNCATED at the end of content and send it
 		content := append(content, TRUNCATED...)
-		parsedMessage, _ := h.parser.Parse(content)
+		parsedMessage, err := h.parser.Parse(content)
+		if err != nil {
+			log.Warn(err)
+			return
+		}
 		output := NewOutput(parsedMessage.Content, lineLen, parsedMessage.Severity, parsedMessage.Timestamp)
 		h.outputChan <- output
 		h.shouldTruncate = true
@@ -169,7 +178,11 @@ func (h *MultiLineHandler) run() {
 // process accumulates lines in lineBuffer and flushes lineBuffer when a new line matches with newContentRe
 // When lines are too long, they are truncated
 func (h *MultiLineHandler) process(line []byte) {
-	unwrappedLine, _ := h.parser.Unwrap(line)
+	unwrappedLine, err := h.parser.Unwrap(line)
+	if err != nil {
+		log.Warn(err)
+		return
+	}
 	if h.newContentRe.Match(unwrappedLine) {
 		// send content from lineBuffer
 		h.sendContent()
@@ -200,7 +213,11 @@ func (h *MultiLineHandler) sendContent() {
 	content, rawDataLen := h.lineBuffer.Content()
 	content = bytes.TrimSpace(content)
 	if len(content) > 0 {
-		parsedMessage, _ := h.parser.Parse(content)
+		parsedMessage, err := h.parser.Parse(content)
+		if err != nil {
+			log.Warn(err)
+			return
+		}
 		output := NewOutput(parsedMessage.Content, rawDataLen, parsedMessage.Severity, parsedMessage.Timestamp)
 		h.outputChan <- output
 	}
