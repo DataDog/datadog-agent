@@ -39,7 +39,7 @@ func (u *MockParser) Unwrap(line []byte) ([]byte, error) {
 
 func TestSingleLineHandler(t *testing.T) {
 	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan, parser.NewNoopParser())
+	h := NewSingleLineHandler(outputChan, parser.NoopParser)
 	h.Start()
 
 	var output *Output
@@ -80,7 +80,7 @@ func TestSingleLineHandler(t *testing.T) {
 
 func TestTrimSingleLine(t *testing.T) {
 	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan, parser.NewNoopParser())
+	h := NewSingleLineHandler(outputChan, parser.NoopParser)
 	h.Start()
 
 	var output *Output
@@ -99,7 +99,7 @@ func TestTrimSingleLine(t *testing.T) {
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *Output, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NewNoopParser())
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser)
 	h.Start()
 
 	var output *Output
@@ -152,7 +152,7 @@ func TestMultiLineHandler(t *testing.T) {
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *Output, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NewNoopParser())
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser)
 	h.Start()
 
 	var output *Output

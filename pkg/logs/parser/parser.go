@@ -5,6 +5,9 @@
 
 package parser
 
+// NoopParser is the default parser and does nothing
+var NoopParser *noopParser
+
 // ParsedLine represents a containerd message
 type ParsedLine struct {
 	Content   []byte
@@ -18,20 +21,16 @@ type Parser interface {
 	Unwrap([]byte) ([]byte, error)
 }
 
-// NoopParser is the default parser and does nothing
-type NoopParser struct{}
-
-// NewNoopParser returns a new NoopParser
-func NewNoopParser() *NoopParser {
-	return &NoopParser{}
+type noopParser struct {
+	Parser
 }
 
 // Parse does nothing for NoopParser
-func (p *NoopParser) Parse(msg []byte) (ParsedLine, error) {
+func (p *noopParser) Parse(msg []byte) (ParsedLine, error) {
 	return ParsedLine{Content: msg}, nil
 }
 
 // Unwrap does nothing for NoopParser
-func (p *NoopParser) Unwrap(msg []byte) ([]byte, error) {
+func (p *noopParser) Unwrap(msg []byte) ([]byte, error) {
 	return msg, nil
 }

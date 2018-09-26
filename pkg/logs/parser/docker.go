@@ -22,16 +22,15 @@ const dockerHeaderLength = 8
 const dockerBufferSize = 16 * 1024
 
 // DockerParser is the parser for stdout/stderr docker logs
-type DockerParser struct{}
+var DockerParser *dockerParser
 
-// NewDockerParser returns a new DockerParser
-func NewDockerParser() *DockerParser {
-	return &DockerParser{}
+type dockerParser struct {
+	Parser
 }
 
 // Parse extracts the date and the status from the raw docker message
 // see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func (p *DockerParser) Parse(msg []byte) (ParsedLine, error) {
+func (p *dockerParser) Parse(msg []byte) (ParsedLine, error) {
 
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
@@ -77,7 +76,7 @@ func (p *DockerParser) Parse(msg []byte) (ParsedLine, error) {
 }
 
 // Unwrap removes the message header of docker logs
-func (p *DockerParser) Unwrap(line []byte) ([]byte, error) {
+func (p *dockerParser) Unwrap(line []byte) ([]byte, error) {
 	headerLen := getDockerMetadataLength(line)
 	return line[headerLen:], nil
 }

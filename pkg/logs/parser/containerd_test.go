@@ -22,7 +22,7 @@ func TestGetContainerdSeverity(t *testing.T) {
 }
 
 func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {
-	parser := NewContainerdFileParser()
+	parser := ContainerdFileParser
 	validMessage := containerdHeaderOut + " " + "anything"
 	containerdMsg, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
@@ -31,14 +31,14 @@ func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {
 }
 
 func TestContainerdParserShouldHandleEmptyMessage(t *testing.T) {
-	parser := NewContainerdFileParser()
+	parser := ContainerdFileParser
 	msg, err := parser.Parse([]byte(containerdHeaderOut))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
 }
 
 func TestContainerdParserShouldFailWithInvalidInput(t *testing.T) {
-	parser := NewContainerdFileParser()
+	parser := ContainerdFileParser
 	// Missing Partial Flag
 	var err error
 	msg := []byte("2018-09-20T11:54:11.753589172Z stdout foo bar")

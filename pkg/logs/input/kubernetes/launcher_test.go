@@ -48,7 +48,7 @@ func TestGetSource(t *testing.T) {
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "kubernetes", source.Config.Source)
 	assert.Equal(t, "kubernetes", source.Config.Service)
-	assert.IsType(t, &parser.NoopParser{}, source.Parser)
+	assert.Equal(t, parser.NoopParser, source.GetParser())
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
@@ -134,7 +134,7 @@ func TestGetSourceAddContainerdParser(t *testing.T) {
 	source, err := launcher.getSource(pod, container, serviceFoo.Type)
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
-	assert.IsType(t, &parser.ContainerdFileParser{}, source.Parser)
+	assert.Equal(t, parser.ContainerdFileParser, source.GetParser())
 }
 
 func TestSearchContainer(t *testing.T) {

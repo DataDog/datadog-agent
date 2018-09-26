@@ -22,11 +22,10 @@ const (
 )
 
 // ContainerdFileParser parses containerd file logs
-type ContainerdFileParser struct{}
+var ContainerdFileParser *containerdFileParser
 
-// NewContainerdFileParser returns a new ContainerdFileParser
-func NewContainerdFileParser() *ContainerdFileParser {
-	return &ContainerdFileParser{}
+type containerdFileParser struct {
+	Parser
 }
 
 // Parse parse log lines of containerd
@@ -34,7 +33,7 @@ func NewContainerdFileParser() *ContainerdFileParser {
 // Timestamp ouputchannel partial_flag msg
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
-func (p *ContainerdFileParser) Parse(msg []byte) (ParsedLine, error) {
+func (p *containerdFileParser) Parse(msg []byte) (ParsedLine, error) {
 	// timestamp goes till first space
 	timestamp := bytes.Index(msg, []byte{' '})
 	if timestamp == -1 {
@@ -67,7 +66,7 @@ func (p *ContainerdFileParser) Parse(msg []byte) (ParsedLine, error) {
 }
 
 // Unwrap remove the header of log lines of containerd
-func (p *ContainerdFileParser) Unwrap(line []byte) ([]byte, error) {
+func (p *containerdFileParser) Unwrap(line []byte) ([]byte, error) {
 	// timestamp goes till first space
 	timestamp := bytes.Index(line, []byte{' '})
 	if timestamp == -1 {

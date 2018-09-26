@@ -183,9 +183,9 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	}
 	var fileParser parser.Parser
 	if serviceType == service.Containerd {
-		fileParser = parser.NewContainerdFileParser()
+		fileParser = parser.ContainerdFileParser
 	} else {
-		fileParser = parser.NewNoopParser()
+		fileParser = parser.NoopParser
 	}
 	logSource := config.NewLogSource(l.getSourceName(pod, container), cfg)
 	logSource.SetParser(fileParser)

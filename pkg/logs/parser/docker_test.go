@@ -23,7 +23,7 @@ func TestGetDockerSeverity(t *testing.T) {
 
 func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := dockerHeader + " " + "anything"
-	parser := NewDockerParser()
+	parser := DockerParser
 	dockerMsg, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", dockerMsg.Timestamp)
@@ -32,14 +32,14 @@ func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldHandleEmptyMessage(t *testing.T) {
-	parser := NewDockerParser()
+	parser := DockerParser
 	msg, err := parser.Parse([]byte(dockerHeader))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
 }
 
 func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
-	parser := NewDockerParser()
+	parser := DockerParser
 	msg, err := parser.Parse([]byte("2018-06-14T18:27:03.246999277Z foo"))
 	assert.Nil(t, err)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
@@ -48,7 +48,7 @@ func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldHandleEmptyTtyMessage(t *testing.T) {
-	parser := NewDockerParser()
+	parser := DockerParser
 	msg, err := parser.Parse([]byte("2018-06-14T18:27:03.246999277Z"))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
@@ -58,7 +58,7 @@ func TestDockerStandaloneParserShouldHandleEmptyTtyMessage(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
-	parser := NewDockerParser()
+	parser := DockerParser
 	var msg []byte
 	var err error
 
@@ -71,7 +71,7 @@ func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldRemovePartialHeaders(t *testing.T) {
-	parser := NewDockerParser()
+	parser := DockerParser
 	var msgToClean []byte
 	var dockerMsg ParsedLine
 	var expectedMsg []byte

@@ -21,7 +21,7 @@ type LogSource struct {
 	inputs   map[string]bool
 	lock     *sync.Mutex
 	Messages *Messages
-	Parser   parser.Parser
+	parser   parser.Parser
 }
 
 // NewLogSource creates a new log source.
@@ -33,7 +33,7 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		inputs:   make(map[string]bool),
 		lock:     &sync.Mutex{},
 		Messages: NewMessages(),
-		Parser:   parser.NewNoopParser(),
+		parser:   parser.NoopParser,
 	}
 }
 
@@ -62,9 +62,16 @@ func (s *LogSource) GetInputs() []string {
 	return inputs
 }
 
-// SetParser adds a parser
+// SetParser adds a parser that will handle line parsing
 func (s *LogSource) SetParser(parser parser.Parser) {
 	s.lock.Lock()
-	s.Parser = parser
+	s.parser = parser
 	s.lock.Unlock()
+}
+
+// GetParser returns the parser used by this source
+func (s *LogSource) GetParser() parser.Parser {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.parser
 }
