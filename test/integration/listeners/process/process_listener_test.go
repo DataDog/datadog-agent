@@ -78,6 +78,7 @@ func (suite *ProcessListenerTestSuite) startProcesses() error {
 	scripts := []mockProcess{
 		{cmd: "./testdata/redis-server/redis-server", name: "redisdb"},
 		{cmd: "./testdata/consul-agent/consul-agent", name: "consul"},
+		{cmd: "./testdata/memcached/memcached", name: "mcache"},
 	}
 
 	goCmd, err := exec.LookPath("go")
@@ -186,7 +187,12 @@ func (suite *ProcessListenerTestSuite) commonSection(ct integration.CreationTime
 
 		ports, err := service.GetPorts()
 		assert.Nil(suite.T(), err)
-		assert.Len(suite.T(), ports, 1)
+
+		sockets, err := service.GetUnixSockets()
+		assert.Nil(suite.T(), err)
+
+		// Each fake service have either a port or a socket
+		assert.Equal(suite.T(), len(ports)+len(sockets), 1)
 
 		creationTime := service.GetCreationTime()
 		assert.Equal(suite.T(), creationTime, ct)
@@ -208,10 +214,10 @@ func (suite *ProcessListenerTestSuite) commonSection(ct integration.CreationTime
 
 	suite.stopProcesses()
 
-	// We should get 2 stopped services
+	// We should get 3 stopped services
 	services, err = suite.getServices(suite.delSvc, 10*time.Second)
 	assert.Nil(suite.T(), err)
-	assert.Len(suite.T(), services, 2)
+	assert.Len(suite.T(), services, len(suite.mockProcesses))
 
 }
 

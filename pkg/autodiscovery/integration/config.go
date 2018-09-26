@@ -16,7 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var tplVarRegex = regexp.MustCompile(`%%.+?%%`)
+var TplToken = `%%`
+var tplVarRegex = regexp.MustCompile(TplToken + `.+?` + TplToken)
 
 // Data contains YAML code
 type Data []byte

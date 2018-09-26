@@ -43,6 +43,7 @@ type ProcessService struct {
 	hostname      string
 	name          string
 	creationTime  integration.CreationTime
+	unixSockets   []string
 }
 
 func init() {
@@ -145,6 +146,13 @@ func (l *ProcessListener) createService(proc procdiscovery.IntegrationProcess, c
 		return
 	}
 
+	sockets, err := getProcessUnixSockets(proc.PID)
+	if err != nil {
+		log.Errorf("Couldn't retrieve unix sockets for process (%s, pid: %v): %s", proc.Cmd, proc.PID, err)
+		return
+	}
+	svc.unixSockets = sockets
+
 	for _, port := range ports {
 		svc.ports = append(svc.ports, ContainerPort{Port: port})
 	}
@@ -224,4 +232,9 @@ func (s *ProcessService) GetHostname() (string, error) {
 // GetCreationTime returns the creation time of the service compare to the agent start.
 func (s *ProcessService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
+}
+
+// GetUnixSockets returns the unix sockets used by the process
+func (s *ProcessService) GetUnixSockets() ([]string, error) {
+	return s.unixSockets, nil
 }

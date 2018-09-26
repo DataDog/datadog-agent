@@ -21,12 +21,15 @@ import (
 
 type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
 
+var tplOptionalToken = []byte(integration.TplToken + `?`)
+
 var templateVariables = map[string]variableGetter{
-	"host":     getHost,
-	"pid":      getPid,
-	"port":     getPort,
-	"env":      getEnvvar,
-	"hostname": getHostname,
+	"host":       getHost,
+	"pid":        getPid,
+	"port":       getPort,
+	"env":        getEnvvar,
+	"hostname":   getHostname,
+	"unixsocket": getUnixSocket,
 }
 
 // Resolve takes a template and a service and generates a config with
@@ -55,12 +58,18 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		// Copy original content from template
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
-			name, key := parseTemplateVar(v)
+			name, key := parseTemplateVar(bytes.Replace(v, tplOptionalToken, []byte(integration.TplToken), 1))
 			if f, found := templateVariables[string(name)]; found {
 				resolvedVar, err := f(key, svc)
 				if err != nil {
-					return integration.Config{}, err
+					// If not mandatory replace by empty byte slice
+					if bytes.HasPrefix(v, tplOptionalToken) {
+						resolvedVar = []byte{}
+					} else {
+						return integration.Config{}, err
+					}
 				}
+
 				// init config vars are replaced by the first found
 				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v, resolvedVar, -1)
 				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v, resolvedVar, -1)
@@ -177,6 +186,30 @@ func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return nil, fmt.Errorf("failed to retrieve envvar %s, skipping service %s", tplVar, svc.GetEntity())
 	}
 	return []byte(value), nil
+}
+
+// getUnixSocket returns unix sockets used by the service
+func getUnixSocket(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	fmt.Println("entity", string(tplVar), svc.GetEntity())
+	sockets, err := svc.GetUnixSockets()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract unix socket list for service %s, ignoring it. Source error: %s", svc.GetEntity(), err)
+	} else if len(sockets) == 0 {
+		return nil, fmt.Errorf("no unix sockets found for discovered service %s - ignoring it", svc.GetEntity())
+	}
+
+	if len(tplVar) == 0 {
+		return []byte(sockets[len(sockets)-1]), nil
+	}
+
+	idx, err := strconv.Atoi(string(tplVar))
+	if err != nil {
+		return nil, fmt.Errorf("invalid index for socket %s, skipping service %s", string(tplVar), svc.GetEntity())
+	}
+	if len(sockets) <= idx {
+		return nil, fmt.Errorf("index given for the socket template var is too big, skipping service %s", svc.GetEntity())
+	}
+	return []byte(sockets[idx]), nil
 }
 
 // parseTemplateVar extracts the name of the var

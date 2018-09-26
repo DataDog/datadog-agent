@@ -535,6 +535,12 @@ func (s *DockerService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
 
+// GetUnixSockets returns the list of unix sockets used by the container
+func (s *DockerService) GetUnixSockets() ([]string, error) {
+	// TODO
+	return []string{}, nil
+}
+
 // findKubernetesInLabels traverses a map of container labels and
 // returns true if a kubernetes label is detected
 func findKubernetesInLabels(labels map[string]string) bool {

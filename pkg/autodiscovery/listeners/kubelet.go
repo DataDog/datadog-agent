@@ -278,3 +278,9 @@ func (s *KubeContainerService) GetHostname() (string, error) {
 func (s *KubeContainerService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
+
+// GetUnixSockets returns the unix sockets used by the container
+func (s *KubeContainerService) GetUnixSockets() ([]string, error) {
+	// TODO
+	return []string{}, nil
+}

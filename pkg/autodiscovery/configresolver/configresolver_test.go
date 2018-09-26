@@ -28,6 +28,7 @@ type dummyService struct {
 	Pid           int
 	Hostname      string
 	CreationTime  integration.CreationTime
+	UnixSockets   []string
 }
 
 // GetEntity returns the service entity name
@@ -70,6 +71,10 @@ func (s *dummyService) GetCreationTime() integration.CreationTime {
 	return s.CreationTime
 }
 
+func (s *dummyService) GetUnixSockets() ([]string, error) {
+	return s.UnixSockets, nil
+}
+
 func TestParseTemplateVar(t *testing.T) {
 	name, key := parseTemplateVar([]byte("%%host%%"))
 	assert.Equal(t, "host", string(name))
@@ -90,6 +95,10 @@ func TestParseTemplateVar(t *testing.T) {
 	name, key = parseTemplateVar([]byte("%%host_network_name%%"))
 	assert.Equal(t, "host", string(name))
 	assert.Equal(t, "network_name", string(key))
+
+	name, key = parseTemplateVar([]byte("%%unixsocket%%"))
+	assert.Equal(t, "unixsocket", string(name))
+	assert.Equal(t, "", string(key))
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -401,6 +410,90 @@ func TestResolve(t *testing.T) {
 				Instances:     []integration.Data{integration.Data("test: imhere")},
 				Entity:        "a5901276aed1",
 			},
+		},
+		//// unixsocket
+		{
+			testName: "simple %%unixsocket%%",
+			svc: &dummyService{
+				ADIdentifiers: []string{"redis"},
+				UnixSockets:   []string{"/var/run/redis/redis.sock"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%unixsocket%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: /var/run/redis/redis.sock")},
+			},
+		},
+		{
+			testName: "list of %%unixsocket%% without index",
+			svc: &dummyService{
+				ADIdentifiers: []string{"redis"},
+				UnixSockets:   []string{"/var/run/redis/redis.sock", "/tmp/redis.sock"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%unixsocket%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: /tmp/redis.sock")},
+			},
+		},
+		{
+			testName: "list of %%unixsocket%% with index",
+			svc: &dummyService{
+				ADIdentifiers: []string{"redis"},
+				UnixSockets:   []string{"/var/run/redis/redis.sock", "/tmp/redis.sock"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%unixsocket_0%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: /var/run/redis/redis.sock")},
+			},
+		},
+		{
+			testName: "empty optional %%unixsocket%%",
+			svc: &dummyService{
+				ADIdentifiers: []string{"redis"},
+				UnixSockets:   []string{},
+				Hostname:      "testbox",
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("unix_socket_path: \"%%?unixsocket%%\"\nhost: %%hostname%%\nport: 6379")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("unix_socket_path: \"\"\nhost: testbox\nport: 6379")},
+			},
+		},
+		{
+			testName: "empty non optional %%unixsocket%%",
+			svc: &dummyService{
+				ADIdentifiers: []string{"redis"},
+				UnixSockets:   []string{},
+				Hostname:      "testbox",
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("unix_socket_path: \"%%unixsocket%%\"\nhost: %%hostname%%\nport: 6379")},
+			},
+			errorString: "no unix sockets found for discovered service  - ignoring it",
 		},
 		//// other tags testing
 		{

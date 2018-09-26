@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+// TODO
+func getProcessUnixSockets(pid int32) ([]string, error) {
+	return []string{}, nil
+}
+
 // This should be done another way
 func getProcessPorts(pid int32) ([]int, error) {
 	out, err := callNetstat()

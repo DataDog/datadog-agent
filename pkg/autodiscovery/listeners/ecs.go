@@ -240,3 +240,9 @@ func (s *ECSService) GetHostname() (string, error) {
 func (s *ECSService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
+
+// GetUnixSockets returns the unix sockets used by the container
+func (s *ECSService) GetUnixSockets() ([]string, error) {
+	// TODO
+	return []string{}, nil
+}
