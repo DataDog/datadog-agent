@@ -119,8 +119,7 @@ case "$1" in
         ;;
 
     status)
-        $AGENTPATH status
-        exit $?
+        status_of_proc -p $PIDFILE $AGENTPATH $NAME && exit 0 || exit $?
         ;;
 
     restart|force-reload)
