@@ -539,11 +539,11 @@ api_key:
 # kubernetes_apiserver_client_timeout: 10
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
-# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#event-collection).
+# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection).
 # collect_kubernetes_events: false
 #
 #
-# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#leader-election)
+# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election)
 # To enable the leader election on this node, set the leader_election variable to true.
 # leader_election: false
 # The leader election lease is an integer in seconds.
