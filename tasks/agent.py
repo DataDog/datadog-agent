@@ -53,6 +53,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=snmp,systemd
     """
+    # ensure BIN_PATH exists
+    if not os.path.exists(BIN_PATH):
+        os.mkdir(BIN_PATH)
 
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
