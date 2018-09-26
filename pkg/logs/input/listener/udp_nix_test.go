@@ -20,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
-const maxUDPFrameLen = 65535
-
 func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
@@ -50,6 +48,11 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 }
 
 func TestUDPShoulDropTooBigMessages(t *testing.T) {
+	// Skip if we can't detect the max UDP frame length (currently only linux/darwin).
+	if maxUDPFrameLen <= 0 {
+		return
+	}
+
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
 	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), maxUDPFrameLen)
