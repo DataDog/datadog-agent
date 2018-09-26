@@ -91,7 +91,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		s := serializer.NewSerializer(common.Forwarder)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, checkCmdFlushInterval)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 		cs := collector.GetChecksByNameForConfigs(checkName, common.AC.GetAllConfigs())
 		if len(cs) == 0 {

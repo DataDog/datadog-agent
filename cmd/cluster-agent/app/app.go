@@ -143,7 +143,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname)
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster-agent")
 	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")

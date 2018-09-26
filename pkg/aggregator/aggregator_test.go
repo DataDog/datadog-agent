@@ -23,7 +23,7 @@ var checkID2 check.ID = "2"
 func TestRegisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil, "")
+	agg := InitAggregator(nil, "", "agent")
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
@@ -40,7 +40,7 @@ func TestRegisterCheckSampler(t *testing.T) {
 func TestDeregisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil, "")
+	agg := InitAggregator(nil, "", "agent")
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
@@ -55,7 +55,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "resolved-hostname")
+	agg := InitAggregator(nil, "resolved-hostname", "agent")
 
 	agg.addServiceCheck(metrics.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -84,7 +84,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 
 func TestAddEventDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "resolved-hostname")
+	agg := InitAggregator(nil, "resolved-hostname", "agent")
 
 	agg.addEvent(metrics.Event{
 		// only populate required fields
@@ -130,7 +130,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 
 func TestSetHostname(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "hostname")
+	agg := InitAggregator(nil, "hostname", "agent")
 	assert.Equal(t, "hostname", agg.hostname)
 	sender, err := GetSender(checkID1)
 	require.NoError(t, err)
