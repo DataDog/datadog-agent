@@ -377,7 +377,7 @@ build_windows_msi_x64:
 agent_android_apk:
   allow_failure: true
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:v538460-2b07be3
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:latest
   tags: [ "runner:main", "size:large" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
