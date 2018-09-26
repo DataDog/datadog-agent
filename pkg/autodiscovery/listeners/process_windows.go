@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// TODO
 func getProcessUnixSockets(pid int32) ([]string, error) {
+	// Not implemented
 	return []string{}, nil
 }
 
