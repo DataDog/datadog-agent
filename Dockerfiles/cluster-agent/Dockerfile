@@ -36,4 +36,7 @@ COPY --from=builder /output /
 
 ENTRYPOINT ["/entrypoint.sh"]
 
+# No docker healthcheck, use a HTTP check
+# on port 5005 and/or 443 on Kubernetes
+
 CMD ["datadog-cluster-agent", "start"]
