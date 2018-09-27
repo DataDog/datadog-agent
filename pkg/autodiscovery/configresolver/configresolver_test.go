@@ -71,6 +71,7 @@ func (s *dummyService) GetCreationTime() integration.CreationTime {
 	return s.CreationTime
 }
 
+// GetUnixSockets returns a dummy unix sockets list
 func (s *dummyService) GetUnixSockets() ([]string, error) {
 	return s.UnixSockets, nil
 }

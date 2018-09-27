@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TplToken is the token used to indicate template variable in auto_conf files
 var TplToken = `%%`
 var tplVarRegex = regexp.MustCompile(TplToken + `.+?` + TplToken)
 
