@@ -55,11 +55,7 @@ func (c *DCAClient) PostClusterCheckStatus(nodeName string, status types.NodeSta
 		return response, err
 	}
 	err = json.Unmarshal(b, &response)
-	if err != nil {
-		return response, err
-	}
-
-	return response, nil
+	return response, err
 }
 
 // GetClusterCheckConfigs is called by the clustercheck config provider
@@ -90,9 +86,5 @@ func (c *DCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigRespons
 		return configs, err
 	}
 	err = json.Unmarshal(b, &configs)
-	if err != nil {
-		return configs, err
-	}
-
-	return configs, nil
+	return configs, err
 }
