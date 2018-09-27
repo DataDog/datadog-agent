@@ -18,6 +18,7 @@ type dummyService struct {
 	Pid           int
 	Hostname      string
 	CreationTime  integration.CreationTime
+	UnixSockets   []string
 }
 
 // GetEntity returns the service entity name
@@ -58,4 +59,9 @@ func (s *dummyService) GetHostname() (string, error) {
 // GetCreationTime return a dummy creation time
 func (s *dummyService) GetCreationTime() integration.CreationTime {
 	return s.CreationTime
+}
+
+// GetUnixSockets returns a dummy unix sockets list
+func (s *dummyService) GetUnixSockets() ([]string, error) {
+	return s.UnixSockets, nil
 }
