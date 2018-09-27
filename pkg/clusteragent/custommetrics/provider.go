@@ -15,13 +15,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 type externalMetric struct {
@@ -50,14 +50,14 @@ func NewDatadogProvider(client dynamic.Interface, mapper apimeta.RESTMapper, sto
 	}
 }
 
-// GetRootScopedMetricByName - Not implemented
+// GetMetricByName - Not implemented
 func (p *datadogProvider) GetMetricByName(name types.NamespacedName, info provider.CustomMetricInfo) (*custom_metrics.MetricValue, error) {
-	return nil, fmt.Errorf("not Implemented - GetRootScopedMetricByName")
+	return nil, fmt.Errorf("not Implemented - GetMetricByName")
 }
 
-// GetRootScopedMetricBySelector - Not implemented
+// GetMetricBySelector - Not implemented
 func (p *datadogProvider) GetMetricBySelector(namespace string, selector labels.Selector, info provider.CustomMetricInfo) (*custom_metrics.MetricValueList, error) {
-	return nil, fmt.Errorf("not Implemented - GetRootScopedMetricBySelector")
+	return nil, fmt.Errorf("not Implemented - GetMetricBySelector")
 }
 
 // ListAllMetrics reads from a ConfigMap, similarly to ListExternalMetrics

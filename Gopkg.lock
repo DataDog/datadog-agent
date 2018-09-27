@@ -10,18 +10,7 @@
   revision = "75cd24fc2f2c2a2088577d12123ddee5f54e0675"
 
 [[projects]]
-  branch = "master"
-  digest = "1:6978a38432a017763a148afbc7ce6491734b54292af7d3e969d84d2e9dd242e2"
-  name = "github.com/Azure/go-ansiterm"
-  packages = [
-    ".",
-    "winterm",
-  ]
-  pruneopts = ""
-  revision = "d6e3b3328b783f23731bc4d058875b0371ff8109"
-
-[[projects]]
-  digest = "1:15ae950195c3095bd0c4df4f54df83ae09de31f86f11330f1bc24e6ede86d7bc"
+  digest = "1:457212d305ca8e8f68765cc6adb4e259a3aecc6513d79066736fbccbefc32485"
   name = "github.com/CharlyF/custom-metrics-apiserver"
   packages = [
     "pkg/apiserver",
@@ -34,7 +23,7 @@
     "pkg/registry/external_metrics",
   ]
   pruneopts = ""
-  revision = "3e7ca2be638146c574ff3be0a506a08d23ce6a46"
+  revision = "56ec6921a4cfec971e5a8c89d5f4629c17cbb21a"
 
 [[projects]]
   digest = "1:b5c465c820ef1df848ddc2da97e7ebfc1e152fcc2bef8262f047522692e9fc6f"
@@ -107,14 +96,6 @@
   packages = ["."]
   pruneopts = ""
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
-
-[[projects]]
-  digest = "1:3fcbf733a8d810a21265a7f2fe08a3353db2407da052b233f8b204b5afc03d9b"
-  name = "github.com/Sirupsen/logrus"
-  packages = ["."]
-  pruneopts = ""
-  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
-  version = "v1.0.6"
 
 [[projects]]
   digest = "1:f82b8ac36058904227087141017bb82f4b0fc58272990a4cdae3e2d6d222644e"
@@ -283,8 +264,6 @@
     "api/types/versions",
     "api/types/volume",
     "client",
-    "pkg/term",
-    "pkg/term/windows",
     "pkg/tlsconfig",
   ]
   pruneopts = ""
@@ -557,14 +536,6 @@
   ]
   pruneopts = ""
   revision = "9cad4c3443a7200dd6400aef47183728de563a38"
-
-[[projects]]
-  digest = "1:e24dc5ef44694848785de507f439a24e9e6d96d7b43b8cf3d6cfa857aa1e2186"
-  name = "github.com/grpc-ecosystem/go-grpc-prometheus"
-  packages = ["."]
-  pruneopts = ""
-  revision = "c225b8c3b01faf2899099b768856a9e916e5087b"
-  version = "v1.2.0"
 
 [[projects]]
   digest = "1:92124c79d22ed5d033b38bd2f86be6dc0eae69658762d620db7c7ff6522329fc"
@@ -1249,7 +1220,6 @@
     "batch/v1beta1",
     "batch/v2alpha1",
     "certificates/v1beta1",
-    "coordination/v1beta1",
     "core/v1",
     "events/v1beta1",
     "extensions/v1beta1",
@@ -1269,7 +1239,7 @@
   revision = "70491ec73e10be2989242c913738f049a37e72c7"
 
 [[projects]]
-  digest = "1:83b4c4a296f4d2c9735073c36b4de76ad775d799bc5fe75004cbda1c2734ba48"
+  digest = "1:36e48db24a383a02683a57b7a48d5c3e8937b1f5a71ccfb7e52ee5d77d796147"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -1305,7 +1275,6 @@
     "pkg/util/intstr",
     "pkg/util/json",
     "pkg/util/mergepatch",
-    "pkg/util/naming",
     "pkg/util/net",
     "pkg/util/rand",
     "pkg/util/runtime",
@@ -1323,10 +1292,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = ""
-  revision = "d128f427fda3db9a4d1ebbf3d54b4949a3356662"
+  revision = "def12e63c512da17043b4f0293f52d1006603d9f"
 
 [[projects]]
-  digest = "1:34421e7392d342a85ceff95081d4bac97ce61a5f4852327265a7972f6fd656ab"
+  branch = "release-1.11"
+  digest = "1:6e561bc34c492c250fdf346e25e64acd1786b118b3beb997933be8383b1545be"
   name = "k8s.io/apiserver"
   packages = [
     "pkg/admission",
@@ -1350,7 +1320,6 @@
     "pkg/apis/apiserver/v1alpha1",
     "pkg/apis/audit",
     "pkg/apis/audit/install",
-    "pkg/apis/audit/v1",
     "pkg/apis/audit/v1alpha1",
     "pkg/apis/audit/v1beta1",
     "pkg/apis/audit/validation",
@@ -1395,17 +1364,16 @@
     "pkg/server/routes/data/swagger",
     "pkg/server/storage",
     "pkg/storage",
-    "pkg/storage/cacher",
     "pkg/storage/errors",
     "pkg/storage/etcd",
     "pkg/storage/etcd/metrics",
     "pkg/storage/etcd/util",
     "pkg/storage/etcd3",
+    "pkg/storage/etcd3/preflight",
     "pkg/storage/names",
     "pkg/storage/storagebackend",
     "pkg/storage/storagebackend/factory",
     "pkg/storage/value",
-    "pkg/util/dryrun",
     "pkg/util/feature",
     "pkg/util/flag",
     "pkg/util/flushwriter",
@@ -1421,10 +1389,10 @@
     "plugin/pkg/authorizer/webhook",
   ]
   pruneopts = ""
-  revision = "4e7be504bf8670b1b36388e3ce2d097c6347373a"
+  revision = "d296c96c12b7d15d7fb5fea7a05fb165f8fd4014"
 
 [[projects]]
-  digest = "1:859f27049a7a505bed463c990c6135b179f6ebeaacfde1bd6bd42b472c2e037e"
+  digest = "1:8dc30675df864683c2943f902446ea3df4042dcbb675cbebad499fe91a526e3f"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -1447,8 +1415,6 @@
     "informers/batch/v2alpha1",
     "informers/certificates",
     "informers/certificates/v1beta1",
-    "informers/coordination",
-    "informers/coordination/v1beta1",
     "informers/core",
     "informers/core/v1",
     "informers/events",
@@ -1506,8 +1472,6 @@
     "kubernetes/typed/batch/v2alpha1/fake",
     "kubernetes/typed/certificates/v1beta1",
     "kubernetes/typed/certificates/v1beta1/fake",
-    "kubernetes/typed/coordination/v1beta1",
-    "kubernetes/typed/coordination/v1beta1/fake",
     "kubernetes/typed/core/v1",
     "kubernetes/typed/core/v1/fake",
     "kubernetes/typed/events/v1beta1",
@@ -1547,7 +1511,6 @@
     "listers/batch/v1beta1",
     "listers/batch/v2alpha1",
     "listers/certificates/v1beta1",
-    "listers/coordination/v1beta1",
     "listers/core/v1",
     "listers/events/v1beta1",
     "listers/extensions/v1beta1",
@@ -1594,7 +1557,7 @@
     "util/workqueue",
   ]
   pruneopts = ""
-  revision = "bdfc4cfc125f556bfe46fff68207767a605b64ed"
+  revision = "f2f85107cac6fe04c30435ca0ac0c3318fd1b94c"
 
 [[projects]]
   branch = "master"
@@ -1611,19 +1574,19 @@
   revision = "b742be413d0a6f781c123bed504c8fb39264c57d"
 
 [[projects]]
-  digest = "1:5cda6735806fc01538c9529b2224a0f0ada454de8c2f168272c0be908d42feab"
+  branch = "release-1.11"
+  digest = "1:c42d0ac160aebeae123cd081018be25fa4cbaa464d10cbdff2ce8c547d20b78b"
   name = "k8s.io/metrics"
   packages = [
     "pkg/apis/custom_metrics",
     "pkg/apis/custom_metrics/install",
     "pkg/apis/custom_metrics/v1beta1",
-    "pkg/apis/custom_metrics/v1beta2",
     "pkg/apis/external_metrics",
     "pkg/apis/external_metrics/install",
     "pkg/apis/external_metrics/v1beta1",
   ]
   pruneopts = ""
-  revision = "c368fb9b71245441cd3268fffdba58b28b9b4863"
+  revision = "972ef826b8401c180b89cefc7457daa2d116daa9"
 
 [solve-meta]
   analyzer-name = "dep"

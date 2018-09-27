@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -49,6 +50,9 @@ func TestSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
+// TestNewLeaseAcquiring only test the proper creation of the lock,
+// the acquisition of the leadership and that the ConfigMap contains is properly updated.
+// The leadership transition is tested as part of an end to end test.
 func TestNewLeaseAcquiring(t *testing.T) {
 	const leaseName = "datadog-leader-election"
 
@@ -63,7 +67,7 @@ func TestNewLeaseAcquiring(t *testing.T) {
 		coreClient: client.CoreV1(),
 	}
 	_, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
-	require.Error(t, err)
+	require.True(t, errors.IsNotFound(err))
 
 	le.leaderElector, err = le.newElection()
 	require.NoError(t, err)

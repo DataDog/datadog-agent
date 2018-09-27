@@ -8,7 +8,6 @@
 package leaderelection
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -183,11 +182,10 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 }
 
 func (le *LeaderEngine) runLeaderElection() {
-	ctx := context.Background()
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
 
-		le.leaderElector.Run(ctx)
+		le.leaderElector.Run()
 		log.Info("Leader election lost")
 	}
 }

@@ -8,7 +8,6 @@
 package leaderelection
 
 import (
-	"context"
 	"encoding/json"
 
 	"k8s.io/api/core/v1"
@@ -78,7 +77,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 
 			log.Infof("New leader %q", identity)
 		},
-		OnStartedLeading: func(_ context.Context) {
+		OnStartedLeading: func(stop <-chan struct{}) {
 			le.leaderIdentityMutex.Lock()
 			le.leaderIdentity = le.HolderIdentity
 			le.leaderIdentityMutex.Unlock()

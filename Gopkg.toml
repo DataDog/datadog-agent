@@ -40,27 +40,27 @@
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
-  revision = "d128f427fda3db9a4d1ebbf3d54b4949a3356662"
+  branch = "release-1.11"
 
 [[override]]
   name = "github.com/kubernetes/client-go"
-  revision = "bdfc4cfc125f556bfe46fff68207767a605b64ed"
+  branch = "release-8.0"
 
 [[override]]
   name = "github.com/kubernetes/api"
-  revision = "70491ec73e10be2989242c913738f049a37e72c7"
+  branch = "release-1.11"
 
 [[override]]
   name = "k8s.io/apiserver"
-  revision = "4e7be504bf8670b1b36388e3ce2d097c6347373a"
+  branch = "release-1.11"
 
 [[override]]
   name = "k8s.io/metrics"
-  revision = "c368fb9b71245441cd3268fffdba58b28b9b4863"
+  branch = "release-1.11"
 
 [[override]]
   name = "github.com/CharlyF/custom-metrics-apiserver"
-  revision = "3e7ca2be638146c574ff3be0a506a08d23ce6a46"
+  revision = "56ec6921a4cfec971e5a8c89d5f4629c17cbb21a"
 
 [[constraint]]
   name = "github.com/gorilla/mux"

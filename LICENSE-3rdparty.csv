@@ -1,6 +1,5 @@
 Component,Origin,License
 core,bitbucket.org/ww/goautoneg,BSD-3-Clause
-core,github.com/Azure/go-ansiterm,MIT
 core,github.com/DataDog/agent-payload,BSD-3-Clause
 core,github.com/DataDog/gohai,MIT
 core,github.com/DataDog/mmh3,MIT
@@ -55,7 +54,6 @@ core,github.com/googleapis/gnostic,Apache-2.0
 core,github.com/gorilla/context,BSD-3-Clause
 core,github.com/gorilla/mux,BSD-3-Clause
 core,github.com/gregjones/httpcache,MIT
-core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0
 core,github.com/hashicorp/consul,MPL-2.0
 core,github.com/hashicorp/go-cleanhttp,MPL-2.0
 core,github.com/hashicorp/go-rootcerts,MPL-2.0
@@ -102,7 +100,6 @@ core,github.com/samuel/go-zookeeper,BSD-3-Clause
 core,github.com/sbinet/go-python,Python-2.0
 core,github.com/shirou/gopsutil,BSD-3-Clause
 core,github.com/shirou/w32,BSD-3-Clause
-core,github.com/Sirupsen/logrus,MIT
 core,github.com/spf13/afero,Apache-2.0
 core,github.com/spf13/cast,MIT
 core,github.com/spf13/cobra,Apache-2.0
