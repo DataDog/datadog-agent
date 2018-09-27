@@ -29,6 +29,7 @@ func callNetstat() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find netstat installed: %s", err)
 	}
+
 	cmd := exec.Command(bin, "-ano")
 
 	return cmd.Output()
