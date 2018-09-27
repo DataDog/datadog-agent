@@ -39,19 +39,37 @@
   version = "~v1.0.0"
 
 [[override]]
+  name = "github.com/kubernetes/client-go"
+  version = "~v7.0.0"
+
+[[override]]
+  name = "k8s.io/client-go"
+  version = "~v7.0.0"
+
+[[override]]
   name = "github.com/kubernetes/apimachinery"
   # branch = "release-1.11"
   #        + pinning to commit in branch above
   version = "kubernetes-1.10.3"
-
+  # branch = "release-1.10"
+  # revision = "e386b2658ed20923da8cc9250e552f082899a1ee"
+  #
 [[override]]
-  name = "github.com/kubernetes/client-go"
-  version = "~v7.0.0"
+  name = "k8s.io/apimachinery"
+  # branch = "release-1.11"
+  #        + pinning to commit in branch above
+  version = "kubernetes-1.10.3"
+  # branch = "release-1.10"
+  # revision = "e386b2658ed20923da8cc9250e552f082899a1ee"
 
 [[override]]
   name = "github.com/kubernetes/api"
   # branch = "release-1.11"
   #        + pinning to commit in branch above
+  version = "kubernetes-1.10.3"
+
+[[override]]
+  name = "k8s.io/api"
   version = "kubernetes-1.10.3"
 
 [[override]]
