@@ -352,7 +352,9 @@ api_key:
 # disable_file_logging: false
 
 # Set to 'true' to enable logging to syslog.
-#
+# Note: Even if this option is set to 'false', the service launcher of your environment
+# may redirect the agent process' stdout/stderr to syslog. In that case, if you wish
+# to disable logging to syslog entirely, please set 'log_to_console' to 'false' as well.
 # log_to_syslog: false
 #
 # If 'syslog_uri' is left undefined/empty, a local domain socket connection will be attempted
