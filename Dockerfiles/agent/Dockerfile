@@ -31,6 +31,8 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
     opt/datadog-agent/embedded/lib/libcurl.so.4.4.0 \
     # ditto for this older libsystemd
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
+    # self-test certificates that are detected (false positive) as private keys
+    opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
