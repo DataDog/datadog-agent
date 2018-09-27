@@ -351,7 +351,7 @@ build_windows_msi_x64:
     CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
   tags: ["runner:windows-agent6"]
   script:
-    - docker run -m 4096M -v %CD%:c:\mnt 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows-agent6:v-45bf867
+    - docker run -m 4096M -v %CD%:c:\mnt 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows-agent6:v-57371ab
   artifacts:
     expire_in: 2 weeks
     paths:
