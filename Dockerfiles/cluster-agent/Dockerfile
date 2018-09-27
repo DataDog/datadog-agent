@@ -10,7 +10,7 @@ RUN mkdir -p opt/datadog-agent/bin/datadog-cluster-agent/
 
 COPY datadog-cluster-agent opt/datadog-agent/bin/datadog-cluster-agent/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
-COPY ./datadog-cluster.yaml etc/datadog-agent/datadog.yaml
+COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
 COPY ./dist opt/datadog-agent/bin/datadog-cluster-agent/dist
 COPY entrypoint.sh .
 
