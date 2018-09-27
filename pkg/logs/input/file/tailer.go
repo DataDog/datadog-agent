@@ -43,8 +43,8 @@ type Tailer struct {
 	sleepDuration time.Duration
 
 	closeTimeout  time.Duration
-	shouldStop    bool
-	didFileRotate bool
+	shouldStop    int32
+	didFileRotate int32
 	stop          chan struct{}
 	done          chan struct{}
 }
@@ -100,7 +100,7 @@ func (t *Tailer) StartFromBeginning() error {
 
 // Stop stops the tailer and returns only when the decoder is flushed
 func (t *Tailer) Stop() {
-	t.didFileRotate = false
+	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
@@ -110,7 +110,7 @@ func (t *Tailer) Stop() {
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
-	t.didFileRotate = true
+	atomic.StoreInt32(&t.didFileRotate, 1)
 	go t.startStopTimer()
 	t.source.RemoveInput(t.path)
 }
@@ -133,7 +133,7 @@ func (t *Tailer) onStop() {
 func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		t.shouldStop = true
+		atomic.StoreInt32(&t.shouldStop, 1)
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
@@ -182,7 +182,7 @@ func (t *Tailer) SetDecodedOffset(off int64) {
 
 // shouldTrackOffset returns whether the tailer should track the file offset or not
 func (t *Tailer) shouldTrackOffset() bool {
-	if t.didFileRotate {
+	if atomic.LoadInt32(&t.didFileRotate) != 0 {
 		return false
 	}
 	return true

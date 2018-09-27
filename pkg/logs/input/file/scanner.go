@@ -6,6 +6,7 @@
 package file
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -103,7 +104,7 @@ func (s *Scanner) scan() {
 
 	for _, file := range files {
 		tailer, isTailed := s.tailers[file.Path]
-		if isTailed && tailer.shouldStop {
+		if isTailed && atomic.LoadInt32(&tailer.shouldStop) != 0 {
 			// skip this tailer as it must be stopped
 			continue
 		}
