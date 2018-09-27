@@ -61,19 +61,19 @@ func (t *Tailer) Identifier() string {
 type Map map[string]interface{}
 
 // toMessage converts an XML message into json
-func (t *Tailer) toMessage(event string) (message.Message, error) {
+func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	log.Debug("Rendered XML: ", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
 	if err != nil {
-		return message.Message{}, err
+		return &message.Message{}, err
 	}
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
-		return message.Message{}, err
+		return &message.Message{}, err
 	}
 	log.Debug("Sending JSON: ", string(jsonEvent))
-	return message.Message{
+	return &message.Message{
 		Content: jsonEvent,
 		Origin:  message.NewOrigin(t.source),
 		Status:  message.StatusInfo,
