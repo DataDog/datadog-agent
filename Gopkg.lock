@@ -1200,8 +1200,8 @@
   version = "v2.12.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:b5b87220983c8ad79afb5bfff0a246ccdbbc6d65800b4cf83ad31034a7d115a2"
+  branch = "release-1.11"
+  digest = "1:77c0f2ebdb247964329c2495dea64be895fcc22de75f0fd719f092b6f869af53"
   name = "k8s.io/api"
   packages = [
     "admission/v1beta1",
@@ -1236,9 +1236,10 @@
     "storage/v1beta1",
   ]
   pruneopts = ""
-  revision = "70491ec73e10be2989242c913738f049a37e72c7"
+  revision = "4e7be11eab3ffcfc1876898b8272df53785a9504"
 
 [[projects]]
+  branch = "release-1.11"
   digest = "1:36e48db24a383a02683a57b7a48d5c3e8937b1f5a71ccfb7e52ee5d77d796147"
   name = "k8s.io/apimachinery"
   packages = [
@@ -1392,6 +1393,7 @@
   revision = "d296c96c12b7d15d7fb5fea7a05fb165f8fd4014"
 
 [[projects]]
+  branch = "release-8.0"
   digest = "1:8dc30675df864683c2943f902446ea3df4042dcbb675cbebad499fe91a526e3f"
   name = "k8s.io/client-go"
   packages = [

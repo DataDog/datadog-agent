@@ -43,15 +43,35 @@
   branch = "release-1.11"
 
 [[override]]
+  name = "k8s.io/apimachinery"
+  branch = "release-1.11"
+
+[[override]]
   name = "github.com/kubernetes/client-go"
   branch = "release-8.0"
+
+[[override]]
+    name = "k8s.io/client-go"
+    branch = "release-8.0"
 
 [[override]]
   name = "github.com/kubernetes/api"
   branch = "release-1.11"
 
 [[override]]
+  name = "k8s.io/api"
+  branch = "release-1.11"
+
+[[override]]
+  name = "github.com/kubernetes/apiserver"
+  branch = "release-1.11"
+
+[[override]]
   name = "k8s.io/apiserver"
+  branch = "release-1.11"
+
+[[override]]
+  name = "github.com/kubernetes/metrics"
   branch = "release-1.11"
 
 [[override]]
