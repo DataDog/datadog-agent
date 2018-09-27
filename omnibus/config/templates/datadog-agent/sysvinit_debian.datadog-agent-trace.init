@@ -71,6 +71,9 @@ do_stop()
 # Action to take
 case "$1" in
     start)
+        if init_is_upstart; then
+            exit 1
+        fi
         if [ "$DATADOG_ENABLED" = "no" ]; then
             echo "Disabled via /etc/default/$NAME. Exiting."
             exit 0
@@ -103,6 +106,9 @@ case "$1" in
         ;;
 
     stop)
+        if init_is_upstart; then
+            exit 0
+        fi
         log_daemon_msg "Stopping $DESC" "$NAME"
         do_stop
         case "$?" in
@@ -116,6 +122,9 @@ case "$1" in
         ;;
 
     restart|force-reload)
+        if init_is_upstart; then
+            exit 1
+        fi
         log_daemon_msg "Restarting $DESC" "$NAME"
         do_stop
         case "$?" in
