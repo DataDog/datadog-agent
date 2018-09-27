@@ -184,6 +184,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 func (le *LeaderEngine) runLeaderElection() {
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
+
 		le.leaderElector.Run()
 		log.Info("Leader election lost")
 	}
