@@ -19,7 +19,7 @@ func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int6
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	node, found := d.store.getNodeStore(nodeName, false)
+	node, found := d.store.getNodeStore(nodeName)
 	if !found {
 		return nil, 0, fmt.Errorf("node %s is unknown", nodeName)
 	}
@@ -33,7 +33,7 @@ func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int6
 // returns true if the last configuration change matches the one sent by the node agent.
 func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus) (bool, error) {
 	d.store.Lock()
-	node, _ := d.store.getNodeStore(nodeName, true)
+	node := d.store.getOrCreateNodeStore(nodeName)
 	d.store.Unlock()
 
 	node.Lock()

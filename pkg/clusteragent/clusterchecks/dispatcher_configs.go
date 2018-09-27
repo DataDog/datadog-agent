@@ -30,8 +30,8 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	if targetNodeName == "" {
 		return
 	}
-	currentNode, foundCurrent := d.store.getNodeStore(d.store.digestToNode[digest], false)
-	targetNode, _ := d.store.getNodeStore(targetNodeName, true)
+	currentNode, foundCurrent := d.store.getNodeStore(d.store.digestToNode[digest])
+	targetNode := d.store.getOrCreateNodeStore(targetNodeName)
 
 	// Dispatch to target node
 	targetNode.Lock()
@@ -54,7 +54,7 @@ func (d *dispatcher) removeConfig(digest string) {
 	delete(d.store.digestToConfig, digest)
 
 	// Remove from node configs if assigned
-	node, found := d.store.getNodeStore(d.store.digestToNode[digest], false)
+	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
 	if found {
 		node.Lock()
 		node.removeConfig(digest)

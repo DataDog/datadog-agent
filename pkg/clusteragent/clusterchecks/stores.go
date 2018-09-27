@@ -33,24 +33,24 @@ func newClusterStore() *clusterStore {
 	}
 }
 
-// getNodeStore retrieves the store struct for a given node name. If the node
-// is not yet registered in the store, an entry will be inserted and returned,
-// or an empty pointer will be returned
-func (s *clusterStore) getNodeStore(nodeName string, create bool) (*nodeStore, bool) {
+// getNodeStore retrieves the store struct for a given node name, if it exists
+func (s *clusterStore) getNodeStore(nodeName string) (*nodeStore, bool) {
+	node, ok := s.nodes[nodeName]
+	return node, ok
+}
+
+// getOrCreateNodeStore retrieves the store struct for a given node name.
+// If the node is not yet in the store, an entry will be inserted and returned.
+func (s *clusterStore) getOrCreateNodeStore(nodeName string) *nodeStore {
 	node, ok := s.nodes[nodeName]
 	if ok {
-		return node, true
-	}
-
-	if !create {
-		log.Debugf("unknown node %s, skipping", nodeName)
-		return nil, false
+		return node
 	}
 
 	log.Debugf("unknown node %s, registering", nodeName)
 	node = newNodeStore()
 	s.nodes[nodeName] = node
-	return node, false
+	return node
 }
 
 // nodeStore holds the state store for one node.
