@@ -18,17 +18,15 @@ type Processor struct {
 	inputChan  chan message.Message
 	outputChan chan message.Message
 	encoder    Encoder
-	prefixer   Prefixer
 	done       chan struct{}
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan message.Message, encoder Encoder, prefixer Prefixer) *Processor {
+func New(inputChan, outputChan chan message.Message, encoder Encoder) *Processor {
 	return &Processor{
 		inputChan:  inputChan,
 		outputChan: outputChan,
 		encoder:    encoder,
-		prefixer:   prefixer,
 		done:       make(chan struct{}),
 	}
 }
@@ -58,8 +56,6 @@ func (p *Processor) run() {
 				log.Error("unable to encode msg ", err)
 				continue
 			}
-			// Prefix the message with the API key
-			content = p.prefixer.prefix(content)
 			msg.SetContent(content)
 			p.outputChan <- msg
 		}

@@ -7,6 +7,7 @@ package sender
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -14,8 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/net/proxy"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 const (
@@ -26,16 +25,20 @@ const (
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	serverConfig *config.ServerConfig
+	host         string
+	port         int
+	useSSL       bool
 	proxyAddress string
 	mutex        sync.Mutex
 	firstConn    sync.Once
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(serverConfig *config.ServerConfig, proxyAddress string) *ConnectionManager {
+func NewConnectionManager(host string, port int, useSSL bool, proxyAddress string) *ConnectionManager {
 	return &ConnectionManager{
-		serverConfig: serverConfig,
+		host:         host,
+		port:         port,
+		useSSL:       useSSL,
 		proxyAddress: proxyAddress,
 	}
 }
@@ -48,9 +51,9 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 
 	cm.firstConn.Do(func() {
 		if cm.proxyAddress != "" {
-			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.serverConfig.Address(), cm.proxyAddress, cm.serverConfig.UseSSL)
+			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.address(), cm.proxyAddress, cm.useSSL)
 		} else {
-			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.serverConfig.Address(), cm.serverConfig.UseSSL)
+			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.address(), cm.useSSL)
 		}
 	})
 
@@ -71,18 +74,18 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 				log.Warn(err)
 				continue
 			}
-			conn, err = dialer.Dial("tcp", cm.serverConfig.Address())
+			conn, err = dialer.Dial("tcp", cm.address())
 		} else {
-			conn, err = net.DialTimeout("tcp", cm.serverConfig.Address(), timeout)
+			conn, err = net.DialTimeout("tcp", cm.address(), timeout)
 		}
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
 
-		if cm.serverConfig.UseSSL {
+		if cm.useSSL {
 			sslConn := tls.Client(conn, &tls.Config{
-				ServerName: cm.serverConfig.Name,
+				ServerName: cm.host,
 			})
 			err = sslConn.Handshake()
 			if err != nil {
@@ -95,6 +98,11 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 		go cm.handleServerClose(conn)
 		return conn
 	}
+}
+
+// address returns the address of the server to send logs to.
+func (cm *ConnectionManager) address() string {
+	return fmt.Sprintf("%s:%d", cm.host, cm.port)
 }
 
 // CloseConnection closes a connection on the client side

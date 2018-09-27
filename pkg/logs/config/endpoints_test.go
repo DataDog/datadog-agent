@@ -12,9 +12,10 @@ import (
 )
 
 func TestAddress(t *testing.T) {
-	config := NewServerConfig("foo", 12345, false)
+	config := NewServerConfig("foo", 12345, false, "bar")
 	assert.Equal(t, "foo", config.Name)
 	assert.Equal(t, 12345, config.Port)
 	assert.False(t, config.UseSSL)
+	assert.Equal(t, "bar", config.ProxyAddress)
 	assert.Equal(t, "foo:12345", config.Address())
 }

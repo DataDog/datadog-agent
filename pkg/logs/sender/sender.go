@@ -6,31 +6,25 @@
 package sender
 
 import (
-	"net"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // A Sender sends messages from an inputChan to datadog's intake,
 // handling connections and retries.
 type Sender struct {
-	inputChan   chan message.Message
-	outputChan  chan message.Message
-	connManager *ConnectionManager
-	conn        net.Conn
-	delimiter   Delimiter
-	done        chan struct{}
+	inputChan    chan message.Message
+	outputChan   chan message.Message
+	destinations *Destinations
+	done         chan struct{}
 }
 
 // New returns an initialized Sender
-func New(inputChan, outputChan chan message.Message, connManager *ConnectionManager, delimiter Delimiter) *Sender {
+func NewSender(inputChan, outputChan chan message.Message, destinations *Destinations) *Sender {
 	return &Sender{
-		inputChan:   inputChan,
-		outputChan:  outputChan,
-		connManager: connManager,
-		delimiter:   delimiter,
-		done:        make(chan struct{}),
+		inputChan:    inputChan,
+		outputChan:   outputChan,
+		destinations: destinations,
+		done:         make(chan struct{}),
 	}
 }
 
@@ -52,28 +46,28 @@ func (s *Sender) run() {
 		s.done <- struct{}{}
 	}()
 	for payload := range s.inputChan {
-		s.wireMessage(payload)
+		s.send(payload)
 	}
 }
 
 // wireMessage lets the Sender send a message to datadog's intake
-func (s *Sender) wireMessage(payload message.Message) {
+func (s *Sender) send(payload message.Message) {
 	for {
-		if s.conn == nil {
-			s.conn = s.connManager.NewConnection() // blocks until a new conn is ready
-		}
-		frame, err := s.delimiter.delimit(payload.Content())
+		err := s.destinations.Main.Write(payload)
 		if err != nil {
-			log.Error("can't send payload: ", payload, err)
-			continue
+			switch err.(type) {
+			case *FramingError:
+				break
+			default:
+				continue
+			}
 		}
-		_, err = s.conn.Write(frame)
-		if err != nil {
-			s.connManager.CloseConnection(s.conn)
-			s.conn = nil
-			continue
-		}
-		s.outputChan <- payload
-		return
+		break
 	}
+
+	for _, destination := range s.destinations.Additonals {
+		go destination.Write(payload)
+	}
+
+	s.outputChan <- payload
 }
