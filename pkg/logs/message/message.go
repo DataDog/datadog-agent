@@ -5,8 +5,6 @@
 
 package message
 
-import "github.com/DataDog/datadog-agent/pkg/logs/severity"
-
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	Content    []byte
@@ -29,7 +27,7 @@ func (m *Message) SetOrigin(origin *Origin) {
 // GetStatus returns the status of the message
 func (m *Message) GetStatus() string {
 	if m.Status == "" {
-		m.Status = severity.StatusInfo
+		m.Status = StatusInfo
 	}
 	return m.Status
 }
@@ -37,7 +35,7 @@ func (m *Message) GetStatus() string {
 // SetStatus sets the status of the message
 func (m *Message) SetStatus(status string) {
 	if status == "" {
-		status = severity.StatusInfo
+		status = StatusInfo
 	}
 	m.Status = status
 }

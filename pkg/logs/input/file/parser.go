@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
-	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 )
 
 const (
@@ -49,7 +48,7 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 		return &message.Message{}, errors.New("can't parse containerd message, no whitespace found after stream type")
 	}
 	streamType += timestamp + 1
-	severity := getContainerdSeverity(msg[timestamp+1 : streamType])
+	severity := getContainerdStatus(msg[timestamp+1 : streamType])
 
 	partial := bytes.Index(msg[streamType+1:], []byte{' '})
 	if partial == -1 {
@@ -96,14 +95,14 @@ func (p *parser) Unwrap(line []byte) ([]byte, error) {
 	return line[partial+1:], nil
 }
 
-// getContainerdSeverity returns the severity of the message based on the value of the
+// getContainerdStatus returns the severity of the message based on the value of the
 // STREAM_TYPE field in the header
-func getContainerdSeverity(logStream []byte) string {
+func getContainerdStatus(logStream []byte) string {
 	switch string(logStream) {
 	case stdout:
-		return severity.StatusInfo
+		return message.StatusInfo
 	case stderr:
-		return severity.StatusError
+		return message.StatusError
 	default:
 		return ""
 	}

@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -64,7 +63,7 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		output.SetOrigin(message.NewOrigin(t.source))
-		output.SetStatus(severity.StatusInfo)
+		output.SetStatus(message.StatusInfo)
 		t.outputChan <- output
 	}
 }

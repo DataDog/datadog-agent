@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/severity"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestIdentifier(t *testing.T) {
@@ -124,7 +124,7 @@ func TestSeverity(t *testing.T) {
 	tailer := NewTailer(source, nil)
 
 	priorityValues := []string{"0", "1", "2", "3", "4", "5", "6", "7", "foo"}
-	statuses := []string{severity.StatusEmergency, severity.StatusAlert, severity.StatusCritical, severity.StatusError, severity.StatusWarning, severity.StatusNotice, severity.StatusInfo, severity.StatusDebug, severity.StatusInfo}
+	statuses := []string{message.StatusEmergency, message.StatusAlert, message.StatusCritical, message.StatusError, message.StatusWarning, message.StatusNotice, message.StatusInfo, message.StatusDebug, message.StatusInfo}
 
 	for i, priority := range priorityValues {
 		assert.Equal(t, statuses[i], tailer.getStatus(

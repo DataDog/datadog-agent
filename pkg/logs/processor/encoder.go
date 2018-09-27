@@ -6,18 +6,14 @@
 package processor
 
 import (
-	"time"
-
 	"regexp"
-
-	"unicode/utf8"
-
+	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
-	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -54,7 +50,7 @@ func (r *raw) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent := []byte("")
 
 		// Severity
-		extraContent = append(extraContent, severity.StatusToSeverity(msg.GetStatus())...)
+		extraContent = append(extraContent, message.StatusToSeverity(msg.GetStatus())...)
 
 		// Protocol version
 		extraContent = append(extraContent, '0')

@@ -8,16 +8,16 @@ package file
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/severity"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
 )
 
 var containerdHeaderOut = "2018-09-20T11:54:11.753589172Z stdout F"
 
 func TestGetContainerdSeverity(t *testing.T) {
-	assert.Equal(t, severity.StatusInfo, getContainerdSeverity([]byte("stdout")))
-	assert.Equal(t, severity.StatusError, getContainerdSeverity([]byte("stderr")))
-	assert.Equal(t, "", getContainerdSeverity([]byte("")))
+	assert.Equal(t, message.StatusInfo, getContainerdStatus([]byte("stdout")))
+	assert.Equal(t, message.StatusError, getContainerdStatus([]byte("stderr")))
+	assert.Equal(t, "", getContainerdStatus([]byte("")))
 }
 
 func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {
@@ -25,7 +25,7 @@ func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := containerdHeaderOut + " " + "anything"
 	containerdMsg, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
-	assert.Equal(t, severity.StatusInfo, containerdMsg.Status)
+	assert.Equal(t, message.StatusInfo, containerdMsg.Status)
 	assert.Equal(t, []byte("anything"), containerdMsg.Content)
 }
 
