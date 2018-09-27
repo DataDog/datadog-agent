@@ -131,7 +131,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, "testhostname", checksender.defaultHostname)
-	assert.Equal(t, false, checksender.disableDefaultHostname)
+	assert.Equal(t, false, checksender.defaultHostnameDisabled)
 
 }
 
@@ -211,29 +211,29 @@ func TestCheckSenderHostname(t *testing.T) {
 	defaultHostname := "default-host"
 
 	for nb, tc := range []struct {
-		disableDefaultHostname bool
-		submittedHostname      string
-		expectedHostname       string
+		defaultHostnameDisabled bool
+		submittedHostname       string
+		expectedHostname        string
 	}{
 		{
-			disableDefaultHostname: false,
-			submittedHostname:      "",
-			expectedHostname:       defaultHostname,
+			defaultHostnameDisabled: false,
+			submittedHostname:       "",
+			expectedHostname:        defaultHostname,
 		},
 		{
-			disableDefaultHostname: false,
-			submittedHostname:      "custom",
-			expectedHostname:       "custom",
+			defaultHostnameDisabled: false,
+			submittedHostname:       "custom",
+			expectedHostname:        "custom",
 		},
 		{
-			disableDefaultHostname: true,
-			submittedHostname:      "",
-			expectedHostname:       "",
+			defaultHostnameDisabled: true,
+			submittedHostname:       "",
+			expectedHostname:        "",
 		},
 		{
-			disableDefaultHostname: true,
-			submittedHostname:      "custom",
-			expectedHostname:       "custom",
+			defaultHostnameDisabled: true,
+			submittedHostname:       "custom",
+			expectedHostname:        "custom",
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %q -> %q", nb, tc.submittedHostname, tc.expectedHostname), func(t *testing.T) {
@@ -241,7 +241,7 @@ func TestCheckSenderHostname(t *testing.T) {
 			serviceCheckChan := make(chan metrics.ServiceCheck, 10)
 			eventChan := make(chan metrics.Event, 10)
 			checkSender := newCheckSender(checkID1, defaultHostname, senderMetricSampleChan, serviceCheckChan, eventChan)
-			checkSender.DisableDefaultHostname(tc.disableDefaultHostname)
+			checkSender.DisableDefaultHostname(tc.defaultHostnameDisabled)
 
 			checkSender.Gauge("my.metric", 1.0, tc.submittedHostname, []string{"foo", "bar"})
 			checkSender.Commit()

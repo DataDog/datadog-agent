@@ -53,14 +53,14 @@ type RawSender interface {
 
 // checkSender implements Sender
 type checkSender struct {
-	id                     check.ID
-	defaultHostname        string
-	disableDefaultHostname bool
-	metricStats            metricStats
-	priormetricStats       metricStats
-	smsOut                 chan<- senderMetricSample
-	serviceCheckOut        chan<- metrics.ServiceCheck
-	eventOut               chan<- metrics.Event
+	id                      check.ID
+	defaultHostname         string
+	defaultHostnameDisabled bool
+	metricStats             metricStats
+	priormetricStats        metricStats
+	smsOut                  chan<- senderMetricSample
+	serviceCheckOut         chan<- metrics.ServiceCheck
+	eventOut                chan<- metrics.Event
 }
 
 type senderMetricSample struct {
@@ -149,7 +149,7 @@ func changeAllSendersDefaultHostname(hostname string) {
 // DisableDefaultHostname allows check to override the default hostname that will be injected
 // when no hostname is specified at submission (for metrics, events and service checks).
 func (s *checkSender) DisableDefaultHostname(disable bool) {
-	s.disableDefaultHostname = disable
+	s.defaultHostnameDisabled = disable
 }
 
 // Commit commits the metric samples that were added during a check run
@@ -203,7 +203,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		Timestamp:  timeNowNano(),
 	}
 
-	if hostname == "" && !s.disableDefaultHostname {
+	if hostname == "" && !s.defaultHostnameDisabled {
 		metricSample.Host = s.defaultHostname
 	}
 
@@ -271,7 +271,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 		Message:   message,
 	}
 
-	if hostname == "" && !s.disableDefaultHostname {
+	if hostname == "" && !s.defaultHostnameDisabled {
 		serviceCheck.Host = s.defaultHostname
 	}
 
@@ -286,7 +286,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 func (s *checkSender) Event(e metrics.Event) {
 	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
-	if e.Host == "" && !s.disableDefaultHostname {
+	if e.Host == "" && !s.defaultHostnameDisabled {
 		e.Host = s.defaultHostname
 	}
 
