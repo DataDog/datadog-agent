@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
@@ -35,12 +34,8 @@ func TestGetSource(t *testing.T) {
 			Containers: []kubelet.ContainerStatus{container},
 		},
 	}
-	serviceFoo := &service.Service{
-		Type:       "docker",
-		Identifier: "fooID",
-	}
 
-	source, err := launcher.getSource(pod, container, serviceFoo.Type)
+	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
@@ -48,7 +43,6 @@ func TestGetSource(t *testing.T) {
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "kubernetes", source.Config.Source)
 	assert.Equal(t, "kubernetes", source.Config.Service)
-	assert.Equal(t, parser.NoopParser, source.GetParser())
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
@@ -72,7 +66,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 		},
 	}
 
-	source, err := launcher.getSource(pod, container, "")
+	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
@@ -104,7 +98,7 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 		},
 	}
 
-	source, err := launcher.getSource(pod, container, "")
+	source, err := launcher.getSource(pod, container)
 	assert.NotNil(t, err)
 	assert.Nil(t, source)
 }
@@ -126,15 +120,10 @@ func TestGetSourceAddContainerdParser(t *testing.T) {
 			Containers: []kubelet.ContainerStatus{container},
 		},
 	}
-	serviceFoo := &service.Service{
-		Type:       "containerd",
-		Identifier: "fooID",
-	}
 
-	source, err := launcher.getSource(pod, container, serviceFoo.Type)
+	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
-	assert.Equal(t, parser.ContainerdFileParser, source.GetParser())
 }
 
 func TestSearchContainer(t *testing.T) {

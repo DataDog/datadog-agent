@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,8 +29,8 @@ func NewMockParser(header string) parser.Parser {
 	return &MockParser{header: []byte(header)}
 }
 
-func (u *MockParser) Parse(msg []byte) (parser.ParsedLine, error) {
-	return parser.ParsedLine{Content: msg}, nil
+func (u *MockParser) Parse(msg []byte) (*message.Message, error) {
+	return &message.Message{Content: msg}, nil
 }
 
 // Unwrap removes header from line
@@ -38,11 +39,11 @@ func (u *MockParser) Unwrap(line []byte) ([]byte, error) {
 }
 
 func TestSingleLineHandler(t *testing.T) {
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *message.Message, 10)
 	h := NewSingleLineHandler(outputChan, parser.NoopParser)
 	h.Start()
 
-	var output *Output
+	var output *message.Message
 	var line string
 
 	// valid line should be sent
@@ -79,11 +80,11 @@ func TestSingleLineHandler(t *testing.T) {
 }
 
 func TestTrimSingleLine(t *testing.T) {
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *message.Message, 10)
 	h := NewSingleLineHandler(outputChan, parser.NoopParser)
 	h.Start()
 
-	var output *Output
+	var output *message.Message
 	var line string
 
 	// All leading and trailing whitespace characters should be trimmed
@@ -98,11 +99,11 @@ func TestTrimSingleLine(t *testing.T) {
 
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *message.Message, 10)
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser)
 	h.Start()
 
-	var output *Output
+	var output *message.Message
 
 	// two lines long message should be sent
 	h.Handle([]byte("1. first line"))
@@ -151,11 +152,11 @@ func TestMultiLineHandler(t *testing.T) {
 
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *message.Message, 10)
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, parser.NoopParser)
 	h.Start()
 
-	var output *Output
+	var output *message.Message
 
 	// All leading and trailing whitespace characters should be trimmed
 	h.Handle([]byte(whitespace + "foo" + whitespace + "bar" + whitespace))
@@ -177,11 +178,11 @@ func TestUnwrapMultiLine(t *testing.T) {
 	const header = "HEADER"
 
 	re := regexp.MustCompile("[0-9]+\\.")
-	outputChan := make(chan *Output, 10)
+	outputChan := make(chan *message.Message, 10)
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header))
 	h.Start()
 
-	var output *Output
+	var output *message.Message
 
 	// Only the header of the first line of each Output should be kept
 	h.Handle([]byte(header + "1. first line"))

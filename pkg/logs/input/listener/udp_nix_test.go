@@ -30,19 +30,19 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
 	assert.Nil(t, err)
 
-	var msg message.Message
+	var msg *message.Message
 
 	fmt.Fprintf(conn, strings.Repeat("a", frameSize-100)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize-100), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", frameSize-100), string(msg.Content))
 
 	fmt.Fprintf(conn, strings.Repeat("a", frameSize)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content))
 
 	fmt.Fprintf(conn, strings.Repeat("a", frameSize-200)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize-200), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", frameSize-200), string(msg.Content))
 
 	listener.Stop()
 }
@@ -61,17 +61,17 @@ func TestUDPShoulDropTooBigMessages(t *testing.T) {
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
 	assert.Nil(t, err)
 
-	var msg message.Message
+	var msg *message.Message
 
 	fmt.Fprintf(conn, strings.Repeat("a", maxUDPFrameLen-100)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-100), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-100), string(msg.Content))
 
 	// the first frame should be dropped as it's too big compare to the limit.
 	fmt.Fprintf(conn, strings.Repeat("a", maxUDPFrameLen+100)+"\n")
 	fmt.Fprintf(conn, strings.Repeat("a", maxUDPFrameLen-200)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-200), string(msg.Content()))
+	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-200), string(msg.Content))
 
 	listener.Stop()
 }

@@ -33,7 +33,7 @@ type TailerTestSuite struct {
 	testFile *os.File
 
 	tl         *Tailer
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	source     *config.LogSource
 }
 
@@ -46,7 +46,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
-	suite.outputChan = make(chan message.Message, chanSize)
+	suite.outputChan = make(chan *message.Message, chanSize)
 	suite.source = config.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
@@ -64,7 +64,7 @@ func (suite *TailerTestSuite) TearDownTest() {
 func (suite *TailerTestSuite) TestTailFromBeginning() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
-	var msg message.Message
+	var msg *message.Message
 	var err error
 
 	// this line should be tailed
@@ -80,15 +80,15 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
+	suite.Equal("hello world", string(msg.Content))
 	suite.Equal(len(lines[0]), toInt(msg.GetOrigin().Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content()))
+	suite.Equal("hello again", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.GetOrigin().Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.Content()))
+	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.GetOrigin().Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
@@ -97,7 +97,7 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 func (suite *TailerTestSuite) TestTailFromEnd() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
-	var msg message.Message
+	var msg *message.Message
 	var err error
 
 	// this line should be tailed
@@ -113,11 +113,11 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content()))
+	suite.Equal("hello again", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.GetOrigin().Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.Content()))
+	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.GetOrigin().Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
@@ -126,7 +126,7 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 func (suite *TailerTestSuite) TestRecoverTailing() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
-	var msg message.Message
+	var msg *message.Message
 	var err error
 
 	// those line should be skipped
@@ -144,11 +144,11 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content()))
+	suite.Equal("hello again", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.GetOrigin().Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.Content()))
+	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.GetOrigin().Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))

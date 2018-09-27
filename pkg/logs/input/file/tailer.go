@@ -36,7 +36,7 @@ type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
 
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	decoder    *decoder.Decoder
 	source     *config.LogSource
 
@@ -50,7 +50,7 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
 	var parser logParser.Parser
 	if source.GetParserFormat() == config.ContainerdFormat {
 		parser = containerdFileParser
@@ -148,7 +148,8 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(t.tags)
-		t.outputChan <- message.New(output.Content, origin, output.Severity)
+		output.SetOrigin(origin)
+		t.outputChan <- output
 	}
 }
 

@@ -17,20 +17,21 @@ import (
 type Provider interface {
 	Start()
 	Stop()
-	NextPipelineChan() chan message.Message
+	NextPipelineChan() chan *message.Message
 }
 
 // provider implements providing logic
 type provider struct {
-	numberOfPipelines    int
-	outputChan           chan message.Message
-	endpoints            *config.Endpoints
+	numberOfPipelines int
+	outputChan        chan *message.Message
+	endpoints         *config.Endpoints
+
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, outputChan chan message.Message, endpoints *config.Endpoints) Provider {
+func NewProvider(numberOfPipelines int, outputChan chan *message.Message, endpoints *config.Endpoints) Provider {
 	return &provider{
 		numberOfPipelines: numberOfPipelines,
 		outputChan:        outputChan,
@@ -60,7 +61,7 @@ func (p *provider) Stop() {
 }
 
 // NextPipelineChan returns the next pipeline input channel
-func (p *provider) NextPipelineChan() chan message.Message {
+func (p *provider) NextPipelineChan() chan *message.Message {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
 		return nil

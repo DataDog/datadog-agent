@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,13 +28,13 @@ type LineHandler interface {
 // SingleLineHandler creates and forward outputs to outputChan from single-lines
 type SingleLineHandler struct {
 	lineChan       chan []byte
-	outputChan     chan *Output
+	outputChan     chan *message.Message
 	shouldTruncate bool
 	parser         parser.Parser
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler
-func NewSingleLineHandler(outputChan chan *Output, parser parser.Parser) *SingleLineHandler {
+func NewSingleLineHandler(outputChan chan *message.Message, parser parser.Parser) *SingleLineHandler {
 	return &SingleLineHandler{
 		lineChan:   make(chan []byte),
 		outputChan: outputChan,
@@ -87,22 +88,22 @@ func (h *SingleLineHandler) process(line []byte) {
 	if lineLen < contentLenLimit {
 		// send content
 		// add 1 to take into account '\n' that we didn't include in content
-		parsedMessage, err := h.parser.Parse(content)
+		output, err := h.parser.Parse(content)
 		if err != nil {
 			log.Warn(err)
 			return
 		}
-		output := NewOutput(parsedMessage.Content, lineLen+1, parsedMessage.Severity, parsedMessage.Timestamp)
+		output.RawDataLen = lineLen + 1
 		h.outputChan <- output
 	} else {
 		// add TRUNCATED at the end of content and send it
 		content := append(content, TRUNCATED...)
-		parsedMessage, err := h.parser.Parse(content)
+		output, err := h.parser.Parse(content)
 		if err != nil {
 			log.Warn(err)
 			return
 		}
-		output := NewOutput(parsedMessage.Content, lineLen, parsedMessage.Severity, parsedMessage.Timestamp)
+		output.RawDataLen = lineLen
 		h.outputChan <- output
 		h.shouldTruncate = true
 	}
@@ -116,7 +117,7 @@ const defaultFlushTimeout = 1000 * time.Millisecond
 // when a new line matches with re or flushTimer is fired
 type MultiLineHandler struct {
 	lineChan     chan []byte
-	outputChan   chan *Output
+	outputChan   chan *message.Message
 	lineBuffer   *LineBuffer
 	newContentRe *regexp.Regexp
 	flushTimeout time.Duration
@@ -124,7 +125,7 @@ type MultiLineHandler struct {
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler
-func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, flushTimeout time.Duration, parser parser.Parser) *MultiLineHandler {
+func NewMultiLineHandler(outputChan chan *message.Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, parser parser.Parser) *MultiLineHandler {
 	return &MultiLineHandler{
 		lineChan:     make(chan []byte),
 		outputChan:   outputChan,
@@ -213,12 +214,12 @@ func (h *MultiLineHandler) sendContent() {
 	content, rawDataLen := h.lineBuffer.Content()
 	content = bytes.TrimSpace(content)
 	if len(content) > 0 {
-		parsedMessage, err := h.parser.Parse(content)
+		output, err := h.parser.Parse(content)
 		if err != nil {
 			log.Warn(err)
 			return
 		}
-		output := NewOutput(parsedMessage.Content, rawDataLen, parsedMessage.Severity, parsedMessage.Timestamp)
+		output.RawDataLen = rawDataLen
 		h.outputChan <- output
 	}
 }

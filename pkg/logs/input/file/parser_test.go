@@ -13,7 +13,6 @@ import (
 )
 
 var containerdHeaderOut = "2018-09-20T11:54:11.753589172Z stdout F"
-var containerdHeaderErr = "2018-09-20T11:54:11.753589172Z stderr F"
 
 func TestGetContainerdSeverity(t *testing.T) {
 	assert.Equal(t, severity.StatusInfo, getContainerdSeverity([]byte("stdout")))
@@ -26,7 +25,7 @@ func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := containerdHeaderOut + " " + "anything"
 	containerdMsg, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
-	assert.Equal(t, severity.StatusInfo, containerdMsg.Severity)
+	assert.Equal(t, severity.StatusInfo, containerdMsg.Status)
 	assert.Equal(t, []byte("anything"), containerdMsg.Content)
 }
 

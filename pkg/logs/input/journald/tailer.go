@@ -27,7 +27,7 @@ const defaultWaitDuration = 1 * time.Second
 // Tailer collects logs from a journal.
 type Tailer struct {
 	source     *config.LogSource
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	journal    *sdjournal.Journal
 	blacklist  map[string]bool
 	stop       chan struct{}
@@ -35,7 +35,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *config.LogSource, outputChan chan message.Message) *Tailer {
+func NewTailer(source *config.LogSource, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		outputChan: outputChan,
@@ -175,12 +175,12 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 // toMessage transforms a journal entry into a message.
 // A journal entry has different fields that may vary depending on its nature,
 // for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
-func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) message.Message {
-	return message.New(
-		t.getContent(entry),
-		t.getOrigin(entry),
-		t.getStatus(entry),
-	)
+func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) *message.Message {
+	return &message.Message{
+		Content: t.getContent(entry),
+		Origin:  t.getOrigin(entry),
+		Status:  t.getStatus(entry),
+	}
 }
 
 // getContent returns all the fields of the entry as a json-string,

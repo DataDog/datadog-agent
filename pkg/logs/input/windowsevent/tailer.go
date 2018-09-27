@@ -30,7 +30,7 @@ type eventContext struct {
 type Tailer struct {
 	source     *config.LogSource
 	config     *Config
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	stop       chan struct{}
 	done       chan struct{}
 
@@ -38,7 +38,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *config.LogSource, config *Config, outputChan chan message.Message) *Tailer {
+func NewTailer(source *config.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		config:     config,
@@ -67,16 +67,16 @@ func (t *Tailer) toMessage(event string) (message.Message, error) {
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
 	if err != nil {
-		return nil, err
+		return message.Message{}, err
 	}
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
-		return nil, err
+		return message.Message{}, err
 	}
 	log.Debug("Sending JSON: ", string(jsonEvent))
-	return message.New(
-		jsonEvent,
-		message.NewOrigin(t.source),
-		severity.StatusInfo,
-	), nil
+	return message.Message{
+		Content: jsonEvent,
+		Origin:  message.NewOrigin(t.source),
+		Status:  severity.StatusInfo,
+	}, nil
 }

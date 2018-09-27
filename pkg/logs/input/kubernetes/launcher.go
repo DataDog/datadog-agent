@@ -105,20 +105,20 @@ func (l *Launcher) run() {
 
 // addSource creates a new log-source from a service by resolving the
 // pod linked to the entityID of the service
-func (l *Launcher) addSource(service *service.Service) {
+func (l *Launcher) addSource(svc *service.Service) {
 	// If the container is already tailed, we don't do anything
 	// That shoudn't happen
-	if _, exists := l.sourcesByContainer[service.GetEntityID()]; exists {
-		log.Warnf("A source already exist for container %v", service.GetEntityID())
+	if _, exists := l.sourcesByContainer[svc.GetEntityID()]; exists {
+		log.Warnf("A source already exist for container %v", svc.GetEntityID())
 		return
 	}
 
-	pod, err := l.kubeutil.GetPodForEntityID(service.GetEntityID())
+	pod, err := l.kubeutil.GetPodForEntityID(svc.GetEntityID())
 	if err != nil {
-		log.Warnf("Could not add source for container %v: %v", service.Identifier, err)
+		log.Warnf("Could not add source for container %v: %v", svc.Identifier, err)
 		return
 	}
-	container, err := searchContainer(service, pod)
+	container, err := searchContainer(svc, pod)
 	if err != nil {
 		log.Warn(err)
 		return
@@ -129,7 +129,11 @@ func (l *Launcher) addSource(service *service.Service) {
 		return
 	}
 
-	l.sourcesByContainer[service.GetEntityID()] = source
+	if svc.Type == service.Containerd {
+		source.SetParserFormat(config.ContainerdFormat)
+	}
+
+	l.sourcesByContainer[svc.GetEntityID()] = source
 	l.sources.AddSource(source)
 }
 

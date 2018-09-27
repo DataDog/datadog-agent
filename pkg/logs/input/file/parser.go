@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 )
@@ -34,18 +35,18 @@ type parser struct {
 // Timestamp ouputchannel partial_flag msg
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
-func (p *parser) Parse(msg []byte) (logParser.ParsedLine, error) {
+func (p *parser) Parse(msg []byte) (*message.Message, error) {
 	// timestamp goes till first space
 	timestamp := bytes.Index(msg, []byte{' '})
 	if timestamp == -1 {
 		// Nothing after the timestamp: ERROR
-		return logParser.ParsedLine{}, errors.New("can't parse containerd message, no whitespace found after timestamp")
+		return &message.Message{}, errors.New("can't parse containerd message, no whitespace found after timestamp")
 	}
 
 	streamType := bytes.Index(msg[timestamp+1:], []byte{' '})
 	if streamType == -1 {
 		// Nothing after the output: ERROR
-		return logParser.ParsedLine{}, errors.New("can't parse containerd message, no whitespace found after stream type")
+		return &message.Message{}, errors.New("can't parse containerd message, no whitespace found after stream type")
 	}
 	streamType += timestamp + 1
 	severity := getContainerdSeverity(msg[timestamp+1 : streamType])
@@ -53,16 +54,16 @@ func (p *parser) Parse(msg []byte) (logParser.ParsedLine, error) {
 	partial := bytes.Index(msg[streamType+1:], []byte{' '})
 	if partial == -1 {
 		// Nothing after the PartialFlag: empty message
-		return logParser.ParsedLine{Severity: severity}, nil
+		return &message.Message{Status: severity}, nil
 	}
 	partial += streamType + 1
 	if msg[partial-1] != byte(logTagFull) && msg[partial-1] != byte(logTagPartial) {
-		return logParser.ParsedLine{Severity: severity}, errors.New("can't parse containerd message, no whitespace found after partial flag")
+		return &message.Message{Status: severity}, errors.New("can't parse containerd message, no whitespace found after partial flag")
 	}
 
-	return logParser.ParsedLine{
-		Content:  msg[partial+1:],
-		Severity: severity,
+	return &message.Message{
+		Content: msg[partial+1:],
+		Status:  severity,
 	}, nil
 }
 

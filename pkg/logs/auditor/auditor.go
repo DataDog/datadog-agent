@@ -46,7 +46,7 @@ type JSONRegistry struct {
 
 // An Auditor handles messages successfully submitted to the intake
 type Auditor struct {
-	inputChan    chan message.Message
+	inputChan    chan *message.Message
 	registry     map[string]*RegistryEntry
 	registryPath string
 	mu           sync.Mutex
@@ -55,7 +55,7 @@ type Auditor struct {
 }
 
 // New returns an initialized Auditor
-func New(inputChan chan message.Message, runPath string) *Auditor {
+func New(inputChan chan *message.Message, runPath string) *Auditor {
 	return &Auditor{
 		inputChan:    inputChan,
 		registryPath: filepath.Join(runPath, "registry.json"),

@@ -15,14 +15,14 @@ import (
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
-	inputChan  chan message.Message
-	outputChan chan message.Message
+	inputChan  chan *message.Message
+	outputChan chan *message.Message
 	encoder    Encoder
 	done       chan struct{}
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan message.Message, encoder Encoder) *Processor {
+func New(inputChan, outputChan chan *message.Message, encoder Encoder) *Processor {
 	return &Processor{
 		inputChan:  inputChan,
 		outputChan: outputChan,
@@ -56,7 +56,7 @@ func (p *Processor) run() {
 				log.Error("unable to encode msg ", err)
 				continue
 			}
-			msg.SetContent(content)
+			msg.Content = content
 			p.outputChan <- msg
 		}
 	}
@@ -64,8 +64,8 @@ func (p *Processor) run() {
 
 // applyRedactingRules returns given a message if we should process it or not,
 // and a copy of the message with some fields redacted, depending on config
-func applyRedactingRules(msg message.Message) (bool, []byte) {
-	content := msg.Content()
+func applyRedactingRules(msg *message.Message) (bool, []byte) {
+	content := msg.Content
 	for _, rule := range msg.GetOrigin().LogSource.Config.ProcessingRules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:

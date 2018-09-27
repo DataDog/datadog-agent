@@ -35,7 +35,7 @@ const tagsUpdatePeriod = 10 * time.Second
 // To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
 type Tailer struct {
 	ContainerID   string
-	outputChan    chan message.Message
+	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
 	reader        io.ReadCloser
 	cli           *client.Client
@@ -50,7 +50,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message, erroredContainerID chan string) *Tailer {
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
@@ -180,7 +180,8 @@ func (t *Tailer) forwardMessages() {
 			origin.Offset = output.Timestamp
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
-			t.outputChan <- message.New(output.Content, origin, output.Severity)
+			output.SetOrigin(origin)
+			t.outputChan <- output
 		}
 	}
 }

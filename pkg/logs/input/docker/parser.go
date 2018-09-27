@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 )
@@ -32,13 +33,13 @@ type parser struct {
 
 // Parse extracts the date and the status from the raw docker message
 // see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func (p *parser) Parse(msg []byte) (logParser.ParsedLine, error) {
+func (p *parser) Parse(msg []byte) (*message.Message, error) {
 
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return logParser.ParsedLine{}, errors.New("can't parse docker message: expected a 8 bytes header")
+		return &message.Message{}, errors.New("can't parse docker message: expected a 8 bytes header")
 	}
 
 	// Read the first byte to get the status
@@ -67,12 +68,12 @@ func (p *parser) Parse(msg []byte) (logParser.ParsedLine, error) {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 {
 		// Nothing after the timestamp: empty message
-		return logParser.ParsedLine{}, nil
+		return &message.Message{}, nil
 	}
 
-	return logParser.ParsedLine{
+	return &message.Message{
 		Content:   msg[idx+1:],
-		Severity:  status,
+		Status:    status,
 		Timestamp: string(msg[:idx]),
 	}, nil
 }

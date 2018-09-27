@@ -9,6 +9,7 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
@@ -25,28 +26,10 @@ func NewInput(content []byte) *Input {
 	return &Input{content}
 }
 
-// Output represents a list of bytes produced by the Decoder
-type Output struct {
-	Content    []byte
-	RawDataLen int
-	Severity   string
-	Timestamp  string
-}
-
-// NewOutput returns a new decoder output
-func NewOutput(content []byte, rawDataLen int, severity string, timestamp string) *Output {
-	return &Output{
-		Content:    content,
-		RawDataLen: rawDataLen,
-		Severity:   severity,
-		Timestamp:  timestamp,
-	}
-}
-
 // Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
 type Decoder struct {
 	InputChan  chan *Input
-	OutputChan chan *Output
+	OutputChan chan *message.Message
 
 	lineBuffer  *bytes.Buffer
 	lineHandler LineHandler
@@ -55,7 +38,7 @@ type Decoder struct {
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
 	inputChan := make(chan *Input)
-	outputChan := make(chan *Output)
+	outputChan := make(chan *message.Message)
 
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
@@ -71,7 +54,7 @@ func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder 
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *message.Message, lineHandler LineHandler) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
 		InputChan:   InputChan,

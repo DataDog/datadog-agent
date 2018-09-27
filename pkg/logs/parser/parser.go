@@ -5,19 +5,16 @@
 
 package parser
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+)
+
 // NoopParser is the default parser and does nothing
 var NoopParser *noopParser
 
-// ParsedLine represents a containerd message
-type ParsedLine struct {
-	Content   []byte
-	Severity  string
-	Timestamp string
-}
-
 // Parser parse messages
 type Parser interface {
-	Parse([]byte) (ParsedLine, error)
+	Parse([]byte) (*message.Message, error)
 	Unwrap([]byte) ([]byte, error)
 }
 
@@ -26,8 +23,8 @@ type noopParser struct {
 }
 
 // Parse does nothing for NoopParser
-func (p *noopParser) Parse(msg []byte) (ParsedLine, error) {
-	return ParsedLine{Content: msg}, nil
+func (p *noopParser) Parse(msg []byte) (*message.Message, error) {
+	return &message.Message{Content: msg}, nil
 }
 
 // Unwrap does nothing for NoopParser

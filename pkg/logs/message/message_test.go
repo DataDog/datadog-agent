@@ -14,11 +14,11 @@ import (
 
 func TestMessage(t *testing.T) {
 
-	message := New([]byte("hello"), nil, "")
-	assert.Equal(t, "hello", string(message.Content()))
+	message := Message{Content: []byte("hello")}
+	assert.Equal(t, "hello", string(message.Content))
 
-	message.SetContent([]byte("world"))
-	assert.Equal(t, "world", string(message.Content()))
+	message.Content = []byte("world")
+	assert.Equal(t, "world", string(message.Content))
 	assert.Equal(t, severity.StatusInfo, message.GetStatus())
 
 }

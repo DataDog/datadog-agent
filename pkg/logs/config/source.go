@@ -9,6 +9,7 @@ import (
 	"sync"
 )
 
+// Types of log formats that are used to determine which parser is going to be used
 const (
 	ContainerdFormat = "containerd"
 )

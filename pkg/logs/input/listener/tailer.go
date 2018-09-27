@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -21,7 +22,7 @@ import (
 type Tailer struct {
 	source     *config.LogSource
 	conn       net.Conn
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	read       func(*Tailer) ([]byte, error)
 	decoder    *decoder.Decoder
 	stop       chan struct{}
@@ -29,7 +30,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
+func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		conn:       conn,
@@ -62,7 +63,9 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		t.outputChan <- message.New(output.Content, message.NewOrigin(t.source), "")
+		output.SetOrigin(message.NewOrigin(t.source))
+		output.SetStatus(severity.StatusInfo)
+		t.outputChan <- output
 	}
 }
 

@@ -23,7 +23,7 @@ import (
 
 // Encoder turns a message into a raw byte array ready to be sent.
 type Encoder interface {
-	encode(msg message.Message, redactedMsg []byte) ([]byte, error)
+	encode(msg *message.Message, redactedMsg []byte) ([]byte, error)
 }
 
 // Raw is an encoder implementation that writes messages as raw strings.
@@ -44,11 +44,11 @@ var rfc5424Pattern, _ = regexp.Compile("<[0-9]{1,3}>[0-9] ")
 
 type raw struct{}
 
-func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
+func (r *raw) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 
 	// if the first char is '<', we can assume it's already formatted as RFC5424, thus skip this step
 	// (for instance, using tcp forwarding. We don't want to override the hostname & co)
-	if len(msg.Content()) > 0 && !r.isRFC5424Formatted(msg.Content()) {
+	if len(msg.Content) > 0 && !r.isRFC5424Formatted(msg.Content) {
 		// fit RFC5424
 		// <%pri%>%protocol-version% %timestamp:::date-rfc3339% %HOSTNAME% %$!new-appname% - - - %msg%\n
 		extraContent := []byte("")
@@ -107,7 +107,7 @@ func (r *raw) isRFC5424Formatted(content []byte) bool {
 
 type proto struct{}
 
-func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
+func (p *proto) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 	return (&pb.Log{
 		Message:   p.toValidUtf8(redactedMsg),
 		Status:    msg.GetStatus(),
