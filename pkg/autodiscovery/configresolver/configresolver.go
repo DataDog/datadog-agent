@@ -190,7 +190,6 @@ func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
 
 // getUnixSocket returns unix sockets used by the service
 func getUnixSocket(tplVar []byte, svc listeners.Service) ([]byte, error) {
-	fmt.Println("entity", string(tplVar), svc.GetEntity())
 	sockets, err := svc.GetUnixSockets()
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract unix socket list for service %s, ignoring it. Source error: %s", svc.GetEntity(), err)
