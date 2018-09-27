@@ -96,6 +96,39 @@ spec:
                     memory: "64Mi"
                     cpu: "400m"
 
+    - name: dsd-hostname
+      value: |
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: dsd-hostname
+          namespace: default
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                app: dsd-hostname
+            spec:
+              containers:
+              - name: sender
+                image: datadog/docker-library:e2e-dsd-sender_latest
+                resources:
+                  requests:
+                    memory: "32Mi"
+                    cpu: "100m"
+                  limits:
+                    memory: "32Mi"
+                    cpu: "100m"
+                volumeMounts:
+                - name: dogstatsd
+                  mountPath: /var/run/dogstatsd
+                  readOnly: true
+              volumes:
+              - hostPath:
+                  path: /var/run/dogstatsd
+                name: dogstatsd
+
     - name: agent-service-account
       value: |
         kind: ServiceAccount
@@ -183,6 +216,9 @@ spec:
               polling: true
             leader_election: true
             kubernetes_metadata_tag_update_freq: 20
+            dogstatsd_socket: /var/run/dogstatsd/dsd.socket
+            # Hardcode a hostname to test dogstatsd hostname injection
+            hostname: e2e-test
 
           kubelet.yaml: |
             init_config:
@@ -206,7 +242,6 @@ spec:
             init_config:
             instances:
             - {}
-
 
     - name: agent-daemonset
       value: |
@@ -280,7 +315,9 @@ spec:
                 - name: dockersocket
                   mountPath: /var/run/docker.sock
                   readOnly: true
-
+                - name: dogstatsd
+                  mountPath: /var/run/dogstatsd
+                  readOnly: false
               volumes:
               - name: datadog-config
                 configMap:
@@ -294,6 +331,9 @@ spec:
               - hostPath:
                   path: /var/run/docker.sock
                 name: dockersocket
+              - hostPath:
+                  path: /var/run/dogstatsd
+                name: dogstatsd
 
     - name: fake-datadog-service
       value: |
@@ -464,6 +504,7 @@ spec:
     inputs:
       parameters:
       - name: cpu-stress
+      - name: dsd-hostname
       - name: redis-service
       - name: redis-deployment
       - name: agent-configmap
@@ -500,6 +541,19 @@ spec:
         withItems:
         - "{{inputs.parameters.redis-deployment}}"
 
+      - name: kube-state-metrics-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.kube-state-metrics-rbac}}"
+        - "{{inputs.parameters.kube-state-metrics-deployment}}"
+        - "{{inputs.parameters.kube-state-metrics-service}}"
+
       - name: cpu-stress-setup
         template: manifest
         arguments:
@@ -510,6 +564,17 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.cpu-stress}}"
+
+      - name: dsd-hostname
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.dsd-hostname}}"
 
     - - name: fake-dd-reset
         template: fake-dd-reset
@@ -528,19 +593,6 @@ spec:
         - "{{inputs.parameters.agent-cluster-role}}"
         - "{{inputs.parameters.agent-cluster-role-binding}}"
         - "{{inputs.parameters.agent-daemonset}}"
-
-    - - name: kube-state-metrics-setup
-        template: manifest
-        arguments:
-          parameters:
-          - name: action
-            value: "apply"
-          - name: manifest
-            value: "{{item}}"
-        withItems:
-        - "{{inputs.parameters.kube-state-metrics-rbac}}"
-        - "{{inputs.parameters.kube-state-metrics-deployment}}"
-        - "{{inputs.parameters.kube-state-metrics-service}}"
 
     - - name: health
         template: datadog-agent-health
@@ -568,6 +620,12 @@ spec:
 
       - name: find-metrics-cpu-system
         template: find-metrics-cpu-system
+
+      - name: find-dogstatsd-hostname
+        template: find-dogstatsd-hostname
+
+      - name: find-checks-hostname
+        template: find-checks-hostname
 
     - - name: redis-service-setup
         template: manifest
@@ -615,6 +673,7 @@ spec:
       - name: redis-service
       - name: redis-deployment
       - name: cpu-stress
+      - name: dsd-hostname
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -638,6 +697,7 @@ spec:
         - "{{inputs.parameters.redis-service}}"
         - "{{inputs.parameters.redis-deployment}}"
         - "{{inputs.parameters.cpu-stress}}"
+        - "{{inputs.parameters.dsd-hostname}}"
         - "{{inputs.parameters.agent-configmap}}"
         - "{{inputs.parameters.agent-service-account}}"
         - "{{inputs.parameters.agent-cluster-role}}"
@@ -845,6 +905,132 @@ spec:
           }
 
           sleep(2000);
+        }
+
+  - name: find-dogstatsd-hostname
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          sleep(2000);
+
+          // Gauges
+          var nb = db.series.find({
+            metric: "dsd.hostname.e2e",
+            host: "e2e-test",
+            tags: {$all: ["case:nominal"]}
+          }).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e metric with nominal hostname");
+            continue;
+          }
+          var nb = db.series.find({
+            metric: "dsd.hostname.e2e",
+            host: "forced",
+            tags: {$all: ["case:forced"]}
+          }).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e metric with forced hostname");
+            continue;
+          }
+          var nb = db.series.find({
+            metric: "dsd.hostname.e2e",
+            host: "",
+            tags: {$all: ["case:empty"]}
+          }).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e metric with empty hostname");
+            continue;
+          }
+
+          // Service checks
+          var nb = db.check_run.find({
+            check: "dsd.hostname.e2e",
+            host_name: "e2e-test",
+            tags: {$all: ["case:nominal"]}
+          }).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e servicecheck with nominal hostname");
+            continue;
+          }
+          var nb = db.check_run.find({
+            check: "dsd.hostname.e2e",
+            host_name: "forced",
+            tags: {$all: ["case:forced"]}
+          }).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e servicecheck with forced hostname");
+            continue;
+          }
+          var nb = db.check_run.find({
+            check: "dsd.hostname.e2e",
+            host_name: "",
+            tags: {$all: ["case:empty"]}
+          }).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e servicecheck with empty hostname");
+            continue;
+          }
+
+          // Events
+          var nb = db.intake.find({
+            "events.api": { $elemMatch: {
+              msg_title: "dsd.hostname.e2e",
+              host: "e2e-test",
+              tags: {$all: ["case:nominal"]}
+          }}}).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e event with nominal hostname");
+            continue;
+          }
+          var nb = db.intake.find({
+            "events.api": { $elemMatch: {
+              msg_title: "dsd.hostname.e2e",
+              host: "forced",
+              tags: {$all: ["case:forced"]}
+          }}}).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e event with forced hostname");
+            continue;
+          }
+          var nb = db.intake.find({
+            "events.api": { $elemMatch: {
+              msg_title: "dsd.hostname.e2e",
+              host: "",
+              tags: {$all: ["case:empty"]}
+          }}}).count();
+          if (nb == 0) {
+            print("no dsd.hostname.e2e event with empty hostname");
+            continue;
+          }
+
+          print("All good");
+          break;
+        }
+
+  - name: find-checks-hostname
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          sleep(2000);
+
+          // Gauges
+          var nb = db.series.find({
+            metric: "system.cpu.user",
+            host: "e2e-test"
+          }).count();
+          if (nb == 0) {
+            print("no system.cpu.user metric with nominal hostname");
+            continue;
+          }
+
+          print("All good");
+          break;
         }
 
   - name: find-metrics-cpu-system

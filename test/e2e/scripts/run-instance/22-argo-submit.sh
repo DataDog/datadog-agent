@@ -78,9 +78,6 @@ spec:
         - name: datadog-config
           mountPath: /etc/datadog-agent/conf.d/network.d/conf.yaml.default
           subPath: network.yaml
-        - name: datadog-config
-          mountPath: /etc/datadog-agent/conf.d/docker.d/conf.yaml.default
-          subPath: docker.yaml
         - name: proc
           mountPath: /host/proc
           readOnly: true
@@ -90,7 +87,9 @@ spec:
         - name: dockersocket
           mountPath: /var/run/docker.sock
           readOnly: true
-
+        - name: dogstatsd
+          mountPath: /var/run/dogstatsd
+          readOnly: false
       volumes:
       - name: datadog-config
         configMap:
@@ -104,6 +103,9 @@ spec:
       - hostPath:
           path: /var/run/docker.sock
         name: dockersocket
+      - hostPath:
+          path: /var/run/dogstatsd
+        name: dogstatsd
 ---
 EOF
 )
