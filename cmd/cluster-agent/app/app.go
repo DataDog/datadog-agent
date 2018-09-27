@@ -69,7 +69,7 @@ metadata for their metrics.`,
 			}
 			fmt.Fprintln(
 				color.Output,
-				fmt.Sprintf("Agent %s %s- Commit: '%s' - Serialization version: %s",
+				fmt.Sprintf("Cluster agent %s %s- Commit: '%s' - Serialization version: %s",
 					color.BlueString(av.GetNumberAndPre()),
 					meta,
 					color.GreenString(version.Commit),
