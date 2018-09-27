@@ -2,13 +2,15 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
+// +build docker
 
-package parser
+package docker
 
 import (
 	"bytes"
 	"errors"
 
+	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 )
 
@@ -21,22 +23,22 @@ const dockerHeaderLength = 8
 // https://github.com/moby/moby/blob/master/daemon/logger/copier.go#L19-L22
 const dockerBufferSize = 16 * 1024
 
-// DockerParser is the parser for stdout/stderr docker logs
-var DockerParser *dockerParser
+// dockerParser is the parser for stdout/stderr docker logs
+var dockerParser *parser
 
-type dockerParser struct {
-	Parser
+type parser struct {
+	logParser.Parser
 }
 
 // Parse extracts the date and the status from the raw docker message
 // see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func (p *dockerParser) Parse(msg []byte) (ParsedLine, error) {
+func (p *parser) Parse(msg []byte) (logParser.ParsedLine, error) {
 
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return ParsedLine{}, errors.New("can't parse docker message: expected a 8 bytes header")
+		return logParser.ParsedLine{}, errors.New("can't parse docker message: expected a 8 bytes header")
 	}
 
 	// Read the first byte to get the status
@@ -65,10 +67,10 @@ func (p *dockerParser) Parse(msg []byte) (ParsedLine, error) {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 {
 		// Nothing after the timestamp: empty message
-		return ParsedLine{}, nil
+		return logParser.ParsedLine{}, nil
 	}
 
-	return ParsedLine{
+	return logParser.ParsedLine{
 		Content:   msg[idx+1:],
 		Severity:  status,
 		Timestamp: string(msg[:idx]),
@@ -76,7 +78,7 @@ func (p *dockerParser) Parse(msg []byte) (ParsedLine, error) {
 }
 
 // Unwrap removes the message header of docker logs
-func (p *dockerParser) Unwrap(line []byte) ([]byte, error) {
+func (p *parser) Unwrap(line []byte) ([]byte, error) {
 	headerLen := getDockerMetadataLength(line)
 	return line[headerLen:], nil
 }

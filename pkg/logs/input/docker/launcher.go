@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -120,7 +119,6 @@ func (l *Launcher) run() {
 			switch {
 			case source != nil:
 				// a source matches with the container, start a new tailer
-				source.SetParser(parser.DockerParser)
 				l.startTailer(container, source)
 			default:
 				// no source matches with the container but a matching source may not have been
@@ -136,7 +134,6 @@ func (l *Launcher) run() {
 			for _, container := range l.pendingContainers {
 				if container.IsMatch(source) {
 					// found a container matching the new source, start a new tailer
-					source.SetParser(parser.DockerParser)
 					l.startTailer(container, source)
 				} else {
 					// keep the container in cache until

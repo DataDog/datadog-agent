@@ -10,8 +10,6 @@ package kubernetes
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
-
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -125,7 +123,7 @@ func (l *Launcher) addSource(service *service.Service) {
 		log.Warn(err)
 		return
 	}
-	source, err := l.getSource(pod, container, service.Type)
+	source, err := l.getSource(pod, container)
 	if err != nil {
 		log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
 		return
@@ -157,7 +155,7 @@ func (l *Launcher) removeSource(service *service.Service) {
 const kubernetesIntegration = "kubernetes"
 
 // getSource returns a new source for the container in pod.
-func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus, serviceType string) (*config.LogSource, error) {
+func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
@@ -181,19 +179,13 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	if err := cfg.Compile(); err != nil {
 		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
 	}
-	var fileParser parser.Parser
-	if serviceType == service.Containerd {
-		fileParser = parser.ContainerdFileParser
-	} else {
-		fileParser = parser.NoopParser
-	}
+
 	logSource := config.NewLogSource(l.getSourceName(pod, container), cfg)
-	logSource.SetParser(fileParser)
 	return logSource, nil
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,
-// this feature is commonly named 'ad' or 'autodicovery'.
+// this feature is commonly named 'ad' or 'autodiscovery'.
 // The pod annotation must respect the format: ad.datadoghq.com/<container_name>.logs: '[{...}]'.
 const (
 	configPathPrefix = "ad.datadoghq.com"

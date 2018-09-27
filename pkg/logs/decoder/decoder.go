@@ -9,6 +9,7 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // contentLenLimit represents the length limit above which we want to truncate the output content
@@ -52,18 +53,18 @@ type Decoder struct {
 }
 
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *config.LogSource) *Decoder {
+func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Output)
 
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, source.GetParser())
+			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, parser)
 		}
 	}
 	if lineHandler == nil {
-		lineHandler = NewSingleLineHandler(outputChan, source.GetParser())
+		lineHandler = NewSingleLineHandler(outputChan, parser)
 	}
 
 	return New(inputChan, outputChan, lineHandler)

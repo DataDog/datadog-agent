@@ -54,7 +54,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
-		decoder:            decoder.InitializeDecoder(source),
+		decoder:            decoder.InitializeDecoder(source, dockerParser),
 		source:             source,
 		cli:                cli,
 		sleepDuration:      defaultSleepDuration,

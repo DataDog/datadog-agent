@@ -2,13 +2,15 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
+// +build docker
 
-package parser
+package docker
 
 import (
 	"strings"
 	"testing"
 
+	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +25,7 @@ func TestGetDockerSeverity(t *testing.T) {
 
 func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := dockerHeader + " " + "anything"
-	parser := DockerParser
+	parser := dockerParser
 	dockerMsg, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", dockerMsg.Timestamp)
@@ -32,14 +34,14 @@ func TestDockerStandaloneParserShouldSucceedWithValidInput(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldHandleEmptyMessage(t *testing.T) {
-	parser := DockerParser
+	parser := dockerParser
 	msg, err := parser.Parse([]byte(dockerHeader))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
 }
 
 func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
-	parser := DockerParser
+	parser := dockerParser
 	msg, err := parser.Parse([]byte("2018-06-14T18:27:03.246999277Z foo"))
 	assert.Nil(t, err)
 	assert.Equal(t, "2018-06-14T18:27:03.246999277Z", msg.Timestamp)
@@ -48,7 +50,7 @@ func TestDockerStandaloneParserShouldHandleTtyMessage(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldHandleEmptyTtyMessage(t *testing.T) {
-	parser := DockerParser
+	parser := dockerParser
 	msg, err := parser.Parse([]byte("2018-06-14T18:27:03.246999277Z"))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg.Content))
@@ -58,7 +60,7 @@ func TestDockerStandaloneParserShouldHandleEmptyTtyMessage(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
-	parser := DockerParser
+	parser := dockerParser
 	var msg []byte
 	var err error
 
@@ -71,9 +73,9 @@ func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
 }
 
 func TestDockerStandaloneParserShouldRemovePartialHeaders(t *testing.T) {
-	parser := DockerParser
+	parser := dockerParser
 	var msgToClean []byte
-	var dockerMsg ParsedLine
+	var dockerMsg logParser.ParsedLine
 	var expectedMsg []byte
 	var err error
 

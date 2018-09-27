@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package parser
+package file
 
 import (
 	"bytes"
 	"errors"
 
+	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/severity"
 )
 
@@ -21,11 +22,11 @@ const (
 	stderr = "stderr"
 )
 
-// ContainerdFileParser parses containerd file logs
-var ContainerdFileParser *containerdFileParser
+// containerdFileParser parses containerd file logs
+var containerdFileParser *parser
 
-type containerdFileParser struct {
-	Parser
+type parser struct {
+	logParser.Parser
 }
 
 // Parse parse log lines of containerd
@@ -33,18 +34,18 @@ type containerdFileParser struct {
 // Timestamp ouputchannel partial_flag msg
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
-func (p *containerdFileParser) Parse(msg []byte) (ParsedLine, error) {
+func (p *parser) Parse(msg []byte) (logParser.ParsedLine, error) {
 	// timestamp goes till first space
 	timestamp := bytes.Index(msg, []byte{' '})
 	if timestamp == -1 {
 		// Nothing after the timestamp: ERROR
-		return ParsedLine{}, errors.New("can't parse containerd message, no whitespace found after timestamp")
+		return logParser.ParsedLine{}, errors.New("can't parse containerd message, no whitespace found after timestamp")
 	}
 
 	streamType := bytes.Index(msg[timestamp+1:], []byte{' '})
 	if streamType == -1 {
 		// Nothing after the output: ERROR
-		return ParsedLine{}, errors.New("can't parse containerd message, no whitespace found after stream type")
+		return logParser.ParsedLine{}, errors.New("can't parse containerd message, no whitespace found after stream type")
 	}
 	streamType += timestamp + 1
 	severity := getContainerdSeverity(msg[timestamp+1 : streamType])
@@ -52,21 +53,21 @@ func (p *containerdFileParser) Parse(msg []byte) (ParsedLine, error) {
 	partial := bytes.Index(msg[streamType+1:], []byte{' '})
 	if partial == -1 {
 		// Nothing after the PartialFlag: empty message
-		return ParsedLine{Severity: severity}, nil
+		return logParser.ParsedLine{Severity: severity}, nil
 	}
 	partial += streamType + 1
 	if msg[partial-1] != byte(logTagFull) && msg[partial-1] != byte(logTagPartial) {
-		return ParsedLine{Severity: severity}, errors.New("can't parse containerd message, no whitespace found after partial flag")
+		return logParser.ParsedLine{Severity: severity}, errors.New("can't parse containerd message, no whitespace found after partial flag")
 	}
 
-	return ParsedLine{
+	return logParser.ParsedLine{
 		Content:  msg[partial+1:],
 		Severity: severity,
 	}, nil
 }
 
 // Unwrap remove the header of log lines of containerd
-func (p *containerdFileParser) Unwrap(line []byte) ([]byte, error) {
+func (p *parser) Unwrap(line []byte) ([]byte, error) {
 	// timestamp goes till first space
 	timestamp := bytes.Index(line, []byte{' '})
 	if timestamp == -1 {
