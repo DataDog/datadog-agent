@@ -17,7 +17,7 @@ type Sender struct {
 	done         chan struct{}
 }
 
-// New returns an new sender.
+// NewSender returns an new sender.
 func NewSender(inputChan, outputChan chan message.Message, destinations *Destinations) *Sender {
 	return &Sender{
 		inputChan:    inputChan,

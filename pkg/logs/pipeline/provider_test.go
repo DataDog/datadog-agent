@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 type ProviderTestSuite struct {
@@ -20,6 +22,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.p = &provider{
 		numberOfPipelines: 3,
 		pipelines:         []*Pipeline{},
+		endpoints:         config.NewEndpoints(config.MainEndpoint{}, nil),
 	}
 }
 
