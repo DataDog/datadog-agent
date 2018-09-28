@@ -117,7 +117,6 @@ func TestGetAndSetSender(t *testing.T) {
 	sender, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Equal(t, testCheckSender, sender)
-
 }
 
 func TestGetSenderDefaultHostname(t *testing.T) {
@@ -132,7 +131,6 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 
 	assert.Equal(t, "testhostname", checksender.defaultHostname)
 	assert.Equal(t, false, checksender.defaultHostnameDisabled)
-
 }
 
 func TestCheckSenderInterface(t *testing.T) {
