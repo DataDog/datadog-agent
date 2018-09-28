@@ -47,9 +47,9 @@ func NewDestination(endpoint config.Endpoint, useProto bool) *Destination {
 	}
 }
 
-// Write transforms a message into a frame and sends it to a remote server,
+// Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
-func (d *Destination) Write(payload message.Message) error {
+func (d *Destination) Send(payload message.Message) error {
 	if d.conn == nil {
 		d.conn = d.connManager.NewConnection()
 	}
