@@ -11,20 +11,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+// FramingError represents a kind of error that can occur when a log can not properly
+// be transformed into a frame.
 type FramingError struct {
 	err error
 }
 
+// NewFramingError returns a new framing error.
 func NewFramingError(err error) *FramingError {
 	return &FramingError{
 		err: err,
 	}
 }
 
+// Error returns the message of the error.
 func (e *FramingError) Error() string {
 	return e.err.Error()
 }
 
+// Client is responsible for shipping logs to a remote server over TCP.
 type Client struct {
 	prefixer    Prefixer
 	delimiter   Delimiter
@@ -32,6 +37,7 @@ type Client struct {
 	conn        net.Conn
 }
 
+// NewClient returns a new client.
 func NewClient(prefixer Prefixer, delimiter Delimiter, connManager *ConnectionManager) *Client {
 	return &Client{
 		prefixer:    prefixer,
@@ -40,6 +46,8 @@ func NewClient(prefixer Prefixer, delimiter Delimiter, connManager *ConnectionMa
 	}
 }
 
+// Write transforms a message into a frame and sends it to a remote server,
+// returns an error if the operation failed.
 func (d *Client) Write(payload message.Message) error {
 	if d.conn == nil {
 		d.conn = d.connManager.NewConnection()

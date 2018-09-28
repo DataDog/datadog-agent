@@ -5,6 +5,7 @@
 
 package config
 
+// Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
 	APIKey string `mapstructure:"api_key"`
 	Logset string
@@ -12,19 +13,21 @@ type Endpoint struct {
 	Port   int
 }
 
+// MainEndpoint represents the main endpoint that will be used by the sender to
+// send logs to Datadog.
 type MainEndpoint struct {
 	Endpoint
 	UseSSL       bool
 	ProxyAddress string
 }
 
-// ServerConfig holds the network configuration of the server to send logs to.
+// Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
 	Main        MainEndpoint
 	Additionals []Endpoint
 }
 
-// NewEndpoints returns a new server config.
+// NewEndpoints returns a new endpoints composite.
 func NewEndpoints(main MainEndpoint, additionals []Endpoint) *Endpoints {
 	return &Endpoints{
 		Main:        main,

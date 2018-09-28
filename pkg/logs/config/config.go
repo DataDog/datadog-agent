@@ -44,7 +44,7 @@ func DefaultSources() []*LogSource {
 	return sources
 }
 
-// BuildEndpoints returns the server config to send logs to.
+// BuildEndpoints returns the endpoints to send logs to.
 func BuildEndpoints() (*Endpoints, error) {
 	if LogsAgent.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
@@ -88,7 +88,7 @@ func BuildEndpoints() (*Endpoints, error) {
 	var additionals []Endpoint
 	err := LogsAgent.UnmarshalKey("logs_config.additional_endpoints", &additionals)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse additional_endpoints: %v", err)
+		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
 
 	return NewEndpoints(main, additionals), nil

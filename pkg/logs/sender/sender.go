@@ -9,8 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// A Sender sends messages from an inputChan to datadog's intake,
-// handling connections and retries.
+// Sender is responsible for sending logs to different destinations.
 type Sender struct {
 	inputChan    chan message.Message
 	outputChan   chan message.Message
@@ -18,7 +17,7 @@ type Sender struct {
 	done         chan struct{}
 }
 
-// New returns an initialized Sender
+// New returns an new sender.
 func NewSender(inputChan, outputChan chan message.Message, destinations *Destinations) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
@@ -40,7 +39,7 @@ func (s *Sender) Stop() {
 	<-s.done
 }
 
-// run lets the sender wire messages
+// run lets the sender send messages.
 func (s *Sender) run() {
 	defer func() {
 		s.done <- struct{}{}
@@ -50,24 +49,26 @@ func (s *Sender) run() {
 	}
 }
 
-// wireMessage lets the Sender send a message to datadog's intake
+// send keeps trying to send the message to the main destination until it succeeds
+// and try to send the message to the additional destinations only once.
 func (s *Sender) send(payload message.Message) {
 	for {
 		err := s.destinations.Main.Write(payload)
 		if err != nil {
 			switch err.(type) {
 			case *FramingError:
+				// the message can not be framed properly,
+				// drop the message
 				break
 			default:
+				// retry as the error can be related to network issues
 				continue
 			}
 		}
-		break
+		for _, destination := range s.destinations.Additonals {
+			// try and forget strategy for additional endpoints
+			go destination.Write(payload)
+		}
 	}
-
-	for _, destination := range s.destinations.Additonals {
-		go destination.Write(payload)
-	}
-
 	s.outputChan <- payload
 }

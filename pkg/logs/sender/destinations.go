@@ -5,11 +5,13 @@
 
 package sender
 
+// Destinations holds the main destination and additional ones to send logs to.
 type Destinations struct {
 	Main       *Client
 	Additonals []*Client
 }
 
+// NewDestinations returns a new destinations composite.
 func NewDestinations(main *Client, additionnals []*Client) *Destinations {
 	return &Destinations{
 		Main:       main,
