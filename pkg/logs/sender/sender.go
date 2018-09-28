@@ -53,7 +53,7 @@ func (s *Sender) run() {
 // and try to send the message to the additional destinations only once.
 func (s *Sender) send(payload message.Message) {
 	for {
-		err := s.destinations.Main.Write(payload)
+		err := s.destinations.Main.Write(payload) // this call is blocking until the inner connection is properly established
 		if err != nil {
 			switch err.(type) {
 			case *FramingError:
@@ -67,7 +67,10 @@ func (s *Sender) send(payload message.Message) {
 		}
 		for _, destination := range s.destinations.Additonals {
 			// try and forget strategy for additional endpoints
-			go destination.Write(payload)
+			// this call is also blocking when the connection is not established yet
+			// FIXME: properly unblock this call when the connection can not be established,
+			// this can happen when the destination configuration is wrong.
+			destination.Write(payload)
 		}
 		break
 	}
