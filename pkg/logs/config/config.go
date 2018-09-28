@@ -50,14 +50,14 @@ func BuildEndpoints() (*Endpoints, error) {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 
-	main := MainEndpoint{
-		Endpoint: Endpoint{
-			APIKey: LogsAgent.GetString("api_key"),
-			Logset: LogsAgent.GetString("logset"),
-		},
-		ProxyAddress: LogsAgent.GetString("logs_config.socks5_proxy_address"),
-	}
+	useSSL := true
+	proxyAddress := LogsAgent.GetString("logs_config.socks5_proxy_address")
 
+	main := Endpoint{
+		APIKey:       LogsAgent.GetString("api_key"),
+		Logset:       LogsAgent.GetString("logset"),
+		ProxyAddress: proxyAddress,
+	}
 	switch {
 	case LogsAgent.GetString("logs_config.logs_dd_url") != "":
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -73,22 +73,27 @@ func BuildEndpoints() (*Endpoints, error) {
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = !LogsAgent.GetBool("logs_config.logs_no_ssl")
+		useSSL = !LogsAgent.GetBool("logs_config.logs_no_ssl")
 	case LogsAgent.GetBool("logs_config.use_port_443"):
 		main.Host = LogsAgent.GetString("logs_config.dd_url_443")
 		main.Port = 443
-		main.UseSSL = true
+		useSSL = true
 	default:
 		// datadog settings
 		main.Host = LogsAgent.GetString("logs_config.dd_url")
 		main.Port = LogsAgent.GetInt("logs_config.dd_port")
-		main.UseSSL = !LogsAgent.GetBool("logs_config.dev_mode_no_ssl")
+		useSSL = !LogsAgent.GetBool("logs_config.dev_mode_no_ssl")
 	}
+	main.UseSSL = useSSL
 
 	var additionals []Endpoint
 	err := LogsAgent.UnmarshalKey("logs_config.additional_endpoints", &additionals)
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
+	}
+	for _, additional := range additionals {
+		additional.UseSSL = useSSL
+		additional.ProxyAddress = proxyAddress
 	}
 
 	return NewEndpoints(main, additionals), nil

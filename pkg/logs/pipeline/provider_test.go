@@ -22,7 +22,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.p = &provider{
 		numberOfPipelines: 3,
 		pipelines:         []*Pipeline{},
-		endpoints:         config.NewEndpoints(config.MainEndpoint{}, nil),
+		endpoints:         config.NewEndpoints(config.Endpoint{}, nil),
 	}
 }
 

@@ -22,13 +22,11 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan message.Message, endpoints *config.Endpoints) *Pipeline {
 	useProto := config.LogsAgent.GetBool("logs_config.dev_mode_use_proto")
-	useSSL := endpoints.Main.UseSSL
-
 	// initialize the main destination
 	main := sender.NewDestination(
 		sender.NewAPIKeyPrefixer(endpoints.Main.APIKey, endpoints.Main.Logset),
 		sender.NewDelimiter(useProto),
-		sender.NewConnectionManager(endpoints.Main.Host, endpoints.Main.Port, useSSL, endpoints.Main.ProxyAddress),
+		sender.NewConnectionManager(endpoints.Main),
 	)
 
 	// initialize the additional destinations
@@ -38,7 +36,7 @@ func NewPipeline(outputChan chan message.Message, endpoints *config.Endpoints) *
 			sender.NewAPIKeyPrefixer(endpoint.APIKey, endpoint.Logset),
 			sender.NewDelimiter(useProto),
 			// only use the proxy address for the main endpoint
-			sender.NewConnectionManager(endpoint.Host, endpoint.Port, useSSL, ""),
+			sender.NewConnectionManager(endpoint),
 		))
 	}
 
