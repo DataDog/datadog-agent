@@ -184,7 +184,7 @@ func (l *ProcessListener) removeService(pid int32) {
 
 // GetEntity returns the unique entity name linked to that service
 func (s *ProcessService) GetEntity() string {
-	return fmt.Sprintf("%v:%s", s.pid, s.name)
+	return fmt.Sprintf("process://%s:%v", s.name, s.pid)
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a process.
