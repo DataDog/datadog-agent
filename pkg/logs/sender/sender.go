@@ -69,6 +69,7 @@ func (s *Sender) send(payload message.Message) {
 			// try and forget strategy for additional endpoints
 			go destination.Write(payload)
 		}
+		break
 	}
 	s.outputChan <- payload
 }
