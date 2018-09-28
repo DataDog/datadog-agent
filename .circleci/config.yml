@@ -18,17 +18,23 @@ templates:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
   step_templates:
-    - restore_cache: &restore_source
-        keys:
-          # Cache retrieval is faster than full git checkout
-          - v2-repo-{{ .Revision }}
     - restore_cache: &restore_deps
         keys:
           # The first match will be used. Doing that so new branches
           # use master's cache but don't pollute it back.
-          - v2-godeps-{{ .Branch }}-{{ .Revision }}
-          - v2-godeps-{{ .Branch }}-
-          - v2-godeps-master-
+          #
+          # If incremental dep fails, increase the cache gen number
+          # in restore_deps AND save_deps
+          - gen3-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen3-godeps-{{ .Branch }}-
+          - gen3-godeps-master-
+    - save_cache: &save_deps
+        key: gen3-godeps-{{ .Branch }}-{{ .Revision }}
+    - restore_cache: &restore_source
+        keys:
+          - v2-repo-{{ .Revision }}
+    - save_cache: &save_source
+        key: v2-repo-{{ .Revision }}
     - run: &enter_venv
         name: add virtualenv to bashrc
         command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
@@ -39,7 +45,7 @@ jobs:
     steps:
       - checkout
       - save_cache:
-          key: v2-repo-{{ .Revision }}
+          <<: *save_source
           paths:
             - /go/src/github.com/DataDog/datadog-agent
 
@@ -62,7 +68,7 @@ jobs:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
       - save_cache:
-          key: v2-godeps-{{ .Branch }}-{{ .Revision }}
+          <<: *save_deps
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
             - /go/src/github.com/DataDog/datadog-agent/venv
