@@ -310,6 +310,11 @@ api_key:
 #   - name: docker
 #     polling: true
 
+## The clustercheck provider retrieves cluster-level check configurations
+## from the cluster-agent
+#   - name: clusterchecks
+#      grace_time_seconds: 60
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs

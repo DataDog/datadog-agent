@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 )
@@ -58,19 +58,19 @@ func getClusterChecks() error {
 		return e
 	}
 
-	configs := []integration.Config{}
-	e = json.Unmarshal(r, &configs)
+	var response types.ConfigResponse
+	e = json.Unmarshal(r, &response)
 	if e != nil {
 		return e
 	}
 
-	if len(configs) == 0 {
+	if len(response.Configs) == 0 {
 		fmt.Printf("No cluster-check configuration\n")
 	} else {
-		fmt.Printf("Retrieved %d cluster-check configurations:\n", len(configs))
+		fmt.Printf("Retrieved %d cluster-check configurations:\n", len(response.Configs))
 
 	}
-	for _, c := range configs {
+	for _, c := range response.Configs {
 		flare.PrintConfig(os.Stdout, c)
 	}
 
