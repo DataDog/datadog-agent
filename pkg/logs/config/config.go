@@ -91,9 +91,9 @@ func BuildEndpoints() (*Endpoints, error) {
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
-	for _, additional := range additionals {
-		additional.UseSSL = useSSL
-		additional.ProxyAddress = proxyAddress
+	for i := 0; i < len(additionals); i++ {
+		additionals[i].UseSSL = useSSL
+		additionals[i].ProxyAddress = proxyAddress
 	}
 
 	return NewEndpoints(main, additionals), nil
