@@ -8,7 +8,7 @@ package config
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
 	APIKey string `mapstructure:"api_key"`
-	Logset string
+	Logset string // TODO: Logset is deprecated and should be removed eventually
 	Host   string
 	Port   int
 }
