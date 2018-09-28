@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	"k8s.io/api/autoscaling/v2beta1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
@@ -43,6 +44,14 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 			Name:      name,
 			Namespace: ns,
 			UID:       types.UID(uid),
+		},
+		Status: v2beta1.HorizontalPodAutoscalerStatus{
+			Conditions: []v2beta1.HorizontalPodAutoscalerCondition{
+				{
+					Type:   v2beta1.AbleToScale,
+					Status: v1.ConditionTrue,
+				},
+			},
 		},
 		Spec: v2beta1.HorizontalPodAutoscalerSpec{
 			Metrics: []v2beta1.MetricSpec{

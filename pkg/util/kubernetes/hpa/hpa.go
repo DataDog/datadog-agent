@@ -11,10 +11,21 @@ import (
 	"reflect"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	"k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// IsAbleToScale returns if the HPA is currently able to scale (not in BackoffDownscale)
+func IsAbleToScale(hpa *autoscalingv2.HorizontalPodAutoscaler) bool {
+	for _, condition := range hpa.Status.Conditions {
+		if autoscalingv2.AbleToScale == condition.Type {
+			return condition.Status == v1.ConditionTrue
+		}
+	}
+	return false
+}
 
 // Inspect returns the list of external metrics from the hpa to use for autoscaling.
 func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics.ExternalMetricValue) {

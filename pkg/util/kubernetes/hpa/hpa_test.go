@@ -10,10 +10,10 @@ package hpa
 import (
 	"testing"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/stretchr/testify/assert"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -469,6 +469,55 @@ func TestDiffExternalMetrics(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			got := DiffExternalMetrics(testCase.lhs, testCase.rhs)
 			assert.ElementsMatch(t, testCase.expected, got)
+		})
+	}
+}
+
+func TestIsAbleToScale(t *testing.T) {
+	testCases := map[string]struct {
+		hpa      *autoscalingv2.HorizontalPodAutoscaler
+		expected bool
+	}{
+		"able to scale": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					Conditions: []autoscalingv2.HorizontalPodAutoscalerCondition{
+						{
+							Type:   autoscalingv2.AbleToScale,
+							Status: v1.ConditionTrue,
+						},
+					},
+				},
+			},
+			true,
+		},
+		"not able to scale": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					Conditions: []autoscalingv2.HorizontalPodAutoscalerCondition{
+						{
+							Type:   autoscalingv2.AbleToScale,
+							Status: v1.ConditionFalse,
+						},
+					},
+				},
+			},
+			false,
+		},
+		"missing condition": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					Conditions: []autoscalingv2.HorizontalPodAutoscalerCondition{},
+				},
+			},
+			false,
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			got := IsAbleToScale(testCase.hpa)
+			assert.Equal(t, testCase.expected, got)
 		})
 	}
 }

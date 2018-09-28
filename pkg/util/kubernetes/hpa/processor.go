@@ -84,6 +84,10 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
 	var externalMetrics []custommetrics.ExternalMetricValue
 	var err error
+	if !IsAbleToScale(hpa) {
+		log.Debug("HPA is not currently able to scale, skipping process")
+		return nil
+	}
 	emList := Inspect(hpa)
 	metrics, err := p.validateExternalMetric(emList)
 	if err != nil && len(metrics) == 0 {

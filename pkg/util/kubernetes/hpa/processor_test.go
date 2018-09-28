@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -146,6 +147,14 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 		{
 			"process valid hpa external metric",
 			autoscalingv2.HorizontalPodAutoscaler{
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					Conditions: []autoscalingv2.HorizontalPodAutoscalerCondition{
+						{
+							Type:   autoscalingv2.AbleToScale,
+							Status: v1.ConditionTrue,
+						},
+					},
+				},
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
 					Metrics: []autoscalingv2.MetricSpec{
 						{
@@ -184,6 +193,14 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 		{
 			"process invalid hpa external metric",
 			autoscalingv2.HorizontalPodAutoscaler{
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					Conditions: []autoscalingv2.HorizontalPodAutoscalerCondition{
+						{
+							Type:   autoscalingv2.AbleToScale,
+							Status: v1.ConditionTrue,
+						},
+					},
+				},
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
 					Metrics: []autoscalingv2.MetricSpec{
 						{
@@ -218,6 +235,14 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 		{
 			"process hpa external metrics",
 			autoscalingv2.HorizontalPodAutoscaler{
+				Status: autoscalingv2.HorizontalPodAutoscalerStatus{
+					Conditions: []autoscalingv2.HorizontalPodAutoscalerCondition{
+						{
+							Type:   autoscalingv2.AbleToScale,
+							Status: v1.ConditionTrue,
+						},
+					},
+				},
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
 					Metrics: []autoscalingv2.MetricSpec{
 						{
