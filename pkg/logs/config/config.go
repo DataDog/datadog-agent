@@ -50,7 +50,7 @@ func BuildEndpoints() (*Endpoints, error) {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 
-	useSSL := true
+	var useSSL bool
 	useProto := LogsAgent.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := LogsAgent.GetString("logs_config.socks5_proxy_address")
 
