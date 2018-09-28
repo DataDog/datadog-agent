@@ -478,11 +478,9 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 }
 
 func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
-	timeout := time.NewTimer(3 * time.Second)
-
 	select {
 	case <-ch:
-	case <-timeout.C:
+	case <-time.After(5 * time.Second):
 		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
 	}
 }
