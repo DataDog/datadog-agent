@@ -3,18 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package config
+package sender
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 func TestAddress(t *testing.T) {
-	config := NewServerConfig("foo", 12345, false)
-	assert.Equal(t, "foo", config.Name)
-	assert.Equal(t, 12345, config.Port)
-	assert.False(t, config.UseSSL)
-	assert.Equal(t, "foo:12345", config.Address())
+	connManager := NewConnectionManager(config.Endpoint{Host: "foo", Port: 1234})
+	assert.Equal(t, "foo:1234", connManager.address())
 }

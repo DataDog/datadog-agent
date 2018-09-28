@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -26,17 +27,15 @@ const (
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	serverConfig *config.ServerConfig
-	proxyAddress string
-	mutex        sync.Mutex
-	firstConn    sync.Once
+	endpoint  config.Endpoint
+	mutex     sync.Mutex
+	firstConn sync.Once
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(serverConfig *config.ServerConfig, proxyAddress string) *ConnectionManager {
+func NewConnectionManager(endpoint config.Endpoint) *ConnectionManager {
 	return &ConnectionManager{
-		serverConfig: serverConfig,
-		proxyAddress: proxyAddress,
+		endpoint: endpoint,
 	}
 }
 
@@ -47,10 +46,10 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 	defer cm.mutex.Unlock()
 
 	cm.firstConn.Do(func() {
-		if cm.proxyAddress != "" {
-			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.serverConfig.Address(), cm.proxyAddress, cm.serverConfig.UseSSL)
+		if cm.endpoint.ProxyAddress != "" {
+			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.address(), cm.endpoint.ProxyAddress, cm.endpoint.UseSSL)
 		} else {
-			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.serverConfig.Address(), cm.serverConfig.UseSSL)
+			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.address(), cm.endpoint.UseSSL)
 		}
 	})
 
@@ -64,25 +63,25 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 		var conn net.Conn
 		var err error
 
-		if cm.proxyAddress != "" {
+		if cm.endpoint.ProxyAddress != "" {
 			var dialer proxy.Dialer
-			dialer, err = proxy.SOCKS5("tcp", cm.proxyAddress, nil, proxy.Direct)
+			dialer, err = proxy.SOCKS5("tcp", cm.endpoint.ProxyAddress, nil, proxy.Direct)
 			if err != nil {
 				log.Warn(err)
 				continue
 			}
-			conn, err = dialer.Dial("tcp", cm.serverConfig.Address())
+			conn, err = dialer.Dial("tcp", cm.address())
 		} else {
-			conn, err = net.DialTimeout("tcp", cm.serverConfig.Address(), timeout)
+			conn, err = net.DialTimeout("tcp", cm.address(), timeout)
 		}
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
 
-		if cm.serverConfig.UseSSL {
+		if cm.endpoint.UseSSL {
 			sslConn := tls.Client(conn, &tls.Config{
-				ServerName: cm.serverConfig.Name,
+				ServerName: cm.endpoint.Host,
 			})
 			err = sslConn.Handshake()
 			if err != nil {
@@ -95,6 +94,11 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 		go cm.handleServerClose(conn)
 		return conn
 	}
+}
+
+// address returns the address of the server to send logs to.
+func (cm *ConnectionManager) address() string {
+	return net.JoinHostPort(cm.endpoint.Host, strconv.Itoa(cm.endpoint.Port))
 }
 
 // CloseConnection closes a connection on the client side

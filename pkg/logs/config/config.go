@@ -44,12 +44,22 @@ func DefaultSources() []*LogSource {
 	return sources
 }
 
-// BuildServerConfig returns the server config to send logs to.
-func BuildServerConfig() (*ServerConfig, error) {
+// BuildEndpoints returns the endpoints to send logs to.
+func BuildEndpoints() (*Endpoints, error) {
 	if LogsAgent.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 
+	var useSSL bool
+	useProto := LogsAgent.GetBool("logs_config.dev_mode_use_proto")
+	proxyAddress := LogsAgent.GetString("logs_config.socks5_proxy_address")
+
+	main := Endpoint{
+		APIKey:       LogsAgent.GetString("api_key"),
+		Logset:       LogsAgent.GetString("logset"),
+		UseProto:     useProto,
+		ProxyAddress: proxyAddress,
+	}
 	switch {
 	case LogsAgent.GetString("logs_config.logs_dd_url") != "":
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -63,23 +73,31 @@ func BuildServerConfig() (*ServerConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not parse logs_dd_url port: %v", err)
 		}
-		return NewServerConfig(
-			host,
-			port,
-			!LogsAgent.GetBool("logs_config.logs_no_ssl"),
-		), nil
+		main.Host = host
+		main.Port = port
+		useSSL = !LogsAgent.GetBool("logs_config.logs_no_ssl")
 	case LogsAgent.GetBool("logs_config.use_port_443"):
-		return NewServerConfig(
-			LogsAgent.GetString("logs_config.dd_url_443"),
-			443,
-			true,
-		), nil
+		main.Host = LogsAgent.GetString("logs_config.dd_url_443")
+		main.Port = 443
+		useSSL = true
 	default:
 		// datadog settings
-		return NewServerConfig(
-			LogsAgent.GetString("logs_config.dd_url"),
-			LogsAgent.GetInt("logs_config.dd_port"),
-			!LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
-		), nil
+		main.Host = LogsAgent.GetString("logs_config.dd_url")
+		main.Port = LogsAgent.GetInt("logs_config.dd_port")
+		useSSL = !LogsAgent.GetBool("logs_config.dev_mode_no_ssl")
 	}
+	main.UseSSL = useSSL
+
+	var additionals []Endpoint
+	err := LogsAgent.UnmarshalKey("logs_config.additional_endpoints", &additionals)
+	if err != nil {
+		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
+	}
+	for i := 0; i < len(additionals); i++ {
+		additionals[i].UseSSL = useSSL
+		additionals[i].UseProto = useProto
+		additionals[i].ProxyAddress = proxyAddress
+	}
+
+	return NewEndpoints(main, additionals), nil
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
@@ -34,14 +33,13 @@ type Agent struct {
 }
 
 // NewAgent returns a new Agent
-func NewAgent(sources *config.LogSources, services *service.Services, serverConfig *config.ServerConfig) *Agent {
+func NewAgent(sources *config.LogSources, services *service.Services, endpoints *config.Endpoints) *Agent {
 	// setup the auditor
 	messageChan := make(chan message.Message, config.ChanSize)
 	auditor := auditor.New(messageChan, config.LogsAgent.GetString("logs_config.run_path"))
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	connectionManager := sender.NewConnectionManager(serverConfig, config.LogsAgent.GetString("logs_config.socks5_proxy_address"))
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, messageChan, endpoints)
 
 	// setup the inputs
 	inputs := []restart.Restartable{

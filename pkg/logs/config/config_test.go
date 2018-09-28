@@ -51,45 +51,66 @@ func TestDefaultSources(t *testing.T) {
 	assert.Equal(t, "docker", source.Config.Service)
 }
 
-func TestBuildServerConfigShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
-	var serverConfig *ServerConfig
+func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
+	var endpoints *Endpoints
 	var err error
+	var endpoint Endpoint
 
-	serverConfig, err = BuildServerConfig()
+	LogsAgent.Set("api_key", "azerty")
+	LogsAgent.Set("logset", "baz")
+	LogsAgent.Set("logs_config.socks5_proxy_address", "boz:1234")
+
+	endpoints, err = BuildEndpoints()
 	assert.Nil(t, err)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", serverConfig.Name)
-	assert.Equal(t, 10516, serverConfig.Port)
-	assert.True(t, serverConfig.UseSSL)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com:10516", serverConfig.Address())
+	endpoint = endpoints.Main
+	assert.Equal(t, "azerty", endpoint.APIKey)
+	assert.Equal(t, "baz", endpoint.Logset)
+	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoint.Host)
+	assert.Equal(t, 10516, endpoint.Port)
+	assert.True(t, endpoint.UseSSL)
+	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
+	assert.Equal(t, 0, len(endpoints.Additionals))
 
 	LogsAgent.Set("logs_config.use_port_443", true)
-	serverConfig, err = BuildServerConfig()
+	endpoints, err = BuildEndpoints()
 	assert.Nil(t, err)
-	assert.Equal(t, "agent-443-intake.logs.datadoghq.com", serverConfig.Name)
-	assert.Equal(t, 443, serverConfig.Port)
-	assert.True(t, serverConfig.UseSSL)
-	assert.Equal(t, "agent-443-intake.logs.datadoghq.com:443", serverConfig.Address())
+	endpoint = endpoints.Main
+	assert.Equal(t, "azerty", endpoint.APIKey)
+	assert.Equal(t, "baz", endpoint.Logset)
+	assert.Equal(t, "agent-443-intake.logs.datadoghq.com", endpoint.Host)
+	assert.Equal(t, 443, endpoint.Port)
+	assert.True(t, endpoint.UseSSL)
+	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
+	assert.Equal(t, 0, len(endpoints.Additionals))
 
 	LogsAgent.Set("logs_config.logs_dd_url", "host:1234")
 	LogsAgent.Set("logs_config.logs_no_ssl", true)
-	serverConfig, err = BuildServerConfig()
+	endpoints, err = BuildEndpoints()
 	assert.Nil(t, err)
-	assert.Equal(t, "host", serverConfig.Name)
-	assert.Equal(t, 1234, serverConfig.Port)
-	assert.False(t, serverConfig.UseSSL)
-	assert.Equal(t, "host:1234", serverConfig.Address())
+	endpoint = endpoints.Main
+	assert.Equal(t, "azerty", endpoint.APIKey)
+	assert.Equal(t, "baz", endpoint.Logset)
+	assert.Equal(t, "host", endpoint.Host)
+	assert.Equal(t, 1234, endpoint.Port)
+	assert.False(t, endpoint.UseSSL)
+	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
+	assert.Equal(t, 0, len(endpoints.Additionals))
 
 	LogsAgent.Set("logs_config.logs_dd_url", ":1234")
 	LogsAgent.Set("logs_config.logs_no_ssl", false)
-	serverConfig, err = BuildServerConfig()
+	endpoints, err = BuildEndpoints()
 	assert.Nil(t, err)
-	assert.Equal(t, "", serverConfig.Name)
-	assert.Equal(t, 1234, serverConfig.Port)
-	assert.True(t, serverConfig.UseSSL)
-	assert.Equal(t, ":1234", serverConfig.Address())
+	endpoint = endpoints.Main
+	assert.Equal(t, "azerty", endpoint.APIKey)
+	assert.Equal(t, "baz", endpoint.Logset)
+	assert.Equal(t, "", endpoint.Host)
+	assert.Equal(t, 1234, endpoint.Port)
+	assert.True(t, endpoint.UseSSL)
+	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
+	assert.Equal(t, 0, len(endpoints.Additionals))
 }
 
-func TestBuildServerConfigShouldFailWithInvalidOverride(t *testing.T) {
+func TestBuildEndpointsShouldFailWithInvalidOverride(t *testing.T) {
 	invalidURLs := []string{
 		"host:foo",
 		"host",
@@ -97,7 +118,7 @@ func TestBuildServerConfigShouldFailWithInvalidOverride(t *testing.T) {
 
 	for _, url := range invalidURLs {
 		LogsAgent.Set("logs_config.logs_dd_url", url)
-		_, err := BuildServerConfig()
+		_, err := BuildEndpoints()
 		assert.NotNil(t, err)
 	}
 }
