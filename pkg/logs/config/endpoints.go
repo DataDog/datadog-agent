@@ -12,6 +12,7 @@ type Endpoint struct {
 	Host         string
 	Port         int
 	UseSSL       bool
+	UseProto     bool
 	ProxyAddress string
 }
 

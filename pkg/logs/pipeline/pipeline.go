@@ -21,14 +21,13 @@ type Pipeline struct {
 
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan message.Message, endpoints *config.Endpoints) *Pipeline {
-	useProto := config.LogsAgent.GetBool("logs_config.dev_mode_use_proto")
 	// initialize the main destination
-	main := sender.NewDestination(endpoints.Main, useProto)
+	main := sender.NewDestination(endpoints.Main)
 
 	// initialize the additional destinations
 	var additionals []*sender.Destination
 	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, sender.NewDestination(endpoint, useProto))
+		additionals = append(additionals, sender.NewDestination(endpoint))
 	}
 
 	// initialize the sender
@@ -40,7 +39,7 @@ func NewPipeline(outputChan chan message.Message, endpoints *config.Endpoints) *
 	inputChan := make(chan message.Message, config.ChanSize)
 
 	// initialize the processor
-	encoder := processor.NewEncoder(useProto)
+	encoder := processor.NewEncoder(endpoints.Main.UseProto)
 	processor := processor.New(inputChan, senderChan, encoder)
 
 	return &Pipeline{

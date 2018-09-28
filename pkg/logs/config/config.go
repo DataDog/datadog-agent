@@ -51,11 +51,13 @@ func BuildEndpoints() (*Endpoints, error) {
 	}
 
 	useSSL := true
+	useProto := LogsAgent.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := LogsAgent.GetString("logs_config.socks5_proxy_address")
 
 	main := Endpoint{
 		APIKey:       LogsAgent.GetString("api_key"),
 		Logset:       LogsAgent.GetString("logset"),
+		UseProto:     useProto,
 		ProxyAddress: proxyAddress,
 	}
 	switch {
@@ -93,6 +95,7 @@ func BuildEndpoints() (*Endpoints, error) {
 	}
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = useSSL
+		additionals[i].UseProto = useProto
 		additionals[i].ProxyAddress = proxyAddress
 	}
 
