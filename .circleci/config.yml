@@ -25,6 +25,7 @@ templates:
           #
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
+          # See https://github.com/DataDog/datadog-agent/pull/2384
           - gen3-godeps-{{ .Branch }}-{{ .Revision }}
           - gen3-godeps-{{ .Branch }}-
           - gen3-godeps-master-
