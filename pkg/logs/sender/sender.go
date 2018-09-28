@@ -65,7 +65,7 @@ func (s *Sender) send(payload message.Message) {
 				continue
 			}
 		}
-		for _, destination := range s.destinations.Additonals {
+		for _, destination := range s.destinations.Additionals {
 			// try and forget strategy for additional endpoints
 			// this call is also blocking when the connection is not established yet
 			// FIXME: properly unblock this call when the connection can not be established,
