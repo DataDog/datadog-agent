@@ -25,16 +25,16 @@ func NewPipeline(outputChan chan message.Message, endpoints *config.Endpoints) *
 	useSSL := endpoints.Main.UseSSL
 
 	// initialize the main destination
-	main := sender.NewClient(
+	main := sender.NewDestination(
 		sender.NewAPIKeyPrefixer(endpoints.Main.APIKey, endpoints.Main.Logset),
 		sender.NewDelimiter(useProto),
 		sender.NewConnectionManager(endpoints.Main.Host, endpoints.Main.Port, useSSL, endpoints.Main.ProxyAddress),
 	)
 
 	// initialize the additional destinations
-	var additionals []*sender.Client
+	var additionals []*sender.Destination
 	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, sender.NewClient(
+		additionals = append(additionals, sender.NewDestination(
 			sender.NewAPIKeyPrefixer(endpoint.APIKey, endpoint.Logset),
 			sender.NewDelimiter(useProto),
 			// only use the proxy address for the main endpoint

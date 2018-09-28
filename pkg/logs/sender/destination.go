@@ -29,17 +29,17 @@ func (e *FramingError) Error() string {
 	return e.err.Error()
 }
 
-// Client is responsible for shipping logs to a remote server over TCP.
-type Client struct {
+// Destination is responsible for shipping logs to a remote server over TCP.
+type Destination struct {
 	prefixer    Prefixer
 	delimiter   Delimiter
 	connManager *ConnectionManager
 	conn        net.Conn
 }
 
-// NewClient returns a new client.
-func NewClient(prefixer Prefixer, delimiter Delimiter, connManager *ConnectionManager) *Client {
-	return &Client{
+// NewDestination returns a new destination.
+func NewDestination(prefixer Prefixer, delimiter Delimiter, connManager *ConnectionManager) *Destination {
+	return &Destination{
 		prefixer:    prefixer,
 		delimiter:   delimiter,
 		connManager: connManager,
@@ -48,7 +48,7 @@ func NewClient(prefixer Prefixer, delimiter Delimiter, connManager *ConnectionMa
 
 // Write transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
-func (d *Client) Write(payload message.Message) error {
+func (d *Destination) Write(payload message.Message) error {
 	if d.conn == nil {
 		d.conn = d.connManager.NewConnection()
 	}
