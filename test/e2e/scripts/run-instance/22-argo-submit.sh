@@ -90,6 +90,9 @@ spec:
         - name: dockersocket
           mountPath: /var/run/docker.sock
           readOnly: true
+        - name: dogstatsd
+          mountPath: /var/run/dogstatsd
+          readOnly: false
 
       volumes:
       - name: datadog-config
@@ -104,6 +107,9 @@ spec:
       - hostPath:
           path: /var/run/docker.sock
         name: dockersocket
+      - hostPath:
+          path: /var/run/dogstatsd
+        name: dogstatsd
 ---
 EOF
 )

@@ -173,9 +173,9 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInter
 		checkMetricIn:      make(chan senderMetricSample, 100),    // TODO make buffer size configurable
 		serviceCheckIn:     make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
 		eventIn:            make(chan metrics.Event, 100),         // TODO make buffer size configurable
-		sampler:            *NewTimeSampler(bucketSize, hostname),
+		sampler:            *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
-		distSampler:        newDistSampler(bucketSize, hostname),
+		distSampler:        newDistSampler(bucketSize),
 		flushInterval:      flushInterval,
 		serializer:         s,
 		hostname:           hostname,
@@ -227,6 +227,7 @@ func (agg *BufferedAggregator) AddAgentStartupEvent(agentVersion string) {
 	event := metrics.Event{
 		Text:           fmt.Sprintf("Version %s", agentVersion),
 		SourceTypeName: "System",
+		Host:           agg.hostname,
 		EventType:      "Agent Startup",
 	}
 	agg.eventIn <- event
@@ -238,7 +239,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	if _, ok := agg.checkSamplers[id]; ok {
 		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
-	agg.checkSamplers[id] = newCheckSampler(agg.hostname)
+	agg.checkSamplers[id] = newCheckSampler()
 	return nil
 }
 
@@ -266,9 +267,6 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 // addServiceCheck adds the service check to the slice of current service checks
 func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
-	if sc.Host == "" {
-		sc.Host = agg.hostname
-	}
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
@@ -279,9 +277,6 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 
 // addEvent adds the event to the slice of current events
 func (agg *BufferedAggregator) addEvent(e metrics.Event) {
-	if e.Host == "" {
-		e.Host = agg.hostname
-	}
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
@@ -375,6 +370,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	agg.addServiceCheck(metrics.ServiceCheck{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
+		Host:      agg.hostname,
 	})
 
 	serviceChecks := agg.GetServiceChecks()
@@ -504,12 +500,7 @@ func (agg *BufferedAggregator) run() {
 		case h := <-agg.hostnameUpdate:
 			aggregatorHostnameUpdate.Add(1)
 			agg.hostname = h
-			agg.mu.Lock()
-			for _, checkSampler := range agg.checkSamplers {
-				checkSampler.defaultHostname = h
-			}
-			agg.sampler.defaultHostname = h
-			agg.mu.Unlock()
+			changeAllSendersDefaultHostname(h)
 			agg.hostnameUpdateDone <- struct{}{}
 		}
 	}

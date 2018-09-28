@@ -7,12 +7,14 @@ package aggregator
 
 import (
 	// stdlib
+	"fmt"
 	"sync"
 	"testing"
 
 	// 3p
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -107,7 +109,7 @@ func TestGetAndSetSender(t *testing.T) {
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
 	eventChan := make(chan metrics.Event, 10)
-	testCheckSender := newCheckSender(checkID1, senderMetricSampleChan, serviceCheckChan, eventChan)
+	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
 
 	err := SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)
@@ -115,14 +117,27 @@ func TestGetAndSetSender(t *testing.T) {
 	sender, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Equal(t, testCheckSender, sender)
+}
 
+func TestGetSenderDefaultHostname(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, "testhostname")
+
+	sender, err := GetSender(checkID1)
+	require.NoError(t, err)
+
+	checksender, ok := sender.(*checkSender)
+	require.True(t, ok)
+
+	assert.Equal(t, "testhostname", checksender.defaultHostname)
+	assert.Equal(t, false, checksender.defaultHostnameDisabled)
 }
 
 func TestCheckSenderInterface(t *testing.T) {
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
 	eventChan := make(chan metrics.Event, 10)
-	checkSender := newCheckSender(checkID1, senderMetricSampleChan, serviceCheckChan, eventChan)
+	checkSender := newCheckSender(checkID1, "default-hostname", senderMetricSampleChan, serviceCheckChan, eventChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Count("my.count_metric", 123.0, "my-hostname", []string{"foo", "bar"})
@@ -147,6 +162,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	gaugeSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, gaugeSenderSample.id)
 	assert.Equal(t, metrics.GaugeType, gaugeSenderSample.metricSample.Mtype)
+	assert.Equal(t, "my-hostname", gaugeSenderSample.metricSample.Host)
 	assert.Equal(t, false, gaugeSenderSample.commit)
 
 	rateSenderSample := <-senderMetricSampleChan
@@ -187,4 +203,100 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	event := <-eventChan
 	assert.Equal(t, submittedEvent, event)
+}
+
+func TestCheckSenderHostname(t *testing.T) {
+	defaultHostname := "default-host"
+
+	for nb, tc := range []struct {
+		defaultHostnameDisabled bool
+		submittedHostname       string
+		expectedHostname        string
+	}{
+		{
+			defaultHostnameDisabled: false,
+			submittedHostname:       "",
+			expectedHostname:        defaultHostname,
+		},
+		{
+			defaultHostnameDisabled: false,
+			submittedHostname:       "custom",
+			expectedHostname:        "custom",
+		},
+		{
+			defaultHostnameDisabled: true,
+			submittedHostname:       "",
+			expectedHostname:        "",
+		},
+		{
+			defaultHostnameDisabled: true,
+			submittedHostname:       "custom",
+			expectedHostname:        "custom",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %q -> %q", nb, tc.submittedHostname, tc.expectedHostname), func(t *testing.T) {
+			senderMetricSampleChan := make(chan senderMetricSample, 10)
+			serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+			eventChan := make(chan metrics.Event, 10)
+			checkSender := newCheckSender(checkID1, defaultHostname, senderMetricSampleChan, serviceCheckChan, eventChan)
+			checkSender.DisableDefaultHostname(tc.defaultHostnameDisabled)
+
+			checkSender.Gauge("my.metric", 1.0, tc.submittedHostname, []string{"foo", "bar"})
+			checkSender.Commit()
+			checkSender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, tc.submittedHostname, []string{"foo", "bar"}, "message")
+			submittedEvent := metrics.Event{
+				Title:          "Something happened",
+				Text:           "Description of the event",
+				Ts:             12,
+				Priority:       metrics.EventPriorityLow,
+				Host:           tc.submittedHostname,
+				Tags:           []string{"foo", "bar"},
+				AlertType:      metrics.EventAlertTypeInfo,
+				AggregationKey: "event_agg_key",
+				SourceTypeName: "docker",
+			}
+			checkSender.Event(submittedEvent)
+
+			gaugeSenderSample := <-senderMetricSampleChan
+			assert.EqualValues(t, checkID1, gaugeSenderSample.id)
+			assert.Equal(t, metrics.GaugeType, gaugeSenderSample.metricSample.Mtype)
+			assert.Equal(t, tc.expectedHostname, gaugeSenderSample.metricSample.Host)
+			assert.Equal(t, false, gaugeSenderSample.commit)
+
+			serviceCheck := <-serviceCheckChan
+			assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
+			assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
+			assert.Equal(t, tc.expectedHostname, serviceCheck.Host)
+			assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
+			assert.Equal(t, "message", serviceCheck.Message)
+
+			event := <-eventChan
+			assert.Equal(t, "Something happened", event.Title)
+			assert.Equal(t, int64(12), event.Ts)
+			assert.Equal(t, tc.expectedHostname, event.Host)
+			assert.Equal(t, []string{"foo", "bar"}, event.Tags)
+		})
+	}
+}
+
+func TestChangeAllSendersDefaultHostname(t *testing.T) {
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	checkSender := newCheckSender(checkID1, "hostname1", senderMetricSampleChan, serviceCheckChan, eventChan)
+	SetSender(checkSender, checkID1)
+
+	checkSender.Gauge("my.metric", 1.0, "", nil)
+	gaugeSenderSample := <-senderMetricSampleChan
+	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
+
+	changeAllSendersDefaultHostname("hostname2")
+	checkSender.Gauge("my.metric", 1.0, "", nil)
+	gaugeSenderSample = <-senderMetricSampleChan
+	assert.Equal(t, "hostname2", gaugeSenderSample.metricSample.Host)
+
+	changeAllSendersDefaultHostname("hostname1")
+	checkSender.Gauge("my.metric", 1.0, "", nil)
+	gaugeSenderSample = <-senderMetricSampleChan
+	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
 }
