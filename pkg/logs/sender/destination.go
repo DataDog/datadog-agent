@@ -8,6 +8,7 @@ package sender
 import (
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -38,11 +39,11 @@ type Destination struct {
 }
 
 // NewDestination returns a new destination.
-func NewDestination(prefixer Prefixer, delimiter Delimiter, connManager *ConnectionManager) *Destination {
+func NewDestination(endpoint config.Endpoint, useProto bool) *Destination {
 	return &Destination{
-		prefixer:    prefixer,
-		delimiter:   delimiter,
-		connManager: connManager,
+		prefixer:    NewAPIKeyPrefixer(endpoint.APIKey, endpoint.Logset),
+		delimiter:   NewDelimiter(useProto),
+		connManager: NewConnectionManager(endpoint),
 	}
 }
 
