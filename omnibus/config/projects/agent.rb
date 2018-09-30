@@ -115,11 +115,6 @@ dependency 'cacerts'
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
-# Windows-specific dependencies
-if windows?
-  dependency 'pywin32'
-end
-
 # Datadog agent
 dependency 'datadog-agent'
 
