@@ -184,8 +184,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
 	}
 
-	logSource := config.NewLogSource(l.getSourceName(pod, container), cfg)
-	return logSource, nil
+	return config.NewLogSource(l.getSourceName(pod, container), cfg), nil
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,

@@ -14,6 +14,7 @@ type Message struct {
 	RawDataLen int
 }
 
+// NewMessage creates an empty new message
 func NewMessage() *Message {
 	return &Message{}
 }
