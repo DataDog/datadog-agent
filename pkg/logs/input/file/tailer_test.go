@@ -81,15 +81,15 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content))
-	suite.Equal(len(lines[0]), toInt(msg.GetOrigin().Offset))
+	suite.Equal(len(lines[0]), toInt(msg.Origin.Offset))
 
 	msg = <-suite.outputChan
 	suite.Equal("hello again", string(msg.Content))
-	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.GetOrigin().Offset))
+	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
 
 	msg = <-suite.outputChan
 	suite.Equal("good bye", string(msg.Content))
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.GetOrigin().Offset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
 }
@@ -114,11 +114,11 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 
 	msg = <-suite.outputChan
 	suite.Equal("hello again", string(msg.Content))
-	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.GetOrigin().Offset))
+	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
 
 	msg = <-suite.outputChan
 	suite.Equal("good bye", string(msg.Content))
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.GetOrigin().Offset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
 }
@@ -145,11 +145,11 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 
 	msg = <-suite.outputChan
 	suite.Equal("hello again", string(msg.Content))
-	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.GetOrigin().Offset))
+	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
 
 	msg = <-suite.outputChan
 	suite.Equal("good bye", string(msg.Content))
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.GetOrigin().Offset))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
 }
@@ -167,7 +167,7 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.GetOrigin().Tags()
+	tags := msg.Origin.Tags()
 	suite.Equal(1, len(tags))
 	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
 

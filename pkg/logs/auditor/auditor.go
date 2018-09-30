@@ -113,7 +113,7 @@ func (a *Auditor) run() {
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.GetOrigin().Identifier, msg.GetOrigin().Offset)
+			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset)
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()

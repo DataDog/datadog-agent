@@ -73,9 +73,9 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 		return &message.Message{}, err
 	}
 	log.Debug("Sending JSON: ", string(jsonEvent))
-	return &message.Message{
-		Content: jsonEvent,
-		Origin:  message.NewOrigin(t.source),
-		Status:  message.StatusInfo,
-	}, nil
+	msg := message.NewMessage()
+	msg.Content = jsonEvent
+	msg.Origin = message.NewOrigin(t.source)
+	msg.SetStatus(message.StatusInfo)
+	return msg, nil
 }

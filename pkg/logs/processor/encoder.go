@@ -64,7 +64,7 @@ func (r *raw) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, ' ')
 
 		// Service
-		service := msg.GetOrigin().Service()
+		service := msg.Origin.Service()
 		if service != "" {
 			extraContent = append(extraContent, []byte(service)...)
 		} else {
@@ -75,7 +75,7 @@ func (r *raw) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, []byte(" - - ")...)
 
 		// Tags
-		tagsPayload := msg.GetOrigin().TagsPayload()
+		tagsPayload := msg.Origin.TagsPayload()
 		if len(tagsPayload) > 0 {
 			extraContent = append(extraContent, tagsPayload...)
 		} else {
@@ -109,9 +109,9 @@ func (p *proto) encode(msg *message.Message, redactedMsg []byte) ([]byte, error)
 		Status:    msg.GetStatus(),
 		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
-		Service:   msg.GetOrigin().Service(),
-		Source:    msg.GetOrigin().Source(),
-		Tags:      msg.GetOrigin().Tags(),
+		Service:   msg.Origin.Service(),
+		Source:    msg.Origin.Source(),
+		Tags:      msg.Origin.Tags(),
 	}).Marshal()
 }
 

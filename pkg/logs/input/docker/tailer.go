@@ -180,7 +180,7 @@ func (t *Tailer) forwardMessages() {
 			origin.Offset = output.Timestamp
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
-			output.SetOrigin(origin)
+			output.Origin = origin
 			t.outputChan <- output
 		}
 	}

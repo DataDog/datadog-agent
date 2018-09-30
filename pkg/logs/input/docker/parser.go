@@ -69,12 +69,11 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 		// Nothing after the timestamp: empty message
 		return &message.Message{}, nil
 	}
-
-	return &message.Message{
-		Content:   msg[idx+1:],
-		Status:    status,
-		Timestamp: string(msg[:idx]),
-	}, nil
+	parsedMsg := message.NewMessage()
+	parsedMsg.Content = msg[idx+1:]
+	parsedMsg.SetStatus(status)
+	parsedMsg.Timestamp = string(msg[:idx])
+	return parsedMsg, nil
 }
 
 // Unwrap removes the message header of docker logs

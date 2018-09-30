@@ -28,7 +28,10 @@ func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) conf
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
 	origin := message.NewOrigin(source)
-	msg := &message.Message{Content: content, Origin: origin, Status: status}
+	msg := message.NewMessage()
+	msg.Content = content
+	msg.Origin = origin
+	msg.SetStatus(status)
 	return msg
 }
 

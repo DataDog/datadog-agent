@@ -25,7 +25,7 @@ func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := containerdHeaderOut + " " + "anything"
 	containerdMsg, err := parser.Parse([]byte(validMessage))
 	assert.Nil(t, err)
-	assert.Equal(t, message.StatusInfo, containerdMsg.Status)
+	assert.Equal(t, message.StatusInfo, containerdMsg.GetStatus())
 	assert.Equal(t, []byte("anything"), containerdMsg.Content)
 }
 

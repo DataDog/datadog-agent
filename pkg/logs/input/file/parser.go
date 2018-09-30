@@ -32,24 +32,25 @@ type parser struct {
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
 func (p *parser) Parse(msg []byte) (*message.Message, error) {
-	parsedMsg, err := parseMsg(msg)
+	parsedMsgChunks, err := parseMsg(msg)
 	if err != nil {
 		return nil, err
 	}
-	severity := getContainerdStatus(parsedMsg[1])
-	return &message.Message{
-		Content: parsedMsg[3],
-		Status:  severity,
-	}, nil
+	severity := getContainerdStatus(parsedMsgChunks[1])
+
+	parsedMsg := message.NewMessage()
+	parsedMsg.Content = parsedMsgChunks[3]
+	parsedMsg.SetStatus(severity)
+	return parsedMsg, nil
 }
 
 // Unwrap remove the header of log lines of containerd
 func (p *parser) Unwrap(line []byte) ([]byte, error) {
-	parsedMsg, err := parseMsg(line)
+	parsedMsgChunks, err := parseMsg(line)
 	if err != nil {
 		return nil, err
 	}
-	return parsedMsg[3], nil
+	return parsedMsgChunks[3], nil
 }
 
 // getContainerdStatus returns the severity of the message based on the value of the
@@ -66,16 +67,16 @@ func getContainerdStatus(logStream []byte) string {
 }
 
 func parseMsg(msg []byte) ([][]byte, error) {
-	parsedMsg := bytes.SplitN(msg, []byte{' '}, 4)
+	parsedMsgChunks := bytes.SplitN(msg, []byte{' '}, 4)
 
-	if len(parsedMsg) < 3 {
+	if len(parsedMsgChunks) < 3 {
 		return nil, errors.New("can't parse containerd message")
 	}
 
 	// Empty message
-	if len(parsedMsg) == 3 {
-		parsedMsg = append(parsedMsg, []byte(nil))
+	if len(parsedMsgChunks) == 3 {
+		parsedMsgChunks = append(parsedMsgChunks, []byte(nil))
 	}
 
-	return parsedMsg, nil
+	return parsedMsgChunks, nil
 }

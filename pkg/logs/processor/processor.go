@@ -66,7 +66,7 @@ func (p *Processor) run() {
 // and a copy of the message with some fields redacted, depending on config
 func applyRedactingRules(msg *message.Message) (bool, []byte) {
 	content := msg.Content
-	for _, rule := range msg.GetOrigin().LogSource.Config.ProcessingRules {
+	for _, rule := range msg.Origin.LogSource.Config.ProcessingRules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
 			if rule.Reg.Match(content) {

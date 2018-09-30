@@ -9,33 +9,24 @@ package message
 type Message struct {
 	Content    []byte
 	Origin     *Origin
-	Status     string
+	status     string
 	Timestamp  string
 	RawDataLen int
 }
 
-// GetOrigin returns the Origin from which the message comes
-func (m *Message) GetOrigin() *Origin {
-	return m.Origin
-}
-
-// SetOrigin sets the Origin from which the message comes
-func (m *Message) SetOrigin(origin *Origin) {
-	m.Origin = origin
+func NewMessage() *Message {
+	return &Message{}
 }
 
 // GetStatus returns the status of the message
 func (m *Message) GetStatus() string {
-	if m.Status == "" {
-		m.Status = StatusInfo
+	if m.status == "" {
+		m.status = StatusInfo
 	}
-	return m.Status
+	return m.status
 }
 
 // SetStatus sets the status of the message
 func (m *Message) SetStatus(status string) {
-	if status == "" {
-		status = StatusInfo
-	}
-	m.Status = status
+	m.status = status
 }
