@@ -14,9 +14,6 @@ import (
 )
 
 const (
-	// Containerd log partial flags
-	logTagPartial = 'P'
-	logTagFull    = 'F'
 	// Containerd log stream type
 	stdout = "stdout"
 	stderr = "stderr"
@@ -35,64 +32,24 @@ type parser struct {
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
 func (p *parser) Parse(msg []byte) (*message.Message, error) {
-	// timestamp goes till first space
-	timestamp := bytes.Index(msg, []byte{' '})
-	if timestamp == -1 {
-		// Nothing after the timestamp: ERROR
-		return &message.Message{}, errors.New("can't parse containerd message, no whitespace found after timestamp")
+	parsedMsg, err := parseMsg(msg)
+	if err != nil {
+		return nil, err
 	}
-
-	streamType := bytes.Index(msg[timestamp+1:], []byte{' '})
-	if streamType == -1 {
-		// Nothing after the output: ERROR
-		return &message.Message{}, errors.New("can't parse containerd message, no whitespace found after stream type")
-	}
-	streamType += timestamp + 1
-	severity := getContainerdStatus(msg[timestamp+1 : streamType])
-
-	partial := bytes.Index(msg[streamType+1:], []byte{' '})
-	if partial == -1 {
-		// Nothing after the PartialFlag: empty message
-		return &message.Message{Status: severity}, nil
-	}
-	partial += streamType + 1
-	if msg[partial-1] != byte(logTagFull) && msg[partial-1] != byte(logTagPartial) {
-		return &message.Message{Status: severity}, errors.New("can't parse containerd message, no whitespace found after partial flag")
-	}
-
+	severity := getContainerdStatus(parsedMsg[1])
 	return &message.Message{
-		Content: msg[partial+1:],
+		Content: parsedMsg[3],
 		Status:  severity,
 	}, nil
 }
 
 // Unwrap remove the header of log lines of containerd
 func (p *parser) Unwrap(line []byte) ([]byte, error) {
-	// timestamp goes till first space
-	timestamp := bytes.Index(line, []byte{' '})
-	if timestamp == -1 {
-		// Nothing after the timestamp: ERROR
-		return nil, errors.New("can't parse containerd message")
+	parsedMsg, err := parseMsg(line)
+	if err != nil {
+		return nil, err
 	}
-
-	streamType := bytes.Index(line[timestamp+1:], []byte{' '})
-	if streamType == -1 {
-		// Nothing after the output: ERROR
-		return nil, errors.New("can't parse containerd message")
-	}
-	streamType += timestamp + 1
-
-	partial := bytes.Index(line[streamType+1:], []byte{' '})
-	if partial == -1 {
-		// Nothing after the PartialFlag: empty message
-		return []byte(nil), nil
-	}
-	partial += streamType + 1
-	if line[partial-1] != byte(logTagFull) && line[partial-1] != byte(logTagPartial) {
-		return nil, errors.New("can't parse containerd message")
-	}
-
-	return line[partial+1:], nil
+	return parsedMsg[3], nil
 }
 
 // getContainerdStatus returns the severity of the message based on the value of the
@@ -106,4 +63,19 @@ func getContainerdStatus(logStream []byte) string {
 	default:
 		return ""
 	}
+}
+
+func parseMsg(msg []byte) ([][]byte, error) {
+	parsedMsg := bytes.SplitN(msg, []byte{' '}, 4)
+
+	if len(parsedMsg) < 3 {
+		return nil, errors.New("can't parse containerd message")
+	}
+
+	// Empty message
+	if len(parsedMsg) == 3 {
+		parsedMsg = append(parsedMsg, []byte(nil))
+	}
+
+	return parsedMsg, nil
 }
