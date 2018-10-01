@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-localhost
+spec:
+  containers:
+    - image: jgkamat/netcat
+      name: server
+      command: ["/bin/bash", "-c", "nc -l -p 123 > /dev/null"]
+    - image: jgkamat/netcat
+      name: client
+      command: ["/bin/bash", "-c", "yes | nc localhost 123"]
