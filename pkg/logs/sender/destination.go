@@ -61,10 +61,6 @@ func (d *Destination) Send(payload *message.Message) error {
 		// If we have a context, use it, this will allow early cancellation.
 		if d.destinationsContext != nil {
 			ctx = d.destinationsContext.Context()
-			// FIXME: Beurk
-			if ctx == nil {
-				return context.Canceled
-			}
 		} else {
 			// Make the destinationsContext optional for easier tests.
 			ctx = context.Background()

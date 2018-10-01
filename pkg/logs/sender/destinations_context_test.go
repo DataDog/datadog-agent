@@ -15,13 +15,16 @@ func TestNewDestinationsContext(t *testing.T) {
 	assert.Nil(t, destinationsCtx.Context())
 
 	destinationsCtx.Start()
-
 	context := destinationsCtx.Context()
 	assert.NotNil(t, context)
 
 	destinationsCtx.Stop()
-	assert.Nil(t, destinationsCtx.Context())
+	assert.NotNil(t, destinationsCtx.Context())
 
 	// We simply make sure that the DestinationsContext correctly cancels its context.
 	<-context.Done()
+
+	destinationsCtx.Start()
+	assert.NotNil(t, destinationsCtx.Context())
+	assert.NotEqual(t, context, destinationsCtx.Context())
 }

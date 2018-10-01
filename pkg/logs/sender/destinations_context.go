@@ -38,9 +38,7 @@ func (sm *DestinationsContext) Stop() {
 		sm.cancel()
 		sm.cancel = nil
 	}
-	if sm.context != nil {
-		sm.context = nil
-	}
+	// Here we keep the cancelled context to make sure in-flight destination get it.
 }
 
 // Context allows one to access the current context of this DestinationsContext.
