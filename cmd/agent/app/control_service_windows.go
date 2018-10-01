@@ -125,7 +125,7 @@ func StopService(serviceName string, withDeps bool) error {
 	defer m.Disconnect()
 
 	hSvc, err := windows.OpenService(m.Handle, syscall.StringToUTF16Ptr(serviceName),
-		windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS)
+		windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS|windows.SERVICE_ENUMERATE_DEPENDENTS)
 	if err != nil {
 		log.Warnf("Failed to open service %v", err)
 		return fmt.Errorf("could not access service: %v", err)
