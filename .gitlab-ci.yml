@@ -1,5 +1,4 @@
 stages:
-  - deploy
   - source_test
   - binary_build
   - integration_test
@@ -10,6 +9,7 @@ stages:
   - testkitchen_cleanup
   - image_build
   - image_deploy
+  - deploy
   - deploy_invalidate
   - e2e
 
@@ -912,17 +912,17 @@ check_already_deployed_version:
 
 # deploy debian packages to apt staging repo
 deploy_deb:
+  <<: *run_when_triggered
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
-    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
     # We first check that the current version hasn't already been deployed
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
     - pushd $OMNIBUS_PACKAGE_DIR
-    - touch datadog-agent_6.5.2-1_amd64.deb
     - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
     - popd
     - source /usr/local/rvm/scripts/rvm
