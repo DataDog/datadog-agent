@@ -14,8 +14,17 @@ type Message struct {
 	RawDataLen int
 }
 
-// NewMessage creates an empty new message
-func NewMessage() *Message {
+// NewMessage returns a new message
+func NewMessage(content []byte, origin *Origin, status string) *Message {
+	return &Message{
+		Content: content,
+		Origin:  origin,
+		status:  status,
+	}
+}
+
+// NewEmptyMessage creates an empty new message
+func NewEmptyMessage() *Message {
 	return &Message{}
 }
 
