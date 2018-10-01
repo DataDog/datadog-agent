@@ -17,7 +17,7 @@ var containerdHeaderOut = "2018-09-20T11:54:11.753589172Z stdout F"
 func TestGetContainerdSeverity(t *testing.T) {
 	assert.Equal(t, message.StatusInfo, getContainerdStatus([]byte("stdout")))
 	assert.Equal(t, message.StatusError, getContainerdStatus([]byte("stderr")))
-	assert.Equal(t, "", getContainerdStatus([]byte("")))
+	assert.Equal(t, message.StatusInfo, getContainerdStatus([]byte("")))
 }
 
 func TestContainerdParserShouldSucceedWithValidInput(t *testing.T) {

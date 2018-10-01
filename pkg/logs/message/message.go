@@ -23,11 +23,6 @@ func NewMessage(content []byte, origin *Origin, status string) *Message {
 	}
 }
 
-// NewEmptyMessage creates an empty new message
-func NewEmptyMessage() *Message {
-	return &Message{}
-}
-
 // GetStatus returns the status of the message
 func (m *Message) GetStatus() string {
 	if m.status == "" {

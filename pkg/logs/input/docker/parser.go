@@ -69,9 +69,7 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 		// Nothing after the timestamp: empty message
 		return &message.Message{}, nil
 	}
-	parsedMsg := message.NewEmptyMessage()
-	parsedMsg.Content = msg[idx+1:]
-	parsedMsg.SetStatus(status)
+	parsedMsg := message.NewMessage(msg[idx+1:], nil, status)
 	parsedMsg.Timestamp = string(msg[:idx])
 	return parsedMsg, nil
 }

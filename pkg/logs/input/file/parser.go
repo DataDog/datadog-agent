@@ -32,22 +32,20 @@ type parser struct {
 // Example:
 // 2018-09-20T11:54:11.753589172Z stdout F This is my message
 func (p *parser) Parse(msg []byte) (*message.Message, error) {
-	components, err := parseMsg(msg)
+	components, err := parse(msg)
 	if err != nil {
 		return nil, err
 	}
 	status := getContainerdStatus(components[1])
 
-	parsedMsg := message.NewEmptyMessage()
-	parsedMsg.Content = components[3]
-	parsedMsg.SetStatus(status)
+	parsedMsg := message.NewMessage(components[3], nil, status)
 	parsedMsg.Timestamp = string(components[0])
 	return parsedMsg, nil
 }
 
 // Unwrap remove the header of log lines of containerd
 func (p *parser) Unwrap(line []byte) ([]byte, error) {
-	components, err := parseMsg(line)
+	components, err := parse(line)
 	if err != nil {
 		return nil, err
 	}
@@ -55,19 +53,19 @@ func (p *parser) Unwrap(line []byte) ([]byte, error) {
 }
 
 // getContainerdStatus returns the status of the message based on the value of the
-// STREAM_TYPE field in the header
-func getContainerdStatus(logStream []byte) string {
-	switch string(logStream) {
+// STREAM_TYPE field in the header. It returns the status INFO by default
+func getContainerdStatus(streamType []byte) string {
+	switch string(streamType) {
 	case stdout:
 		return message.StatusInfo
 	case stderr:
 		return message.StatusError
 	default:
-		return ""
+		return message.StatusInfo
 	}
 }
 
-func parseMsg(msg []byte) ([][]byte, error) {
+func parse(msg []byte) ([][]byte, error) {
 	components := bytes.SplitN(msg, []byte{' '}, 4)
 
 	if len(components) < 3 {
