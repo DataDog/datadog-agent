@@ -29,16 +29,16 @@ type provider struct {
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
-	destinationsContext   *sender.DestinationsContext
+	destinationsContext  *sender.DestinationsContext
 }
 
 // NewProvider returns a new Provider
 func NewProvider(numberOfPipelines int, outputChan chan *message.Message, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) Provider {
 	return &provider{
-		numberOfPipelines:  numberOfPipelines,
-		outputChan:         outputChan,
-		endpoints:          endpoints,
-		pipelines:          []*Pipeline{},
+		numberOfPipelines:   numberOfPipelines,
+		outputChan:          outputChan,
+		endpoints:           endpoints,
+		pipelines:           []*Pipeline{},
 		destinationsContext: destinationsContext,
 	}
 }

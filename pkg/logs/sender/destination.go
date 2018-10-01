@@ -33,8 +33,8 @@ func (e *FramingError) Error() string {
 
 // Destination is responsible for shipping logs to a remote server over TCP.
 type Destination struct {
-	prefixer  Prefixer
-	delimiter Delimiter
+	prefixer            Prefixer
+	delimiter           Delimiter
 	connManager         *ConnectionManager
 	destinationsContext *DestinationsContext
 	conn                net.Conn

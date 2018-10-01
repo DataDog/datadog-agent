@@ -42,8 +42,8 @@ func (dc *DestinationsContext) Stop() {
 }
 
 // Context allows one to access the current context of this DestinationsContext.
-func (sm *DestinationsContext) Context() context.Context {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-	return sm.context
+func (dc *DestinationsContext) Context() context.Context {
+	dc.mutex.Lock()
+	defer dc.mutex.Unlock()
+	return dc.context
 }
