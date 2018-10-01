@@ -9,22 +9,20 @@ import (
 	"sync"
 )
 
-// Types of log formats that are used to determine which parser is going to be used
-const (
-	ContainerdFormat = "containerd"
-)
-
 // LogSource holds a reference to an integration name and a log configuration, and allows to track errors and
 // successful operations on it. Both name and configuration are static for now and determined at creation time.
 // Changing the status is designed to be thread safe.
 type LogSource struct {
-	Name         string
-	Config       *LogsConfig
-	Status       *LogStatus
-	inputs       map[string]bool
-	lock         *sync.Mutex
-	Messages     *Messages
-	parserFormat string
+	Name     string
+	Config   *LogsConfig
+	Status   *LogStatus
+	inputs   map[string]bool
+	lock     *sync.Mutex
+	Messages *Messages
+	// sourceType is the type of the source that we are tailing whereas Config.Type is the type of the tailer
+	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
+	// the agent is tailing a file to read logs of a containerd container
+	sourceType string
 }
 
 // NewLogSource creates a new log source.
@@ -64,16 +62,16 @@ func (s *LogSource) GetInputs() []string {
 	return inputs
 }
 
-// SetParserFormat sets a format that give information on how the source lines should be parsed
-func (s *LogSource) SetParserFormat(parserFormat string) {
+// SetSourceType sets a format that give information on how the source lines should be parsed
+func (s *LogSource) SetSourceType(sourceType string) {
 	s.lock.Lock()
-	s.parserFormat = parserFormat
+	s.sourceType = sourceType
 	s.lock.Unlock()
 }
 
-// GetParserFormat returns the parserFormat used by this source
-func (s *LogSource) GetParserFormat() string {
+// GetSourceType returns the sourceType used by this source
+func (s *LogSource) GetSourceType() string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.parserFormat
+	return s.sourceType
 }

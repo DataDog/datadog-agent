@@ -52,7 +52,7 @@ type Tailer struct {
 // NewTailer returns an initialized Tailer
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
 	var parser logParser.Parser
-	if source.GetParserFormat() == config.ContainerdFormat {
+	if source.GetSourceType() == config.ContainerdType {
 		parser = containerdFileParser
 	} else {
 		parser = logParser.NoopParser

@@ -130,7 +130,7 @@ func (l *Launcher) addSource(svc *service.Service) {
 	}
 
 	if svc.Type == service.Containerd {
-		source.SetParserFormat(config.ContainerdFormat)
+		source.SetSourceType(config.ContainerdType)
 	}
 
 	l.sourcesByContainer[svc.GetEntityID()] = source
