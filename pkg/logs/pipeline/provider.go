@@ -29,24 +29,24 @@ type provider struct {
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
-	destinationContext   *sender.DestinationsContext
+	destinationsContext   *sender.DestinationsContext
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, outputChan chan *message.Message, endpoints *config.Endpoints, destinationContext *sender.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, outputChan chan *message.Message, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:  numberOfPipelines,
 		outputChan:         outputChan,
 		endpoints:          endpoints,
 		pipelines:          []*Pipeline{},
-		destinationContext: destinationContext,
+		destinationsContext: destinationsContext,
 	}
 }
 
 // Start initializes the pipelines
 func (p *provider) Start() {
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.endpoints, p.destinationContext)
+		pipeline := NewPipeline(p.outputChan, p.endpoints, p.destinationsContext)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

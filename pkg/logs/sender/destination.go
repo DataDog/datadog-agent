@@ -35,7 +35,6 @@ func (e *FramingError) Error() string {
 type Destination struct {
 	prefixer  Prefixer
 	delimiter Delimiter
-	/* TODO: Merge ConnectionManager into Destination (think about GRPC integration before) */
 	connManager         *ConnectionManager
 	destinationsContext *DestinationsContext
 	conn                net.Conn

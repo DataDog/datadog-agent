@@ -24,19 +24,19 @@ func NewDestinationsContext() *DestinationsContext {
 }
 
 // Start creates a context that will be cancelled on Stop()
-func (sm *DestinationsContext) Start() {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-	sm.context, sm.cancel = context.WithCancel(context.Background())
+func (dc *DestinationsContext) Start() {
+	dc.mutex.Lock()
+	defer dc.mutex.Unlock()
+	dc.context, dc.cancel = context.WithCancel(context.Background())
 }
 
 // Stop cancels the context that should be used by all senders.
-func (sm *DestinationsContext) Stop() {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-	if sm.cancel != nil {
-		sm.cancel()
-		sm.cancel = nil
+func (dc *DestinationsContext) Stop() {
+	dc.mutex.Lock()
+	defer dc.mutex.Unlock()
+	if dc.cancel != nil {
+		dc.cancel()
+		dc.cancel = nil
 	}
 	// Here we keep the cancelled context to make sure in-flight destination get it.
 }

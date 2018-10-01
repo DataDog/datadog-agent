@@ -90,8 +90,8 @@ func (a *Agent) Stop() {
 
 	// This will try to stop everything in order, including the potentially blocking
 	// parts like the sender. After StopTimeout it will just stop the last part of the
-	// pipeline, disconnecting it from the auditor, to make sure that everything can
-	// stop.
+	// pipeline, disconnecting it from the auditor, to make sure that the pipeline is
+	// flushed before stopping.
 	// TODO: Add this feature in the stopper.
 	c := make(chan struct{})
 	go func() {
@@ -102,8 +102,11 @@ func (a *Agent) Stop() {
 	select {
 	case <-c:
 	case <-time.After(timeout):
-		log.Info("timed out when stopping agent, forcing is to stop now")
+		log.Info("Timed out when stopping logs-agent, forcing it to stop now")
+		// We force all destinations to read/flush all the messages they get without
+		// trying to write to the network.
 		a.destinationsCtx.Stop()
+		// Wait again for the stopper to complete.
 		<-c
 	}
 }
