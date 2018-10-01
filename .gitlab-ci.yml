@@ -14,18 +14,24 @@ unit_tests:
   - invoke deps
   - inv -e agent.build --race --precompile-only
   - inv -e test --coverage --race --profile --fail-on-fmt
+  tags:
+  - sts-aws 
 
 # TODO: replicate remote docker tests
-#integration_tests:
-#  stage: tests
-#  image: stackstate/stackstate-agent-runner-circle:latest
-#  before_script:
-#  - mkdir -p /go/src/github.com/StackVista
-#  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
-#  script:
-#  - cd /go/src/github.com/StackVista/stackstate-agent
-#  - invoke deps
-#  - inv  -e integration-tests --race --remote-docker
+
+integration_tests:
+ stage: tests
+ image: stackstate/stackstate-agent-runner-circle:latest
+ before_script:
+ - mkdir -p /go/src/github.com/StackVista
+ - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+ script:
+ - cd /go/src/github.com/StackVista/stackstate-agent
+ - invoke deps
+ - inv  -e integration-tests --race --remote-docker
+ tags:
+ - sts-aws
+
 
 filename_linting:
   stage: tests
@@ -38,21 +44,22 @@ filename_linting:
   - invoke deps
   - inv -e lint-filenames
 
-#docker_integration_tests:
-#  stage: tests
-#  image: stackstate/stackstate-agent-runner-circle:latest
-#  variables:
-#      DOCKER_DRIVER: overlay
-#  services:
-#    - docker:dind
-#  before_script:
-#  - mkdir -p /go/src/github.com/StackVista
-#  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
-#  script:
-#  - cd /go/src/github.com/StackVista/stackstate-agent
-#  - invoke deps
-#  - inv -e docker.integration-tests
-
+docker_integration_tests:
+  stage: tests
+  image: stackstate/stackstate-agent-runner-circle:latest
+  variables:
+      DOCKER_DRIVER: overlay
+  services:
+    - docker:dind
+  before_script:
+  - mkdir -p /go/src/github.com/StackVista
+  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+  script:
+  - cd /go/src/github.com/StackVista/stackstate-agent
+  - invoke deps
+  - inv -e docker.integration-tests
+  tags:
+  - sts-aws
 
 build_binaries:
   stage: build
