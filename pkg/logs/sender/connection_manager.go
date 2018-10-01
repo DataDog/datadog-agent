@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -20,9 +21,9 @@ import (
 )
 
 const (
-	backoffUnit = 2 * time.Second
-	backoffMax  = 30 * time.Second
-	timeout     = 20 * time.Second
+	backoffUnit       = 2 * time.Second
+	backoffMax        = 30 * time.Second
+	connectionTimeout = 20 * time.Second
 )
 
 // A ConnectionManager manages connections
@@ -41,7 +42,7 @@ func NewConnectionManager(endpoint config.Endpoint) *ConnectionManager {
 
 // NewConnection returns an initialized connection to the intake.
 // It blocks until a connection is available
-func (cm *ConnectionManager) NewConnection() net.Conn {
+func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -56,9 +57,19 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 	var retries int
 	for {
 		if retries > 0 {
-			cm.backoff(retries)
+			log.Debugf("Connect attempt #%d", retries)
+			cm.backoff(ctx, retries)
 		}
 		retries++
+
+		// Check if we should continue.
+		select {
+		// This is the normal shutdown path when the caller is stopped.
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			// Continue.
+		}
 
 		var conn net.Conn
 		var err error
@@ -70,29 +81,36 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 				log.Warn(err)
 				continue
 			}
+			// TODO: handle timeouts with ctx.
 			conn, err = dialer.Dial("tcp", cm.address())
 		} else {
-			conn, err = net.DialTimeout("tcp", cm.address(), timeout)
+			var dialer net.Dialer
+			dctx, cancel := context.WithTimeout(ctx, connectionTimeout)
+			defer cancel()
+			conn, err = dialer.DialContext(dctx, "tcp", cm.address())
 		}
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
+		log.Debug("connected to %v", cm.address())
 
 		if cm.endpoint.UseSSL {
 			sslConn := tls.Client(conn, &tls.Config{
 				ServerName: cm.endpoint.Host,
 			})
+			// TODO: handle timeouts with ctx.
 			err = sslConn.Handshake()
 			if err != nil {
 				log.Warn(err)
 				continue
 			}
+			log.Debug("SSL handshake successful")
 			conn = sslConn
 		}
 
 		go cm.handleServerClose(conn)
-		return conn
+		return conn, nil
 	}
 }
 
@@ -104,10 +122,13 @@ func (cm *ConnectionManager) address() string {
 // CloseConnection closes a connection on the client side
 func (cm *ConnectionManager) CloseConnection(conn net.Conn) {
 	conn.Close()
+	log.Info("Connection closed")
 }
 
 // handleServerClose lets the connection manager detect when a connection
 // has been closed by the server, and closes it for the client.
+// This is not strictly necessary but a good safeguard against callers
+// that might not handle errors properly.
 func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 	for {
 		buff := make([]byte, 1)
@@ -123,10 +144,14 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 }
 
 // backoff lets the connection manager sleep a bit
-func (cm *ConnectionManager) backoff(retries int) {
+func (cm *ConnectionManager) backoff(ctx context.Context, retries int) {
 	backoffDuration := backoffUnit * time.Duration(retries)
 	if backoffDuration > backoffMax {
 		backoffDuration = backoffMax
 	}
 	time.Sleep(backoffDuration)
+
+	ctx, cancel := context.WithTimeout(ctx, backoffDuration)
+	defer cancel()
+	<-ctx.Done()
 }
