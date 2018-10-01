@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -29,16 +30,11 @@ func (h *Handler) GetAllConfigs() ([]integration.Config, error) {
 }
 
 // SetupHandler not implemented
-func SetupHandler(ac *autodiscovery.AutoConfig) (*Handler, error) {
+func SetupHandler(_ *autodiscovery.AutoConfig) (*Handler, error) {
 	return nil, ErrNotCompiled
 }
 
-// StartDiscovery not implemented
-func (h *Handler) StartDiscovery() error {
-	return ErrNotCompiled
-}
-
-// StopDiscovery not implemented
-func (h *Handler) StopDiscovery() error {
+// Run not implemented
+func (h *Handler) Run(_ context.Context) error {
 	return ErrNotCompiled
 }

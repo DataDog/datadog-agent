@@ -27,9 +27,6 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	digest := config.Digest()
 	d.store.digestToConfig[digest] = config
 
-	if targetNodeName == "" {
-		return
-	}
 	currentNode, foundCurrent := d.store.getNodeStore(d.store.digestToNode[digest])
 	targetNode := d.store.getOrCreateNodeStore(targetNodeName)
 

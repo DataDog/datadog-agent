@@ -24,7 +24,7 @@ func makeConfigArray(configMap map[string]integration.Config) []integration.Conf
 	return configSlice
 }
 
-// timestampNow provides a consistent way to keep a timestamp
+// timestampNow provides a consistent way to keep a seconds timestamp
 func timestampNow() int64 {
 	return time.Now().Unix()
 }

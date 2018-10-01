@@ -330,6 +330,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
+	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
 
 	setAssetFs(config)
 }

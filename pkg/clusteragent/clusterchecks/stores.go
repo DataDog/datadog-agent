@@ -46,8 +46,6 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName string) *nodeStore {
 	if ok {
 		return node
 	}
-
-	log.Debugf("unknown node %s, registering", nodeName)
 	node = newNodeStore()
 	s.nodes[nodeName] = node
 	return node

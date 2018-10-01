@@ -8,20 +8,26 @@
 package clusterchecks
 
 import (
+	"context"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
-	store *clusterStore
+	store                 *clusterStore
+	nodeExpirationSeconds int64
 }
 
 func newDispatcher() *dispatcher {
-	return &dispatcher{
+	d := &dispatcher{
 		store: newClusterStore(),
 	}
+	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
+	return d
 }
 
 // Stop implements the scheduler.Scheduler interface
@@ -48,11 +54,17 @@ func (d *dispatcher) add(config integration.Config) {
 	if !config.ClusterCheck {
 		return // Ignore non cluster-check configs
 	}
-	log.Debugf("dispatching configuration %s:%s", config.Name, config.Digest())
 
-	// TODO: add dispatching logic
-	hostname, _ := util.GetHostname()
-	d.addConfig(config, hostname)
+	target := d.getLeastBusyNode()
+	if target == "" {
+		// If no node is found, dispatch it to the dummy "" node.
+		// The node will be expired out, and configurations dispatched on a real node later.
+		log.Infof("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+	} else {
+		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
+	}
+
+	d.addConfig(config, target)
 }
 
 // remove deletes a given configuration
@@ -61,6 +73,23 @@ func (d *dispatcher) remove(config integration.Config) {
 		return // Ignore non cluster-check configs
 	}
 	digest := config.Digest()
-	log.Debugf("removing configuration %s:%s", config.Name, digest)
+	log.Debugf("Removing configuration %s:%s", config.Name, digest)
 	d.removeConfig(digest)
+}
+
+// cleanupLoop is the cleanup goroutine for the dispatcher.
+// It has to be called in a goroutine with a cancellable context.
+func (d *dispatcher) cleanupLoop(ctx context.Context) {
+	expireTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
+	defer expireTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-expireTicker.C:
+			expired := d.expireNodes()
+			d.Schedule(expired)
+		}
+	}
 }

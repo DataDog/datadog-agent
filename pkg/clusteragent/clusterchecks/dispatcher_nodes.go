@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getNodeConfigs returns configurations dispatched to a given node
@@ -42,4 +43,54 @@ func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus)
 	node.lastPing = timestampNow()
 
 	return (node.lastConfigChange == status.LastChange), nil
+}
+
+// getLeastBusyNode returns the name of the node that is assigned
+// the lowest number of checks. In case of equality, one is chosen
+// randomly, based on map iterations being randomized.
+func (d *dispatcher) getLeastBusyNode() string {
+	var lowestName string
+	lowestNumber := int(-1)
+
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	for name, store := range d.store.nodes {
+		if name == "" {
+			continue
+		}
+		if lowestNumber == -1 || len(store.digestToConfig) < lowestNumber {
+			lowestName = name
+			lowestNumber = len(store.digestToConfig)
+		}
+	}
+	return lowestName
+}
+
+// ExpireNodes iterates over nodes and removes the ones that have not
+// reported for more than the expiration duration. It returns configs
+// that were dispatched to these nodes, to re-dispatch them.
+func (d *dispatcher) expireNodes() []integration.Config {
+	var orphanedConfigs []integration.Config
+	cutoffTimestamp := timestampNow() - d.nodeExpirationSeconds
+
+	d.store.Lock()
+	defer d.store.Unlock()
+
+	for name, node := range d.store.nodes {
+		node.RLock()
+		if node.lastPing < cutoffTimestamp {
+			if name != "" {
+				// Don't report on the dummy "" host for unscheduled configs
+				log.Infof("Expiring out node %s, last status report %d seconds ago", name, timestampNow()-node.lastPing)
+			}
+			for _, c := range node.digestToConfig {
+				orphanedConfigs = append(orphanedConfigs, c)
+			}
+			delete(d.store.nodes, name)
+		}
+		node.RUnlock()
+	}
+
+	return orphanedConfigs
 }
