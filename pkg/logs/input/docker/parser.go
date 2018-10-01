@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
+// +build docker
 
 package docker
 
@@ -10,14 +11,8 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
-
-// Message represents a docker message
-type Message struct {
-	Content   []byte
-	Status    string
-	Timestamp string
-}
 
 // Length of the docker message header.
 // See https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs:
@@ -28,19 +23,26 @@ const dockerHeaderLength = 8
 // https://github.com/moby/moby/blob/master/daemon/logger/copier.go#L19-L22
 const dockerBufferSize = 16 * 1024
 
-// ParseMessage extracts the date and the status from the raw docker message
+// dockerParser is the parser for stdout/stderr docker logs
+var dockerParser *parser
+
+type parser struct {
+	logParser.Parser
+}
+
+// Parse extracts the date and the status from the raw docker message
 // see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func ParseMessage(msg []byte) (Message, error) {
+func (p *parser) Parse(msg []byte) (*message.Message, error) {
 
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return Message{}, errors.New("can't parse docker message: expected a 8 bytes header")
+		return &message.Message{}, errors.New("can't parse docker message: expected a 8 bytes header")
 	}
 
 	// Read the first byte to get the status
-	status := getStatus(msg)
+	status := getDockerSeverity(msg)
 	if status == "" {
 
 		// When tailing logs coming from a container running with a tty, docker
@@ -65,20 +67,23 @@ func ParseMessage(msg []byte) (Message, error) {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 {
 		// Nothing after the timestamp: empty message
-		return Message{}, nil
+		return &message.Message{}, nil
 	}
-
-	return Message{
-		Content:   msg[idx+1:],
-		Status:    status,
-		Timestamp: string(msg[:idx]),
-	}, nil
+	parsedMsg := message.NewMessage(msg[idx+1:], nil, status)
+	parsedMsg.Timestamp = string(msg[:idx])
+	return parsedMsg, nil
 }
 
-// getStatus returns the status of the message based on the value of the
+// Unwrap removes the message header of docker logs
+func (p *parser) Unwrap(line []byte) ([]byte, error) {
+	headerLen := getDockerMetadataLength(line)
+	return line[headerLen:], nil
+}
+
+// getDockerSeverity returns the status of the message based on the value of the
 // STREAM_TYPE byte in the header. STREAM_TYPE can be 1 for stdout and 2 for
 // stderr. If it doesn't match either of these, return an empty string.
-func getStatus(msg []byte) string {
+func getDockerSeverity(msg []byte) string {
 	switch msg[0] {
 	case 1:
 		return message.StatusInfo
@@ -99,14 +104,14 @@ func getStatus(msg []byte) string {
 //   H M1M2M3
 func removePartialDockerMetadata(msgToClean []byte) []byte {
 	msg := []byte{}
-	metadataLen := GetDockerMetadataLength(msgToClean)
+	metadataLen := getDockerMetadataLength(msgToClean)
 	start := 0
 	end := min(len(msgToClean), dockerBufferSize+metadataLen)
 
 	for end > 0 && metadataLen > 0 {
 		msg = append(msg, msgToClean[start:end]...)
 		msgToClean = msgToClean[end:]
-		metadataLen = GetDockerMetadataLength(msgToClean)
+		metadataLen = getDockerMetadataLength(msgToClean)
 		start = metadataLen
 		end = min(len(msgToClean), dockerBufferSize+metadataLen)
 	}
@@ -114,9 +119,9 @@ func removePartialDockerMetadata(msgToClean []byte) []byte {
 	return msg
 }
 
-// GetDockerMetadataLength returns the length of the 8 bytes header, timestamp, and space
+// getDockerMetadataLength returns the length of the 8 bytes header, timestamp, and space
 // that is in front of each message.
-func GetDockerMetadataLength(msg []byte) int {
+func getDockerMetadataLength(msg []byte) int {
 	if len(msg) < dockerHeaderLength {
 		return 0
 	}

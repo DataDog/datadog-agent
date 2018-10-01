@@ -25,7 +25,7 @@ type AuditorTestSuite struct {
 	testPath string
 	testFile *os.File
 
-	inputChan chan message.Message
+	inputChan chan *message.Message
 	a         *Auditor
 	source    *config.LogSource
 }
@@ -39,7 +39,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	_, err := os.Create(suite.testPath)
 	suite.Nil(err)
 
-	suite.inputChan = make(chan message.Message)
+	suite.inputChan = make(chan *message.Message)
 	suite.a = New(suite.inputChan, "")
 	suite.a.registryPath = suite.testPath
 	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})

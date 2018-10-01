@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package message
+package parser
 
 import (
 	"testing"
@@ -11,13 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMessage(t *testing.T) {
-
-	message := Message{Content: []byte("hello")}
-	assert.Equal(t, "hello", string(message.Content))
-
-	message.Content = []byte("world")
-	assert.Equal(t, "world", string(message.Content))
-	assert.Equal(t, StatusInfo, message.GetStatus())
-
+func TestNoopParserHandleMessages(t *testing.T) {
+	parser := NoopParser
+	testMsg := []byte("Foo")
+	msg, err := parser.Parse(testMsg)
+	assert.Nil(t, err)
+	assert.Equal(t, testMsg, msg.Content)
 }

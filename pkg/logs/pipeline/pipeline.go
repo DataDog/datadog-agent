@@ -14,13 +14,13 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan chan message.Message
+	InputChan chan *message.Message
 	processor *processor.Processor
 	sender    *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan message.Message, endpoints *config.Endpoints) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, endpoints *config.Endpoints) *Pipeline {
 	// initialize the main destination
 	main := sender.NewDestination(endpoints.Main)
 
@@ -32,11 +32,11 @@ func NewPipeline(outputChan chan message.Message, endpoints *config.Endpoints) *
 
 	// initialize the sender
 	destinations := sender.NewDestinations(main, additionals)
-	senderChan := make(chan message.Message, config.ChanSize)
+	senderChan := make(chan *message.Message, config.ChanSize)
 	sender := sender.NewSender(senderChan, outputChan, destinations)
 
 	// initialize the input chan
-	inputChan := make(chan message.Message, config.ChanSize)
+	inputChan := make(chan *message.Message, config.ChanSize)
 
 	// initialize the processor
 	encoder := processor.NewEncoder(endpoints.Main.UseProto)

@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -35,7 +36,7 @@ type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
 
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	decoder    *decoder.Decoder
 	source     *config.LogSource
 
@@ -49,11 +50,17 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+	var parser logParser.Parser
+	if source.GetSourceType() == config.ContainerdType {
+		parser = containerdFileParser
+	} else {
+		parser = logParser.NoopParser
+	}
 	return &Tailer{
 		path:          path,
 		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source),
+		decoder:       decoder.InitializeDecoder(source, parser),
 		source:        source,
 		readOffset:    0,
 		sleepDuration: sleepDuration,
@@ -141,7 +148,8 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(t.tags)
-		t.outputChan <- message.New(output.Content, origin, "")
+		output.Origin = origin
+		t.outputChan <- output
 	}
 }
 

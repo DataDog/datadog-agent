@@ -49,12 +49,12 @@ func NewDestination(endpoint config.Endpoint) *Destination {
 
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
-func (d *Destination) Send(payload message.Message) error {
+func (d *Destination) Send(payload *message.Message) error {
 	if d.conn == nil {
 		d.conn = d.connManager.NewConnection()
 	}
 
-	content := d.prefixer.prefix(payload.Content())
+	content := d.prefixer.prefix(payload.Content)
 	frame, err := d.delimiter.delimit(content)
 	if err != nil {
 		return NewFramingError(err)

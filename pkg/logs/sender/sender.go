@@ -11,14 +11,14 @@ import (
 
 // Sender is responsible for sending logs to different destinations.
 type Sender struct {
-	inputChan    chan message.Message
-	outputChan   chan message.Message
+	inputChan    chan *message.Message
+	outputChan   chan *message.Message
 	destinations *Destinations
 	done         chan struct{}
 }
 
 // NewSender returns an new sender.
-func NewSender(inputChan, outputChan chan message.Message, destinations *Destinations) *Sender {
+func NewSender(inputChan, outputChan chan *message.Message, destinations *Destinations) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
@@ -51,7 +51,7 @@ func (s *Sender) run() {
 
 // send keeps trying to send the message to the main destination until it succeeds
 // and try to send the message to the additional destinations only once.
-func (s *Sender) send(payload message.Message) {
+func (s *Sender) send(payload *message.Message) {
 	for {
 		err := s.destinations.Main.Send(payload) // this call is blocking until the inner connection is properly established
 		if err != nil {
