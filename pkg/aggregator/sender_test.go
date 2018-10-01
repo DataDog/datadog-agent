@@ -121,7 +121,7 @@ func TestGetAndSetSender(t *testing.T) {
 
 func TestGetSenderDefaultHostname(t *testing.T) {
 	resetAggregator()
-	InitAggregator(nil, "testhostname")
+	InitAggregator(nil, "testhostname", "")
 
 	sender, err := GetSender(checkID1)
 	require.NoError(t, err)
