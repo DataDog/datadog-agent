@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, DEBIAN_ONLY_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, CENTOS_AND_DEBIAN_ONLY_TAGS
 from .go import deps
 
 # constants
@@ -65,8 +65,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     # remove all tags that are only available on debian distributions
     distname = platform.linux_distribution()[0].lower()
-    if distname not in ['debian', 'ubuntu']:
-        for ex in DEBIAN_ONLY_TAGS:
+    if distname not in ['debian', 'ubuntu', 'centos']:
+        for ex in CENTOS_AND_DEBIAN_ONLY_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
 

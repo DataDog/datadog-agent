@@ -37,7 +37,7 @@ LINUX_ONLY_TAGS = [
     "kubeapiserver",
 ]
 
-DEBIAN_ONLY_TAGS = [
+CENTOS_AND_DEBIAN_ONLY_TAGS = [
     "systemd",
 ]
 
@@ -57,8 +57,8 @@ def get_default_build_tags(puppy=False):
 
     # remove all tags that are only available on debian distributions
     distname = platform.linux_distribution()[0].lower()
-    if distname not in ['debian', 'ubuntu']:
-        exclude = exclude + DEBIAN_ONLY_TAGS
+    if distname not in ['debian', 'ubuntu', 'centos']:
+        exclude = exclude + CENTOS_AND_DEBIAN_ONLY_TAGS
 
     return get_build_tags(include, exclude)
 
