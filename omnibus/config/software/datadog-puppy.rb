@@ -20,7 +20,7 @@ build do
     # Config
     mkdir '/etc/datadog-agent'
     move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
-    mkdir '/etc/datadog-agent/checks.d'
+    mkdir "/var/log/datadog"
 
     if debian?
       erb source: "upstart.conf.erb",
