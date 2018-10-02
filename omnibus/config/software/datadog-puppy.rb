@@ -23,7 +23,7 @@ build do
 
     move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
 
-    move 'bin/agent/dist/conf.d' '/etc/datadog-agent/'
+    move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
 
 
     if debian?
