@@ -18,9 +18,9 @@ if ohai['platform'] == "windows"
   # spaceless dir in which the agent will be built.
   # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
   # to put a space here...
-  install_dir "C:/opt/datadog-agent6/"
+  install_dir "C:/opt/datadog-agent/"
 else
-  install_dir '/opt/datadog-agent6'
+  install_dir '/opt/datadog-agent'
 end
 
 build_version do
