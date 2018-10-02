@@ -19,8 +19,12 @@ build do
   if linux?
     # Config
     mkdir '/etc/datadog-agent'
-    move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
     mkdir "/var/log/datadog"
+
+    move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
+
+    move 'bin/agent/dist/conf.d' '/etc/datadog-agent/'
+
 
     if debian?
       erb source: "upstart.conf.erb",
@@ -35,10 +39,6 @@ build do
           mode: 0644,
           vars: { install_dir: install_dir }
     end
-  end
-
-  if windows?
-    copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
   end
 
   # The file below is touched by software builds that don't put anything in the installation

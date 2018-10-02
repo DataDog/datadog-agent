@@ -123,6 +123,7 @@ if linux?
 
   # Example configuration files for the agent and the checks
   extra_package_file '/etc/datadog-agent/datadog.yaml.example'
+  extra_package_file '/etc/datadog-agent/conf.d/'
 
   # Logs directory
   extra_package_file '/var/log/datadog/'
