@@ -49,8 +49,8 @@ func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus)
 // the lowest number of checks. In case of equality, one is chosen
 // randomly, based on map iterations being randomized.
 func (d *dispatcher) getLeastBusyNode() string {
-	var lowestName string
-	lowestNumber := int(-1)
+	var leastBusyNode string
+	minCheckCount := int(-1)
 
 	d.store.RLock()
 	defer d.store.RUnlock()
@@ -59,15 +59,15 @@ func (d *dispatcher) getLeastBusyNode() string {
 		if name == "" {
 			continue
 		}
-		if lowestNumber == -1 || len(store.digestToConfig) < lowestNumber {
-			lowestName = name
-			lowestNumber = len(store.digestToConfig)
+		if minCheckCount == -1 || len(store.digestToConfig) < minCheckCount {
+			leastBusyNode = name
+			minCheckCount = len(store.digestToConfig)
 		}
 	}
-	return lowestName
+	return leastBusyNode
 }
 
-// ExpireNodes iterates over nodes and removes the ones that have not
+// expireNodes iterates over nodes and removes the ones that have not
 // reported for more than the expiration duration. It returns configs
 // that were dispatched to these nodes, to re-dispatch them.
 func (d *dispatcher) expireNodes() []integration.Config {
