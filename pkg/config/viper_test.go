@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConcurrency(t *testing.T) {
+func TestConcurrencySetGet(t *testing.T) {
 	config := safeConfig{
 		Viper: viper.New(),
 	}
@@ -36,4 +36,36 @@ func TestConcurrency(t *testing.T) {
 
 	wg.Wait()
 	assert.Equal(t, config.GetString("foo"), "bar")
+}
+
+func TestConcurrencyUnmarshalling(t *testing.T) {
+	config := safeConfig{
+		Viper: viper.New(),
+	}
+	config.SetDefault("foo", map[string]string{})
+	config.SetDefault("BAR", "test")
+	config.SetDefault("baz", "test")
+
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for n := 0; n <= 1000; n++ {
+			config.GetStringMapString("foo")
+		}
+	}()
+
+	var s *[]string
+	go func() {
+		defer wg.Done()
+		for n := 0; n <= 1000; n++ {
+			err := config.UnmarshalKey("foo", &s)
+			if err != nil {
+				t.Fatalf("unable to decode into struct, %v", err)
+			}
+		}
+	}()
+
+	wg.Wait()
 }
