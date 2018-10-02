@@ -297,6 +297,33 @@ agent_deb-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+# build Agent package for deb-x64
+puppy_deb-x64:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - inv -e agent.omnibus-build --puppy --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR
+    - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent_amd64.deb
+  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
+  # cache:
+  #   # cache per branch
+  #   key: $CI_COMMIT_REF_NAME
+  #   paths:
+  #     - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
 # build Agent package for rpm-x64
 agent_rpm-x64:
   stage: package_build
