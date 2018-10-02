@@ -5,7 +5,12 @@
 #
 require "./lib/ostools.rb"
 
-name 'datadog-puppy'
+name 'puppy'
+package_name 'datadog_puppy'
+homepage 'http://www.datadoghq.com'
+license "Apache-2.0"
+license_file "../LICENSE"
+
 if windows?
   # Windows doesn't want our e-mail address :(
   maintainer 'Datadog Inc.'
@@ -24,7 +29,7 @@ else
 end
 
 build_version do
-  source :git, from_dependency: 'datadog-puppy'
+  source :git
   output_format :dd_agent_format
 end
 
@@ -48,7 +53,7 @@ description 'Datadog Monitoring Agent
 package :deb do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
-  license 'Simplified BSD License'
+  license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
 end
@@ -58,7 +63,7 @@ package :rpm do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
-  license 'Simplified BSD License'
+  license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
