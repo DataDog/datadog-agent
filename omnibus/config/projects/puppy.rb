@@ -117,10 +117,10 @@ if linux?
   end
 
   # Example configuration files for the agent and the checks
-  extra_package_file '/etc/dd-agent/datadog.yaml.example'
+  extra_package_file '/etc/datadog-agent/datadog.yaml.example'
 
   # Custom checks directory
-  extra_package_file '/etc/dd-agent/checks.d'
+  extra_package_file '/etc/datadog-agent/checks.d'
 end
 
 # ------------------------------------

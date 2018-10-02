@@ -18,9 +18,9 @@ build do
 
   if linux?
     # Config
-    mkdir '/etc/dd-agent'
-    move 'bin/agent/dist/datadog.yaml', '/etc/dd-agent/datadog.yaml.example'
-    mkdir '/etc/dd-agent/checks.d'
+    mkdir '/etc/datadog-agent'
+    move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
+    mkdir '/etc/datadog-agent/checks.d'
 
     if debian?
       erb source: "upstart.conf.erb",
