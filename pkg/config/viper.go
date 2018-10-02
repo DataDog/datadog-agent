@@ -23,9 +23,9 @@ type safeConfig struct {
 
 // Set is wrapped for concurrent access
 func (c *safeConfig) Set(key string, value interface{}) {
-	c.RLock()
+	c.Lock()
 	c.Viper.Set(key, value)
-	c.RUnlock()
+	c.Unlock()
 }
 
 // SetDefault is wrapped for concurrent access
@@ -44,92 +44,92 @@ func (c *safeConfig) IsSet(key string) bool {
 
 // Get is wrapped for concurrent access
 func (c *safeConfig) Get(key string) interface{} {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.Get(key)
 }
 
 // GetString is wrapped for concurrent access
 func (c *safeConfig) GetString(key string) string {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetString(key)
 }
 
 // GetBool is wrapped for concurrent access
 func (c *safeConfig) GetBool(key string) bool {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetBool(key)
 }
 
 // GetInt is wrapped for concurrent access
 func (c *safeConfig) GetInt(key string) int {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetInt(key)
 }
 
 // GetInt64 is wrapped for concurrent access
 func (c *safeConfig) GetInt64(key string) int64 {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetInt64(key)
 }
 
 // GetFloat64 is wrapped for concurrent access
 func (c *safeConfig) GetFloat64(key string) float64 {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetFloat64(key)
 }
 
 // GetTime is wrapped for concurrent access
 func (c *safeConfig) GetTime(key string) time.Time {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetTime(key)
 }
 
 // GetDuration is wrapped for concurrent access
 func (c *safeConfig) GetDuration(key string) time.Duration {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetDuration(key)
 }
 
 // GetStringSlice is wrapped for concurrent access
 func (c *safeConfig) GetStringSlice(key string) []string {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetStringSlice(key)
 }
 
 // GetStringMap is wrapped for concurrent access
 func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetStringMap(key)
 }
 
 // GetStringMapString is wrapped for concurrent access
 func (c *safeConfig) GetStringMapString(key string) map[string]string {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetStringMapString(key)
 }
 
 // GetStringMapStringSlice is wrapped for concurrent access
 func (c *safeConfig) GetStringMapStringSlice(key string) map[string][]string {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetStringMapStringSlice(key)
 }
 
 // GetSizeInBytes is wrapped for concurrent access
 func (c *safeConfig) GetSizeInBytes(key string) uint {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.GetSizeInBytes(key)
 }
 
@@ -142,16 +142,16 @@ func (c *safeConfig) SetEnvPrefix(in string) {
 
 // BindEnv is wrapped for concurrent access
 func (c *safeConfig) BindEnv(input ...string) error {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.BindEnv(input...)
 }
 
 // SetEnvKeyReplacer is wrapped for concurrent access
 func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
-	c.Lock()
+	c.RLock()
 	c.Viper.SetEnvKeyReplacer(r)
-	c.Unlock()
+	c.RUnlock()
 }
 
 // UnmarshalKey is wrapped for concurrent access
