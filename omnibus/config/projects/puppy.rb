@@ -113,19 +113,19 @@ end
 # Linux
 if linux?
   if debian?
-    extra_package_file '/etc/init/datadog-agent6.conf'
-    extra_package_file '/lib/systemd/system/datadog-agent6.service'
+    extra_package_file '/etc/init/datadog-agent.conf'
+    extra_package_file '/lib/systemd/system/datadog-agent.service'
   end
 
   if redhat? || suse?
-    extra_package_file '/lib/systemd/system/datadog-agent6.service'
+    extra_package_file '/lib/systemd/system/datadog-agent.service'
   end
 
   # Example configuration files for the agent and the checks
   extra_package_file '/etc/datadog-agent/datadog.yaml.example'
 
-  # Custom checks directory
-  extra_package_file '/etc/datadog-agent/checks.d'
+  # Logs directory
+  extra_package_file '/var/log/datadog/'
 end
 
 # ------------------------------------
