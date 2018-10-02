@@ -8,66 +8,251 @@ package config
 import (
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
-// Config represents an object that can load and store configuration parameters
-// coming from different kind of sources:
-// - defaults
-// - files
-// - environment variables
-// - flags
-type Config interface {
-	Set(key string, value interface{})
-	SetDefault(key string, value interface{})
-	IsSet(key string) bool
+// safeConfig wraps viper with a safety lock
+type safeConfig struct {
+	*viper.Viper
+	sync.Mutex
+}
 
-	Get(key string) interface{}
-	GetString(key string) string
-	GetBool(key string) bool
-	GetInt(key string) int
-	GetInt64(key string) int64
-	GetFloat64(key string) float64
-	GetTime(key string) time.Time
-	GetDuration(key string) time.Duration
-	GetStringSlice(key string) []string
-	GetStringMap(key string) map[string]interface{}
-	GetStringMapString(key string) map[string]string
-	GetStringMapStringSlice(key string) map[string][]string
-	GetSizeInBytes(key string) uint
+// Set is wrapped for concurrent access
+func (c *safeConfig) Set(key string, value interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.Set(key, value)
+}
 
-	SetEnvPrefix(in string)
-	BindEnv(input ...string) error
-	SetEnvKeyReplacer(r *strings.Replacer)
+// SetDefault is wrapped for concurrent access
+func (c *safeConfig) SetDefault(key string, value interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetDefault(key, value)
+}
 
-	UnmarshalKey(key string, rawVal interface{}) error
-	Unmarshal(rawVal interface{}) error
-	UnmarshalExact(rawVal interface{}) error
+// IsSet is wrapped for concurrent access
+func (c *safeConfig) IsSet(key string) bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.IsSet(key)
+}
 
-	ReadInConfig() error
-	ReadConfig(in io.Reader) error
-	MergeConfig(in io.Reader) error
+// Get is wrapped for concurrent access
+func (c *safeConfig) Get(key string) interface{} {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.Get(key)
+}
 
-	AllSettings() map[string]interface{}
+// GetString is wrapped for concurrent access
+func (c *safeConfig) GetString(key string) string {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetString(key)
+}
 
-	AddConfigPath(in string)
-	SetConfigName(in string)
-	SetConfigFile(in string)
-	SetConfigType(in string)
-	ConfigFileUsed() string
+// GetBool is wrapped for concurrent access
+func (c *safeConfig) GetBool(key string) bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetBool(key)
+}
 
-	BindPFlag(key string, flag *pflag.Flag) error
+// GetInt is wrapped for concurrent access
+func (c *safeConfig) GetInt(key string) int {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetInt(key)
+}
+
+// GetInt64 is wrapped for concurrent access
+func (c *safeConfig) GetInt64(key string) int64 {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetInt64(key)
+}
+
+// GetFloat64 is wrapped for concurrent access
+func (c *safeConfig) GetFloat64(key string) float64 {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetFloat64(key)
+}
+
+// GetTime is wrapped for concurrent access
+func (c *safeConfig) GetTime(key string) time.Time {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetTime(key)
+}
+
+// GetDuration is wrapped for concurrent access
+func (c *safeConfig) GetDuration(key string) time.Duration {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetDuration(key)
+}
+
+// GetStringSlice is wrapped for concurrent access
+func (c *safeConfig) GetStringSlice(key string) []string {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetStringSlice(key)
+}
+
+// GetStringMap is wrapped for concurrent access
+func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetStringMap(key)
+}
+
+// GetStringMapString is wrapped for concurrent access
+func (c *safeConfig) GetStringMapString(key string) map[string]string {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetStringMapString(key)
+}
+
+// GetStringMapStringSlice is wrapped for concurrent access
+func (c *safeConfig) GetStringMapStringSlice(key string) map[string][]string {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetStringMapStringSlice(key)
+}
+
+// GetSizeInBytes is wrapped for concurrent access
+func (c *safeConfig) GetSizeInBytes(key string) uint {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetSizeInBytes(key)
+}
+
+// SetEnvPrefix is wrapped for concurrent access
+func (c *safeConfig) SetEnvPrefix(in string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvPrefix(in)
+}
+
+// BindEnv is wrapped for concurrent access
+func (c *safeConfig) BindEnv(input ...string) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.BindEnv(input...)
+}
+
+// SetEnvKeyReplacer is wrapped for concurrent access
+func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyReplacer(r)
+}
+
+// UnmarshalKey is wrapped for concurrent access
+func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.UnmarshalKey(key, rawVal)
+}
+
+// Unmarshal is wrapped for concurrent access
+func (c *safeConfig) Unmarshal(rawVal interface{}) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.Unmarshal(rawVal)
+}
+
+// UnmarshalExact is wrapped for concurrent access
+func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.UnmarshalExact(rawVal)
+}
+
+// ReadInConfig is wrapped for concurrent access
+func (c *safeConfig) ReadInConfig() error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.ReadInConfig()
+}
+
+// ReadConfig is wrapped for concurrent access
+func (c *safeConfig) ReadConfig(in io.Reader) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.ReadConfig(in)
+}
+
+// MergeConfig is wrapped for concurrent access
+func (c *safeConfig) MergeConfig(in io.Reader) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.MergeConfig(in)
+}
+
+// AllSettings is wrapped for concurrent access
+func (c *safeConfig) AllSettings() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.AllSettings()
+}
+
+// AddConfigPath is wrapped for concurrent access
+func (c *safeConfig) AddConfigPath(in string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.AddConfigPath(in)
+}
+
+// SetConfigName is wrapped for concurrent access
+func (c *safeConfig) SetConfigName(in string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetConfigName(in)
+}
+
+// SetConfigFile is wrapped for concurrent access
+func (c *safeConfig) SetConfigFile(in string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetConfigFile(in)
+}
+
+// SetConfigType is wrapped for concurrent access
+func (c *safeConfig) SetConfigType(in string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetConfigType(in)
+}
+
+// ConfigFileUsed is wrapped for concurrent access
+func (c *safeConfig) ConfigFileUsed() string {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.ConfigFileUsed()
+}
+
+// BindPFlag is wrapped for concurrent access
+func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.BindPFlag(key, flag)
 }
 
 // NewConfig returns a new Config object.
-func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) *viper.Viper {
-	viper := viper.New()
-	viper.SetConfigName(name)
-	viper.SetEnvPrefix(envPrefix)
-	viper.SetEnvKeyReplacer(envKeyReplacer)
-	viper.SetTypeByDefaultValue(true)
-	return viper
+func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
+	config := safeConfig{
+		Viper: viper.New(),
+	}
+	config.SetConfigName(name)
+	config.SetEnvPrefix(envPrefix)
+	config.SetEnvKeyReplacer(envKeyReplacer)
+	config.SetTypeByDefaultValue(true)
+	return &config
 }
