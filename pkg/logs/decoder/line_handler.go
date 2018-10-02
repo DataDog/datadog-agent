@@ -93,6 +93,9 @@ func (h *SingleLineHandler) process(line []byte) {
 			log.Warn(err)
 			return
 		}
+		if len(output.Content) == 0 {
+			return
+		}
 		output.RawDataLen = lineLen + 1
 		h.outputChan <- output
 	} else {
@@ -101,6 +104,9 @@ func (h *SingleLineHandler) process(line []byte) {
 		output, err := h.parser.Parse(content)
 		if err != nil {
 			log.Warn(err)
+			return
+		}
+		if len(output.Content) == 0 {
 			return
 		}
 		output.RawDataLen = lineLen
@@ -217,6 +223,9 @@ func (h *MultiLineHandler) sendContent() {
 		output, err := h.parser.Parse(content)
 		if err != nil {
 			log.Warn(err)
+			return
+		}
+		if len(output.Content) == 0 {
 			return
 		}
 		output.RawDataLen = rawDataLen
