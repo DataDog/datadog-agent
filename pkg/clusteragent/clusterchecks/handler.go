@@ -26,9 +26,9 @@ type Handler struct {
 	dispatcher *dispatcher
 }
 
-// SetupHandler returns a populated Handler
-// If will hook on the specified AutoConfig instance at Start
-func SetupHandler(ac *autodiscovery.AutoConfig) (*Handler, error) {
+// NewHandler returns a populated Handler
+// It will hook on the specified AutoConfig instance at Start
+func NewHandler(ac *autodiscovery.AutoConfig) (*Handler, error) {
 	if ac == nil {
 		return nil, errors.New("empty autoconfig object")
 	}

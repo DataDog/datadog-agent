@@ -29,8 +29,8 @@ func (h *Handler) GetAllConfigs() ([]integration.Config, error) {
 	return nil, ErrNotCompiled
 }
 
-// SetupHandler not implemented
-func SetupHandler(_ *autodiscovery.AutoConfig) (*Handler, error) {
+// NewHandler not implemented
+func NewHandler(_ *autodiscovery.AutoConfig) (*Handler, error) {
 	return nil, ErrNotCompiled
 }
 

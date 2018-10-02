@@ -221,7 +221,7 @@ func setupClusterCheck(ctx context.Context) *clusterchecks.Handler {
 		return nil
 	}
 
-	handler, err := clusterchecks.SetupHandler(common.AC)
+	handler, err := clusterchecks.NewHandler(common.AC)
 	if err != nil {
 		log.Errorf("Could not setup the cluster-checks Autodiscovery: %s", err.Error())
 		return nil
