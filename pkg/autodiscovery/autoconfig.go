@@ -556,7 +556,12 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 		}
 
 		for serviceID := range serviceIds {
-			resolvedConfig, err := ac.resolveTemplateForService(tpl, ac.store.getServiceForEntity(serviceID))
+			svc := ac.store.getServiceForEntity(serviceID)
+			if svc == nil {
+				log.Warnf("Service %s was removed before we could resolve its config", serviceID)
+				continue
+			}
+			resolvedConfig, err := ac.resolveTemplateForService(tpl, svc)
 			if err != nil {
 				continue
 			}
