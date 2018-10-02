@@ -37,8 +37,8 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 
 // IsSet is wrapped for concurrent access
 func (c *safeConfig) IsSet(key string) bool {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.Viper.IsSet(key)
 }
 
