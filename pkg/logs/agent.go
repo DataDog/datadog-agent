@@ -98,7 +98,7 @@ func (a *Agent) Stop() {
 		stopper.Stop()
 		close(c)
 	}()
-	timeout := config.LogsAgent.GetDuration("logs_config.stop_grace_period")
+	timeout := time.Duration(config.LogsAgent.GetInt("logs_config.stop_grace_period")) * time.Second
 	select {
 	case <-c:
 	case <-time.After(timeout):

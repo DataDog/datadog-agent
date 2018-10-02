@@ -6,10 +6,8 @@
 package config
 
 import (
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestDefaultDatadogConfig(t *testing.T) {
@@ -28,7 +26,7 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, "", LogsAgent.GetString("logs_config.socks5_proxy_address"))
 	assert.Equal(t, "", LogsAgent.GetString("logs_config.logs_dd_url"))
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, 30*time.Second, LogsAgent.GetDuration("logs_config.stop_grace_period"))
+	assert.Equal(t, 30, LogsAgent.GetInt("logs_config.stop_grace_period"))
 }
 
 func TestDefaultSources(t *testing.T) {

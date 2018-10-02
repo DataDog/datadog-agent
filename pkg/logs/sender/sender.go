@@ -64,7 +64,7 @@ func (s *Sender) send(payload *message.Message) {
 			}
 			switch err.(type) {
 			case *FramingError:
-				// the message can not be framed properly,
+				// the message can notx be framed properly,
 				// drop the message
 				break
 			default:

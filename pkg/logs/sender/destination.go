@@ -6,7 +6,6 @@
 package sender
 
 import (
-	"context"
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -54,16 +53,10 @@ func NewDestination(endpoint config.Endpoint, destinationsContext *DestinationsC
 // returns an error if the operation failed.
 func (d *Destination) Send(payload *message.Message) error {
 	if d.conn == nil {
-		var ctx context.Context
 		var err error
 
-		// If we have a context, use it, this will allow early cancellation.
-		if d.destinationsContext != nil {
-			ctx = d.destinationsContext.Context()
-		} else {
-			// Make the destinationsContext optional for easier tests.
-			ctx = context.Background()
-		}
+		// We work only if we have a started destination context
+		ctx := d.destinationsContext.Context()
 		if d.conn, err = d.connManager.NewConnection(ctx); err != nil {
 			return err
 		}

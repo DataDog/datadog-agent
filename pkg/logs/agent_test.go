@@ -50,7 +50,7 @@ func (suite *AgentTestSuite) SetupTest() {
 
 	config.LogsAgent.Set("logs_config.run_path", suite.testDir)
 	// Shorter grace period for tests.
-	config.LogsAgent.Set("logs_config.stop_grace_period", 1*time.Millisecond)
+	config.LogsAgent.Set("logs_config.stop_grace_period", 1)
 }
 
 func (suite *AgentTestSuite) TearDownTest() {
