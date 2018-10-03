@@ -69,7 +69,7 @@ metadata for their metrics.`,
 			}
 			fmt.Fprintln(
 				color.Output,
-				fmt.Sprintf("Agent %s %s- Commit: '%s' - Serialization version: %s",
+				fmt.Sprintf("Cluster agent %s %s- Commit: '%s' - Serialization version: %s",
 					color.BlueString(av.GetNumberAndPre()),
 					meta,
 					color.GreenString(version.Commit),
@@ -93,7 +93,8 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	// Global Agent configuration
+	// we'll search for a config file named `datadog-cluster.yaml`
+	config.Datadog.SetConfigName("datadog-cluster")
 	err := common.SetupConfig(confPath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
