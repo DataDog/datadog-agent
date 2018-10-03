@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -44,6 +45,8 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 		uintptr(unsafe.Pointer(&len)))
 
 	if r != PDH_MORE_DATA {
+		log.Errorf("Failed to look up Windows performance counter (looking for index %d)", ndx)
+		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		return name, fmt.Errorf("Failed to get buffer size %v", r)
 	}
 	buf := make([]uint16, len)
@@ -73,6 +76,8 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
+		log.Errorf("Failed to enumerage windows performance counters (class %s)", className)
+		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
 	}
 	counterbuf := make([]uint16, counterlen)
@@ -135,6 +140,8 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 		uintptr(unsafe.Pointer(&len)),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
+		log.Errorf("Failed to make Windows performance counter (%s %s %s %s)", machine, object, instance, counter)
+		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		err = fmt.Errorf("Failed to get buffer size %v", r)
 		return
 	}
