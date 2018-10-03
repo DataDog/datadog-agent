@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -53,8 +54,14 @@ func (s *Sender) run() {
 // and try to send the message to the additional destinations only once.
 func (s *Sender) send(payload *message.Message) {
 	for {
-		err := s.destinations.Main.Send(payload) // this call is blocking until the inner connection is properly established
+		// this call is blocking until payload is sent (or the connection destination context cancelled)
+		err := s.destinations.Main.Send(payload)
 		if err != nil {
+			if err == context.Canceled {
+				// the context was cancelled, agent is stopping non-gracefully.
+				// drop the message
+				break
+			}
 			switch err.(type) {
 			case *FramingError:
 				// the message can not be framed properly,
@@ -68,8 +75,9 @@ func (s *Sender) send(payload *message.Message) {
 		for _, destination := range s.destinations.Additionals {
 			// try and forget strategy for additional endpoints
 			// this call is also blocking when the connection is not established yet
-			// FIXME: properly unblock this call when the connection can not be established,
-			// this can happen when the destination configuration is wrong.
+			// FIXME: run all `Send` in parallel to avoid the effect on a slow
+			// destination on the others. Potentially add a buffer for secondary
+			// destinations.
 			destination.Send(payload)
 		}
 		break

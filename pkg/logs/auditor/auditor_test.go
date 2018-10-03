@@ -31,12 +31,14 @@ type AuditorTestSuite struct {
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
-	suite.testDir = "tests/"
-	os.Remove(suite.testDir)
-	os.MkdirAll(suite.testDir, os.ModeDir)
+	var err error
+
+	suite.testDir, err = ioutil.TempDir("", "tests")
+	suite.NoError(err)
+
 	suite.testPath = fmt.Sprintf("%s/auditor.json", suite.testDir)
 
-	_, err := os.Create(suite.testPath)
+	_, err = os.Create(suite.testPath)
 	suite.Nil(err)
 
 	suite.inputChan = make(chan *message.Message)

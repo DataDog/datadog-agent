@@ -20,14 +20,14 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, endpoints *config.Endpoints) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) *Pipeline {
 	// initialize the main destination
-	main := sender.NewDestination(endpoints.Main)
+	main := sender.NewDestination(endpoints.Main, destinationsContext)
 
 	// initialize the additional destinations
 	var additionals []*sender.Destination
 	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, sender.NewDestination(endpoint))
+		additionals = append(additionals, sender.NewDestination(endpoint, destinationsContext))
 	}
 
 	// initialize the sender

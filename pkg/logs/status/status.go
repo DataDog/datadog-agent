@@ -49,6 +49,11 @@ func Initialize(sources *config.LogSources) {
 	}
 }
 
+// Clear clears the status (which means it needs to be initialized again to be used).
+func Clear() {
+	builder = nil
+}
+
 // Get returns the status of the logs-agent computed on the fly.
 func Get() Status {
 	// Sort sources by name (ie. by integration name ~= file name)
