@@ -38,7 +38,7 @@ type provider struct {
 func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
-		auditor:          auditor,
+		auditor:             auditor,
 		endpoints:           endpoints,
 		pipelines:           []*Pipeline{},
 		destinationsContext: destinationsContext,

@@ -26,8 +26,8 @@ type AuditorTestSuite struct {
 	testPath string
 	testFile *os.File
 
-	a         *Auditor
-	source    *config.LogSource
+	a      *Auditor
+	source *config.LogSource
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
