@@ -21,6 +21,9 @@ build do
     mkdir '/etc/datadog-agent'
     mkdir "/var/log/datadog"
 
+    command 'ls /src/github.com/DataDog/datadog-agent/cmd/agent/dist/'
+    command 'pwd'
+
     move 'cmd/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
     move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
 
