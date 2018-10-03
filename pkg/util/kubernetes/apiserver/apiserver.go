@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	tracekube "gopkg.in/DataDog/dd-trace-go.v1/contrib/k8s.io/client-go/kubernetes"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -98,9 +99,12 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 			return nil, err
 		}
 	}
+
 	clientConfig.Timeout = timeout
+	clientConfig.WrapTransport = tracekube.WrapRoundTripper
 
 	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
+		log.Infof("Using protobuf for the kube-client")
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
 	return kubernetes.NewForConfig(clientConfig)
@@ -249,6 +253,7 @@ func (c *APIClient) checkResourcesAuth() error {
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
+
 	_, err = c.Cl.CoreV1().Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
@@ -256,6 +261,7 @@ func (c *APIClient) checkResourcesAuth() error {
 			return aggregateCheckResourcesErrors(errorMessages)
 		}
 	}
+
 	_, err = c.Cl.CoreV1().Pods("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
@@ -263,11 +269,12 @@ func (c *APIClient) checkResourcesAuth() error {
 			return aggregateCheckResourcesErrors(errorMessages)
 		}
 	}
-	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 
+	_, err = c.Cl.CoreV1().Nodes().List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
 	}
+
 	return aggregateCheckResourcesErrors(errorMessages)
 }
 
@@ -343,6 +350,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 
 // NodeLabels is used to fetch the labels attached to a given node.
 func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
+
 	node, err := c.Cl.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err

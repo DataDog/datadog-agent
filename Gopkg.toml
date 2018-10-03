@@ -55,6 +55,10 @@
     branch = "release-8.0"
 
 [[override]]
+    name = "gopkg.in/DataDog/dd-trace-go.v1"
+    version = "=v1.5.0"
+
+[[override]]
   name = "github.com/kubernetes/api"
   branch = "release-1.11"
 

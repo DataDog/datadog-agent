@@ -16,6 +16,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
@@ -128,6 +129,15 @@ func start(cmd *cobra.Command, args []string) error {
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
+	}
+	traceAddr := config.Datadog.GetString("tracer_addr")
+	tracePort := config.Datadog.GetInt("tracer_port")
+	traceDebug := config.Datadog.GetBool("tracer_debug_level")
+	if traceAddr != "" {
+		log.Infof("Starting sending traces to %s:%s", traceAddr, tracePort)
+		tracer.Start(tracer.WithAgentAddr(fmt.Sprintf("%s:%s", traceAddr, tracePort)))
+		tracer.WithDebugMode(traceDebug)
+		defer tracer.Stop()
 	}
 
 	// get hostname
