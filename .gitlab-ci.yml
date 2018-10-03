@@ -870,7 +870,6 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
   variables:
     <<: *docker_hub_variables
   script:
