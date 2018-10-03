@@ -85,7 +85,7 @@ func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []cu
 	var externalMetrics []custommetrics.ExternalMetricValue
 	var err error
 	if !IsAbleToScale(hpa) {
-		log.Debug("HPA is not currently able to scale, skipping process")
+		log.Trace("HPA %s is not currently able to scale, skipping process", hpa.Name)
 		return nil
 	}
 	emList := Inspect(hpa)
