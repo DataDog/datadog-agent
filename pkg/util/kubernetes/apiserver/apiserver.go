@@ -99,6 +99,10 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 		}
 	}
 	clientConfig.Timeout = timeout
+
+	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
+		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
+	}
 	return kubernetes.NewForConfig(clientConfig)
 }
 

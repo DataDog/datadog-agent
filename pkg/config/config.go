@@ -218,6 +218,7 @@ func init() {
 	BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
 	BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
+	BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
 	// Kube ApiServer
 	BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
