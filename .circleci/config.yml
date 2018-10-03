@@ -33,6 +33,7 @@ templates:
         key: gen3-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
+          # Cache retrieval is faster than full git checkout
           - v2-repo-{{ .Revision }}
     - save_cache: &save_source
         key: v2-repo-{{ .Revision }}
