@@ -20,7 +20,7 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
-  command "invoke agent.build --puppy --rebuild --no-development"
+  command "invoke agent.build --puppy --rebuild --no-development", env: env
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"
@@ -29,9 +29,6 @@ build do
     # Config
     mkdir '/etc/datadog-agent'
     mkdir "/var/log/datadog"
-
-    command 'ls /src/github.com/DataDog/datadog-agent/cmd/agent/dist/'
-    command 'pwd'
 
     move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
     move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
