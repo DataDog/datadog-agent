@@ -20,8 +20,13 @@ import (
 // All valid whitespace characters
 const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 
-// Unwrapper mocks the logic of LineUnwrapper
+// MockParser mocks the logic of a Parser
 type MockParser struct {
+	header []byte
+}
+
+// MockUnwrapper mocks the logic of LineUnwrapper
+type MockUnwrapper struct {
 	header []byte
 }
 
@@ -30,11 +35,25 @@ func NewMockParser(header string) parser.Parser {
 }
 
 func (u *MockParser) Parse(msg []byte) (*message.Message, error) {
-	return &message.Message{Content: msg}, nil
+	return &message.Message{Content: bytes.Replace(msg, u.header, []byte(""), 1)}, nil
 }
 
 // Unwrap removes header from line
 func (u *MockParser) Unwrap(line []byte) ([]byte, error) {
+	return bytes.Replace(line, u.header, []byte(""), 1), nil
+}
+
+func NewMockUnwrapper(header string) parser.Parser {
+	return &MockUnwrapper{header: []byte(header)}
+}
+
+// Parse does nothing for MockUnwrapper
+func (u *MockUnwrapper) Parse(msg []byte) (*message.Message, error) {
+	return &message.Message{Content: msg}, nil
+}
+
+// Unwrap removes header from line
+func (u *MockUnwrapper) Unwrap(line []byte) ([]byte, error) {
 	return bytes.Replace(line, u.header, []byte(""), 1), nil
 }
 
@@ -179,7 +198,7 @@ func TestUnwrapMultiLine(t *testing.T) {
 
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *message.Message, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header))
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockUnwrapper(header))
 	h.Start()
 
 	var output *message.Message
@@ -208,4 +227,38 @@ func TestUnwrapMultiLine(t *testing.T) {
 	assert.Equal(t, header+"4. first line", string(output.Content))
 
 	h.Stop()
+}
+
+func TestSingleLineHandlerDropsEmptyMessages(t *testing.T) {
+	const header = "HEADER"
+	outputChan := make(chan *message.Message, 10)
+	h := NewSingleLineHandler(outputChan, NewMockParser(header))
+	h.Start()
+
+	line := header
+	h.Handle([]byte(line))
+	h.Handle([]byte(line + "one message"))
+
+	var output *message.Message
+
+	output = <-outputChan
+	assert.Equal(t, "one message", string(output.Content))
+}
+
+func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
+	const header = "HEADER"
+	outputChan := make(chan *message.Message, 10)
+	re := regexp.MustCompile("[0-9]+\\.")
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header))
+	h.Start()
+
+	h.Handle([]byte(header))
+
+	h.Handle([]byte(header + "1.third line"))
+	h.Handle([]byte("fourth line"))
+
+	var output *message.Message
+
+	output = <-outputChan
+	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
 }
