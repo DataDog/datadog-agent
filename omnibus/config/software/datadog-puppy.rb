@@ -21,12 +21,8 @@ build do
     mkdir '/etc/datadog-agent'
     mkdir "/var/log/datadog"
 
-    command 'ls bin/agent/dist/'
-
-    move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
-
+    move 'cmd/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
     move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
-
 
     if debian?
       erb source: "upstart.conf.erb",
