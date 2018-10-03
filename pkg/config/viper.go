@@ -24,15 +24,15 @@ type safeConfig struct {
 // Set is wrapped for concurrent access
 func (c *safeConfig) Set(key string, value interface{}) {
 	c.Lock()
+	defer c.Unlock()
 	c.Viper.Set(key, value)
-	c.Unlock()
 }
 
 // SetDefault is wrapped for concurrent access
 func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Lock()
+	defer c.Unlock()
 	c.Viper.SetDefault(key, value)
-	c.Unlock()
 }
 
 // IsSet is wrapped for concurrent access
@@ -150,8 +150,8 @@ func (c *safeConfig) BindEnv(input ...string) error {
 // SetEnvKeyReplacer is wrapped for concurrent access
 func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.RLock()
+	defer c.RUnlock()
 	c.Viper.SetEnvKeyReplacer(r)
-	c.RUnlock()
 }
 
 // UnmarshalKey is wrapped for concurrent access
@@ -206,29 +206,29 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 // AddConfigPath is wrapped for concurrent access
 func (c *safeConfig) AddConfigPath(in string) {
 	c.Lock()
+	defer c.Unlock()
 	c.Viper.AddConfigPath(in)
-	c.Unlock()
 }
 
 // SetConfigName is wrapped for concurrent access
 func (c *safeConfig) SetConfigName(in string) {
 	c.Lock()
+	defer c.Unlock()
 	c.Viper.SetConfigName(in)
-	c.Unlock()
 }
 
 // SetConfigFile is wrapped for concurrent access
 func (c *safeConfig) SetConfigFile(in string) {
 	c.Lock()
+	defer c.Unlock()
 	c.Viper.SetConfigFile(in)
-	c.Unlock()
 }
 
 // SetConfigType is wrapped for concurrent access
 func (c *safeConfig) SetConfigType(in string) {
 	c.Lock()
+	defer c.Unlock()
 	c.Viper.SetConfigType(in)
-	c.Unlock()
 }
 
 // ConfigFileUsed is wrapped for concurrent access
