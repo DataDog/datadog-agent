@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 var testpath = "testpath"
@@ -25,7 +26,6 @@ type AuditorTestSuite struct {
 	testPath string
 	testFile *os.File
 
-	inputChan chan *message.Message
 	a         *Auditor
 	source    *config.LogSource
 }
@@ -41,14 +41,21 @@ func (suite *AuditorTestSuite) SetupTest() {
 	_, err = os.Create(suite.testPath)
 	suite.Nil(err)
 
-	suite.inputChan = make(chan *message.Message)
-	suite.a = New(suite.inputChan, "")
+	suite.a = New("")
 	suite.a.registryPath = suite.testPath
 	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
 func (suite *AuditorTestSuite) TearDownTest() {
 	os.Remove(suite.testDir)
+}
+
+func (suite *AuditorTestSuite) TestAuditorStartStop() {
+	assert.Nil(suite.T(), suite.a.Channel())
+	suite.a.Start()
+	assert.NotNil(suite.T(), suite.a.Channel())
+	suite.a.Stop()
+	assert.Nil(suite.T(), suite.a.Channel())
 }
 
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {

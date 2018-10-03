@@ -6,12 +6,13 @@
 package pipeline
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 )
 
 // Provider provides message channels
@@ -24,6 +25,7 @@ type Provider interface {
 // provider implements providing logic
 type provider struct {
 	numberOfPipelines int
+	auditor           *auditor.Auditor
 	outputChan        chan *message.Message
 	endpoints         *config.Endpoints
 
@@ -33,10 +35,10 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, outputChan chan *message.Message, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
-		outputChan:          outputChan,
+		auditor:          auditor,
 		endpoints:           endpoints,
 		pipelines:           []*Pipeline{},
 		destinationsContext: destinationsContext,
@@ -45,6 +47,9 @@ func NewProvider(numberOfPipelines int, outputChan chan *message.Message, endpoi
 
 // Start initializes the pipelines
 func (p *provider) Start() {
+	// This requires the auditor to be started before.
+	p.outputChan = p.auditor.Channel()
+
 	for i := 0; i < p.numberOfPipelines; i++ {
 		pipeline := NewPipeline(p.outputChan, p.endpoints, p.destinationsContext)
 		pipeline.Start()
@@ -61,6 +66,7 @@ func (p *provider) Stop() {
 	}
 	stopper.Stop()
 	p.pipelines = p.pipelines[:0]
+	p.outputChan = nil
 }
 
 // NextPipelineChan returns the next pipeline input channel

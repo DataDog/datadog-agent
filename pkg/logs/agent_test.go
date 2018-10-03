@@ -81,6 +81,10 @@ func (suite *AgentTestSuite) TestAgent() {
 	// Give the tailer some time to start its job.
 	time.Sleep(10 * time.Millisecond)
 	agent.Stop()
+
+	// Validate that we can restart it without obvious breakages.
+	agent.Start()
+	agent.Stop()
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
