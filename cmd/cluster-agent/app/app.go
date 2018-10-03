@@ -62,7 +62,7 @@ metadata for their metrics.`,
 			if flagNoColor {
 				color.NoColor = true
 			}
-			av, _ := version.New(version.DCAVersion, version.Commit)
+			av, _ := version.New(version.AgentVersion, version.Commit)
 			meta := ""
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
@@ -145,7 +145,7 @@ func start(cmd *cobra.Command, args []string) error {
 	s := serializer.NewSerializer(f)
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
-	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
+	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
