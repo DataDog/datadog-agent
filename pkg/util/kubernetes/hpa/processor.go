@@ -88,7 +88,7 @@ func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []cu
 		log.Trace("HPA %s is not currently able to scale, skipping process", hpa.Name)
 		return nil
 	}
-	emList := Inspect(hpa)
+	emList := GetExternalMetrics(hpa)
 	metrics, err := p.validateExternalMetric(emList)
 	if err != nil && len(metrics) == 0 {
 		log.Errorf("Could not validate external metrics: %v", err)

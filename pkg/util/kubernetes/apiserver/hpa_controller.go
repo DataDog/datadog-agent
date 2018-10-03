@@ -154,7 +154,6 @@ func (c *AutoscalersController) processingLoop() {
 				// Updating the metrics against Datadog should not affect the HPA pipeline but we avoid querying
 				// metrics for which the HPA is not valid
 				// If metrics are temporarily unavailable for too long, they will become `Valid=false` and won't be evaluated.
-				// check HPA is valid
 				hpaList, err := c.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 				if err != nil {
 					log.Errorf("Could not list hpas: %v", err)
@@ -167,7 +166,7 @@ func (c *AutoscalersController) processingLoop() {
 						continue
 					}
 					// only update metric for valid HPAs
-					emList = append(emList, hpa.Inspect(h)...)
+					emList = append(emList, hpa.GetExternalMetrics(h)...)
 				}
 				c.updateExternalMetrics(emList)
 			case <-gcPeriodSeconds.C:
@@ -376,7 +375,7 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 	deletedHPA, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if ok {
 		log.Debugf("Deleting Metrics from HPA %s/%s", deletedHPA.Namespace, deletedHPA.Name)
-		toDelete := hpa.Inspect(deletedHPA)
+		toDelete := hpa.GetExternalMetrics(deletedHPA)
 		h.store.DeleteExternalMetricValues(toDelete)
 		h.queue.Done(deletedHPA)
 		return
@@ -395,7 +394,7 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 	}
 
 	log.Debugf("Deleting Metrics from HPA %s/%s", deletedHPA.Namespace, deletedHPA.Name)
-	toDelete := hpa.Inspect(deletedHPA)
+	toDelete := hpa.GetExternalMetrics(deletedHPA)
 	h.store.DeleteExternalMetricValues(toDelete)
 	h.queue.Done(deletedHPA)
 }
