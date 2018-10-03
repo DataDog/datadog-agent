@@ -93,11 +93,10 @@ func (h *SingleLineHandler) process(line []byte) {
 			log.Warn(err)
 			return
 		}
-		if len(output.Content) == 0 {
-			return
+		if len(output.Content) > 0 {
+			output.RawDataLen = lineLen + 1
+			h.outputChan <- output
 		}
-		output.RawDataLen = lineLen + 1
-		h.outputChan <- output
 	} else {
 		// add TRUNCATED at the end of content and send it
 		content := append(content, TRUNCATED...)
@@ -106,12 +105,11 @@ func (h *SingleLineHandler) process(line []byte) {
 			log.Warn(err)
 			return
 		}
-		if len(output.Content) == 0 {
-			return
+		if len(output.Content) > 0 {
+			output.RawDataLen = lineLen
+			h.outputChan <- output
+			h.shouldTruncate = true
 		}
-		output.RawDataLen = lineLen
-		h.outputChan <- output
-		h.shouldTruncate = true
 	}
 }
 
@@ -225,10 +223,9 @@ func (h *MultiLineHandler) sendContent() {
 			log.Warn(err)
 			return
 		}
-		if len(output.Content) == 0 {
-			return
+		if len(output.Content) > 0 {
+			output.RawDataLen = rawDataLen
+			h.outputChan <- output
 		}
-		output.RawDataLen = rawDataLen
-		h.outputChan <- output
 	}
 }
