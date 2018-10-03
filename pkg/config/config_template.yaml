@@ -494,7 +494,7 @@ api_key:
 #
 {{ end -}}
 {{- if .ECS }}
-# ECS integration 
+# ECS integration
 #
 # The ECS agent container should be autodetected when running with the
 # default (ecs-agent) name. Else, you can change the container name the
@@ -536,6 +536,11 @@ api_key:
 # see https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
 #
 # kubernetes_kubeconfig_path: /path/to/file
+#
+# By default, communication with the apiserver is in json format. Setting the following
+# option to true will allow communication in the binary protobuf format, with a potential
+# performance improvement on both the agent and the apiserver.
+# kubernetes_apiserver_use_protobuf: false
 #
 # In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
 # [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
