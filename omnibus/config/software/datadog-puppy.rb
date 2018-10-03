@@ -1,15 +1,20 @@
-name 'datadog-puppy'
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2018 Datadog, Inc.
+
 require './lib/ostools.rb'
 require 'pathname'
 
-whitelist_file ".*"  # temporary hack, TODO: build libz with omnibus
+name 'datadog-puppy'
+
+license "Apache-2.0"
+license_file "../LICENSE"
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
-  ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
@@ -38,9 +43,7 @@ build do
           dest: "/etc/init/datadog-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir }
-    end
 
-    if redhat? || debian? || suse?
       erb source: "systemd.service.erb",
           dest: "/lib/systemd/system/datadog-agent.service",
           mode: 0644,
