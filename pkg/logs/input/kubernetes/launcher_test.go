@@ -20,9 +20,8 @@ import (
 func TestGetSource(t *testing.T) {
 	launcher := &Launcher{}
 	container := kubelet.ContainerStatus{
-		Name:  "foo",
-		Image: "bar",
-		ID:    "boo",
+		Name: "foo",
+		ID:   "boo",
 	}
 	pod := &kubelet.Pod{
 		Metadata: kubelet.PodMetadata{
@@ -43,6 +42,7 @@ func TestGetSource(t *testing.T) {
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "kubernetes", source.Config.Source)
 	assert.Equal(t, "kubernetes", source.Config.Service)
+	assert.Equal(t, "kubernetes", source.Config.SourceCategory)
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
@@ -74,6 +74,37 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
+	assert.Equal(t, "kubernetes", source.Config.SourceCategory)
+	assert.True(t, contains(source.Config.Tags, "tag1", "tag2"))
+}
+
+func TestGetSourceShouldBeOverridenByImageName(t *testing.T) {
+	launcher := &Launcher{}
+	container := kubelet.ContainerStatus{
+		Name:  "foo",
+		Image: "bar",
+		ID:    "boo",
+	}
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "fuz",
+			Namespace: "buu",
+			UID:       "baz",
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{container},
+		},
+	}
+
+	source, err := launcher.getSource(pod, container)
+	assert.Nil(t, err)
+	assert.Equal(t, config.FileType, source.Config.Type)
+	assert.Equal(t, "buu/fuz/foo", source.Name)
+	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "boo", source.Config.Identifier)
+	assert.Equal(t, "bar", source.Config.Source)
+	assert.Equal(t, "bar", source.Config.Service)
+	assert.Equal(t, "kubernetes", source.Config.SourceCategory)
 	assert.True(t, contains(source.Config.Tags, "tag1", "tag2"))
 }
 

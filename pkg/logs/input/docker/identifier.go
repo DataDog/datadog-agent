@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build docker
-
 package docker
 
 // shortLength represents the maximum length of a short container identifier.

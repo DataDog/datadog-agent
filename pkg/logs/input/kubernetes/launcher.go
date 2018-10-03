@@ -10,12 +10,12 @@ package kubernetes
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // The path to the pods log directory.
@@ -166,11 +166,21 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		}
 		cfg = configs[0]
 	} else {
-		cfg = &config.LogsConfig{
-			Source:  kubernetesIntegration,
-			Service: kubernetesIntegration,
+		_, shortName, _, err := containers.SplitImageName(container.Image)
+
+		if err != nil {
+			cfg = &config.LogsConfig{
+				Source:  kubernetesIntegration,
+				Service: kubernetesIntegration,
+			}
+		} else {
+			cfg = &config.LogsConfig{
+				Source:  shortName,
+				Service: shortName,
+			}
 		}
 	}
+	cfg.SourceCategory = kubernetesIntegration
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(pod, container)
 	cfg.Identifier = container.ID
