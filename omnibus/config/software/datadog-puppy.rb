@@ -1,16 +1,25 @@
 name 'datadog-puppy'
 require './lib/ostools.rb'
-
-source path: '..'
-
-relative_path 'datadog-puppy'
+require 'pathname'
 
 whitelist_file ".*"  # temporary hack, TODO: build libz with omnibus
 
+source path: '..'
+relative_path 'src/github.com/DataDog/datadog-agent'
+
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  # the go deps needs to be installed (invoke dep) before running omnibus
-  # TODO: enable omnibus to run invoke deps while building the project
+
+  # set GOPATH on the omnibus source dir for this software
+  gopath = Pathname.new(project_dir) + '../../../..'
+  etc_dir = "/etc/datadog-agent"
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+  }
+  # include embedded path (mostly for `pkg-config` binary)
+  env = with_embedded_path(env)
+
   command "invoke agent.build --puppy --rebuild --no-development"
   copy('bin', install_dir)
 
@@ -24,7 +33,7 @@ build do
     command 'ls /src/github.com/DataDog/datadog-agent/cmd/agent/dist/'
     command 'pwd'
 
-    move 'cmd/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
+    move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
     move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
 
     if debian?
