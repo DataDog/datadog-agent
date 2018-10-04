@@ -50,6 +50,7 @@ func (p *Processor) run() {
 		p.done <- struct{}{}
 	}()
 	for msg := range p.inputChan {
+		metrics.LogsDecoded.Add(1)
 		if shouldProcess, redactedMsg := applyRedactingRules(msg); shouldProcess {
 			metrics.LogsProcessed.Add(1)
 

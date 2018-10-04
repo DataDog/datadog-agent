@@ -41,10 +41,12 @@ type Agent struct {
 
 // NewAgent returns a new Agent
 func NewAgent(sources *config.LogSources, services *service.Services, endpoints *config.Endpoints) *Agent {
-	h := health.Register("logs-agent")
+	health := health.Register("logs-agent")
 
 	// setup the auditor
-	auditor := auditor.New(config.LogsAgent.GetString("logs_config.run_path"), h)
+	// We pass the health handle to the auditor because it's the end of the pipeline and the most
+	// critical part. Arguably it could also be plugged to the destination.
+	auditor := auditor.New(config.LogsAgent.GetString("logs_config.run_path"), health)
 	destinationsCtx := sender.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
@@ -64,7 +66,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, endpoints 
 		destinationsCtx:  destinationsCtx,
 		pipelineProvider: pipelineProvider,
 		inputs:           inputs,
-		health:           h,
+		health:           health,
 	}
 }
 

@@ -60,12 +60,14 @@ func (s *Sender) send(payload *message.Message) {
 		err := s.destinations.Main.Send(payload)
 		if err != nil {
 			if err == context.Canceled {
+				metrics.DestinationErrors.Add(1)
 				// the context was cancelled, agent is stopping non-gracefully.
 				// drop the message
 				break
 			}
 			switch err.(type) {
 			case *FramingError:
+				metrics.DestinationErrors.Add(1)
 				// the message can not be framed properly,
 				// drop the message
 				break
