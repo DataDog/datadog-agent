@@ -20,8 +20,8 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// Start starts tailing the event log from a given offset.
-func (t *Tailer) Start(_ string) {
+// Start starts tailing the event log.
+func (t *Tailer) Start() {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	go t.tail()
 }

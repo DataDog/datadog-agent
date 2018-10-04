@@ -7,14 +7,7 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"regexp"
-	"strings"
-
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/spf13/viper"
 )
 
 // Logs source types
@@ -35,16 +28,9 @@ const (
 	MultiLine      = "multi_line"
 )
 
-// Valid integration config extensions
-const (
-	directoryExtension = ".d"
-	yamlExtension      = ".yaml"
-	ymlExtension       = ".yml"
-)
-
-// LogsProcessingRule defines an exclusion or a masking rule to
+// ProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
-type LogsProcessingRule struct {
+type ProcessingRule struct {
 	Type               string
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
@@ -65,9 +51,10 @@ type LogsConfig struct {
 	IncludeUnits []string `mapstructure:"include_units" json:"include_units"` // Journald
 	ExcludeUnits []string `mapstructure:"exclude_units" json:"exclude_units"` // Journald
 
-	Image string // Docker
-	Label string // Docker
-	Name  string // Docker
+	Image      string // Docker
+	Label      string // Docker
+	Name       string // Docker
+	Identifier string // Docker
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
@@ -76,166 +63,62 @@ type LogsConfig struct {
 	Source          string
 	SourceCategory  string
 	Tags            []string
-	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+	ProcessingRules []ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 }
 
-// IntegrationConfig represents a DataDog agent configuration file, which includes infra and logs parts.
-type IntegrationConfig struct {
-	Logs []LogsConfig
-}
-
-// buildLogSourcesFromDirectory looks for all yml configs in the ddconfdPath directory,
-// and returns a list of all the valid logs sources along with their trackers
-func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
-	integrationConfigFiles := availableIntegrationConfigs(ddconfdPath)
-	var sources []*LogSource
-	for _, file := range integrationConfigFiles {
-		var integrationConfig IntegrationConfig
-		var viperCfg = viper.New()
-		viperCfg.SetConfigFile(filepath.Join(ddconfdPath, file))
-		err := viperCfg.ReadInConfig()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		err = viperCfg.Unmarshal(&integrationConfig)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		integrationName, err := buildIntegrationName(file)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		for _, logSourceConfigIterator := range integrationConfig.Logs {
-			config := logSourceConfigIterator
-
-			// Users can specify tags as comma separated string, or as YAML array. Handle the first case here
-			if len(config.Tags) > 1 {
-				newSlice := []string{}
-				for _, splitted := range config.Tags {
-					newSlice = append(newSlice, strings.TrimSpace(splitted))
-				}
-				config.Tags = newSlice
-			}
-
-			source := NewLogSource(integrationName, &config)
-			sources = append(sources, source)
-			// Mis-configured sources are also tracked to report configuration errors
-			err = validateConfig(config)
-			if err != nil {
-				source.Status.Error(err)
-				log.Error(err)
-				continue
-			}
-			err := compileProcessingRules(config.ProcessingRules)
-			if err != nil {
-				source.Status.Error(err)
-				log.Errorf("invalid processing rules %s", err)
-				continue
-			}
-		}
-	}
-
-	return sources
-}
-
-// buildIntegrationName returns the name of the integration
-func buildIntegrationName(filePath string) (string, error) {
-	validFileExtensions := []string{yamlExtension, ymlExtension}
-	components := strings.Split(filePath, string(os.PathSeparator))
-	if len(components) == 1 {
-		for _, ext := range validFileExtensions {
-			// check if file has a valid extension
-			if strings.HasSuffix(components[0], ext) {
-				return strings.TrimSuffix(components[0], ext), nil
-			}
-		}
-	} else if len(components) == 2 {
-		// check if directory has a valid extension
-		if strings.HasSuffix(components[0], directoryExtension) {
-			return strings.TrimSuffix(components[0], directoryExtension), nil
-		}
-	}
-	return "", fmt.Errorf("Invalid file path: %s", filePath)
-}
-
-// availableIntegrationConfigs lists yaml files in ddconfdPath
-func availableIntegrationConfigs(ddconfdPath string) []string {
-	integrationConfigFiles := integrationConfigsFromDirectory(ddconfdPath, ".")
-	dirs, _ := ioutil.ReadDir(ddconfdPath)
-	for _, d := range dirs {
-		if d.IsDir() {
-			integrationConfigFiles = append(
-				integrationConfigFiles,
-				integrationConfigsFromDirectory(filepath.Join(ddconfdPath, d.Name()), d.Name())...,
-			)
-		}
-	}
-	return integrationConfigFiles
-}
-
-// integrationConfigsFromDirectory returns a list of yaml files in a directory
-func integrationConfigsFromDirectory(dir string, prefix string) []string {
-	var integrationConfigFiles []string
-	files, _ := ioutil.ReadDir(dir)
-	for _, f := range files {
-		if !f.IsDir() {
-			ext := filepath.Ext(f.Name())
-			if ext == yamlExtension || ext == ymlExtension {
-				integrationConfigFiles = append(integrationConfigFiles, filepath.Join(prefix, f.Name()))
-			}
-		}
-	}
-	return integrationConfigFiles
-}
-
-// validateConfig returns an error if the config is misconfigured
-func validateConfig(config LogsConfig) error {
-	switch config.Type {
-	case FileType, DockerType, TCPType, UDPType, JournaldType, WindowsEventType:
-		break
-	default:
-		return fmt.Errorf("A source must have a valid type (got %s)", config.Type)
-	}
-
+// Validate returns an error if the config is misconfigured
+func (c *LogsConfig) Validate() error {
 	switch {
-	case config.Type == FileType && config.Path == "":
-		return fmt.Errorf("A file source must have a path")
-	case config.Type == TCPType && config.Port == 0:
-		return fmt.Errorf("A tcp source must have a port")
-	case config.Type == UDPType && config.Port == 0:
-		return fmt.Errorf("A udp source must have a port")
-	default:
-		return validateProcessingRules(config.ProcessingRules)
+	case c.Type == "":
+		// user don't have to specify a logs-config type when defining
+		// an autodiscovery label because so we must override it at some point,
+		// this check is mostly used for sanity purposed to detect an override miss.
+		return fmt.Errorf("a config must have a type")
+	case c.Type == FileType && c.Path == "":
+		return fmt.Errorf("file source must have a path")
+	case c.Type == TCPType && c.Port == 0:
+		return fmt.Errorf("tcp source must have a port")
+	case c.Type == UDPType && c.Port == 0:
+		return fmt.Errorf("udp source must have a port")
 	}
+	return c.validateProcessingRules()
 }
 
-// validateProcessingRules checks the rules and raises errors if one is misconfigured
-func validateProcessingRules(rules []LogsProcessingRule) error {
-	for _, rule := range rules {
+// validateProcessingRules validates the rules and raises an error if one is misconfigured.
+// Each processing rule must have:
+// - a valid name
+// - a valid type
+// - a valid pattern that compiles
+func (c *LogsConfig) validateProcessingRules() error {
+	for _, rule := range c.ProcessingRules {
 		if rule.Name == "" {
-			return fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
+			return fmt.Errorf("all processing rules must have a name")
 		}
+
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
-			continue
+			break
 		case "":
-			return fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
+			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
 		default:
-			return fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
+			return fmt.Errorf("type %s is not supported for processing rule `%s`", rule.Type, rule.Name)
+		}
+
+		if rule.Pattern == "" {
+			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+		}
+		_, err := regexp.Compile(rule.Pattern)
+		if err != nil {
+			return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
 		}
 	}
 	return nil
 }
 
-// compileProcessingRules compiles all processing rules regular expression
-func compileProcessingRules(rules []LogsProcessingRule) error {
+// Compile compiles all processing rule regular expressions.
+func (c *LogsConfig) Compile() error {
+	rules := c.ProcessingRules
 	for i, rule := range rules {
-		if rule.Pattern == "" {
-			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
-		}
 		re, err := regexp.Compile(rule.Pattern)
 		if err != nil {
 			return err
@@ -251,10 +134,7 @@ func compileProcessingRules(rules []LogsProcessingRule) error {
 			if err != nil {
 				return err
 			}
-		default:
-			return fmt.Errorf("invalid type for rule %s: %s", rule.Name, rule.Type)
 		}
-
 	}
 	return nil
 }

@@ -8,185 +8,160 @@
 package hpa
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/zorkian/go-datadog-api.v2"
-	"k8s.io/api/autoscaling/v2beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
 )
 
-type fakeDatadogClient struct {
-	queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error)
-}
+func TestInspect(t *testing.T) {
+	metricName := "requests_per_s"
 
-func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
-	if d.queryMetricsFunc != nil {
-		return d.queryMetricsFunc(from, to, query)
-	}
-	return nil, nil
-}
-
-func newFakeConfigMapStore(t *testing.T, ns, name string, metrics []custommetrics.ExternalMetricValue) custommetrics.Store {
-	store, err := custommetrics.NewConfigMapStore(fake.NewSimpleClientset(), ns, name)
-	require.NoError(t, err)
-	err = store.SetExternalMetricValues(metrics)
-	require.NoError(t, err)
-	return store
-}
-
-func newMockHPAExternalMetricSource(name, ns, metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
-	return &v2beta1.HorizontalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-		},
-		Spec: v2beta1.HorizontalPodAutoscalerSpec{
-			Metrics: []v2beta1.MetricSpec{
-				{
-					Type: v2beta1.ExternalMetricSourceType,
-					External: &v2beta1.ExternalMetricSource{
-						MetricName: metricName,
-						MetricSelector: &metav1.LabelSelector{
-							MatchLabels: labels,
+	testCases := map[string]struct {
+		hpa      *autoscalingv2.HorizontalPodAutoscaler
+		expected []custommetrics.ExternalMetricValue
+	}{
+		"with external metrics": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"dcos_version": "1.9.4",
+									},
+								},
+							},
+						},
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: metricName,
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"dcos_version": "2.1.9",
+									},
+								},
+							},
 						},
 					},
 				},
 			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"dcos_version": "1.9.4"},
+					Timestamp:  0,
+					Value:      0,
+					Valid:      false,
+				},
+				{
+					MetricName: "requests_per_s",
+					Labels:     map[string]string{"dcos_version": "2.1.9"},
+					Timestamp:  0,
+					Value:      0,
+					Valid:      false,
+				},
+			},
 		},
-	}
-}
-
-func TestHPAWatcherRemoveEntryFromStore(t *testing.T) {
-	testCases := []struct {
-		caseName string
-		metrics  []custommetrics.ExternalMetricValue
-		hpa      *v2beta1.HorizontalPodAutoscaler
-		expected []custommetrics.ExternalMetricValue
-	}{
-		{
-			caseName: "metric exists in store for deleted hpa",
-			metrics: []custommetrics.ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "foo", Namespace: "default"},
-					Timestamp:  12,
-					Value:      1,
-					Valid:      false,
+		"no external metrics": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.PodsMetricSourceType,
+							Pods: &autoscalingv2.PodsMetricSource{
+								MetricName:         metricName,
+								TargetAverageValue: resource.MustParse("12"),
+							},
+						},
+					},
 				},
 			},
-			// This HPA references the same metric as the one in the store and has the same name.
-			hpa:      newMockHPAExternalMetricSource("foo", "default", "requests_per_s", map[string]string{"bar": "baz"}),
-			expected: []custommetrics.ExternalMetricValue{},
-		},
-		{
-			caseName: "metric exists in store for different hpa",
-			metrics: []custommetrics.ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "bar", Namespace: "default"},
-					Timestamp:  12,
-					Value:      1,
-					Valid:      false,
-				},
-			},
-			// This HPA references the same metric as the one in the store but has a different name.
-			hpa: newMockHPAExternalMetricSource("foo", "default", "requests_per_s", map[string]string{"bar": "baz"}),
-			expected: []custommetrics.ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"bar": "baz"},
-					HPA:        custommetrics.ObjectReference{Name: "bar", Namespace: "default"},
-					Timestamp:  12,
-					Value:      1,
-					Valid:      false,
-				},
-			},
+			[]custommetrics.ExternalMetricValue{},
 		},
 	}
 
-	for i, testCase := range testCases {
-		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
-			store := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
-			hpaCl := &HPAWatcherClient{store: store}
-
-			err := hpaCl.removeEntryFromStore([]*v2beta1.HorizontalPodAutoscaler{testCase.hpa})
-			require.NoError(t, err)
-
-			allMetrics, err := store.ListAllExternalMetricValues()
-			require.NoError(t, err)
-			assert.ElementsMatch(t, testCase.expected, allMetrics)
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			got := Inspect(testCase.hpa)
+			assert.ElementsMatch(t, testCase.expected, got)
 		})
 	}
 }
 
-func TestHPAWatcherUpdateExternalMetrics(t *testing.T) {
-	metricName := "requests_per_s"
-	tests := []struct {
-		desc     string
-		metrics  []custommetrics.ExternalMetricValue
-		series   []datadog.Series
+func TestDiffExternalMetrics(t *testing.T) {
+	testCases := map[string]struct {
+		lhs      []*autoscalingv2.HorizontalPodAutoscaler
+		rhs      []custommetrics.ExternalMetricValue
 		expected []custommetrics.ExternalMetricValue
 	}{
-		{
-			"update invalid metric",
-			[]custommetrics.ExternalMetricValue{
+		"delete invalid metric": {
+
+			[]*autoscalingv2.HorizontalPodAutoscaler{
 				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "bar"},
-					Valid:      false,
+					ObjectMeta: metav1.ObjectMeta{
+						UID: types.UID(5),
+					},
 				},
-			},
-			[]datadog.Series{
 				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						{1531492452, 12},
-						{1531492486, 14},
+					ObjectMeta: metav1.ObjectMeta{
+						UID: types.UID(7),
 					},
 				},
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
-					MetricName: "requests_per_s",
+					MetricName: "requests_per_s_one",
 					Labels:     map[string]string{"foo": "bar"},
-					Value:      14,
 					Valid:      true,
+					HPA: custommetrics.ObjectReference{
+						UID: string(5),
+					},
+				},
+				{
+					MetricName: "requests_per_s_two",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+					HPA: custommetrics.ObjectReference{
+						UID: string(6),
+					},
+				},
+				{
+					MetricName: "requests_per_s_three",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+					HPA: custommetrics.ObjectReference{
+						UID: string(7),
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s_two",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+					HPA: custommetrics.ObjectReference{
+						UID: string(6),
+					},
 				},
 			},
 		},
 	}
 
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			store := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), tt.metrics)
-			datadogClient := &fakeDatadogClient{
-				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-					return tt.series, nil
-				},
-			}
-			hpaCl := &HPAWatcherClient{datadogClient: datadogClient, store: store}
-
-			hpaCl.updateExternalMetrics()
-
-			externalMetrics, err := store.ListAllExternalMetricValues()
-
-			// Timestamps are always set to time.Now() so we cannot assert the value
-			// in a unit test.
-			strippedTs := make([]custommetrics.ExternalMetricValue, 0)
-			for _, m := range externalMetrics {
-				m.Timestamp = 0
-				strippedTs = append(strippedTs, m)
-			}
-
-			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, strippedTs)
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			got := DiffExternalMetrics(testCase.lhs, testCase.rhs)
+			assert.ElementsMatch(t, testCase.expected, got)
 		})
 	}
 }

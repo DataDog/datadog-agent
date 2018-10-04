@@ -20,15 +20,17 @@ import (
 )
 
 var (
-	monoKeysDomains = map[string][]string{
-		"datadog.foo": {"monokey"},
+	testDomain           = "http://app.datadoghq.com"
+	testVersionDomain, _ = config.AddAgentVersionToDomain(testDomain, "app")
+	monoKeysDomains      = map[string][]string{
+		testVersionDomain: {"monokey"},
 	}
 	keysPerDomains = map[string][]string{
-		"datadog.foo": {"api-key-1", "api-key-2"},
+		testDomain:    {"api-key-1", "api-key-2"},
 		"datadog.bar": nil,
 	}
 	validKeysPerDomain = map[string][]string{
-		"datadog.foo": {"api-key-1", "api-key-2"},
+		testVersionDomain: {"api-key-1", "api-key-2"},
 	}
 )
 
@@ -95,10 +97,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 	transactions := forwarder.createHTTPTransactions(endpoint, payloads, false, headers)
 	require.Len(t, transactions, 4)
-	assert.Equal(t, "datadog.foo", transactions[0].Domain)
-	assert.Equal(t, "datadog.foo", transactions[1].Domain)
-	assert.Equal(t, "datadog.foo", transactions[2].Domain)
-	assert.Equal(t, "datadog.foo", transactions[3].Domain)
+	assert.Equal(t, testVersionDomain, transactions[0].Domain)
+	assert.Equal(t, testVersionDomain, transactions[1].Domain)
+	assert.Equal(t, testVersionDomain, transactions[2].Domain)
+	assert.Equal(t, testVersionDomain, transactions[3].Domain)
 	assert.Equal(t, endpoint, transactions[0].Endpoint)
 	assert.Equal(t, endpoint, transactions[1].Endpoint)
 	assert.Equal(t, endpoint, transactions[2].Endpoint)
@@ -147,7 +149,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	// DefaultForwarder correctly create HTTPTransaction, set the headers
 	// and send them to the correct domainForwarder.
 	inputQueue := make(chan Transaction, 1)
-	df := forwarder.domainForwarders["datadog.foo"]
+	df := forwarder.domainForwarders[testVersionDomain]
 	bk := df.highPrio
 	df.highPrio = inputQueue
 	defer func() { df.highPrio = bk }()

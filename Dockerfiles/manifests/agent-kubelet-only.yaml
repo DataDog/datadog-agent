@@ -23,7 +23,7 @@ spec:
           - name: DD_LEADER_ELECTION
             value: "true"
           - name: KUBERNETES
-            value: "yes"
+            value: "true"
           - name: DD_KUBERNETES_KUBELET_HOST
             valueFrom:
               fieldRef:

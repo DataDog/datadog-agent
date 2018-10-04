@@ -9,11 +9,10 @@ package status
 
 import (
 	"fmt"
-	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
-	"github.com/StackVista/stackstate-agent/pkg/util/clusteragent"
-	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
-	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"time"
+
+	"github.com/StackVista/stackstate-agent/pkg/util/clusteragent"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
 
 func getLeaderElectionDetails() map[string]string {
@@ -50,30 +49,4 @@ func getDCAStatus() map[string]string {
 	}
 	clusterAgentDetails["Version"] = ver
 	return clusterAgentDetails
-}
-
-// GetHorizontalPodAutoscalingStatus fetches the content of the ConfigMap storing the state of the HPA metrics provider
-func GetHorizontalPodAutoscalingStatus() map[string]interface{} {
-	horizontalPodAutoscalingStatus := make(map[string]interface{})
-
-	apiCl, err := apiserver.GetAPIClient()
-	if err != nil {
-		horizontalPodAutoscalingStatus["Error"] = err.Error()
-		return horizontalPodAutoscalingStatus
-	}
-
-	datadogHPAConfigMap := custommetrics.GetHPAConfigmapName()
-	horizontalPodAutoscalingStatus["Cmname"] = datadogHPAConfigMap
-
-	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, apiserver.GetResourcesNamespace(), datadogHPAConfigMap)
-	externalMetrics, err := store.ListAllExternalMetricValues()
-	if err != nil {
-		horizontalPodAutoscalingStatus["ErrorStore"] = err.Error()
-		return horizontalPodAutoscalingStatus
-	}
-
-	horizontalPodAutoscalingStatus["Number"] = len(externalMetrics)
-	horizontalPodAutoscalingStatus["Metrics"] = externalMetrics
-
-	return horizontalPodAutoscalingStatus
 }

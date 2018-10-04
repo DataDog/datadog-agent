@@ -9,6 +9,7 @@ package hpa
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"strings"
 	"time"
@@ -19,9 +20,20 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
+var (
+	datadogStats   = expvar.NewMap("datadog-api")
+	datadogErrors  = &expvar.Int{}
+	datadogQueries = &expvar.Int{}
+)
+
+func init() {
+	datadogStats.Set("Errors", datadogErrors)
+	datadogStats.Set("Queries", datadogQueries)
+}
+
 // queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (hpa *HPAWatcherClient) queryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
+func (p *Processor) queryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
 	if metricName == "" || len(tags) == 0 {
 		return 0, errors.New("invalid metric to query")
 	}
@@ -36,11 +48,15 @@ func (hpa *HPAWatcherClient) queryDatadogExternal(metricName string, tags map[st
 	// TODO: offer other aggregations than avg.
 	query := fmt.Sprintf("avg:%s{%s}", metricName, tagString)
 
-	seriesSlice, err := hpa.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
+	datadogQueries.Add(1)
+
+	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 
 	if err != nil {
+		datadogErrors.Add(1)
 		return 0, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
+
 	if len(seriesSlice) == 0 {
 		return 0, log.Errorf("Returned series slice empty")
 	}

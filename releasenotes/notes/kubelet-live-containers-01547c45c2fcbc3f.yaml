@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The live containers view can now retrieve containers directly from the kubelet,
+    in order to support containerd and crio

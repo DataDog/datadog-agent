@@ -7,15 +7,15 @@ package sender
 
 import (
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"golang.org/x/net/proxy"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 )
 
 const (
@@ -26,21 +26,17 @@ const (
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	serverName    string
-	serverAddress string
-	devModeNoSSL  bool
-	proxyAddress  string
-	mutex         sync.Mutex
-	firstConn     sync.Once
+	serverConfig *config.ServerConfig
+	proxyAddress string
+	mutex        sync.Mutex
+	firstConn    sync.Once
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(serverName string, serverPort int, devModeNoSSL bool, proxyAddress string) *ConnectionManager {
+func NewConnectionManager(serverConfig *config.ServerConfig, proxyAddress string) *ConnectionManager {
 	return &ConnectionManager{
-		serverName:    serverName,
-		serverAddress: fmt.Sprintf("%s:%d", serverName, serverPort),
-		proxyAddress:  proxyAddress,
-		devModeNoSSL:  devModeNoSSL,
+		serverConfig: serverConfig,
+		proxyAddress: proxyAddress,
 	}
 }
 
@@ -52,9 +48,9 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 
 	cm.firstConn.Do(func() {
 		if cm.proxyAddress != "" {
-			log.Infof("Connecting to the backend: %v, via socks5: %v", cm.serverAddress, cm.proxyAddress)
+			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.serverConfig.Address(), cm.proxyAddress, cm.serverConfig.UseSSL)
 		} else {
-			log.Infof("Connecting to the backend: %v", cm.serverAddress)
+			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.serverConfig.Address(), cm.serverConfig.UseSSL)
 		}
 	})
 
@@ -75,18 +71,18 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 				log.Warn(err)
 				continue
 			}
-			conn, err = dialer.Dial("tcp", cm.serverAddress)
+			conn, err = dialer.Dial("tcp", cm.serverConfig.Address())
 		} else {
-			conn, err = net.DialTimeout("tcp", cm.serverAddress, timeout)
+			conn, err = net.DialTimeout("tcp", cm.serverConfig.Address(), timeout)
 		}
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
 
-		if !cm.devModeNoSSL {
+		if cm.serverConfig.UseSSL {
 			sslConn := tls.Client(conn, &tls.Config{
-				ServerName: cm.serverName,
+				ServerName: cm.serverConfig.Name,
 			})
 			err = sslConn.Handshake()
 			if err != nil {

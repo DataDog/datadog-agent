@@ -12,7 +12,7 @@ import (
 )
 
 // Start does not do much
-func (t *Tailer) Start(_ string) {
+func (t *Tailer) Start() {
 	log.Warn("windows event log not supported on this system")
 	go t.tail()
 }

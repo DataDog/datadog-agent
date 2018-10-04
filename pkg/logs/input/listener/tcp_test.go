@@ -23,7 +23,7 @@ const tcpTestPort = 10512
 func TestTCPShouldReceivesMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), defaultFrameSize)
+	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
 	listener.Start()
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))

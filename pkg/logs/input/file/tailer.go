@@ -7,14 +7,13 @@ package file
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"sync/atomic"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-
-	"io"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
@@ -69,21 +68,27 @@ func (t *Tailer) Identifier() string {
 	return fmt.Sprintf("file:%s", t.path)
 }
 
-// tailFromBeginning lets the tailer start tailing its file
+// Start let's the tailer open a file and tail from whence
+func (t *Tailer) Start(offset int64, whence int) error {
+	err := t.setup(offset, whence)
+	if err != nil {
+		t.source.Status.Error(err)
+		return err
+	}
+	t.source.Status.Success()
+	t.source.AddInput(t.path)
+
+	go t.forwardMessages()
+	t.decoder.Start()
+	go t.readForever()
+
+	return nil
+}
+
+// StartFromBeginning lets the tailer start tailing its file
 // from the beginning
-func (t *Tailer) tailFromBeginning() error {
-	return t.tailFrom(0, io.SeekStart)
-}
-
-// tailFromEnd lets the tailer start tailing its file
-// from the end
-func (t *Tailer) tailFromEnd() error {
-	return t.tailFrom(0, io.SeekEnd)
-}
-
-// recoverTailingFrom starts the tailing from the last log line processed
-func (t *Tailer) recoverTailing(offset int64) error {
-	return t.tailFrom(offset, io.SeekStart)
+func (t *Tailer) StartFromBeginning() error {
+	return t.Start(0, io.SeekStart)
 }
 
 // Stop stops the tailer and returns only when the decoder is flushed
@@ -115,23 +120,6 @@ func (t *Tailer) onStop() {
 	log.Info("Closing ", t.path)
 	t.file.Close()
 	t.decoder.Stop()
-}
-
-// tailFrom let's the tailer open a file and tail from whence
-func (t *Tailer) tailFrom(offset int64, whence int) error {
-	err := t.setup(offset, whence)
-	if err != nil {
-		t.source.Status.Error(err)
-		return err
-	}
-	t.source.Status.Success()
-	t.source.AddInput(t.path)
-
-	go t.forwardMessages()
-	t.decoder.Start()
-	go t.readForever()
-
-	return nil
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel

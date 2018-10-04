@@ -9,11 +9,10 @@ package collectors
 
 import (
 	"io"
-	"strings"
 
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
-	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 )
@@ -45,19 +44,9 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	c.infoOut = out
 
 	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
-	labelsList := config.Datadog.GetStringMapString("docker_labels_as_tags")
-	for label, value := range labelsList {
-		delete(labelsList, label)
-		labelsList[strings.ToLower(label)] = value
-	}
-	c.labelsAsTags = labelsList
+	c.labelsAsTags = retrieveMappingFromConfig("docker_labels_as_tags")
+	c.envAsTags = retrieveMappingFromConfig("docker_env_as_tags")
 
-	envList := config.Datadog.GetStringMapString("docker_env_as_tags")
-	for env, value := range envList {
-		delete(envList, env)
-		envList[strings.ToLower(env)] = value
-	}
-	c.envAsTags = envList
 	// TODO: list and inspect existing containers once docker utils are merged
 
 	return StreamCollection, nil
@@ -98,9 +87,9 @@ func (c *DockerCollector) Stop() error {
 }
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
-func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
-	cID := strings.TrimPrefix(container, docker.DockerEntityPrefix)
-	if cID == container || len(cID) == 0 {
+func (c *DockerCollector) Fetch(entity string) ([]string, []string, error) {
+	runtime, cID := containers.SplitEntityName(entity)
+	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
 		return nil, nil, nil
 	}
 	return c.fetchForDockerID(cID)

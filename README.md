@@ -17,9 +17,15 @@ and development, is located under [the docs directory](docs) of the present repo
 To build the Agent you need:
  * [Go](https://golang.org/doc/install) 1.10.2 or later.
  * Python 2.7 along with development libraries.
- * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
-   `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with
-   `brew install pyinvoke`.
+ * Python dependencies. You may install these with `pip install -r requirements.txt`
+   This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
+
+**Note:** you may want to use a python virtual environment to avoid polluting your
+      system-wide python environment with the agent build/dev dependencies.
+
+**Note:** You may have previously installed `invoke` via brew on MacOS, or `pip` in
+      any other platform. We recommend you use the version pinned in the requirements
+      file for a smooth development/build experience. 
 
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
 to see the available tasks.

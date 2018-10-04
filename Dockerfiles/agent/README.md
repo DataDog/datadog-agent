@@ -76,6 +76,10 @@ DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
 DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name"}'
 ```
 
+#### Using secret files (BETA)
+
+Integration credentials can be stored in Docker / Kubernetes secrets and used in Autodiscovery templates. See the [setup instructions for the helper script](secrets-helper/README.md) and the [agent documentation](https://github.com/DataDog/datadog-agent/blob/6.4.x/docs/agent/secrets.md) for more information.
+
 #### Ignore containers
 
 You can exclude containers from the metrics collection and autodiscovery, if these are not useful for you. We already exclude Kubernetes and OpenShift `pause` containers by default. See the `datadog.yaml.example` file for more documentation, and examples.
@@ -94,7 +98,7 @@ Please note that the `docker.containers.running`, `.stopped`, `.running.total` a
 ### Datadog Cluster Agent
 
 The DCA is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
-Starting with Agent v6.3.2, you can use the [Datacong Cluster Agent](#https://github.com/DataDog/datadog-agent/blob/master/docs/cluster-agent/README.md).
+Starting with Agent v6.3.2, you can use the [Datadog Cluster Agent](#https://github.com/DataDog/datadog-agent/blob/master/docs/cluster-agent/README.md).
 
 Cluster level features are now handled by the cluster agent, and you will find a `[DCA]` notation next to the affected features. Please refer to the below user documentation as well as the technical documentation here for further details on the instrumentation.
 
@@ -119,7 +123,7 @@ Some options are not yet available as environment variable bindings. To customiz
 
 ### Optional volumes
 
-To run custom checks and configurations without buidling your own image, you can mount additional files in these folders:
+To run custom checks and configurations without building your own image, you can mount additional files in these folders:
 
 - `/checks.d/` : custom checks in this folder will be copied over and used, if a corresponding configuration is found
 - `/conf.d/` : check configurations and Autodiscovery templates in this folder will be copied over in the agent's configuration folder. You can mount a host folder, kubernetes configmaps, or other volumes. **Note:** autodiscovery templates now are directly stored in the main `conf.d` folder, not in an `auto_conf` subfolder.
@@ -137,7 +141,7 @@ For more information about the container's lifecycle, see [SUPERVISION.md](SUPER
 To deploy the Agent in your Kubernetes cluster, you can use the manifest in [manifests](../manifests/cluster-agent/cluster-agent.yaml). Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
 `kubectl create -f manifests/rbac`
 
-Please note that with the above RBAC, every agent will have access to the API Server, to list the pods, services ...  
+Please note that with the above RBAC, every agent will have access to the API Server, to list the pods, services ...
 These accesses vanish when using the Datadog Cluster Agent.
 Indeed, the agents will only have access to the local kubelet and only the Cluster Agent will be able to access cluster level insight (nodes, services...).
 
@@ -155,7 +159,7 @@ See details in [Event Collection](#event-collection).
 
 **This sub-section is only valid for agent versions > 6.3.2 and when using the Datadog Cluster Agent.**
 
-Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated Clusterrole for the agent which should be as follows: 
+Event collection is handled by the cluster agent and the RBAC for the agent is slimmed down to the kubelet's API access. There is now a dedicated Clusterrole for the agent which should be as follows:
 
 ```
 apiVersion: rbac.authorization.k8s.io/v1
@@ -184,7 +188,7 @@ Similarly to Agent 5, Agent 6 collects events from the Kubernetes API server.
 1/ Set the `collect_kubernetes_events` variable to `true` in the `datadog.yaml` file, you can use the environment variable `DD_COLLECT_KUBERNETES_EVENTS` for this.
 2/ Give the agents proper RBACs to activate this feature. See the [RBAC](#rbac) section.
 3/ A ConfigMap can be used to store the `event.tokenKey` and the `event.tokenTimestamp`. It has to be deployed in the `default` namespace and be named `datadogtoken`.
-   Run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` . 
+   Run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` .
    You can also use the example in [manifests/datadog_configmap.yaml][https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/manifests/datadog_configmap.yaml].
 
 Note: When the ConfigMap is used, if the agent in charge (via the [Leader election](#leader-election)) of collecting the events dies, the next leader elected will use the ConfigMap to identify the last events pulled.
@@ -225,6 +229,11 @@ This will create the Service Account in the default namespace, a Cluster Role wi
 ### Node label collection
 
 The agent can collect node labels from the APIserver and report them as host tags. This feature is disabled by default, as it is usually redundant with cloud provider host tags. If you need to do so, you can provide a node label -> host tag mapping in the `DD_KUBERNETES_NODE_LABELS_AS_TAGS` environment variable. The format is the inline JSON described in the [tagging section](#Tagging).
+
+### Kubernetes node name as aliases
+
+By default, the agent is using the kubernetes _node name_ as an alias that can be used to forward metrics and events. This allows to submit events and metrics from remote hosts.
+However, if you have several clusters where some nodes could have similar node names, some host alias collisions could occur. To prevent those, the agent supports the use of a cluster-unique identifier (such as the actual cluster name), through the environment variable `DD_CLUSTER_NAME`. That identifier will be added to the node name as a host alias, and avoid collision issues altogether.
 
 ### Legacy Kubernetes Versions
 

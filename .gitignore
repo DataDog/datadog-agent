@@ -5,6 +5,8 @@ Dockerfiles/dogstatsd/alpine/dogstatsd
 vendor/
 bin/
 /dev/
+__pycache__
+.pytest_cache
 
 **/*.tmp
 **/debug.test
@@ -24,6 +26,7 @@ agentmsg.h
 # go-generated files
 datadog.yaml
 dogstatsd.yaml
+Dockerfiles/cluster-agent/datadog-cluster.yaml
 
 # jetbrains IDE directory
 /.idea/
@@ -55,6 +58,7 @@ last-change
 *.jar
 .idea
 .gradle
+cmd/agent/android/app/src/main/assets/conf.d
 
 # android studio
 cmd/agent/android/local.properties
@@ -78,3 +82,4 @@ config-map-aws-auth.yaml
 kubeconfig
 */**/*.tfstate
 */**/*.tfstate.backup
+

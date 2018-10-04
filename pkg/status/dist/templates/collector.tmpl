@@ -14,24 +14,46 @@ Collector
     No checks have run yet
   {{end -}}
 
-  {{- range .Checks}}
-    {{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}
-    {{printDashes .CheckName "-"}}{{- if .CheckVersion }}{{printDashes .CheckVersion "-"}}---{{ end }}
-      Total Runs: {{.TotalRuns}}
-      Metric Samples: {{.MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
-      Events: {{.Events}}, Total: {{humanize .TotalEvents}}
-      Service Checks: {{.ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
-      Average Execution Time : {{.AverageExecutionTime}}ms
-      {{if .LastError -}}
-      Error: {{lastErrorMessage .LastError}}
-      {{lastErrorTraceback .LastError -}}
+  {{- range $CheckName, $CheckInstances := .Checks}}
+    {{ $version := version $CheckInstances }}
+    {{$CheckName}}{{ if $version }} ({{$version}}){{ end }}
+    {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
+    {{- range $CheckInstances }}
+        Instance ID: {{.CheckID}} {{status .}}
+        Total Runs: {{humanize .TotalRuns}}
+        Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
+        Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
+        Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
+        Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
+        {{if .LastError -}}
+        Error: {{lastErrorMessage .LastError}}
+        {{lastErrorTraceback .LastError -}}
+        {{- end }}
+        {{- if .LastWarnings -}}
+          {{- range .LastWarnings }}
+        Warning: {{.}}
+          {{ end -}}
+        {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- with .pyLoaderStats }}
+  {{- if .ConfigureErrors }}
+  Check Initialization Errors
+  ===========================
+
+    {{ range $CheckName, $errors :=  .ConfigureErrors }}
+      {{ $CheckName }}
+      {{printDashes $CheckName "-"}}
+      {{- range $idx, $err := $errors}}
+
+      instance {{$idx}}:
+
+        {{ doNotEscape $err }}
       {{- end }}
-      {{- if .LastWarnings -}}
-        {{- range .LastWarnings }}
-      Warning: {{.}}
-        {{ end -}}
-      {{- end }}
-  {{ end }}
+    {{- end}}
+  {{- end }}
 {{- end }}
 
 {{- with .AutoConfigStats }}
@@ -56,7 +78,7 @@ Collector
       {{- range $kind, $err := $errors -}}
         {{- if eq $kind "Python Check Loader" }}
       {{$kind}}:
-        {{ pythonLoaderError $err }}
+        {{ doNotEscape $err }}
         {{ else }}
       {{$kind}}:
         {{ doNotEscape $err }}

@@ -4,6 +4,8 @@
 // Copyright 2018 Datadog, Inc.
 
 // +build !windows
+// +build kubeapiserver
+
 //go:generate go run ../../pkg/config/render_config.go dca ../../pkg/config/config_template.yaml ../../Dockerfiles/cluster-agent/datadog-cluster.yaml
 
 package main
@@ -12,6 +14,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	_ "expvar"
 
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/network"
@@ -25,7 +29,7 @@ import (
 func main() {
 	// go_expvar server
 	go http.ListenAndServe(
-		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("expvar_port")),
+		fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("expvar_port")),
 		http.DefaultServeMux)
 
 	if err := app.ClusterAgentCmd.Execute(); err != nil {

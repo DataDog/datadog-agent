@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix possible deadlocks that could occur when new docker sources
+    and services are pushed and:
+
+    * The docker socket is closed at agent setup
+    * The docker socket is not mounted
+    * The kubernetes integration is enabled

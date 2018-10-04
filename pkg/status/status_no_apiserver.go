@@ -20,9 +20,3 @@ func getDCAStatus() map[string]string {
 	log.Info("Not implemented")
 	return nil
 }
-
-// GetHorizontalPodAutoscalingStatus fetches the content of the ConfigMap storing the state of the HPA metrics provider
-func GetHorizontalPodAutoscalingStatus() map[string]interface{} {
-	log.Info("Not implemented")
-	return nil
-}

@@ -4,20 +4,19 @@ stages:
 - publish
 
 unit_tests:
-  stage: tests
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
-  script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - invoke deps
-  - inv -e agent.build --race --precompile-only
-  - inv -e test --coverage --race --profile --fail-on-fmt
-  tags:
-  - sts-aws 
-
-# TODO: replicate remote docker tests
+ stage: tests
+ image: stackstate/stackstate-agent-runner-circle:latest
+ before_script:
+ - mkdir -p /go/src/github.com/StackVista
+ - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+ script:
+ - cd /go/src/github.com/StackVista/stackstate-agent
+ - pip install -r requirements.txt
+ - inv deps
+ - inv -e agent.build --race --precompile-only
+ - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
+ tags:
+ - sts-aws
 
 integration_tests:
  stage: tests
@@ -27,7 +26,8 @@ integration_tests:
  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
  script:
  - cd /go/src/github.com/StackVista/stackstate-agent
- - invoke deps
+ - pip install -r requirements.txt
+ - inv deps
  - inv  -e integration-tests --race --remote-docker
  tags:
  - sts-aws
@@ -41,7 +41,8 @@ filename_linting:
   - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
   - cd /go/src/github.com/StackVista/stackstate-agent
-  - invoke deps
+  - pip install -r requirements.txt
+  - inv deps
   - inv -e lint-filenames
 
 docker_integration_tests:
@@ -56,7 +57,8 @@ docker_integration_tests:
   - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
   - cd /go/src/github.com/StackVista/stackstate-agent
-  - invoke deps
+  - pip install -r requirements.txt
+  - inv deps
   - inv -e docker.integration-tests
   tags:
   - sts-aws
@@ -69,7 +71,8 @@ build_binaries:
   - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
   - cd /go/src/github.com/StackVista/stackstate-agent
-  - invoke deps
+  - pip install -r requirements.txt
+  - inv deps
   - inv -e dogstatsd.build --static
   - inv -e agent.build
 
@@ -82,7 +85,8 @@ build_puppy:
   - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
   - cd /go/src/github.com/StackVista/stackstate-agent
-  - invoke deps
+  - pip install -r requirements.txt
+  - inv deps
   - inv -e agent.build --puppy
   - ./bin/agent/agent -c ./bin/agent/dist check cpu
 
@@ -97,7 +101,8 @@ build_publish_deb:
   - printenv
   - echo "======================================================"
   - cd /go/src/github.com/StackVista/stackstate-agent
-  - invoke deps
+  - pip install -r requirements.txt
+  - inv deps
   - git config --global user.email "circleci@stackstate"
   - git config --global user.name "CircleCI Stackstate"
   - apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool

@@ -39,7 +39,7 @@ func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the DockerConfigProvider
 func (d *DockerConfigProvider) String() string {
-	return "Docker container labels"
+	return Docker
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.

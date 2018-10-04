@@ -14,70 +14,76 @@ import (
 
 // store holds useful mappings for the AD
 type store struct {
-	serviceToConfigs  map[listeners.ID][]integration.Config
-	serviceToTagsHash map[listeners.ID]string
+	serviceToConfigs  map[string][]integration.Config
+	serviceToTagsHash map[string]string
 	loadedConfigs     map[string]integration.Config
 	nameToJMXMetrics  map[string]integration.Data
+	adIDToServices    map[string]map[string]bool
+	entityToService   map[string]listeners.Service
+	templateCache     *TemplateCache
 	m                 sync.RWMutex
 }
 
 // newStore creates a store
 func newStore() *store {
 	s := store{
-		serviceToConfigs:  make(map[listeners.ID][]integration.Config),
-		serviceToTagsHash: make(map[listeners.ID]string),
+		serviceToConfigs:  make(map[string][]integration.Config),
+		serviceToTagsHash: make(map[string]string),
 		loadedConfigs:     make(map[string]integration.Config),
 		nameToJMXMetrics:  make(map[string]integration.Data),
+		adIDToServices:    make(map[string]map[string]bool),
+		entityToService:   make(map[string]listeners.Service),
+		templateCache:     NewTemplateCache(),
 	}
 
 	return &s
 }
 
 // getConfigsForService gets config for a specified service
-func (s *store) getConfigsForService(serviceID listeners.ID) []integration.Config {
+func (s *store) getConfigsForService(serviceEntity string) []integration.Config {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	return s.serviceToConfigs[serviceID]
+	return s.serviceToConfigs[serviceEntity]
 }
 
 // removeConfigsForService removes a config for a specified service
-func (s *store) removeConfigsForService(serviceID listeners.ID) {
+func (s *store) removeConfigsForService(serviceEntity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	delete(s.serviceToConfigs, serviceID)
+	delete(s.serviceToConfigs, serviceEntity)
 }
 
 // addConfigForService adds a config for a specified service
-func (s *store) addConfigForService(serviceID listeners.ID, config integration.Config) {
+func (s *store) addConfigForService(serviceEntity string, config integration.Config) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	existingConfigs, found := s.serviceToConfigs[serviceID]
+	existingConfigs, found := s.serviceToConfigs[serviceEntity]
 	if found {
-		s.serviceToConfigs[serviceID] = append(existingConfigs, config)
+		s.serviceToConfigs[serviceEntity] = append(existingConfigs, config)
 	} else {
-		s.serviceToConfigs[serviceID] = []integration.Config{config}
+		s.serviceToConfigs[serviceEntity] = []integration.Config{config}
 	}
 }
 
 // getTagsHashForService return the tags hash for a specified service
-func (s *store) getTagsHashForService(serviceID listeners.ID) string {
+func (s *store) getTagsHashForService(serviceEntity string) string {
 	s.m.RLock()
 	defer s.m.RUnlock()
-	return s.serviceToTagsHash[serviceID]
+	return s.serviceToTagsHash[serviceEntity]
 }
 
 // removeTagsHashForService removes the tags hash for a specified service
-func (s *store) removeTagsHashForService(serviceID listeners.ID) {
+func (s *store) removeTagsHashForService(serviceEntity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	delete(s.serviceToTagsHash, serviceID)
+	delete(s.serviceToTagsHash, serviceEntity)
 }
 
 // setTagsHashForService set the tags hash for a specified service
-func (s *store) setTagsHashForService(serviceID listeners.ID, hash string) {
+func (s *store) setTagsHashForService(serviceEntity string, hash string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	s.serviceToTagsHash[serviceID] = hash
+	s.serviceToTagsHash[serviceEntity] = hash
 }
 
 // setLoadedConfig stores a resolved config by its digest
@@ -113,4 +119,48 @@ func (s *store) getJMXMetricsForConfigName(config string) integration.Data {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	return s.nameToJMXMetrics[config]
+}
+
+func (s *store) getServices() []listeners.Service {
+	s.m.Lock()
+	defer s.m.Unlock()
+	services := []listeners.Service{}
+	for _, service := range s.entityToService {
+		services = append(services, service)
+	}
+	return services
+}
+
+func (s *store) setServiceForEntity(svc listeners.Service, entity string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.entityToService[entity] = svc
+}
+
+func (s *store) getServiceForEntity(entity string) listeners.Service {
+	s.m.Lock()
+	defer s.m.Unlock()
+	return s.entityToService[entity]
+}
+
+func (s *store) removeServiceForEntity(entity string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	delete(s.entityToService, entity)
+}
+
+func (s *store) setADIDForServices(adID string, serviceEntity string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	if s.adIDToServices[adID] == nil {
+		s.adIDToServices[adID] = make(map[string]bool)
+	}
+	s.adIDToServices[adID][serviceEntity] = true
+}
+
+func (s *store) getServiceEntitiesForADID(adID string) (map[string]bool, bool) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	services, found := s.adIDToServices[adID]
+	return services, found
 }

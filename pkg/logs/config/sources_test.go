@@ -6,35 +6,50 @@
 package config
 
 import (
-	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/assert"
 )
 
-type LogSourcesSuite struct {
-	suite.Suite
-	sources *LogSources
+func TestAddSource(t *testing.T) {
+	sources := NewLogSources()
+	registerConsumer(sources, "boo")
+	assert.Equal(t, 0, len(sources.GetSources()))
+	sources.AddSource(NewLogSource("foo", &LogsConfig{Type: "boo"}))
+	assert.Equal(t, 1, len(sources.GetSources()))
+	sources.AddSource(NewLogSource("bar", &LogsConfig{Type: "boo"}))
+	assert.Equal(t, 2, len(sources.GetSources()))
 }
 
-func (s *LogSourcesSuite) TestGetSources() {
-	s.sources = newLogSources([]*LogSource{})
-	s.Equal(0, len(s.sources.GetSources()))
-	s.sources = newLogSources([]*LogSource{NewLogSource("", nil)})
-	s.Equal(1, len(s.sources.GetSources()))
+func TestRemoveSource(t *testing.T) {
+	sources := NewLogSources()
+	registerConsumer(sources, "boo")
+	source1 := NewLogSource("foo", &LogsConfig{Type: "boo"})
+	sources.AddSource(source1)
+	source2 := NewLogSource("bar", &LogsConfig{Type: "boo"})
+	sources.AddSource(source2)
+	assert.Equal(t, 2, len(sources.GetSources()))
+	sources.RemoveSource(source1)
+	assert.Equal(t, 1, len(sources.GetSources()))
+	assert.Equal(t, source2, sources.GetSources()[0])
+	sources.RemoveSource(source2)
+	assert.Equal(t, 0, len(sources.GetSources()))
 }
 
-func (s *LogSourcesSuite) TestGetValidSources() {
-	source1 := NewLogSource("", nil)
-	source2 := NewLogSource("", nil)
-	s.sources = newLogSources([]*LogSource{source1, source2})
-	s.Equal(2, len(s.sources.GetValidSources()))
-	source1.Status.Error(errors.New("invalid"))
-	s.Equal(1, len(s.sources.GetValidSources()))
-	source1.Status.Success()
-	s.Equal(2, len(s.sources.GetValidSources()))
+func TestGetSources(t *testing.T) {
+	sources := NewLogSources()
+	registerConsumer(sources, "boo")
+	assert.Equal(t, 0, len(sources.GetSources()))
+	sources.AddSource(NewLogSource("", &LogsConfig{Type: "boo"}))
+	assert.Equal(t, 1, len(sources.GetSources()))
 }
 
-func TestLogSourcesSuite(t *testing.T) {
-	suite.Run(t, new(LogSourcesSuite))
+func registerConsumer(sources *LogSources, sourceType string) {
+	go func() {
+		sources := sources.GetSourceStreamForType(sourceType)
+		for range sources {
+			// ensure that another component is consuming the channel to prevent
+			// the producer to get stuck.
+		}
+	}()
 }

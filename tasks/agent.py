@@ -63,7 +63,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
-    # remove all tags that are only availaible on debian distributions
+    # remove all tags that are only available on debian distributions
     distname = platform.linux_distribution()[0].lower()
     if distname not in ['debian', 'ubuntu']:
         for ex in DEBIAN_ONLY_TAGS:
@@ -224,7 +224,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
     Build the Agent packages with Omnibus Installer.
     """
     if not skip_deps:
-        deps(ctx)
+        deps(ctx, no_checks=True)  # no_checks since the omnibus build installs checks with a dedicated software def
 
     # omnibus config overrides
     overrides = []

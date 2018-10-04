@@ -20,6 +20,7 @@ const (
 	instancePath   string = "instances"
 	checkNamePath  string = "check_names"
 	initConfigPath string = "init_configs"
+	logsConfigPath string = "logs"
 )
 
 func init() {
@@ -100,6 +101,25 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []in
 // extractTemplatesFromMap looks for autodiscovery configurations in a given map
 // (either docker labels or kubernetes annotations) and returns them if found.
 func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
+	configs := make([]integration.Config, 0)
+
+	checksConfigs, err := extractCheckTemplatesFromMap(key, input, prefix)
+	if err != nil {
+		return configs, err
+	}
+	configs = append(configs, checksConfigs...)
+
+	logsConfigs, err := extractLogsTemplatesFromMap(key, input, prefix)
+	if err != nil {
+		return configs, err
+	}
+	configs = append(configs, logsConfigs...)
+
+	return configs, nil
+}
+
+// extractCheckTemplatesFromMap returns all the check configurations from a given map.
+func extractCheckTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
 	value, found := input[prefix+checkNamePath]
 	if !found {
 		return []integration.Config{}, nil
@@ -128,4 +148,25 @@ func extractTemplatesFromMap(key string, input map[string]string, prefix string)
 	}
 
 	return buildTemplates(key, checkNames, initConfigs, instances), nil
+}
+
+// extractLogsTemplatesFromMap returns the logs configuration from a given map,
+// if none are found return an empty list.
+func extractLogsTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
+	value, found := input[prefix+logsConfigPath]
+	if !found {
+		return []integration.Config{}, nil
+	}
+	var data interface{}
+	err := json.Unmarshal([]byte(value), &data)
+	if err != nil {
+		return []integration.Config{}, fmt.Errorf("in %s: %s", logsConfigPath, err)
+	}
+	switch data.(type) {
+	case []interface{}:
+		logsConfig, _ := json.Marshal(data)
+		return []integration.Config{{LogsConfig: logsConfig, ADIdentifiers: []string{key}}}, nil
+	default:
+		return []integration.Config{}, fmt.Errorf("invalid format, expected an array, got: '%v'", data)
+	}
 }

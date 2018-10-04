@@ -8,7 +8,7 @@ package logs
 import (
 	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
-	"github.com/StackVista/stackstate-agent/pkg/logs/input/docker"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/container"
 	"github.com/StackVista/stackstate-agent/pkg/logs/input/file"
 	"github.com/StackVista/stackstate-agent/pkg/logs/input/journald"
 	"github.com/StackVista/stackstate-agent/pkg/logs/input/listener"
@@ -17,6 +17,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
 	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
 	"github.com/StackVista/stackstate-agent/pkg/logs/sender"
+	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 )
 
 // Agent represents the data pipeline that collects, decodes,
@@ -33,28 +34,22 @@ type Agent struct {
 }
 
 // NewAgent returns a new Agent
-func NewAgent(sources *config.LogSources) *Agent {
+func NewAgent(sources *config.LogSources, services *service.Services, serverConfig *config.ServerConfig) *Agent {
 	// setup the auditor
 	messageChan := make(chan message.Message, config.ChanSize)
 	auditor := auditor.New(messageChan, config.LogsAgent.GetString("logs_config.run_path"))
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	connectionManager := sender.NewConnectionManager(
-		config.LogsAgent.GetString("logs_config.dd_url"),
-		config.LogsAgent.GetInt("logs_config.dd_port"),
-		config.LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
-		config.LogsAgent.GetString("logs_config.socks5_proxy_address"),
-	)
+	connectionManager := sender.NewConnectionManager(serverConfig, config.LogsAgent.GetString("logs_config.socks5_proxy_address"))
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
 	// setup the inputs
-	validSources := sources.GetValidSources()
 	inputs := []restart.Restartable{
-		docker.NewScanner(validSources, pipelineProvider, auditor),
-		listener.New(validSources, pipelineProvider),
-		file.New(validSources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		journald.New(validSources, pipelineProvider, auditor),
-		windowsevent.New(validSources, pipelineProvider, auditor),
+		container.NewLauncher(sources, services, pipelineProvider, auditor),
+		listener.NewListener(sources, config.LogsAgent.GetInt("logs_config.frame_size"), pipelineProvider),
+		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		journald.NewLauncher(sources, pipelineProvider, auditor),
+		windowsevent.NewLauncher(sources, pipelineProvider),
 	}
 
 	return &Agent{

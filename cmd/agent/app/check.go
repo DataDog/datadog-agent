@@ -65,6 +65,9 @@ var checkCmd = &cobra.Command{
 			} else {
 				logLevel = "off"
 			}
+		} else {
+			// Python calls config.Datadog.GetString("log_level")
+			config.Datadog.Set("log_level", logLevel)
 		}
 
 		// Setup logger

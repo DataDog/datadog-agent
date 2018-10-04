@@ -7,55 +7,67 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"strconv"
+
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // LogsAgent is the global configuration object
 var LogsAgent = config.Datadog
 
-// Build returns logs-agent sources
-func Build() (*LogSources, error) {
-	sources, err := buildLogSources(
-		LogsAgent.GetString("confd_path"),
-		LogsAgent.GetBool("logs_config.container_collect_all"),
-		LogsAgent.GetInt("logs_config.tcp_forward_port"),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return sources, nil
-}
-
-// buildLogSources returns all the logs sources computed from logs configuration files and environment variables
-func buildLogSources(ddconfdPath string, collectAllLogsFromContainers bool, tcpForwardPort int) (*LogSources, error) {
+// DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
+func DefaultSources() []*LogSource {
 	var sources []*LogSource
-
-	// append sources from all logs config files
-	fileSources := buildLogSourcesFromDirectory(ddconfdPath)
-	sources = append(sources, fileSources...)
-
-	if collectAllLogsFromContainers {
-		// append source to collect all logs from all containers.
-		containersSource := NewLogSource("container_collect_all", &LogsConfig{
-			Type:    DockerType,
-			Service: "docker",
-			Source:  "docker",
-		})
-		sources = append(sources, containersSource)
-	}
-
+	tcpForwardPort := LogsAgent.GetInt("logs_config.tcp_forward_port")
 	if tcpForwardPort > 0 {
 		// append source to collect all logs forwarded by TCP on a given port.
-		tcpForwardSource := NewLogSource("tcp_forward", &LogsConfig{
+		source := NewLogSource("tcp_forward", &LogsConfig{
 			Type: TCPType,
 			Port: tcpForwardPort,
 		})
-		sources = append(sources, tcpForwardSource)
+		sources = append(sources, source)
+	}
+	return sources
+}
+
+// BuildServerConfig returns the server config to send logs to.
+func BuildServerConfig() (*ServerConfig, error) {
+	if LogsAgent.GetBool("logs_config.dev_mode_no_ssl") {
+		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 
-	logSources := &LogSources{sources}
-	if len(logSources.GetValidSources()) == 0 {
-		return nil, fmt.Errorf("could not find any valid logs configuration")
+	switch {
+	case LogsAgent.GetString("logs_config.logs_dd_url") != "":
+		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
+		// and '<PORT>' to be an integer.
+		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
+		host, portString, err := net.SplitHostPort(LogsAgent.GetString("logs_config.logs_dd_url"))
+		if err != nil {
+			return nil, fmt.Errorf("could not parse logs_dd_url: %v", err)
+		}
+		port, err := strconv.Atoi(portString)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse logs_dd_url port: %v", err)
+		}
+		return NewServerConfig(
+			host,
+			port,
+			!LogsAgent.GetBool("logs_config.logs_no_ssl"),
+		), nil
+	case LogsAgent.GetBool("logs_config.use_port_443"):
+		return NewServerConfig(
+			LogsAgent.GetString("logs_config.dd_url_443"),
+			443,
+			true,
+		), nil
+	default:
+		// datadog settings
+		return NewServerConfig(
+			LogsAgent.GetString("logs_config.dd_url"),
+			LogsAgent.GetInt("logs_config.dd_port"),
+			!LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
+		), nil
 	}
-	return logSources, nil
 }

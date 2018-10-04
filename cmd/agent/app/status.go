@@ -15,6 +15,8 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/api/util"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/status"
+
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -39,6 +41,9 @@ var statusCmd = &cobra.Command{
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+		if flagNoColor {
+			color.NoColor = true
 		}
 		err = requestStatus()
 		if err != nil {

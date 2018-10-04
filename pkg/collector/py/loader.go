@@ -9,7 +9,9 @@ package py
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
+	"sync"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
@@ -18,6 +20,23 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
+
+var (
+	pyLoaderStats   *expvar.Map
+	configureErrors map[string][]string
+	statsLock       sync.RWMutex
+)
+
+func init() {
+	factory := func() (check.Loader, error) {
+		return NewPythonCheckLoader()
+	}
+	loaders.RegisterLoader(10, factory)
+
+	configureErrors = map[string][]string{}
+	pyLoaderStats = expvar.NewMap("pyLoader")
+	pyLoaderStats.Set("ConfigureErrors", expvar.Func(expvarConfigureErrors))
+}
 
 // const things
 const agentCheckClassName = "AgentCheck"
@@ -154,11 +173,13 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 	// Get an AgentCheck for each configuration instance and add it to the registry
 	for _, i := range config.Instances {
 		check := NewPythonCheck(moduleName, checkClass)
+
 		// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
 		if err := check.Configure(i, config.InitConfig); err != nil {
-			log.Errorf("py.loader: could not configure check '%s': %s", moduleName, err)
+			addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
 			continue
 		}
+
 		check.version = wheelVersion
 		checks = append(checks, check)
 	}
@@ -174,10 +195,22 @@ func (cl *PythonCheckLoader) String() string {
 	return "Python Check Loader"
 }
 
-func init() {
-	factory := func() (check.Loader, error) {
-		return NewPythonCheckLoader()
-	}
+func expvarConfigureErrors() interface{} {
+	statsLock.RLock()
+	defer statsLock.RUnlock()
 
-	loaders.RegisterLoader(10, factory)
+	return configureErrors
+}
+
+func addExpvarConfigureError(check string, errMsg string) {
+	log.Errorf("py.loader: could not configure check '%s': %s", check, errMsg)
+
+	statsLock.Lock()
+	defer statsLock.Unlock()
+
+	if errors, ok := configureErrors[check]; ok {
+		configureErrors[check] = append(errors, errMsg)
+	} else {
+		configureErrors[check] = []string{errMsg}
+	}
 }

@@ -18,7 +18,9 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/listeners"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/test/integration/utils"
 )
@@ -35,7 +37,20 @@ type DockerListenerTestSuite struct {
 }
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
+	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
+	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
+	containers.ResetSharedFilter()
+
 	tagger.Init()
+
+	config.SetupLogger(
+		"debug",
+		"",
+		"",
+		false,
+		true,
+		false,
+	)
 
 	var err error
 	suite.dockerutil, err = docker.GetDockerUtil()
@@ -45,6 +60,12 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		ProjectName: "dockerlistener",
 		FilePath:    "testdata/redis.yaml",
 	}
+}
+
+func (suite *DockerListenerTestSuite) TearDownSuite() {
+	config.Datadog.SetDefault("ac_include", []string{})
+	config.Datadog.SetDefault("ac_exclude", []string{})
+	containers.ResetSharedFilter()
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
@@ -83,26 +104,31 @@ func (suite *DockerListenerTestSuite) stopContainers() error {
 
 // Listens in a channel until it receives one service per listed container.
 // If several events are received for the same containerIDs, the last one is returned
-func (suite *DockerListenerTestSuite) getServices(containerIDs []string, channel chan listeners.Service, timeout time.Duration) (map[string]listeners.Service, error) {
+func (suite *DockerListenerTestSuite) getServices(targetIDs, excludedIDs []string, channel chan listeners.Service, timeout time.Duration) (map[string]listeners.Service, error) {
 	services := make(map[string]listeners.Service)
 	timeoutTicker := time.NewTicker(timeout)
 
 	for {
 		select {
 		case svc := <-channel:
-			for _, id := range containerIDs {
-				if string(svc.GetID()) == id {
+			for _, id := range targetIDs {
+				if strings.HasSuffix(svc.GetEntity(), id) {
 					log.Infof("Service matches container %s, keeping", id)
 					services[id] = svc
-					log.Infof("Got services for %d containers so far, out of %d wanted", len(services), len(containerIDs))
-					if len(services) == len(containerIDs) {
+					log.Infof("Got services for %d containers so far, out of %d wanted", len(services), len(targetIDs))
+					if len(services) == len(targetIDs) {
 						log.Infof("Got all %d services, returning", len(services))
 						return services, nil
 					}
 				}
 			}
+			for _, id := range excludedIDs {
+				if strings.HasSuffix(svc.GetEntity(), id) {
+					return services, fmt.Errorf("got service for excluded container %s", id)
+				}
+			}
 		case <-timeoutTicker.C:
-			return services, fmt.Errorf("timeout listening for services, only got %d, expecting %d", len(services), len(containerIDs))
+			return services, fmt.Errorf("timeout listening for services, only got %d, expecting %d", len(services), len(targetIDs))
 		}
 	}
 }
@@ -114,7 +140,7 @@ func (suite *DockerListenerTestSuite) TestListenAfterStart() {
 
 	containerIDs, err := suite.startContainers()
 	assert.Nil(suite.T(), err)
-	assert.Len(suite.T(), containerIDs, 2)
+	assert.Len(suite.T(), containerIDs, 3)
 	log.Infof("got container IDs %s from compose", containerIDs)
 
 	// Start listening after the containers started, they'll be listed in the init
@@ -133,7 +159,7 @@ func (suite *DockerListenerTestSuite) TestListenBeforeStart() {
 
 	containerIDs, err := suite.startContainers()
 	assert.Nil(suite.T(), err)
-	assert.Len(suite.T(), containerIDs, 2)
+	assert.Len(suite.T(), containerIDs, 3)
 	log.Infof("got container IDs %s from compose", containerIDs)
 
 	suite.commonSection(containerIDs)
@@ -141,23 +167,34 @@ func (suite *DockerListenerTestSuite) TestListenBeforeStart() {
 
 // Common section for both scenarios
 func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
-	// We should get 2 new services
-	services, err := suite.getServices(containerIDs, suite.newSvc, 5*time.Second)
-	assert.Nil(suite.T(), err)
-	assert.Len(suite.T(), services, 2)
+	expectedADIDs := make(map[string][]string)
+	var includedIDs, excludedIDs []string
+	var excludedEntity string
 
-	expectedIDs := make(map[string][]string)
 	for _, container := range containerIDs {
 		inspect, err := suite.dockerutil.Inspect(container, false)
 		assert.Nil(suite.T(), err)
+		entity := fmt.Sprintf("docker://%s", container)
+		if strings.Contains(inspect.Name, "excluded") {
+			excludedEntity = docker.ContainerIDToEntityName(container)
+			excludedIDs = append(excludedIDs, container)
+			continue
+		}
+		includedIDs = append(includedIDs, container)
 		if strings.Contains(inspect.Name, "redis-with-id") {
-			expectedIDs[container] = []string{"custom-id"}
+			expectedADIDs[entity] = []string{"custom-id"}
 		} else {
-			expectedIDs[container] = []string{"docker://" + container,
+			expectedADIDs[entity] = []string{
+				entity,
 				"datadog/docker-library",
 				"docker-library"}
 		}
 	}
+
+	// We should get 2 new services
+	services, err := suite.getServices(includedIDs, excludedIDs, suite.newSvc, 5*time.Second)
+	assert.Nil(suite.T(), err)
+	assert.Len(suite.T(), services, 2)
 
 	for _, service := range services {
 		pid, err := service.GetPid()
@@ -169,24 +206,48 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		ports, err := service.GetPorts()
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), ports, 1)
+
+		entity := service.GetEntity()
+		expectedTags, found := expectedADIDs[entity]
+		assert.True(suite.T(), found, "entity not found in expected ones")
+
 		tags, err := service.GetTags()
 		assert.Nil(suite.T(), err)
-
 		assert.Contains(suite.T(), tags, "docker_image:datadog/docker-library:redis_3_2_11-alpine")
 		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
 		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")
 
 		adIDs, err := service.GetADIdentifiers()
 		assert.Nil(suite.T(), err)
-		assert.Equal(suite.T(), expectedIDs[string(service.GetID())], adIDs)
+		assert.Equal(suite.T(), expectedTags, adIDs)
+	}
+
+	// Listen for late messages
+	select {
+	case svc := <-suite.newSvc:
+		if svc.GetEntity() == excludedEntity {
+			assert.FailNowf(suite.T(), "received service for excluded container %s", excludedEntity)
+		}
+	case <-time.After(250 * time.Millisecond):
+		// all good
 	}
 
 	suite.stopContainers()
 
 	// We should get 2 stopped services
-	services, err = suite.getServices(containerIDs, suite.delSvc, 5*time.Second)
-	assert.Nil(suite.T(), err)
+	services, err = suite.getServices(containerIDs, excludedIDs, suite.delSvc, 5*time.Millisecond)
+	assert.Error(suite.T(), err)
 	assert.Len(suite.T(), services, 2)
+
+	// Listen for late messages
+	select {
+	case svc := <-suite.delSvc:
+		if svc.GetEntity() == excludedEntity {
+			assert.FailNowf(suite.T(), "received service for excluded container %s", excludedEntity)
+		}
+	case <-time.After(250 * time.Millisecond):
+		// all good
+	}
 }
 
 func TestDockerListenerSuite(t *testing.T) {

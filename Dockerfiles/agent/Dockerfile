@@ -48,7 +48,7 @@ COPY datadog*.yaml etc/datadog-agent/
 FROM debian:buster-slim
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
-ENV DOCKER_DD_AGENT=yes \
+ENV DOCKER_DD_AGENT=true \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
     CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
     # Pass envvar variables to agents
@@ -72,7 +72,8 @@ RUN apt-get update \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
-  /usr/lib/x86_64-linux-gnu/libdb-5.3.so
+  && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
@@ -80,7 +81,7 @@ COPY --from=extract /output/ /
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
 COPY entrypoint /etc/cont-init.d/
-COPY probe.sh initlog.sh /
+COPY probe.sh initlog.sh secrets-helper/readsecret.py /
 
 # Extract s6-overlay
 # Done in 2 steps to avoid overriding the /bin --> /usr/bin symlink
@@ -96,7 +97,9 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && rm /var/run && mkdir -p /var/run/s6 \
  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
- && chmod 755 /probe.sh /initlog.sh
+ && chmod 755 /probe.sh /initlog.sh \
+ && chown root:root /readsecret.py \
+ && chmod 500 /readsecret.py
 
 # Override the exit script by ours to fix --pid=host operations
 COPY init-stage3 /etc/s6/init/init-stage3

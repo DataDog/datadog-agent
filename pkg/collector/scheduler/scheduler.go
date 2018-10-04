@@ -99,7 +99,7 @@ func (s *Scheduler) Cancel(id check.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Infof("Unscheduling check %v ", check.IDToCheckName(id))
+	log.Infof("Unscheduling check %s", string(id))
 
 	if _, ok := s.checkToQueue[id]; !ok {
 		return nil
@@ -110,6 +110,7 @@ func (s *Scheduler) Cancel(id check.ID) error {
 	if err != nil {
 		return fmt.Errorf("unable to remove the Job from the queue: %s", err)
 	}
+	delete(s.checkToQueue, id)
 
 	schedulerChecksEntered.Add(-1)
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
@@ -176,6 +177,15 @@ func (s *Scheduler) Stop() error {
 	}
 }
 
+// IsCheckScheduled returns whether a check is in the schedule or not
+func (s *Scheduler) IsCheckScheduled(id check.ID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, found := s.checkToQueue[id]
+	return found
+}
+
 // stopQueues shuts down the timers for each active queue
 // Blocks until all the queues have fully stopped
 func (s *Scheduler) stopQueues() {
@@ -209,7 +219,7 @@ func (s *Scheduler) startQueues() {
 // startQueue starts a queue (non-blocking operation) if it's not running yet
 func (s *Scheduler) startQueue(q *jobQueue) {
 	if !q.running {
-		q.run(s.checksPipe)
+		q.run(s)
 		q.running = true
 	}
 }
@@ -237,12 +247,8 @@ func expQueues(s *Scheduler) func() interface{} {
 	return func() interface{} {
 		queues := make([]map[string]interface{}, 0)
 
-		for interval, queue := range s.jobQueues {
-			queueStats := map[string]interface{}{
-				"Interval": interval / time.Second,
-				"Size":     len(queue.jobs),
-			}
-			queues = append(queues, queueStats)
+		for _, queue := range s.jobQueues {
+			queues = append(queues, queue.stats())
 		}
 		return queues
 	}

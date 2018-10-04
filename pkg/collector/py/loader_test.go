@@ -9,6 +9,7 @@
 package py
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
@@ -38,11 +39,74 @@ func TestLoad(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))
 
+	// the python module works
+	config = integration.Config{Name: "working"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	config.Instances = append(config.Instances, []byte("bar: baz"))
+	instances, err = l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 2, len(instances))
+
 	// the python module is good but nothing derives from AgentCheck
 	config = integration.Config{Name: "foo"}
 	instances, err = l.Load(config)
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))
+}
+
+func TestLoadVersion(t *testing.T) {
+	l, _ := NewPythonCheckLoader()
+
+	// the python module has no version
+	config := integration.Config{Name: "working"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	instances, err := l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(instances))
+
+	// the python module has a version
+	config = integration.Config{Name: "version"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	instances, err = l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(instances))
+	assert.Equal(t, "1.0.0", instances[0].Version())
+}
+
+// Some bugs can appear only if python use the same OS thread for several actions. We lock there to be sure to test this case
+func TestLoadVersionLock(t *testing.T) {
+	runtime.LockOSThread()
+	TestLoadVersion(t)
+	runtime.UnlockOSThread()
+}
+
+func TestLoadandRun(t *testing.T) {
+	l, _ := NewPythonCheckLoader()
+
+	// the python module loads fine but check fails
+	config := integration.Config{Name: "version"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	instances, err := l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(instances))
+	err = instances[0].Run()
+	assert.NotNil(t, err)
+
+	// the python module loads and check runs
+	config = integration.Config{Name: "working"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	instances, err = l.Load(config)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(instances))
+	err = instances[0].Run()
+	assert.Nil(t, err)
+
+}
+
+func TestLoadandRunLock(t *testing.T) {
+	runtime.LockOSThread()
+	TestLoadandRun(t)
+	runtime.UnlockOSThread()
 }
 
 func TestNewPythonCheckLoader(t *testing.T) {

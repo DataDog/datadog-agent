@@ -11,9 +11,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
 )
 
-// defaultFrameSize represents the size of the read buffer of the TCP and UDP sockets.
-var defaultFrameSize = config.LogsAgent.GetInt("logs_config.frame_size")
-
 // Listener represents an objet that can accept new incomming connections.
 type Listener interface {
 	Start()
@@ -22,38 +19,49 @@ type Listener interface {
 
 // Listeners summons different protocol specific listeners based on configuration
 type Listeners struct {
-	pp        pipeline.Provider
-	sources   []*config.LogSource
-	listeners []Listener
+	pipelineProvider pipeline.Provider
+	frameSize        int
+	sources          *config.LogSources
+	listeners        []Listener
+	stop             chan struct{}
 }
 
-// New returns an initialized Listeners
-func New(sources []*config.LogSource, pp pipeline.Provider) *Listeners {
-	listeners := []Listener{}
-	for _, source := range sources {
-		switch source.Config.Type {
-		case config.TCPType:
-			listeners = append(listeners, NewTCPListener(pp, source, defaultFrameSize))
-		case config.UDPType:
-			listeners = append(listeners, NewUDPListener(pp, source, defaultFrameSize))
-		}
-	}
+// NewListener returns an initialized Listeners
+func NewListener(sources *config.LogSources, frameSize int, pipelineProvider pipeline.Provider) *Listeners {
 	return &Listeners{
-		pp:        pp,
-		sources:   sources,
-		listeners: listeners,
+		pipelineProvider: pipelineProvider,
+		frameSize:        frameSize,
+		sources:          sources,
+		stop:             make(chan struct{}),
 	}
 }
 
-// Start starts all listeners
+// Start starts the listener.
 func (l *Listeners) Start() {
-	for _, l := range l.listeners {
-		l.Start()
+	go l.run()
+}
+
+// run starts new network listeners.
+func (l *Listeners) run() {
+	for {
+		select {
+		case source := <-l.sources.GetSourceStreamForType(config.TCPType):
+			listener := NewTCPListener(l.pipelineProvider, source, l.frameSize)
+			listener.Start()
+			l.listeners = append(l.listeners, listener)
+		case source := <-l.sources.GetSourceStreamForType(config.UDPType):
+			listener := NewUDPListener(l.pipelineProvider, source, l.frameSize)
+			listener.Start()
+			l.listeners = append(l.listeners, listener)
+		case <-l.stop:
+			return
+		}
 	}
 }
 
 // Stop stops all listeners
 func (l *Listeners) Stop() {
+	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, l := range l.listeners {
 		stopper.Add(l)

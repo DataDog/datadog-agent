@@ -224,6 +224,9 @@ else
       no_start=true
     fi
   fi
+  if [ $dd_url ]; then
+    $sudo_cmd sh -c "sed -i 's/# dd_url:.*/dd_url: $dd_url/' $CONF"
+  fi
   if [ $dd_hostname ]; then
     printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' $CONF"

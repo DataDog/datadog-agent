@@ -18,7 +18,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
-	"github.com/StackVista/stackstate-agent/pkg/util/winutil"
 	"github.com/StackVista/stackstate-agent/pkg/util/winutil/pdhutil"
 )
 
@@ -26,7 +25,8 @@ var (
 	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
 	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
 
-	drivePattern = regexp.MustCompile(`[A-Za-z]:`)
+	driveLetterPattern    = regexp.MustCompile(`[A-Za-z]:`)
+	unmountedDrivePattern = regexp.MustCompile(`HarddiskVolume([0-9])+`)
 )
 
 const (
@@ -36,8 +36,6 @@ const (
 	DRIVE_FIXED          = 3
 )
 
-var drivelist []string
-
 // IOCheck doesn't need additional fields
 type IOCheck struct {
 	core.CheckBase
@@ -46,35 +44,14 @@ type IOCheck struct {
 	counternames map[string]string
 }
 
-func init() {
-	drivebuf := make([]uint16, 256)
-
-	// Windows API GetLogicalDriveStrings returns all of the assigned drive letters
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa364975(v=vs.85).aspx
-	r, _, _ := procGetLogicalDriveStringsW.Call(
-		uintptr(len(drivebuf)),
-		uintptr(unsafe.Pointer(&drivebuf[0])))
-	if r == 0 {
-		return
-	}
-	drivelist = winutil.ConvertWindowsStringList(drivebuf)
-}
-
 func isDrive(instance string) bool {
-	found := false
-	if !drivePattern.MatchString(instance) {
+	if unmountedDrivePattern.MatchString(instance) {
+		return true
+	}
+	if !driveLetterPattern.MatchString(instance) {
 		return false
 	}
 	instance += "\\"
-	for _, driveletter := range drivelist {
-		if instance == driveletter {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return false
-	}
 	r, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(instance))))
 	if r != DRIVE_FIXED {
 		return false

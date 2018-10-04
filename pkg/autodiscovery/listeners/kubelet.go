@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
-	"github.com/StackVista/stackstate-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
-
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
@@ -30,7 +30,8 @@ const (
 // KubeletListener listen to kubelet pod creation
 type KubeletListener struct {
 	watcher    *kubelet.PodWatcher
-	services   map[ID]Service
+	filter     *containers.Filter
+	services   map[string]Service
 	newService chan<- Service
 	delService chan<- Service
 	ticker     *time.Ticker
@@ -39,12 +40,13 @@ type KubeletListener struct {
 	m          sync.RWMutex
 }
 
-// PodContainerService implements and store results from the Service interface for the Kubelet listener
-type PodContainerService struct {
-	ID            ID
-	ADIdentifiers []string
-	Hosts         map[string]string
-	Ports         []ContainerPort
+// KubeContainerService implements and store results from the Service interface for the Kubelet listener
+type KubeContainerService struct {
+	entity        string
+	adIdentifiers []string
+	hosts         map[string]string
+	ports         []ContainerPort
+	creationTime  integration.CreationTime
 }
 
 func init() {
@@ -54,11 +56,16 @@ func init() {
 func NewKubeletListener() (ServiceListener, error) {
 	watcher, err := kubelet.NewPodWatcher(15 * time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to kubelet, Kubernetes listener will not work: %s", err)
+		return nil, err
+	}
+	filter, err := containers.NewFilterFromConfigIncludePause()
+	if err != nil {
+		return nil, err
 	}
 	return &KubeletListener{
 		watcher:  watcher,
-		services: make(map[ID]Service),
+		filter:   filter,
+		services: make(map[string]Service),
 		ticker:   time.NewTicker(15 * time.Second),
 		stop:     make(chan bool),
 		health:   health.Register("ad-kubeletlistener"),
@@ -71,6 +78,12 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.delService = delSvc
 
 	go func() {
+		pods, err := l.watcher.PullChanges()
+		if err != nil {
+			log.Error(err)
+		}
+		l.processNewPods(pods, true)
+
 		for {
 			select {
 			case <-l.stop:
@@ -84,20 +97,15 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 					log.Error(err)
 					continue
 				}
-				for _, pod := range updatedPods {
-					// Ignore pending/failed/succeeded/unknown states
-					if pod.Status.Phase == "Running" {
-						l.processNewPod(pod)
-					}
-				}
+				l.processNewPods(updatedPods, false)
 				// Compute deleted pods
 				expiredContainerList, err := l.watcher.Expire()
 				if err != nil {
 					log.Error(err)
 					continue
 				}
-				for _, containerID := range expiredContainerList {
-					l.removeService(ID(containerID))
+				for _, entity := range expiredContainerList {
+					l.removeService(entity)
 				}
 			}
 		}
@@ -109,26 +117,42 @@ func (l *KubeletListener) Stop() {
 	l.stop <- true
 }
 
-func (l *KubeletListener) processNewPod(pod *kubelet.Pod) {
-	for _, container := range pod.Status.Containers {
-		l.createService(ID(container.ID), pod)
+func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
+	for _, pod := range pods {
+		// Ignore pending/failed/succeeded/unknown states
+		if pod.Status.Phase == "Running" {
+			for _, container := range pod.Status.Containers {
+				l.createService(container.ID, pod, firstRun)
+			}
+		}
 	}
 }
 
-func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
-	svc := PodContainerService{
-		ID: id,
+func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRun bool) {
+	var crTime integration.CreationTime
+	if firstRun {
+		crTime = integration.Before
+	} else {
+		crTime = integration.After
+	}
+	svc := KubeContainerService{
+		entity:       entity,
+		creationTime: crTime,
 	}
 	podName := pod.Metadata.Name
 
 	// AD Identifiers
 	var containerName string
 	for _, container := range pod.Status.Containers {
-		if container.ID == string(svc.ID) {
+		if container.ID == svc.entity {
+			if l.filter.IsExcluded(container.Name, container.Image) {
+				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, container.Image)
+				return
+			}
 			containerName = container.Name
 
 			// Add container uid as ID
-			svc.ADIdentifiers = append(svc.ADIdentifiers, container.ID)
+			svc.adIdentifiers = append(svc.adIdentifiers, container.ID)
 
 			// Stop here if we find an AD template annotation
 			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
@@ -136,13 +160,13 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 			}
 
 			// Add other identifiers if no template found
-			svc.ADIdentifiers = append(svc.ADIdentifiers, container.Image)
-			_, short, _, err := docker.SplitImageName(container.Image)
+			svc.adIdentifiers = append(svc.adIdentifiers, container.Image)
+			_, short, _, err := containers.SplitImageName(container.Image)
 			if err != nil {
 				log.Warnf("Error while spliting image name: %s", err)
 			}
 			if len(short) > 0 && short != container.Image {
-				svc.ADIdentifiers = append(svc.ADIdentifiers, short)
+				svc.adIdentifiers = append(svc.adIdentifiers, short)
 			}
 			break
 		}
@@ -153,7 +177,7 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	if podIp == "" {
 		log.Errorf("Unable to get pod %s IP", podName)
 	}
-	svc.Hosts = map[string]string{"pod": podIp}
+	svc.hosts = map[string]string{"pod": podIp}
 
 	// Ports
 	var ports []ContainerPort
@@ -168,14 +192,14 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	sort.Slice(ports, func(i, j int) bool {
 		return ports[i].Port < ports[j].Port
 	})
-	svc.Ports = ports
-	if len(svc.Ports) == 0 {
+	svc.ports = ports
+	if len(svc.ports) == 0 {
 		// Port might not be specified in pod spec
 		log.Debugf("No ports found for pod %s", podName)
 	}
 
 	l.m.Lock()
-	l.services[ID(id)] = &svc
+	l.services[entity] = &svc
 	l.m.Unlock()
 
 	l.newService <- &svc
@@ -194,58 +218,63 @@ func podHasADTemplate(annotations map[string]string, containerName string) bool 
 	return false
 }
 
-func (l *KubeletListener) removeService(cID ID) {
-	if strings.HasPrefix(string(cID), kubelet.KubePodPrefix) {
+func (l *KubeletListener) removeService(entity string) {
+	if strings.HasPrefix(entity, kubelet.KubePodPrefix) {
 		// Ignoring expired pods
 		return
 	}
 
 	l.m.RLock()
-	svc, ok := l.services[cID]
+	svc, ok := l.services[entity]
 	l.m.RUnlock()
 
 	if ok {
 		l.m.Lock()
-		delete(l.services, cID)
+		delete(l.services, entity)
 		l.m.Unlock()
 
 		l.delService <- svc
 	} else {
-		log.Debugf("Container %s not found, not removing", cID)
+		log.Debugf("Entity %s not found, not removing", entity)
 	}
 }
 
-// GetID returns the service ID
-func (s *PodContainerService) GetID() ID {
-	return s.ID
+// GetEntity returns the unique entity name linked to that service
+func (s *KubeContainerService) GetEntity() string {
+	return s.entity
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *PodContainerService) GetADIdentifiers() ([]string, error) {
-	return s.ADIdentifiers, nil
+func (s *KubeContainerService) GetADIdentifiers() ([]string, error) {
+	return s.adIdentifiers, nil
 }
 
 // GetHosts returns the pod hosts
-func (s *PodContainerService) GetHosts() (map[string]string, error) {
-	return s.Hosts, nil
+func (s *KubeContainerService) GetHosts() (map[string]string, error) {
+	return s.hosts, nil
 }
 
 // GetPid is not supported for PodContainerService
-func (s *PodContainerService) GetPid() (int, error) {
+func (s *KubeContainerService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the container's ports
-func (s *PodContainerService) GetPorts() ([]ContainerPort, error) {
-	return s.Ports, nil
+func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
+	return s.ports, nil
 }
 
 // GetTags retrieves tags using the Tagger
-func (s *PodContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.ID), tagger.IsFullCardinality())
+func (s *KubeContainerService) GetTags() ([]string, error) {
+	return tagger.Tag(string(s.entity), tagger.IsFullCardinality())
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *PodContainerService) GetHostname() (string, error) {
+func (s *KubeContainerService) GetHostname() (string, error) {
 	return "", ErrNotSupported
+}
+
+// GetCreationTime returns the creation time of the container compare to the agent start.
+func (s *KubeContainerService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
 }

@@ -29,6 +29,9 @@ templates:
           - v2-godeps-{{ .Branch }}-{{ .Revision }}
           - v2-godeps-{{ .Branch }}-
           - v2-godeps-master-
+    - run: &enter_venv
+        name: add virtualenv to bashrc
+        command: echo "source /go/src/github.com/StackVista/stackstate-agent/venv/bin/activate" >> $BASH_ENV
     - restore_cache: &restore_artifacts
         keys:
           - v2-artifacts-{{ .Revision }}
@@ -49,8 +52,15 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          name: setup virtual env
+          command: virtualenv /go/src/github.com/StackVista/stackstate-agent/venv
+      - run: *enter_venv
+      - run:
+          name: setup python deps
+          command: source ./venv/bin/activate && pip install -r requirements.txt
+      - run:
           name: grab go deps
-          command: invoke deps
+          command: source ./venv/bin/activate && inv deps
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
@@ -58,6 +68,7 @@ jobs:
           key: v2-godeps-{{ .Branch }}-{{ .Revision }}
           paths:
             - /go/src/github.com/StackVista/stackstate-agent/vendor
+            - /go/src/github.com/StackVista/stackstate-agent/venv
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
@@ -67,9 +78,10 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
+      - run: *enter_venv
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --profile --fail-on-fmt
+          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
 
   integration_tests:
     <<: *job_template
@@ -77,19 +89,32 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
+      - run: *enter_venv
       - run:
           name: run integration tests
-          command: inv  -e integration-tests --race --remote-docker
+          command: inv -e integration-tests --race --remote-docker
 
-  reno_linting:
+  release_note:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
+      - run: *enter_venv
       - run:
-          name: run reno linting
           command: inv -e lint-releasenote
+          name: run PR check for release note
+
+  team_label:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run: *enter_venv
+      - run:
+          command: inv -e lint-teamassignment
+          name: run PR check for team assignment labels
 
   filename_linting:
     <<: *job_template
@@ -97,6 +122,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
+      - run: *enter_venv
       - run:
           name: run filename linting
           command: inv -e lint-filenames
@@ -107,6 +133,10 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
+      - run: *enter_venv
+      - run:
+          name: run docker image tests
+          command: inv -e docker.test
       - run:
           name: run docker image integration tests
           command: inv -e docker.integration-tests
@@ -116,6 +146,7 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
+      - run: *enter_venv
       - run:
           name: build dogstatsd
           command: inv -e dogstatsd.build --static
@@ -126,14 +157,15 @@ jobs:
   build_puppy:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - run:
-        name: build puppy
-        command: inv -e agent.build --puppy
-    - run:
-        name: test puppy
-        command: ./bin/agent/agent -c ./bin/agent/dist check cpu
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run: *enter_venv
+      - run:
+          name: build puppy
+          command: inv -e agent.build --puppy
+      - run:
+          name: test puppy
+          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
   build_publish_deb:
     <<: *job_template
@@ -198,9 +230,12 @@ workflows:
       - integration_tests:
           requires:
             - dependencies
-#      - reno_linting:
-#          requires:
-#            - dependencies
+    #   - release_note:
+    #       requires:
+    #         - dependencies
+    #   - team_label:
+    #       requires:
+    #         - dependencies
       - filename_linting:
           requires:
             - dependencies

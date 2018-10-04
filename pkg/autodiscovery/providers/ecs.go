@@ -41,7 +41,7 @@ func NewECSConfigProvider(config config.ConfigurationProviders) (ConfigProvider,
 
 // String returns a string representation of the ECSConfigProvider
 func (p *ECSConfigProvider) String() string {
-	return "ECS container labels"
+	return ECS
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ECS' data.

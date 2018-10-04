@@ -3,10 +3,11 @@
   {{- range $i, $e := .CheckStats}}
   <span class="stat_subtitle">Instance {{add $i 1}}</span>
     <span class="stat_data">
-        Total Runs: {{.TotalRuns}}<br>
-        Metric Samples: {{.MetricSamples}}, Total: {{humanizeI .TotalMetricSamples}}<br>
-        Events: {{.Events}}, Total: {{humanizeI .TotalEvents}}<br>
-        Service Checks: {{.ServiceChecks}}, Total: {{humanizeI .TotalServiceChecks}}<br>
+        Instance ID: {{.CheckID}}<br>
+        Total Runs: {{humanize .TotalRuns}}<br>
+        Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
+        Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
+        Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
       {{- if .LastError}}
         <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
               {{lastErrorTraceback .LastError -}}

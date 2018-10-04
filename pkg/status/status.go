@@ -10,8 +10,10 @@ import (
 	"expvar"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
@@ -19,6 +21,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/logs"
 	"github.com/StackVista/stackstate-agent/pkg/metadata/host"
 	"github.com/StackVista/stackstate-agent/pkg/util"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/version"
 )
 
@@ -49,6 +52,8 @@ func GetStatus() (map[string]interface{}, error) {
 		return nil, err
 	}
 	stats["pid"] = os.Getpid()
+	pythonVersion := host.GetPythonVersion()
+	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
@@ -91,8 +96,9 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	checks := s["runnerStats"].(map[string]interface{})["Checks"]
-	checks.(map[string]interface{})[c.String()] = cs
+	checks := s["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
+	checks[c.String()] = make(map[check.ID]interface{})
+	checks[c.String()].(map[check.ID]interface{})[c.ID()] = cs
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {
@@ -128,7 +134,13 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
-	stats["hpaExternal"] = GetHorizontalPodAutoscalingStatus()
+
+	apiCl, err := apiserver.GetAPIClient()
+	if err != nil {
+		stats["custommetrics"] = map[string]string{"Error": err.Error()}
+		return stats, nil
+	}
+	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 
 	return stats, nil
 }
@@ -198,6 +210,21 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
 	stats["aggregatorStats"] = aggregatorStats
+
+	pyLoaderData := expvar.Get("pyLoader")
+	if pyLoaderData != nil {
+		pyLoaderStatsJSON := []byte(pyLoaderData.String())
+		pyLoaderStats := make(map[string]interface{})
+		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats)
+		stats["pyLoaderStats"] = pyLoaderStats
+	} else {
+		stats["pyLoaderStats"] = nil
+	}
+
+	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
+	hostnameStats := make(map[string]interface{})
+	json.Unmarshal(hostnameStatsJSON, &hostnameStats)
+	stats["hostnameStats"] = hostnameStats
 
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)

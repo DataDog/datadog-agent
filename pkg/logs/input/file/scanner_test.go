@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	auditor "github.com/StackVista/stackstate-agent/pkg/logs/auditor/mock"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
@@ -32,16 +32,16 @@ type ScannerTestSuite struct {
 	testRotatedPath string
 	testRotatedFile *os.File
 
-	outputChan     chan message.Message
-	pp             pipeline.Provider
-	sources        []*config.LogSource
-	openFilesLimit int
-	s              *Scanner
+	outputChan       chan message.Message
+	pipelineProvider pipeline.Provider
+	source           *config.LogSource
+	openFilesLimit   int
+	s                *Scanner
 }
 
 func (suite *ScannerTestSuite) SetupTest() {
-	suite.pp = mock.NewMockProvider()
-	suite.outputChan = suite.pp.NextPipelineChan()
+	suite.pipelineProvider = mock.NewMockProvider()
+	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 
 	var err error
 	suite.testDir, err = ioutil.TempDir("", "log-scanner-test-")
@@ -58,10 +58,11 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.testRotatedFile = f
 
 	suite.openFilesLimit = 100
-	suite.sources = []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})}
+	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})
 	sleepDuration := 20 * time.Millisecond
-	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil, ""), sleepDuration)
-	suite.s.setup()
+	suite.s = NewScanner(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
+	suite.s.activeSources = append(suite.s.activeSources, suite.source)
+	suite.s.scan()
 }
 
 func (suite *ScannerTestSuite) TearDownTest() {
@@ -80,21 +81,21 @@ func (suite *ScannerTestSuite) TestScannerStartsTailers() {
 
 func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 	s := suite.s
-	sources := suite.sources
+	source := suite.source
 
 	var tailer *Tailer
 	var newTailer *Tailer
 	var err error
 	var msg message.Message
 
-	tailer = s.tailers[sources[0].Config.Path]
+	tailer = s.tailers[source.Config.Path]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
 
 	s.scan()
-	newTailer = s.tailers[sources[0].Config.Path]
+	newTailer = s.tailers[source.Config.Path]
 	// testing that scanner did not have to create a new tailer
 	suite.True(tailer == newTailer)
 
@@ -106,7 +107,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	s := suite.s
-	sources := suite.sources
+	source := suite.source
 
 	var tailer *Tailer
 	var newTailer *Tailer
@@ -118,12 +119,12 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
 
-	tailer = s.tailers[sources[0].Config.Path]
+	tailer = s.tailers[source.Config.Path]
 	os.Rename(suite.testPath, suite.testRotatedPath)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	s.scan()
-	newTailer = s.tailers[sources[0].Config.Path]
+	newTailer = s.tailers[source.Config.Path]
 	suite.True(tailer != newTailer)
 
 	_, err = f.WriteString("hello again\n")
@@ -134,14 +135,14 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	s := suite.s
-	sources := suite.sources
+	source := suite.source
 
 	var tailer *Tailer
 	var newTailer *Tailer
 	var err error
 	var msg message.Message
 
-	tailer = s.tailers[sources[0].Config.Path]
+	tailer = s.tailers[source.Config.Path]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
@@ -154,7 +155,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	suite.Nil(err)
 
 	s.scan()
-	newTailer = s.tailers[sources[0].Config.Path]
+	newTailer = s.tailers[source.Config.Path]
 	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
@@ -206,14 +207,10 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 
 	// create scanner
 	path = fmt.Sprintf("%s/*.log", testDir)
-	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
-
-	// setup scanner
-	scanner.setup()
-	assert.Equal(t, 0, len(scanner.tailers))
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
 
 	// create file
 	path = fmt.Sprintf("%s/test.log", testDir)
@@ -258,14 +255,10 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 
 	// create scanner
 	path = fmt.Sprintf("%s/*.log", testDir)
-	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
-
-	// test at setup
-	scanner.setup()
-	assert.Equal(t, 2, len(scanner.tailers))
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
 
 	// test at scan
 	scanner.scan()

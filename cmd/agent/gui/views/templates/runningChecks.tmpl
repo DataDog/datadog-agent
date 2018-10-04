@@ -6,21 +6,21 @@
       <tr> <th>Check Name</th>
       <th class="l_space">Number of <br>Instances</th>
       <th class="l_space">Status</th></tr>
-      {{- range $checkname, $instances := instances .Checks}}
+      {{- range $checkname, $instances := .Checks}}
         <tr> <td>{{$checkname}}</td>
         <td class="l_space">{{ len $instances }}</td>
         <td class="l_space">
-        {{ range $index, $inst := $instances }}
-          {{ if ne $index 0}}<br>{{ end }}
-          {{- if and (not  $inst.LastError) (not  $inst.LastWarnings) }}
+        {{ range $instances }}
+          {{- if and (not .LastError) (not .LastWarnings) }}
             <span class="success"> OK</span>
           {{ end }}
-          {{ if  $inst.LastError }}
+          {{ if .LastError }}
             <span class="error"> Run Error</span>
           {{ end }}
-          {{ if  $inst.LastWarnings }}
+          {{ if .LastWarnings }}
             <span class="warning"> Run Warning</span>
           {{ end }}
+          <br>
         {{ end }}
         </td></tr>
       {{- end -}}

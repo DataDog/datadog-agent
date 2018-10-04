@@ -72,19 +72,26 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 
 	callbacks := ld.LeaderCallbacks{
 		OnNewLeader: func(identity string) {
-			le.currentHolderMutex.Lock()
-			le.currentHolderIdentity = identity
-			le.currentHolderMutex.Unlock()
+			le.leaderIdentityMutex.Lock()
+			le.leaderIdentity = identity
+			le.leaderIdentityMutex.Unlock()
+
 			log.Infof("New leader %q", identity)
 		},
 		OnStartedLeading: func(stop <-chan struct{}) {
-			log.Infof("Started leading as %q ...", le.HolderIdentity)
+			le.leaderIdentityMutex.Lock()
+			le.leaderIdentity = le.HolderIdentity
+			le.leaderIdentityMutex.Unlock()
+
+			log.Infof("Started leading as %q...", le.HolderIdentity)
 		},
-		// OnStoppedLeading shouldn't be called unless the election is lost
+		// OnStoppedLeading shouldn't be called unless the election is lost. This could happen if
+		// we lose connection to the apiserver for the duration of the lease.
 		OnStoppedLeading: func() {
-			le.currentHolderMutex.Lock()
-			le.currentHolderIdentity = ""
-			le.currentHolderMutex.Unlock()
+			le.leaderIdentityMutex.Lock()
+			le.leaderIdentity = ""
+			le.leaderIdentityMutex.Unlock()
+
 			log.Infof("Stopped leading %q", le.HolderIdentity)
 		},
 	}

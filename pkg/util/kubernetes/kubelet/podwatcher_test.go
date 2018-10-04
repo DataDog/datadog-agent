@@ -8,9 +8,7 @@
 package kubelet
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -40,11 +38,8 @@ func (suite *PodwatcherTestSuite) SetupTest() {
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
-	raw, err := ioutil.ReadFile("./testdata/podlist_1.8-2.json")
+	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
-	var podList PodList
-	json.Unmarshal(raw, &podList)
-	sourcePods := podList.Items
 	require.Len(suite.T(), sourcePods, 6)
 
 	threePods := sourcePods[:3]
@@ -85,18 +80,16 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
-	raw, err := ioutil.ReadFile("./testdata/podlist_1.8-1.json")
+	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-1.json")
 	require.Nil(suite.T(), err)
-	var podList PodList
-	json.Unmarshal(raw, &podList)
-	require.Len(suite.T(), podList.Items, 6)
+	require.Len(suite.T(), sourcePods, 6)
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		expiryDuration: 5 * time.Minute,
 	}
 
-	changes, err := watcher.computeChanges(podList.Items)
+	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 4, fmt.Sprintf("%d", len(changes)))
 	for _, po := range changes {
@@ -104,18 +97,17 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	}
 
 	// Same list should detect no change
-	changes, err = watcher.computeChanges(podList.Items)
+	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 0)
 
 	// The nginx become Ready
-	raw, err = ioutil.ReadFile("./testdata/podlist_1.8-2.json")
+	sourcePods, err = loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
-	json.Unmarshal(raw, &podList)
-	require.Len(suite.T(), podList.Items, 6)
+	require.Len(suite.T(), sourcePods, 6)
 
 	// Should detect 1 change: nginx
-	changes, err = watcher.computeChanges(podList.Items)
+	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 	assert.Equal(suite.T(), "nginx", changes[0].Spec.Containers[0].Name)
@@ -123,11 +115,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
-	raw, err := ioutil.ReadFile("./testdata/podlist_1.8-2.json")
+	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
-	var podList PodList
-	json.Unmarshal(raw, &podList)
-	sourcePods := podList.Items
 	require.Len(suite.T(), sourcePods, 6)
 
 	watcher := &PodWatcher{
@@ -162,11 +151,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
-	raw, err := ioutil.ReadFile("./testdata/podlist_1.8-2.json")
+	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
-	var podList PodList
-	json.Unmarshal(raw, &podList)
-	sourcePods := podList.Items
 	require.Len(suite.T(), sourcePods, 6)
 
 	watcher := &PodWatcher{
@@ -188,7 +174,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	}
 
 	// Remove one pod from the list, make sure we take the good one
-	oldPod := podList.Items[5]
+	oldPod := sourcePods[5]
 	require.Contains(suite.T(), oldPod.Metadata.UID, "d91aa43c-0769-11e8-afcc-000c29dea4f6")
 
 	_, err = watcher.computeChanges(sourcePods[0:5])

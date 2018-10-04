@@ -20,5 +20,5 @@ func GetHostAlias() (string, error) {
 	if err == nil && util.ValidHostname(name) == nil {
 		return name, nil
 	}
-	return "", fmt.Errorf("Couldn't extract a host alias from the kubelet")
+	return "", fmt.Errorf("Couldn't extract a host alias from the kubelet: %s", err)
 }

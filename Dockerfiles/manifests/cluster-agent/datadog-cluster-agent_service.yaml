@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: dca
+  name: datadog-cluster-agent
   labels:
     app: datadog-cluster-agent
 spec:

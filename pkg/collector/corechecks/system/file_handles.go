@@ -64,26 +64,26 @@ func (c *fhCheck) Run() error {
 		log.Errorf("Could not gather \"allocated file handle\" value")
 		return err
 	}
-	log.Debugf("allocated file handles: %f", allocatedFh)
 
 	allocatedUnusedFh, err := strconv.ParseFloat(fileNrValues[1], 64)
 	if err != nil {
 		log.Errorf("Could not gather \"allocated unused file handle\" value")
 		return err
 	}
-	log.Debugf("allocated unused file handles: %f", allocatedUnusedFh)
 
 	maxFh, err := strconv.ParseFloat(fileNrValues[2], 64)
 	if err != nil {
 		log.Errorf("Could not parse \"maximum file handle\" value")
 		return err
 	}
-	log.Debugf("maximum file handles: %f", maxFh)
 
 	fhInUse := (allocatedFh - allocatedUnusedFh) / maxFh
-	log.Debugf("file handles in use: %f", fhInUse)
 
+	sender.Gauge("system.fs.file_handles.allocated", allocatedFh, "", nil)
+	sender.Gauge("system.fs.file_handles.allocated_unused", allocatedUnusedFh, "", nil)
 	sender.Gauge("system.fs.file_handles.in_use", fhInUse, "", nil)
+	sender.Gauge("system.fs.file_handles.used", allocatedFh-allocatedUnusedFh, "", nil)
+	sender.Gauge("system.fs.file_handles.max", maxFh, "", nil)
 	sender.Commit()
 
 	return nil

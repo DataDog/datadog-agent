@@ -9,6 +9,8 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/scheduler"
+	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 	"github.com/StackVista/stackstate-agent/pkg/logs/status"
 )
 
@@ -17,25 +19,39 @@ var (
 	isRunning bool
 	// logs-agent
 	agent *Agent
+	// scheduler is plugged to autodiscovery to collect integration configs
+	// and schedule log collection for different kind of inputs
+	adScheduler *scheduler.Scheduler
 )
 
 // Start starts logs-agent
 func Start() error {
-	sources, err := config.Build()
+	// setup the server config
+	serverConfig, err := config.BuildServerConfig()
 	if err != nil {
-		// could not parse the configuration
 		return err
 	}
-	log.Info("Starting logs-agent")
 
-	// setup and start the agent
-	agent = NewAgent(sources)
-	agent.Start()
+	// setup the sources and the services
+	sources := config.NewLogSources()
+	services := service.NewServices()
+
+	// initialize the config scheduler
+	adScheduler = scheduler.NewScheduler(sources, services)
 
 	// setup the status
-	status.Initialize(sources.GetSources())
+	status.Initialize(sources)
 
+	// setup and start the agent
+	agent = NewAgent(sources, services, serverConfig)
+	log.Info("Starting logs-agent")
+	agent.Start()
 	isRunning = true
+
+	// add the default sources
+	for _, source := range config.DefaultSources() {
+		sources.AddSource(source)
+	}
 
 	return nil
 }
@@ -49,10 +65,20 @@ func Stop() {
 	}
 }
 
+// IsAgentRunning returns true if the logs-agent is running.
+func IsAgentRunning() bool {
+	return isRunning
+}
+
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
 	if !isRunning {
 		return status.Status{IsRunning: false}
 	}
 	return status.Get()
+}
+
+// GetScheduler returns the logs-config scheduler if set.
+func GetScheduler() *scheduler.Scheduler {
+	return adScheduler
 }

@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -42,22 +41,21 @@ func initForwarderHealthExpvars() {
 // unhealthy if the API keys are not longer valid or if to many transactions
 // were dropped
 type forwarderHealth struct {
-	health  *health.Handle
-	stop    chan bool
-	stopped chan struct{}
-	ddURL   string
-	timeout time.Duration
+	health         *health.Handle
+	stop           chan bool
+	stopped        chan struct{}
+	timeout        time.Duration
+	keysPerDomains map[string][]string
 }
 
-func (fh *forwarderHealth) init(keysPerDomains map[string][]string) {
+func (fh *forwarderHealth) init() {
 	fh.stop = make(chan bool, 1)
 	fh.stopped = make(chan struct{})
-	fh.ddURL = config.Datadog.GetString("dd_url")
 
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
 	apiKeyCount := 0
-	for _, apiKeys := range keysPerDomains {
+	for _, apiKeys := range fh.keysPerDomains {
 		apiKeyCount += len(apiKeys)
 	}
 
@@ -67,10 +65,10 @@ func (fh *forwarderHealth) init(keysPerDomains map[string][]string) {
 	}
 }
 
-func (fh *forwarderHealth) Start(keysPerDomains map[string][]string) {
+func (fh *forwarderHealth) Start() {
 	fh.health = health.Register("forwarder")
-	fh.init(keysPerDomains)
-	go fh.healthCheckLoop(keysPerDomains)
+	fh.init()
+	go fh.healthCheckLoop()
 }
 
 func (fh *forwarderHealth) Stop() {
@@ -79,14 +77,14 @@ func (fh *forwarderHealth) Stop() {
 	<-fh.stopped
 }
 
-func (fh *forwarderHealth) healthCheckLoop(keysPerDomains map[string][]string) {
+func (fh *forwarderHealth) healthCheckLoop() {
 	log.Debug("Waiting for APIkey validity to be confirmed.")
 
 	validateTicker := time.NewTicker(time.Hour * 1)
 	defer validateTicker.Stop()
 	defer close(fh.stopped)
 
-	valid := fh.hasValidAPIKey(keysPerDomains)
+	valid := fh.hasValidAPIKey()
 	// If no key is valid, no need to keep checking, they won't magicaly become valid
 	if !valid {
 		log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
@@ -98,7 +96,7 @@ func (fh *forwarderHealth) healthCheckLoop(keysPerDomains map[string][]string) {
 		case <-fh.stop:
 			return
 		case <-validateTicker.C:
-			valid := fh.hasValidAPIKey(keysPerDomains)
+			valid := fh.hasValidAPIKey()
 			if !valid {
 				log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
 				return
@@ -113,15 +111,15 @@ func (fh *forwarderHealth) healthCheckLoop(keysPerDomains map[string][]string) {
 }
 
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
-	obfuscatedKey := fmt.Sprintf("%s,*************************", domain)
 	if len(apiKey) > 5 {
-		obfuscatedKey += apiKey[len(apiKey)-5:]
+		apiKey = apiKey[len(apiKey)-5:]
 	}
+	obfuscatedKey := fmt.Sprintf("API key ending in %s for endpoint %s", apiKey, domain)
 	apiKeyStatus.Set(obfuscatedKey, status)
 }
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
-	url := fmt.Sprintf("%s%s?api_key=%s", fh.ddURL, v1ValidateEndpoint, apiKey)
+	url := fmt.Sprintf("%s%s?api_key=%s", domain, v1ValidateEndpoint, apiKey)
 
 	transport := util.CreateHTTPTransport()
 
@@ -150,18 +148,21 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 	return false, fmt.Errorf("Unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 
-func (fh *forwarderHealth) hasValidAPIKey(keysPerDomains map[string][]string) bool {
+func (fh *forwarderHealth) hasValidAPIKey() bool {
 	validKey := false
 	apiError := false
 
-	for domain, apiKeys := range keysPerDomains {
+	for domain, apiKeys := range fh.keysPerDomains {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
 			if err != nil {
 				log.Debug(err)
 				apiError = true
 			} else if v {
+				log.Debugf("api_key '%s' for domain %s is valid", apiKey, domain)
 				validKey = true
+			} else {
+				log.Debugf("api_key '%s' for domain %s is invalid", apiKey, domain)
 			}
 		}
 	}

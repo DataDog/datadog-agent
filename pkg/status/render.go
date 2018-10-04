@@ -20,7 +20,7 @@ import (
 
 var (
 	here, _        = executable.Folder()
-	fmap           template.FuncMap
+	fmap           = Fmap()
 	templateFolder string
 )
 
@@ -36,6 +36,7 @@ func FormatStatus(data []byte) (string, error) {
 	json.Unmarshal(data, &stats)
 	forwarderStats := stats["forwarderStats"]
 	runnerStats := stats["runnerStats"]
+	pyLoaderStats := stats["pyLoaderStats"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	aggregatorStats := stats["aggregatorStats"]
@@ -45,7 +46,7 @@ func FormatStatus(data []byte) (string, error) {
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, autoConfigStats, checkSchedulerStats, "")
+	renderChecksStats(b, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats, "")
 	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
 	renderLogsStatus(b, logsStats)
@@ -70,7 +71,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, autoConfigStats, checkSchedulerStats, "")
+	renderChecksStats(b, runnerStats, nil, autoConfigStats, checkSchedulerStats, "")
 	renderForwarderStatus(b, forwarderStats)
 
 	return b.String(), nil
@@ -139,9 +140,10 @@ func renderHPAStats(w io.Writer, hpaStats interface{}) {
 	}
 }
 
-func renderChecksStats(w io.Writer, runnerStats interface{}, autoConfigStats interface{}, checkSchedulerStats interface{}, onlyCheck string) {
+func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
+	checkStats["pyLoaderStats"] = pyLoaderStats
 	checkStats["AutoConfigStats"] = autoConfigStats
 	checkStats["CheckSchedulerStats"] = checkSchedulerStats
 	checkStats["OnlyCheck"] = onlyCheck
@@ -159,9 +161,10 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats)
 	runnerStats := stats["runnerStats"]
+	pyLoaderStats := stats["pyLoaderStats"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
-	renderChecksStats(b, runnerStats, autoConfigStats, checkSchedulerStats, checkName)
+	renderChecksStats(b, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats, checkName)
 
 	return b.String(), nil
 }

@@ -6,7 +6,6 @@
 package file
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -18,102 +17,39 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
 )
 
-// scanPeriod represents the period of scanning
+// scanPeriod represents the period of time between two scans.
 const scanPeriod = 10 * time.Second
 
 // Scanner checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Scanner struct {
-	pp                  pipeline.Provider
+	pipelineProvider    pipeline.Provider
+	sources             *config.LogSources
+	activeSources       []*config.LogSource
 	tailingLimit        int
 	fileProvider        *Provider
 	tailers             map[string]*Tailer
-	auditor             *auditor.Auditor
+	registry            auditor.Registry
 	tailerSleepDuration time.Duration
 	stop                chan struct{}
 }
 
-// New returns an initialized Scanner
-func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor, tailerSleepDuration time.Duration) *Scanner {
-	tailSources := []*config.LogSource{}
-	for _, source := range sources {
-		switch source.Config.Type {
-		case config.FileType:
-			tailSources = append(tailSources, source)
-		default:
-		}
-	}
+// NewScanner returns a new scanner.
+func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry, tailerSleepDuration time.Duration) *Scanner {
 	return &Scanner{
-		pp:                  pp,
+		pipelineProvider:    pipelineProvider,
 		tailingLimit:        tailingLimit,
-		fileProvider:        NewProvider(tailSources, tailingLimit),
+		sources:             sources,
+		fileProvider:        NewProvider(tailingLimit),
 		tailers:             make(map[string]*Tailer),
-		auditor:             auditor,
+		registry:            registry,
 		tailerSleepDuration: tailerSleepDuration,
 		stop:                make(chan struct{}),
 	}
 }
 
-// setup sets all tailers
-func (s *Scanner) setup() {
-	files := s.fileProvider.FilesToTail()
-	for _, file := range files {
-		if len(s.tailers) == s.tailingLimit {
-			return
-		}
-		if _, ok := s.tailers[file.Path]; ok {
-			log.Warn("Can't tail file twice: ", file.Path)
-		} else {
-			// resume tailing from last committed offset if exists or start tailing from the end of file otherwise
-			// to prevent from reading a file over and over again at agent restart
-			tailFromBeginning := false
-			s.startNewTailer(file, tailFromBeginning)
-		}
-	}
-}
-
-// cleanup all tailers
-func (s *Scanner) cleanup() {
-	stopper := restart.NewParallelStopper()
-	for _, tailer := range s.tailers {
-		stopper.Add(tailer)
-		delete(s.tailers, tailer.path)
-	}
-	stopper.Stop()
-}
-
-// createTailer returns a new initialized tailer
-func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tailer {
-	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
-}
-
-// startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
-// returns true if the operation succeeded, false otherwise
-func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
-	tailer := s.createTailer(file, s.pp.NextPipelineChan())
-	offset := s.auditor.GetLastCommittedOffset(tailer.Identifier())
-	value, err := strconv.ParseInt(offset, 10, 64)
-	if err != nil {
-		value = 0
-	}
-	if value > 0 {
-		err = tailer.recoverTailing(value)
-	} else if tailFromBeginning {
-		err = tailer.tailFromBeginning()
-	} else {
-		err = tailer.tailFromEnd()
-	}
-	if err != nil {
-		log.Warn(err)
-		return false
-	}
-	s.tailers[file.Path] = tailer
-	return true
-}
-
 // Start starts the Scanner
 func (s *Scanner) Start() {
-	s.setup()
 	go s.run()
 }
 
@@ -130,6 +66,9 @@ func (s *Scanner) run() {
 	defer scanTicker.Stop()
 	for {
 		select {
+		case source := <-s.sources.GetSourceStreamForType(config.FileType):
+			s.activeSources = append(s.activeSources, source)
+			s.launchTailers(source)
 		case <-scanTicker.C:
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
@@ -140,6 +79,16 @@ func (s *Scanner) run() {
 	}
 }
 
+// cleanup all tailers
+func (s *Scanner) cleanup() {
+	stopper := restart.NewParallelStopper()
+	for _, tailer := range s.tailers {
+		stopper.Add(tailer)
+		delete(s.tailers, tailer.path)
+	}
+	stopper.Stop()
+}
+
 // scan checks all the files we're expected to tail,
 // compares them to the currently tailed files,
 // and triggeres the required updates.
@@ -148,7 +97,7 @@ func (s *Scanner) run() {
 // The Scanner needs to stop that previous tailer,
 // and start a new one for the new file.
 func (s *Scanner) scan() {
-	files := s.fileProvider.FilesToTail()
+	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
 
@@ -165,8 +114,7 @@ func (s *Scanner) scan() {
 
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			tailFromBeginning := true
-			succeeded := s.startNewTailer(file, tailFromBeginning)
+			succeeded := s.startNewTailer(file, true)
 			if !succeeded {
 				// the setup failed, let's try to tail this file in the next scan
 				continue
@@ -176,7 +124,7 @@ func (s *Scanner) scan() {
 			continue
 		}
 
-		didRotate, err := s.didFileRotate(file, tailer)
+		didRotate, err := DidRotate(tailer.file, tailer.GetReadOffset())
 		if err != nil {
 			continue
 		}
@@ -201,10 +149,56 @@ func (s *Scanner) scan() {
 	}
 }
 
-// didFileRotate returns true if a file-rotation happened to file
-// since tailer has been set up, otherwise returns false
-func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
-	return tailer.checkForRotation()
+// launch launches new tailers for a new source.
+func (s *Scanner) launchTailers(source *config.LogSource) {
+	files, err := s.fileProvider.CollectFiles(source)
+	if err != nil {
+		source.Status.Error(err)
+		log.Warnf("Could not collect files: %v", err)
+		return
+	}
+	for _, file := range files {
+		if len(s.tailers) >= s.tailingLimit {
+			return
+		}
+		if _, isTailed := s.tailers[file.Path]; isTailed {
+			continue
+		}
+		var tailFromBeginning bool
+		if source.Config.Identifier != "" {
+			// only sources generated from a service discovery will contain a config identifier,
+			// in which case we want to collect all logs.
+			// FIXME: better detect a source that has been generated from a service discovery.
+			tailFromBeginning = true
+		}
+		s.startNewTailer(file, tailFromBeginning)
+	}
+}
+
+// startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
+// returns true if the operation succeeded, false otherwise
+func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
+	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), tailFromBeginning)
+	if err != nil {
+		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
+	}
+
+	err = tailer.Start(offset, whence)
+	if err != nil {
+		log.Warn(err)
+		return false
+	}
+
+	s.tailers[file.Path] = tailer
+	return true
+}
+
+// stopTailer stops the tailer
+func (s *Scanner) stopTailer(tailer *Tailer) {
+	go tailer.Stop()
+	delete(s.tailers, tailer.path)
 }
 
 // restartTailer safely stops tailer and starts a new one
@@ -214,7 +208,7 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 	tailer.StopAfterFileRotation()
 	tailer = s.createTailer(file, tailer.outputChan)
 	// force reading file from beginning since it has been log-rotated
-	err := tailer.tailFromBeginning()
+	err := tailer.StartFromBeginning()
 	if err != nil {
 		log.Warn(err)
 		return false
@@ -223,8 +217,7 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 	return true
 }
 
-// stopTailer stops the tailer
-func (s *Scanner) stopTailer(tailer *Tailer) {
-	go tailer.Stop()
-	delete(s.tailers, tailer.path)
+// createTailer returns a new initialized tailer
+func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tailer {
+	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
 }

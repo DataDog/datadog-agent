@@ -378,6 +378,7 @@ a {
       .stat_subdata {
         display: block;
         padding-left: 20px;
+        padding-bottom: 20px;
       }
 
       .error {
@@ -387,6 +388,11 @@ a {
 
       .warning {
         color: #FFA500;
+        font-weight: bold;
+      }
+
+      .ok {
+        color: #18ab29;
         font-weight: bold;
       }
     }

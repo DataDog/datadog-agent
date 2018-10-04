@@ -33,6 +33,16 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		return err
 	}
 
+	// Remove the envvars section, as we already
+	// dump the whitelisted ones in envvars.log
+	if co.Config != nil {
+		co.Config.Env = []string{
+			"Stripped out",
+			"See runtime_config_dump.yaml for consolidated configuration",
+			"and envvars.log for whitelisted envvars if found",
+		}
+	}
+
 	// Serialise as JSON
 	jsonStats, err := json.Marshal(co)
 	if err != nil {

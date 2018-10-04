@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -40,6 +40,7 @@ func TestNewConfigMapStore(t *testing.T) {
 	store, err = NewConfigMapStore(client, "default", "bar")
 	require.NoError(t, err)
 	require.NotNil(t, store.(*configMapStore).cm)
+	assert.NotEmpty(t, store.(*configMapStore).cm.Annotations[storeLastUpdatedAnnotationKey])
 }
 
 func TestConfigMapStoreExternalMetrics(t *testing.T) {
@@ -137,18 +138,16 @@ func TestConfigMapStoreExternalMetrics(t *testing.T) {
 			err = store.SetExternalMetricValues(tt.metrics)
 			require.NoError(t, err)
 
-			allMetrics, err := store.ListAllExternalMetricValues()
+			list, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, allMetrics)
+			assert.ElementsMatch(t, tt.expected, list)
 
-			objectRefs := make([]ObjectReference, 0)
-			for _, m := range tt.metrics {
-				objectRefs = append(objectRefs, m.HPA)
-			}
-
-			err = store.Delete(objectRefs)
+			err = store.DeleteExternalMetricValues(list)
 			require.NoError(t, err)
-			assert.Zero(t, len(store.(*configMapStore).cm.Data))
+
+			list, err = store.ListAllExternalMetricValues()
+			require.NoError(t, err)
+			assert.Empty(t, list)
 		})
 	}
 }

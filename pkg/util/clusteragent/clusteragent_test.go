@@ -19,30 +19,42 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/StackVista/stackstate-agent/pkg/api/security"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 type dummyClusterAgent struct {
+	node      map[string]map[string]string
 	responses map[string][]string
 	sync.RWMutex
 	token string
 }
 
 func newDummyClusterAgent() (*dummyClusterAgent, error) {
+	resetGlobalClusterAgentClient()
 	dca := &dummyClusterAgent{
+		node: map[string]map[string]string{
+			"node/node1": {
+				"label1": "value",
+				"label2": "value2",
+			},
+			"node/node2": {
+				"label3": "value",
+				"label2": "value4",
+			},
+		},
 		responses: map[string][]string{
-			"node1/foo/pod-00001": {"kube_service:svc1"},
-			"node1/foo/pod-00002": {"kube_service:svc1", "kube_service:svc2"},
-			"node1/foo/pod-00003": {"kube_service:svc1"},
-			"node2/bar/pod-00004": {"kube_service:svc2"},
-			"node2/bar/pod-00005": {"kube_service:svc3"},
-			"node2/bar/pod-00006": {},
+			"pod/node1/foo/pod-00001": {"kube_service:svc1"},
+			"pod/node1/foo/pod-00002": {"kube_service:svc1", "kube_service:svc2"},
+			"pod/node1/foo/pod-00003": {"kube_service:svc1"},
+			"pod/node2/bar/pod-00004": {"kube_service:svc2"},
+			"pod/node2/bar/pod-00005": {"kube_service:svc3"},
+			"pod/node2/bar/pod-00006": {},
 		},
 		token: config.Datadog.GetString("cluster_agent.auth_token"),
 	}
@@ -58,28 +70,45 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// path should be like: /api/v1/metadata/{nodeName}/{ns}/{pod-[0-9a-z]+}
+	// path should be like: /api/v1/tags/pod/{nodeName}/{ns}/{pod-[0-9a-z]+}
 	s := strings.Split(r.URL.Path, "/")
-	if len(s) != 7 {
-		w.WriteHeader(http.StatusInternalServerError)
-		log.Errorf("unexpected len 7 != %d", len(s))
-		return
-	}
-	nodeName, ns, podName := s[4], s[5], s[6]
-	key := fmt.Sprintf("%s/%s/%s", nodeName, ns, podName)
-
-	d.RLock()
-	defer d.RUnlock()
-	svcs, found := d.responses[key]
-	if found {
-		b, err := json.Marshal(svcs)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+	switch len(s) {
+	case 8:
+		nodeName, ns, podName := s[5], s[6], s[7]
+		key := fmt.Sprintf("pod/%s/%s/%s", nodeName, ns, podName)
+		d.RLock()
+		defer d.RUnlock()
+		svcs, found := d.responses[key]
+		if found {
+			b, err := json.Marshal(svcs)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write(b)
 			return
 		}
-		w.Write(b)
+	case 6:
+		nodeName := s[5]
+		key := fmt.Sprintf("node/%s", nodeName)
+		d.RLock()
+		defer d.RUnlock()
+		labels, found := d.node[key]
+		if found {
+			b, err := json.Marshal(labels)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write(b)
+			return
+		}
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Errorf("unexpected len for the url != %d", len(s))
 		return
 	}
+
 	w.WriteHeader(http.StatusNotFound)
 }
 
@@ -244,6 +273,58 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvcEmpt
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
+func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
+	dca, err := newDummyClusterAgent()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	ts, p, err := dca.StartTLS()
+	defer ts.Close()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	config.Datadog.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	ca, err := GetClusterAgentClient()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	testSuite := []struct {
+		nodeName string
+		expected map[string]string
+		errors   error
+	}{{
+		nodeName: "node1",
+		errors:   nil,
+		expected: map[string]string{
+			"label1": "value",
+			"label2": "value2",
+		},
+	},
+		{
+			nodeName: "node2",
+			expected: map[string]string{
+				"label3": "value",
+				"label2": "value4",
+			},
+			errors: nil,
+		},
+		{
+			nodeName: "fake",
+			expected: nil,
+			errors:   fmt.Errorf("unexpected status code from cluster agent: 404"),
+		},
+	}
+	for _, testCase := range testSuite {
+		suite.T().Run("", func(t *testing.T) {
+			labels, err := ca.GetNodeLabels(testCase.nodeName)
+			t.Logf("Labels: %s", labels)
+			require.Equal(t, err, testCase.errors)
+			require.Equal(t, len(testCase.expected), len(labels))
+			for key, val := range testCase.expected {
+				assert.Contains(t, labels[key], val)
+			}
+		})
+	}
+}
+
 func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	dca, err := newDummyClusterAgent()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -304,6 +385,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 		suite.T().Run("", func(t *testing.T) {
 			svc, err := ca.GetKubernetesMetadataNames(testCase.nodeName, testCase.namespace, testCase.podName)
 			t.Logf("svc: %s", svc)
+
 			require.Nil(t, err, fmt.Sprintf("%v", err))
 			require.Equal(t, len(testCase.expectedSvc), len(svc))
 			for _, elt := range testCase.expectedSvc {

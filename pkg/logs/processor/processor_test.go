@@ -15,7 +15,7 @@ import (
 )
 
 func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
-	rule := config.LogsProcessingRule{
+	rule := config.ProcessingRule{
 		Type:                    ruleType,
 		Name:                    "test",
 		ReplacePlaceholder:      replacePlaceholder,
@@ -23,7 +23,7 @@ func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) conf
 		Pattern:                 pattern,
 		Reg:                     regexp.MustCompile(pattern),
 	}
-	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{rule}}}
+	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.ProcessingRule{rule}}}
 }
 
 func newMessage(content []byte, source *config.LogSource, status string) message.Message {
@@ -83,20 +83,20 @@ func TestExclusionWithInclusion(t *testing.T) {
 	var redactedMessage []byte
 
 	ePattern := "^bob"
-	eRule := config.LogsProcessingRule{
+	eRule := config.ProcessingRule{
 		Type:    "exclude_at_match",
 		Name:    "exclude_bob",
 		Pattern: ePattern,
 		Reg:     regexp.MustCompile(ePattern),
 	}
 	iPattern := ".*@datadoghq.com$"
-	iRule := config.LogsProcessingRule{
+	iRule := config.ProcessingRule{
 		Type:    "include_at_match",
 		Name:    "include_datadoghq",
 		Pattern: iPattern,
 		Reg:     regexp.MustCompile(iPattern),
 	}
-	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{eRule, iRule}}}
+	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.ProcessingRule{eRule, iRule}}}
 
 	shouldProcess, redactedMessage = applyRedactingRules(newMessage([]byte("bob@datadoghq.com"), &source, ""))
 	assert.Equal(t, false, shouldProcess)

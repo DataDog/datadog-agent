@@ -47,7 +47,7 @@ additional_endpoints:
 		"https://foo.datadoghq.com": {
 			"someapikey",
 		},
-		"https://" + getDomainPrefix("app") + ".datadoghq.com": {
+		"https://app.datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 			"fakeapikey3",
@@ -69,7 +69,7 @@ api_key: fakeapikey
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://" + getDomainPrefix("app") + ".datadoghq.com": {
+		"https://app.datadoghq.com": {
 			"fakeapikey",
 		},
 	}
@@ -97,7 +97,7 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://" + getDomainPrefix("app") + ".datadoghq.com": {
+		"https://app.datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 		},
@@ -130,7 +130,7 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://" + getDomainPrefix("app") + ".datadoghq.com": {
+		"https://app.datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 		},
@@ -145,15 +145,23 @@ additional_endpoints:
 }
 
 func TestAddAgentVersionToDomain(t *testing.T) {
-	newURL, err := addAgentVersionToDomain("https://app.datadoghq.com", "app")
+	newURL, err := AddAgentVersionToDomain("https://app.datadoghq.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.com", newURL)
 
-	newURL, err = addAgentVersionToDomain("https://app.datadoghq.com", "flare")
+	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.com", "flare")
 	require.Nil(t, err)
 	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.com", newURL)
 
-	newURL, err = addAgentVersionToDomain("https://app.myproxy.com", "app")
+	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.eu", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.eu", newURL)
+
+	newURL, err = AddAgentVersionToDomain("https://app.myproxy.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://app.myproxy.com", newURL)
 }
@@ -164,6 +172,15 @@ func TestEnvNestedConfig(t *testing.T) {
 
 	assert.Equal(t, "baz", Datadog.GetString("foo.bar.nested"))
 	os.Unsetenv("DD_FOO_BAR_NESTED")
+}
+
+func TestBindEnvAndSetDefault(t *testing.T) {
+	BindEnvAndSetDefault("app_key", "")
+	assert.NotContains(t, ConfigEnvVars, "DD_APP_KEY")
+	BindEnvAndSetDefault("logset", "")
+	assert.Contains(t, ConfigEnvVars, "DD_LOGSET")
+	BindEnvAndSetDefault("logs_config.run_path", "")
+	assert.Contains(t, ConfigEnvVars, "DD_LOGS_CONFIG.RUN_PATH")
 }
 
 func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
@@ -343,4 +360,22 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_HTTPS")
 	os.Unsetenv("DD_PROXY_NO_PROXY")
 	Datadog.Set("proxy", nil)
+}
+
+func TestSanitizeAPIKey(t *testing.T) {
+	Datadog.Set("api_key", "foo")
+	sanitizeAPIKey()
+	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+
+	Datadog.Set("api_key", "foo\n")
+	sanitizeAPIKey()
+	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+
+	Datadog.Set("api_key", "foo\n\n")
+	sanitizeAPIKey()
+	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+
+	Datadog.Set("api_key", " \n  foo   \n")
+	sanitizeAPIKey()
+	assert.Equal(t, "foo", Datadog.GetString("api_key"))
 }

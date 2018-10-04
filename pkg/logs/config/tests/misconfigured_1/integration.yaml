@@ -1,5 +1,0 @@
-logs:
-  - type: tcp
-    port: 10514
-    log_processing_rules:
-      - type: has_no_name

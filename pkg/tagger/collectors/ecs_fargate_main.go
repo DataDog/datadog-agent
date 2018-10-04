@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/errors"
 	taggerutil "github.com/StackVista/stackstate-agent/pkg/tagger/utils"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	ecsutil "github.com/StackVista/stackstate-agent/pkg/util/ecs"
@@ -23,11 +24,11 @@ const (
 
 // ECSFargateCollector polls the ecs metadata api.
 type ECSFargateCollector struct {
-	infoOut    chan<- []*TagInfo
-	expire     *taggerutil.Expire
-	lastExpire time.Time
-	lastSeen   map[string]interface{}
-	expireFreq time.Duration
+	infoOut      chan<- []*TagInfo
+	expire       *taggerutil.Expire
+	lastExpire   time.Time
+	expireFreq   time.Duration
+	labelsAsTags map[string]string
 }
 
 // Detect tries to connect to the ECS metadata API
@@ -38,38 +39,41 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 		c.infoOut = out
 		c.lastExpire = time.Now()
 		c.expireFreq = ecsFargateExpireFreq
-
 		c.expire, err = taggerutil.NewExpire(ecsFargateExpireFreq)
+		c.labelsAsTags = retrieveMappingFromConfig("docker_labels_as_tags")
 
 		if err != nil {
-			return FetchOnlyCollection, fmt.Errorf("Failed to instantiate the container expiring process")
+			return PullCollection, fmt.Errorf("Failed to instantiate the container expiring process")
 		}
-		return FetchOnlyCollection, nil
+		return PullCollection, nil
 	}
 
 	return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 }
 
-// Pull triggers a container-list refresh and sends new info. It also triggers
-// container deletion computation every 'expireFreq'
+// Pull looks for new containers and computes deletions
 func (c *ECSFargateCollector) Pull() error {
-	// Compute new/updated containers
 	meta, err := ecsutil.GetTaskMetadata()
 	if err != nil {
 		return err
 	}
-	updates, deadCo, err := c.pullMetadata(meta)
+	// Only parse new containers
+	updates, err := c.parseMetadata(meta, false)
 	if err != nil {
 		return err
 	}
 	c.infoOut <- updates
 
-	// Throttle deletion computations
-	if time.Now().Sub(c.lastExpire) < c.expireFreq {
+	// Throttle deletions
+	if time.Now().Before(c.lastExpire.Add(c.expireFreq)) {
 		return nil
 	}
 
-	expiries, err := c.parseExpires(deadCo)
+	expireList, err := c.expire.ComputeExpires()
+	if err != nil {
+		return err
+	}
+	expiries, err := c.parseExpires(expireList)
 	if err != nil {
 		return err
 	}
@@ -78,29 +82,26 @@ func (c *ECSFargateCollector) Pull() error {
 	return nil
 }
 
-// Fetch fetches ECS tags for a container on demand
+// Fetch parses tags for a container on cache miss. We avoid races with Pull,
+// we re-parse the whole list, but don't send updates on other containers.
 func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, error) {
 	meta, err := ecsutil.GetTaskMetadata()
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-
-	// since we download the metadata anyway might as well do a Pull refresh
-	updates, deadCo, err := c.pullMetadata(meta)
+	// Force a full parse to avoid missing the container in a race with Pull
+	updates, err := c.parseMetadata(meta, true)
 	if err != nil {
 		return []string{}, []string{}, err
 	}
 
-	c.infoOut <- updates
-
-	expiries, err := c.parseExpires(deadCo)
-	if err != nil {
-		return nil, nil, err
+	for _, info := range updates {
+		if info.Entity == container {
+			return info.LowCardTags, info.HighCardTags, nil
+		}
 	}
-	c.infoOut <- expiries
-	c.lastExpire = time.Now()
-
-	return c.fetchMetadata(meta, container)
+	// container not found in updates
+	return []string{}, []string{}, errors.NewNotFound(container)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

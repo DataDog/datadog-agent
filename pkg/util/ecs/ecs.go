@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -62,10 +63,11 @@ type (
 )
 
 var globalUtil *Util
+var initOnce sync.Once
 
 // GetUtil returns a ready to use ecs Util. It is backed by a shared singleton.
 func GetUtil() (*Util, error) {
-	if globalUtil == nil {
+	initOnce.Do(func() {
 		globalUtil = &Util{}
 		globalUtil.initRetry.SetupRetrier(&retry.Config{
 			Name:          "ecsutil",
@@ -74,7 +76,7 @@ func GetUtil() (*Util, error) {
 			RetryCount:    10,
 			RetryDelay:    30 * time.Second,
 		})
-	}
+	})
 	if err := globalUtil.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("ECS init error: %s", err)
 		return nil, err

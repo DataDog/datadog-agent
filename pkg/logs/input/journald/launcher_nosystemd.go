@@ -1,0 +1,47 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2018 Datadog, Inc.
+
+// +build !systemd
+
+package journald
+
+import (
+	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
+)
+
+// Launcher is not supported on no systemd environment.
+type Launcher struct {
+	sources *config.LogSources
+	stop    chan struct{}
+}
+
+// NewLauncher returns a new Launcher
+func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
+	return &Launcher{
+		sources: sources,
+		stop:    make(chan struct{}),
+	}
+}
+
+// Start does nothing
+func (l *Launcher) Start() {
+	go func() {
+		for {
+			select {
+			case <-l.sources.GetSourceStreamForType(config.JournaldType):
+				continue
+			case <-l.stop:
+				return
+			}
+		}
+	}()
+}
+
+// Stop does nothing
+func (l *Launcher) Stop() {
+	l.stop <- struct{}{}
+}

@@ -7,39 +7,91 @@ package v1
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net/http"
 
+	"github.com/gorilla/mux"
+
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
 	as "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 )
 
-// eventChecks are checks that send events and are supported by the DCA
-var eventChecks = []string{
-	"kubernetes",
+var (
+	apiStats         = expvar.NewMap("apiv1")
+	metadataStats    = new(expvar.Map).Init()
+	metadataErrors   = &expvar.Int{}
+	metadataRequests = &expvar.Int{}
+)
+
+func init() {
+	apiStats.Set("Metadata", metadataStats)
+	metadataStats.Set("Errors", metadataErrors)
+	metadataStats.Set("Requests", metadataRequests)
 }
 
 // Install registers v1 API endpoints
-func Install(r *mux.Router) {
+func Install(r *mux.Router, sc clusteragent.ServerContext) {
+	// The /metadata endpoints are deprecated. They will be removed as of 1.0.
+	// Agents < 6.5.0 are using /metadata.
 	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
-	r.HandleFunc("/metadata/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("/metadata/{nodeName}", getPodMetadataForNode).Methods("GET")
 	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")
-	r.HandleFunc("/events/{check}", getCheckLatestEvents).Methods("GET")
+	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
+	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
+	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
+	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
+	installClusterCheckEndpoints(r, sc)
+
 }
 
-func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
+// getNodeMetadata is only used when the node agent hits the DCA for the list of labels
+func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
+	/*
+		Input
+			localhost:5001/api/v1/tags/node/localhost
+		Outputs
+			Status: 200
+			Returns: []string
+			Example: ["label1:value1", "label2:value2"]
+
+			Status: 404
+			Returns: string
+			Example: 404 page not found
+
+			Status: 500
+			Returns: string
+			Example: "no cached metadata found for the node localhost"
+	*/
+
+	metadataRequests.Add(1)
+
 	vars := mux.Vars(r)
-	check := vars["check"]
-	for _, c := range eventChecks {
-		if c == check {
-			w.Write([]byte("[OK] TODO"))
-			return
-		}
+	var labelBytes []byte
+	nodeName := vars["nodeName"]
+	nodeLabels, err := as.GetNodeLabels(nodeName)
+	if err != nil {
+		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		metadataErrors.Add(1)
+		return
 	}
-	err := fmt.Errorf("[FAIL] TODO")
-	log.Errorf("%s", err.Error())
-	http.Error(w, err.Error(), http.StatusNotFound)
+	labelBytes, err = json.Marshal(nodeLabels)
+	if err != nil {
+		log.Errorf("Could not process the labels of the node %s from the informer's cache: %v", nodeName, err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		metadataErrors.Add(1)
+		return
+	}
+	if len(labelBytes) > 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(labelBytes)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(fmt.Sprintf("Could not find labels on the node: %s", nodeName)))
+
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.
@@ -61,6 +113,9 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: string
 			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
 	*/
+
+	metadataRequests.Add(1)
+
 	vars := mux.Vars(r)
 	var metaBytes []byte
 	nodeName := vars["nodeName"]
@@ -70,6 +125,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName)
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
+		metadataErrors.Add(1)
 		return
 	}
 
@@ -77,6 +133,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		metadataErrors.Add(1)
 		return
 	}
 	if len(metaBytes) != 0 {
@@ -86,11 +143,10 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)))
-
 }
 
-// getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.
-func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
+// getPodMetadataForNode has the same signature as getAllMetadata, but is only scoped on one node.
+func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
 	log.Infof("Fetching metadata map on all pods of the node %s", nodeName)
@@ -132,7 +188,13 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
 	log.Info("Computing metadata map on all nodes")
-	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes()
+	cl, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("Can't create client to query the API Server: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes(cl)
 	// If we hit an error at this point, it is because we don't have access to the API server.
 	if errAPIServer != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)

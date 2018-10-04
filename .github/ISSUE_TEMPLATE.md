@@ -1,6 +1,6 @@
 <!--
-If you suspect your issue is a bug, please attach the output of the info page, see https://help.datadoghq.com/hc/en-us/articles/203764635-Agent-Status-and-Information
-
+If you suspect your issue is a bug, please attach the output of the Agent status page,
+see https://docs.datadoghq.com/agent/faq/agent-commands/#agent-information
 -->
 
 **Output of the info page (if this is a bug)**

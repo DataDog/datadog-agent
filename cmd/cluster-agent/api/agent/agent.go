@@ -13,21 +13,22 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 	"github.com/StackVista/stackstate-agent/cmd/agent/common/signals"
 	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/api/v1"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/flare"
 	"github.com/StackVista/stackstate-agent/pkg/status"
 	"github.com/StackVista/stackstate-agent/pkg/util"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/version"
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
@@ -35,7 +36,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status", getStatus).Methods("GET")
 
 	// Install versioned apis
-	v1.Install(r.PathPrefix("/api/v1").Subrouter())
+	v1.Install(r.PathPrefix("/api/v1").Subrouter(), sc)
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {

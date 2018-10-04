@@ -23,6 +23,7 @@ import (
 	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/api/agent"
 	"github.com/StackVista/stackstate-agent/pkg/api/security"
 	"github.com/StackVista/stackstate-agent/pkg/api/util"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/gorilla/mux"
 )
@@ -32,12 +33,12 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer() error {
+func StartServer(sc clusteragent.ServerContext) error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(r)
+	agent.SetupHandlers(r, sc)
 
 	// Validate token for every request
 	r.Use(validateToken)
@@ -103,7 +104,7 @@ func StopServer() {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		if strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || path == "/version" {
+		if isExternalPath(path) {
 			if err := util.ValidateDCARequest(w, r); err != nil {
 				return
 			}
@@ -114,4 +115,12 @@ func validateToken(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isExternal returns whether the path is an endpoint used by Node Agents.
+func isExternalPath(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
+		path == "/version" ||
+		strings.HasPrefix(path, "/api/v1/tags/pod/") && len(strings.Split(path, "/")) == 8 ||
+		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6
 }

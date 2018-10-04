@@ -28,6 +28,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/errors"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 )
 
 const (
@@ -273,6 +274,19 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	hostname, err := kubeutil.GetHostname()
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "my-node-name", hostname)
+
+	// Testing hostname when a cluster name is set
+	var testClusterName = "Laika"
+	config.Datadog.Set("cluster_name", testClusterName)
+	clustername.ResetClusterName() // reset state as clustername was already read
+
+	// defer a reset of the state so that future hostname fetches are not impacted
+	defer config.Datadog.Set("cluster_name", "")
+	defer clustername.ResetClusterName()
+
+	hostname, err = kubeutil.GetHostname()
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "my-node-name-"+testClusterName, hostname)
 
 	select {
 	case r := <-kubelet.Requests:

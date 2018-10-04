@@ -8,6 +8,7 @@ package runner
 import (
 	"expvar"
 	"fmt"
+	"strings"
 
 	"strconv"
 	"sync"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/collector/scheduler"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util"
@@ -44,21 +46,21 @@ func init() {
 	runnerStats = expvar.NewMap("runner")
 	runnerStats.Set("Checks", expvar.Func(expCheckStats))
 	checkStats = &runnerCheckStats{
-		Stats: make(map[check.ID]*check.Stats),
+		Stats: make(map[string]map[check.ID]*check.Stats),
 	}
 }
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
-	Stats map[check.ID]*check.Stats
+	Stats map[string]map[check.ID]*check.Stats
 	M     sync.RWMutex
 }
 
 // Runner ...
 type Runner struct {
 	pending          chan check.Check         // The channel where checks come from
-	done             chan bool                // Guard for the main loop
 	runningChecks    map[check.ID]check.Check // The list of checks running
+	scheduler        *scheduler.Scheduler     // Scheduler runner operates on
 	m                sync.Mutex               // To control races on runningChecks
 	running          uint32                   // Flag to see if the Runner is, well, running
 	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
@@ -195,6 +197,14 @@ func (r *Runner) GetChan() chan<- check.Check {
 	return r.pending
 }
 
+// SetScheduler sets the scheduler for the runner
+func (r *Runner) SetScheduler(s *scheduler.Scheduler) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	r.scheduler = s
+}
+
 // StopCheck invokes the `Stop` method on a check if it's running. If the check
 // is not running, this is a noop
 func (r *Runner) StopCheck(id check.ID) error {
@@ -204,12 +214,14 @@ func (r *Runner) StopCheck(id check.ID) error {
 	defer r.m.Unlock()
 
 	if c, isRunning := r.runningChecks[id]; isRunning {
-		log.Debugf("Stopping check %s", c)
+		log.Debugf("Stopping check %s", c.ID())
 		go func() {
+			// Remember that the check was stopped so that even if it runs we can discard its stats
 			c.Stop()
 			close(done)
 		}()
 	} else {
+		log.Debugf("Check %s is not running, not stopping it", id)
 		return nil
 	}
 
@@ -293,13 +305,16 @@ func (r *Runner) work() {
 		runnerStats.Add("RunningChecks", -1)
 		runnerStats.Add("Runs", 1)
 
-		// HACK: If a long-running check execute successfully we don't want it to
-		// show up in the status & GUI. This situation can happen when checks
-		// get unscheduled.
+		r.m.Lock()
 		if !longRunning || len(warnings) != 0 || err != nil {
-			mStats, _ := check.GetMetricStats()
-			addWorkStats(check, time.Since(t0), err, warnings, mStats)
+			// If the scheduler isn't assigned (it should), just add stats
+			// otherwise only do so if the check is in the scheduler
+			if r.scheduler == nil || r.scheduler.IsCheckScheduled(check.ID()) {
+				mStats, _ := check.GetMetricStats()
+				addWorkStats(check, time.Since(t0), err, warnings, mStats)
+			}
 		}
+		r.m.Unlock()
 
 		l := "Done running check %s"
 		if doLog {
@@ -324,11 +339,18 @@ func shouldLog(id check.ID) (doLog bool, lastLog bool) {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
 
-	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
+	var nameFound, idFound bool
+	var s *check.Stats
 
-	s, found := checkStats.Stats[id]
+	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
+	name := strings.Split(string(id), ":")[0]
+
+	stats, nameFound := checkStats.Stats[name]
+	if nameFound {
+		s, idFound = stats[id]
+	}
 	// this is the first time we see the check, log it
-	if !found {
+	if !idFound {
 		doLog = true
 		lastLog = false
 		return
@@ -346,10 +368,16 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
-	s, found = checkStats.Stats[c.ID()]
+	log.Debugf("Add stats for %s", string(c.ID()))
+	stats, found := checkStats.Stats[c.String()]
+	if !found {
+		stats = make(map[check.ID]*check.Stats)
+		checkStats.Stats[c.String()] = stats
+	}
+	s, found = stats[c.ID()]
 	if !found {
 		s = check.NewStats(c)
-		checkStats.Stats[c.ID()] = s
+		stats[c.ID()] = s
 	}
 	checkStats.M.Unlock()
 
@@ -364,7 +392,7 @@ func expCheckStats() interface{} {
 }
 
 // GetCheckStats returns the check stats map
-func GetCheckStats() map[check.ID]*check.Stats {
+func GetCheckStats() map[string]map[check.ID]*check.Stats {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
 
@@ -373,10 +401,18 @@ func GetCheckStats() map[check.ID]*check.Stats {
 
 // RemoveCheckStats removes a check from the check stats map
 func RemoveCheckStats(checkID check.ID) {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
+	checkStats.M.Lock()
+	defer checkStats.M.Unlock()
+	log.Debugf("Remove stats for %s", string(checkID))
 
-	delete(checkStats.Stats, checkID)
+	checkName := strings.Split(string(checkID), ":")[0]
+	stats, found := checkStats.Stats[checkName]
+	if found {
+		delete(stats, checkID)
+		if len(stats) == 0 {
+			delete(checkStats.Stats, checkName)
+		}
+	}
 }
 
 func getHostname() string {

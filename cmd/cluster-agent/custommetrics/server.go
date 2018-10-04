@@ -12,7 +12,6 @@ import (
 	"os"
 	"time"
 
-	as "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
 	"github.com/spf13/pflag"
@@ -22,7 +21,8 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/custommetrics"
-	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/hpa"
+	as "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 var options *server.CustomMetricsAdapterServerOptions
@@ -77,24 +77,11 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-	datadogHPAConfigMap := custommetrics.GetHPAConfigmapName()
-	store, err := custommetrics.NewConfigMapStore(client.Cl, as.GetResourcesNamespace(), datadogHPAConfigMap)
+	datadogHPAConfigMap := custommetrics.GetConfigmapName()
+	store, err := custommetrics.NewConfigMapStore(client.Cl, common.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		return err
 	}
-
-	datadogCl, err := hpa.NewDatadogClient()
-	if err != nil {
-		return err
-	}
-
-	// HPA watcher
-	hpaClient, err := hpa.NewHPAWatcherClient(client.Cl, datadogCl, store)
-	if err != nil {
-		return err
-	}
-	hpaClient.Start()
-
 	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
 	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.
 	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)
@@ -109,6 +96,6 @@ func StartServer() error {
 // stops listening to new commands.
 func StopServer() {
 	if stopCh != nil {
-		stopCh <- struct{}{}
+		close(stopCh)
 	}
 }

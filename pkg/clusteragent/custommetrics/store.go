@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -9,8 +9,11 @@ package custommetrics
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -23,15 +26,34 @@ import (
 
 const (
 	keyDelimeter = "-"
+
+	storeLastUpdatedAnnotationKey = "custom-metrics.datadoghq.com/last-updated"
 )
+
+var (
+	storeStats    = expvar.NewMap("custommetrics")
+	externalStats = new(expvar.Map).Init()
+	externalTotal = &expvar.Int{}
+	externalValid = &expvar.Int{}
+
+	errNotInitialized = fmt.Errorf("configmap not initialized")
+)
+
+func init() {
+	storeStats.Set("External", externalStats)
+	externalStats.Set("Total", externalTotal)
+	externalStats.Set("Valid", externalValid)
+}
 
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
 	SetExternalMetricValues([]ExternalMetricValue) error
 
-	Delete([]ObjectReference) error
+	DeleteExternalMetricValues([]ExternalMetricValue) error
 
 	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
+
+	GetMetrics() (*MetricsBundle, error)
 }
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.
@@ -39,70 +61,72 @@ type configMapStore struct {
 	namespace string
 	name      string
 	client    corev1.CoreV1Interface
+	mu        sync.RWMutex
 	cm        *v1.ConfigMap
 }
 
-// GetHPAConfigmapName returns the name of the ConfigMap used to store the state of the Custom Metrics Provider
-func GetHPAConfigmapName() string {
+// GetConfigmapName returns the name of the ConfigMap used to store the state of the Custom Metrics Provider
+func GetConfigmapName() string {
 	return config.Datadog.GetString("hpa_configmap_name")
 }
 
 // NewConfigMapStore returns a new store backed by a configmap. The configmap will be created
 // in the specified namespace if it does not exist.
 func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, error) {
-	cm, err := client.CoreV1().ConfigMaps(ns).Get(name, metav1.GetOptions{})
+	store := &configMapStore{
+		namespace: ns,
+		name:      name,
+		client:    client.CoreV1(),
+	}
+	err := store.getConfigMap()
 	if err == nil {
 		log.Infof("Retrieved the configmap %s", name)
-		return &configMapStore{
-			namespace: ns,
-			name:      name,
-			client:    client.CoreV1(),
-			cm:        cm,
-		}, nil
+		return store, nil
 	}
 
 	if !errors.IsNotFound(err) {
-		log.Infof("Error while attempting to fetch the configmap %s: %s", name, err)
+		log.Infof("Error while attempting to fetch the configmap %s: %v", name, err)
 		return nil, err
 	}
 
 	log.Infof("The configmap %s does not exist, trying to create it", name)
-	cm = &v1.ConfigMap{
+	cm := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 		},
 	}
+	setLastUpdatedAnnotation(cm)
+
 	// FIXME: distinguish RBAC error
-	cm, err = client.CoreV1().ConfigMaps(ns).Create(cm)
+	store.cm, err = client.CoreV1().ConfigMaps(ns).Create(cm)
 	if err != nil {
 		return nil, err
 	}
-	return &configMapStore{
-		namespace: ns,
-		name:      name,
-		client:    client.CoreV1(),
-		cm:        cm,
-	}, nil
+	return store, nil
 }
 
 // SetExternalMetricValues updates the external metrics in the configmap.
 func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) error {
-	if c.cm == nil {
-		return fmt.Errorf("configmap not initialized")
-	}
 	if len(added) == 0 {
 		return nil
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.cm == nil {
+		return errNotInitialized
 	}
 	if c.cm.Data == nil {
 		// Don't panic "assignment to entry in nil map" at init
 		c.cm.Data = make(map[string]string)
 	}
 	for _, m := range added {
-		key := strings.Join([]string{"external_metric", m.HPA.Namespace, m.HPA.Name, m.MetricName}, keyDelimeter)
+		key := externalMetricValueKeyFunc(m)
 		toStore, err := json.Marshal(m)
 		if err != nil {
-			log.Debugf("Could not marshal the external metric %v: %s", m, err)
+			log.Debugf("Could not marshal the external metric %v: %v", m, err)
 			continue
 		}
 		c.cm.Data[key] = string(toStore)
@@ -110,29 +134,22 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 	return c.updateConfigMap()
 }
 
-// Delete deletes all metrics in the configmap that refer to any of the given object references.
-func (c *configMapStore) Delete(deleted []ObjectReference) error {
-	if c.cm == nil {
-		return fmt.Errorf("configmap not initialized")
-	}
+// DeleteExternalMetricValues deletes the external metrics from the store.
+func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValue) error {
 	if len(deleted) == 0 {
 		return nil
 	}
-	for _, obj := range deleted {
-		// Delete all metrics from the configmap that reference this object.
-		for k := range c.cm.Data {
-			parts := strings.Split(k, keyDelimeter)
-			if len(parts) < 4 {
-				log.Debugf("Deleting malformed key %s", k)
-				delete(c.cm.Data, k)
-				continue
-			}
-			if parts[1] != obj.Namespace || parts[2] != obj.Name {
-				continue
-			}
-			delete(c.cm.Data, k)
-			log.Debugf("Deleted metric %s for HPA %s from the configmap %s", parts[3], obj.Name, c.name)
-		}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.cm == nil {
+		return errNotInitialized
+	}
+	for _, m := range deleted {
+		key := externalMetricValueKeyFunc(m)
+		delete(c.cm.Data, key)
+		log.Debugf("Deleted metric %s for HPA %s/%s from the configmap %s", m.MetricName, m.HPA.Namespace, m.HPA.Name, c.name)
 	}
 	return c.updateConfigMap()
 }
@@ -140,43 +157,109 @@ func (c *configMapStore) Delete(deleted []ObjectReference) error {
 // ListAllExternalMetricValues returns the most up-to-date list of external metrics from the configmap.
 // Any replica can safely call this function.
 func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
-	var metrics []ExternalMetricValue
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if err := c.getConfigMap(); err != nil {
 		return nil, err
 	}
+	bundle, err := c.doGetMetrics()
+	if err != nil {
+		return nil, err
+	}
+	return bundle.External, nil
+}
+
+// GetMetrics returns a bundle of all the metrics from the local copy of the configmap.
+func (c *configMapStore) GetMetrics() (*MetricsBundle, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.doGetMetrics()
+}
+
+func (c *configMapStore) doGetMetrics() (*MetricsBundle, error) {
+	bundle := &MetricsBundle{}
 	for k, v := range c.cm.Data {
-		if !strings.HasPrefix(k, "external_metric") {
+		if !isExternalMetricValueKey(k) {
 			continue
 		}
 		m := ExternalMetricValue{}
 		if err := json.Unmarshal([]byte(v), &m); err != nil {
-			log.Debugf("Could not unmarshal the external metric for key %s: %s", k, err)
+			log.Debugf("Could not unmarshal the external metric for key %s: %v", k, err)
 			continue
 		}
-		metrics = append(metrics, m)
+		bundle.External = append(bundle.External, m)
 	}
-	return metrics, nil
+	return bundle, nil
 }
 
 func (c *configMapStore) getConfigMap() error {
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Get(c.name, metav1.GetOptions{})
 	if err != nil {
-		log.Infof("Could not get the configmap %s: %s", c.name, err)
+		log.Infof("Could not get the configmap %s: %v", c.name, err)
 		return err
 	}
 	return nil
 }
 
 func (c *configMapStore) updateConfigMap() error {
-	if c.cm == nil {
-		return fmt.Errorf("configmap not initialized")
-	}
+	setLastUpdatedAnnotation(c.cm)
 	var err error
 	c.cm, err = c.client.ConfigMaps(c.namespace).Update(c.cm)
 	if err != nil {
-		log.Infof("Could not update the configmap %s: %s", c.name, err)
+		log.Infof("Could not update the configmap %s: %v", c.name, err)
 		return err
 	}
+	setStoreStats(c)
 	return nil
+}
+
+// externalMetricValueKeyFunc knows how to make keys for storing external metrics. The key
+// is unique for each metric of an HPA. This means that the keys for the same metric from two
+// different HPAs will be different (important for external metrics that may use different labels
+// for the same metric).
+func externalMetricValueKeyFunc(val ExternalMetricValue) string {
+	parts := []string{
+		"external_metric",
+		val.HPA.Namespace,
+		val.HPA.Name,
+		val.MetricName,
+	}
+	return strings.Join(parts, keyDelimeter)
+}
+
+func isExternalMetricValueKey(key string) bool {
+	return strings.HasPrefix(key, "external_metric")
+}
+
+func setLastUpdatedAnnotation(cm *v1.ConfigMap) {
+	if cm.Annotations == nil {
+		// Don't panic "assignment to entry in nil map" at init
+		cm.Annotations = make(map[string]string)
+	}
+	cm.Annotations[storeLastUpdatedAnnotationKey] = time.Now().Format(time.RFC3339)
+}
+
+func setStoreStats(store *configMapStore) {
+	if store.name != GetConfigmapName() {
+		return
+	}
+
+	bundle, err := store.doGetMetrics()
+	if err != nil {
+		return
+	}
+
+	total := int64(len(bundle.External))
+	externalTotal.Set(total)
+
+	valid := int64(0)
+	for _, metric := range bundle.External {
+		if metric.Valid {
+			valid += 1
+		}
+	}
+	externalValid.Set(valid)
 }

@@ -21,21 +21,21 @@ api_key:
 #     - host1
 #     - host2
 
-# Setting this option to "yes" will tell the agent to skip validation of SSL/TLS certificates.
+# Setting this option to "true" will tell the agent to skip validation of SSL/TLS certificates.
 # This may be necessary if the agent is running behind a proxy. See this page for details:
 # https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
-# skip_ssl_validation: no
+# skip_ssl_validation: false
 
-# Setting this option to "yes" will force the agent to only use TLS 1.2 when
+# Setting this option to "true" will force the agent to only use TLS 1.2 when
 # pushing data to the url specified in "dd_url".
-# force_tls_12: no
+# force_tls_12: false
 
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
 # Make the agent use "hostname -f" on unix-based systems as a last resort
 # way of determining the hostname instead of Golang "os.Hostname()"
-# This will be enabled by default in version 6.4
+# This will be enabled by default in version 6.6
 # More information at  https://dtdg.co/flag-hostname-fqdn
 # hostname_fqdn: false
 
@@ -44,6 +44,23 @@ api_key:
 #   - mytag
 #   - env:prod
 #   - role:database
+
+# Split tag values according to a given separator.
+# Only applies to host tags, tags coming from container integrations.
+# Does not apply to tags on dogstatsd metrics, and tags collected by other
+# integrations.
+# This option is useful when the native tags do not support repeating multiple
+# tags with the same name and different values.
+#
+# Example use-case:
+#
+#  With a raw collected tag "foo:1;2;3"
+#  Using the following configuration:
+#
+#    tag_value_split_separator:
+#      foo: ;
+#
+#  will result in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
 
 # Histogram and Historate configuration
 #
@@ -80,6 +97,9 @@ api_key:
 
 # Collect AWS EC2 custom tags as agent tags
 # collect_ec2_tags: false
+
+# Collect Google Cloud Engine metadata as agent tags
+# collect_gce_tags: true
 {{ end }}
 {{- if .Agent }}
 # The path containing check configuration files
@@ -101,11 +121,29 @@ api_key:
 # Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
 
-# The Agent runs workers in parallel to execute checks. By default the number
-# of workers is set to 1. If set to 0 the agent will automatically determine
-# the best number of runners needed based on the number of checks running. This
-# would optimize the check collection time but may produce CPU spikes.
-# check_runners: 1
+# The `check_runners` refers to the number of concurrent check runners available
+# for check instance execution. The scheduler will attempt to spread the
+# instances over the collection interval and will _at most_ be running the
+# number of check runners instances concurrently. Setting the value to 1
+# would result in checks running sequentially.
+#
+# NOTE: due to the nature of the python interpreter and its global interpreter
+# lock (GIL) only one native thread may be running on the python interpreter at
+# a time. Concurrent check runners imply concurrently executing checks must contend
+# for the GIL. This has the side-effect of increasing wall-time execution times for
+# the checks. The aggregate system/user-time for all checks however, should be
+# decreased. Concurrency works particularly well with I/O bound tasks (or at least
+# IO intensive) as the GIL will typically be released while waiting for IO, allowing
+# for other checks to grab a hold of the GIL and continue execution. For CPU-bound
+# checks with a low activity, it's likely that the check instances will contend for
+# the GIL, which will cause a CPU overhead compared to running these check instances
+# sequentially (i.e. on one check runner).
+#
+# This is a sensitive setting and we do NOT recommend changing the default number
+# of check runners in the general case. The level of concurrency has effects on
+# the agent's: RSS memory, CPU load, resource contention overhead, etc.
+#
+# check_runners: 4
 
 # Metadata collection should always be enabled, except if you are running several
 # agents/dsd instances per host. In that case, only one agent should have it on.
@@ -124,6 +162,7 @@ api_key:
 # down to integrations and affect their behavior if they rely on the psutil
 # python package.
 # procfs_path: /proc
+
 
 # BETA: Encrypted Secrets (Linux only)
 #
@@ -167,8 +206,8 @@ api_key:
 {{- if .Dogstatsd }}
 # DogStatsd
 #
-# If you don't want to enable the DogStatsd server, set this option to no
-# use_dogstatsd: yes
+# If you don't want to enable the DogStatsd server, set this option to false
+# use_dogstatsd: true
 #
 # Make sure your client is sending to the same UDP port
 # dogstatsd_port: 8125
@@ -190,10 +229,10 @@ api_key:
 # dogstatsd_buffer_size: 1024
 #
 # Whether dogstatsd should listen to non local UDP traffic
-# dogstatsd_non_local_traffic: no
+# dogstatsd_non_local_traffic: false
 #
 # Publish dogstatsd's internal stats as Go expvars
-# dogstatsd_stats_enable: no
+# dogstatsd_stats_enable: false
 #
 # How many items in the dogstatsd's stats circular buffer
 # dogstatsd_stats_buffer: 10
@@ -303,26 +342,26 @@ api_key:
 # log_level: info
 # log_file: /var/log/datadog/agent.log
 
-# Set to 'yes' to output logs in JSON format
-# log_format_json: no
+# Set to 'true' to output logs in JSON format
+# log_format_json: false
 
-# Set to 'no' to disable logging to stdout
-# log_to_console: yes
+# Set to 'false' to disable logging to stdout
+# log_to_console: true
 
-# Set to 'yes' to disable logging to the log file
-# disable_file_logging: no
+# Set to 'true' to disable logging to the log file
+# disable_file_logging: false
 
-# Set to 'yes' to enable logging to syslog.
+# Set to 'true' to enable logging to syslog.
 #
-# log_to_syslog: no
+# log_to_syslog: false
 #
 # If 'syslog_uri' is left undefined/empty, a local domain socket connection will be attempted
 #
 # syslog_uri:
 #
-# Set to 'yes' to output in an RFC 5424-compliant format
+# Set to 'true' to output in an RFC 5424-compliant format
 #
-# syslog_rfc: no
+# syslog_rfc: false
 #
 # If TLS enabled, you must specify a path to a PEM certificate here
 #
@@ -334,7 +373,7 @@ api_key:
 #
 # If TLS enabled, you may enforce TLS verification here (defaults to true)
 #
-# syslog_tls_verify: yes
+# syslog_tls_verify: true
 #
 {{ end -}}
 {{- if .Autodiscovery }}
@@ -342,14 +381,14 @@ api_key:
 #
 # Change the root directory to look at to get cgroup statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# Default if environment variable "DOCKER_DD_AGENT" is set
 # "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
 #
 # container_cgroup_root: /host/sys/fs/cgroup/
 #
 # Change the root directory to look at to get proc statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# Default if environment variable "DOCKER_DD_AGENT" is set
 # "/host/proc" and "/proc" if not.
 #
 # container_proc_root: /host/proc
@@ -493,7 +532,6 @@ api_key:
 # kubernetes_collect_metadata_tags: true
 # kubernetes_metadata_tag_update_freq: 60
 # kubernetes_apiserver_client_timeout: 10
-# kubernetes_apiserver_poll_freq: 30
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
 # Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#event-collection).
@@ -513,6 +551,9 @@ api_key:
 # kubernetes_node_labels_as_tags:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
+#
+# Kubernetes cluster identifier used to avoid host alias collisions. Empty by default.
+# clustername: cluster_identifier
 {{ end -}}
 
 {{- if .ProcessAgent }}

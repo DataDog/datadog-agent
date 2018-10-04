@@ -88,5 +88,6 @@ func HostnameProvider(hostName string) (string, error) {
 		log.Debug("GetHostname trying EC2 metadata...")
 		return GetInstanceID()
 	}
-	return "", nil
+
+	return "", fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
 }

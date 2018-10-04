@@ -8,7 +8,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 
   Status date: {{.time}}
   Pid: {{.pid}}
-  Python Version: {{.platform.pythonV}}
+  Python Version: {{.python_version}}
   Logs: {{.config.log_file}}
   {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers}}
@@ -24,7 +24,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   Clocks
   ======
     {{- if .ntpOffset }}
-    NTP offset: {{.ntpOffset}} s
+    NTP offset: {{ humanizeDuration .ntpOffset "s"}}
     {{- end }}
     System UTC time: {{.time}}
 
@@ -32,7 +32,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   =========
   {{- range $name, $value := .hostinfo -}}
     {{- if and (ne $name "hostname") (ne $name "hostid") ($value) }}
-    {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{ $value }}{{ end }}
+    {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{if eq $name "uptime" }}{{ humanizeDuration $value "s"}}{{ else }}{{ $value }}{{ end }}{{ end }}
     {{- end }}
   {{- end }}
 
@@ -42,5 +42,17 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{- if and (ne $name "timezones") ($value) }}
     {{$name}}: {{$value}}
     {{- end }}
+  {{- end }}
+    hostname provider: {{.hostnameStats.provider}}
+  {{- if gt (len .hostnameStats.errors) 0 }}
+    unused hostname providers:
+  {{- end }}
+  {{- range $name, $value := .hostnameStats.errors -}}
+      {{- if ne $name "all" }}
+      {{$name}}: {{$value}}
+      {{- end}}
+  {{- end }}
+  {{- if .hostnameStats.errors.all }}
+    error: {{.hostnameStats.errors.all}}
   {{- end }}
 {{/* this line intentionally left blank */}}

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build systemd
+
 package journald
 
 import (
@@ -15,47 +17,54 @@ import (
 
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
-	sources          []*config.LogSource
+	sources          *config.LogSources
 	pipelineProvider pipeline.Provider
-	auditor          *auditor.Auditor
+	registry         auditor.Registry
 	tailers          map[string]*Tailer
+	stop             chan struct{}
 }
 
 // New returns a new Launcher.
-func New(sources []*config.LogSource, pipelineProvider pipeline.Provider, auditor *auditor.Auditor) *Launcher {
-	journaldSources := []*config.LogSource{}
-	for _, source := range sources {
-		if source.Config.Type == config.JournaldType {
-			journaldSources = append(journaldSources, source)
-		}
-	}
+func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
 	return &Launcher{
-		sources:          journaldSources,
+		sources:          sources,
 		pipelineProvider: pipelineProvider,
-		auditor:          auditor,
+		registry:         registry,
 		tailers:          make(map[string]*Tailer),
+		stop:             make(chan struct{}),
 	}
 }
 
-// Start starts new tailers.
+// Start starts the launcher.
 func (l *Launcher) Start() {
-	for _, source := range l.sources {
-		identifier := source.Config.Path
-		if _, exists := l.tailers[identifier]; exists {
-			// set up only one tailer per journal
-			continue
-		}
-		tailer, err := l.setupTailer(source)
-		if err != nil {
-			log.Warn("Could not set up journald tailer: ", err)
-		} else {
-			l.tailers[identifier] = tailer
+	go l.run()
+}
+
+// run starts new tailers.
+func (l *Launcher) run() {
+	for {
+		select {
+		case source := <-l.sources.GetSourceStreamForType(config.JournaldType):
+			identifier := source.Config.Path
+			if _, exists := l.tailers[identifier]; exists {
+				// set up only one tailer per journal
+				continue
+			}
+			tailer, err := l.setupTailer(source)
+			if err != nil {
+				log.Warn("Could not set up journald tailer: ", err)
+			} else {
+				l.tailers[identifier] = tailer
+			}
+		case <-l.stop:
+			return
 		}
 	}
 }
 
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
+	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for identifier, tailer := range l.tailers {
 		stopper.Add(tailer)
@@ -68,7 +77,8 @@ func (l *Launcher) Stop() {
 // returns the tailer or an error.
 func (l *Launcher) setupTailer(source *config.LogSource) (*Tailer, error) {
 	tailer := NewTailer(source, l.pipelineProvider.NextPipelineChan())
-	err := tailer.Start(l.auditor.GetLastCommittedOffset(tailer.Identifier()))
+	cursor := l.registry.GetOffset(tailer.Identifier())
+	err := tailer.Start(cursor)
 	if err != nil {
 		return nil, err
 	}

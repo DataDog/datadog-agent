@@ -18,7 +18,6 @@ import (
 	dockerutil "github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
-	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
 	parser "github.com/StackVista/stackstate-agent/pkg/logs/docker"
@@ -52,12 +51,11 @@ type Tailer struct {
 // NewTailer returns a new Tailer
 func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *Tailer {
 	return &Tailer{
-		ContainerID: containerID,
-		outputChan:  outputChan,
-		decoder:     decoder.InitializeDecoder(source),
-		source:      source,
-		cli:         cli,
-
+		ContainerID:   containerID,
+		outputChan:    outputChan,
+		decoder:       decoder.InitializeDecoder(source),
+		source:        source,
+		cli:           cli,
 		sleepDuration: defaultSleepDuration,
 		stop:          make(chan struct{}, 1),
 		done:          make(chan struct{}, 1),
@@ -72,7 +70,7 @@ func (t *Tailer) Identifier() string {
 // Stop stops the tailer from reading new container logs,
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing container ", t.ContainerID[:12])
+	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 	t.reader.Close()
 	t.source.RemoveInput(t.ContainerID)
@@ -80,57 +78,32 @@ func (t *Tailer) Stop() {
 	<-t.done
 }
 
-// tailFromBeginning starts the tailing from the beginning
-// of the container logs
-func (t *Tailer) tailFromBeginning() error {
-	return t.tailFrom(time.Time{}.Format(config.DateFormat))
-}
-
-// tailFromEnd starts the tailing from the last line
-// of the container logs
-func (t *Tailer) tailFromEnd() error {
-	return t.tailFrom(time.Now().UTC().Format(config.DateFormat))
-}
-
-// recoverTailing starts the tailing from the last log line processed, or now
-// if we see this container for the first time
-func (t *Tailer) recoverTailing(a *auditor.Auditor) error {
-	return t.tailFrom(t.nextLogSinceDate(a.GetLastCommittedOffset(t.Identifier())))
-}
-
-// nextLogSinceDate returns the `from` value of the next log line
-// for a container.
-// In the auditor, we store the date of the last log line processed.
-// `ContainerLogs` is not exclusive on `Since`, so if we start again
-// from this date, we collect that last log line twice on restart.
-// A workaround is to add one nano second, to exclude that last
-// log line
-func (t *Tailer) nextLogSinceDate(lastTs string) string {
-	ts, err := time.Parse(config.DateFormat, lastTs)
-	if err != nil {
-		return lastTs
-	}
-	ts = ts.Add(time.Nanosecond)
-	return ts.Format(config.DateFormat)
+// Start starts tailing from the last log line processed.
+// if we see this container for the first time, it will:
+// start from now if the container has been created before the agent started
+// start from oldest log otherwise
+func (t *Tailer) Start(since time.Time) error {
+	log.Infof("Start tailing container: %v", ShortContainerID(t.ContainerID))
+	return t.tail(since.Format(config.DateFormat))
 }
 
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
-func (t *Tailer) setupReader(from string) (io.ReadCloser, error) {
+func (t *Tailer) setupReader(since string) (io.ReadCloser, error) {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
 		Timestamps: true,
 		Details:    false,
-		Since:      from,
+		Since:      since,
 	}
 	return t.cli.ContainerLogs(context.Background(), t.ContainerID, options)
 }
 
-// tailFrom sets up and starts the tailer
-func (t *Tailer) tailFrom(from string) error {
-	reader, err := t.setupReader(from)
+// tail sets up and starts the tailer
+func (t *Tailer) tail(since string) error {
+	reader, err := t.setupReader(since)
 	if err != nil {
 		// could not start the tailer
 		t.source.Status.Error(err)

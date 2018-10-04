@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
@@ -24,7 +23,9 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
 	"github.com/StackVista/stackstate-agent/pkg/util"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const (
@@ -74,14 +75,14 @@ type DockerCheck struct {
 	collectContainerSizeCounter uint64
 }
 
-func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
+func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
 	var containerTags []string
 	var err error
 
 	if c.Excluded {
 		// TODO we can do SplitImageName because we are in the docker corecheck and the image name is not a sha[...]
 		// We should resolve the image tags in the tagger as a real entity.
-		long, short, tag, err := docker.SplitImageName(c.Image)
+		long, short, tag, err := containers.SplitImageName(c.Image)
 		if err != nil {
 			log.Errorf("Cannot split the image name %s: %v", c.Image, err)
 			return
@@ -106,9 +107,9 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *docker
 		images[key] = &containerPerImage{tags: containerTags, running: 0, stopped: 0}
 	}
 
-	if c.State == docker.ContainerRunningState {
+	if c.State == containers.ContainerRunningState {
 		images[key].running++
-	} else if c.State == docker.ContainerExitedState {
+	} else if c.State == containers.ContainerExitedState {
 		images[key].stopped++
 	}
 }
@@ -133,7 +134,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 				log.Tracef("Skipping image %s, no repo tags", i.ID)
 				continue
 			}
-			name, _, tag, err := docker.SplitImageName(i.RepoTags[0])
+			name, _, tag, err := containers.SplitImageName(i.RepoTags[0])
 			if err != nil {
 				log.Errorf("Could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
@@ -162,7 +163,7 @@ func (d *DockerCheck) Run() error {
 		d.Warnf("Error initialising check: %s", err)
 		return err
 	}
-	containers, err := du.Containers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
+	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
 		d.Warnf("Error collecting containers: %s", err)
@@ -172,9 +173,9 @@ func (d *DockerCheck) Run() error {
 	collectingContainerSizeDuringThisRun := d.instance.CollectContainerSize && d.collectContainerSizeCounter == 0
 
 	images := map[string]*containerPerImage{}
-	for _, c := range containers {
+	for _, c := range cList {
 		updateContainerRunningCount(images, c)
-		if c.State != docker.ContainerRunningState || c.Excluded {
+		if c.State != containers.ContainerRunningState || c.Excluded {
 			continue
 		}
 		tags, err := tagger.Tag(c.EntityID, true)
@@ -183,38 +184,50 @@ func (d *DockerCheck) Run() error {
 		}
 		tags = append(tags, d.instance.Tags...)
 
-		sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
-		sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
-		sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
-		sender.Gauge("docker.cpu.shares", float64(c.CPU.Shares), "", tags)
-		sender.Rate("docker.cpu.throttled", float64(c.CPUNrThrottled), "", tags)
-		sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
-		sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
-		if c.Memory.SwapPresent == true {
-			sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
+		if c.CPU != nil {
+			sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
+			sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
+			sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
+			sender.Gauge("docker.cpu.shares", float64(c.CPU.Shares), "", tags)
+			sender.Rate("docker.cpu.throttled", float64(c.CPUNrThrottled), "", tags)
+		} else {
+			log.Debugf("Empty CPU metrics for container %s", c.ID[:12])
 		}
-
-		if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
-			sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
-			if c.Memory.HierarchicalMemoryLimit != 0 {
-				sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
+		if c.Memory != nil {
+			sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
+			sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
+			if c.Memory.SwapPresent == true {
+				sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
 			}
-		}
 
-		if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
-			sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
-			if c.Memory.HierarchicalMemSWLimit != 0 {
-				sender.Gauge("docker.mem.sw_in_use",
-					float64(c.Memory.Swap+c.Memory.RSS)/float64(c.Memory.HierarchicalMemSWLimit), "", tags)
+			if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
+				sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
+				if c.Memory.HierarchicalMemoryLimit != 0 {
+					sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
+				}
 			}
+
+			if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
+				sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
+				if c.Memory.HierarchicalMemSWLimit != 0 {
+					sender.Gauge("docker.mem.sw_in_use",
+						float64(c.Memory.Swap+c.Memory.RSS)/float64(c.Memory.HierarchicalMemSWLimit), "", tags)
+				}
+			}
+
+			if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
+				sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
+			}
+		} else {
+			log.Debugf("Empty memory metrics for container %s", c.ID[:12])
 		}
 
-		if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
-			sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
+		if c.IO != nil {
+			sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
+			sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
+		} else {
+			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
-
-		sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
-		sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
 
 		if c.Network != nil {
 			for _, netStat := range c.Network {
@@ -226,6 +239,8 @@ func (d *DockerCheck) Run() error {
 				sender.Rate("docker.net.bytes_sent", float64(netStat.BytesSent), "", ifaceTags)
 				sender.Rate("docker.net.bytes_rcvd", float64(netStat.BytesRcvd), "", ifaceTags)
 			}
+		} else {
+			log.Debugf("Empty network metrics for container %s", c.ID[:12])
 		}
 
 		if collectingContainerSizeDuringThisRun {

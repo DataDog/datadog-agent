@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
@@ -26,7 +27,7 @@ import (
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.20.1-jar-with-dependencies.jar"
+	jmxJarName                        = "jmxfetch-0.20.2-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	defaultJmxCommand                 = "collect"
 	defaultJvmMaxMemoryAllocation     = " -Xmx200m"
@@ -226,14 +227,32 @@ func (j *JMXFetch) Start() error {
 	return j.cmd.Start()
 }
 
-// Kill kills the JMXFetch process
-func (j *JMXFetch) Kill() error {
+// Stop stops the JMXFetch process
+func (j *JMXFetch) Stop() error {
 	if j.JmxExitFile == "" {
+		stopped := make(chan struct{})
+
 		// Unix
-		err := j.cmd.Process.Signal(os.Kill)
+		err := j.cmd.Process.Signal(syscall.SIGTERM)
 		if err != nil {
 			return err
 		}
+
+		go func() {
+			j.Wait()
+			close(stopped)
+		}()
+
+		select {
+		case <-time.After(time.Millisecond * 500):
+			log.Warnf("Jmxfetch did not exit during it's grace period, killing it")
+			err = j.cmd.Process.Signal(os.Kill)
+			if err != nil {
+				log.Warnf("Could not kill jmxfetch: %v", err)
+			}
+		case <-stopped:
+		}
+
 	} else {
 		// Windows
 		if err := ioutil.WriteFile(j.exitFilePath, nil, 0644); err != nil {

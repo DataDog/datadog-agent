@@ -22,10 +22,10 @@
     <span class="stat_data">
       System UTC Time: {{.time}}
       {{- if .ntpOffset}}
-        <br>NTP Offset: {{.ntpOffset}}s
+        <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
       {{end}}
       <br>Go Version: {{.platform.goV}}
-      <br>Python Version: {{.platform.pythonV}}
+      <br>Python Version: {{.python_version}}
     </span>
   </div>
 
@@ -37,22 +37,42 @@
           {{- if ne $type "hostid" -}}
             {{if $value}}
               {{formatTitle $type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value -}}
+                              {{- else -}}{{- if eq $type "uptime" -}}{{- humanizeDuration $value "s" -}}
                               {{- else -}}{{- $value -}}
-                              {{- end -}}<br>
+                              {{- end -}}{{- end -}}<br>
             {{end -}}
           {{end -}}
         {{end -}}
       {{- end}}
-      <span class="stat_subtitle">Hostnames</span>
-      <span class="stat_subdata">
-        {{- range $type, $value := .metadata.meta -}}
-          {{- if ne $type "timezones" -}}
-            {{- if $value}}
-              {{formatTitle $type}}: {{$value -}}<br>
-            {{end -}}
-          {{- end -}}
-        {{- end}}
-      </span>
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">Hostnames</span>
+    <span class="stat_data">
+      {{- range $type, $value := .metadata.meta -}}
+        {{- if ne $type "timezones" -}}
+          {{- if $value}}
+            {{formatTitle $type}}: {{$value -}}<br>
+          {{end -}}
+        {{- end -}}
+      {{- end}}
+      Hostname Provider: {{.hostnameStats.provider}}<br>
+      {{- if gt (len .hostnameStats.errors) 0 }}
+        <span>Unused Hostname Providers: <br>
+          <span class="stat_subdata">
+            {{- range $name, $value := .hostnameStats.errors -}}
+              {{- if ne $name "all" }}
+                {{formatTitle $name}}: {{$value}}<br>
+              {{- end}}
+            {{- end }}
+          </span>
+        </span>
+      {{- if .hostnameStats.errors.all }}
+        <span class="error">Error</span>: {{.hostnameStats.errors.all}}<br>
+      {{- end }}
+      {{- end }}
+
     </span>
   </div>
 
@@ -104,7 +124,7 @@
       {{- with .forwarderStats -}}
         {{- if .TransactionsCreated -}}
           {{- range $key, $value := .TransactionsCreated}}
-            {{formatTitle $key}}: {{$value}}<br>
+            {{formatTitle $key}}: {{humanize $value}}<br>
           {{- end -}}
         {{- end}}
         {{- if .APIKeyStatus}}
@@ -153,34 +173,34 @@
     <span class="stat_data">
       {{- with .aggregatorStats -}}
         {{- if .ChecksMetricSample}}
-          Checks Metric Sample: {{.ChecksMetricSample}}<br>
+          Checks Metric Sample: {{humanize .ChecksMetricSample}}<br>
         {{- end -}}
         {{- if .Event}}
-          Event: {{.Event}}<br>
+          Event: {{humanize .Event}}<br>
         {{- end -}}
         {{- if .EventsFlushed}}
-          Events Flushed: {{.EventsFlushed}}<br>
+          Events Flushed: {{humanize .EventsFlushed}}<br>
         {{- end -}}
         {{- if .NumberOfFlush}}
-          Number Of Flushes: {{.NumberOfFlush}}<br>
+          Number Of Flushes: {{humanize .NumberOfFlush}}<br>
         {{- end -}}
         {{- if .SeriesFlushed}}
-          Series Flushed: {{.SeriesFlushed}}<br>
+          Series Flushed: {{humanize .SeriesFlushed}}<br>
         {{- end -}}
         {{- if .ServiceCheck}}
-          Service Check: {{.ServiceCheck}}<br>
+          Service Check: {{humanize .ServiceCheck}}<br>
         {{- end -}}
         {{- if .ServiceCheckFlushed}}
-          Service Checks Flushed: {{.ServiceCheckFlushed}}<br>
+          Service Checks Flushed: {{humanize .ServiceCheckFlushed}}<br>
         {{- end -}}
         {{- if .SketchesFlushed}}
-          Sketches Flushed: {{.SketchesFlushed}}<br>
+          Sketches Flushed: {{humanize .SketchesFlushed}}<br>
         {{- end -}}
         {{- if .HostnameUpdate}}
-          Hostname Update: {{.HostnameUpdate}}<br>
+          Hostname Update: {{humanize .HostnameUpdate}}<br>
         {{- end -}}
         {{- if .DogstatsdMetricSample}}
-          Dogstatsd Metric Sample: {{.DogstatsdMetricSample}}<br>
+          Dogstatsd Metric Sample: {{humanize .DogstatsdMetricSample}}<br>
         {{- end}}
       {{- end -}}
     </span>

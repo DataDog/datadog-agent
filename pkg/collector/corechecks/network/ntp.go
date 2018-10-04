@@ -8,7 +8,8 @@ package network
 import (
 	"expvar"
 	"fmt"
-	"math/rand"
+	"math"
+	"sort"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
@@ -38,12 +39,13 @@ type NTPCheck struct {
 }
 
 type ntpInstanceConfig struct {
-	OffsetThreshold       int    `yaml:"offset_threshold"`
-	Host                  string `yaml:"host"`
-	Port                  string `yaml:"port"`
-	Timeout               int    `yaml:"timeout"`
-	Version               int    `yaml:"version"`
-	MinCollectionInterval int    `yaml:"min_collection_interval"`
+	OffsetThreshold       int      `yaml:"offset_threshold"`
+	Host                  string   `yaml:"host"`
+	Hosts                 []string `yaml:"hosts"`
+	Port                  string   `yaml:"port"`
+	Timeout               int      `yaml:"timeout"`
+	Version               int      `yaml:"version"`
+	MinCollectionInterval int      `yaml:"min_collection_interval"`
 }
 
 type ntpInitConfig struct{}
@@ -65,6 +67,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	defaultPort := "ntp"
 	defaultOffsetThreshold := 60
 	defaultMinCollectionInterval := 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+	defaultHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
 		return err
@@ -75,8 +78,18 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	}
 
 	c.instance = instance
-	if c.instance.Host == "" {
-		c.instance.Host = fmt.Sprintf("%d.datadog.pool.ntp.org", rand.Intn(3))
+	if c.instance.Host != "" {
+		hosts := []string{c.instance.Host}
+		// If config contains both host and hosts
+		for _, h := range c.instance.Hosts {
+			if h != c.instance.Host {
+				hosts = append(hosts, h)
+			}
+		}
+		c.instance.Hosts = hosts
+	}
+	if c.instance.Hosts == nil {
+		c.instance.Hosts = defaultHosts
 	}
 	if c.instance.Port == "" {
 		c.instance.Port = defaultPort
@@ -126,25 +139,23 @@ func (c *NTPCheck) Run() error {
 	}
 
 	var serviceCheckStatus metrics.ServiceCheckStatus
-	var clockOffset int
 	serviceCheckMessage := ""
 	offsetThreshold := c.cfg.instance.OffsetThreshold
 
-	response, err := ntpQuery(c.cfg.instance.Host, c.cfg.instance.Version)
+	clockOffset, err := c.queryOffset()
 	if err != nil {
-		log.Infof("There was an error querying the ntp host: %s", err)
+		log.Info(err)
 		serviceCheckStatus = metrics.ServiceCheckUnknown
 	} else {
-		clockOffset = int(response.ClockOffset.Seconds())
-		if clockOffset > offsetThreshold {
+		if int(math.Abs(clockOffset)) > offsetThreshold {
 			serviceCheckStatus = metrics.ServiceCheckCritical
-			serviceCheckMessage = fmt.Sprintf("Offset %v secs higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
+			serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
 		} else {
 			serviceCheckStatus = metrics.ServiceCheckOK
 		}
 
-		sender.Gauge("ntp.offset", response.ClockOffset.Seconds(), "", nil)
-		ntpExpVar.Set(response.ClockOffset.Seconds())
+		sender.Gauge("ntp.offset", clockOffset, "", nil)
+		ntpExpVar.Set(clockOffset)
 	}
 
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
@@ -154,6 +165,35 @@ func (c *NTPCheck) Run() error {
 	sender.Commit()
 
 	return nil
+}
+
+func (c *NTPCheck) queryOffset() (float64, error) {
+	offsets := []float64{}
+
+	for _, host := range c.cfg.instance.Hosts {
+		response, err := ntpQuery(host, c.cfg.instance.Version)
+		if err != nil {
+			log.Infof("There was an error querying the ntp host %s: %s", host, err)
+		} else {
+			offsets = append(offsets, response.ClockOffset.Seconds())
+		}
+	}
+
+	if len(offsets) == 0 {
+		return .0, fmt.Errorf("Failed to get clock offset from any ntp host")
+	}
+
+	var median float64
+
+	sort.Float64s(offsets)
+	length := len(offsets)
+	if length%2 == 0 {
+		median = (offsets[length/2-1] + offsets[length/2]) / 2.0
+	} else {
+		median = offsets[length/2]
+	}
+
+	return median, nil
 }
 
 func ntpFactory() check.Check {

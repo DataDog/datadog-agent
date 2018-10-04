@@ -54,7 +54,7 @@ func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the ZookeeperConfigProvider
 func (z *ZookeeperConfigProvider) String() string {
-	return "zookeeper Configuration Provider"
+	return Zookeeper
 }
 
 // Collect retrieves templates from Zookeeper, builds Config objects and returns them

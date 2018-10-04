@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
-
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
-	"github.com/StackVista/stackstate-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/ecs"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // ECSListener implements the ServiceListener interface for fargate-backed ECS cluster.
@@ -24,6 +24,7 @@ import (
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
 	task       ecs.TaskMetadata
+	filter     *containers.Filter
 	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
 	delService chan<- Service
@@ -35,15 +36,15 @@ type ECSListener struct {
 
 // ECSService implements and store results from the Service interface for the ECS listener
 type ECSService struct {
-	ID            ID
+	cID           string
+	runtime       string
 	ADIdentifiers []string
-	Hosts         map[string]string
-	Ports         []int
-	Pid           int
-	Tags          []string
+	hosts         map[string]string
+	tags          []string
 	clusterName   string
 	taskFamily    string
 	taskVersion   string
+	creationTime  integration.CreationTime
 }
 
 func init() {
@@ -52,9 +53,14 @@ func init() {
 
 // NewECSListener creates an ECSListener
 func NewECSListener() (ServiceListener, error) {
+	filter, err := containers.NewFilterFromConfigIncludePause()
+	if err != nil {
+		return nil, err
+	}
 	return &ECSListener{
 		services: make(map[string]Service),
 		stop:     make(chan bool),
+		filter:   filter,
 		t:        time.NewTicker(2 * time.Second),
 		health:   health.Register("ad-ecslistener"),
 	}, nil
@@ -67,6 +73,7 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.delService = delSvc
 
 	go func() {
+		l.refreshServices(true)
 		for {
 			select {
 			case <-l.stop:
@@ -74,7 +81,7 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 				return
 			case <-l.health.C:
 			case <-l.t.C:
-				l.refreshServices()
+				l.refreshServices(false)
 			}
 		}
 	}()
@@ -88,7 +95,7 @@ func (l *ECSListener) Stop() {
 // refreshServices queries the task metadata endpoint for fresh info
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
-func (l *ECSListener) refreshServices() {
+func (l *ECSListener) refreshServices(firstRun bool) {
 	meta, err := ecs.GetTaskMetadata()
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
@@ -115,7 +122,11 @@ func (l *ECSListener) refreshServices() {
 			log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
 			continue
 		}
-		s, err := l.createService(c)
+		if l.filter.IsExcluded(c.DockerName, c.Image) {
+			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
+			continue
+		}
+		s, err := l.createService(c, firstRun)
 		if err != nil {
 			log.Errorf("couldn't create a service out of container %s - Auto Discovery will ignore it", c.DockerID)
 			continue
@@ -137,19 +148,26 @@ func (l *ECSListener) refreshServices() {
 	}
 }
 
-func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
-	cID := ID(c.DockerID)
+func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService, error) {
+	var crTime integration.CreationTime
+	if firstRun {
+		crTime = integration.Before
+	} else {
+		crTime = integration.After
+	}
 	svc := ECSService{
-		ID:          cID,
-		clusterName: l.task.ClusterName,
-		taskFamily:  l.task.Family,
-		taskVersion: l.task.Version,
+		cID:          c.DockerID,
+		runtime:      containers.RuntimeNameDocker,
+		clusterName:  l.task.ClusterName,
+		taskFamily:   l.task.Family,
+		taskVersion:  l.task.Version,
+		creationTime: crTime,
 	}
 
 	// ADIdentifiers
 	image := c.Image
 	labels := c.Labels
-	svc.ADIdentifiers = ComputeContainerServiceIDs(c.DockerID, image, labels)
+	svc.ADIdentifiers = ComputeContainerServiceIDs(svc.GetEntity(), image, labels)
 
 	// Host
 	ips := make(map[string]string)
@@ -159,26 +177,21 @@ func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 			ips["awsvpc"] = string(net.IPv4Addresses[0])
 		}
 	}
-	svc.Hosts = ips
+	svc.hosts = ips
 
 	// Tags
-	entity := docker.ContainerIDToEntityName(string(c.DockerID))
-	tags, err := tagger.Tag(entity, tagger.IsFullCardinality())
+	tags, err := tagger.Tag(svc.GetEntity(), tagger.IsFullCardinality())
 	if err != nil {
-		log.Errorf("Failed to extract tags for container %s - %s", cID[:12], err)
+		log.Errorf("Failed to extract tags for container %s - %s", c.DockerID[:12], err)
 	}
-	svc.Tags = tags
-
-	// Ports and Pid
-	svc.Ports = nil
-	svc.Pid = -1
+	svc.tags = tags
 
 	return svc, err
 }
 
-// GetID returns the service ID
-func (s *ECSService) GetID() ID {
-	return s.ID
+// GetEntity returns the unique entity name linked to that service
+func (s *ECSService) GetEntity() string {
+	return containers.BuildEntityName(s.runtime, s.cID)
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
@@ -199,7 +212,7 @@ func (s *ECSService) GetADIdentifiers() ([]string, error) {
 // GetHosts returns the container's hosts
 // TODO: using localhost should usually be enough
 func (s *ECSService) GetHosts() (map[string]string, error) {
-	return s.Hosts, nil
+	return s.hosts, nil
 }
 
 // GetPorts returns nil and an error because port is not supported in Fargate-based ECS
@@ -209,7 +222,7 @@ func (s *ECSService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves a container's tags
 func (s *ECSService) GetTags() ([]string, error) {
-	return s.Tags, nil
+	return s.tags, nil
 }
 
 // GetPid inspect the container and return its pid
@@ -221,4 +234,9 @@ func (s *ECSService) GetPid() (int, error) {
 // GetHostname returns nil and an error because port is not supported in Fargate-based ECS
 func (s *ECSService) GetHostname() (string, error) {
 	return "", ErrNotSupported
+}
+
+// GetCreationTime returns the creation time of the container compare to the agent start.
+func (s *ECSService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
 }

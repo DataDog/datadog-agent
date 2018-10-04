@@ -8,23 +8,10 @@
 package docker
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-// detab removes whitespace from the front of a string on every line
-func detab(str string) string {
-	detabbed := make([]string, 0)
-	for _, l := range strings.Split(str, "\n") {
-		s := strings.TrimSpace(l)
-		if len(s) > 0 {
-			detabbed = append(detabbed, s)
-		}
-	}
-	return strings.Join(detabbed, "\n")
-}
 
 func TestContainerIDToEntityName(t *testing.T) {
 	assert.Equal(t, "", ContainerIDToEntityName(""))
@@ -59,7 +46,7 @@ func TestParseContainerHealth(t *testing.T) {
 	}
 }
 
-func TestExtractImageName(t *testing.T) {
+func TestResolveImageName(t *testing.T) {
 	imageName := "datadog/docker-dd-agent:latest"
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"

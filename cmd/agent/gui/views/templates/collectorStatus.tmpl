@@ -6,29 +6,53 @@
         {{- if and (not .Runs) (not .Checks)}}
           No checks have run yet
         {{end -}}
-
-        {{- range .Checks}}
-          <span class="stat_subtitle">{{.CheckName}}{{ if .CheckVersion }} ({{.CheckVersion}}){{ end }}</span>
-          <span class="stat_subdata">
-              Total Runs: {{.TotalRuns}}<br>
-              Metric Samples: {{.MetricSamples}}, Total: {{humanizeF .TotalMetricSamples}}<br>
-              Events: {{.Events}}, Total: {{humanizeF .TotalEvents}}<br>
-              Service Checks: {{.ServiceChecks}}, Total: {{humanizeF .TotalServiceChecks}}<br>
-              Average Execution Time : {{.AverageExecutionTime}}ms<br>
-            {{- if .LastError}}
-              <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
-                    {{lastErrorTraceback .LastError -}}
-            {{- end -}}
-            {{- if .LastWarnings}}
-              {{- range .LastWarnings }}
-                <span class="warning">Warning</span>: {{.}}<br>
+        {{- range $CheckName, $CheckInstances := .Checks}}
+          {{ $version := version $CheckInstances}}
+          <span class="stat_subtitle">{{$CheckName}}{{ if $version }} ({{$version}}){{ end }}</span>
+          {{- range $CheckInstances }}
+            <span class="stat_subdata">
+                Instance ID: {{.CheckID}} {{status .}}<br>
+                Total Runs: {{humanize .TotalRuns}}<br>
+                Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
+                Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
+                Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
+                Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
+              {{- if .LastError}}
+                <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
+                      {{lastErrorTraceback .LastError -}}
               {{- end -}}
-            {{- end -}}
-          </span>
+              {{- if .LastWarnings}}
+                {{- range .LastWarnings }}
+                  <span class="warning">Warning</span>: {{.}}<br>
+                {{- end -}}
+              {{- end -}}
+            </span>
+          {{ end }}
         {{- end -}}
       {{- end -}}
       <span/>
   </div>
+
+  {{- with .pyLoaderStats }}
+    {{- if .ConfigureErrors }}
+    <div class="stat">
+      <span class="stat_title">Check Initialization Errors</span>
+      <span class="stat_data">
+      {{ range $checkname, $errors :=  .ConfigureErrors }}
+          <span class="stat_subtitle">{{$checkname}}</span>
+          <span class="stat_subdata">
+            {{- range $idx, $err := $errors}}
+              <span class="stat_subtitle">Instance {{$idx}}</span>
+              <span class="stat_subdata">
+                {{ pythonLoaderError $err }}
+              </span>
+            {{- end }}
+          </span>
+      {{- end}}
+      </span>
+    </div>
+    {{- end }}
+  {{- end }}
 
   {{- with .autoConfigStats -}}
     {{- if .ConfigErrors}}
@@ -55,9 +79,9 @@
             <span class="stat_subdata">
               {{- range $kind, $err := $errors -}}
                 {{- if eq $kind "Python Check Loader"}}
-                  {{$kind}}: {{ pythonLoaderError $err -}}<br>
+                  <b>{{$kind}}</b>: {{ pythonLoaderError $err -}}<br>
                 {{- else}}
-                  {{$kind}}: {{ $err -}}<br>
+                  <b>{{$kind}}</b>: {{ $err -}}<br>
                 {{end -}}
               {{end -}}
             </span>

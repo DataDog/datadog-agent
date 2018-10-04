@@ -20,6 +20,7 @@ import (
 
 type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
+	ClusterCheck  bool        `yaml:"cluster_check"`
 	InitConfig    interface{} `yaml:"init_config"`
 	MetricConfig  interface{} `yaml:"jmx_metrics"`
 	LogsConfig    interface{} `yaml:"logs"`
@@ -68,7 +69,7 @@ func (c *FileConfigProvider) Collect() ([]integration.Config, error) {
 	for _, path := range c.paths {
 		log.Infof("%v: searching for configuration files at: %s", c, path)
 
-		entries, err := ioutil.ReadDir(path)
+		entries, err := readDirPtr(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -133,7 +134,7 @@ func (c *FileConfigProvider) IsUpToDate() (bool, error) {
 
 // String returns a string representation of the FileConfigProvider
 func (c *FileConfigProvider) String() string {
-	return "File Configuration Provider"
+	return File
 }
 
 // collectEntry collects a file entry and return it's configuration if valid
@@ -247,7 +248,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := ioutil.ReadFile(fpath)
+	yamlFile, err := readFilePtr(fpath)
 	if err != nil {
 		return config, err
 	}
@@ -285,12 +286,16 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// If logs was found, add it to the config
 	if cf.LogsConfig != nil {
-		rawLogsConfig, _ := yaml.Marshal(cf.LogsConfig)
-		config.LogsConfig = rawLogsConfig
+		logsConfig := make(map[string]interface{})
+		logsConfig["logs"] = cf.LogsConfig
+		config.LogsConfig, _ = yaml.Marshal(logsConfig)
 	}
 
 	// Copy auto discovery identifiers
 	config.ADIdentifiers = cf.ADIdentifiers
+
+	// Copy cluster_check status
+	config.ClusterCheck = cf.ClusterCheck
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {

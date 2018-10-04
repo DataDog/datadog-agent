@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +21,8 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"
 )
@@ -64,7 +65,7 @@ func (d *DockerUtil) init() error {
 		CacheDuration:  10 * time.Second,
 	}
 
-	cfg.filter, err = NewFilterFromConfig()
+	cfg.filter, err = containers.GetSharedFilter()
 	if err != nil {
 		return err
 	}
@@ -137,202 +138,6 @@ func (d *DockerUtil) CountVolumes() (int, int, error) {
 	}
 
 	return len(attachedVolumes.Volumes), len(danglingVolumes.Volumes), nil
-}
-
-// dockerContainers returns a list of Docker info for active containers using the
-// Docker API. This requires the running user to be in the "docker" user group
-// or have access to /tmp/docker.sock.
-func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, error) {
-	if cfg == nil {
-		return nil, errors.New("configuration is nil")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
-	defer cancel()
-	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{All: cfg.IncludeExited})
-	if err != nil {
-		return nil, fmt.Errorf("error listing containers: %s", err)
-	}
-	ret := make([]*Container, 0, len(containers))
-	for _, c := range containers {
-		if d.cfg.CollectNetwork {
-			// FIXME: We might need to invalidate this cache if a containers networks are changed live.
-			d.Lock()
-			if _, ok := d.networkMappings[c.ID]; !ok {
-				i, err := d.Inspect(c.ID, false)
-				if err != nil {
-					d.Unlock()
-					log.Debugf("Error inspecting container %s: %s", c.ID, err)
-					continue
-				}
-				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c)
-			}
-			d.Unlock()
-		}
-
-		image, err := d.ResolveImageName(c.Image)
-		if err != nil {
-			log.Warnf("Can't resolve image name %s: %s", c.Image, err)
-		}
-
-		entityID := fmt.Sprintf("docker://%s", c.ID)
-		container := &Container{
-			Type:     "Docker",
-			ID:       entityID[9:],
-			EntityID: entityID,
-			Name:     c.Names[0],
-			Image:    image,
-			ImageID:  c.ImageID,
-			Created:  c.Created,
-			State:    c.State,
-			Health:   parseContainerHealth(c.Status),
-		}
-
-		container.Excluded = d.cfg.filter.IsExcluded(container.Name, container.Image)
-		if container.Excluded && !cfg.FlagExcluded {
-			continue
-		}
-		ret = append(ret, container)
-	}
-
-	// Resolve docker networks after we've processed all containers so all
-	// routing maps are available.
-	if d.cfg.CollectNetwork {
-		d.Lock()
-		resolveDockerNetworks(d.networkMappings)
-		d.Unlock()
-	}
-
-	if d.lastInvalidate.Add(invalidationInterval).After(time.Now()) {
-		d.invalidateCaches(containers)
-	}
-
-	return ret, nil
-}
-
-// Containers gets a list of all containers on the current node using a mix of
-// the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
-func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) {
-	cacheKey := cfg.GetCacheKey()
-
-	// Get the containers either from our cache or with API queries.
-	var containers []*Container
-	cached, hit := cache.Cache.Get(cacheKey)
-	if hit {
-		var ok bool
-		containers, ok = cached.([]*Container)
-		if !ok {
-			log.Errorf("Invalid container list cache format, forcing a cache miss")
-			hit = false
-		}
-	}
-	if !hit {
-		var cgByContainer map[string]*ContainerCgroup
-		var err error
-
-		cgByContainer, err = ScrapeAllCgroups()
-		if err != nil {
-			return nil, fmt.Errorf("could not get cgroups: %s", err)
-		}
-
-		containers, err = d.dockerContainers(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("could not get docker containers: %s", err)
-		}
-
-		for _, container := range containers {
-			if container.Excluded {
-				continue
-			}
-			cgroup, ok := cgByContainer[container.ID]
-			if !ok {
-				continue
-			}
-			container.cgroup = cgroup
-			container.CPULimit, err = cgroup.CPULimit()
-			if err != nil {
-				log.Debugf("Cgroup cpu limit: %s", err)
-			}
-			container.MemLimit, err = cgroup.MemLimit()
-			if err != nil {
-				log.Debugf("Cgroup mem limit: %s", err)
-			}
-			container.SoftMemLimit, err = cgroup.SoftMemLimit()
-			if err != nil {
-				log.Debugf("Cgroup soft mem limit: %s", err)
-			}
-		}
-		cache.Cache.Set(cacheKey, containers, d.cfg.CacheDuration)
-	}
-
-	// Fill in the latest statistics from the cgroups
-	// Creating a new list of containers with copies so we don't lose
-	// the previous state for calculations (e.g. last cpu).
-	var err error
-	newContainers := make([]*Container, 0, len(containers))
-	for _, lastContainer := range containers {
-		if (cfg.IncludeExited && lastContainer.State == ContainerExitedState) || lastContainer.Excluded {
-			newContainers = append(newContainers, lastContainer)
-			continue
-		}
-
-		container := &Container{}
-		*container = *lastContainer
-
-		cgroup := container.cgroup
-		if cgroup == nil {
-			log.Debugf("Container id %s has an empty cgroup, skipping", container.ID[:12])
-			continue
-		}
-
-		container.Memory, err = cgroup.Mem()
-		if err != nil {
-			log.Debugf("Cgroup memory: %s", err)
-			continue
-		}
-		container.CPU, err = cgroup.CPU()
-		if err != nil {
-			log.Debugf("Cgroup cpu: %s", err)
-			continue
-		}
-		container.CPUNrThrottled, err = cgroup.CPUNrThrottled()
-		if err != nil {
-			log.Debugf("Cgroup cpuNrThrottled: %s", err)
-			continue
-		}
-		container.IO, err = cgroup.IO()
-		if err != nil {
-			log.Debugf("Cgroup i/o: %s", err)
-			continue
-		}
-
-		if d.cfg.CollectNetwork {
-			d.Lock()
-			networks, ok := d.networkMappings[cgroup.ContainerID]
-			d.Unlock()
-			if ok && len(cgroup.Pids) > 0 {
-				netStat, err := collectNetworkStats(cgroup.ContainerID, int(cgroup.Pids[0]), networks)
-				if err != nil {
-					log.Debugf("Could not collect network stats for container %s: %s", container.ID, err)
-					continue
-				}
-				container.Network = netStat
-			}
-		} else {
-			container.Network = NullContainer.Network
-		}
-
-		startedAt, err := cgroup.ContainerStartTime()
-		if err != nil {
-			log.Debugf("Failed to get container start time: %s", err)
-			continue
-		}
-		container.StartedAt = startedAt
-		container.Pids = cgroup.Pids
-
-		newContainers = append(newContainers, container)
-	}
-
-	return newContainers, nil
 }
 
 // RawContainerList wraps around the docker client's ContainerList method.
@@ -435,51 +240,12 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 
 // Inspect detect the container ID we are running in and returns the inspect contents.
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	cID, _, err := readCgroupPaths("/proc/self/cgroup")
+	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup")
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}
 
 	return d.Inspect(cID, false)
-}
-
-func (d *DockerUtil) invalidateCaches(containers []types.Container) {
-	liveContainers := make(map[string]struct{})
-	liveImages := make(map[string]struct{})
-	for _, c := range containers {
-		liveContainers[c.ID] = struct{}{}
-		liveImages[c.Image] = struct{}{}
-	}
-	d.Lock()
-	for cid := range d.networkMappings {
-		if _, ok := liveContainers[cid]; !ok {
-			delete(d.networkMappings, cid)
-		}
-	}
-	for image := range d.imageNameBySha {
-		if _, ok := liveImages[image]; !ok {
-			delete(d.imageNameBySha, image)
-		}
-	}
-	d.Unlock()
-}
-
-var healthRe = regexp.MustCompile(`\(health: (\w+)\)`)
-
-// Parse the health out of a container status. The format is either:
-//  - 'Up 5 seconds (health: starting)'
-//  - 'Up about an hour'
-//
-func parseContainerHealth(status string) string {
-	// Avoid allocations in most cases by just checking for '('
-	if strings.IndexByte(status, '(') == -1 {
-		return ""
-	}
-	all := healthRe.FindAllStringSubmatch(status, -1)
-	if len(all) < 1 || len(all[0]) < 2 {
-		return ""
-	}
-	return all[0][1]
 }
 
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns

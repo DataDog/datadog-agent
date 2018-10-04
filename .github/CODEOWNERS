@@ -21,12 +21,15 @@
 /pkg/status/                            @DataDog/agent-core
 /pkg/version/                           @DataDog/agent-core
 
+/cmd/cluster-agent/                     @DataDog/container-integrations
 /Dockerfiles/                           @DataDog/container-integrations
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-core
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
-/pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
+/pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/tagger/                            @DataDog/container-integrations
+/pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
 /pkg/util/docker/                       @DataDog/container-integrations @DataDog/burrito
 /pkg/util/ecs/                          @DataDog/container-integrations @DataDog/burrito

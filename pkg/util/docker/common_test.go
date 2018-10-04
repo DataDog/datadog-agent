@@ -6,7 +6,6 @@
 package docker
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -48,50 +47,14 @@ func (f *tempFolder) delete(fileName string) error {
 	return os.Remove(filepath.Join(f.RootPath, fileName))
 }
 
-type dummyCgroupStat map[string]uint64
-
-func (c dummyCgroupStat) String() string {
-
-	lines := make([]string, len(c))
-	var i int
-	for k, v := range c {
-		lines[i] = fmt.Sprintf("%s %d", k, v)
-		i++
+// detab removes whitespace from the front of a string on every line
+func detab(str string) string {
+	detabbed := make([]string, 0)
+	for _, l := range strings.Split(str, "\n") {
+		s := strings.TrimSpace(l)
+		if len(s) > 0 {
+			detabbed = append(detabbed, s)
+		}
 	}
-
-	return strings.Join(lines, "\n")
-}
-
-func newDummyContainerCgroup(rootPath string, targets ...string) *ContainerCgroup {
-	cgroup := &ContainerCgroup{
-		ContainerID: "dummy",
-		Mounts:      make(map[string]string),
-		Paths:       make(map[string]string),
-	}
-	for _, target := range targets {
-		cgroup.Mounts[target] = rootPath
-		cgroup.Paths[target] = target
-	}
-	return cgroup
-}
-
-func newDindContainerCgroup(namePrefix, target, containerID string) (*tempFolder, *ContainerCgroup, error) {
-	// first make a dir that matches the actual cgroup path(contains only one level of container id)
-	path, err := ioutil.TempDir("", namePrefix)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	actualPath := filepath.Join(path, "docker", containerID)
-	err = os.MkdirAll(actualPath, 0777)
-	if err != nil {
-		return nil, nil, err
-	}
-	t := &tempFolder{actualPath}
-	dindContainerID := "ada6d7f86865047ecbca0eedc44722173cf48c0ff7184a61ed56a80e7564bc0c"
-	return t, &ContainerCgroup{
-		ContainerID: "dummy",
-		Mounts:      map[string]string{target: path},
-		Paths:       map[string]string{target: filepath.Join("/docker", dindContainerID, "docker", containerID)},
-	}, nil
+	return strings.Join(detabbed, "\n")
 }

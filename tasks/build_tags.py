@@ -8,6 +8,7 @@ from invoke import task
 # ALL_TAGS lists any available build tag
 ALL_TAGS = set([
     "apm",
+    "clusterchecks",
     "consul",
     "cpython",
     "docker",
@@ -15,14 +16,14 @@ ALL_TAGS = set([
     "etcd",
     "gce",
     "jmx",
+    "kubeapiserver",
     "kubelet",
     "log",
-    "systemd",
     "process",
     "snmp",
+    "systemd",
     "zk",
     "zlib",
-    "kubeapiserver",
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent
@@ -40,6 +41,7 @@ DEBIAN_ONLY_TAGS = [
     "systemd",
 ]
 
+
 def get_default_build_tags(puppy=False):
     """
     Build the default list of tags based on the current platform.
@@ -53,7 +55,7 @@ def get_default_build_tags(puppy=False):
     include = ["all"]
     exclude = [] if sys.platform.startswith('linux') else LINUX_ONLY_TAGS
 
-    # remove all tags that are only availaible on debian distributions
+    # remove all tags that are only available on debian distributions
     distname = platform.linux_distribution()[0].lower()
     if distname not in ['debian', 'ubuntu']:
         exclude = exclude + DEBIAN_ONLY_TAGS

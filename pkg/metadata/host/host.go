@@ -11,11 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/metadata/common"
 	"github.com/StackVista/stackstate-agent/pkg/util"
+	"github.com/StackVista/stackstate-agent/pkg/util/alibaba"
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
-	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/metadata/host/container"
@@ -36,7 +35,7 @@ func GetPayload(hostname string) *Payload {
 
 	p := &Payload{
 		Os:            osName,
-		PythonVersion: getPythonVersion(),
+		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
@@ -70,48 +69,9 @@ func GetMeta() *Meta {
 	return getMeta()
 }
 
-func getHostTags() *tags {
-	hostTags := config.Datadog.GetStringSlice("tags")
-
-	if config.Datadog.GetBool("collect_ec2_tags") {
-		ec2Tags, err := ec2.GetTags()
-		if err != nil {
-			log.Debugf("No EC2 host tags %v", err)
-		} else {
-			hostTags = append(hostTags, ec2Tags...)
-		}
-	}
-
-	k8sTags, err := k8s.GetTags()
-	if err != nil {
-		log.Debugf("No Kubernetes host tags %v", err)
-	} else {
-		hostTags = append(hostTags, k8sTags...)
-	}
-
-	dockerTags, err := docker.GetTags()
-	if err != nil {
-		log.Debugf("No Docker host tags %v", err)
-	} else {
-		hostTags = append(hostTags, dockerTags...)
-	}
-
-	gceTags, err := gce.GetTags()
-	if err != nil {
-		log.Debugf("No GCE host tags %v", err)
-	}
-
-	return &tags{
-		System:              hostTags,
-		GoogleCloudPlatform: gceTags,
-	}
-}
-
-// getPythonVersion returns the version string as provided by the embedded Python
-// interpreter. The string is stored in the Agent cache when the interpreter is
-// initialized (see pkg/collector/py/utils.go), an empty value is expected when
-// using this package without embedding Python.
-func getPythonVersion() string {
+// GetPythonVersion returns the version string as provided by the embedded Python
+// interpreter.
+func GetPythonVersion() string {
 	// retrieve the Python version from the Agent cache
 	if x, found := cache.Cache.Get(cache.BuildAgentKey("pythonVersion")); found {
 		return x.(string)
@@ -124,6 +84,13 @@ func getPythonVersion() string {
 // This should include GCE, Azure, Cloud foundry, kubernetes
 func getHostAliases() []string {
 	aliases := []string{}
+
+	alibabaAlias, err := alibaba.GetHostAlias()
+	if err != nil {
+		log.Debugf("no Alibaba Host Alias: %s", err)
+	} else if alibabaAlias != "" {
+		aliases = append(aliases, alibabaAlias)
+	}
 
 	azureAlias, err := azure.GetHostAlias()
 	if err != nil {

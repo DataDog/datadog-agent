@@ -12,6 +12,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/errors"
 	taggerutil "github.com/StackVista/stackstate-agent/pkg/tagger/utils"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/ecs"
 )
 
@@ -51,11 +52,16 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 
 // Fetch fetches ECS tags
 func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
+	runtime, cID := containers.SplitEntityName(container)
+	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
+		return nil, nil, nil
+	}
+
 	tasks_list, err := c.ecsUtil.GetTasks()
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-	updates, err := c.parseTasks(tasks_list)
+	updates, err := c.parseTasks(tasks_list, cID)
 	if err != nil {
 		return []string{}, []string{}, err
 	}

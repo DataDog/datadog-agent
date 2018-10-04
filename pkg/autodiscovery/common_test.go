@@ -5,19 +5,23 @@
 
 package autodiscovery
 
-import "github.com/StackVista/stackstate-agent/pkg/autodiscovery/listeners"
+import (
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/listeners"
+)
 
 type dummyService struct {
-	ID            listeners.ID
+	ID            string
 	ADIdentifiers []string
 	Hosts         map[string]string
 	Ports         []listeners.ContainerPort
 	Pid           int
 	Hostname      string
+	CreationTime  integration.CreationTime
 }
 
-// GetID returns the service ID
-func (s *dummyService) GetID() listeners.ID {
+// GetEntity returns the service entity name
+func (s *dummyService) GetEntity() string {
 	return s.ID
 }
 
@@ -49,4 +53,9 @@ func (s *dummyService) GetPid() (int, error) {
 // GetHostname return a dummy hostname
 func (s *dummyService) GetHostname() (string, error) {
 	return s.Hostname, nil
+}
+
+// GetCreationTime return a dummy creation time
+func (s *dummyService) GetCreationTime() integration.CreationTime {
+	return s.CreationTime
 }

@@ -13,13 +13,7 @@ Services can only be Docker containers for now.
 
 ### `DockerListener`
 
-`DockerListener` first gets current running containers and send these to `ConfigResolver`. Then it starts listening on the Docker event API for container activity and pass by `Services` mentioned in start/stop events to `ConfigResolver` through the corresponding channel.
-
-**TODO**:
-
-- `DockerListener` calls Docker directly. We need a caching layer there.
-- support TLS
-- getHosts, getPorts and getTags need to use a caching layer for docker **and** use the k8s api (also with caching)
+`DockerListener` first gets current running containers and send these to the `AutoConfig`. Then it starts listening on the Docker event API for container activity and pass by `Services` mentioned in start/stop events to the `AutoConfig` through the corresponding channel.
 
 ### `ECSListener`
 

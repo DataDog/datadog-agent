@@ -23,6 +23,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"
 )
@@ -50,18 +51,19 @@ type LeaderEngine struct {
 	LeaseDuration   time.Duration
 	LeaseName       string
 	LeaderNamespace string
-	coreClient      *corev1.CoreV1Client
+	coreClient      corev1.CoreV1Interface
 
-	currentHolderMutex sync.RWMutex
-	leaderElector      *leaderelection.LeaderElector
+	leaderIdentityMutex sync.RWMutex
+	leaderElector       *leaderelection.LeaderElector
 
-	currentHolderIdentity string
+	// leaderIdentity is the HolderIdentity of the current leader.
+	leaderIdentity string
 }
 
 func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
 		LeaseName:       defaultLeaseName,
-		LeaderNamespace: apiserver.GetResourcesNamespace(),
+		LeaderNamespace: common.GetResourcesNamespace(),
 	}
 }
 
@@ -190,10 +192,10 @@ func (le *LeaderEngine) runLeaderElection() {
 // GetLeader returns the identity of the last observed leader or returns the empty string if
 // no leader has yet been observed.
 func (le *LeaderEngine) GetLeader() string {
-	le.currentHolderMutex.RLock()
-	defer le.currentHolderMutex.RUnlock()
+	le.leaderIdentityMutex.RLock()
+	defer le.leaderIdentityMutex.RUnlock()
 
-	return le.currentHolderIdentity
+	return le.leaderIdentity
 }
 
 // IsLeader returns true if the last observed leader was this client else returns false.
@@ -211,7 +213,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 
 	c := client.Cl.CoreV1()
 
-	leaderNamespace := apiserver.GetResourcesNamespace()
+	leaderNamespace := common.GetResourcesNamespace()
 	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
 	if err != nil {
 		return led, err

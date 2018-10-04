@@ -11,7 +11,11 @@ from invoke import task, Failure
 
 @task
 def add_prelude(ctx, version):
-    res = ctx.run("""echo 'prelude:
+    res = ctx.run("reno new prelude-release-{0}".format(version))
+    new_releasenote = res.stdout.split(' ')[-1].strip() # get the new releasenote file path
+
+    with open(new_releasenote, "w") as f:
+        f.write("""prelude:
     |
     Release on: {1}
 
@@ -19,12 +23,10 @@ def add_prelude(ctx, version):
 
     - Please refer to the `{0} tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/{0}>`_ for the list of changes on the Trace Agent.
 
-    - Please refer to the `{0} tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/{0}>`_ for the list of changes on the Process Agent.'\
-    | EDITOR=tee reno new prelude-release-{0} --edit""".format(version, date.today()))
+    - Please refer to the `{0} tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/{0}>`_ for the list of changes on the Process Agent.\n""".format(version, date.today()))
 
-    new_releasenote = re.search("(releasenotes/notes/prelude-release-{0}-[\w]+.yaml)".format(version), res.stdout).groups()[0]
     ctx.run("git add {}".format(new_releasenote))
-    ctx.run("git commit -m 'Add prelude for {} release'".format(version))
+    ctx.run("git commit -m \"Add prelude for {} release\"".format(version))
 
 @task
 def update_changelog(ctx, new_version):
@@ -38,11 +40,11 @@ def update_changelog(ctx, new_version):
         print("Error: invalid version: {}".format(new_version_int))
         raise Exit(1)
 
-    # let's avoid loosing uncommited change with 'git reset --hard'
+    # let's avoid loosing uncommitted change with 'git reset --hard'
     try:
         ctx.run("git diff --exit-code HEAD", hide="both")
     except Failure as e:
-        print("Error: You have uncommited change, please commit or stash before using update_changelog")
+        print("Error: You have uncommitted change, please commit or stash before using update_changelog")
         return
 
     # make sure we are up to date

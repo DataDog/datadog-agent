@@ -15,7 +15,6 @@ import (
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/spf13/cobra"
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
@@ -23,19 +22,24 @@ import (
 	"github.com/StackVista/stackstate-agent/cmd/cluster-agent/custommetrics"
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/forwarder"
 	"github.com/StackVista/stackstate-agent/pkg/serializer"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/version"
 	"github.com/fatih/color"
 )
 
+var stopCh chan struct{}
+
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
-		Use:   "cluster-agent [command]",
+		Use:   "datadog-cluster-agent [command]",
 		Short: "Datadog Cluster Agent at your service.",
 		Long: `
 Datadog Cluster Agent takes care of running checks that need run only once per cluster.
@@ -131,11 +135,6 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	log.Infof("Hostname is: %s", hostname)
 
-	// start the cmd HTTPS server
-	if err = api.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -148,17 +147,26 @@ func start(cmd *cobra.Command, args []string) error {
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
 
-	clusterAgent, err := clusteragent.Run(aggregatorInstance.GetChannels())
-	if err != nil {
-		log.Errorf("Could not start the Cluster Agent Process.")
+	log.Infof("Datadog Cluster Agent is now running.")
 
-	}
-	// Start the Service Mapper.
-	asc, err := apiserver.GetAPIClient()
+	apiCl, err := apiserver.GetAPIClient() // make sure we can connect to the apiserver
 	if err != nil {
-		log.Errorf("Could not instantiate the API Server Client: %s", err.Error())
+		log.Errorf("Could not connect to the apiserver: %v", err)
 	} else {
-		asc.StartClusterMetadataMapping()
+		le, err := leaderelection.GetLeaderEngine()
+		if err != nil {
+			return err
+		}
+		stopCh := make(chan struct{})
+		ctx := apiserver.ControllerContext{
+			InformerFactory: apiCl.InformerFactory,
+			Client:          apiCl.Cl,
+			LeaderElector:   le,
+			StopCh:          stopCh,
+		}
+		if err := apiserver.StartControllers(ctx); err != nil {
+			log.Errorf("Could not start controllers: %v", err)
+		}
 	}
 
 	// Setup a channel to catch OS signals
@@ -168,6 +176,16 @@ func start(cmd *cobra.Command, args []string) error {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
+
+	// Start the cluster-check discovery if configured
+	clusterCheckHandler := setupClusterCheck()
+	// start the cmd HTTPS server
+	sc := clusteragent.ServerContext{
+		ClusterCheckHandler: clusterCheckHandler,
+	}
+	if err = api.StartServer(sc); err != nil {
+		return log.Errorf("Error while starting api server, exiting: %v", err)
+	}
 
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
@@ -183,13 +201,40 @@ func start(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+
 	// Block here until we receive the interrupt signal
 	<-signalCh
+	if clusterCheckHandler != nil {
+		clusterCheckHandler.StopDiscovery()
+	}
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		custommetrics.StopServer()
 	}
-	clusterAgent.Stop()
+	if stopCh != nil {
+		close(stopCh)
+	}
 	log.Info("See ya!")
 	log.Flush()
 	return nil
+}
+
+func setupClusterCheck() *clusterchecks.Handler {
+	if !config.Datadog.GetBool("cluster_checks.enabled") {
+		log.Debug("Cluster check Autodiscovery disabled")
+		return nil
+	}
+
+	clusterCheckHandler, err := clusterchecks.SetupHandler(common.AC)
+	if err != nil {
+		log.Errorf("Could not setup the cluster-checks Autodiscovery: %s", err.Error())
+		return nil
+	}
+	err = clusterCheckHandler.StartDiscovery()
+	if err != nil {
+		log.Errorf("Could not start the cluster-checks Autodiscovery: %s", err.Error())
+		return nil
+	}
+
+	log.Info("Started cluster check Autodiscovery")
+	return clusterCheckHandler
 }

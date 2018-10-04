@@ -3,7 +3,7 @@
 
 instances:
   # for every instance a 'rabbitmq_api_url' must be provided, pointing to the api
-  # url of the RabbitMQ Managment Plugin (http://www.rabbitmq.com/management.html)
+  # url of the RabbitMQ Management Plugin (http://www.rabbitmq.com/management.html)
   # optional: 'rabbitmq_user' (default: guest), 'rabbitmq_pass' (default: guest), 'ssl_verify' (default: true) and 'tag_families' (default: false)
 <% @instances.each do |i| -%>
   - rabbitmq_api_url: <%= i['api_url'] %>

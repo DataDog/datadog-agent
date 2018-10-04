@@ -6,10 +6,12 @@
 package util
 
 import (
+	"expvar"
 	"fmt"
 	"net"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -30,18 +32,29 @@ var (
 		"localhost6.localdomain6",
 		"ip6-localhost",
 	}
+	hostnameExpvars  = expvar.NewMap("hostname")
+	hostnameProvider = expvar.String{}
+	hostnameErrors   = expvar.Map{}
 )
+
+func init() {
+	hostnameErrors.Init()
+	hostnameExpvars.Set("provider", &hostnameProvider)
+	hostnameExpvars.Set("errors", &hostnameErrors)
+}
 
 // ValidHostname determines whether the passed string is a valid hostname.
 // In case it's not, the returned error contains the details of the failure.
 func ValidHostname(hostname string) error {
 	if hostname == "" {
-		return fmt.Errorf("host name is empty")
+		return fmt.Errorf("hostname is empty")
 	} else if isLocal(hostname) {
 		return fmt.Errorf("%s is a local hostname", hostname)
 	} else if len(hostname) > maxLength {
+		log.Errorf("ValidHostname: name exceeded the maximum length of %d characters", maxLength)
 		return fmt.Errorf("name exceeded the maximum length of %d characters", maxLength)
 	} else if !validHostnameRfc1123.MatchString(hostname) {
+		log.Errorf("ValidHostname: %s is not RFC1123 compliant", hostname)
 		return fmt.Errorf("%s is not RFC1123 compliant", hostname)
 	}
 	return nil
@@ -96,14 +109,20 @@ func GetHostname() (string, error) {
 
 	var hostName string
 	var err error
+	var provider string
 
 	// try the name provided in the configuration file
 	name := config.Datadog.GetString("hostname")
 	err = ValidHostname(name)
 	if err == nil {
 		cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
+		hostnameProvider.Set("configuration")
 		return name, err
 	}
+
+	expErr := new(expvar.String)
+	expErr.Set(err.Error())
+	hostnameErrors.Set("configuration/environment", expErr)
 
 	log.Debugf("Unable to get the hostname from the config file: %s", err)
 	log.Debug("Trying to determine a reliable host name automatically...")
@@ -120,8 +139,12 @@ func GetHostname() (string, error) {
 		name, err = getGCEHostname(name)
 		if err == nil {
 			cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
+			hostnameProvider.Set("gce")
 			return name, err
 		}
+		expErr := new(expvar.String)
+		expErr.Set(err.Error())
+		hostnameErrors.Set("gce", expErr)
 		log.Debug("Unable to get hostname from GCE: ", err)
 	}
 
@@ -130,13 +153,26 @@ func GetHostname() (string, error) {
 	fqdn, err := getSystemFQDN()
 	if config.Datadog.GetBool("hostname_fqdn") && err == nil {
 		hostName = fqdn
+		provider = "fqdn"
 	} else {
+		if err != nil {
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("fqdn", expErr)
+		}
 		log.Debug("Unable to get FQDN from system: ", err)
 	}
 
 	isContainerized, name := getContainerHostname()
-	if isContainerized && name != "" {
-		hostName = name
+	if isContainerized {
+		if name != "" {
+			hostName = name
+			provider = "container"
+		} else {
+			expErr := new(expvar.String)
+			expErr.Set("Unable to get hostname from container API")
+			hostnameErrors.Set("container", expErr)
+		}
 	}
 
 	if hostName == "" {
@@ -145,7 +181,11 @@ func GetHostname() (string, error) {
 		name, err = os.Hostname()
 		if err == nil {
 			hostName = name
+			provider = "os"
 		} else {
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("os", expErr)
 			log.Debug("Unable to get hostname from OS: ", err)
 		}
 	}
@@ -161,18 +201,29 @@ func GetHostname() (string, error) {
 			err = ValidHostname(instanceID)
 			if err == nil {
 				hostName = instanceID
+				provider = "aws"
 			} else {
+				expErr := new(expvar.String)
+				expErr.Set(err.Error())
+				hostnameErrors.Set("aws", expErr)
 				log.Debug("EC2 instance ID is not a valid hostname: ", err)
 			}
 		} else {
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("aws", expErr)
 			log.Debug("Unable to determine hostname from EC2: ", err)
 		}
 	}
 
-	// REMOVEME: This should be removed in 6.5
 	h, err := os.Hostname()
 	if err == nil && !config.Datadog.GetBool("hostname_fqdn") && fqdn != "" && hostName == h && h != fqdn {
-		log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However starting from version 6.5, it will be resolved as '%s' by default. To enable the behavior of 6.5+, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
+		if runtime.GOOS != "windows" {
+			// REMOVEME: This should be removed in 6.6
+			log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However starting from version 6.6, it will be resolved as '%s' by default. To enable the behavior of 6.6+, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
+		} else { // OS is Windows
+			log.Warnf("The agent resolved your hostname as '%s', and will be reported this way to maintain compatibility with version 5. To enable reporting as '%s', please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
+		}
 	}
 
 	// If at this point we don't have a name, bail out
@@ -184,5 +235,11 @@ func GetHostname() (string, error) {
 	}
 
 	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
+	hostnameProvider.Set(provider)
+	if err != nil {
+		expErr := new(expvar.String)
+		expErr.Set(fmt.Sprintf(err.Error()))
+		hostnameErrors.Set("all", expErr)
+	}
 	return hostName, err
 }

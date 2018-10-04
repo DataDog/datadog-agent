@@ -187,7 +187,7 @@ func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 
 // String returns a string representation of the EtcdConfigProvider
 func (p *EtcdConfigProvider) String() string {
-	return "etcd Configuration Provider"
+	return Etcd
 }
 
 // hasTemplateFields verifies that a node array contains

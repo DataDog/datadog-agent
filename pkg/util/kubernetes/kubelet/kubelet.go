@@ -17,13 +17,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
-
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/errors"
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/util/retry"
 )
 
@@ -48,6 +49,7 @@ type KubeUtil struct {
 	kubeletApiRequestHeaders *http.Header
 	rawConnectionInfo        map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration     time.Duration
+	filter                   *containers.Filter
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -68,6 +70,7 @@ func newKubeUtil() *KubeUtil {
 		rawConnectionInfo:        make(map[string]string),
 		podListCacheDuration:     10 * time.Second,
 	}
+
 	return ku
 }
 
@@ -117,8 +120,24 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
 }
 
-// GetHostname returns the hostname of the first pod.spec.nodeName in the PodList
+// GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
 func (ku *KubeUtil) GetHostname() (string, error) {
+	nodeName, err := ku.GetNodename()
+	if err != nil {
+		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
+	}
+
+	clusterName := clustername.GetClusterName()
+	if clusterName == "" {
+		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
+		return nodeName, nil
+	} else {
+		return (nodeName + "-" + clusterName), nil
+	}
+}
+
+// GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
+func (ku *KubeUtil) GetNodename() (string, error) {
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
 		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
@@ -131,7 +150,7 @@ func (ku *KubeUtil) GetHostname() (string, error) {
 		return pod.Spec.NodeName, nil
 	}
 
-	return "", fmt.Errorf("failed to get hostname, pod list length: %d", len(pods))
+	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
 }
 
 // GetLocalPodList returns the list of pods running on the node
@@ -467,6 +486,12 @@ func (ku *KubeUtil) init() error {
 	if err != nil {
 		return err
 	}
+
+	ku.filter, err = containers.GetSharedFilter()
+	if err != nil {
+		return err
+	}
+
 	return ku.setupKubeletApiEndpoint()
 }
 

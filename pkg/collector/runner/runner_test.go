@@ -7,19 +7,34 @@ package runner
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // FIXTURE
 type TestCheck struct {
+	sync.Mutex
 	doErr  bool
 	hasRun bool
+	id     string
+	done   chan interface{}
+}
+
+func newTestCheck(doErr bool, id string) *TestCheck {
+	return &TestCheck{
+		doErr: doErr,
+		id:    id,
+		done:  make(chan interface{}, 1),
+	}
 }
 
 func (c *TestCheck) String() string                                     { return "TestCheck" }
@@ -28,6 +43,9 @@ func (c *TestCheck) Stop()                                              {}
 func (c *TestCheck) Configure(integration.Data, integration.Data) error { return nil }
 func (c *TestCheck) Interval() time.Duration                            { return 1 }
 func (c *TestCheck) Run() error {
+	c.Lock()
+	defer c.Unlock()
+	defer func() { close(c.done) }()
 	if c.doErr {
 		msg := "A tremendous error occurred."
 		return errors.New(msg)
@@ -36,9 +54,18 @@ func (c *TestCheck) Run() error {
 	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
+func (c *TestCheck) ID() check.ID {
+	c.Lock()
+	defer c.Unlock()
+	return check.ID(fmt.Sprintf("%s:%s", c.String(), c.id))
+}
 func (c *TestCheck) GetWarnings() []error                      { return nil }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) HasRun() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.hasRun
+}
 
 func TestNewRunner(t *testing.T) {
 	r := NewRunner()
@@ -62,35 +89,41 @@ func TestGetChan(t *testing.T) {
 }
 
 func TestWork(t *testing.T) {
-	defaultNumWorkers = 1
 	r := NewRunner()
-	c1 := TestCheck{}
-	c2 := TestCheck{doErr: true}
+	c1 := newTestCheck(false, "1")
+	c2 := newTestCheck(true, "2")
 
-	r.pending <- &c1
-	r.pending <- &c2
-	assert.True(t, c1.hasRun)
+	r.pending <- c1
+	r.pending <- c2
+
+	select {
+	case <-c1.done:
+	case <-time.After(1 * time.Second):
+		require.Fail(t, "Check hasn't run 1 second after being scheduled")
+	}
+	assert.True(t, c1.HasRun())
 	r.Stop()
 
 	// fake a check is already running
 	r = NewRunner()
-	c3 := new(TestCheck)
+	c3 := newTestCheck(false, "3")
 	r.runningChecks[c3.ID()] = c3
 	r.pending <- c3
 	// wait to be sure the worker tried to run the check
 	time.Sleep(100 * time.Millisecond)
-	assert.False(t, c3.hasRun)
+	assert.False(t, c3.HasRun())
 }
 
 func TestLogging(t *testing.T) {
 	r := NewRunner()
-	c := TestCheck{}
+	c := newTestCheck(false, "1")
 	s := &check.Stats{
 		CheckID:   c.ID(),
 		CheckName: c.String(),
 	}
 	s.TotalRuns = 0
-	checkStats.Stats[c.ID()] = s
+	checkStats.Stats[c.String()] = make(map[check.ID]*check.Stats)
+	checkStats.Stats[c.String()][c.ID()] = s
 
 	doLog, lastLog := shouldLog(c.ID())
 	assert.True(t, doLog)
@@ -130,13 +163,13 @@ func TestStopCheck(t *testing.T) {
 	err := r.StopCheck("foo")
 	assert.Nil(t, err)
 
-	c1 := &TestCheck{}
+	c1 := newTestCheck(false, "1")
 	r.runningChecks[c1.ID()] = c1
 	err = r.StopCheck(c1.ID())
 	assert.Nil(t, err)
 
-	c2 := &TimingoutCheck{}
+	c2 := &TimingoutCheck{TestCheck: *newTestCheck(false, "2")}
 	r.runningChecks[c2.ID()] = c2
 	err = r.StopCheck(c2.ID())
-	assert.Equal(t, "timeout during stop operation on check id TestCheck", err.Error())
+	assert.Equal(t, "timeout during stop operation on check id TestCheck:2", err.Error())
 }

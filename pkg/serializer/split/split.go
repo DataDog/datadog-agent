@@ -28,16 +28,18 @@ const (
 )
 
 var (
-	splitterExpvars    = expvar.NewMap("splitter")
-	splitterNotTooBig  = expvar.Int{}
-	splitterTooBig     = expvar.Int{}
-	splitterTotalLoops = expvar.Int{}
+	splitterExpvars      = expvar.NewMap("splitter")
+	splitterNotTooBig    = expvar.Int{}
+	splitterTooBig       = expvar.Int{}
+	splitterTotalLoops   = expvar.Int{}
+	splitterPayloadDrops = expvar.Int{}
 )
 
 func init() {
 	splitterExpvars.Set("NotTooBig", &splitterNotTooBig)
 	splitterExpvars.Set("TooBig", &splitterTooBig)
 	splitterExpvars.Set("TotalLoops", &splitterTotalLoops)
+	splitterExpvars.Set("PayloadDrops", &splitterPayloadDrops)
 
 }
 
@@ -94,6 +96,8 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			chunks, err := toSplit.SplitPayload(numChunks)
 			log.Debugf("payload was split into %f chunks", len(chunks))
 			if err != nil {
+				log.Warnf("Some payloads could not be split, dropping them")
+				splitterPayloadDrops.Add(1)
 				return smallEnoughPayloads, err
 			}
 			// after the payload has been split, loop through the chunks
@@ -122,6 +126,10 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			log.Debug("marshallers was not empty, running around the loop again")
 			loops++
 		}
+	}
+	if len(marshallers) != 0 {
+		log.Warnf("Some payloads could not be split, dropping them")
+		splitterPayloadDrops.Add(1)
 	}
 
 	return smallEnoughPayloads, nil
@@ -162,4 +170,9 @@ func marshal(m marshaler.Marshaler, mType MarshalType) ([]byte, error) {
 	default:
 		return m.MarshalJSON()
 	}
+}
+
+// GetPayloadDrops returns the number of times we dropped some payloads because we couldn't split them.
+func GetPayloadDrops() int64 {
+	return splitterPayloadDrops.Value()
 }

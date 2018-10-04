@@ -14,9 +14,10 @@ import (
 	"strings"
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/common/signals"
+	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 	"github.com/StackVista/stackstate-agent/pkg/util/executable"
-
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
+
 	python "github.com/sbinet/go-python"
 )
 
@@ -91,6 +92,10 @@ func Initialize(paths ...string) *python.PyThreadState {
 	// store the Python version after killing \n chars within the string
 	if res := C.Py_GetVersion(); res != nil {
 		PythonVersion = strings.Replace(C.GoString(res), "\n", "", -1)
+
+		// Set python version in the cache
+		key := cache.BuildAgentKey("pythonVersion")
+		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
 	}
 
 	// store the Python path
@@ -136,4 +141,25 @@ func setPythonHome() {
 	// set the python path
 	pPythonHome := C.CString(pythonHome)
 	C.Py_SetPythonHome(pPythonHome)
+}
+
+// SaveThreadState is a wrapper around the Python C-API PyEval_SaveThread
+// call. It releases the GIL, and resets the python thread state to NULL.
+// The previous thread state is returned.
+func SaveThreadState() *C.PyThreadState {
+	return C.PyEval_SaveThread()
+}
+
+// RestoreThreadStateAndLock is a wrapper around the Python C-API PyEval_RestoreThread
+// call. It acquires the GIL, and restores the thread state we pass as a parameter.
+// The GIL lock state is returned.
+func RestoreThreadStateAndLock(state *C.PyThreadState) C.PyGILState_STATE {
+	C.PyEval_RestoreThread(state)
+
+	//Note: Technically the GIL is already acquired here, but we want
+	//      a reference to the GIL, so lets just reacquire it (NOP),
+	//      and return get the glock reference to release at will.
+	glock := C.PyGILState_Ensure()
+
+	return glock
 }

@@ -21,6 +21,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"github.com/StackVista/stackstate-agent/pkg/version"
 )
 
@@ -55,6 +56,19 @@ func GetHostname(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	}
 
 	cStr := C.CString(hostname)
+	pyStr := C.PyString_FromString(cStr)
+	C.free(unsafe.Pointer(cStr))
+	return pyStr
+}
+
+// GetClustername exposes the current clustername (if it exists) of the agent to Python checks.
+// Used as a PyCFunction of type METH_VARARGS mapped to `datadog_agent.get_clustername`.
+// `self` is the module object.
+//export GetClusterName
+func GetClusterName(self *C.PyObject, args *C.PyObject) *C.PyObject {
+	clusterName := clustername.GetClusterName()
+
+	cStr := C.CString(clusterName)
 	pyStr := C.PyString_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
@@ -154,6 +168,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	//            to release it - we can let the caller do that.
 
 	// https://github.com/golang/go/wiki/cgo#turning-c-arrays-into-go-slices
+
+	threadState := SaveThreadState()
+
 	length := int(argc)
 	subprocessArgs := make([]string, length-1)
 	cmdSlice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
@@ -163,11 +180,11 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	}
 	cmd := exec.Command(subprocessCmd, subprocessArgs...)
 
-	glock := C.PyGILState_Ensure()
-	defer C.PyGILState_Release(glock)
-
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		glock := RestoreThreadStateAndLock(threadState)
+		defer C.PyGILState_Release(glock)
+
 		cErr := C.CString(fmt.Sprintf("internal error creating stdout pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
@@ -184,6 +201,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		glock := RestoreThreadStateAndLock(threadState)
+		defer C.PyGILState_Release(glock)
+
 		cErr := C.CString(fmt.Sprintf("internal error creating stderr pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
@@ -209,6 +229,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 			retCode = status.ExitStatus()
 		}
 	}
+
+	glock := RestoreThreadStateAndLock(threadState)
+	defer C.PyGILState_Release(glock)
 
 	if raise > 0 {
 		// raise on error

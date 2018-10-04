@@ -12,6 +12,7 @@ import (
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/tagger/utils"
@@ -118,6 +119,7 @@ func (c *KubeMetadataCollector) addToCacheMetadataMapping(kubeletPodList []*kube
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      p.Metadata.Name,
 				Namespace: p.Metadata.Namespace,
+				UID:       types.UID(p.Metadata.UID),
 			},
 			Status: v1.PodStatus{
 				PodIP: p.Status.PodIP,

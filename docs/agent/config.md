@@ -8,6 +8,18 @@ might mean:
  * The option refers to a feature that's currently under development
  * The option refers to a feature that's scheduled but will come later
 
+## Environment variables
+
+All options supported by the Infrastructure Agent in the configuration file can also be set through environment variables;
+ * Option names should be put in uppercase with the `DD_` prefix. (example: `hostname` -> `DD_HOSTNAME`)
+ * Nested variables should be specified with an underscore. (example: `DD_CLUSTER_AGENT_CMD_PORT` -> `cluster_agent.cmd_port`)
+ * List of values should be separated by spaces. (example: `DD_AC_INCLUDE="image:cp-kafka image:k8szk"`)
+ * Any map structure but the proxy settings should be json-formatted. (example: `DD_DOCKER_ENV_AS_TAGS='{ "ENVVAR_NAME": "tag_name" }'`)
+
+Notes:
+ * Specifying nested variables with an environment variable overrides all the others nested variables of the parameter specified in the corresponding configuration file.
+ * The above note doesn't apply for the proxy setting. [Refer to the dedicated Agent proxy documentation](https://docs.datadoghq.com/agent/proxy/#agent-v6) to learn more.
+
 ## Orchestration + Agent Management
 
 Orchestration has now been deferred to OS facilities wherever possible. To this purpose

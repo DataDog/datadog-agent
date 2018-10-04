@@ -1,0 +1,2 @@
+enhancements:
+  - The flare command does not collect the agent container's environment variables anymore

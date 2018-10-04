@@ -163,7 +163,7 @@ db.series.aggregate([
 ])
 ```
 
-Count tag occurences on a given metric:
+Count tag occurrences on a given metric:
 ```js
 db.series.aggregate([
 	{ $match: { metric: "kubernetes.filesystem.usage", tags: { $all: ["pod_name:fake-app-datadog-7cfb79db4d-dd4jr"] } } },

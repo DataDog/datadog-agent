@@ -1,4 +1,0 @@
-logs:
-  - type: windows_event
-    channel_path: "System"
-    query: "*"

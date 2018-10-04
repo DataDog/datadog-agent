@@ -101,17 +101,20 @@ func (sl *stickyLock) getPythonError() (string, error) {
 	if ptraceback != nil && ptraceback.GetCPointer() != nil {
 		// There's a traceback, try to format it nicely
 		traceback := python.PyImport_ImportModule("traceback")
+		defer traceback.DecRef()
 		formatExcFn := traceback.GetAttrString("format_exception")
 		if formatExcFn != nil {
 			defer formatExcFn.DecRef()
 			pyFormattedExc := formatExcFn.CallFunction(ptype, pvalue, ptraceback)
 			if pyFormattedExc != nil {
 				defer pyFormattedExc.DecRef()
-				pyStringExc := pyFormattedExc.Str()
-				if pyStringExc != nil {
-					defer pyStringExc.DecRef()
-					return python.PyString_AsString(pyStringExc), nil
+
+				tracebackString := ""
+				// "format_exception" return a list of strings (one per line)
+				for i := 0; i < python.PyList_Size(pyFormattedExc); i++ {
+					tracebackString = tracebackString + python.PyString_AsString(python.PyList_GetItem(pyFormattedExc, i))
 				}
+				return tracebackString, nil
 			}
 		}
 

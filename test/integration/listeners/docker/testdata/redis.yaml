@@ -6,3 +6,5 @@ services:
     image: "datadog/docker-library:redis_3_2_11-alpine"
     labels:
       com.datadoghq.ad.check.id: "custom-id"
+  excluded:
+    image: "datadog/docker-library:redis_3_2_11-alpine"

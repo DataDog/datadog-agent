@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
+
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -26,15 +27,28 @@ type RawMap map[interface{}]interface{}
 // JSONMap is the generic type to hold JSON configurations
 type JSONMap map[string]interface{}
 
+// CreationTime represents the moment when the service was launched compare to the agent start.
+type CreationTime int
+
+const (
+	// Before indicates the service was launched before the agent start
+	Before CreationTime = iota
+	// After indicates the service was launched after the agent start
+	After
+)
+
 // Config is a generic container for configuration files
 type Config struct {
-	Name          string   `json:"check_name"`     // the name of the check
-	Instances     []Data   `json:"instances"`      // array of Yaml configurations
-	InitConfig    Data     `json:"init_config"`    // the init_config in Yaml (python check only)
-	MetricConfig  Data     `json:"metric_config"`  // the metric config in Yaml (jmx check only)
-	LogsConfig    Data     `json:"logs"`           // the logs config in Yaml (logs-agent only)
-	ADIdentifiers []string `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
-	Provider      string   `json:"provider"`       // the provider that issued the config
+	Name          string       `json:"check_name"`     // the name of the check
+	Instances     []Data       `json:"instances"`      // array of Yaml configurations
+	InitConfig    Data         `json:"init_config"`    // the init_config in Yaml (python check only)
+	MetricConfig  Data         `json:"metric_config"`  // the metric config in Yaml (jmx check only)
+	LogsConfig    Data         `json:"logs"`           // the logs config in Yaml (logs-agent only)
+	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
+	Provider      string       `json:"provider"`       // the provider that issued the config
+	Entity        string       `json:"-"`              // the id of the entity (optional)
+	ClusterCheck  bool         `json:"-"`              // cluster-check configuration flag, don't expose in JSON
+	CreationTime  CreationTime `json:"-"`              // creation time of service
 }
 
 // Equal determines whether the passed config is the same
@@ -170,7 +184,9 @@ func (c *Data) MergeAdditionalTags(tags []string) error {
 	return nil
 }
 
-// Digest returns an hash value representing the data stored in this configuration
+// Digest returns an hash value representing the data stored in this configuration.
+// The ClusterCheck field is intentionally left out to keep a stable digest
+// between the cluster-agent and the node-agents
 func (c *Config) Digest() string {
 	h := fnv.New64()
 	h.Write([]byte(c.Name))
