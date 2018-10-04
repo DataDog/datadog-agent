@@ -23,6 +23,12 @@ func TestMkURL(t *testing.T) {
 	config.Datadog.Set("api_key", "123456")
 	assert.Equal(t, "https://example.com/support/flare/999?api_key=123456", mkURL("999"))
 	assert.Equal(t, "https://example.com/support/flare?api_key=123456", mkURL(""))
+
+	config.Datadog.Set("site", "datadoghq.eu")
+	config.Datadog.Set("dd_url", "")
+	config.Datadog.Set("api_key", "123456")
+	assert.Equal(t, "https://app.datadoghq.eu/support/flare/999?api_key=123456", mkURL("999"))
+	assert.Equal(t, "https://app.datadoghq.eu/support/flare?api_key=123456", mkURL(""))
 }
 
 func TestFlareHasRightForm(t *testing.T) {

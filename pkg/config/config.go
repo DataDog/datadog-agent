@@ -26,6 +26,11 @@ import (
 // the user-provided value is invalid.
 const DefaultForwarderRecoveryInterval = 2
 
+// DefaultSite is the default site the Agent sends data to.
+const DefaultSite = "datadoghq.com"
+
+const defaultDDURL = "https://app.%s"
+
 // Datadog is the global configuration object
 var (
 	Datadog       Config
@@ -73,7 +78,9 @@ func init() {
 
 	// Configuration defaults
 	// Agent
-	BindEnvAndSetDefault("dd_url", "https://app.datadoghq.com")
+	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
+	Datadog.BindEnv("site")
+	Datadog.BindEnv("dd_url")
 	BindEnvAndSetDefault("app_key", "")
 	Datadog.SetDefault("proxy", nil)
 	BindEnvAndSetDefault("skip_ssl_validation", false)
@@ -456,6 +463,11 @@ func sanitizeAPIKey() {
 	Datadog.Set("api_key", strings.TrimSpace(Datadog.GetString("api_key")))
 }
 
+// GetMainEndpoint returns the main DD URL defined in the config
+func GetMainEndpoint() string {
+	return getMainEndpoint(Datadog)
+}
+
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpoints(Datadog)
@@ -486,14 +498,29 @@ func AddAgentVersionToDomain(domain string, app string) (string, error) {
 	return u.String(), nil
 }
 
+// getMainEndpoint implements the logic to extract the main DD URL from a config
+func getMainEndpoint(config Config) (ddURL string) {
+	if config.IsSet("dd_url") && config.GetString("dd_url") != "" {
+		// 'dd_url' takes precedence over 'site'
+		ddURL = config.GetString("dd_url")
+		if config.IsSet("site") {
+			log.Infof("'site' and 'dd_url' are both set in config: setting main endpoint to 'dd_url': \"%s\"", config.GetString("dd_url"))
+		}
+	} else if config.GetString("site") != "" {
+		ddURL = fmt.Sprintf(defaultDDURL, config.GetString("site"))
+	} else {
+		ddURL = fmt.Sprintf(defaultDDURL, DefaultSite)
+	}
+	return
+}
+
 // getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
 func getMultipleEndpoints(config Config) (map[string][]string, error) {
-	ddURL := config.GetString("dd_url")
-
 	// Validating domain
+	ddURL := getMainEndpoint(config)
 	_, err := url.Parse(ddURL)
 	if err != nil {
-		return nil, fmt.Errorf("Could not parse 'dd_url': %s", err)
+		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
 	}
 
 	keysPerDomain := map[string][]string{
@@ -514,7 +541,7 @@ func getMultipleEndpoints(config Config) (map[string][]string, error) {
 		// Validating domain
 		_, err := url.Parse(domain)
 		if err != nil {
-			return nil, fmt.Errorf("Could not parse url from 'additional_endpoints' %s: %s", domain, err)
+			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
 		}
 
 		if _, ok := keysPerDomain[domain]; ok {

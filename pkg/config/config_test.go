@@ -16,7 +16,8 @@ import (
 )
 
 func TestDefaults(t *testing.T) {
-	assert.Equal(t, Datadog.GetString("dd_url"), "https://app.datadoghq.com")
+	assert.Equal(t, Datadog.GetString("site"), "")
+	assert.Equal(t, Datadog.GetString("dd_url"), "")
 }
 
 func setupViperConf(yamlConfig string) *viper.Viper {
@@ -26,7 +27,148 @@ func setupViperConf(yamlConfig string) *viper.Viper {
 	return conf
 }
 
-func TestGetMultipleEndpoints(t *testing.T) {
+func TestDefaultSite(t *testing.T) {
+	datadogYaml := `
+api_key: fakeapikey
+`
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.com": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestSite(t *testing.T) {
+	datadogYaml := `
+site: datadoghq.eu
+api_key: fakeapikey
+`
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestDDURLOverridesSite(t *testing.T) {
+	datadogYaml := `
+site: datadoghq.eu
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+`
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.com": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestDDURLNoSite(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.eu"
+api_key: fakeapikey
+`
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestGetMultipleEndpointsDefault(t *testing.T) {
+	datadogYaml := `
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://app.datadoghq.com":
+  - fakeapikey2
+  - fakeapikey3
+  "https://foo.datadoghq.com":
+  - someapikey
+`
+
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://foo.datadoghq.com": {
+			"someapikey",
+		},
+		"https://app.datadoghq.com": {
+			"fakeapikey",
+			"fakeapikey2",
+			"fakeapikey3",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestGetMultipleEndpointsSite(t *testing.T) {
+	datadogYaml := `
+site: datadoghq.eu
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://app.datadoghq.com":
+  - fakeapikey2
+  - fakeapikey3
+  "https://foo.datadoghq.com":
+  - someapikey
+`
+
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+		"https://foo.datadoghq.com": {
+			"someapikey",
+		},
+		"https://app.datadoghq.com": {
+			"fakeapikey2",
+			"fakeapikey3",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestGetMultipleEndpointsDDURL(t *testing.T) {
 	datadogYaml := `
 dd_url: "https://app.datadoghq.com"
 api_key: fakeapikey
