@@ -81,6 +81,17 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
+	// By default systemd redirect the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+	// Go ignore SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped. We don't want that
+	// so we intercept the SIGPIPE signals and just discard them.
+	sigpipeCh := make(chan os.Signal, 1)
+	signal.Notify(sigpipeCh, syscall.SIGPIPE)
+	go func() {
+		for range sigpipeCh {
+			// do nothing
+		}
+	}()
+
 	if err := StartAgent(); err != nil {
 		return err
 	}
