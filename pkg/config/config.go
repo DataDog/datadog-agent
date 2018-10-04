@@ -284,6 +284,7 @@ func init() {
 	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	Datadog.BindEnv("logs_config.additional_endpoints")
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now
