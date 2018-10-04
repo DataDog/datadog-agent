@@ -22,7 +22,6 @@ var (
 	LogsSent = expvar.Int{}
 	// DestinationErrors is the total number of network errors.
 	DestinationErrors = expvar.Int{}
-	// TODO: Would be nice to also have these per-destination.
 )
 
 func init() {
