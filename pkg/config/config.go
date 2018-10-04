@@ -479,16 +479,16 @@ func getDomainPrefix(app string) string {
 	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
 }
 
-// AddAgentVersionToDomain prefix the domain with the agent version: X-Y-Z.domain
-func AddAgentVersionToDomain(domain string, app string) (string, error) {
-	u, err := url.Parse(domain)
+// AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
+func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
+	u, err := url.Parse(DDURL)
 	if err != nil {
 		return "", err
 	}
 
 	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
 	if _, found := ddURLs[u.Host]; !found {
-		return domain, nil
+		return DDURL, nil
 	}
 
 	subdomain := strings.Split(u.Host, ".")[0]

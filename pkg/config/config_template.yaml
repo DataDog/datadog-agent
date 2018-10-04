@@ -8,9 +8,9 @@ api_key:
 # Defaults to 'datadoghq.com', set to 'datadoghq.eu' to send data to the EU site.
 # site: datadoghq.com
 
-# The host of the Datadog intake server to send Agent data to.
-# Overrides the site setting defined in "site", only use "dd_url" if you need the Agent to
-# send data to a custom URL.
+# The host of the Datadog intake server to send Agent data to, only set this option
+# if you need the Agent to send data to a custom URL.
+# Overrides the site setting defined in "site".
 # dd_url: https://app.datadoghq.com
 
 # If you need a proxy to connect to the Internet, provide it here (default:
