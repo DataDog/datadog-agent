@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 )
 
@@ -22,6 +23,7 @@ import (
 type Config interface {
 	Set(key string, value interface{})
 	SetDefault(key string, value interface{})
+	SetFs(fs afero.Fs)
 	IsSet(key string) bool
 
 	Get(key string) interface{}

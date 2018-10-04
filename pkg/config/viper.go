@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -33,6 +34,13 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetDefault(key, value)
+}
+
+// SetFs is wrapped for concurrent access
+func (c *safeConfig) SetFs(fs afero.Fs) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetFs(fs)
 }
 
 // IsSet is wrapped for concurrent access
