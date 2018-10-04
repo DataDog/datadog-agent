@@ -141,6 +141,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	case providers.Docker, providers.Kubernetes:
 		// config attached to a docker label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
+		log.Info("CONFIGS:", configs)
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)

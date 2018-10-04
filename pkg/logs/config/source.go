@@ -75,3 +75,9 @@ func (s *LogSource) GetSourceType() string {
 	defer s.lock.Unlock()
 	return s.sourceType
 }
+
+func (s *LogSource) SetConfig(logConfig *LogsConfig) {
+	s.lock.Lock()
+	s.Config = logConfig
+	s.lock.Unlock()
+}

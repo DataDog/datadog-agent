@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -158,7 +161,35 @@ func (l *Launcher) run() {
 
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
+	// Get the full image name of the container
+
+	clone := source.Config.Clone()
+	log.Infof("Adresses %p %p", source.Config, clone)
+	source.Config = clone
+	log.Infof("Adresses after assignemnt %p %p", source.Config, clone)
+
+	imageName := container.container.Image
+	util, err := dockerUtil.GetDockerUtil()
+	if util != nil {
+		imageName, err = util.ResolveImageName(imageName)
+		if err != nil {
+			log.Infof("Could not resolve image name %d: %d", imageName, err)
+		}
+	}
+	// Set the config source and service to the image short name
+	_, shortName, _, err := containers.SplitImageName(imageName)
+	log.Info("Bulk:", ShortContainerID(container.service.Identifier), shortName, source.Config.Source, source.Config.Service, source.Config.Identifier, &source.Config)
+	if err == nil {
+		log.Info("We set the source")
+		source.Config.Source = shortName
+		source.Config.Service = shortName
+	}
+
+	log.Info("Test", source.Config.Source, clone.Source)
+	log.Info("Bulk_After:", ShortContainerID(container.service.Identifier), shortName, source.Config.Source, source.Config.Service, source.Config.Identifier)
+
 	containerID := container.service.Identifier
+
 	if _, isTailed := l.tailers[containerID]; isTailed {
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
 		return

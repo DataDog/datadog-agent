@@ -194,6 +194,7 @@ func (t *Tailer) keepDockerTagsUpdated() {
 			return
 		}
 		t.checkForNewDockerTags()
+		log.Info("SourceConfig:", t.source.Config, &t.source.Config)
 	}
 }
 

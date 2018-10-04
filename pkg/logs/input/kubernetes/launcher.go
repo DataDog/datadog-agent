@@ -158,6 +158,7 @@ const kubernetesIntegration = "kubernetes"
 
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
+	log.Info("Make sure we don't come here")
 	var cfg *config.LogsConfig
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))

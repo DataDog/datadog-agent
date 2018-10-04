@@ -67,6 +67,20 @@ type LogsConfig struct {
 	ProcessingRules []ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 }
 
+// func (c *LogsConfig) String() string {
+// 	return fmt.Sprintf("Image: %v, Service: %v, Source: %v", c.Image, c.Service, c.Source)
+// }
+
+func (c *LogsConfig) Clone() *LogsConfig {
+	logsConfigs := LogsConfig{}
+	// copy(logsConfigs.IncludeUnits, c.IncludeUnits)
+	// copy(logsConfigs.ExcludeUnits, c.ExcludeUnits)
+	// copy(logsConfigs.Tags, c.Tags)
+	// copy(logsConfigs.ProcessingRules, c.ProcessingRules)
+
+	return &logsConfigs
+}
+
 // Validate returns an error if the config is misconfigured
 func (c *LogsConfig) Validate() error {
 	switch {

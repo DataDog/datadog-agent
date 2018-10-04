@@ -98,6 +98,7 @@ func BuildEndpoints() (*Endpoints, error) {
 		additionals[i].UseProto = useProto
 		additionals[i].ProxyAddress = proxyAddress
 	}
+	log.Info("additionals", len(additionals))
 
 	return NewEndpoints(main, additionals), nil
 }
