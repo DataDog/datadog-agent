@@ -264,6 +264,11 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
 	}
 
+	if val, _, err = k.GetStringValue("dd_site"); err == nil {
+		config.Datadog.Set("dd_site", val)
+		log.Debugf("Setting dd_site to %s", val)
+	}
+
 	// dump the current configuration to datadog.yaml
 	b, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
