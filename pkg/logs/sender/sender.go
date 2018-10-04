@@ -7,7 +7,9 @@ package sender
 
 import (
 	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // Sender is responsible for sending logs to different destinations.
@@ -68,6 +70,7 @@ func (s *Sender) send(payload *message.Message) {
 				// drop the message
 				break
 			default:
+				metrics.DestinationErrors.Add(1)
 				// retry as the error can be related to network issues
 				continue
 			}
@@ -80,6 +83,8 @@ func (s *Sender) send(payload *message.Message) {
 			// destinations.
 			destination.Send(payload)
 		}
+
+		metrics.LogsSent.Add(1)
 		break
 	}
 	s.outputChan <- payload
