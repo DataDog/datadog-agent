@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -47,6 +48,7 @@ type JSONRegistry struct {
 
 // An Auditor handles messages successfully submitted to the intake
 type Auditor struct {
+	health       *health.Handle
 	inputChan    chan *message.Message
 	registry     map[string]*RegistryEntry
 	registryPath string
@@ -56,8 +58,9 @@ type Auditor struct {
 }
 
 // New returns an initialized Auditor
-func New(runPath string) *Auditor {
+func New(runPath string, health *health.Handle) *Auditor {
 	return &Auditor{
+		health:       health,
 		registryPath: filepath.Join(runPath, "registry.json"),
 		entryTTL:     defaultTTL,
 	}
@@ -122,6 +125,7 @@ func (a *Auditor) run() {
 	var fileError sync.Once
 	for {
 		select {
+		case <-a.health.C:
 		case msg, isOpen := <-a.inputChan:
 			if !isOpen {
 				// inputChan has been closed, no need to update the registry anymore

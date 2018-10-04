@@ -8,6 +8,9 @@ package logs
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
@@ -19,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Agent represents the data pipeline that collects, decodes,
@@ -34,12 +36,15 @@ type Agent struct {
 	destinationsCtx  *sender.DestinationsContext
 	pipelineProvider pipeline.Provider
 	inputs           []restart.Restartable
+	health           *health.Handle
 }
 
 // NewAgent returns a new Agent
 func NewAgent(sources *config.LogSources, services *service.Services, endpoints *config.Endpoints) *Agent {
+	h := health.Register("logs-agent")
+
 	// setup the auditor
-	auditor := auditor.New(config.LogsAgent.GetString("logs_config.run_path"))
+	auditor := auditor.New(config.LogsAgent.GetString("logs_config.run_path"), h)
 	destinationsCtx := sender.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
@@ -59,6 +64,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, endpoints 
 		destinationsCtx:  destinationsCtx,
 		pipelineProvider: pipelineProvider,
 		inputs:           inputs,
+		health:           h,
 	}
 }
 
