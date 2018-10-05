@@ -419,7 +419,7 @@ func loadProxyFromEnv() {
 func Load() error {
 	log.Infof("config.Load()")
 	if err := Datadog.ReadInConfig(); err != nil {
-		log.Warnf("confrig.load() error %v", err)
+		log.Warnf("config.load() error %v", err)
 		return err
 	}
 	log.Infof("config.load succeeded")

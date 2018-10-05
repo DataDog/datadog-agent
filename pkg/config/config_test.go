@@ -8,20 +8,23 @@ package config
 import (
 	"bytes"
 	"os"
+	"strings"
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDefaults(t *testing.T) {
-	assert.Equal(t, Datadog.GetString("site"), "")
-	assert.Equal(t, Datadog.GetString("dd_url"), "")
+	// Testing viper's handling of defaults
+	assert.False(t, Datadog.IsSet("site"))
+	assert.False(t, Datadog.IsSet("dd_url"))
+	assert.Equal(t, "", Datadog.GetString("site"))
+	assert.Equal(t, "", Datadog.GetString("dd_url"))
 }
 
-func setupViperConf(yamlConfig string) *viper.Viper {
-	conf := viper.New()
+func setupConf(yamlConfig string) Config {
+	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	conf.SetConfigType("yaml")
 	conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	return conf
@@ -31,7 +34,7 @@ func TestDefaultSite(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey
 `
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -50,7 +53,7 @@ func TestSite(t *testing.T) {
 site: datadoghq.eu
 api_key: fakeapikey
 `
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -70,7 +73,7 @@ site: datadoghq.eu
 dd_url: "https://app.datadoghq.com"
 api_key: fakeapikey
 `
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -89,7 +92,7 @@ func TestDDURLNoSite(t *testing.T) {
 dd_url: "https://app.datadoghq.eu"
 api_key: fakeapikey
 `
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -115,7 +118,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -147,7 +150,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -181,7 +184,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -206,7 +209,7 @@ dd_url: "https://app.datadoghq.com"
 api_key: fakeapikey
 `
 
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -234,7 +237,7 @@ additional_endpoints:
   - ""
 `
 
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -267,7 +270,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := setupViperConf(datadogYaml)
+	testConfig := setupConf(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
