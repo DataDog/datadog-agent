@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
@@ -41,7 +43,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	_, err = os.Create(suite.testPath)
 	suite.Nil(err)
 
-	suite.a = New("")
+	suite.a = New("", health.Register("fake"))
 	suite.a.registryPath = suite.testPath
 	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
