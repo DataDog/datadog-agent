@@ -47,17 +47,36 @@ func TestGetSources(t *testing.T) {
 	assert.Equal(t, 1, len(sources.GetSources()))
 }
 
-func TestGetSourceStreamForType(t *testing.T) {
+func TestGetAddedForType(t *testing.T) {
 	sources := NewLogSources()
 	source := NewLogSource("foo", &LogsConfig{Type: "foo"})
 
 	sources.AddSource(source)
 
-	stream := sources.GetSourceStreamForType("foo")
+	stream := sources.GetAddedForType("foo")
 	assert.NotNil(t, stream)
 	assert.Equal(t, 0, len(stream))
 
 	go func() { sources.AddSource(source) }()
+	s := <-stream
+	assert.Equal(t, s, source)
+}
+
+func TestGetRemovedForType(t *testing.T) {
+	sources := NewLogSources()
+	source := NewLogSource("foo", &LogsConfig{Type: "foo"})
+
+	sources.RemoveSource(source)
+
+	stream := sources.GetRemovedForType("foo")
+	assert.NotNil(t, stream)
+	assert.Equal(t, 0, len(stream))
+
+	sources.RemoveSource(source)
+	assert.Equal(t, 0, len(stream))
+
+	sources.AddSource(source)
+	go func() { sources.RemoveSource(source) }()
 	s := <-stream
 	assert.Equal(t, s, source)
 }

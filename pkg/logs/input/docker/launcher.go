@@ -62,7 +62,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	// a channel that will lock the scheduler in case of setup failure
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
-	launcher.sources = sources.GetSourceStreamForType(config.DockerType)
+	launcher.sources = sources.GetAddedForType(config.DockerType)
 	launcher.addedServices = services.GetAddedServices(service.Docker)
 	launcher.removedServices = services.GetRemovedServices(service.Docker)
 	return launcher, nil

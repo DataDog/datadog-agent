@@ -11,15 +11,17 @@ import (
 
 // LogSources stores a list of log sources.
 type LogSources struct {
-	mu           sync.Mutex
-	sources      []*LogSource
-	streamByType map[string]chan *LogSource
+	mu            sync.Mutex
+	sources       []*LogSource
+	addedByType   map[string]chan *LogSource
+	removedByType map[string]chan *LogSource
 }
 
 // NewLogSources creates a new log sources.
 func NewLogSources() *LogSources {
 	return &LogSources{
-		streamByType: make(map[string]chan *LogSource),
+		addedByType:   make(map[string]chan *LogSource),
+		removedByType: make(map[string]chan *LogSource),
 	}
 }
 
@@ -30,7 +32,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 	if source.Config == nil || source.Config.Validate() != nil {
 		return
 	}
-	stream, exists := s.streamByType[source.Config.Type]
+	stream, exists := s.addedByType[source.Config.Type]
 	s.mu.Unlock()
 
 	if exists {
@@ -41,25 +43,44 @@ func (s *LogSources) AddSource(source *LogSource) {
 // RemoveSource removes a source.
 func (s *LogSources) RemoveSource(source *LogSource) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	var sourceFound bool
 	for i, src := range s.sources {
 		if src == source {
 			s.sources = append(s.sources[:i], s.sources[i+1:]...)
+			sourceFound = true
 			break
 		}
 	}
+	stream, streamExists := s.removedByType[source.Config.Type]
+	s.mu.Unlock()
+
+	if sourceFound && streamExists {
+		stream <- source
+	}
 }
 
-// GetSourceStreamForType returns the stream of valid sources matching the provided type.
-func (s *LogSources) GetSourceStreamForType(sourceType string) chan *LogSource {
+// GetAddedForType returns the new added sources matching the provided type.
+func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	stream, exists := s.streamByType[sourceType]
+	stream, exists := s.addedByType[sourceType]
 	if !exists {
 		stream = make(chan *LogSource)
-		s.streamByType[sourceType] = stream
+		s.addedByType[sourceType] = stream
+	}
+	return stream
+}
+
+// GetRemovedForType returns the new removed sources matching the provided type.
+func (s *LogSources) GetRemovedForType(sourceType string) chan *LogSource {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stream, exists := s.removedByType[sourceType]
+	if !exists {
+		stream = make(chan *LogSource)
+		s.removedByType[sourceType] = stream
 	}
 	return stream
 }
