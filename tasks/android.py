@@ -29,6 +29,7 @@ ANDROID_CORECHECKS = [
     "io",
     "load",
     "memory",
+    "network",
     "uptime",
 ]
 CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
