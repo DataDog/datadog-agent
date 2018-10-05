@@ -19,6 +19,8 @@ import (
 type safeConfig struct {
 	*viper.Viper
 	sync.RWMutex
+	envPrefix     string
+	configEnvVars []string
 }
 
 // Set is wrapped for concurrent access
@@ -138,6 +140,7 @@ func (c *safeConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetEnvPrefix(in)
+	c.envPrefix = in
 }
 
 // BindEnv is wrapped for concurrent access
@@ -243,6 +246,22 @@ func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.Viper.BindPFlag(key, flag)
+}
+
+// GetConfigEnvVars returns a list of the non-sensitive env vars that the config supports
+func (c *safeConfig) GetConfigEnvVars() []string {
+	return c.configEnvVars
+}
+
+// bindEnvAndSetDefault sets the default value for a config parameter, adds an env binding,
+// and tracks existing config env vars
+func (c *safeConfig) bindEnvAndSetDefault(key string, val interface{}) {
+	c.SetDefault(key, val)
+	c.BindEnv(key)
+	if !strings.Contains(key, "_key") {
+		envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
+		c.configEnvVars = append(c.configEnvVars, envVarName)
+	}
 }
 
 // NewConfig returns a new Config object.

@@ -59,4 +59,8 @@ type Config interface {
 	ConfigFileUsed() string
 
 	BindPFlag(key string, flag *pflag.Flag) error
+
+	// Datadog specific
+	GetConfigEnvVars() []string
+	bindEnvAndSetDefault(key string, val interface{})
 }

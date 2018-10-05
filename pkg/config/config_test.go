@@ -15,26 +15,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefaults(t *testing.T) {
-	// Testing viper's handling of defaults
-	assert.False(t, Datadog.IsSet("site"))
-	assert.False(t, Datadog.IsSet("dd_url"))
-	assert.Equal(t, "", Datadog.GetString("site"))
-	assert.Equal(t, "", Datadog.GetString("dd_url"))
+func setupConf() Config {
+	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	initConfig(conf)
+	return conf
 }
 
-func setupConf(yamlConfig string) Config {
+func setupConfFromYAML(yamlConfig string) Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	conf.SetConfigType("yaml")
 	conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
+	initConfig(conf)
 	return conf
+}
+
+func TestDefaults(t *testing.T) {
+	config := setupConf()
+
+	// Testing viper's handling of defaults
+	assert.False(t, config.IsSet("site"))
+	assert.False(t, config.IsSet("dd_url"))
+	assert.Equal(t, "", config.GetString("site"))
+	assert.Equal(t, "", config.GetString("dd_url"))
 }
 
 func TestDefaultSite(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey
 `
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -53,7 +62,7 @@ func TestSite(t *testing.T) {
 site: datadoghq.eu
 api_key: fakeapikey
 `
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -73,7 +82,7 @@ site: datadoghq.eu
 dd_url: "https://app.datadoghq.com"
 api_key: fakeapikey
 `
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -92,7 +101,7 @@ func TestDDURLNoSite(t *testing.T) {
 dd_url: "https://app.datadoghq.eu"
 api_key: fakeapikey
 `
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -118,7 +127,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -150,7 +159,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -184,7 +193,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -209,7 +218,7 @@ dd_url: "https://app.datadoghq.com"
 api_key: fakeapikey
 `
 
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -237,7 +246,7 @@ additional_endpoints:
   - ""
 `
 
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -270,7 +279,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := setupConf(datadogYaml)
+	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
@@ -312,58 +321,65 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 }
 
 func TestEnvNestedConfig(t *testing.T) {
-	Datadog.BindEnv("foo.bar.nested")
+	config := setupConf()
+	config.BindEnv("foo.bar.nested")
 	os.Setenv("DD_FOO_BAR_NESTED", "baz")
 
-	assert.Equal(t, "baz", Datadog.GetString("foo.bar.nested"))
+	assert.Equal(t, "baz", config.GetString("foo.bar.nested"))
 	os.Unsetenv("DD_FOO_BAR_NESTED")
 }
 
 func TestBindEnvAndSetDefault(t *testing.T) {
-	BindEnvAndSetDefault("app_key", "")
-	assert.NotContains(t, ConfigEnvVars, "DD_APP_KEY")
-	BindEnvAndSetDefault("logset", "")
-	assert.Contains(t, ConfigEnvVars, "DD_LOGSET")
-	BindEnvAndSetDefault("logs_config.run_path", "")
-	assert.Contains(t, ConfigEnvVars, "DD_LOGS_CONFIG.RUN_PATH")
+	config := setupConf()
+	config.bindEnvAndSetDefault("app_key", "")
+	assert.NotContains(t, config.GetConfigEnvVars(), "DD_APP_KEY")
+	config.bindEnvAndSetDefault("logset", "")
+	assert.Contains(t, config.GetConfigEnvVars(), "DD_LOGSET")
+	config.bindEnvAndSetDefault("logs_config.run_path", "")
+	assert.Contains(t, config.GetConfigEnvVars(), "DD_LOGS_CONFIG.RUN_PATH")
 }
 
 func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
+	config := setupConf()
+
 	// circleCI set some proxy setting
 	ciValue := os.Getenv("NO_PROXY")
 	os.Unsetenv("NO_PROXY")
 	defer os.Setenv("NO_PROXY", ciValue)
 
-	loadProxyFromEnv()
-	assert.Nil(t, Datadog.Get("proxy"))
+	loadProxyFromEnv(config)
+	assert.Nil(t, config.Get("proxy"))
 
 	proxies := GetProxies()
 	require.Nil(t, proxies)
 }
 
 func TestLoadProxyConfOnly(t *testing.T) {
+	config := setupConf()
+
 	// check value loaded before aren't overwrite when no env variables are set
 	p := &Proxy{HTTP: "test", HTTPS: "test2", NoProxy: []string{"a", "b", "c"}}
-	Datadog.Set("proxy", p)
-	defer Datadog.Set("proxy", nil)
+	config.Set("proxy", p)
 
 	// circleCI set some proxy setting
 	ciValue := os.Getenv("NO_PROXY")
 	os.Unsetenv("NO_PROXY")
 	defer os.Setenv("NO_PROXY", ciValue)
 
-	loadProxyFromEnv()
+	loadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t, p, proxies)
 }
 
 func TestLoadProxyStdEnvOnly(t *testing.T) {
+	config := setupConf()
+
 	// uppercase
 	os.Setenv("HTTP_PROXY", "http_url")
 	os.Setenv("HTTPS_PROXY", "https_url")
 	os.Setenv("NO_PROXY", "a,b,c") // comma-separated list
 
-	loadProxyFromEnv()
+	loadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -376,14 +392,14 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	os.Unsetenv("NO_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 	os.Unsetenv("HTTP_PROXY")
-	Datadog.Set("proxy", nil)
+	config.Set("proxy", nil)
 
 	// lowercase
 	os.Setenv("http_proxy", "http_url2")
 	os.Setenv("https_proxy", "https_url2")
 	os.Setenv("no_proxy", "1,2,3") // comma-separated list
 
-	loadProxyFromEnv()
+	loadProxyFromEnv(config)
 	proxies = GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -395,15 +411,16 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	os.Unsetenv("no_proxy")
 	os.Unsetenv("https_proxy")
 	os.Unsetenv("http_proxy")
-	Datadog.Set("proxy", nil)
 }
 
 func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
+	config := setupConf()
+
 	os.Setenv("DD_PROXY_HTTP", "http_url")
 	os.Setenv("DD_PROXY_HTTPS", "https_url")
 	os.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
 
-	loadProxyFromEnv()
+	loadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -416,10 +433,11 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	os.Unsetenv("DD_PROXY_HTTP")
 	os.Unsetenv("DD_PROXY_HTTPS")
 	os.Unsetenv("DD_PROXY_NO_PROXY")
-	Datadog.Set("proxy", nil)
 }
 
 func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
+	config := setupConf()
+
 	os.Setenv("DD_PROXY_HTTP", "dd_http_url")
 	os.Setenv("DD_PROXY_HTTPS", "dd_https_url")
 	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
@@ -427,7 +445,7 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	os.Setenv("HTTPS_PROXY", "env_https_url")
 	os.Setenv("NO_PROXY", "d,e,f")
 
-	loadProxyFromEnv()
+	loadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -443,17 +461,17 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	os.Unsetenv("DD_PROXY_HTTP")
 	os.Unsetenv("DD_PROXY_HTTPS")
 	os.Unsetenv("DD_PROXY_NO_PROXY")
-	Datadog.Set("proxy", nil)
 }
 
 func TestLoadProxyStdEnvAndConf(t *testing.T) {
-	os.Setenv("HTTP_PROXY", "http_env")
-	Datadog.Set("proxy.no_proxy", []string{"d", "e", "f"})
-	Datadog.Set("proxy.http", "http_conf")
-	defer os.Unsetenv("HTTP")
-	defer Datadog.Set("proxy", nil)
+	config := setupConf()
 
-	loadProxyFromEnv()
+	os.Setenv("HTTP_PROXY", "http_env")
+	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
+	config.Set("proxy.http", "http_conf")
+	defer os.Unsetenv("HTTP")
+
+	loadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -464,13 +482,14 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 }
 
 func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
-	os.Setenv("DD_PROXY_HTTP", "http_env")
-	Datadog.Set("proxy.no_proxy", []string{"d", "e", "f"})
-	Datadog.Set("proxy.http", "http_conf")
-	defer os.Unsetenv("DD_PROXY_HTTP")
-	defer Datadog.Set("proxy", nil)
+	config := setupConf()
 
-	loadProxyFromEnv()
+	os.Setenv("DD_PROXY_HTTP", "http_env")
+	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
+	config.Set("proxy.http", "http_conf")
+	defer os.Unsetenv("DD_PROXY_HTTP")
+
+	loadProxyFromEnv(config)
 	proxies := GetProxies()
 	assert.Equal(t,
 		&Proxy{
@@ -481,14 +500,16 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 }
 
 func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
+	config := setupConf()
+
 	os.Setenv("DD_PROXY_HTTP", "")
 	os.Setenv("DD_PROXY_NO_PROXY", "a b c")
 	os.Setenv("HTTP_PROXY", "env_http_url")
 	os.Setenv("HTTPS_PROXY", "")
 	os.Setenv("NO_PROXY", "")
-	Datadog.Set("proxy.https", "https_conf")
+	config.Set("proxy.https", "https_conf")
 
-	loadProxyFromEnv()
+	loadProxyFromEnv(config)
 
 	proxies := GetProxies()
 	assert.Equal(t,
@@ -504,23 +525,24 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_HTTP")
 	os.Unsetenv("DD_PROXY_HTTPS")
 	os.Unsetenv("DD_PROXY_NO_PROXY")
-	Datadog.Set("proxy", nil)
 }
 
 func TestSanitizeAPIKey(t *testing.T) {
-	Datadog.Set("api_key", "foo")
-	sanitizeAPIKey()
-	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+	config := setupConf()
 
-	Datadog.Set("api_key", "foo\n")
-	sanitizeAPIKey()
-	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+	config.Set("api_key", "foo")
+	sanitizeAPIKey(config)
+	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	Datadog.Set("api_key", "foo\n\n")
-	sanitizeAPIKey()
-	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+	config.Set("api_key", "foo\n")
+	sanitizeAPIKey(config)
+	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	Datadog.Set("api_key", " \n  foo   \n")
-	sanitizeAPIKey()
-	assert.Equal(t, "foo", Datadog.GetString("api_key"))
+	config.Set("api_key", "foo\n\n")
+	sanitizeAPIKey(config)
+	assert.Equal(t, "foo", config.GetString("api_key"))
+
+	config.Set("api_key", " \n  foo   \n")
+	sanitizeAPIKey(config)
+	assert.Equal(t, "foo", config.GetString("api_key"))
 }
