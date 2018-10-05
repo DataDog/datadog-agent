@@ -27,6 +27,24 @@ example:
 - Last Run: during the last check run
 - Total: since the agent has started
 
+### Loading Errors
+
+List of checks that were not loaded successfully
+
+example:
+
+```
+    apm
+    ---
+      Core Check Loader:
+        Could not configure check APM Agent: APM agent disabled through main configuration file
+
+      JMX Check Loader:
+        check is not a jmx check, or unable to determine if it's so
+
+      Python Check Loader:
+        No module named apm
+```
 
 ## JMX Fetch
 
@@ -52,7 +70,9 @@ Forwarder
 The forwarder uses a number of workers to send the payloads to the backend.
 If you see a warning like this `the forwarder dropped transactions, there is probably an issue with your network`, this means that all the workers were busy. You should review your network performance, and tune the `forwarder_num_workers` and `forwarder_timeout options`.
 
+## Logs Agent
 
+TODO
 
 ## Aggregator
 
@@ -80,7 +100,20 @@ Flush: the aggregator stores metrics, events, etc sent to it in a queue. The que
 - Service Check: Total number of service checks sent to the agrregator
 
 
-## Logs Agent
-
 ## DogStatsD
 
+example:
+
+```
+=========
+DogStatsD
+=========
+  Event Packets: 12
+  Event Parse Errors: 0
+  Metric Packets: 433
+  Metric Parse Errors: 0
+  Service Check Packets: 3
+  Service Check Parse Errors: 0
+  ```
+
+Number of packets received by the DogStatsD server for each type of data (metrics, events and service checks) and associated errors
