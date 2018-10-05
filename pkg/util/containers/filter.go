@@ -22,6 +22,7 @@ const (
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
+	pauseContainerEKS        = "image:eks/pause-amd64"
 	// pauseContainerAzure regex matches:
 	// - k8s-gcrio.azureedge.net/pause-amd64
 	// - gcrio.azureedge.net/google_containers/pause-amd64
@@ -118,6 +119,7 @@ func NewFilterFromConfig() (*Filter, error) {
 			pauseContainerKubernetes,
 			pauseContainerAzure,
 			pauseContainerECS,
+			pauseContainerEKS,
 			pauseContainerRancher,
 		)
 	}
