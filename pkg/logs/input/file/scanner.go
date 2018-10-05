@@ -25,7 +25,8 @@ const scanPeriod = 10 * time.Second
 // or update the old ones if needed
 type Scanner struct {
 	pipelineProvider    pipeline.Provider
-	sources             chan *config.LogSource
+	addedSources        chan *config.LogSource
+	removedSources      chan *config.LogSource
 	activeSources       []*config.LogSource
 	tailingLimit        int
 	fileProvider        *Provider
@@ -40,7 +41,8 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 	return &Scanner{
 		pipelineProvider:    pipelineProvider,
 		tailingLimit:        tailingLimit,
-		sources:             sources.GetSourceStreamForType(config.FileType),
+		addedSources:        sources.GetAddedForType(config.FileType),
+		removedSources:      sources.GetRemovedForType(config.FileType),
 		fileProvider:        NewProvider(tailingLimit),
 		tailers:             make(map[string]*Tailer),
 		registry:            registry,
@@ -67,9 +69,10 @@ func (s *Scanner) run() {
 	defer scanTicker.Stop()
 	for {
 		select {
-		case source := <-s.sources:
-			s.activeSources = append(s.activeSources, source)
-			s.launchTailers(source)
+		case source := <-s.addedSources:
+			s.addSource(source)
+		case source := <-s.removedSources:
+			s.removeSource(source)
 		case <-scanTicker.C:
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
@@ -146,6 +149,23 @@ func (s *Scanner) scan() {
 		_, shouldTail := filesTailed[path]
 		if !shouldTail {
 			s.stopTailer(tailer)
+		}
+	}
+}
+
+// addSource keeps track of the new source and launch new tailers for this source.
+func (s *Scanner) addSource(source *config.LogSource) {
+	s.activeSources = append(s.activeSources, source)
+	s.launchTailers(source)
+}
+
+// removeSource removes the source from cache.
+func (s *Scanner) removeSource(source *config.LogSource) {
+	for i, src := range s.activeSources {
+		if src == source {
+			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
+			s.activeSources = append(s.activeSources[:i], s.activeSources[i+1:]...)
+			break
 		}
 	}
 }

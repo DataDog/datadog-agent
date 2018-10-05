@@ -26,8 +26,8 @@ func NewLauncher(sources *config.LogSources, frameSize int, pipelineProvider pip
 	return &Launcher{
 		pipelineProvider: pipelineProvider,
 		frameSize:        frameSize,
-		tcpSources:       sources.GetSourceStreamForType(config.TCPType),
-		udpSources:       sources.GetSourceStreamForType(config.UDPType),
+		tcpSources:       sources.GetAddedForType(config.TCPType),
+		udpSources:       sources.GetAddedForType(config.UDPType),
 		stop:             make(chan struct{}),
 	}
 }

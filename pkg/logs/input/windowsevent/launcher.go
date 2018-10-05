@@ -24,7 +24,7 @@ type Launcher struct {
 // NewLauncher returns a new Launcher.
 func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider) *Launcher {
 	return &Launcher{
-		sources:          sources.GetSourceStreamForType(config.WindowsEventType),
+		sources:          sources.GetAddedForType(config.WindowsEventType),
 		pipelineProvider: pipelineProvider,
 		tailers:          make(map[string]*Tailer),
 		stop:             make(chan struct{}),
