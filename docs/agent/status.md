@@ -48,6 +48,10 @@ example:
 
 ## JMX Fetch
 
+
+List of loaded and failed JMX-based checks
+
+
 ## Forwarder
 
 example:
