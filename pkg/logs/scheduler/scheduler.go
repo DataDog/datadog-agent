@@ -84,27 +84,17 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		case s.newSources(config):
 			log.Infof("New source to remove: entity: %v", config.Entity)
 
-			// These are copy of the source we want to delete
-			// They will be GCed after the end of the block
-			sourcesToFind, err := s.toSources(config)
+			_, identifier, err := s.parseEntity(config.Entity)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
-				continue
 			}
 
-			var sourcesToDelete []*logsConfig.LogSource
-			for _, sourceToFind := range sourcesToFind {
-				for _, source := range s.sources.GetSources() {
-					if source.Config.Identifier == sourceToFind.Config.Identifier {
-						sourcesToDelete = append(sourcesToDelete, source)
-					}
+			for _, source := range s.sources.GetSources() {
+				if identifier == source.Config.Identifier {
+					log.Info("Id: ", identifier)
+					s.sources.RemoveSource(source)
 				}
 			}
-
-			for _, sourceToDelete := range sourcesToDelete {
-				s.sources.RemoveSource(sourceToDelete)
-			}
-			continue
 		case s.newService(config):
 			// new service to remove
 			log.Infof("New service to remove: entity: %v", config.Entity)
