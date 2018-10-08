@@ -46,7 +46,7 @@ REDHAT_AND_DEBIAN_DIST = [
     'ubuntu',
     'centos',
     'redhat'
-    ]
+]
 
 
 def get_default_build_tags(puppy=False):

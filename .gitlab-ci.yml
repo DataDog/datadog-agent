@@ -134,7 +134,8 @@ run_test_rpm-x64:
   tags: [ "runner:main", "size:2xlarge" ]
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
-    #  https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # This is OK because the test on systemd still runs on the debian image above
     - inv -e test --race --profile --cpus 4 --build-exclude=systemd
 
 # scan the dependencies for security vulnerabilities with snyk
