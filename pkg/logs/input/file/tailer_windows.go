@@ -76,6 +76,7 @@ func (t *Tailer) readAvailable() (err error) {
 // until it is closed.
 func (t *Tailer) readForever() {
 	defer t.onStop()
+	backoff := t.minWaitDuration
 	for {
 		select {
 		case <-t.stop:
@@ -83,8 +84,14 @@ func (t *Tailer) readForever() {
 			return
 		default:
 			err := t.readAvailable()
-			if err == io.EOF || os.IsNotExist(err) {
-				t.wait()
+			if isEOF(err) || os.IsNotExist(err) {
+				if backoff > maxWaitDuration {
+					// stop tailing the file as no data has been received or the file does not exist anymore,
+					// a new tailer should be created later on by the scanner if the file still exists.
+					log.Infof("No data has been written to %v for a while, stop reading", t.path)
+				}
+				t.wait(backoff)
+				backoff *= 2
 				continue
 			}
 			if err != nil {
@@ -92,6 +99,7 @@ func (t *Tailer) readForever() {
 				log.Error("Err: ", err)
 				return
 			}
+			backoff = t.minWaitDuration
 		}
 	}
 }

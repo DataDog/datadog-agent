@@ -21,10 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
-const DefaultSleepDuration = 1 * time.Second
-
-const defaultCloseTimeout = 60 * time.Second
+const (
+	// MinWaitDuration represents the minimum amount of time a tailer waits before reading back a file
+	// after encountering a EOF.
+	MinWaitDuration = 1 * time.Second
+	// maxWaitDuration represents the minimum amount of time a tailer waits before reading back a file
+	// after encountering a EOF.
+	maxWaitDuration = 10 * time.Second
+	// defaultCloseTimeout represents the amount of time left to a tailer to collect remaining logs from a file
+	// that has been rotated before being completely shut down.
+	defaultCloseTimeout = 60 * time.Second
+)
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
@@ -40,7 +47,7 @@ type Tailer struct {
 	decoder    *decoder.Decoder
 	source     *config.LogSource
 
-	sleepDuration time.Duration
+	minWaitDuration time.Duration
 
 	closeTimeout  time.Duration
 	shouldStop    int32
@@ -50,7 +57,7 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, minWaitDuration time.Duration) *Tailer {
 	var parser logParser.Parser
 	if source.GetSourceType() == config.ContainerdType {
 		parser = containerdFileParser
@@ -58,15 +65,15 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 		parser = logParser.NoopParser
 	}
 	return &Tailer{
-		path:          path,
-		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source, parser),
-		source:        source,
-		readOffset:    0,
-		sleepDuration: sleepDuration,
-		closeTimeout:  defaultCloseTimeout,
-		stop:          make(chan struct{}, 1),
-		done:          make(chan struct{}, 1),
+		path:            path,
+		outputChan:      outputChan,
+		decoder:         decoder.InitializeDecoder(source, parser),
+		source:          source,
+		readOffset:      0,
+		minWaitDuration: minWaitDuration,
+		closeTimeout:    defaultCloseTimeout,
+		stop:            make(chan struct{}, 1),
+		done:            make(chan struct{}, 1),
 	}
 }
 
@@ -189,6 +196,6 @@ func (t *Tailer) shouldTrackOffset() bool {
 }
 
 // wait lets the tailer sleep for a bit
-func (t *Tailer) wait() {
-	time.Sleep(t.sleepDuration)
+func (t *Tailer) wait(duration time.Duration) {
+	time.Sleep(duration)
 }

@@ -44,6 +44,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 // until it is closed or the tailer is stopped.
 func (t *Tailer) readForever() {
 	defer t.onStop()
+	backoff := t.minWaitDuration
 	for {
 		select {
 		case <-t.stop:
@@ -53,19 +54,33 @@ func (t *Tailer) readForever() {
 			// keep reading data from file
 			inBuf := make([]byte, 4096)
 			n, err := t.file.Read(inBuf)
-			if err != nil && err != io.EOF {
+			switch {
+			case err != nil && !isEOF(err):
 				// an unexpected error occurred, stop the tailor
 				t.source.Status.Error(err)
-				log.Error("Err: ", err)
+				log.Errorf("Could not read logs from file %v: %v", t.path, err)
 				return
-			}
-			if n == 0 {
-				// wait for new data to come
-				t.wait()
+			case n == 0:
+				// wait for new data to come, retry exponentially until the max limit is reached
+				if backoff > maxWaitDuration {
+					// stop tailing the file as no data has been received  or the file does not exist anymore,
+					// a new tailer should be created later on by the scanner if the file still exists.
+					log.Infof("No data has been written to %v for a while, stop reading", t.path)
+					return
+				}
+				t.wait(backoff)
+				backoff *= 2
 				continue
+			default:
+				backoff = t.minWaitDuration
 			}
 			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 			t.incrementReadOffset(n)
 		}
 	}
+}
+
+// isEOF returns true if the error occured because of an EOF.
+func isEOF(err error) bool {
+	return err == io.EOF || err == io.ErrUnexpectedEOF
 }

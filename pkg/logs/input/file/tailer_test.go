@@ -51,8 +51,8 @@ func (suite *TailerTestSuite) SetupTest() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath, sleepDuration)
+	minWaitDuration := 10 * time.Millisecond
+	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath, minWaitDuration)
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
