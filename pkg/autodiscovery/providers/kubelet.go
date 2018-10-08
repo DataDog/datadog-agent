@@ -95,7 +95,7 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 			switch {
 			case err != nil:
 				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
-				continue
+				configs = append(configs, c...)
 			case len(c) == 0:
 				continue
 			default:

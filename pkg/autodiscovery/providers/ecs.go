@@ -87,7 +87,7 @@ func parseECSContainers(containers []ecs.Container) ([]integration.Config, error
 		switch {
 		case err != nil:
 			log.Errorf("unable to extract templates for container %s - %s", c.DockerID, err)
-			continue
+			templates = append(templates, configs...)
 		case len(configs) == 0:
 			continue
 		default:

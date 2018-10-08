@@ -124,7 +124,7 @@ func parseDockerLabels(containers map[string]map[string]string) ([]integration.C
 		switch {
 		case err != nil:
 			log.Errorf("Can't parse template for container %s: %s", cID, err)
-			continue
+			configs = append(configs, c...)
 		case len(c) == 0:
 			continue
 		default:

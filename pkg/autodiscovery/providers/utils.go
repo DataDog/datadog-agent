@@ -103,17 +103,26 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []in
 func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
 	configs := make([]integration.Config, 0)
 
-	checksConfigs, err := extractCheckTemplatesFromMap(key, input, prefix)
-	if err != nil {
-		return configs, err
+	checksConfigs, errCheck := extractCheckTemplatesFromMap(key, input, prefix)
+	if errCheck == nil {
+		configs = append(configs, checksConfigs...)
+	} else {
+		log.Warnf("could not extract checks config from template: %v", errCheck)
 	}
-	configs = append(configs, checksConfigs...)
 
-	logsConfigs, err := extractLogsTemplatesFromMap(key, input, prefix)
-	if err != nil {
-		return configs, err
+	logsConfigs, errLogs := extractLogsTemplatesFromMap(key, input, prefix)
+	if errLogs == nil {
+		configs = append(configs, logsConfigs...)
+	} else {
+		log.Warnf("could not extract logs config from template: %v", errLogs)
 	}
-	configs = append(configs, logsConfigs...)
+
+	if errCheck != nil {
+		return configs, errCheck
+	}
+	if errLogs != nil {
+		return configs, errLogs
+	}
 
 	return configs, nil
 }
