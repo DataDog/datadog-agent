@@ -46,6 +46,7 @@ api_key: fakeapikey
 	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -55,6 +56,7 @@ api_key: fakeapikey
 
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
 }
 
 func TestSite(t *testing.T) {
@@ -65,6 +67,7 @@ api_key: fakeapikey
 	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
@@ -74,6 +77,52 @@ api_key: fakeapikey
 
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+}
+
+func TestSiteEnvVar(t *testing.T) {
+	os.Setenv("DD_API_KEY", "fakeapikey")
+	os.Setenv("DD_SITE", "datadoghq.eu")
+	defer os.Unsetenv("DD_API_KEY")
+	defer os.Unsetenv("DD_SITE")
+	testConfig := setupConfFromYAML("")
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+}
+
+func TestDDURLEnvVar(t *testing.T) {
+	os.Setenv("DD_API_KEY", "fakeapikey")
+	os.Setenv("DD_DD_URL", "https://app.datadoghq.eu")
+	os.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer os.Unsetenv("DD_API_KEY")
+	defer os.Unsetenv("DD_DD_URL")
+	defer os.Unsetenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL")
+	testConfig := setupConfFromYAML("")
+	testConfig.BindEnv("external_config.external_agent_dd_url")
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.eu": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
 
 func TestDDURLOverridesSite(t *testing.T) {
@@ -81,10 +130,14 @@ func TestDDURLOverridesSite(t *testing.T) {
 site: datadoghq.eu
 dd_url: "https://app.datadoghq.com"
 api_key: fakeapikey
+
+external_config:
+  external_agent_dd_url: "https://external-agent.datadoghq.com"
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -94,16 +147,21 @@ api_key: fakeapikey
 
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
 }
 
 func TestDDURLNoSite(t *testing.T) {
 	datadogYaml := `
 dd_url: "https://app.datadoghq.eu"
 api_key: fakeapikey
+
+external_config:
+  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
@@ -113,6 +171,7 @@ api_key: fakeapikey
 
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+	assert.Equal(t, "https://custom.external-agent.datadoghq.eu", externalAgentURL)
 }
 
 func TestGetMultipleEndpointsDefault(t *testing.T) {

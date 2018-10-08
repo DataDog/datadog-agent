@@ -29,7 +29,7 @@ const DefaultForwarderRecoveryInterval = 2
 // DefaultSite is the default site the Agent sends data to.
 const DefaultSite = "datadoghq.com"
 
-const defaultDDURL = "https://app.%s"
+const defaultInfraURLPrefix = "https://app."
 
 // Datadog is the global configuration object
 var (
@@ -264,6 +264,9 @@ func initConfig(config Config) {
 	// Trace agent
 	config.bindEnvAndSetDefault("apm_config.enabled", true)
 
+	// Process agent
+	config.BindEnv("process_config.process_dd_url", "")
+
 	// Logs Agent
 
 	// External Use: modify those parameters to configure the logs-agent.
@@ -455,9 +458,14 @@ func sanitizeAPIKey(config Config) {
 	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
 }
 
-// GetMainEndpoint returns the main DD URL defined in the config
-func GetMainEndpoint() string {
-	return getMainEndpoint(Datadog)
+// GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
+func GetMainInfraEndpoint() string {
+	return getMainInfraEndpoint(Datadog)
+}
+
+// GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
+func GetMainEndpoint(prefix string, ddURLKey string) string {
+	return getMainEndpoint(Datadog, prefix, ddURLKey)
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
@@ -490,18 +498,22 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 	return u.String(), nil
 }
 
-// getMainEndpoint implements the logic to extract the main DD URL from a config
-func getMainEndpoint(config Config) (ddURL string) {
-	if config.IsSet("dd_url") && config.GetString("dd_url") != "" {
-		// 'dd_url' takes precedence over 'site'
-		ddURL = config.GetString("dd_url")
+func getMainInfraEndpoint(config Config) string {
+	return getMainEndpoint(config, defaultInfraURLPrefix, "dd_url")
+}
+
+// getMainEndpoint implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
+func getMainEndpoint(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
+	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
+		// value under ddURLKey takes precedence over 'site'
+		resolvedDDURL = config.GetString(ddURLKey)
 		if config.IsSet("site") {
-			log.Infof("'site' and 'dd_url' are both set in config: setting main endpoint to 'dd_url': \"%s\"", config.GetString("dd_url"))
+			log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", ddURLKey, ddURLKey, config.GetString(ddURLKey))
 		}
 	} else if config.GetString("site") != "" {
-		ddURL = fmt.Sprintf(defaultDDURL, config.GetString("site"))
+		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
 	} else {
-		ddURL = fmt.Sprintf(defaultDDURL, DefaultSite)
+		resolvedDDURL = prefix + DefaultSite
 	}
 	return
 }
@@ -509,7 +521,7 @@ func getMainEndpoint(config Config) (ddURL string) {
 // getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
 func getMultipleEndpoints(config Config) (map[string][]string, error) {
 	// Validating domain
-	ddURL := getMainEndpoint(config)
+	ddURL := getMainInfraEndpoint(config)
 	_, err := url.Parse(ddURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
