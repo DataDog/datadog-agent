@@ -15,20 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSchedule(t *testing.T) {
+func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
 	scheduler := NewScheduler(logSources, services)
 
 	logSourcesStream := logSources.GetAddedForType(config.DockerType)
-	servicesStream := services.GetAddedServices(service.Docker)
-
-	configService := integration.Config{
-		LogsConfig:   []byte(""),
-		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-		ClusterCheck: false,
-		CreationTime: 0,
-	}
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
@@ -38,10 +30,6 @@ func TestSchedule(t *testing.T) {
 		ClusterCheck:  false,
 		CreationTime:  0,
 	}
-
-	go scheduler.Schedule([]integration.Config{configService})
-	svc := <-servicesStream
-	assert.Equal(t, configService.Entity, svc.GetEntityID())
 
 	go scheduler.Schedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
@@ -54,12 +42,12 @@ func TestSchedule(t *testing.T) {
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
-func TestUnschedule(t *testing.T) {
+func TestScheduleConfigCreatesNewService(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
 	scheduler := NewScheduler(logSources, services)
-	logSourcesStream := logSources.GetRemovedForType(config.DockerType)
-	servicesStream := services.GetRemovedServices(service.Docker)
+
+	servicesStream := services.GetAddedServices(service.Docker)
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
@@ -67,6 +55,17 @@ func TestUnschedule(t *testing.T) {
 		ClusterCheck: false,
 		CreationTime: 0,
 	}
+
+	go scheduler.Schedule([]integration.Config{configService})
+	svc := <-servicesStream
+	assert.Equal(t, configService.Entity, svc.GetEntityID())
+}
+
+func TestUnscheduleConfigRemovesSource(t *testing.T) {
+	logSources := config.NewLogSources()
+	services := service.NewServices()
+	scheduler := NewScheduler(logSources, services)
+	logSourcesStream := logSources.GetRemovedForType(config.DockerType)
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
@@ -81,10 +80,6 @@ func TestUnschedule(t *testing.T) {
 	sources, _ := scheduler.toSources(configSource)
 	logSources.AddSource(sources[0])
 
-	go scheduler.Unschedule([]integration.Config{configService})
-	svc := <-servicesStream
-	assert.Equal(t, configService.Entity, svc.GetEntityID())
-
 	go scheduler.Unschedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
@@ -94,4 +89,22 @@ func TestUnschedule(t *testing.T) {
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+}
+
+func TestUnscheduleConfigRemovesService(t *testing.T) {
+	logSources := config.NewLogSources()
+	services := service.NewServices()
+	scheduler := NewScheduler(logSources, services)
+	servicesStream := services.GetRemovedServices(service.Docker)
+
+	configService := integration.Config{
+		LogsConfig:   []byte(""),
+		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck: false,
+		CreationTime: 0,
+	}
+
+	go scheduler.Unschedule([]integration.Config{configService})
+	svc := <-servicesStream
+	assert.Equal(t, configService.Entity, svc.GetEntityID())
 }
