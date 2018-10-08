@@ -147,8 +147,8 @@ func (l *Launcher) run() {
 		case source := <-l.removedSources:
 			for i, src := range l.activeSources {
 				if src == source {
-					// Stopping the tailer is the responsibility of the service
-					// Can we receive a source to remove without receiving a service to remove ?
+					// no need to stop any tailer here, it will be stopped after receiving a
+					// "remove service" event.
 					l.activeSources = append(l.activeSources[:i], l.activeSources[i+1:]...)
 					break
 				}

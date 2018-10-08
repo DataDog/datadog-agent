@@ -86,11 +86,11 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			_, identifier, err := s.parseEntity(config.Entity)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
+				continue
 			}
 
 			for _, source := range s.sources.GetSources() {
 				if identifier == source.Config.Identifier {
-					log.Info("Id: ", identifier)
 					s.sources.RemoveSource(source)
 				}
 			}
