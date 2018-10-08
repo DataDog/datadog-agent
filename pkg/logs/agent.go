@@ -54,7 +54,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, endpoints 
 
 	// setup the inputs
 	inputs := []restart.Restartable{
-		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.MinWaitDuration),
 		container.NewLauncher(sources, services, pipelineProvider, auditor),
 		listener.NewLauncher(sources, config.LogsAgent.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
