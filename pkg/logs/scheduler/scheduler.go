@@ -58,7 +58,6 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			for _, source := range sources {
 				s.sources.AddSource(source)
 			}
-			break
 		case s.newService(config):
 			log.Infof("Received a new service: %v", config.Entity)
 			service, err := s.toService(config)
@@ -69,7 +68,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			s.services.AddService(service)
 		default:
 			// invalid integration config
-			break
+			continue
 		}
 	}
 }
