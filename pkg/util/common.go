@@ -200,6 +200,7 @@ func CreateHTTPTransport() *http.Transport {
 
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
+		IdleConnTimeout: 90 * time.Second,
 	}
 
 	if proxies := config.GetProxies(); proxies != nil {
