@@ -56,7 +56,7 @@ func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve res
 	dockerImage, err := resolve(co.Image)
 	if err != nil {
 		log.Debugf("Error resolving image %s: %s", co.Image, err)
-	} else {
+		return
 	}
 	tags.AddLow("docker_image", dockerImage)
 	imageName, shortImage, imageTag, err := containers.SplitImageName(dockerImage)
