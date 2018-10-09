@@ -76,12 +76,12 @@ func (c *CRICheck) Run() error {
 		return err
 	}
 
-	stats, err := util.ListContainerStats()
+	containerStats, err := util.ListContainerStats()
 	if err != nil {
 		c.Warnf("Cannot get containers from the CRI: %s", err)
 		return err
 	}
-	for cid, stats := range stats {
+	for cid, stats := range containerStats {
 		entityID := containers.BuildEntityName(util.Runtime, cid)
 		tags, err := tagger.Tag(entityID, true)
 		if err != nil {

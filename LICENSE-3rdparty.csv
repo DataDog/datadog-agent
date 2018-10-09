@@ -131,3 +131,8 @@ core,k8s.io/apiserver,Apache-2.0
 core,k8s.io/client-go,Apache-2.0
 core,k8s.io/kube-openapi,Apache-2.0
 core,k8s.io/metrics,Apache-2.0
+core,k8s.io/utils,Apache-2.0
+core,k8s.io/apiextensions-apiserver,Apache-2.0
+core,github.com/docker/spdystream,Apache-2.0
+core,gopkg.in/square/go-jose.v2,Apache-2.0
+core,github.com/opencontainers/go-digest,Apache-2.0

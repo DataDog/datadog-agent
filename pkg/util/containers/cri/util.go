@@ -33,20 +33,18 @@ type CRIUtil struct {
 	initRetry retry.Retrier
 
 	sync.Mutex
-	client         pb.RuntimeServiceClient
-	Runtime        string
-	RuntimeVersion string
-	queryTimeout   time.Duration
+	client            pb.RuntimeServiceClient
+	Runtime           string
+	RuntimeVersion    string
+	queryTimeout      time.Duration
+	connectionTimeout time.Duration
+	socketPath        string
 }
 
 // init makes an empty CRIUtil bootstrap itself.
 // This is not exposed as public API but is called by the retrier embed.
 func (c *CRIUtil) init() error {
-	c.queryTimeout = config.Datadog.GetDuration("cri_query_timeout") * time.Second
-	connectionTimeout := config.Datadog.GetDuration("cri_connection_timeout") * time.Second
-	socketPath := config.Datadog.GetString("cri_socket_path")
-
-	if socketPath == "" {
+	if c.socketPath == "" {
 		return fmt.Errorf("no cri_socket_path was set")
 	}
 
@@ -54,14 +52,14 @@ func (c *CRIUtil) init() error {
 		return net.DialTimeout("unix", socketPath, timeout)
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(connectionTimeout), grpc.WithDialer(dialer))
+	conn, err := grpc.Dial(c.socketPath, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(c.connectionTimeout), grpc.WithDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}
 
 	c.client = pb.NewRuntimeServiceClient(conn)
 	// validating the connection by fetching the version
-	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
 	defer cancel()
 	request := &pb.VersionRequest{}
 	r, err := c.client.Version(ctx, request)
@@ -78,7 +76,11 @@ func (c *CRIUtil) init() error {
 // GetUtil returns a ready to use CRIUtil. It is backed by a shared singleton.
 func GetUtil() (*CRIUtil, error) {
 	once.Do(func() {
-		globalCRIUtil = &CRIUtil{}
+		globalCRIUtil = &CRIUtil{
+			queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
+			connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
+			socketPath:        config.Datadog.GetString("cri_socket_path"),
+		}
 		globalCRIUtil.initRetry.SetupRetrier(&retry.Config{
 			Name:          "criutil",
 			AttemptMethod: globalCRIUtil.init,
