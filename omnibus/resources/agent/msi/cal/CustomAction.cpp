@@ -1,13 +1,5 @@
 #include "stdafx.h"
 
-static std::wstring secretUserUsername(L"datadog_secretuser");
-static std::wstring secretUserDescription(L"DataDog user used to fetch secrets from KMS");
-static std::wstring datadog_path = L"Datadog\\Datadog Agent";
-static std::wstring datadog_key_root = L"SOFTWARE\\" + datadog_path;
-static std::wstring datadog_key_secret_key = L"secrets";
-static std::wstring datadog_key_secrets = L"SOFTWARE\\" + datadog_path + L"\\" + datadog_key_secret_key;
-static std::wstring datadog_acl_key_secrets = L"MACHINE\\" + datadog_key_secrets;
-
 
 int CreateUser(std::wstring& name, std::wstring& comment, bool writePassToReg = false);
 DWORD DeleteUser(std::wstring& name);
@@ -40,67 +32,7 @@ void WcaLog(int type, const char * fmt...)
     printf("\n");
 }
 #else
-extern "C" UINT __stdcall AddDatadogSecretUser(
-    MSIHANDLE hInstall
-    )
-{
-    HRESULT hr = S_OK;
-    UINT er = ERROR_SUCCESS;
-    LSA_HANDLE hLsa = NULL;
-    PSID sid = NULL;
-    // that's helpful.  WcaInitialize Log header silently limited to 32 chars 
-    hr = WcaInitialize(hInstall, "CA: AddDatadogSecretUser");
-    // ExitOnFailure macro includes a goto LExit if hr has a failure.
-    ExitOnFailure(hr, "Failed to initialize");
-    logProcCount();
-    WcaLog(LOGMSG_STANDARD, "Initialized.");
 
-    er = CreateSecretUser(hInstall, secretUserUsername, secretUserDescription);
-    if (0 != er) {
-        goto LExit;
-    }
-    // change the rights on this user
-    sid = GetSidForUser(NULL, (LPCWSTR)secretUserUsername.c_str());
-    if (!sid) {
-        goto LExit;
-    }
-    if ((hLsa = GetPolicyHandle()) == NULL) {
-        goto LExit;
-    }
-
-#ifndef _NO_SECRET_USER_RIGHTS_REMOVAL
-/*
- for now, just comment out.  Secret user needs interactive login for
- CreatePRocessWithLogon()
-    if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove interactive login right");
-        goto LExit;
-    }
-*/
-    if (!AddPrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove network login right");
-        goto LExit;
-    }
-    if (!AddPrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove remote interactive login right");
-        goto LExit;
-    }
-#endif
-    if (!AddPrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to add service login right");
-        goto LExit;
-    }
-    hr = 0;
-LExit:
-    if (sid) {
-        delete[](BYTE *) sid;
-    }
-    if (hLsa) {
-        LsaClose(hLsa);
-    }
-    er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
-    return WcaFinalize(er);
-}
 
 extern "C" UINT __stdcall RemoveDDUser(MSIHANDLE hInstall)
 {
@@ -137,13 +69,8 @@ extern "C" UINT __stdcall RemoveDDUser(MSIHANDLE hInstall)
         WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
     }
 
-    er = DeleteUser(ddAgentUserName);
-    if (0 != er) {
-        // don't actually fail on failure.  We're doing an uninstall,
-        // and failing will just leave the system in a more confused state
-        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
-    } 
-
+    er = doRemoveDDUser();
+    
 LExit:
     if (sid) {
         delete[](BYTE *) sid;
@@ -189,7 +116,11 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
     WcaLog(LOGMSG_STANDARD, "%d setting token file perms",er);
     er = addDdUserPermsToFile(confddir);
     WcaLog(LOGMSG_STANDARD, "%d setting confd dir perms",er);
+<<<<<<< HEAD
 
+=======
+    MarkInstallStepComplete(strFilePermissionsChanged);
+>>>>>>> db/dd-agent-user-65-omnibus
 // change the rights on this user
     hr = -1;
     sid = GetSidForUser(NULL, (LPCWSTR)ddAgentUserName.c_str());
@@ -224,6 +155,7 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
     nErr = NetLocalGroupAddMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
     if(nErr == NERR_Success) {
         WcaLog(LOGMSG_STANDARD, "Added ddagentuser to Performance Monitor Users");
+
     } else if (nErr == ERROR_MEMBER_IN_GROUP || nErr == ERROR_MEMBER_IN_ALIAS ) {
         WcaLog(LOGMSG_STANDARD, "User already in group, continuing %d", nErr);
     } else {
@@ -275,64 +207,6 @@ extern "C" UINT __stdcall EnableServicesForDDUser(MSIHANDLE hInstall)
 
 
 LExit:
-    er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
-    return WcaFinalize(er);
-
-}
-
-extern "C" UINT __stdcall RemoveDatadogSecretUser(MSIHANDLE hInstall) 
-{
-    HRESULT hr = S_OK;
-    UINT er = ERROR_SUCCESS;
-    LSA_HANDLE hLsa = NULL;
-    PSID sid = NULL;
-    
-
-    // that's helpful.  WcaInitialize Log header silently limited to 32 chars
-    hr = WcaInitialize(hInstall, "CA: RemoveDatadogSecretUser");
-    ExitOnFailure(hr, "Failed to initialize");
-
-    WcaLog(LOGMSG_STANDARD, "Initialized.");
-    logProcCount();
-    // change the rights on this user
-    sid = GetSidForUser(NULL, (LPCWSTR)secretUserUsername.c_str());
-    if (!sid) {
-        goto LExit;
-    }
-    if ((hLsa = GetPolicyHandle()) == NULL) {
-        goto LExit;
-    }
-
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
-    }
-
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
-    }
-    er = DeleteUser(secretUserUsername);
-    if (0 != er) {
-        // don't actually fail on failure.  We're doing an uninstall,
-        // and failing will just leave the system in a more confused state
-        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog secret user %d", er);
-
-    } 
-    er = DeleteSecretsRegKey();
-    if (0 != er) {
-        // don't actually fail on failure.  We're doing an uninstall,
-        // and failing will just leave the system in a more confused state
-        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog secret user registry key %d", er);
-
-    }
-
-
-LExit:
     if (sid) {
         delete[](BYTE *) sid;
     }
@@ -343,6 +217,7 @@ LExit:
     return WcaFinalize(er);
 
 }
+
 
 extern "C" UINT __stdcall VerifyDatadogRegistryPerms(MSIHANDLE hInstall) {
     HRESULT hr = S_OK;
@@ -376,6 +251,7 @@ extern "C" UINT __stdcall VerifyDatadogRegistryPerms(MSIHANDLE hInstall) {
     if(0 == changeRegistryAcls(datadog_acl_key_datadog.c_str())) {
         WcaLog(LOGMSG_STANDARD, "registry perms updated");
         hr = S_OK;
+        MarkInstallStepComplete(strChangedRegistryPermissions);
     } else {
         WcaLog(LOGMSG_STANDARD, "registry perm update failed");
         hr = -1;

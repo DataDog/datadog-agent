@@ -73,52 +73,6 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
     return true;
 
 }
-bool createRegistryKey() {
-    LSTATUS status = 0;
-    HKEY hKey;
-    status = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-        datadog_key_secrets.c_str(),
-        0, // reserved is zero
-        NULL, // class is null
-        0, // no options
-        KEY_ALL_ACCESS,
-        NULL, // default security descriptor (we'll change this later)
-        &hKey,
-        NULL); // don't care about disposition... 
-    if (ERROR_SUCCESS != status) {
-        WcaLog(LOGMSG_STANDARD, "Couldn't create/open datadog reg key %d", GetLastError());
-        return false;
-    }
-    RegCloseKey(hKey);
-    return true;
-}
-bool writePasswordToRegistry(const wchar_t * name, const wchar_t* pass) {
-    // RegCreateKey opens the key if it's there.
-    LSTATUS status = 0;
-    HKEY hKey;
-    status = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-        datadog_key_secrets.c_str(),
-        0, // reserved is zero
-        NULL, // class is null
-        0, // no options
-        KEY_ALL_ACCESS,
-        NULL, // default security descriptor (we'll change this later)
-        &hKey,
-        NULL); // don't care about disposition... 
-    if (ERROR_SUCCESS != status) {
-        WcaLog(LOGMSG_STANDARD, "Couldn't create/open datadog reg key %d", GetLastError());
-        return false;
-    }
-    status = RegSetValueExW(hKey,
-        name,
-        0, // must be zero
-        REG_SZ,
-        (const BYTE*)pass,
-        DWORD((wcslen(pass) + 1)) * sizeof(wchar_t));
-    RegCloseKey(hKey);
-    return status == 0;
-
-}
 DWORD changeRegistryAcls(const wchar_t* name) {
 
     ExplicitAccess localsystem;
@@ -148,17 +102,17 @@ DWORD changeRegistryAcls(const wchar_t* name) {
     oldAcl = NULL;
     ret = acl.SetEntriesInAclW(oldAcl, &newAcl);
 
-    ret = SetNamedSecurityInfoW((LPWSTR)name, SE_REGISTRY_KEY, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+    ret = SetNamedSecurityInfoW((LPWSTR)name, SE_REGISTRY_KEY, DACL_SECURITY_INFORMATION, // | PROTECTED_DACL_SECURITY_INFORMATION,
         NULL, NULL, newAcl, NULL);
 
     if (0 != ret) {
-        WcaLog(LOGMSG_STANDARD, "Failed to set named securit info %d", ret);
+        WcaLog(LOGMSG_STANDARD, "Failed to set named security info %d", ret);
     }
     return ret;
 
 }
 
-DWORD addDdUserPermsToFile(std::wstring filename)
+DWORD addDdUserPermsToFile(std::wstring &filename)
 {
     if(!PathFileExistsW((LPCWSTR) filename.c_str()))
     {
@@ -201,6 +155,65 @@ DWORD addDdUserPermsToFile(std::wstring filename)
         LocalFree((HLOCAL) pNewDACL);
     }
     return dwRes;
+}
+
+void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
+{
+    if(!PathFileExistsW((LPCWSTR) filename.c_str()))
+    {
+        // return success; we don't need to do anything
+        WcaLog(LOGMSG_STANDARD, "file doesn't exist, not doing anything");
+        return ;
+    }
+    ExplicitAccess dduser;
+    // get the current ACLs;  check to see if the DD user is in there, if so
+    // remove
+    std::string shortfile;
+    toMbcs(shortfile, filename.c_str());
+    DWORD dwRes = 0;
+    PACL pOldDacl = NULL;
+    PSECURITY_DESCRIPTOR pSD = NULL;
+    ACL_SIZE_INFORMATION sizeInfo;
+    memset(&sizeInfo, 0, sizeof(ACL_SIZE_INFORMATION));
+
+    dwRes = GetNamedSecurityInfo(filename.c_str(), SE_FILE_OBJECT, 
+          DACL_SECURITY_INFORMATION,
+          NULL, NULL, &pOldDacl, NULL, &pSD);
+    if (ERROR_SUCCESS != dwRes) {
+        WcaLog(LOGMSG_STANDARD, "Failed to get file DACL, not removing user perms");
+        return;
+    }
+    BOOL bRet = GetAclInformation(pOldDacl, (PVOID)&sizeInfo, sizeof(ACL_SIZE_INFORMATION), AclSizeInformation);
+    if(FALSE == bRet) {
+        WcaLog(LOGMSG_STANDARD, "Failed to get DACL size information");
+        goto doneRemove;
+    }
+    for(int i = 0; i < sizeInfo.AceCount; i++) {
+        ACCESS_ALLOWED_ACE *ace;
+
+        if (GetAce(pOldDacl, i, (LPVOID*)&ace)) {
+            PSID compareSid = (PSID)(&ace->SidStart);
+            if (EqualSid(compareSid, sidremove)) {
+                WcaLog(LOGMSG_STANDARD, "Matched sid on file %s, removing", shortfile.c_str());
+                if (!DeleteAce(pOldDacl, i)) {
+                    WcaLog(LOGMSG_STANDARD, "Failed to delete ACE on file %s", shortfile.c_str());
+                }
+            }
+        }
+    }
+    dwRes = SetNamedSecurityInfoW((LPWSTR) filename.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+            NULL, NULL, pOldDacl, NULL);
+    if(dwRes != 0) {
+        WcaLog(LOGMSG_STANDARD, "%d resetting permissions on %s", dwRes, shortfile.c_str());
+    }
+
+doneRemove:
+
+    if(pSD){
+        LocalFree((HLOCAL) pSD);
+    }
+    
+    return ;
 }
 
 int doCreateUser(std::wstring& name, std::wstring& comment, const wchar_t* passbuf)
@@ -247,6 +260,9 @@ int CreateDDUser(MSIHANDLE hInstall)
             1003, // according to the docs there's no constant
             (LPBYTE)&newPassword,
             NULL);
+        if (0 == ret) {
+            MarkInstallStepComplete(strDdUserPasswordChanged);
+        }
     } else if (ret != 0) {
         // failed with some unexpected reason
         WcaLog(LOGMSG_STANDARD, "Failed to create dd agent user");
@@ -254,7 +270,8 @@ int CreateDDUser(MSIHANDLE hInstall)
     }
     else {
         // user was successfully create.  Store that in case we need to rollback
-        MsiSetProperty(hInstall, propertyDDUserCreated.c_str(), L"true");
+        WcaLog(LOGMSG_STANDARD, "Created DD agent user");
+        MarkInstallStepComplete(strDdUserCreated);
     }
     // now store the password in the property so the installer can use it
     MsiSetProperty(hInstall, (LPCWSTR)ddAgentUserPasswordProperty.c_str(), (LPCWSTR)passbuf);
@@ -263,88 +280,77 @@ ddUserReturn:
     memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));
     return ret;
 }
-int CreateSecretUser(MSIHANDLE hInstall, std::wstring& name, std::wstring& comment)
-{
 
-    wchar_t passbuf[MAX_PASS_LEN + 2];
-    bool doWritePassToReg = true;
-    if (!generatePassword(passbuf, MAX_PASS_LEN + 2)) {
-        WcaLog(LOGMSG_STANDARD, "Failed to generate password");
-        return -1;
-    }
-    int ret = doCreateUser(name, comment, passbuf);
-    if (ret == NERR_UserExists) {
-        // user is already present. Assume this is an upgrade, in
-        // which case the password is alreadyset and stored.
-        WcaLog(LOGMSG_STANDARD, "Datadog secret user exists... upgrade?");
-
-        // don't write the password later (but go ahead and rewrite
-        // the permissions)
-        doWritePassToReg = false;
-    }
-    else if (ret != 0) {
-        WcaLog(LOGMSG_STANDARD, "Create User failed %d", (int)ret);
-        goto clearAndReturn;
-    } else {
-        // note we created the user in case the install fails later
-        MsiSetProperty(hInstall, propertySecretUserCreated.c_str(), L"true");
-        WcaLog(LOGMSG_STANDARD, "Successfully created user");
-    }
-
-    // create the top level key HKLM\Software\Datadog Agent\secrets.  Key must be
-    // created to change the ACLS.
-    if (!createRegistryKey()) {
-        WcaLog(LOGMSG_STANDARD, "Failed to create secret storage key");
-        goto clearAndReturn;
-    }
-
-    // if we write the password to the registry,
-    // change the ownership so that only LOCAL_SYSTEM and
-    // the user itself can read it
-
-    // of course, the security APIs use a different format than
-    // the registry APIs
-    ret = changeRegistryAcls(datadog_acl_key_secrets.c_str());
-    if (0 == ret) {
-        WcaLog(LOGMSG_STANDARD, "Changed registry perms");
-    }
-    else {
-        WcaLog(LOGMSG_STANDARD, "Failed to change registry perms %d", ret);
-        goto clearAndReturn;
-    }
-
-    // now that the ACLS are changed on the containing key, write
-    // the password into it.
-    if (doWritePassToReg) {
-        if (writePasswordToRegistry(name.c_str(), passbuf)) {
-            MsiSetProperty(hInstall, propertySecretPasswordWritten.c_str(), L"true");
-        }
-    }
-
-clearAndReturn:
-    // clear the password so it's not sitting around in memory
-    memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));
-    return (int)ret;
-
-}
 
 DWORD DeleteUser(std::wstring& name) {
     NET_API_STATUS ret = NetUserDel(NULL, name.c_str());
     return (DWORD)ret;
 }
 
-DWORD DeleteSecretsRegKey() {
-    HKEY hKey = NULL;
-    DWORD ret = RegOpenKeyEx(HKEY_LOCAL_MACHINE, datadog_key_root.c_str(), 0, KEY_ALL_ACCESS, &hKey);
-    if (ERROR_SUCCESS != ret) {
-        WcaLog(LOGMSG_STANDARD, "Failed to open registry key for deletion %d", ret);
-        return ret;
+UINT doRemoveDDUser()
+{
+    UINT er = 0;
+    LOCALGROUP_MEMBERS_INFO_0 lmi0;
+    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_3));
+    PSID sid = NULL;
+    LSA_HANDLE hLsa = NULL;
+    DWORD nErr;
+    // change the rights on this user
+    sid = GetSidForUser(NULL, (LPCWSTR)ddAgentUserName.c_str());
+    if (!sid) {
+        goto LExit;
     }
-    ret = RegDeleteKeyEx(hKey, datadog_key_secret_key.c_str(), KEY_WOW64_64KEY, 0);
-    if (ERROR_SUCCESS != ret) {
-        WcaLog(LOGMSG_STANDARD, "Failed to delete secret key %d", ret);
+    if ((hLsa = GetPolicyHandle()) == NULL) {
+        goto LExit;
     }
-    RegCloseKey(hKey);
-    return ret;
-}
 
+    // remove it from the "performance monitor users" group
+    lmi0.lgrmi0_sid = sid;
+    nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
+    if(nErr == NERR_Success) {
+        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to Performance Monitor Users");
+    } else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS ) {
+        WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);
+    } else {
+        WcaLog(LOGMSG_STANDARD, "Unexpected error removing user from group %d", nErr);
+    }
+
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
+    }
+
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
+    }
+    if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
+    }
+    if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+        WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
+    }
+
+    // remove the dd user from the \programdata\ file permissions 
+    removeUserPermsFromFile(logfilename, sid);
+    removeUserPermsFromFile(datadogyamlfile, sid);
+    removeUserPermsFromFile(confddir, sid);
+    removeUserPermsFromFile(programdataroot, sid);
+    
+    // delete the auth token file entirely
+    DeleteFile(authtokenfilename.c_str());
+
+    er = DeleteUser(ddAgentUserName);
+    if (0 != er) {
+        // don't actually fail on failure.  We're doing an uninstall,
+        // and failing will just leave the system in a more confused state
+        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
+    } 
+    
+LExit:
+    if (sid) {
+        delete[](BYTE *) sid;
+    }
+    if (hLsa) {
+        LsaClose(hLsa);
+    }
+    return er;
+}
