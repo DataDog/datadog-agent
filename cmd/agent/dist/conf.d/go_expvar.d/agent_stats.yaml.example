@@ -144,3 +144,15 @@ instances:
         type: rate
       - path: splitter/PayloadDrops
         type: rate
+
+      # datadog-agent logs-agent monitoring
+      - path: logs-agent/IsRunning
+        type: gauge
+      - path: logs-agent/DestinationErrors
+        type: rate
+      - path: logs-agent/LogsDecoded
+        type: rate
+      - path: logs-agent/LogsProcessed
+        type: rate
+      - path: logs-agent/LogsSent
+        type: rate

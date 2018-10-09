@@ -12,15 +12,15 @@ import (
 	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/beevik/ntp"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	yaml "gopkg.in/yaml.v2"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const ntpCheckName = "ntp"
@@ -113,8 +113,12 @@ func (c *ntpConfig) parse(data []byte, initData []byte) error {
 
 // Configure configure the data from the yaml
 func (c *NTPCheck) Configure(data integration.Data, initConfig integration.Data) error {
+	err := c.CommonConfigure(data)
+	if err != nil {
+		return err
+	}
 	cfg := new(ntpConfig)
-	err := cfg.parse(data, initConfig)
+	err = cfg.parse(data, initConfig)
 	if err != nil {
 		log.Criticalf("Error parsing configuration file: %s", err)
 		return err

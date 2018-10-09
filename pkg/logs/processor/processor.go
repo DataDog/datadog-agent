@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // A Processor updates messages from an inputChan and pushes
@@ -49,7 +50,10 @@ func (p *Processor) run() {
 		p.done <- struct{}{}
 	}()
 	for msg := range p.inputChan {
+		metrics.LogsDecoded.Add(1)
 		if shouldProcess, redactedMsg := applyRedactingRules(msg); shouldProcess {
+			metrics.LogsProcessed.Add(1)
+
 			// Encode the message to its final format
 			content, err := p.encoder.encode(msg, redactedMsg)
 			if err != nil {

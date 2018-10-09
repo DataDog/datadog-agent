@@ -56,6 +56,11 @@ func Clear() {
 
 // Get returns the status of the logs-agent computed on the fly.
 func Get() Status {
+	if builder == nil {
+		return Status{
+			IsRunning: false,
+		}
+	}
 	// Sort sources by name (ie. by integration name ~= file name)
 	sources := make(map[string][]*config.LogSource)
 	for _, source := range builder.sources.GetSources() {

@@ -16,7 +16,7 @@ import (
 func TestSourceAreGroupedByIntegrations(t *testing.T) {
 	sources := config.NewLogSources()
 	go func() {
-		sources := sources.GetSourceStreamForType("foo")
+		sources := sources.GetAddedForType("foo")
 		for range sources {
 			// ensure that another component is consuming the channel to prevent
 			// the producer to get stuck.
@@ -47,7 +47,7 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 func TestStatusDeduplicateWarnings(t *testing.T) {
 	sources := config.NewLogSources()
 	go func() {
-		sources := sources.GetSourceStreamForType("foo")
+		sources := sources.GetAddedForType("foo")
 		for range sources {
 			// ensure that another component is consuming the channel to prevent
 			// the producer to get stuck.
