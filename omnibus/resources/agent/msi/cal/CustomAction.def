@@ -2,9 +2,7 @@ LIBRARY customaction
 
 EXPORTS
 	DllMain
-	AddDatadogSecretUser
-	RemoveDatadogSecretUser
-    CreateOrUpdateDDUser
+	CreateOrUpdateDDUser
     EnableServicesForDDUser
     VerifyDatadogRegistryPerms
 	RemoveDDUser

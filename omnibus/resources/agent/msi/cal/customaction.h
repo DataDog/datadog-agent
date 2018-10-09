@@ -10,7 +10,7 @@ PSID GetSidForUser(LPCWSTR host, LPCWSTR user);
 DWORD addDdUserPermsToFile(std::wstring &filename);
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
 LSA_HANDLE GetPolicyHandle();
-int CreateSecretUser(MSIHANDLE hInstall, std::wstring& name, std::wstring& comment);
+
 int CreateDDUser(MSIHANDLE hInstall);
 DWORD DeleteUser(std::wstring& name);
 DWORD DeleteSecretsRegKey();
@@ -18,7 +18,7 @@ DWORD changeRegistryAcls(const wchar_t* name);
 VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring svcName);
 
 UINT doRemoveDDUser();
-UINT doRemoveSecretUser();
+
 
 void MarkInstallStepComplete(std::wstring &step);
 bool WasInstallStepCompleted(std::wstring &step);

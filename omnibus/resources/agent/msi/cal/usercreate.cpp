@@ -73,52 +73,6 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
     return true;
 
 }
-bool createRegistryKey() {
-    LSTATUS status = 0;
-    HKEY hKey;
-    status = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-        datadog_key_secrets.c_str(),
-        0, // reserved is zero
-        NULL, // class is null
-        0, // no options
-        KEY_ALL_ACCESS,
-        NULL, // default security descriptor (we'll change this later)
-        &hKey,
-        NULL); // don't care about disposition... 
-    if (ERROR_SUCCESS != status) {
-        WcaLog(LOGMSG_STANDARD, "Couldn't create/open datadog reg key %d", GetLastError());
-        return false;
-    }
-    RegCloseKey(hKey);
-    return true;
-}
-bool writePasswordToRegistry(const wchar_t * name, const wchar_t* pass) {
-    // RegCreateKey opens the key if it's there.
-    LSTATUS status = 0;
-    HKEY hKey;
-    status = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-        datadog_key_secrets.c_str(),
-        0, // reserved is zero
-        NULL, // class is null
-        0, // no options
-        KEY_ALL_ACCESS,
-        NULL, // default security descriptor (we'll change this later)
-        &hKey,
-        NULL); // don't care about disposition... 
-    if (ERROR_SUCCESS != status) {
-        WcaLog(LOGMSG_STANDARD, "Couldn't create/open datadog reg key %d", GetLastError());
-        return false;
-    }
-    status = RegSetValueExW(hKey,
-        name,
-        0, // must be zero
-        REG_SZ,
-        (const BYTE*)pass,
-        DWORD((wcslen(pass) + 1)) * sizeof(wchar_t));
-    RegCloseKey(hKey);
-    return status == 0;
-
-}
 DWORD changeRegistryAcls(const wchar_t* name) {
 
     ExplicitAccess localsystem;
@@ -326,89 +280,11 @@ ddUserReturn:
     memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));
     return ret;
 }
-int CreateSecretUser(MSIHANDLE hInstall, std::wstring& name, std::wstring& comment)
-{
 
-    wchar_t passbuf[MAX_PASS_LEN + 2];
-    bool doWritePassToReg = true;
-    if (!generatePassword(passbuf, MAX_PASS_LEN + 2)) {
-        WcaLog(LOGMSG_STANDARD, "Failed to generate password");
-        return -1;
-    }
-    int ret = doCreateUser(name, comment, passbuf);
-    if (ret == NERR_UserExists) {
-        // user is already present. Assume this is an upgrade, in
-        // which case the password is alreadyset and stored.
-        WcaLog(LOGMSG_STANDARD, "Datadog secret user exists... upgrade?");
-
-        // don't write the password later (but go ahead and rewrite
-        // the permissions)
-        doWritePassToReg = false;
-    }
-    else if (ret != 0) {
-        WcaLog(LOGMSG_STANDARD, "Create User failed %d", (int)ret);
-        goto clearAndReturn;
-    } else {
-        // note we created the user in case the install fails later
-        MsiSetProperty(hInstall, propertySecretUserCreated.c_str(), L"true");
-        WcaLog(LOGMSG_STANDARD, "Successfully created user");
-    }
-
-    // create the top level key HKLM\Software\Datadog Agent\secrets.  Key must be
-    // created to change the ACLS.
-    if (!createRegistryKey()) {
-        WcaLog(LOGMSG_STANDARD, "Failed to create secret storage key");
-        goto clearAndReturn;
-    }
-
-    // if we write the password to the registry,
-    // change the ownership so that only LOCAL_SYSTEM and
-    // the user itself can read it
-
-    // of course, the security APIs use a different format than
-    // the registry APIs
-    ret = changeRegistryAcls(datadog_acl_key_secrets.c_str());
-    if (0 == ret) {
-        WcaLog(LOGMSG_STANDARD, "Changed registry perms");
-    }
-    else {
-        WcaLog(LOGMSG_STANDARD, "Failed to change registry perms %d", ret);
-        goto clearAndReturn;
-    }
-
-    // now that the ACLS are changed on the containing key, write
-    // the password into it.
-    if (doWritePassToReg) {
-        if (writePasswordToRegistry(name.c_str(), passbuf)) {
-            MsiSetProperty(hInstall, propertySecretPasswordWritten.c_str(), L"true");
-        }
-    }
-
-clearAndReturn:
-    // clear the password so it's not sitting around in memory
-    memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));
-    return (int)ret;
-
-}
 
 DWORD DeleteUser(std::wstring& name) {
     NET_API_STATUS ret = NetUserDel(NULL, name.c_str());
     return (DWORD)ret;
-}
-
-DWORD DeleteSecretsRegKey() {
-    HKEY hKey = NULL;
-    DWORD ret = RegOpenKeyEx(HKEY_LOCAL_MACHINE, datadog_key_root.c_str(), 0, KEY_ALL_ACCESS, &hKey);
-    if (ERROR_SUCCESS != ret) {
-        WcaLog(LOGMSG_STANDARD, "Failed to open registry key for deletion %d", ret);
-        return ret;
-    }
-    ret = RegDeleteKeyEx(hKey, datadog_key_secret_key.c_str(), KEY_WOW64_64KEY, 0);
-    if (ERROR_SUCCESS != ret) {
-        WcaLog(LOGMSG_STANDARD, "Failed to delete secret key %d", ret);
-    }
-    RegCloseKey(hKey);
-    return ret;
 }
 
 UINT doRemoveDDUser()
@@ -469,56 +345,6 @@ UINT doRemoveDDUser()
         WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
     } 
     
-LExit:
-    if (sid) {
-        delete[](BYTE *) sid;
-    }
-    if (hLsa) {
-        LsaClose(hLsa);
-    }
-    return er;
-}
-
-UINT doRemoveSecretUser() {
-    LSA_HANDLE hLsa = NULL;
-    PSID sid = NULL;
-    UINT er = 0;
-    
-    // change the rights on this user
-    sid = GetSidForUser(NULL, (LPCWSTR)secretUserUsername.c_str());
-    if (!sid) {
-        goto LExit;
-    }
-    if ((hLsa = GetPolicyHandle()) == NULL) {
-        goto LExit;
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
-    }
-
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
-    }
-    er = DeleteUser(secretUserUsername);
-    if (0 != er) {
-        // don't actually fail on failure.  We're doing an uninstall,
-        // and failing will just leave the system in a more confused state
-        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog secret user %d", er);
-
-    } 
-    er = DeleteSecretsRegKey();
-    if (0 != er) {
-        // don't actually fail on failure.  We're doing an uninstall,
-        // and failing will just leave the system in a more confused state
-        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog secret user registry key %d", er);
-
-    }
 LExit:
     if (sid) {
         delete[](BYTE *) sid;

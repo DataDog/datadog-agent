@@ -21,8 +21,6 @@ void logProcCount();
     bool bDDUserPasswordChanged = false;
     bool bDDUserFilePermsChanged = false;
     bool bDDUserPerfmon = false;
-    bool bDDSecretUserWasAdded = false;
-    bool bDDSecretPasswordWasAdded = false;
     bool bDDRegPermsChanged = false;
     std::wstring propertystring;
     std::map<std::wstring, bool> params;
@@ -39,24 +37,7 @@ void logProcCount();
     bDDUserPasswordChanged = WasInstallStepCompleted(strDdUserPasswordChanged);
     bDDUserFilePermsChanged = WasInstallStepCompleted(strFilePermissionsChanged);
 
-    bDDSecretUserWasAdded = WasInstallStepCompleted(strAddDdSecretUser);
-    bDDSecretPasswordWasAdded = false;
     bDDRegPermsChanged = WasInstallStepCompleted(strChangedRegistryPermissions);
-
-    if (bDDSecretPasswordWasAdded) {
-        WcaLog(LOGMSG_STANDARD, "Secret user password was added, undoing");
-        DeleteSecretsRegKey();
-    }
-    else {
-        WcaLog(LOGMSG_STANDARD, "Secret user password not added, not undoing");
-    }
-    if (bDDSecretUserWasAdded) {
-        WcaLog(LOGMSG_STANDARD, "Secret user was added, undoing");
-        doRemoveSecretUser();
-    }
-    else {
-        WcaLog(LOGMSG_STANDARD, "Secret user not added by this installation, not undoing");
-    }
 
     if (bDDUserWasAdded) {
         WcaLog(LOGMSG_STANDARD, "dd-agent-user created by this install, undoing");
