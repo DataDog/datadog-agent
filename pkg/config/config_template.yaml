@@ -505,6 +505,20 @@ api_key:
 # Fargate clusters use other endpoints and are not affected by these options.
 #
 {{ end -}}
+{{- if .CRI }}
+# CRI integration
+#
+# To activate the CRI check you'll need to indicate the path of the
+# CRI runtime you're using (and mount it in the container if needed)
+# cri_socket_path: /var/run/containerd/containerd.sock
+#
+# You can configure the initial connection timeout
+# cri_connection_timeout: 1
+#
+# You can configure the timeout for querying the CRI
+# cri_query_timeout: 5
+#
+{{ end -}}
 {{- if .Kubelet }}
 # Kubernetes kubelet connectivity
 #
