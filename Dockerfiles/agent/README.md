@@ -281,7 +281,7 @@ docker run -d --name datadog-agent \
            -e DD_API_KEY=<YOUR_API_KEY> \
            -e DD_LOGS_ENABLED=true \
            -e DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true \
-           -e DD_AC_EXCLUDE="name:dd-agent" \
+           -e DD_AC_EXCLUDE="name:datadog-agent" \
            -v /var/run/docker.sock:/var/run/docker.sock:ro \
            -v /proc/:/host/proc/:ro \
            -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw \
@@ -294,7 +294,7 @@ The commands related to log collection are the following:
 * `-e DD_LOGS_ENABLED=true`: this parameter enables log collection when set to `true`. The Agent looks for log instructions in configuration files.
 * `-e DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true`: this parameter adds a log configuration that enables log collection for all containers (see `Option 1` below)
 * `-v /opt/datadog-agent/run:/opt/datadog-agent/run:rw`: to make sure you do not lose any logs from containers during restarts or network issues, the last line that was collected for each container in this directory is stored on the host.
-* `-e DD_AC_EXCLUDE="name:dd-agent"`: to prevent the Datadog Agent from collecting and sending its own logs. Remove this parameter if you want to collect the Datadog Agent logs.
+* `-e DD_AC_EXCLUDE="name:datadog-agent"`: to prevent the Datadog Agent from collecting and sending its own logs. Remove this parameter if you want to collect the Datadog Agent logs.
 
 **Important notes**: Integration Pipelines and Processors will not be installed automatically, as the source and service are set to the `docker` generic value.
 The source and service values can be overriden thanks to Autodiscovery as described below; it automatically installs integration Pipelines that parse your logs and extract all the relevant information from them.
