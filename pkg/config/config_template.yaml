@@ -555,6 +555,11 @@ api_key:
 # kubelet_client_crt: /path/to/key
 # kubelet_client_key: /path/to/key
 #
+# On some kubelet versions, containers can take up to a second to
+# register in the podlist. This option allows to wait for a given
+# number of seconds when a container does not exist in the podlist.
+# kubelet_wait_on_missing_container: 0
+#
 {{ end -}}
 {{- if .KubeApiServer }}
 # Kubernetes apiserver integration

@@ -18,10 +18,10 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -37,6 +38,7 @@ const (
 
 // dummyKubelet allows tests to mock a kubelet's responses
 type dummyKubelet struct {
+	sync.Mutex
 	Requests chan *http.Request
 	PodsBody []byte
 
@@ -45,23 +47,28 @@ type dummyKubelet struct {
 }
 
 func newDummyKubelet(podListJSONPath string) (*dummyKubelet, error) {
+	kubelet := &dummyKubelet{Requests: make(chan *http.Request, 3)}
 	if podListJSONPath == "" {
-		kubelet := &dummyKubelet{Requests: make(chan *http.Request, 3)}
 		return kubelet, nil
 	}
+	err := kubelet.loadPodList(podListJSONPath)
+	return kubelet, err
+}
 
+func (d *dummyKubelet) loadPodList(podListJSONPath string) error {
+	d.Lock()
+	defer d.Unlock()
 	podList, err := ioutil.ReadFile(podListJSONPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	kubelet := &dummyKubelet{
-		Requests: make(chan *http.Request, 3),
-		PodsBody: podList,
-	}
-	return kubelet, nil
+	d.PodsBody = podList
+	return nil
 }
 
 func (d *dummyKubelet) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	d.Lock()
+	defer d.Unlock()
 	log.Debugf("dummyKubelet received %s on %s", r.Method, r.URL.Path)
 	d.Requests <- r
 	switch r.URL.Path {
@@ -90,7 +97,28 @@ func (d *dummyKubelet) parsePort(ts *httptest.Server) (*httptest.Server, int, er
 	if err != nil {
 		return nil, 0, err
 	}
+	log.Debugf("Starting on port %d", kubeletPort)
 	return ts, kubeletPort, nil
+}
+
+func (d *dummyKubelet) getRequest(timeout time.Duration) *http.Request {
+	select {
+	case r := <-d.Requests:
+		return r
+	case <-time.After(timeout):
+		return nil
+	}
+}
+
+func (d *dummyKubelet) dropRequests() {
+	for {
+		select {
+		case <-d.Requests:
+			continue
+		default:
+			return
+		}
+	}
 }
 
 func pemBlockForKey(privateKey interface{}) (*pem.Block, error) {
@@ -148,13 +176,14 @@ type KubeletTestSuite struct {
 // Make sure globalKubeUtil is deleted before each test
 func (suite *KubeletTestSuite) SetupTest() {
 	ResetGlobalKubeUtil()
+	ResetCache()
 
 	config.Datadog.Set("kubelet_client_crt", "")
 	config.Datadog.Set("kubelet_client_key", "")
 	config.Datadog.Set("kubelet_client_ca", "")
 	config.Datadog.Set("kubelet_tls_verify", true)
 	config.Datadog.Set("kubelet_auth_token_path", "")
-
+	config.Datadog.Set("kubelet_wait_on_missing_container", 0)
 	config.Datadog.Set("kubernetes_kubelet_host", "")
 	config.Datadog.Set("kubernetes_http_kubelet_port", 10250)
 	config.Datadog.Set("kubernetes_https_kubelet_port", 10255)
@@ -207,7 +236,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), kubeutil)
-	<-kubelet.Requests // Throwing away first GET
+	kubelet.dropRequests() // Throwing away first GETs
 
 	pods, err := kubeutil.GetLocalPodList()
 	require.Nil(suite.T(), err)
@@ -238,7 +267,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), kubeutil)
-	<-kubelet.Requests // Throwing away first GET
+	kubelet.dropRequests() // Throwing away first GETs
 
 	ip, name, err := kubeutil.GetNodeInfo()
 	require.Nil(suite.T(), err)
@@ -269,7 +298,7 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), kubeutil)
-	<-kubelet.Requests // Throwing away first GET
+	kubelet.dropRequests() // Throwing away first GETs
 
 	hostname, err := kubeutil.GetHostname()
 	require.Nil(suite.T(), err)
@@ -312,15 +341,6 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 	hostname, err := HostnameProvider("")
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "my-node-name", hostname)
-	<-kubelet.Requests // Throwing away first GET
-
-	select {
-	case r := <-kubelet.Requests:
-		require.Equal(suite.T(), r.Method, "GET")
-		require.Equal(suite.T(), r.URL.Path, "/pods")
-	case <-time.After(2 * time.Second):
-		require.FailNow(suite.T(), "Timeout on receive channel")
-	}
 }
 
 func (suite *KubeletTestSuite) TestPodlistCache() {
@@ -336,7 +356,7 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), kubeutil)
-	<-kubelet.Requests // Throwing away first GET
+	kubelet.dropRequests() // Throwing away first GETs
 
 	kubeutil.GetLocalPodList()
 	r := <-kubelet.Requests
@@ -374,7 +394,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), kubeutil)
-	<-kubelet.Requests // Throwing away first GET
+	kubelet.dropRequests() // Throwing away first GETs
 
 	// Empty container ID
 	pod, err := kubeutil.GetPodForContainerID("")
@@ -396,6 +416,75 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
+}
+
+func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
+	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
+	require.NoError(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.NoError(suite.T(), err)
+
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubelet_wait_on_missing_container", 1)
+
+	kubeutil, err := GetKubeUtil()
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	requests := 0
+	go func() {
+		for r := range kubelet.Requests {
+			if r.URL.Path != "/pods" {
+				continue
+			}
+			requests += 1
+			if requests == 4 { // Initial + cache invalidation + 2 timed retries
+				err := kubelet.loadPodList("./testdata/podlist_1.8-2.json")
+				assert.NoError(suite.T(), err)
+			}
+		}
+	}()
+
+	// Valid container ID
+	pod, err := kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), pod)
+	assert.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
+	assert.Equal(suite.T(), 5, requests)
+}
+
+func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
+	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
+	require.NoError(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.NoError(suite.T(), err)
+
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubelet_wait_on_missing_container", 0)
+
+	kubeutil, err := GetKubeUtil()
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	requests := 0
+	go func() {
+		for r := range kubelet.Requests {
+			if r.URL.Path == "/pods" {
+				requests += 1
+			}
+		}
+	}()
+
+	// We should fail after two requests only (initial + nocache)
+	_, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	require.Error(suite.T(), err)
+	assert.Equal(suite.T(), 2, requests)
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
@@ -573,5 +662,13 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 }
 
 func TestKubeletTestSuite(t *testing.T) {
+	config.SetupLogger(
+		"trace",
+		"",
+		"",
+		false,
+		true,
+		false,
+	)
 	suite.Run(t, new(KubeletTestSuite))
 }
