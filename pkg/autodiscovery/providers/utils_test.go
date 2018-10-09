@@ -249,6 +249,23 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			output:       []integration.Config{},
 			err:          errors.New("invalid format, expected an array, got: "),
 		},
+		{
+			// Invalid checks but valid logs
+			source: map[string]string{
+				"prefix.check_names": "[\"apache\"]",
+				"prefix.instances":   "[{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}]",
+				"prefix.logs":        "[{\"service\":\"any_service\",\"source\":\"any_source\"}]",
+			},
+			adIdentifier: "id",
+			prefix:       "prefix.",
+			err:          errors.New("missing init_configs key"),
+			output: []integration.Config{
+				{
+					LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+					ADIdentifiers: []string{"id"},
+				},
+			},
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
