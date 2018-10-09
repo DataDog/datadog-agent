@@ -10,10 +10,9 @@
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getContainerHostname() (bool, string) {
@@ -35,10 +34,18 @@ func getContainerHostname() (bool, string) {
 	if config.IsKubernetes() == false {
 		return false, name
 	}
-	// Kubernetes
-	log.Debug("GetHostname trying Kubernetes trough kubelet API...")
+	// Kubelet
 	if getKubeletHostname, found := hostname.ProviderCatalog["kubelet"]; found {
+		log.Debug("GetHostname trying Kubernetes trough kubelet API...")
 		name, err := getKubeletHostname(name)
+		if err == nil && ValidHostname(name) == nil {
+			return true, name
+		}
+	}
+	// Kube apiserver
+	if getKubeHostname, found := hostname.ProviderCatalog["kube_apiserver"]; found {
+		log.Debug("GetHostname trying Kubernetes trough API server...")
+		name, err := getKubeHostname(name)
 		if err == nil && ValidHostname(name) == nil {
 			return true, name
 		}
