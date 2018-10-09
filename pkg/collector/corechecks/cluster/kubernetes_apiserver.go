@@ -66,8 +66,13 @@ func (c *KubeASConfig) parse(data []byte) error {
 
 // Configure parses the check configuration and init the check.
 func (k *KubeASCheck) Configure(config, initConfig integration.Data) error {
+	err := k.CommonConfigure(config)
+	if err != nil {
+		return err
+	}
+
 	// Check connectivity to the APIServer
-	err := k.instance.parse(config)
+	err = k.instance.parse(config)
 	if err != nil {
 		log.Error("could not parse the config for the API server")
 		return err

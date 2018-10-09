@@ -230,10 +230,20 @@ spec:
             instances:
             - {}
 
+          memory.yaml: |
+            # Test go check handling of empty_default_hostname
+            instances:
+            - empty_default_hostname: true
+
           network.yaml: |
             init_config:
             instances:
             - collect_connection_state: false
+              excluded_interfaces:
+                - lo
+                - lo0
+            - collect_connection_state: false
+              empty_default_hostname: true
               excluded_interfaces:
                 - lo
                 - lo0
@@ -306,6 +316,9 @@ spec:
                 - name: datadog-config
                   mountPath: /etc/datadog-agent/conf.d/network.d/conf.yaml.default
                   subPath: network.yaml
+                - name: datadog-config
+                  mountPath: /etc/datadog-agent/conf.d/memory.d/conf.yaml.default
+                  subPath: memory.yaml
                 - name: proc
                   mountPath: /host/proc
                   readOnly: true
@@ -1019,13 +1032,39 @@ spec:
         while (1) {
           sleep(2000);
 
-          // Gauges
+          // Go memory check
           var nb = db.series.find({
-            metric: "system.cpu.user",
+            metric: "system.cpu.idle",
             host: "e2e-test"
           }).count();
           if (nb == 0) {
-            print("no system.cpu.user metric with nominal hostname");
+            print("no system.cpu.idle metric with nominal hostname");
+            continue;
+          }
+          var nb = db.series.find({
+            metric: "system.mem.free",
+            host: ""
+          }).count();
+          if (nb == 0) {
+            print("no system.mem.free metric with empty hostname");
+            continue;
+          }
+
+          // Python network check
+          var nb = db.series.find({
+            metric: "system.net.bytes_sent",
+            host: "e2e-test"
+          }).count();
+          if (nb == 0) {
+            print("no system.net.bytes_sent metric with nominal hostname");
+            continue;
+          }
+          var nb = db.series.find({
+            metric: "system.net.bytes_sent",
+            host: ""
+          }).count();
+          if (nb == 0) {
+            print("no system.net.bytes_sent metric with empty hostname");
             continue;
           }
 
