@@ -8,6 +8,9 @@
 package containers
 
 import (
+	yaml "gopkg.in/yaml.v2"
+	pb "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -16,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -81,13 +83,21 @@ func (c *CRICheck) Run() error {
 		c.Warnf("Cannot get containers from the CRI: %s", err)
 		return err
 	}
+	c.processContainerStats(sender, util.Runtime, containerStats)
+
+	sender.Commit()
+	return nil
+}
+
+// processContainerStats extracts metrics from the protobuf object
+func (c *CRICheck) processContainerStats(sender aggregator.Sender, runtime string, containerStats map[string]*pb.ContainerStats) {
 	for cid, stats := range containerStats {
-		entityID := containers.BuildEntityName(util.Runtime, cid)
+		entityID := containers.BuildEntityName(runtime, cid)
 		tags, err := tagger.Tag(entityID, true)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", cid[:12], err)
 		}
-		tags = append(tags, "runtime:"+util.Runtime)
+		tags = append(tags, "runtime:"+runtime)
 		tags = append(tags, c.instance.Tags...)
 		sender.Gauge("cri.mem.rss", float64(stats.GetMemory().GetWorkingSetBytes().GetValue()), "", tags)
 		// Cumulative CPU usage (sum across all cores) since object creation.
@@ -97,6 +107,4 @@ func (c *CRICheck) Run() error {
 			sender.Gauge("cri.disk.inodes", float64(stats.GetWritableLayer().GetInodesUsed().GetValue()), "", tags)
 		}
 	}
-	sender.Commit()
-	return nil
 }
