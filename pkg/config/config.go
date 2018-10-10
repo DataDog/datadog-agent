@@ -184,6 +184,7 @@ func init() {
 	BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
 	BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
+	BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	BindEnvAndSetDefault("statsd_forward_host", "")
 	BindEnvAndSetDefault("statsd_forward_port", 0)
 	BindEnvAndSetDefault("statsd_metric_namespace", "")
