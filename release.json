@@ -5,7 +5,7 @@
 		"PROCESS_AGENT_VERSION": "master",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-		"JMXFETCH_VERSION": "0.20.2",
+		"JMXFETCH_VERSION": "0.21.0",
 		"JMXFETCH_HASH": "3551b0c38a5d78f1d78f7ebe83b7b7482a12943e61a1d1178d7b0bd6ac56c6cf"
     },
     "6.5.0": {
