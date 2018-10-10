@@ -39,6 +39,8 @@ var statusCmd = &cobra.Command{
 	Short: "Print the current status",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// we'll search for a config file named `datadog-cluster.yaml`
+		config.Datadog.SetConfigName("datadog-cluster")
 		err := common.SetupConfig(confPath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)

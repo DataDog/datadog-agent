@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package config
+package metrics
 
 import (
 	"testing"
@@ -11,10 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAddress(t *testing.T) {
-	config := NewServerConfig("foo", 12345, false)
-	assert.Equal(t, "foo", config.Name)
-	assert.Equal(t, 12345, config.Port)
-	assert.False(t, config.UseSSL)
-	assert.Equal(t, "foo:12345", config.Address())
+func TestMetrics(t *testing.T) {
+	assert.Equal(t, logsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
 }

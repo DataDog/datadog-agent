@@ -13,14 +13,13 @@ import (
 	"runtime"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	python "github.com/sbinet/go-python"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/sbinet/go-python"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -220,13 +219,25 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		return err
 	}
 
+	commonOptions := integration.CommonInstanceConfig{}
+	err = yaml.Unmarshal(data, &commonOptions)
+	if err != nil {
+		log.Errorf("invalid instance section for check %s: %s", string(c.id), err)
+		return err
+	}
+
 	// See if a collection interval was specified
-	x, ok := rawInstances["min_collection_interval"]
-	if ok {
-		// we should receive an int from the unmarshaller
-		if intl, ok := x.(int); ok {
-			// all good, convert to the right type, assuming YAML contains seconds
-			c.interval = time.Duration(intl) * time.Second
+	if commonOptions.MinCollectionInterval > 0 {
+		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+	}
+
+	// Disable default hostname if specified
+	if commonOptions.EmptyDefaultHostname {
+		s, err := aggregator.GetSender(c.id)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
+		} else {
+			s.DisableDefaultHostname(true)
 		}
 	}
 

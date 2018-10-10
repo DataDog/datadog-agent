@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +28,7 @@ const DefaultForwarderRecoveryInterval = 2
 
 // Datadog is the global configuration object
 var (
-	Datadog       = viper.New()
+	Datadog       Config
 	proxies       *Proxy
 	ConfigEnvVars []string
 )
@@ -42,17 +41,18 @@ type MetadataProviders struct {
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
-	Name        string `mapstructure:"name"`
-	Polling     bool   `mapstructure:"polling"`
-	TemplateURL string `mapstructure:"template_url"`
-	TemplateDir string `mapstructure:"template_dir"`
-	Username    string `mapstructure:"username"`
-	Password    string `mapstructure:"password"`
-	CAFile      string `mapstructure:"ca_file"`
-	CAPath      string `mapstructure:"ca_path"`
-	CertFile    string `mapstructure:"cert_file"`
-	KeyFile     string `mapstructure:"key_file"`
-	Token       string `mapstructure:"token"`
+	Name             string `mapstructure:"name"`
+	Polling          bool   `mapstructure:"polling"`
+	TemplateURL      string `mapstructure:"template_url"`
+	TemplateDir      string `mapstructure:"template_dir"`
+	Username         string `mapstructure:"username"`
+	Password         string `mapstructure:"password"`
+	CAFile           string `mapstructure:"ca_file"`
+	CAPath           string `mapstructure:"ca_path"`
+	CertFile         string `mapstructure:"cert_file"`
+	KeyFile          string `mapstructure:"key_file"`
+	Token            string `mapstructure:"token"`
+	GraceTimeSeconds int    `mapstructure:"grace_time_seconds"`
 }
 
 // Listeners helps unmarshalling `listeners` config param
@@ -68,15 +68,8 @@ type Proxy struct {
 }
 
 func init() {
-	// config identifiers
-	Datadog.SetConfigName("datadog")
-	Datadog.SetEnvPrefix("DD")
-	Datadog.SetTypeByDefaultValue(true)
-
-	// Replace '.' from config keys with '_' in env variables bindings.
-	// e.g. : BindEnv("foo.bar") will bind config key
-	// "foo.bar" to env variable "FOO_BAR"
-	Datadog.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	// Configure Datadog global configuration
+	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
 	// Agent
@@ -191,6 +184,7 @@ func init() {
 	BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
 	BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
+	BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	BindEnvAndSetDefault("statsd_forward_host", "")
 	BindEnvAndSetDefault("statsd_forward_port", 0)
 	BindEnvAndSetDefault("statsd_metric_namespace", "")
@@ -225,6 +219,7 @@ func init() {
 	BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
 	BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
+	BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
 	// Kube ApiServer
 	BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
@@ -289,6 +284,7 @@ func init() {
 	BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
+	BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now
@@ -492,7 +488,7 @@ func AddAgentVersionToDomain(domain string, app string) (string, error) {
 }
 
 // getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
-func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
+func getMultipleEndpoints(config Config) (map[string][]string, error) {
 	ddURL := config.GetString("dd_url")
 
 	// Validating domain

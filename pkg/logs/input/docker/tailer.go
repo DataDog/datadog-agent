@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/docker/docker/api/types"
@@ -36,7 +35,7 @@ const tagsUpdatePeriod = 10 * time.Second
 // To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
 type Tailer struct {
 	ContainerID   string
-	outputChan    chan message.Message
+	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
 	reader        io.ReadCloser
 	cli           *client.Client
@@ -51,11 +50,11 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message, erroredContainerID chan string) *Tailer {
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
-		decoder:            decoder.InitializeDecoder(source),
+		decoder:            decoder.InitializeDecoder(source, dockerParser),
 		source:             source,
 		cli:                cli,
 		sleepDuration:      defaultSleepDuration,
@@ -176,17 +175,13 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		dockerMsg, err := parser.ParseMessage(output.Content)
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
-		if len(dockerMsg.Content) > 0 {
+		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.source)
-			origin.Offset = dockerMsg.Timestamp
+			origin.Offset = output.Timestamp
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
-			t.outputChan <- message.New(dockerMsg.Content, origin, dockerMsg.Status)
+			output.Origin = origin
+			t.outputChan <- output
 		}
 	}
 }

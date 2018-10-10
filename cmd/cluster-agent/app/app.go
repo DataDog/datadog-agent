@@ -62,14 +62,14 @@ metadata for their metrics.`,
 			if flagNoColor {
 				color.NoColor = true
 			}
-			av, _ := version.New(version.DCAVersion, version.Commit)
+			av, _ := version.New(version.AgentVersion, version.Commit)
 			meta := ""
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
 			}
 			fmt.Fprintln(
 				color.Output,
-				fmt.Sprintf("Agent %s %s- Commit: '%s' - Serialization version: %s",
+				fmt.Sprintf("Cluster agent %s %s- Commit: '%s' - Serialization version: %s",
 					color.BlueString(av.GetNumberAndPre()),
 					meta,
 					color.GreenString(version.Commit),
@@ -93,7 +93,8 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	// Global Agent configuration
+	// we'll search for a config file named `datadog-cluster.yaml`
+	config.Datadog.SetConfigName("datadog-cluster")
 	err := common.SetupConfig(confPath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
@@ -143,8 +144,8 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname)
-	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
+	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
 

@@ -19,6 +19,10 @@ type LogSource struct {
 	inputs   map[string]bool
 	lock     *sync.Mutex
 	Messages *Messages
+	// sourceType is the type of the source that we are tailing whereas Config.Type is the type of the tailer
+	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
+	// the agent is tailing a file to read logs of a containerd container
+	sourceType string
 }
 
 // NewLogSource creates a new log source.
@@ -56,4 +60,18 @@ func (s *LogSource) GetInputs() []string {
 		inputs = append(inputs, input)
 	}
 	return inputs
+}
+
+// SetSourceType sets a format that give information on how the source lines should be parsed
+func (s *LogSource) SetSourceType(sourceType string) {
+	s.lock.Lock()
+	s.sourceType = sourceType
+	s.lock.Unlock()
+}
+
+// GetSourceType returns the sourceType used by this source
+func (s *LogSource) GetSourceType() string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.sourceType
 }

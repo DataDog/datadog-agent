@@ -10,11 +10,12 @@ package system
 import (
 	"fmt"
 
+	"github.com/shirou/gopsutil/disk"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/disk"
 )
 
 // for testing
@@ -142,6 +143,9 @@ func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOC
 
 // Configure the disk check
 func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.commonConfigure(data)
-	return err
+	err := c.CommonConfigure(data)
+	if err != nil {
+		return err
+	}
+	return c.instanceConfigure(data)
 }

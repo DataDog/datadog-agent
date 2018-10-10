@@ -26,10 +26,9 @@ func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) conf
 	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.ProcessingRule{rule}}}
 }
 
-func newMessage(content []byte, source *config.LogSource, status string) message.Message {
+func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
 	origin := message.NewOrigin(source)
-	msg := message.New(content, origin, status)
-	return msg
+	return message.NewMessage(content, origin, status)
 }
 
 func TestExclusion(t *testing.T) {

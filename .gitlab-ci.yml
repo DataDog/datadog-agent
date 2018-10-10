@@ -54,7 +54,7 @@ before_script:
   - echo running default before_script
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
-  - pip install -U pip
+  - pip install --upgrade --ignore-installed pip setuptools
   - pip install -r requirements.txt
   - inv -e deps
 
@@ -133,7 +133,10 @@ run_test_rpm-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
   script:
-    - inv -e test --race --profile --cpus 4
+    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # This is OK because the test on systemd still runs on the debian image above
+    - inv -e test --race --profile --cpus 4 --build-exclude=systemd
 
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
@@ -375,7 +378,6 @@ build_windows_msi_x64:
 
 # build Agent package for android
 agent_android_apk:
-  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:latest
   tags: [ "runner:main", "size:large" ]
@@ -870,7 +872,6 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
   variables:
     <<: *docker_hub_variables
   script:
@@ -919,6 +920,12 @@ deploy_deb:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
+    # We first check that the current version hasn't already been deployed
+    # (same as the check_already_deployed_version). We do this twice to mitigate
+    # races and issues with retries while failing early if there is an issue.
+    - pushd $OMNIBUS_PACKAGE_DIR
+    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+    - popd
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
 

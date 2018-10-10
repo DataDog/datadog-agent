@@ -186,7 +186,7 @@ func StartAgent() error {
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(s, hostname)
+	agg := aggregator.InitAggregator(s, hostname, "agent")
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
 	// start dogstatsd

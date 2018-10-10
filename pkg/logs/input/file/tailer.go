@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -35,25 +36,31 @@ type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
 
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	decoder    *decoder.Decoder
 	source     *config.LogSource
 
 	sleepDuration time.Duration
 
 	closeTimeout  time.Duration
-	shouldStop    bool
-	didFileRotate bool
+	shouldStop    int32
+	didFileRotate int32
 	stop          chan struct{}
 	done          chan struct{}
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+	var parser logParser.Parser
+	if source.GetSourceType() == config.ContainerdType {
+		parser = containerdFileParser
+	} else {
+		parser = logParser.NoopParser
+	}
 	return &Tailer{
 		path:          path,
 		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source),
+		decoder:       decoder.InitializeDecoder(source, parser),
 		source:        source,
 		readOffset:    0,
 		sleepDuration: sleepDuration,
@@ -93,7 +100,7 @@ func (t *Tailer) StartFromBeginning() error {
 
 // Stop stops the tailer and returns only when the decoder is flushed
 func (t *Tailer) Stop() {
-	t.didFileRotate = false
+	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
@@ -103,7 +110,7 @@ func (t *Tailer) Stop() {
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
-	t.didFileRotate = true
+	atomic.StoreInt32(&t.didFileRotate, 1)
 	go t.startStopTimer()
 	t.source.RemoveInput(t.path)
 }
@@ -126,7 +133,7 @@ func (t *Tailer) onStop() {
 func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		t.shouldStop = true
+		atomic.StoreInt32(&t.shouldStop, 1)
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
@@ -141,7 +148,8 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(t.tags)
-		t.outputChan <- message.New(output.Content, origin, "")
+		output.Origin = origin
+		t.outputChan <- output
 	}
 }
 
@@ -174,7 +182,7 @@ func (t *Tailer) SetDecodedOffset(off int64) {
 
 // shouldTrackOffset returns whether the tailer should track the file offset or not
 func (t *Tailer) shouldTrackOffset() bool {
-	if t.didFileRotate {
+	if atomic.LoadInt32(&t.didFileRotate) != 0 {
 		return false
 	}
 	return true
