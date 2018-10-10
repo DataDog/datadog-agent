@@ -26,8 +26,7 @@ FROM debian:buster-slim
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
-ENV DOCKER_DD_AGENT=true \
-    PATH="/opt/datadog-agent/bin/datadog-cluster-agent/:/opt/datadog-agent/embedded/bin/:$PATH"
+ENV PATH="/opt/datadog-agent/bin/datadog-cluster-agent/:/opt/datadog-agent/embedded/bin/:$PATH"
 
 RUN apt-get update \
  && apt-get install --no-install-recommends -y ca-certificates curl \
