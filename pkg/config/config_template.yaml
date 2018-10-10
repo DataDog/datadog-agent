@@ -512,10 +512,10 @@ api_key:
 # CRI runtime you're using (and mount it in the container if needed)
 # cri_socket_path: /var/run/containerd/containerd.sock
 #
-# You can configure the initial connection timeout
+# You can configure the initial connection timeout (in seconds)
 # cri_connection_timeout: 1
 #
-# You can configure the timeout for querying the CRI
+# You can configure the timeout (in seconds) for querying the CRI
 # cri_query_timeout: 5
 #
 {{ end -}}
