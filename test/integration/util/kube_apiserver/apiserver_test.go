@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 const (
@@ -159,4 +160,39 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 2)
 	assert.Len(suite.T(), modified, 0)
+}
+
+func (suite *testSuite) TestHostnameProvider() {
+	// Init own client to write the events
+	config.Datadog.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
+	c, err := apiserver.GetAPIClient()
+
+	require.NoError(suite.T(), err)
+
+	core := c.Cl.CoreV1()
+	require.NotNil(suite.T(), core)
+
+	// Create a dummy pod
+	myHostname, err := os.Hostname()
+	require.NoError(suite.T(), err)
+	dummyPod := createPodOnNode("default", myHostname, "target.host")
+
+	// Register it in the apiserver
+	_, err = core.Pods("default").Create(dummyPod)
+	require.NoError(suite.T(), err)
+	defer core.Pods("default").Delete(myHostname, nil)
+
+	// Hostname provider should return the expected value
+	foundHost, err := apiserver.HostnameProvider("")
+	assert.Equal(suite.T(), "target.host", foundHost)
+
+	// Testing hostname when a cluster name is set
+	var testClusterName = "Laika"
+	config.Datadog.Set("cluster_name", testClusterName)
+	clustername.ResetClusterName()
+	defer config.Datadog.Set("cluster_name", "")
+	defer clustername.ResetClusterName()
+
+	foundHost, err = apiserver.HostnameProvider("")
+	assert.Equal(suite.T(), "target.host-Laika", foundHost)
 }
