@@ -43,6 +43,7 @@ func makeCounterSetIndexes() error {
 	bufferIncrement := uint32(1024)
 	bufferSize := bufferIncrement
 	var counterlist []uint16
+
 	for {
 		var regtype uint32
 		counterlist = make([]uint16, bufferSize)
@@ -59,6 +60,7 @@ func makeCounterSetIndexes() error {
 			bufferSize += bufferIncrement
 			continue
 		} else if regerr != nil {
+			log.Warnf("Failed to query value for performance data %d", regerr)
 			return regerr
 		}
 		break
@@ -81,6 +83,7 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 	// one.  If not present at all, try the english counter name
 	ndxlist, err := getCounterIndexList(className)
 	if err != nil {
+		log.Warnf("Failed to getCounterIndexList %v", err)
 		return nil, err
 	}
 	if ndxlist == nil || len(ndxlist) == 0 {
@@ -105,6 +108,7 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 	}
 	allcounters, instances, err := pdhEnumObjectItems(p.className)
 	if err != nil {
+		log.Warnf("Failed pdhEnumObjectItems %v", err)
 		return nil, err
 	}
 	if instanceName == "" && len(instances) > 0 {
