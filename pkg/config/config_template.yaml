@@ -463,6 +463,10 @@ api_key:
 # is 5 seconds. It can be configured with this option.
 # docker_query_timeout: 5
 #
+# The default interval in second to check for new autodiscovery configurations
+# On all registered configuration providers
+# ad_config_poll_interval: 10
+#
 {{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction

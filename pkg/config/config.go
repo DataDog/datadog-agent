@@ -193,6 +193,7 @@ func init() {
 	BindEnvAndSetDefault("exclude_pause_container", true)
 	BindEnvAndSetDefault("ac_include", []string{})
 	BindEnvAndSetDefault("ac_exclude", []string{})
+	BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
 
 	// Docker
 	BindEnvAndSetDefault("docker_query_timeout", int64(5))

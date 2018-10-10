@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	configsPollIntl       = 10 * time.Second
 	listenerCandidateIntl = 30 * time.Second
 	acErrors              *expvar.Map
 	errorStats            = newAcErrorStats()
@@ -104,6 +103,7 @@ func (ac *AutoConfig) StartConfigPolling() {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
+	configsPollIntl := config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
 	ac.configsPollTicker = time.NewTicker(configsPollIntl)
 	ac.pollConfigs()
 	ac.pollerActive = true
