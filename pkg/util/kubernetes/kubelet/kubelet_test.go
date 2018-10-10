@@ -435,12 +435,15 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	kubelet.dropRequests() // Throwing away first GETs
 
 	requests := 0
+	var requestsMutex sync.Mutex
 	go func() {
 		for r := range kubelet.Requests {
 			if r.URL.Path != "/pods" {
 				continue
 			}
+			requestsMutex.Lock()
 			requests += 1
+			requestsMutex.Unlock()
 			if requests == 4 { // Initial + cache invalidation + 2 timed retries
 				err := kubelet.loadPodList("./testdata/podlist_1.8-2.json")
 				assert.NoError(suite.T(), err)
@@ -453,7 +456,9 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	assert.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
+	requestsMutex.Lock()
 	assert.Equal(suite.T(), 5, requests)
+	requestsMutex.Unlock()
 }
 
 func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
@@ -473,10 +478,13 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	kubelet.dropRequests() // Throwing away first GETs
 
 	requests := 0
+	var requestsMutex sync.Mutex
 	go func() {
 		for r := range kubelet.Requests {
 			if r.URL.Path == "/pods" {
+				requestsMutex.Lock()
 				requests += 1
+				requestsMutex.Unlock()
 			}
 		}
 	}()
@@ -484,7 +492,9 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	// We should fail after two requests only (initial + nocache)
 	_, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	require.Error(suite.T(), err)
+	requestsMutex.Lock()
 	assert.Equal(suite.T(), 2, requests)
+	requestsMutex.Unlock()
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
