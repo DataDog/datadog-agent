@@ -120,16 +120,18 @@ func (d *DockerConfigProvider) IsUpToDate() (bool, error) {
 func parseDockerLabels(containers map[string]map[string]string) ([]integration.Config, error) {
 	var configs []integration.Config
 	for cID, labels := range containers {
-		c, err := extractTemplatesFromMap(docker.ContainerIDToEntityName(cID), labels, dockerADLabelPrefix)
-		switch {
-		case err != nil:
-			log.Errorf("Can't parse template for container %s: %s", cID, err)
-			configs = append(configs, c...)
-		case len(c) == 0:
+		c, errors := extractTemplatesFromMap(docker.ContainerIDToEntityName(cID), labels, dockerADLabelPrefix)
+
+		if len(c) == 0 {
 			continue
-		default:
-			configs = append(configs, c...)
 		}
+		if len(errors) > 0 {
+			for _, err := range errors {
+				log.Errorf("Can't parse template for container %s: %s", cID, err)
+			}
+		}
+
+		configs = append(configs, c...)
 	}
 	return configs, nil
 }

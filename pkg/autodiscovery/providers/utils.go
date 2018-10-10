@@ -100,31 +100,23 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []in
 
 // extractTemplatesFromMap looks for autodiscovery configurations in a given map
 // (either docker labels or kubernetes annotations) and returns them if found.
-func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
+func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, []error) {
 	configs := make([]integration.Config, 0)
+	errors := make([]error, 0)
 
-	checksConfigs, errCheck := extractCheckTemplatesFromMap(key, input, prefix)
-	if errCheck == nil {
-		configs = append(configs, checksConfigs...)
-	} else {
-		log.Warnf("could not extract checks config from template: %v", errCheck)
+	checksConfigs, err := extractCheckTemplatesFromMap(key, input, prefix)
+	if err != nil {
+		errors = append(errors, fmt.Errorf("could not extract checks config: %v", err))
 	}
+	configs = append(configs, checksConfigs...)
 
-	logsConfigs, errLogs := extractLogsTemplatesFromMap(key, input, prefix)
-	if errLogs == nil {
-		configs = append(configs, logsConfigs...)
-	} else {
-		log.Warnf("could not extract logs config from template: %v", errLogs)
+	logsConfigs, err := extractLogsTemplatesFromMap(key, input, prefix)
+	if err != nil {
+		errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
 	}
+	configs = append(configs, logsConfigs...)
 
-	if errCheck != nil {
-		return configs, errCheck
-	}
-	if errLogs != nil {
-		return configs, errLogs
-	}
-
-	return configs, nil
+	return configs, errors
 }
 
 // extractCheckTemplatesFromMap returns all the check configurations from a given map.

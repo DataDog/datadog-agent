@@ -122,7 +122,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 		adIdentifier string
 		prefix       string
 		output       []integration.Config
-		err          error
+		errs         []error
 	}{
 		{
 			// Nominal case with two templates
@@ -225,7 +225,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			adIdentifier: "id",
 			prefix:       "prefix.",
 			output:       []integration.Config{},
-			err:          errors.New("missing init_configs key"),
+			errs:         []error{errors.New("could not extract checks config: missing init_configs key")},
 		},
 		{
 			// Invalid instances json
@@ -237,7 +237,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			adIdentifier: "id",
 			prefix:       "prefix.",
 			output:       []integration.Config{},
-			err:          errors.New("in instances: Failed to unmarshal JSON"),
+			errs:         []error{errors.New("could not extract checks config: in instances: Failed to unmarshal JSON")},
 		},
 		{
 			// Invalid logs json
@@ -247,7 +247,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			adIdentifier: "id",
 			prefix:       "prefix.",
 			output:       []integration.Config{},
-			err:          errors.New("invalid format, expected an array, got: "),
+			errs:         []error{errors.New("could not extract logs config: invalid format, expected an array, got: ")},
 		},
 		{
 			// Invalid checks but valid logs
@@ -258,7 +258,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			err:          errors.New("missing init_configs key"),
+			errs:         []error{errors.New("could not extract checks config: missing init_configs key")},
 			output: []integration.Config{
 				{
 					LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
@@ -266,17 +266,34 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Invalid checks and invalid logs
+			source: map[string]string{
+				"prefix.check_names": "[\"apache\"]",
+				"prefix.instances":   "[{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}]",
+				"prefix.logs":        "{\"service\":\"any_service\",\"source\":\"any_source\"}",
+			},
+			adIdentifier: "id",
+			prefix:       "prefix.",
+			errs: []error{
+				errors.New("could not extract checks config: missing init_configs key"),
+				errors.New("could not extract logs config: invalid format, expected an array, got: "),
+			},
+			output: []integration.Config{},
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
-			configs, err := extractTemplatesFromMap(tc.adIdentifier, tc.source, tc.prefix)
+			configs, errs := extractTemplatesFromMap(tc.adIdentifier, tc.source, tc.prefix)
 			assert.EqualValues(tc.output, configs)
 
-			if tc.err == nil {
-				assert.Nil(err)
+			if len(tc.errs) == 0 {
+				assert.Equal(0, len(errs))
 			} else {
-				assert.NotNil(err)
-				assert.Contains(err.Error(), tc.err.Error())
+				for i, err := range errs {
+					assert.NotNil(err)
+					assert.Contains(err.Error(), tc.errs[i].Error())
+				}
 			}
 		})
 	}
