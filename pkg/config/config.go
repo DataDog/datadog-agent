@@ -202,6 +202,11 @@ func init() {
 	BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
 	BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
 
+	// CRI
+	BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
+	BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
+	BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
+
 	// Kubernetes
 	BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)

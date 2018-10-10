@@ -30,6 +30,7 @@ type context struct {
 	Kubelet           bool
 	KubernetesTagging bool
 	ECS               bool
+	CRI               bool
 	ProcessAgent      bool
 	KubeApiServer     bool
 	TraceAgent        bool
@@ -53,6 +54,7 @@ func mkContext(buildType string) context {
 			DockerTagging:     true,
 			KubernetesTagging: true,
 			ECS:               true,
+			CRI:               true,
 			ProcessAgent:      true,
 			TraceAgent:        true,
 			Kubelet:           true,
