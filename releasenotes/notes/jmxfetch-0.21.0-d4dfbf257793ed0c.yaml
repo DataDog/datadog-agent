@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    JMXFetch upgraded to 0.20.2; Adds support for rmi registry connection over
+    JMXFetch upgraded to 0.21.0; Adds support for rmi registry connection over
     SSL and client authentication.
