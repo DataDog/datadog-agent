@@ -85,13 +85,8 @@ func parseECSContainers(containers []ecs.Container) ([]integration.Config, error
 	for _, c := range containers {
 		configs, errors := extractTemplatesFromMap(docker.ContainerIDToEntityName(c.DockerID), c.Labels, ecsADLabelPrefix)
 
-		if len(configs) == 0 {
-			continue
-		}
-		if len(errors) > 0 {
-			for _, err := range errors {
-				log.Errorf("unable to extract templates for container %s - %s", c.DockerID, err)
-			}
+		for _, err := range errors {
+			log.Errorf("unable to extract templates for container %s - %s", c.DockerID, err)
 		}
 
 		templates = append(templates, configs...)

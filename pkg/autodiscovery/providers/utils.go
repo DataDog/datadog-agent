@@ -101,8 +101,8 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []in
 // extractTemplatesFromMap looks for autodiscovery configurations in a given map
 // (either docker labels or kubernetes annotations) and returns them if found.
 func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, []error) {
-	configs := make([]integration.Config, 0)
-	errors := make([]error, 0)
+	var configs []integration.Config
+	var errors []error
 
 	checksConfigs, err := extractCheckTemplatesFromMap(key, input, prefix)
 	if err != nil {

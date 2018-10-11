@@ -214,7 +214,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []integration.Config{},
+			output:       nil,
 		},
 		{
 			// Missing init_configs, error out
@@ -224,7 +224,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []integration.Config{},
+			output:       nil,
 			errs:         []error{errors.New("could not extract checks config: missing init_configs key")},
 		},
 		{
@@ -236,7 +236,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []integration.Config{},
+			output:       nil,
 			errs:         []error{errors.New("could not extract checks config: in instances: Failed to unmarshal JSON")},
 		},
 		{
@@ -246,7 +246,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			adIdentifier: "id",
 			prefix:       "prefix.",
-			output:       []integration.Config{},
+			output:       nil,
 			errs:         []error{errors.New("could not extract logs config: invalid format, expected an array, got: ")},
 		},
 		{
@@ -279,7 +279,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 				errors.New("could not extract checks config: missing init_configs key"),
 				errors.New("could not extract logs config: invalid format, expected an array, got: "),
 			},
-			output: []integration.Config{},
+			output: nil,
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {

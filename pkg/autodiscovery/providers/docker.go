@@ -122,13 +122,8 @@ func parseDockerLabels(containers map[string]map[string]string) ([]integration.C
 	for cID, labels := range containers {
 		c, errors := extractTemplatesFromMap(docker.ContainerIDToEntityName(cID), labels, dockerADLabelPrefix)
 
-		if len(c) == 0 {
-			continue
-		}
-		if len(errors) > 0 {
-			for _, err := range errors {
-				log.Errorf("Can't parse template for container %s: %s", cID, err)
-			}
+		for _, err := range errors {
+			log.Errorf("Can't parse template for container %s: %s", cID, err)
 		}
 
 		configs = append(configs, c...)
