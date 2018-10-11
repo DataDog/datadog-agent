@@ -54,6 +54,39 @@ do_start()
 }
 
 #
+# Start the agents and wait for them to be up
+#
+start_and_wait()
+{
+	log_daemon_msg "Starting $DESC" "$NAME"
+	do_start
+	case "$?" in
+		1) log_end_msg 0 ;;
+		2) log_end_msg 1 ;;
+		*)
+			# check if the agent is running once per second for 5 seconds
+			retries=5
+			while [ $retries -gt 1 ]; do
+				start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $AGENTPATH --test
+				if [ "$?" -eq "1" ]; then
+					# We've started up successfully. Exit cleanly
+					log_end_msg 0
+					service datadog-agent-process start
+					service datadog-agent-trace start
+					exit 0
+				else
+					retries=$(($retries - 1))
+					sleep 1
+				fi
+			done
+			# After 5 tries the agent didn't start. Report an error
+			log_end_msg 1
+
+		;;
+	esac
+}
+
+#
 # Function that stops the daemon/service
 #
 do_stop()
@@ -69,6 +102,24 @@ do_stop()
 	return $RETVAL
 }
 
+#
+# Stop the agents and wait for them to be down
+#
+stop_and_wait()
+{
+	log_daemon_msg "Stopping $DESC" "$NAME"
+	do_stop
+	case "$?" in
+		0|1)
+			log_end_msg 0
+			service datadog-agent-process stop
+			service datadog-agent-trace stop
+			exit 0
+			;;
+		2) log_end_msg 1 ;;
+	esac
+}
+
 # Action to take
 case "$1" in
 	start)
@@ -80,49 +131,17 @@ case "$1" in
 			exit 0
 		fi
 
-		log_daemon_msg "Starting $DESC" "$NAME"
-		do_start
-		case "$?" in
-			1) log_end_msg 0 ;;
-			2) log_end_msg 1 ;;
-			*)
-				# check if the agent is running once per second for 5 seconds
-				retries=5
-				while [ $retries -gt 1 ]; do
-					start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $AGENTPATH --test
-					if [ "$?" -eq "1" ]; then
-						# We've started up successfully. Exit cleanly
-						log_end_msg 0
-						service datadog-agent-process start
-						service datadog-agent-trace start
-						exit 0
-					else
-						retries=$(($retries - 1))
-						sleep 1
-					fi
-				done
-				# After 5 tries the agent didn't start. Report an error
-				log_end_msg 1
+		start_and_wait
 
 			;;
-		esac
-		;;
 
 	stop)
 		if init_is_upstart; then
 			exit 0
 		fi
-		log_daemon_msg "Stopping $DESC" "$NAME"
-		do_stop
-		case "$?" in
-			0|1)
-				log_end_msg 0
-				service datadog-agent-process stop
-				service datadog-agent-trace stop
-				exit 0
-				;;
-			2) log_end_msg 1 ;;
-		esac
+
+		stop_and_wait
+
 		;;
 
 	status)
@@ -133,22 +152,12 @@ case "$1" in
 		if init_is_upstart; then
 			exit 1
 		fi
-		log_daemon_msg "Restarting $DESC" "$NAME"
-		do_stop
-		case "$?" in
-		0|1)
-			do_start
-			case "$?" in
-				0) log_end_msg 0 ;;
-				1) log_end_msg 1 ;; # Old process is still running
-				*) log_end_msg 1 ;; # Failed to start
-			esac
-			;;
-		*)
-			# Failed to stop
-			log_end_msg 1
-			;;
-		esac
+
+		echo "Restarting $DESC"
+
+		stop_and_wait
+		start_and_wait
+
 		;;
 
 	*)
