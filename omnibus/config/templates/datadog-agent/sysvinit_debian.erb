@@ -119,6 +119,7 @@ case "$1" in
                 log_end_msg 0
                 service datadog-agent-process stop
                 service datadog-agent-trace stop
+                exit 0
                 ;;
             2) log_end_msg 1 ;;
 	    esac
