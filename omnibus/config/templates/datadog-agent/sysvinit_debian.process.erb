@@ -24,12 +24,12 @@ DESC="Datadog Process Agent"
 
 
 if [ ! -x $AGENTPATH ]; then
-    echo "$AGENTPATH not found. Exiting."
-    exit 0
+	echo "$AGENTPATH not found. Exiting."
+	exit 0
 fi
 
 if [ -r "/etc/default/${NAME}" ]; then
-    . "/etc/default/${NAME}"
+	. "/etc/default/${NAME}"
 fi
 
 
@@ -63,91 +63,91 @@ do_stop()
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
 	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --exec $AGENTPATH
-    RETVAL="$?"
-    rm -f $PIDFILE
-    return $RETVAL
+	RETVAL="$?"
+	rm -f $PIDFILE
+	return $RETVAL
 }
 
 # Action to take
 case "$1" in
-    start)
-        if init_is_upstart; then
-            exit 1
-        fi
-        if [ "$DATADOG_ENABLED" = "no" ]; then
-            echo "Disabled via /etc/default/$NAME. Exiting."
-            exit 0
-        fi
+	start)
+		if init_is_upstart; then
+			exit 1
+		fi
+		if [ "$DATADOG_ENABLED" = "no" ]; then
+			echo "Disabled via /etc/default/$NAME. Exiting."
+			exit 0
+		fi
 
-	    log_daemon_msg "Starting $DESC" "$NAME"
-        do_start
-        case "$?" in
-            1) log_end_msg 0 ;;
-            2) log_end_msg 1 ;;
-            *)
-                # check if the agent is running once per second for 5 seconds
-                retries=5
-                while [ $retries -gt 1 ]; do
-                    start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $AGENTPATH --test
-                    if [ "$?" -eq "1" ]; then
-                        # We've started up successfully. Exit cleanly
-                        log_end_msg 0
-                        exit 0
-                    else
-                        retries=$(($retries - 1))
-                        sleep 1
-                    fi
-                done
-                # After 5 tries the agent didn't start. Report an error
-                log_end_msg 1
+		log_daemon_msg "Starting $DESC" "$NAME"
+		do_start
+		case "$?" in
+			1) log_end_msg 0 ;;
+			2) log_end_msg 1 ;;
+			*)
+				# check if the agent is running once per second for 5 seconds
+				retries=5
+				while [ $retries -gt 1 ]; do
+					start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $AGENTPATH --test
+					if [ "$?" -eq "1" ]; then
+						# We've started up successfully. Exit cleanly
+						log_end_msg 0
+						exit 0
+					else
+						retries=$(($retries - 1))
+						sleep 1
+					fi
+				done
+				# After 5 tries the agent didn't start. Report an error
+				log_end_msg 1
 
-            ;;
-	    esac
-        ;;
+			;;
+		esac
+		;;
 
-    stop)
-        if init_is_upstart; then
-            exit 0
-        fi
-        log_daemon_msg "Stopping $DESC" "$NAME"
-        do_stop
-        case "$?" in
-            0|1) log_end_msg 0 ;;
-            2) log_end_msg 1 ;;
-	    esac
-        ;;
+	stop)
+		if init_is_upstart; then
+			exit 0
+		fi
+		log_daemon_msg "Stopping $DESC" "$NAME"
+		do_stop
+		case "$?" in
+			0|1) log_end_msg 0 ;;
+			2) log_end_msg 1 ;;
+		esac
+		;;
 
-    status)
-        status_of_proc -p $PIDFILE $AGENTPATH $NAME && exit 0 || exit $?
-        ;;
+	status)
+		status_of_proc -p $PIDFILE $AGENTPATH $NAME && exit 0 || exit $?
+		;;
 
-    restart|force-reload)
-        if init_is_upstart; then
-            exit 1
-        fi
-        log_daemon_msg "Restarting $DESC" "$NAME"
-        do_stop
-        case "$?" in
-        0|1)
-            do_start
-            case "$?" in
-                0) log_end_msg 0 ;;
-                1) log_end_msg 1 ;; # Old process is still running
-                *) log_end_msg 1 ;; # Failed to start
-            esac
-            ;;
-        *)
-            # Failed to stop
-            log_end_msg 1
-            ;;
-        esac
-        ;;
+	restart|force-reload)
+		if init_is_upstart; then
+			exit 1
+		fi
+		log_daemon_msg "Restarting $DESC" "$NAME"
+		do_stop
+		case "$?" in
+		0|1)
+			do_start
+			case "$?" in
+				0) log_end_msg 0 ;;
+				1) log_end_msg 1 ;; # Old process is still running
+				*) log_end_msg 1 ;; # Failed to start
+			esac
+			;;
+		*)
+			# Failed to stop
+			log_end_msg 1
+			;;
+		esac
+		;;
 
-    *)
-        N=/etc/init.d/$NAME
-        echo "Usage: $N {start|stop|restart|status}"
-        exit 1
-        ;;
+	*)
+		N=/etc/init.d/$NAME
+		echo "Usage: $N {start|stop|restart|status}"
+		exit 1
+		;;
 esac
 
 exit $?
