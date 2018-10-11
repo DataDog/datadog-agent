@@ -109,7 +109,7 @@ stop_and_wait()
 	do_stop
 	case "$?" in
 		0|1) log_end_msg 0 ;;
-		2) log_end_msg 1 ;;
+		*) log_end_msg 1 ;; # Failed to stop
 	esac
 }
 
