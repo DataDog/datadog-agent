@@ -29,7 +29,7 @@ const DefaultForwarderRecoveryInterval = 2
 // DefaultSite is the default site the Agent sends data to.
 const DefaultSite = "datadoghq.com"
 
-const defaultInfraURLPrefix = "https://app."
+const infraURLPrefix = "https://app."
 
 // Datadog is the global configuration object
 var (
@@ -499,7 +499,7 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 }
 
 func getMainInfraEndpoint(config Config) string {
-	return getMainEndpoint(config, defaultInfraURLPrefix, "dd_url")
+	return getMainEndpoint(config, infraURLPrefix, "dd_url")
 }
 
 // getMainEndpoint implements the logic to extract the DD URL from a config, based on `site` and ddURLKey

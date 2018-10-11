@@ -388,16 +388,6 @@ func TestEnvNestedConfig(t *testing.T) {
 	os.Unsetenv("DD_FOO_BAR_NESTED")
 }
 
-func TestBindEnvAndSetDefault(t *testing.T) {
-	config := setupConf()
-	config.BindEnvAndSetDefault("app_key", "")
-	assert.NotContains(t, config.GetEnvVars(), "DD_APP_KEY")
-	config.BindEnvAndSetDefault("logset", "")
-	assert.Contains(t, config.GetEnvVars(), "DD_LOGSET")
-	config.BindEnvAndSetDefault("logs_config.run_path", "")
-	assert.Contains(t, config.GetEnvVars(), "DD_LOGS_CONFIG.RUN_PATH")
-}
-
 func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
 	config := setupConf()
 
