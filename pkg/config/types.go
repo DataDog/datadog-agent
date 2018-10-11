@@ -21,6 +21,9 @@ import (
 // - environment variables
 // - flags
 type Config interface {
+
+	// API implemented by viper.Viper
+
 	Set(key string, value interface{})
 	SetDefault(key string, value interface{})
 	SetFs(fs afero.Fs)
@@ -61,4 +64,12 @@ type Config interface {
 	ConfigFileUsed() string
 
 	BindPFlag(key string, flag *pflag.Flag) error
+
+	// API not implemented by viper.Viper and that have proven useful for our config usage
+
+	// BindEnvAndSetDefault sets the default value for a config parameter and adds an env binding
+	// in one call, used for most config options
+	BindEnvAndSetDefault(key string, val interface{})
+	// GetEnvVars returns a list of the non-sensitive env vars that the config supports
+	GetEnvVars() []string
 }

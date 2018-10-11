@@ -1,11 +1,17 @@
 {{ if .Common }}
-# The host of the Datadog intake server to send Agent data to
-dd_url: https://app.datadoghq.com
-
 # The Datadog api key to associate your Agent's data with your organization.
 # Can be found here:
 # https://app.datadoghq.com/account/settings
 api_key:
+
+# The site of the Datadog intake to send Agent data to.
+# Defaults to 'datadoghq.com', set to 'datadoghq.eu' to send data to the EU site.
+# site: datadoghq.com
+
+# The host of the Datadog intake server to send Agent data to, only set this option
+# if you need the Agent to send data to a custom URL.
+# Overrides the site setting defined in "site".
+# dd_url: https://app.datadoghq.com
 
 # If you need a proxy to connect to the Internet, provide it here (default:
 # disabled). You can use the 'no_proxy' list to specify hosts that should
@@ -27,7 +33,7 @@ api_key:
 # skip_ssl_validation: false
 
 # Setting this option to "true" will force the agent to only use TLS 1.2 when
-# pushing data to the url specified in "dd_url".
+# pushing data to the Datadog intake specified in "site" or "dd_url".
 # force_tls_12: false
 
 # Force the hostname to whatever you want. (default: auto-detected)

@@ -7,11 +7,12 @@ package config
 
 import (
 	"errors"
-	"github.com/spf13/afero"
-	"golang.org/x/mobile/asset"
 	"log"
 	"os"
 	"time"
+
+	"github.com/spf13/afero"
+	"golang.org/x/mobile/asset"
 )
 
 const (
@@ -22,9 +23,9 @@ const (
 	defaultGuiPort              = "5002"
 )
 
-func setAssetFs() {
+func setAssetFs(config Config) {
 	afs := NewAssetFs()
-	Datadog.SetFs(afs)
+	config.SetFs(afs)
 }
 
 // AssetFs is a Fs implementation that uses functions provided by the os package.
