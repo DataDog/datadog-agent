@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -34,7 +35,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 
 func (t *Tailer) readAvailable() (err error) {
 	err = nil
-	f, err := os.Open(t.fullpath)
+	f, err := openFileShareDeleteMode(t.fullpath)
 	if err != nil {
 		return err
 	}
@@ -94,4 +95,23 @@ func (t *Tailer) readForever() {
 			}
 		}
 	}
+}
+
+func openFileShareDeleteMode(path string) (*os.File, error) {
+	pathp, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+
+	access := uint32(syscall.GENERIC_READ)
+	sharemode := uint32(syscall.FILE_SHARE_READ | syscall.FILE_SHARE_WRITE | syscall.FILE_SHARE_DELETE)
+	createmode := uint32(syscall.OPEN_EXISTING)
+	var sa *syscall.SecurityAttributes
+
+	r, err := syscall.CreateFile(pathp, access, sharemode, sa, createmode, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return os.NewFile(uintptr(r), path), nil
 }
