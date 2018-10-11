@@ -8,7 +8,8 @@
 ---
 features:
   - |
-    Add ``--phase-1`` flag to ``datadog-agent integration`` command to enable in-toto
+    Add ``--in-toto`` flag to ``datadog-agent integration`` command to enable in-toto
+  - Add ``--tuf-log`` flag to ``datadog-agent integration`` command to enable TUF logging
 enhancements:
   - |
     Install integration wheels with ``--no-deps`` to prevent installation of unwanted dependencies
