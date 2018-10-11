@@ -174,9 +174,10 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
     for check in AGENT_CORECHECKS if not puppy else PUPPY_CORECHECKS:
-        check_dir = os.path.join(os.path.join(dist_folder, "conf.d"), "{}.d/").format(check)
+        check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))
         copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
-
+    if "apm" in build_tags:
+        shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
 
     copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
