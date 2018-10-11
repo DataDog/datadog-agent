@@ -71,7 +71,7 @@ start_and_wait()
 				if [ "$?" -eq "1" ]; then
 					# We've started up successfully. Exit cleanly
 					log_end_msg 0
-					exit 0
+					return 0
 				else
 					retries=$(($retries - 1))
 					sleep 1

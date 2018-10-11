@@ -73,7 +73,7 @@ start_and_wait()
 					log_end_msg 0
 					service datadog-agent-process start
 					service datadog-agent-trace start
-					exit 0
+					return 0
 				else
 					retries=$(($retries - 1))
 					sleep 1
@@ -114,7 +114,7 @@ stop_and_wait()
 			log_end_msg 0
 			service datadog-agent-process stop
 			service datadog-agent-trace stop
-			exit 0
+			return 0
 			;;
 		*) log_end_msg 1 ;; # Failed to stop
 	esac
