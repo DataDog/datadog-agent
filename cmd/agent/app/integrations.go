@@ -220,7 +220,7 @@ func tuf(args []string) error {
 		// Enable phase 1, aka in-toto
 		if inToto {
 			tufCmd.Env = append(tufCmd.Env,
-				fmt.Sprintf("TUF_DOWNLOAD_IN_TOTO_METADATA=1"),
+				"TUF_DOWNLOAD_IN_TOTO_METADATA=1",
 			)
 		}
 	}
