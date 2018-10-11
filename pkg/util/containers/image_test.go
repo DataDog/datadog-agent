@@ -43,6 +43,9 @@ func TestSplitImageName(t *testing.T) {
 		// Custom registry, most insane form possible
 		{"myregistry.local:5000/testing/test-image:version@sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0",
 			"myregistry.local:5000/testing/test-image", "test-image", "version", nil},
+		// Test swarm image
+		{"dockercloud/haproxy:1.6.7@sha256:8c4ed4049f55de49cbc8d03d057a5a7e8d609c264bb75b59a04470db1d1c5121",
+			"dockercloud/haproxy", "haproxy", "1.6.7", nil},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
