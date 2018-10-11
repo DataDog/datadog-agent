@@ -253,6 +253,11 @@ api_key:
 # might change depending on the OS.
 # dogstatsd_so_rcvbuf:
 #
+# Additional tags to append to all metrics received by this server. Useful for
+# tagging all metrics reporting from a single host without resorting to host tags.
+# dogstatsd_tags:
+#   - name:value
+#
 # If you want to forward every packet received by the dogstatsd server
 # to another statsd server, uncomment these lines.
 # WARNING: Make sure that forwarded packets are regular statsd packets and not "dogstatsd" packets,
@@ -464,6 +469,10 @@ api_key:
 # is 5 seconds. It can be configured with this option.
 # docker_query_timeout: 5
 #
+# The default interval in second to check for new autodiscovery configurations
+# On all registered configuration providers
+# ad_config_poll_interval: 10
+#
 {{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction
@@ -509,6 +518,20 @@ api_key:
 # ecs_agent_url: http://localhost:51678
 #
 # Fargate clusters use other endpoints and are not affected by these options.
+#
+{{ end -}}
+{{- if .CRI }}
+# CRI integration
+#
+# To activate the CRI check you'll need to indicate the path of the
+# CRI runtime you're using (and mount it in the container if needed)
+# cri_socket_path: /var/run/containerd/containerd.sock
+#
+# You can configure the initial connection timeout (in seconds)
+# cri_connection_timeout: 1
+#
+# You can configure the timeout (in seconds) for querying the CRI
+# cri_query_timeout: 5
 #
 {{ end -}}
 {{- if .Kubelet }}

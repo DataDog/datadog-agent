@@ -350,6 +350,15 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 	return node.Labels, nil
 }
 
+// GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
+func (c *APIClient) GetNodeForPod(namespace, pod_name string) (string, error) {
+	pod, err := c.Cl.CoreV1().Pods(namespace).Get(pod_name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return pod.Spec.NodeName, nil
+}
+
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.
 func GetMetadataMapBundleOnAllNodes(cl *APIClient) (map[string]interface{}, error) {
 	nodePodMetadataMap := make(map[string]*MetadataMapperBundle)

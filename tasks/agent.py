@@ -25,6 +25,7 @@ DEFAULT_BUILD_TAGS = [
     "apm",
     "consul",
     "cpython",
+    "cri",
     "docker",
     "ec2",
     "etcd",

@@ -44,3 +44,21 @@ func createEvent(namespace, name, reason string, involvedObject apiv1.ObjectRefe
 		Reason:         reason,
 	}
 }
+
+func createPodOnNode(namespace, name, nodeName string) *apiv1.Pod {
+	return &apiv1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: apiv1.PodSpec{
+			NodeName: nodeName,
+			Containers: []apiv1.Container{
+				{
+					Name:  "dummy",
+					Image: "dummy",
+				},
+			},
+		},
+	}
+}

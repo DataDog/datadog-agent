@@ -194,6 +194,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
+	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
@@ -202,6 +203,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
+	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -210,6 +212,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+
+	// CRI
+	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
+	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
+	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
