@@ -199,12 +199,12 @@ func tuf(args []string) error {
 	if err == nil {
 		args = append(args, idxFlags...)
 	} else {
-    // NOTE: If the user has not explicitly overrriden the pip indices, then we
-    // replace the PyPI index with our own by default, in order to prevent
-    // accidental installation of Datadog or even third-party packages from
-    // PyPI.
+		// NOTE: If the user has not explicitly overrriden the pip indices, then we
+		// replace the PyPI index with our own by default, in order to prevent
+		// accidental installation of Datadog or even third-party packages from
+		// PyPI.
 		args = append(args, fmt.Sprintf("--index-url %s", tufIndex))
-  }
+	}
 
 	tufCmd := exec.Command(pipPath, args...)
 	tufCmd.Env = os.Environ()
