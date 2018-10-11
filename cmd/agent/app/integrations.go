@@ -45,7 +45,7 @@ func init() {
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.AddCommand(freezeCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
-	tufCmd.PersistentFlags().BoolVarP(&inToto, "phase-1", "1", false, "enable in-toto")
+	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
 	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
 	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
@@ -264,11 +264,6 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	constraintsPath, err := getConstraintsFilePath()
-	if err != nil {
-		return err
-	}
-
 	cachePath, err := getTUFPipCachePath()
 	if err != nil {
 		return err
@@ -277,7 +272,6 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	tufArgs := []string{
 		"install",
 		"--cache-dir", cachePath,
-		"-c", constraintsPath,
 		"--no-deps",
 	}
 
