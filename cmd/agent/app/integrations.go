@@ -33,6 +33,7 @@ const (
 var (
 	allowRoot    bool
 	withoutTuf   bool
+	inToto   bool
 	useSysPython bool
 	tufConfig    string
 )
