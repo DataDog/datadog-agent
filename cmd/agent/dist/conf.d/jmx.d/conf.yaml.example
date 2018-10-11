@@ -20,12 +20,19 @@ instances:
   #   tools_jar_path: /usr/lib/jvm/java-7-openjdk-amd64/lib/tools.jar # To be set when process_name_regex is set
 
   #   name: jmx_instance
-  #   # java_bin_path: /path/to/java # Optional, should be set if the agent cannot find your java executable
-  #   # java_options: "-Xmx200m -Xms50m" # Optional, Java JVM options
-  #   # trust_store_path: /path/to/trustStore.jks # Optional, should be set if ssl is enabled
-  #   # trust_store_password: password
-  #   # refresh_beans: 600 # Optional (in seconds), default is 600 seconds. Sets refresh period for refreshing matching MBeans list.
-  #                        # Decreasing this value may result in increased CPU usage.
+  #   java_bin_path: /path/to/java # Optional, should be set if the agent cannot find your java executable
+  #   java_options: "-Xmx200m -Xms50m" # Optional, Java JVM options
+  #
+  #   trust_store_path: /path/to/trustStore.jks # Optional, should be set if "com.sun.management.jmxremote.ssl" is set to true on the target JVM.
+  #   trust_store_password: password
+  #   key_store_path: /path/to/keyStore.jks # Optional, should be set if "com.sun.management.jmxremote.ssl.need.client.auth" is set to true on the target JVM.
+  #   key_store_password: password
+  #   rmi_registry_ssl: false # Optional, should be set to true if "com.sun.management.jmxremote.registry.ssl" is set to true on the target JVM.
+  #
+  #   # Optional (in seconds), default is 600 seconds. Sets refresh period for refreshing matching MBeans list.
+  #   # Decreasing this value may result in increased CPU usage.
+  #   refresh_beans: 600
+  #
   #   tags:
   #     env: stage
   #     newTag: test
