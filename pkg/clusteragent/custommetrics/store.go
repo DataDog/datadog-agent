@@ -159,7 +159,6 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	if err := c.getConfigMap(); err != nil {
 		return nil, err
 	}

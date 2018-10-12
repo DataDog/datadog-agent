@@ -156,6 +156,10 @@ if linux?
   systemd_directory = "/usr/lib/systemd/system"
   if debian?
     systemd_directory = "/lib/systemd/system"
+
+    extra_package_file "/etc/init.d/datadog-agent"
+    extra_package_file "/etc/init.d/datadog-agent-process"
+    extra_package_file "/etc/init.d/datadog-agent-trace"
   end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"

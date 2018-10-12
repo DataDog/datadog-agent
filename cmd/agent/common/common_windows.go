@@ -246,6 +246,12 @@ func ImportRegistryConfig() error {
 	} else {
 		log.Debug("proxy key not found, not setting proxy config")
 	}
+
+	if val, _, err = k.GetStringValue("site"); err == nil {
+		config.Datadog.Set("site", val)
+		log.Debugf("Setting site to %s", val)
+	}
+
 	// dump the current configuration to datadog.yaml
 	b, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {

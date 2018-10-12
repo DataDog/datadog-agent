@@ -59,7 +59,6 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/trace-agent.conf', "#{conf_dir}/trace-agent.conf.example"
 
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 
@@ -78,6 +77,18 @@ build do
       erb source: "upstart_debian.trace.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
           mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_debian.erb",
+          dest: "#{install_dir}/scripts/datadog-agent",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_debian.process.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-process",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_debian.trace.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-trace",
+          mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat? || suse?
       # Ship a different upstart job definition on RHEL to accommodate the old

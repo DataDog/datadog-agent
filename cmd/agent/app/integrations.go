@@ -25,15 +25,17 @@ import (
 )
 
 const (
-	constraintsFile = "agent_requirements.txt"
-	tufConfigFile   = "public-tuf-config.json"
-	tufPkgPattern   = "datadog-.*"
+	tufConfigFile          = "public-tuf-config.json"
+	tufPkgPattern          = "datadog-.*"
 	tufIndex        = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
+	pipFreezeOutputPattern = "%s==(\\d+\\.\\d+\\.\\d+)"
 )
 
 var (
 	allowRoot    bool
 	withoutTuf   bool
+	inToto       bool
+	verbose      bool
 	useSysPython bool
 	tufConfig    string
 )
@@ -45,6 +47,8 @@ func init() {
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.AddCommand(freezeCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
+	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
+	tufCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
 	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
 	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
@@ -67,8 +71,11 @@ var tufCmd = &cobra.Command{
 var installCmd = &cobra.Command{
 	Use:   "install [package]",
 	Short: "Install Datadog integration core/extra packages",
-	Long:  ``,
-	RunE:  installTuf,
+	Long: `Install Datadog integration core/extra packages
+You must specify a version of the package to install using the syntax: <package>==<version>, with
+ - <package> of the form datadog-<integration-name>
+ - <version> of the form x.y.z`,
+	RunE: installTuf,
 }
 
 var removeCmd = &cobra.Command{
@@ -113,19 +120,6 @@ func getCommandPython() (string, error) {
 	}
 
 	return pyPath, nil
-}
-
-func getConstraintsFilePath() (string, error) {
-	here, _ := executable.Folder()
-	cPath := filepath.Join(here, relConstraintsPath)
-
-	if _, err := os.Stat(cPath); err != nil {
-		if os.IsNotExist(err) {
-			return cPath, err
-		}
-	}
-
-	return cPath, nil
 }
 
 func getTUFConfigFilePath() (string, error) {
@@ -186,6 +180,10 @@ func tuf(args []string) error {
 	implicitFlags = append(implicitFlags, "--disable-pip-version-check")
 	args = append([]string{"-mpip"}, cmd)
 
+	if verbose {
+		args = append(args, "-vvv")
+	}
+
 	// Add pip power-user flags
 	// cmd-flags go before the actual command
 	cmdFlags, err := tufCmd.Flags().GetStringSlice("cmd-flags")
@@ -226,6 +224,24 @@ func tuf(args []string) error {
 		tufCmd.Env = append(tufCmd.Env,
 			fmt.Sprintf("TUF_CONFIG_FILE=%s", tufPath),
 		)
+
+		// Enable tuf logging
+		if verbose {
+			tufCmd.Env = append(tufCmd.Env,
+				"TUF_ENABLE_LOGGING=1",
+			)
+		}
+
+		// Enable phase 1, aka in-toto
+		if inToto {
+			tufCmd.Env = append(tufCmd.Env,
+				"TUF_DOWNLOAD_IN_TOTO_METADATA=1",
+			)
+		}
+	} else {
+		if inToto {
+			return errors.New("--in-toto conflicts with --no-tuf")
+		}
 	}
 
 	// forward the standard output to the Agent logger
@@ -266,9 +282,9 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	constraintsPath, err := getConstraintsFilePath()
-	if err != nil {
-		return err
+	// Additional verification for installation
+	if len(strings.Split(args[0], "==")) != 2 {
+		return fmt.Errorf("you must specify a version to install with <package>==<version>")
 	}
 
 	cachePath, err := getTUFPipCachePath()
@@ -276,15 +292,126 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	intVer := strings.Split(args[0], "==")
+	integration := strings.TrimSpace(intVer[0])
+	if integration == "datadog-checks-base" {
+		return fmt.Errorf("cannot upgrade datadog-checks-base")
+	}
+	versionToInstall := strings.TrimSpace(intVer[1])
+	currentVersion, err := getIntegrationVersion(integration, cachePath)
+	if err != nil {
+		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+	}
+
+	// Run pip check first to see if the python environment is clean
+	if err := pipCheck(cachePath); err != nil {
+		return fmt.Errorf(
+			"error when validating the agent's python environment, won't install %s: %v",
+			integration, err,
+		)
+	}
+
 	tufArgs := []string{
 		"install",
 		"--cache-dir", cachePath,
-		"-c", constraintsPath,
+		"--no-deps",
 	}
 
-	tufArgs = append(tufArgs, args...)
+	// Install the wheel
+	if err := tuf(append(tufArgs, args[0])); err != nil {
+		return err
+	}
 
-	return tuf(tufArgs)
+	// Run pip check to determine if the installed integration is compatible with the base check version
+	pipErr := pipCheck(cachePath)
+	if pipErr == nil {
+		fmt.Println(color.GreenString(fmt.Sprintf(
+			"Successfully installed %s %s", integration, versionToInstall,
+		)))
+		return nil
+	}
+
+	// We either detected a mismatch, or we failed to run pip check
+	// Either way, roll back the install and return the error
+	if currentVersion == "" {
+		// Special case where we tried to install a new integration, not yet released with the agent
+		tufArgs = []string{
+			"uninstall",
+			integration,
+			"-y",
+		}
+	} else {
+		tufArgs = append(tufArgs, fmt.Sprintf("%s==%s", integration, currentVersion))
+	}
+
+	// Perform the rollback
+	tufErr := tuf(tufArgs)
+	if tufErr == nil {
+		// Rollback successful, return error encountered during `pip check`
+		return fmt.Errorf(
+			"error when validating the agent's python environment, %s wasn't installed: %v",
+			integration, err,
+		)
+	}
+
+	// Rollback failed, mention that the integration could be broken
+	return fmt.Errorf(
+		"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken: %v",
+		integration, versionToInstall, err,
+	)
+}
+
+func getIntegrationVersion(integration string, cachePath string) (string, error) {
+	pythonPath, err := getCommandPython()
+	if err != nil {
+		return "", err
+	}
+
+	freezeCmd := exec.Command(pythonPath, "-mpip", "freeze", "--cache-dir", cachePath)
+	output, err := freezeCmd.Output()
+
+	if err != nil {
+		errMsg := ""
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			errMsg = string(exitErr.Stderr)
+		} else {
+			errMsg = err.Error()
+		}
+
+		return "", fmt.Errorf("error executing pip freeze: %s", errMsg)
+	}
+
+	exp, err := regexp.Compile(fmt.Sprintf(pipFreezeOutputPattern, integration))
+	if err != nil {
+		return "", fmt.Errorf("internal error: %v", err)
+	}
+
+	if groups := exp.FindStringSubmatch(string(output)); groups != nil {
+		return groups[1], nil
+	}
+
+	return "", nil
+}
+
+func pipCheck(cachePath string) error {
+	pythonPath, err := getCommandPython()
+	if err != nil {
+		return err
+	}
+
+	checkCmd := exec.Command(pythonPath, "-mpip", "check", "--cache-dir", cachePath)
+	output, err := checkCmd.CombinedOutput()
+
+	if err == nil {
+		// Clean python environment
+		return nil
+	}
+
+	if _, ok := err.(*exec.ExitError); ok {
+		return fmt.Errorf("error executing pip check: %v", string(output))
+	}
+
+	return fmt.Errorf("error executing pip check: %v", err)
 }
 
 func removeTuf(cmd *cobra.Command, args []string) error {

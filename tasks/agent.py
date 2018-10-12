@@ -41,6 +41,31 @@ DEFAULT_BUILD_TAGS = [
     "zlib",
 ]
 
+AGENT_CORECHECKS = [
+    "cpu",
+    "cri",
+    "docker",
+    "file_handle",
+    "go_expvar",
+    "io",
+    "jmx",
+    "kubernetes_apiserver",
+    "load",
+    "memory",
+    "ntp",
+    "uptime",
+    "winproc",
+]
+
+PUPPY_CORECHECKS = [
+    "cpu",
+    "io",
+    "load",
+    "memory",
+    "network",
+    "ntp",
+    "uptime",
+]
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
@@ -121,11 +146,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     ctx.run(cmd.format(REPO_PATH), env=env)
 
     if not skip_assets:
-        refresh_assets(ctx, development=development)
+        refresh_assets(ctx, build_tags, development=development, puppy=puppy)
 
 
 @task
-def refresh_assets(ctx, development=True):
+def refresh_assets(ctx, build_tags, development=True, puppy=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -136,14 +161,29 @@ def refresh_assets(ctx, development=True):
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    copy_tree("./cmd/agent/dist/", dist_folder)
+    os.mkdir(dist_folder)
+
+    if "cpython" in build_tags:
+        copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
+        copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
+        shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
+    if not puppy:
+        shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
+        # copy the dd-agent placeholder to the bin folder
+        bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
+        shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
+    shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
+
+    for check in AGENT_CORECHECKS if not puppy else PUPPY_CORECHECKS:
+        check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))
+        copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
+    if "apm" in build_tags:
+        shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
+
     copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
     if development:
         copy_tree("./dev/dist/", dist_folder)
-    # copy the dd-agent placeholder to the bin folder
-    bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
-    shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
 
 @task

@@ -6,7 +6,7 @@
 // +build !windows
 // +build snmp
 
-package network
+package net
 
 import (
 	"bytes"
