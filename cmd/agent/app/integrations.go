@@ -291,7 +291,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	// Run pip check first to see if the python environment is clean
 	if err := pipCheck(); err != nil {
 		return fmt.Errorf(
-			"error when validating the agen't python environment, won't install %s: %v",
+			"error when validating the agent's python environment, won't install %s: %v",
 			integration, err,
 		)
 	}
