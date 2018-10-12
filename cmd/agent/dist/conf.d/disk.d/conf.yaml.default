@@ -43,6 +43,11 @@ instances:
     #  /dev/sda3: role:db,disk_size:large
     #  "c:": volume:boot
     #
+    # The (optional) tags parameter allows you to customize tags for the instance
+    # tags:
+    #   - optional_tag1
+    #   - optional_tag2
+    #
     # The (optional) service_check_rw parameter notifies when one of the partitions is in
     # read-only mode
     # service_check_rw: false

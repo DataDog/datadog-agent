@@ -73,8 +73,8 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 			continue
 		}
 
-		tags := make([]string, len(c.cfg.customeTags), len(c.cfg.customeTags)+2)
-		copy(tags, c.cfg.customeTags)
+		tags := make([]string, len(c.cfg.customTags), len(c.cfg.customTags)+2)
+		copy(tags, c.cfg.customTags)
 
 		if c.cfg.tagByFilesystem {
 			tags = append(tags, fmt.Sprintf("filesystem:%s", partition.Fstype))
@@ -102,8 +102,8 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	}
 	for deviceName, ioCounter := range iomap {
 
-		tags := make([]string, len(c.cfg.customeTags), len(c.cfg.customeTags)+1)
-		copy(tags, c.cfg.customeTags)
+		tags := make([]string, len(c.cfg.customTags), len(c.cfg.customTags)+1)
+		copy(tags, c.cfg.customTags)
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 
 		tags = c.applyDeviceTags(deviceName, "", tags)
