@@ -69,3 +69,22 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestGetConfigEnvVars(t *testing.T) {
+	config := safeConfig{
+		Viper: viper.New(),
+	}
+	config.SetEnvPrefix("DD")
+
+	config.BindEnv("app_key")
+	assert.NotContains(t, config.GetEnvVars(), "DD_APP_KEY")
+	config.BindEnv("logset")
+	assert.Contains(t, config.GetEnvVars(), "DD_LOGSET")
+	config.BindEnv("logs_config.run_path")
+	assert.Contains(t, config.GetEnvVars(), "DD_LOGS_CONFIG.RUN_PATH")
+
+	// FIXME: ideally we should also track env vars when BindEnv is used with
+	// 2 arguments. Not the case at the moment, as demonstrated below.
+	config.BindEnv("config_option", "DD_CONFIG_OPTION")
+	assert.NotContains(t, config.GetEnvVars(), "DD_CONFIG_OPTION")
+}

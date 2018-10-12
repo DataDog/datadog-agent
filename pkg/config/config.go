@@ -26,11 +26,15 @@ import (
 // the user-provided value is invalid.
 const DefaultForwarderRecoveryInterval = 2
 
+// DefaultSite is the default site the Agent sends data to.
+const DefaultSite = "datadoghq.com"
+
+const infraURLPrefix = "https://app."
+
 // Datadog is the global configuration object
 var (
-	Datadog       Config
-	proxies       *Proxy
-	ConfigEnvVars []string
+	Datadog Config
+	proxies *Proxy
 )
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
@@ -70,257 +74,262 @@ type Proxy struct {
 func init() {
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-
 	// Configuration defaults
+	initConfig(Datadog)
+}
+
+// initConfig initializes the config defaults on a config
+func initConfig(config Config) {
 	// Agent
-	BindEnvAndSetDefault("dd_url", "https://app.datadoghq.com")
-	BindEnvAndSetDefault("app_key", "")
-	Datadog.SetDefault("proxy", nil)
-	BindEnvAndSetDefault("skip_ssl_validation", false)
-	BindEnvAndSetDefault("hostname", "")
-	BindEnvAndSetDefault("tags", []string{})
-	BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
-	BindEnvAndSetDefault("conf_path", ".")
-	BindEnvAndSetDefault("confd_path", defaultConfdPath)
-	BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
-	BindEnvAndSetDefault("log_payloads", false)
-	BindEnvAndSetDefault("log_file", "")
-	BindEnvAndSetDefault("log_level", "info")
-	BindEnvAndSetDefault("log_to_syslog", false)
-	BindEnvAndSetDefault("log_to_console", true)
-	BindEnvAndSetDefault("logging_frequency", int64(20))
-	BindEnvAndSetDefault("disable_file_logging", false)
-	BindEnvAndSetDefault("syslog_uri", "")
-	BindEnvAndSetDefault("syslog_rfc", false)
-	BindEnvAndSetDefault("syslog_pem", "")
-	BindEnvAndSetDefault("syslog_key", "")
-	BindEnvAndSetDefault("syslog_tls_verify", true)
-	BindEnvAndSetDefault("cmd_host", "localhost")
-	BindEnvAndSetDefault("cmd_port", 5001)
-	BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
-	BindEnvAndSetDefault("default_integration_http_timeout", 9)
-	BindEnvAndSetDefault("enable_metadata_collection", true)
-	BindEnvAndSetDefault("enable_gohai", true)
-	BindEnvAndSetDefault("check_runners", int64(4))
-	BindEnvAndSetDefault("auth_token_file_path", "")
-	BindEnvAndSetDefault("bind_host", "localhost")
+	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
+	config.BindEnv("site")
+	config.BindEnv("dd_url")
+	config.BindEnvAndSetDefault("app_key", "")
+	config.SetDefault("proxy", nil)
+	config.BindEnvAndSetDefault("skip_ssl_validation", false)
+	config.BindEnvAndSetDefault("hostname", "")
+	config.BindEnvAndSetDefault("tags", []string{})
+	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
+	config.BindEnvAndSetDefault("conf_path", ".")
+	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
+	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
+	config.BindEnvAndSetDefault("log_payloads", false)
+	config.BindEnvAndSetDefault("log_file", "")
+	config.BindEnvAndSetDefault("log_level", "info")
+	config.BindEnvAndSetDefault("log_to_syslog", false)
+	config.BindEnvAndSetDefault("log_to_console", true)
+	config.BindEnvAndSetDefault("logging_frequency", int64(20))
+	config.BindEnvAndSetDefault("disable_file_logging", false)
+	config.BindEnvAndSetDefault("syslog_uri", "")
+	config.BindEnvAndSetDefault("syslog_rfc", false)
+	config.BindEnvAndSetDefault("syslog_pem", "")
+	config.BindEnvAndSetDefault("syslog_key", "")
+	config.BindEnvAndSetDefault("syslog_tls_verify", true)
+	config.BindEnvAndSetDefault("cmd_host", "localhost")
+	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
+	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
+	config.BindEnvAndSetDefault("enable_metadata_collection", true)
+	config.BindEnvAndSetDefault("enable_gohai", true)
+	config.BindEnvAndSetDefault("check_runners", int64(4))
+	config.BindEnvAndSetDefault("auth_token_file_path", "")
+	config.BindEnvAndSetDefault("bind_host", "localhost")
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
-	BindEnvAndSetDefault("hostname_fqdn", false)
-	BindEnvAndSetDefault("cluster_name", "")
+	config.BindEnvAndSetDefault("hostname_fqdn", false)
+	config.BindEnvAndSetDefault("cluster_name", "")
 
 	// secrets backend
-	Datadog.BindEnv("secret_backend_command")
-	Datadog.BindEnv("secret_backend_arguments")
-	BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
-	BindEnvAndSetDefault("secret_backend_timeout", 5)
+	config.BindEnv("secret_backend_command")
+	config.BindEnv("secret_backend_arguments")
+	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
 
 	// Retry settings
-	BindEnvAndSetDefault("forwarder_backoff_factor", 2)
-	BindEnvAndSetDefault("forwarder_backoff_base", 2)
-	BindEnvAndSetDefault("forwarder_backoff_max", 64)
-	BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
-	BindEnvAndSetDefault("forwarder_recovery_reset", false)
+	config.BindEnvAndSetDefault("forwarder_backoff_factor", 2)
+	config.BindEnvAndSetDefault("forwarder_backoff_base", 2)
+	config.BindEnvAndSetDefault("forwarder_backoff_max", 64)
+	config.BindEnvAndSetDefault("forwarder_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
 
 	// Use to output logs in JSON format
-	BindEnvAndSetDefault("log_format_json", false)
+	config.BindEnvAndSetDefault("log_format_json", false)
 
 	// IPC API server timeout
-	BindEnvAndSetDefault("server_timeout", 15)
+	config.BindEnvAndSetDefault("server_timeout", 15)
 
 	// Use to force client side TLS version to 1.2
-	BindEnvAndSetDefault("force_tls_12", false)
+	config.BindEnvAndSetDefault("force_tls_12", false)
 
 	// Agent GUI access port
-	BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
-		Datadog.SetDefault("procfs_path", "/host/proc")
-		Datadog.SetDefault("container_proc_root", "/host/proc")
-		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		config.SetDefault("procfs_path", "/host/proc")
+		config.SetDefault("container_proc_root", "/host/proc")
+		config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
 	} else {
-		Datadog.SetDefault("container_proc_root", "/proc")
+		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
 		// we pick memory.stat to make sure it exists and not empty
 		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
-			Datadog.SetDefault("container_cgroup_root", "/cgroup/")
+			config.SetDefault("container_cgroup_root", "/cgroup/")
 		} else {
-			Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 		}
 	}
 
-	Datadog.BindEnv("procfs_path")
-	Datadog.BindEnv("container_proc_root")
-	Datadog.BindEnv("container_cgroup_root")
+	config.BindEnv("procfs_path")
+	config.BindEnv("container_proc_root")
+	config.BindEnv("container_cgroup_root")
 
-	BindEnvAndSetDefault("proc_root", "/proc")
-	BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
-	BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
+	config.BindEnvAndSetDefault("proc_root", "/proc")
+	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
-	BindEnvAndSetDefault("use_v2_api.series", false)
-	BindEnvAndSetDefault("use_v2_api.events", false)
-	BindEnvAndSetDefault("use_v2_api.service_checks", false)
+	config.BindEnvAndSetDefault("use_v2_api.series", false)
+	config.BindEnvAndSetDefault("use_v2_api.events", false)
+	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
 	// Serializer: allow user to blacklist any kind of payload to be sent
-	BindEnvAndSetDefault("enable_payloads.events", true)
-	BindEnvAndSetDefault("enable_payloads.series", true)
-	BindEnvAndSetDefault("enable_payloads.service_checks", true)
-	BindEnvAndSetDefault("enable_payloads.sketches", true)
-	BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
+	config.BindEnvAndSetDefault("enable_payloads.events", true)
+	config.BindEnvAndSetDefault("enable_payloads.series", true)
+	config.BindEnvAndSetDefault("enable_payloads.service_checks", true)
+	config.BindEnvAndSetDefault("enable_payloads.sketches", true)
+	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
 
 	// Forwarder
-	BindEnvAndSetDefault("forwarder_timeout", 20)
-	BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
-	BindEnvAndSetDefault("forwarder_num_workers", 1)
+	config.BindEnvAndSetDefault("forwarder_timeout", 20)
+	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
+	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	// Dogstatsd
-	BindEnvAndSetDefault("use_dogstatsd", true)
-	BindEnvAndSetDefault("dogstatsd_port", 8125)          // Notice: 0 means UDP port closed
-	BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
-	BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
-	BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
-	BindEnvAndSetDefault("dogstatsd_stats_enable", false)
-	BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
-	BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
-	BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
-	BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
-	BindEnvAndSetDefault("statsd_forward_host", "")
-	BindEnvAndSetDefault("statsd_forward_port", 0)
-	BindEnvAndSetDefault("statsd_metric_namespace", "")
+	config.BindEnvAndSetDefault("use_dogstatsd", true)
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125)          // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
+	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
+	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
+	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
+	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
+	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
+	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
+	config.BindEnvAndSetDefault("statsd_forward_host", "")
+	config.BindEnvAndSetDefault("statsd_forward_port", 0)
+	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	// Autoconfig
-	BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
-	BindEnvAndSetDefault("exclude_pause_container", true)
-	BindEnvAndSetDefault("ac_include", []string{})
-	BindEnvAndSetDefault("ac_exclude", []string{})
+	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
+	config.BindEnvAndSetDefault("exclude_pause_container", true)
+	config.BindEnvAndSetDefault("ac_include", []string{})
+	config.BindEnvAndSetDefault("ac_exclude", []string{})
+	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
 
 	// Docker
-	BindEnvAndSetDefault("docker_query_timeout", int64(5))
-	BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
-	BindEnvAndSetDefault("docker_env_as_tags", map[string]string{})
-	BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
-	BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
-	BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
+	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("docker_env_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+
+	// CRI
+	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
+	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
+	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
 	// Kubernetes
-	BindEnvAndSetDefault("kubernetes_kubelet_host", "")
-	BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
-	BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
+	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
+	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
+	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
-	BindEnvAndSetDefault("kubelet_tls_verify", true)
-	BindEnvAndSetDefault("collect_kubernetes_events", false)
-	BindEnvAndSetDefault("kubelet_client_ca", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
+	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
+	config.BindEnvAndSetDefault("kubelet_client_ca", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
 
-	BindEnvAndSetDefault("kubelet_auth_token_path", "")
-	BindEnvAndSetDefault("kubelet_client_crt", "")
-	BindEnvAndSetDefault("kubelet_client_key", "")
+	config.BindEnvAndSetDefault("kubelet_auth_token_path", "")
+	config.BindEnvAndSetDefault("kubelet_client_crt", "")
+	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
-	BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
-	BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
-	BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
-	BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
-	BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
+	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
+	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
+	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
+	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
+	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
 	// Kube ApiServer
-	BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
-	BindEnvAndSetDefault("leader_lease_duration", "60")
-	BindEnvAndSetDefault("leader_election", false)
-	BindEnvAndSetDefault("kube_resources_namespace", "")
+	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
+	config.BindEnvAndSetDefault("leader_lease_duration", "60")
+	config.BindEnvAndSetDefault("leader_election", false)
+	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 
 	// Datadog cluster agent
-	BindEnvAndSetDefault("cluster_agent.enabled", false)
-	BindEnvAndSetDefault("cluster_agent.auth_token", "")
-	BindEnvAndSetDefault("cluster_agent.url", "")
-	BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
+	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
+	config.BindEnvAndSetDefault("cluster_agent.url", "")
+	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 
 	// ECS
-	BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
-	BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
-	BindEnvAndSetDefault("collect_ec2_tags", false)
+	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
+	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
+	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// GCE
-	BindEnvAndSetDefault("collect_gce_tags", true)
+	config.BindEnvAndSetDefault("collect_gce_tags", true)
 
 	// Cloud Foundry
-	BindEnvAndSetDefault("cloud_foundry", false)
-	BindEnvAndSetDefault("bosh_id", "")
+	config.BindEnvAndSetDefault("cloud_foundry", false)
+	config.BindEnvAndSetDefault("bosh_id", "")
 
 	// JMXFetch
-	BindEnvAndSetDefault("jmx_custom_jars", []string{})
-	BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
+	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
+	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 
 	// Go_expvar server port
-	BindEnvAndSetDefault("expvar_port", "5000")
+	config.BindEnvAndSetDefault("expvar_port", "5000")
 
 	// Trace agent
-	BindEnvAndSetDefault("apm_config.enabled", true)
+	config.BindEnvAndSetDefault("apm_config.enabled", true)
+
+	// Process agent
+	config.BindEnv("process_config.process_dd_url", "")
 
 	// Logs Agent
 
 	// External Use: modify those parameters to configure the logs-agent.
 	// enable the logs-agent:
-	BindEnvAndSetDefault("logs_enabled", false)
-	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
+	config.BindEnvAndSetDefault("logs_enabled", false)
+	config.BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	// collect all logs from all containers:
-	BindEnvAndSetDefault("logs_config.container_collect_all", false)
+	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	// collect all logs forwarded by TCP on a specific port:
-	BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
+	config.BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
 	// add a socks5 proxy:
-	BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
+	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// send the logs to a proxy:
-	BindEnvAndSetDefault("logs_config.logs_dd_url", "") // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
+	config.BindEnvAndSetDefault("logs_config.logs_dd_url", "") // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 	// send the logs to the port 443 of the logs-backend via TCP:
-	BindEnvAndSetDefault("logs_config.use_port_443", false)
+	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
-	BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// increase the number of files that can be tailed in parallel:
-	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
+	config.BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
-	BindEnvAndSetDefault("logset", "")
-	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
-	BindEnvAndSetDefault("logs_config.dd_url", "agent-intake.logs.datadoghq.com")
-	BindEnvAndSetDefault("logs_config.dd_port", 10516)
-	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
-	BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
-	BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	config.BindEnvAndSetDefault("logset", "")
+	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("logs_config.dd_url", "agent-intake.logs.datadoghq.com")
+	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
+	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
+	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
+	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now
-	BindEnvAndSetDefault("full_cardinality_tagging", false)
+	config.BindEnvAndSetDefault("full_cardinality_tagging", false)
 
-	BindEnvAndSetDefault("histogram_copy_to_distribution", false)
-	BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
+	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
+	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
 
-	Datadog.BindEnv("api_key")
+	config.BindEnv("api_key")
 
-	BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
-	BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
-	BindEnvAndSetDefault("external_metrics_provider.enabled", false)
-	BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
-	BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)
-	BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)            // value in seconds. Frequency of batch calls to the configmap persistent store (GlobalStore)
-	BindEnvAndSetDefault("external_metrics_provider.max_age", 90)                 // value in seconds. 3 cycles from the HPA controller is enough to consider a metric stale
-	BindEnvAndSetDefault("external_metrics.aggregator", "avg")                    // aggregator used for the external metrics. Choose from [avg,sum,max,min]
-	BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window of the metric from Datadog
-	BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
-	BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // value in seconds
-	BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
+	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
+	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
+	config.BindEnvAndSetDefault("external_metrics_provider.enabled", false)
+	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
+	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)
+	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)            // value in seconds. Frequency of batch calls to the configmap persistent store (GlobalStore)
+	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 90)                 // value in seconds. 3 cycles from the HPA controller is enough to consider a metric stale
+	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                    // aggregator used for the external metrics. Choose from [avg,sum,max,min]
+	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window of the metric from Datadog
+	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
+	config.BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // value in seconds
+	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
 	// Cluster check Autodiscovery
-	BindEnvAndSetDefault("cluster_checks.enabled", false)
+	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
 
-	setAssetFs()
-}
-
-// BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding
-func BindEnvAndSetDefault(key string, val interface{}) {
-	Datadog.SetDefault(key, val)
-	Datadog.BindEnv(key)
-	if !strings.Contains(key, "_key") {
-		// we hardcode the prefix and the separator because we can't get them from viper
-		envVarName := strings.Join([]string{"DD", strings.ToUpper(key)}, "_")
-		ConfigEnvVars = append(ConfigEnvVars, envVarName)
-	}
+	setAssetFs(config)
 }
 
 var (
@@ -338,11 +347,11 @@ func GetProxies() *Proxy {
 }
 
 // loadProxyFromEnv overrides the proxy settings with environment variables
-func loadProxyFromEnv() {
+func loadProxyFromEnv(config Config) {
 	// Viper doesn't handle mixing nested variables from files and set
 	// manually.  If we manually set one of the sub value for "proxy" all
 	// other values from the conf file will be shadowed when using
-	// 'Datadog.Get("proxy")'. For that reason we first get the value from
+	// 'config.Get("proxy")'. For that reason we first get the value from
 	// the conf files, overwrite them with the env variables and reset
 	// everything.
 
@@ -367,8 +376,8 @@ func loadProxyFromEnv() {
 
 	var isSet bool
 	p := &Proxy{}
-	if isSet = Datadog.IsSet("proxy"); isSet {
-		if err := Datadog.UnmarshalKey("proxy", p); err != nil {
+	if isSet = config.IsSet("proxy"); isSet {
+		if err := config.UnmarshalKey("proxy", p); err != nil {
 			isSet = false
 			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
 		}
@@ -398,12 +407,12 @@ func loadProxyFromEnv() {
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
-	// We have to set each value individually so both Datadog.Get("proxy")
-	// and Datadog.Get("proxy.http") work
+	// We have to set each value individually so both config.Get("proxy")
+	// and config.Get("proxy.http") work
 	if isSet {
-		Datadog.Set("proxy.http", p.HTTP)
-		Datadog.Set("proxy.https", p.HTTPS)
-		Datadog.Set("proxy.no_proxy", p.NoProxy)
+		config.Set("proxy.http", p.HTTP)
+		config.Set("proxy.https", p.HTTPS)
+		config.Set("proxy.no_proxy", p.NoProxy)
 		proxies = p
 	}
 }
@@ -412,7 +421,7 @@ func loadProxyFromEnv() {
 func Load() error {
 	log.Infof("config.Load()")
 	if err := Datadog.ReadInConfig(); err != nil {
-		log.Warnf("confrig.load() error %v", err)
+		log.Warnf("config.load() error %v", err)
 		return err
 	}
 	log.Infof("config.load succeeded")
@@ -446,14 +455,24 @@ func Load() error {
 		}
 	}
 
-	loadProxyFromEnv()
-	sanitizeAPIKey()
+	loadProxyFromEnv(Datadog)
+	sanitizeAPIKey(Datadog)
 	return nil
 }
 
 // Avoid log ingestion breaking because of a newline in the API key
-func sanitizeAPIKey() {
-	Datadog.Set("api_key", strings.TrimSpace(Datadog.GetString("api_key")))
+func sanitizeAPIKey(config Config) {
+	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
+}
+
+// GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
+func GetMainInfraEndpoint() string {
+	return getMainInfraEndpoint(Datadog)
+}
+
+// GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
+func GetMainEndpoint(prefix string, ddURLKey string) string {
+	return getMainEndpoint(Datadog, prefix, ddURLKey)
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
@@ -467,16 +486,16 @@ func getDomainPrefix(app string) string {
 	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
 }
 
-// AddAgentVersionToDomain prefix the domain with the agent version: X-Y-Z.domain
-func AddAgentVersionToDomain(domain string, app string) (string, error) {
-	u, err := url.Parse(domain)
+// AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
+func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
+	u, err := url.Parse(DDURL)
 	if err != nil {
 		return "", err
 	}
 
 	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
 	if _, found := ddURLs[u.Host]; !found {
-		return domain, nil
+		return DDURL, nil
 	}
 
 	subdomain := strings.Split(u.Host, ".")[0]
@@ -486,14 +505,33 @@ func AddAgentVersionToDomain(domain string, app string) (string, error) {
 	return u.String(), nil
 }
 
+func getMainInfraEndpoint(config Config) string {
+	return getMainEndpoint(config, infraURLPrefix, "dd_url")
+}
+
+// getMainEndpoint implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
+func getMainEndpoint(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
+	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
+		// value under ddURLKey takes precedence over 'site'
+		resolvedDDURL = config.GetString(ddURLKey)
+		if config.IsSet("site") {
+			log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", ddURLKey, ddURLKey, config.GetString(ddURLKey))
+		}
+	} else if config.GetString("site") != "" {
+		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
+	} else {
+		resolvedDDURL = prefix + DefaultSite
+	}
+	return
+}
+
 // getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
 func getMultipleEndpoints(config Config) (map[string][]string, error) {
-	ddURL := config.GetString("dd_url")
-
 	// Validating domain
+	ddURL := getMainInfraEndpoint(config)
 	_, err := url.Parse(ddURL)
 	if err != nil {
-		return nil, fmt.Errorf("Could not parse 'dd_url': %s", err)
+		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
 	}
 
 	keysPerDomain := map[string][]string{
@@ -514,7 +552,7 @@ func getMultipleEndpoints(config Config) (map[string][]string, error) {
 		// Validating domain
 		_, err := url.Parse(domain)
 		if err != nil {
-			return nil, fmt.Errorf("Could not parse url from 'additional_endpoints' %s: %s", domain, err)
+			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
 		}
 
 		if _, ok := keysPerDomain[domain]; ok {

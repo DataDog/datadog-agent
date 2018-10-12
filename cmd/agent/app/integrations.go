@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -192,13 +193,6 @@ func tuf(args []string) error {
 	}
 	args = append(args, implicitFlags...)
 
-	// Proxy support
-	proxies := config.GetProxies()
-	if proxies != nil {
-		proxyFlags := fmt.Sprintf("--proxy=%s", proxies.HTTPS)
-		args = append(args, proxyFlags)
-	}
-
 	// idx-flags go after the command and implicit flags
 	idxFlags, err := tufCmd.Flags().GetStringSlice("idx-flags")
 	if err == nil {
@@ -206,9 +200,20 @@ func tuf(args []string) error {
 	}
 
 	tufCmd := exec.Command(pipPath, args...)
+	tufCmd.Env = os.Environ()
+
+	// Proxy support
+	proxies := config.GetProxies()
+	if proxies != nil {
+		tufCmd.Env = append(tufCmd.Env,
+			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
+			fmt.Sprintf("HTTPS_PROXY=%s", proxies.HTTPS),
+			fmt.Sprintf("NO_PROXY=%s", strings.Join(proxies.NoProxy, ",")),
+		)
+	}
 
 	if !withoutTuf {
-		tufCmd.Env = append(os.Environ(),
+		tufCmd.Env = append(tufCmd.Env,
 			fmt.Sprintf("TUF_CONFIG_FILE=%s", tufPath),
 		)
 	}

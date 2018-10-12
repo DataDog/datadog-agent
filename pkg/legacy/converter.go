@@ -186,7 +186,11 @@ func extractURLAPIKeys(agentConfig Config) error {
 		return fmt.Errorf("Invalid number of 'dd_url'/'api_key': please provide one api_key for each url")
 	}
 
-	config.Datadog.Set("dd_url", urls[0])
+	if urls[0] != "https://app.datadoghq.com" {
+		// 'dd_url' is optional in v6, so only set it if it's set to a non-default value in datadog.conf
+		config.Datadog.Set("dd_url", urls[0])
+	}
+
 	config.Datadog.Set("api_key", keys[0])
 	if len(urls) == 1 {
 		return nil

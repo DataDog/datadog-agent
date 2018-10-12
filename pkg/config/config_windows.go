@@ -14,4 +14,4 @@ const (
 )
 
 // NewAssetFs  Should never be called on non-android
-func setAssetFs() {}
+func setAssetFs(config Config) {}

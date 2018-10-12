@@ -10,10 +10,11 @@ import (
 	"regexp"
 	"strings"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -78,7 +79,7 @@ func (c *DiskCheck) excludeDisk(mountpoint, device, fstype string) bool {
 	return false
 }
 
-func (c *DiskCheck) commonConfigure(data integration.Data) error {
+func (c *DiskCheck) instanceConfigure(data integration.Data) error {
 	conf := make(map[interface{}]interface{})
 	c.cfg = &diskConfig{}
 	err := yaml.Unmarshal([]byte(data), &conf)

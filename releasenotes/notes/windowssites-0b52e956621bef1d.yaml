@@ -9,10 +9,4 @@
 enhancements:
   - |
     Added new command line properties to the Windows installer which allow for setting site specific configuration.
-    New flags are
-      DD_SITE sets the site override flag in datadog.yaml
-      DD_URL  sets the dd_url entry in datadog.yaml
-      LOGS_DD_URL sets the logs agent specific url in datadog.yaml
-      PROCESS_DD_URL sets the process agent specific url in datadog.yaml
-      TRACE_DD_URL sets the trace agent specific url in datadog.yaml
 

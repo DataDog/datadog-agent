@@ -62,6 +62,7 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 
 	agentCheckClass := agentCheckModule.GetAttrString(agentCheckClassName) // don't `DecRef` for now since we keep the ref around in the returned PythonCheckLoader
 	if agentCheckClass == nil {
+		python.PyErr_Clear()
 		log.Errorf("Unable to import %s class from Python module: %s", agentCheckClassName, agentCheckModuleName)
 		return nil, errors.New("unable to initialize AgentCheck class")
 	}

@@ -229,9 +229,10 @@ func (h *AutoscalersController) worker() {
 func (h *AutoscalersController) processNext() bool {
 	key, quit := h.queue.Get()
 	if quit {
+		log.Infof("Autoscaler queue is shutting down, stopping processing")
 		return false
 	}
-
+	log.Tracef("Processing %s", key)
 	defer h.queue.Done(key)
 
 	err := h.syncAutoscalers(key)
@@ -239,6 +240,7 @@ func (h *AutoscalersController) processNext() bool {
 		log.Errorf("Could not sync HPAs %s", err)
 	}
 
+	// Debug output for unit tests only
 	if h.autoscalers != nil {
 		h.autoscalers <- key
 	}

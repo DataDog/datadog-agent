@@ -167,6 +167,11 @@ build do
       pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}"
     end
 
+    # Ship requirements-agent-release.txt file containing the versions of every check shipped with the agent
+    # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
+    # older than the one shipped in the agent
+    copy "#{project_dir}/requirements-agent-release.txt", "#{install_dir}/"
+
     # install integrations
     Dir.glob("#{project_dir}/*").each do |check_dir|
       check = check_dir.split('/').last

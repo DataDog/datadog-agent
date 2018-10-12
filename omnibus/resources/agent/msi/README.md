@@ -46,8 +46,6 @@ The following configuration command line options are available when installing t
 * PROXY_USER="_string_"
 * PROXY_PASSWORD="_string_"
   * Takes the combination of the provided PROXY_* options, and creates the HTTP proxy configuration which the agent will use to report metrics back to the Datadog service.
-* DD_SITE="_string_"
-  * Sets the **dd_site** variable in datadog.yaml to _string_. 
 * DD_URL="_string_"
   * Sets the **dd_url** variable in datadog.yaml to _string_. 
 * LOGS_DD_URL="_string_"

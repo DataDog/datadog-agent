@@ -81,6 +81,9 @@ spec:
         - name: datadog-config
           mountPath: /etc/datadog-agent/conf.d/docker.d/conf.yaml.default
           subPath: docker.yaml
+        - name: datadog-config
+          mountPath: /etc/datadog-agent/conf.d/memory.d/conf.yaml.default
+          subPath: memory.yaml
         - name: proc
           mountPath: /host/proc
           readOnly: true

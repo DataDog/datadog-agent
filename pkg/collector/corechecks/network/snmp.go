@@ -31,15 +31,15 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/k-sone/snmpgo"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/k-sone/snmpgo"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -644,9 +644,13 @@ func (c *SNMPCheck) getSNMP() error {
 
 // Configure the check from YAML data
 func (c *SNMPCheck) Configure(data integration.Data, initConfig integration.Data) error {
+	err := c.CommonConfigure(data)
+	if err != nil {
+		return err
+	}
 
 	cfg := new(snmpConfig)
-	err := cfg.parse(data, initConfig)
+	err = cfg.parse(data, initConfig)
 	if err != nil {
 		log.Criticalf("Error parsing configuration file: %s ", err)
 		return err
