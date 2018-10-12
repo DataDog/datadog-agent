@@ -8,8 +8,9 @@
 package hpa
 
 import (
+	"reflect"
+
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,13 +38,29 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 }
 
 // DiffExternalMetrics returns the list of external metrics that reference hpas that are not in the given list of hpas.
-func DiffExternalMetrics(lhs []*autoscalingv2.HorizontalPodAutoscaler, rhs []custommetrics.ExternalMetricValue) (toDelete []custommetrics.ExternalMetricValue) {
-	uids := sets.NewString()
-	for _, hpa := range lhs {
-		uids.Insert(string(hpa.UID))
+func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, storedMetricsList []custommetrics.ExternalMetricValue) (toDelete []custommetrics.ExternalMetricValue) {
+	metricsList := map[string][]custommetrics.ExternalMetricValue{}
+
+	for _, hpa := range informerList {
+		metricsList[string(hpa.UID)] = Inspect(hpa)
 	}
-	for _, em := range rhs {
-		if !uids.Has(em.HPA.UID) {
+
+	for _, em := range storedMetricsList {
+		var found bool
+		emList := metricsList[em.HPA.UID]
+		if emList == nil {
+			toDelete = append(toDelete, em)
+			continue
+		}
+		for _, m := range emList {
+			// We have previously processed an external metric from this HPA.
+			// Check that it's still the same. If not, remove the entry from the Global Store.
+			if em.MetricName == m.MetricName && reflect.DeepEqual(em.Labels, m.Labels) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			toDelete = append(toDelete, em)
 		}
 	}
