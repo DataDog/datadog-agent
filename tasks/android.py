@@ -26,6 +26,7 @@ from .agent import DEFAULT_BUILD_TAGS
 
 ANDROID_CORECHECKS = [
     "cpu",
+    "disk",
     "io",
     "load",
     "memory",
