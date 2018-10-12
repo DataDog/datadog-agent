@@ -374,7 +374,6 @@ func installTuf(cmd *cobra.Command, args []string) error {
 			versionToInstall, integration, pipErr, tufErr,
 		)
 	}
-	return pipErr
 }
 
 func getIntegrationVersion(integration string) (string, error) {
