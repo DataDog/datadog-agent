@@ -9,7 +9,7 @@
 features:
   - |
     Add ``--in-toto`` flag to ``datadog-agent integration`` command to enable in-toto
-  - Add ``--verbose`` flag to ``datadog-agent integration`` command to enable TUF logging
+  - Add ``--verbose`` flag to ``datadog-agent integration`` command to enable verbose logging on pip and TUF
 enhancements:
   - |
     ``datadog-agent integration`` command will not pull any of the integration's dependencies
