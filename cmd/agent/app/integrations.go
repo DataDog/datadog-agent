@@ -76,9 +76,10 @@ var tufCmd = &cobra.Command{
 var installCmd = &cobra.Command{
 	Use:   "install [package]",
 	Short: "Install Datadog integration core/extra packages",
-	Long: `You must specify a version of the package to install using the syntax: <package>==<version>, with
-- <package> of the form datadog-<integration-name>
-- <version> of the form x.y.z`,
+	Long: `Install Datadog integration core/extra packages
+You must specify a version of the package to install using the syntax: <package>==<version>, with
+ - <package> of the form datadog-<integration-name>
+ - <version> of the form x.y.z`,
 	RunE: installTuf,
 }
 
