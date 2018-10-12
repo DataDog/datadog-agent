@@ -25,11 +25,8 @@ import (
 )
 
 const (
-	tufConfigFile         = "public-tuf-config.json"
-	tufPkgPattern         = "datadog-.*"
-	pipCheckOutputPattern = "%s \\d+\\.\\d+\\.\\d+ has requirement " +
-		"datadog-checks-base..?\\d+\\.\\d+\\.\\d+, " +
-		"but you have datadog-checks-base \\d+\\.\\d+\\.\\d+"
+	tufConfigFile          = "public-tuf-config.json"
+	tufPkgPattern          = "datadog-.*"
 	pipFreezeOutputPattern = "%s==(\\d+\\.\\d+\\.\\d+)"
 )
 
@@ -79,8 +76,10 @@ var tufCmd = &cobra.Command{
 var installCmd = &cobra.Command{
 	Use:   "install [package]",
 	Short: "Install Datadog integration core/extra packages",
-	Long:  ``,
-	RunE:  installTuf,
+	Long: `You must specify a version of the package to install using the syntax: <package>==<version>, with
+- <package> of the form datadog-<integration-name>
+- <version> of the form x.y.z`,
+	RunE: installTuf,
 }
 
 var removeCmd = &cobra.Command{
@@ -284,11 +283,19 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	intVer := strings.Split(args[0], "==")
-	integration := strings.Trim(intVer[0], " ")
-	versionToInstall := strings.Trim(intVer[1], " ")
+	integration := strings.TrimSpace(intVer[0])
+	versionToInstall := strings.TrimSpace(intVer[1])
 	currentVersion, err := getIntegrationVersion(integration)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+	}
+
+	// Run pip check first to see if the python environment is clean
+	if err := pipCheck(); err != nil {
+		return fmt.Errorf(
+			"error when validating the agen't python environment, won't install %s: %v",
+			integration, err,
+		)
 	}
 
 	cachePath, err := getTUFPipCachePath()
@@ -308,7 +315,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run pip check to determine if the installed integration is compatible with the base check version
-	pipErr := pipCheck(integration)
+	pipErr := pipCheck()
 	if pipErr == nil {
 		// Success
 		return nil
@@ -330,36 +337,18 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	// Perform the rollback
 	tufErr := tuf(tufArgs)
 	if tufErr == nil {
-		// Rollbak successful, return error encountered during `pip check`
-		if _, ok := pipErr.(DependencyError); ok {
-			return fmt.Errorf(
-				"failed to install %s %s because it is incompatible with the version of the agent: %v",
-				integration, versionToInstall, pipErr,
-			)
-		}
-
+		// Rollback successful, return error encountered during `pip check`
 		return fmt.Errorf(
-			"failed to check compatibility of version %s of %s with the agent so it was not installed: %v",
-			versionToInstall, integration, pipErr,
+			"error when validating the agen't python environment, %s wasn't installed: %v",
+			integration, err,
 		)
 	}
 
 	// Rollback failed, mention that the integration could be broken
-	if _, ok := pipErr.(DependencyError); ok {
-		return fmt.Errorf(
-			"version %s of %s incompatible with the version of the agent was installed, "+
-				"and a roll back to the previously installed version failed, so the integration might not work.\n"+
-				"Error encountered: %v",
-			versionToInstall, integration, tufErr,
-		)
-	} else {
-		return fmt.Errorf(
-			"failed to check compatibility of version %s of %s with the agent "+
-				"and a roll back to the previously installed version failed, so the integration might not work.\n"+
-				"Errors encountered:\n - %v\n - %v",
-			versionToInstall, integration, pipErr, tufErr,
-		)
-	}
+	return fmt.Errorf(
+		"error when validating the agen't python environment, but %s %s was installed anyway and might be broken: %v",
+		integration, versionToInstall, err,
+	)
 }
 
 func getIntegrationVersion(integration string) (string, error) {
@@ -394,48 +383,22 @@ func getIntegrationVersion(integration string) (string, error) {
 	return "", nil
 }
 
-func pipCheck(integration string) error {
+func pipCheck() error {
 	pythonPath, err := getCommandPython()
 	if err != nil {
 		return err
 	}
 
 	checkCmd := exec.Command(pythonPath, "-mpip", "check")
-	output, err := checkCmd.Output()
+	output, err := checkCmd.CombinedOutput()
 
 	if err == nil {
 		// Clean python environment
 		return nil
 	}
 
-	// pip check returns with exit code 1 in case of mismatch
-	if exitErr, ok := err.(*exec.ExitError); ok {
-
-		// pip check prints dependency mismatch to stdout
-		// so if we have an exit error and it is empty, we can assume the command failed
-		if len(output) == 0 {
-			return fmt.Errorf("error executing pip check: %v", string(exitErr.Stderr))
-		}
-
-		// Dependency mismatch detected, parse the output of the command
-		// to determine if it is caused by the check we just installed
-		exp, err := regexp.Compile(fmt.Sprintf(pipCheckOutputPattern, integration))
-		if err != nil {
-			return fmt.Errorf("internal error: %v", err)
-		}
-
-		if match := exp.FindString(string(output)); match != "" {
-			return DependencyError(fmt.Sprintf("dependency error: %s", match))
-		}
-
-		// The issue is not with the integration we try to install
-		// log a message to say the python env might be broken
-		fmt.Printf(color.RedString(fmt.Sprintf(
-			"integration %s successfully installed, "+
-				"but we detected some dependency mismatches in the agent's python environment: %s",
-			integration, string(output),
-		)))
-		return nil
+	if _, ok := err.(*exec.ExitError); ok {
+		return fmt.Errorf("error executing pip check: %v", string(output))
 	}
 
 	return fmt.Errorf("error executing pip check: %v", err)
