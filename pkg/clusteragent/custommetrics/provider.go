@@ -38,15 +38,18 @@ type datadogProvider struct {
 	resVersion      string
 	store           Store
 	timestamp       int64
+	maxAge          int64
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
 func NewDatadogProvider(client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
+	maxAge := config.Datadog.GetInt64("external_metrics_provider.local_copy_refresh_rate")
 	return &datadogProvider{
 		client: client,
 		mapper: mapper,
 		values: make(map[provider.CustomMetricInfo]int64),
 		store:  store,
+		maxAge: maxAge,
 	}
 }
 
@@ -71,6 +74,16 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	var externalMetricsInfoList []provider.ExternalMetricInfo
 	var externalMetricsList []externalMetric
 
+	copyAge := metav1.Now().Unix() - p.timestamp
+	if copyAge < p.maxAge {
+		log.Tracef("Local copy is recent enough, not querying the GlobalStore. Remaining %d seconds before next sync", p.maxAge-copyAge)
+		for _, in := range p.externalMetrics {
+			externalMetricsInfoList = append(externalMetricsInfoList, in.info)
+		}
+		return externalMetricsInfoList
+	}
+
+	log.Debugf("Local copy of external metrics from the global store is outdated by %d seconds, resyncing now", copyAge-p.maxAge)
 	rawMetrics, err := p.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Could not list the external metrics in the store: %s", err.Error())
@@ -112,12 +125,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
 
-	copyAge := metav1.Now().Unix() - p.timestamp
-	maxAge := config.Datadog.GetInt64("external_metrics_provider.local_copy_refresh_rate")
-	if copyAge > maxAge {
-		log.Debugf("Local copy of external metrics from the global store is outdated: %d, resyncing now", copyAge)
-		p.ListAllExternalMetrics()
-	}
+	p.ListAllExternalMetrics() // get up to date values from the cache or the Global Store
 
 	for _, metric := range p.externalMetrics {
 		metricFromDatadog := external_metrics.ExternalMetricValue{

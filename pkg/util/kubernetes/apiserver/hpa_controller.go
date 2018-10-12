@@ -30,6 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// maxRetries is the maximum number of times we try to process an autoscaler before it is dropped out of the queue.
+	maxRetries = 10
+)
+
 type PollerConfig struct {
 	gcPeriodSeconds int
 	refreshPeriod   int
@@ -69,7 +74,7 @@ type AutoscalersController struct {
 func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) (*AutoscalersController, error) {
 	var err error
 	h := &AutoscalersController{
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoscalers"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
 	}
 
 	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
@@ -235,15 +240,28 @@ func (h *AutoscalersController) processNext() bool {
 	defer h.queue.Done(key)
 
 	err := h.syncAutoscalers(key)
-	if err != nil {
-		log.Errorf("Could not sync HPAs %s", err)
-	}
+	h.handleErr(err, key)
 
 	if h.autoscalers != nil {
 		h.autoscalers <- key
 	}
-
 	return true
+}
+
+func (h *AutoscalersController) handleErr(err error, key interface{}) {
+	if err == nil {
+		log.Tracef("Faithfully dropping key %v", key)
+		h.queue.Forget(key)
+		return
+	}
+
+	if h.queue.NumRequeues(key) < maxRetries {
+		log.Debugf("Error syncing the autoscaler %v, will rety for another %d times: %v", key, maxRetries-h.queue.NumRequeues(key), err)
+		h.queue.AddRateLimited(key)
+		return
+	}
+	log.Errorf("Too many errors trying to sync the autoscaler %v, dropping out of the queue: %v", key, err)
+	h.queue.Forget(key)
 }
 
 func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
