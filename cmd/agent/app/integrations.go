@@ -25,7 +25,6 @@ import (
 )
 
 const (
-	constraintsFile       = "agent_requirements.txt"
 	tufConfigFile         = "public-tuf-config.json"
 	tufPkgPattern         = "datadog-.*"
 	pipCheckOutputPattern = "%s \\d+\\.\\d+\\.\\d+ has requirement " +
@@ -126,19 +125,6 @@ func getCommandPython() (string, error) {
 	}
 
 	return pyPath, nil
-}
-
-func getConstraintsFilePath() (string, error) {
-	here, _ := executable.Folder()
-	cPath := filepath.Join(here, relConstraintsPath)
-
-	if _, err := os.Stat(cPath); err != nil {
-		if os.IsNotExist(err) {
-			return cPath, err
-		}
-	}
-
-	return cPath, nil
 }
 
 func getTUFConfigFilePath() (string, error) {
