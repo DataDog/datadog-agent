@@ -51,6 +51,12 @@ build do
             if debian?
                 # debian recommends using a different directory for systemd unit files
                 systemd_directory = "/lib/systemd/system"
+
+                # sysvinit support for debian only for now
+                mkdir "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
