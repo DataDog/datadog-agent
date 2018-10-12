@@ -201,7 +201,7 @@ func tuf(args []string) error {
 		if len(idxFlags) > 0 {
 			args = append(args, idxFlags...)
 		} else {
-			// Otherwise, if the user has not explicitly overrriden the pip indices,
+			// Otherwise, if the user has not explicitly overridden the pip indices,
 			// then we replace the PyPI index with our own by default, in order to
 			// prevent accidental installation of Datadog or even third-party
 			// packages from PyPI.

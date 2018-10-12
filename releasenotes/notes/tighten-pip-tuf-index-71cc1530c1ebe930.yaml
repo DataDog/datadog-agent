@@ -8,7 +8,6 @@
 ---
 security:
   - |
-    If the user has not explicitly overrriden the pip indices, then we replace
+    If the user has not explicitly overridden the pip indices, then we replace
     the PyPI index with our own by default, in order to prevent accidental
-    installation of Datadog or even third-party packages from PyPI. The user
-    may override this default behaviour using the `--idx-flags` option.
+    installation of Datadog or even third-party packages from PyPI.
