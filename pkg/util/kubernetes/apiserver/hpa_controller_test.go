@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 )
@@ -331,6 +332,19 @@ func TestAutoscalerControllerGC(t *testing.T) {
 					Name:      "foo",
 					Namespace: "default",
 					UID:       "1111",
+				},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "requests_per_s",
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{"bar": "baz"},
+								},
+							},
+						},
+					},
 				},
 			},
 			expected: []custommetrics.ExternalMetricValue{ // skipped by gc
