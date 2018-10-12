@@ -30,12 +30,6 @@ const (
 	pipFreezeOutputPattern = "%s==(\\d+\\.\\d+\\.\\d+)"
 )
 
-type DependencyError string
-
-func (s DependencyError) Error() string {
-	return string(s)
-}
-
 var (
 	allowRoot    bool
 	withoutTuf   bool
