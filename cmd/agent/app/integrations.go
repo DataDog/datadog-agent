@@ -277,13 +277,18 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("you must specify a version to install with <package>==<version>")
 	}
 
+	cachePath, err := getTUFPipCachePath()
+	if err != nil {
+		return err
+	}
+
 	intVer := strings.Split(args[0], "==")
 	integration := strings.TrimSpace(intVer[0])
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("cannot upgrade datadog-checks-base")
 	}
 	versionToInstall := strings.TrimSpace(intVer[1])
-	currentVersion, err := getIntegrationVersion(integration)
+	currentVersion, err := getIntegrationVersion(integration, cachePath)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
@@ -294,11 +299,6 @@ func installTuf(cmd *cobra.Command, args []string) error {
 			"error when validating the agent's python environment, won't install %s: %v",
 			integration, err,
 		)
-	}
-
-	cachePath, err := getTUFPipCachePath()
-	if err != nil {
-		return err
 	}
 
 	tufArgs := []string{
@@ -313,9 +313,11 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run pip check to determine if the installed integration is compatible with the base check version
-	pipErr := pipCheck()
+	pipErr := pipCheck(cachePath)
 	if pipErr == nil {
-		// Success
+		fmt.Println(color.GreenString(fmt.Sprintf(
+			"Successfully installed %s %s", integration, versionToInstall,
+		)))
 		return nil
 	}
 
@@ -337,25 +339,25 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	if tufErr == nil {
 		// Rollback successful, return error encountered during `pip check`
 		return fmt.Errorf(
-			"error when validating the agen't python environment, %s wasn't installed: %v",
+			"error when validating the agent's python environment, %s wasn't installed: %v",
 			integration, err,
 		)
 	}
 
 	// Rollback failed, mention that the integration could be broken
 	return fmt.Errorf(
-		"error when validating the agen't python environment, but %s %s was installed anyway and might be broken: %v",
+		"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken: %v",
 		integration, versionToInstall, err,
 	)
 }
 
-func getIntegrationVersion(integration string) (string, error) {
+func getIntegrationVersion(integration string, cachePath string) (string, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
 		return "", err
 	}
 
-	freezeCmd := exec.Command(pythonPath, "-mpip", "freeze")
+	freezeCmd := exec.Command(pythonPath, "-mpip", "freeze", "--cache-dir", cachePath)
 	output, err := freezeCmd.Output()
 
 	if err != nil {
@@ -381,13 +383,13 @@ func getIntegrationVersion(integration string) (string, error) {
 	return "", nil
 }
 
-func pipCheck() error {
+func pipCheck(cachePath string) error {
 	pythonPath, err := getCommandPython()
 	if err != nil {
 		return err
 	}
 
-	checkCmd := exec.Command(pythonPath, "-mpip", "check")
+	checkCmd := exec.Command(pythonPath, "-mpip", "check", "--cache-dir", cachePath)
 	output, err := checkCmd.CombinedOutput()
 
 	if err == nil {
