@@ -59,6 +59,7 @@ AGENT_CORECHECKS = [
 
 PUPPY_CORECHECKS = [
     "cpu",
+    "disk",
     "io",
     "load",
     "memory",
