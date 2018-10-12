@@ -285,6 +285,9 @@ func installTuf(cmd *cobra.Command, args []string) error {
 
 	intVer := strings.Split(args[0], "==")
 	integration := strings.TrimSpace(intVer[0])
+	if integration == "datadog-checks-base" {
+		return fmt.Errorf("cannot upgrade datadog-checks-base")
+	}
 	versionToInstall := strings.TrimSpace(intVer[1])
 	currentVersion, err := getIntegrationVersion(integration)
 	if err != nil {
