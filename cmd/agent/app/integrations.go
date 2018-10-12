@@ -27,7 +27,7 @@ import (
 const (
 	tufConfigFile          = "public-tuf-config.json"
 	tufPkgPattern          = "datadog-.*"
-	tufIndex        = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
+	tufIndex               = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
 	pipFreezeOutputPattern = "%s==(\\d+\\.\\d+\\.\\d+)"
 )
 
