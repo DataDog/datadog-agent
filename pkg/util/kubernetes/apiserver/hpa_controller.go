@@ -258,13 +258,12 @@ func (h *AutoscalersController) handleErr(err error, key interface{}) {
 	}
 
 	if h.queue.NumRequeues(key) < maxRetries {
-		log.Debugf("Error syncing the autoscaler %v, will rety for another %d/%d times: %v", key, h.queue.NumRequeues(key), maxRetries, err)
+		log.Debugf("Error syncing the autoscaler %v, will rety for another %d times: %v", key, maxRetries-h.queue.NumRequeues(key), err)
 		h.queue.AddRateLimited(key)
 		return
 	}
 	log.Errorf("Too many errors trying to sync the autoscaler %v, dropping out of the queue: %v", key, err)
 	h.queue.Forget(key)
-	return
 }
 
 func (h *AutoscalersController) syncAutoscalers(key interface{}) error {

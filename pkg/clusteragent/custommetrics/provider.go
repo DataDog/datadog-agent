@@ -75,8 +75,8 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	var externalMetricsList []externalMetric
 
 	copyAge := metav1.Now().Unix() - p.timestamp
-	if copyAge < p.maxAge { //&& p.externalMetrics != nil{
-		log.Tracef("Local copy is recent enough, not querying the GlobalStore. Remaining %d/%d seconds before next sync", copyAge, p.maxAge)
+	if copyAge < p.maxAge {
+		log.Tracef("Local copy is recent enough, not querying the GlobalStore. Remaining %d seconds before next sync", p.maxAge-copyAge)
 		for _, in := range p.externalMetrics {
 			externalMetricsInfoList = append(externalMetricsInfoList, in.info)
 		}
