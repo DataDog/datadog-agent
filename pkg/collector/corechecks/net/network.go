@@ -77,6 +77,7 @@ type NetworkCheck struct {
 }
 
 type networkInstanceConfig struct {
+	CustomTags               []string `yaml:"tags"`
 	CollectConnectionState   bool     `yaml:"collect_connection_state"`
 	ExcludedInterfaces       []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe      string   `yaml:"excluded_interface_re"`
@@ -128,7 +129,7 @@ func (c *NetworkCheck) Run() error {
 	}
 	for _, interfaceIO := range ioByInterface {
 		if !c.isDeviceExcluded(interfaceIO.Name) {
-			submitInterfaceMetrics(sender, interfaceIO)
+			submitInterfaceMetrics(sender, interfaceIO, c.config.instance.CustomTags)
 		}
 	}
 
@@ -149,7 +150,7 @@ func (c *NetworkCheck) Run() error {
 				}
 			}
 		}
-		submitProtocolMetrics(sender, protocolStats)
+		submitProtocolMetrics(sender, protocolStats, c.config.instance.CustomTags)
 	}
 
 	if c.config.instance.CollectConnectionState {
@@ -157,25 +158,25 @@ func (c *NetworkCheck) Run() error {
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats)
+		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CustomTags)
 
 		connectionsStats, err = c.net.Connections("udp6")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats)
+		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CustomTags)
 
 		connectionsStats, err = c.net.Connections("tcp4")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping, connectionsStats)
+		submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CustomTags)
 
 		connectionsStats, err = c.net.Connections("tcp6")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping, connectionsStats)
+		submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CustomTags)
 	}
 
 	sender.Commit()
@@ -194,8 +195,8 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 	return false
 }
 
-func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCountersStat) {
-	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name)}
+func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCountersStat, additionalTags []string) {
+	tags := append(additionalTags, fmt.Sprintf("device:%s", interfaceIO.Name))
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
 	sender.Rate("system.net.packets_in.count", float64(interfaceIO.PacketsRecv), "", tags)
@@ -204,19 +205,19 @@ func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCounters
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func submitProtocolMetrics(sender aggregator.Sender, protocolStats net.ProtoCountersStat) {
+func submitProtocolMetrics(sender aggregator.Sender, protocolStats net.ProtoCountersStat, additionalTags []string) {
 	if protocolMapping, ok := protocolsMetricsMapping[protocolStats.Protocol]; ok {
 		for rawMetricName, metricName := range protocolMapping {
 			if metricValue, ok := protocolStats.Stats[rawMetricName]; ok {
-				sender.Rate(metricName, float64(metricValue), "", []string{})
+				sender.Rate(metricName, float64(metricValue), "", additionalTags)
 				sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "",
-					[]string{})
+					additionalTags)
 			}
 		}
 	}
 }
 
-func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat) {
+func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat, additionalTags []string) {
 	metricCount := map[string]float64{}
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
@@ -228,7 +229,7 @@ func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, sta
 
 	for suffix, count := range metricCount {
 		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix),
-			count, "", []string{})
+			count, "", additionalTags)
 	}
 }
 
@@ -279,11 +280,11 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 
 // Configure configures the network checks
 func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+	err := c.CommonConfigure(rawInstance)
 	if err != nil {
 		return err
 	}
-	err := yaml.Unmarshal(rawInitConfig, &c.config.initConf)
+	err = yaml.Unmarshal(rawInitConfig, &c.config.initConf)
 	if err != nil {
 		return err
 	}
