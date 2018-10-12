@@ -541,7 +541,6 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 // resolver at this moment.
 func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Config {
 	// use a map to dedupe configurations
-	// FIXME: the config digest as the key is currently not reliable
 	resolvedSet := map[string]integration.Config{}
 
 	// go through the AD identifiers provided by the template
