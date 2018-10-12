@@ -32,7 +32,7 @@ type diskConfig struct {
 	excludedMountpointRe *regexp.Regexp
 	allPartitions        bool
 	deviceTagRe          map[*regexp.Regexp][]string
-	customeTags          []string
+	customTags           []string
 }
 
 func (c *DiskCheck) excludeDisk(mountpoint, device, fstype string) bool {
@@ -149,10 +149,10 @@ func (c *DiskCheck) instanceConfigure(data integration.Data) error {
 
 	tags, found := conf["tags"]
 	if tags, ok := tags.([]interface{}); found && ok {
-		c.cfg.customeTags = make([]string, 0, len(tags))
+		c.cfg.customTags = make([]string, 0, len(tags))
 		for _, tag := range tags {
 			if tag, ok := tag.(string); ok {
-				c.cfg.customeTags = append(c.cfg.customeTags, tag)
+				c.cfg.customTags = append(c.cfg.customTags, tag)
 			}
 		}
 	}
