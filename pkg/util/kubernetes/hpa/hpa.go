@@ -39,15 +39,15 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 
 // DiffExternalMetrics returns the list of external metrics that reference hpas that are not in the given list of hpas.
 func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, storedMetricsList []custommetrics.ExternalMetricValue) (toDelete []custommetrics.ExternalMetricValue) {
-	metricsList := map[string][]custommetrics.ExternalMetricValue{}
+	hpaMetrics := map[string][]custommetrics.ExternalMetricValue{}
 
 	for _, hpa := range informerList {
-		metricsList[string(hpa.UID)] = Inspect(hpa)
+		hpaMetrics[string(hpa.UID)] = Inspect(hpa)
 	}
 
 	for _, em := range storedMetricsList {
 		var found bool
-		emList := metricsList[em.HPA.UID]
+		emList := hpaMetrics[em.HPA.UID]
 		if emList == nil {
 			toDelete = append(toDelete, em)
 			continue

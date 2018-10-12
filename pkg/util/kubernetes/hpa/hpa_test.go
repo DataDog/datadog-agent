@@ -239,6 +239,60 @@ func TestDiffExternalMetrics(t *testing.T) {
 				},
 			},
 		},
+		"metric labels changed": {
+			[]*autoscalingv2.HorizontalPodAutoscaler{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       types.UID(5),
+						Namespace: "bar",
+						Name:      "foo",
+					},
+					Spec: makeSpec("requests_per_s_one", map[string]string{"foo": "bar"}),
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       types.UID(7),
+						Namespace: "baz",
+						Name:      "foo",
+					},
+					Spec: makeSpec("requests_per_s_two", map[string]string{"foo": "foobar"}),
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s_one",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      true,
+					HPA: custommetrics.ObjectReference{
+						UID:       string(5),
+						Namespace: "bar",
+						Name:      "foo",
+					},
+				},
+				{
+					MetricName: "requests_per_s_two",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+					HPA: custommetrics.ObjectReference{
+						UID:       string(7),
+						Namespace: "baz",
+						Name:      "foo",
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "requests_per_s_two",
+					Labels:     map[string]string{"foo": "bar"},
+					Valid:      false,
+					HPA: custommetrics.ObjectReference{
+						UID:       string(7),
+						Name:      "foo",
+						Namespace: "baz",
+					},
+				},
+			},
+		},
 	}
 
 	for name, testCase := range testCases {
