@@ -261,9 +261,8 @@ func TestAutoscalerController(t *testing.T) {
 
 func TestAutoscalerSync(t *testing.T) {
 	client := fake.NewSimpleClientset()
-	i := &fakeLeaderElector{}
 	d := &fakeDatadogClient{}
-	hctrl, inf := newFakeAutoscalerController(client, i, d)
+	hctrl, inf := newFakeAutoscalerController(client, alwaysLeader, d)
 	obj := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
 		"default",
