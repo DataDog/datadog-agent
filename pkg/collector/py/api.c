@@ -99,6 +99,10 @@ int _is_none(PyObject *o) {
   return o == Py_None;
 }
 
+const char* _object_type(PyObject *o) {
+  return Py_TYPE(o)->tp_name;
+}
+
 void initaggregator()
 {
   PyGILState_STATE gstate;

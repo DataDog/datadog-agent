@@ -25,6 +25,7 @@ typedef enum {
 void initaggregator();
 PyObject* _none();
 int _is_none(PyObject*);
+const char* _object_type(PyObject *o);
 int _PyDict_Check(PyObject*);
 int _PyInt_Check(PyObject*);
 int _PyString_Check(PyObject*);
