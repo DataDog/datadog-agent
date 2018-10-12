@@ -159,7 +159,7 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
+	log.Infof("[DEV] accessing Global Store")
 	if err := c.getConfigMap(); err != nil {
 		return nil, err
 	}
@@ -167,6 +167,7 @@ func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, e
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("[DEV] returning bundle %#v", bundle)
 	return bundle.External, nil
 }
 
@@ -189,6 +190,7 @@ func (c *configMapStore) doGetMetrics() (*MetricsBundle, error) {
 			log.Debugf("Could not unmarshal the external metric for key %s: %v", k, err)
 			continue
 		}
+		log.Infof("[DEV] appening %#v to the bundle", m)
 		bundle.External = append(bundle.External, m)
 	}
 	return bundle, nil
