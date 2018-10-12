@@ -197,13 +197,16 @@ func tuf(args []string) error {
 	// idx-flags go after the command and implicit flags
 	idxFlags, err := tufCmd.Flags().GetStringSlice("idx-flags")
 	if err == nil {
-		args = append(args, idxFlags...)
-	} else {
-		// NOTE: If the user has not explicitly overrriden the pip indices, then we
-		// replace the PyPI index with our own by default, in order to prevent
-		// accidental installation of Datadog or even third-party packages from
-		// PyPI.
-		args = append(args, fmt.Sprintf("--index-url %s", tufIndex))
+		// If user specified index flags, then use that.
+		if len(idxFlags) > 0 {
+			args = append(args, idxFlags...)
+		} else {
+			// Otherwise, if the user has not explicitly overrriden the pip indices,
+			// then we replace the PyPI index with our own by default, in order to
+			// prevent accidental installation of Datadog or even third-party
+			// packages from PyPI.
+			args = append(args, fmt.Sprintf("--index-url %s", tufIndex))
+		}
 	}
 
 	tufCmd := exec.Command(pipPath, args...)
