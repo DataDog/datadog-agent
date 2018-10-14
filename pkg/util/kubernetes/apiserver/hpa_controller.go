@@ -343,6 +343,7 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 	oldAutoscaler, ok := old.(*autoscalingv2.HorizontalPodAutoscaler)
 	if !ok {
 		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", old)
+		h.enqueue(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
 		return
 	}
 
