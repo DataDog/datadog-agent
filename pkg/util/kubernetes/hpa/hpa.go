@@ -49,3 +49,12 @@ func DiffExternalMetrics(lhs []*autoscalingv2.HorizontalPodAutoscaler, rhs []cus
 	}
 	return
 }
+
+// AutoscalerMetricsUpdate will return true if the applied configuration of the Autoscaler has changed.
+// We only care about updates of the metrics or their scopes.
+func AutoscalerMetricsUpdate(new, old *autoscalingv2.HorizontalPodAutoscaler) bool {
+	if reflect.DeepEqual(new.Annotations, old.Annotations) {
+		return false
+	}
+	return true
+}
