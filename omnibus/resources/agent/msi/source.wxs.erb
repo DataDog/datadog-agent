@@ -40,10 +40,10 @@
     </Upgrade>
 
     <!-- Close application when uninstalling -->
-    <util:CloseApplication Id="CloseTrayApp" 
-                          CloseMessage="yes" 
+    <util:CloseApplication Id="CloseTrayApp"
+                          CloseMessage="yes"
                           EndSessionMessage="yes"
-                          Target="ddtray.exe" 
+                          Target="ddtray.exe"
                           ElevatedCloseMessage="yes"
                           TerminateProcess="1"
                           Timeout="1"
@@ -344,6 +344,16 @@
         </Component>
       </Directory>
 
+      <Directory Id="run" Name="run">
+        <Component Id="run"
+                   Guid="5acf7ec1-3bcf-40d7-8840-f8de8a472c3c"
+                   Permanent="yes"
+                   Location="either"
+                   NeverOverwrite="yes">
+          <CreateFolder/>
+        </Component>
+      </Directory>
+
       <Directory Id="EXAMPLECONFSLOCATION" Name= "conf.d">
         <Component Id="conf.d"
                    Guid="54fcfacb-726b-46e3-a699-ec19258a24be"
@@ -544,7 +554,7 @@
 
    <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />
     <Binary Id="BackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
-    
+
     <Property Id="ShortCompanyName" Value="!(loc.CompanyNameShort)" />
 
   </Product>
