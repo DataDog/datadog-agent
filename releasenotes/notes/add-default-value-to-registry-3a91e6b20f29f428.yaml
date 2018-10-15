@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    "Add a default value to the registry on Windows: C:\ProgramData\datadog"
+    Adding a default location on Windows for the file storing pointers to make sure we never lose nor duplicate any logs
