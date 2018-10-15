@@ -227,7 +227,7 @@ func extractTags(tags *C.PyObject, checkID string) (_tags []string, err error) {
 			item := C.PySequence_Fast_Get_Item(seq, i) // `item` is borrowed, no need to decref
 			if int(C._PyString_Check(item)) == 0 {
 				typeName := C.GoString(C._object_type(item))
-				log.Errorf("One of the submitted tag for %s is not a string but a %s, ignoring it", checkID, typeName)
+				log.Debugf("One of the submitted tag for %s is not a string but a %s, ignoring it", checkID, typeName)
 				continue
 			}
 			// at this point we're sure that `item` is a string, no further error checking needed
