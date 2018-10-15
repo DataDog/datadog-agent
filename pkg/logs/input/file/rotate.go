@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
-
 package file
 
 import (
@@ -17,7 +15,7 @@ import (
 // - removed and recreated
 // - truncated
 func DidRotate(file *os.File, lastReadOffset int64) (bool, error) {
-	f, err := os.Open(file.Name())
+	f, err := openFile(file.Name())
 	if err != nil {
 		return false, err
 	}

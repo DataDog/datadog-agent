@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build windows
+// +build !windows
 
 package file
 
@@ -11,8 +11,7 @@ import (
 	"os"
 )
 
-// DidRotate is not implemented on windows,
-// log rotations are handled by the tailer for now.
-func DidRotate(file *os.File, lastReadOffset int64) (bool, error) {
-	return false, nil
+// openFile open files with the standard Open method on *nix OSes
+func openFile(path string) (*os.File, error) {
+	return os.Open(path)
 }
