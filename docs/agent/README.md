@@ -28,7 +28,7 @@ way you can configure the Agent changed too, please read [this document][config]
 where all the new options are detailed. The latest Agent won't have feature parity
 with the previous one at first, you can see the list of what's missing [here][missing-features].
 
-## Secrets Managemet
+## Secrets Management
 
 If you need to retrieve secrets at run-time, please read this [document][secrets].
 
