@@ -344,8 +344,9 @@
         </Component>
       </Directory>
 
-      <Directory Id="run" Name="run">
-        <Component Id="run"
+      <!-- Directory to store the registry that keep track of tailed file offsets -->
+      <Directory Id="REGISTRYDIRECTORY" Name="run">
+        <Component Id="REGISTRYDIRECTORY"
                    Guid="5acf7ec1-3bcf-40d7-8840-f8de8a472c3c"
                    Permanent="yes"
                    Location="either"
@@ -437,6 +438,7 @@
       <ComponentRef Id="cache" />
       <ComponentRef Id="current_metadata" />
       <ComponentRef Id="previous_metadata" />
+      <ComponentRef Id="REGISTRYDIRECTORY" />
       <ComponentRef Id="root.json" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
