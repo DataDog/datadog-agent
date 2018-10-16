@@ -9,10 +9,9 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 )
 
 // Provider provides message channels
@@ -27,15 +26,15 @@ type provider struct {
 	numberOfPipelines int
 	auditor           *auditor.Auditor
 	outputChan        chan *message.Message
-	endpoints         *config.Endpoints
+	endpoints         *client.Endpoints
 
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
-	destinationsContext  *sender.DestinationsContext
+	destinationsContext  *client.DestinationsContext
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
 		auditor:             auditor,

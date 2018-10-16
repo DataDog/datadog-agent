@@ -12,6 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
 // LogsAgent is the global configuration object
@@ -45,7 +47,7 @@ func DefaultSources() []*LogSource {
 }
 
 // BuildEndpoints returns the endpoints to send logs to.
-func BuildEndpoints() (*Endpoints, error) {
+func BuildEndpoints() (*client.Endpoints, error) {
 	if LogsAgent.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
@@ -54,7 +56,7 @@ func BuildEndpoints() (*Endpoints, error) {
 	useProto := LogsAgent.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := LogsAgent.GetString("logs_config.socks5_proxy_address")
 
-	main := Endpoint{
+	main := client.Endpoint{
 		APIKey:       LogsAgent.GetString("api_key"),
 		Logset:       LogsAgent.GetString("logset"),
 		UseProto:     useProto,
@@ -88,7 +90,7 @@ func BuildEndpoints() (*Endpoints, error) {
 	}
 	main.UseSSL = useSSL
 
-	var additionals []Endpoint
+	var additionals []client.Endpoint
 	err := LogsAgent.UnmarshalKey("logs_config.additional_endpoints", &additionals)
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
@@ -99,5 +101,5 @@ func BuildEndpoints() (*Endpoints, error) {
 		additionals[i].ProxyAddress = proxyAddress
 	}
 
-	return NewEndpoints(main, additionals), nil
+	return client.NewEndpoints(main, additionals), nil
 }

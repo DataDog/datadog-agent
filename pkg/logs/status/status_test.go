@@ -7,6 +7,7 @@ package status
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -69,4 +70,9 @@ func TestStatusDeduplicateWarnings(t *testing.T) {
 
 	status := Get()
 	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Messages)
+}
+
+func TestMetrics(t *testing.T) {
+	Clear()
+	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
 }

@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
@@ -67,7 +67,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.DestinationErrors.Set(0)
 }
 
-func createAgent(endpoints *config.Endpoints) (*Agent, *config.LogSources, *service.Services) {
+func createAgent(endpoints *client.Endpoints) (*Agent, *config.LogSources, *service.Services) {
 	// setup the sources and the services
 	sources := config.NewLogSources()
 	services := service.NewServices()
@@ -81,8 +81,8 @@ func (suite *AgentTestSuite) TestAgent() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	endpoint := sender.AddrToEndPoint(l.Addr())
-	endpoints := config.NewEndpoints(endpoint, nil)
+	endpoint := client.AddrToEndPoint(l.Addr())
+	endpoints := client.NewEndpoints(endpoint, nil)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -109,8 +109,8 @@ func (suite *AgentTestSuite) TestAgent() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
-	endpoint := config.Endpoint{Host: "fake:", Port: 0}
-	endpoints := config.NewEndpoints(endpoint, nil)
+	endpoint := client.Endpoint{Host: "fake:", Port: 0}
+	endpoints := client.NewEndpoints(endpoint, nil)
 
 	agent, sources, _ := createAgent(endpoints)
 

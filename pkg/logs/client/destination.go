@@ -3,13 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package sender
+package client
 
 import (
 	"net"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // FramingError represents a kind of error that can occur when a log can not properly
@@ -40,7 +37,7 @@ type Destination struct {
 }
 
 // NewDestination returns a new destination.
-func NewDestination(endpoint config.Endpoint, destinationsContext *DestinationsContext) *Destination {
+func NewDestination(endpoint Endpoint, destinationsContext *DestinationsContext) *Destination {
 	return &Destination{
 		prefixer:            NewAPIKeyPrefixer(endpoint.APIKey, endpoint.Logset),
 		delimiter:           NewDelimiter(endpoint.UseProto),
@@ -51,7 +48,7 @@ func NewDestination(endpoint config.Endpoint, destinationsContext *DestinationsC
 
 // Send transforms a message into a frame and sends it to a remote server,
 // returns an error if the operation failed.
-func (d *Destination) Send(payload *message.Message) error {
+func (d *Destination) Send(payload []byte) error {
 	if d.conn == nil {
 		var err error
 
@@ -62,7 +59,7 @@ func (d *Destination) Send(payload *message.Message) error {
 		}
 	}
 
-	content := d.prefixer.prefix(payload.Content)
+	content := d.prefixer.prefix(payload)
 	frame, err := d.delimiter.delimit(content)
 	if err != nil {
 		return NewFramingError(err)

@@ -5,13 +5,14 @@
 package sender
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender/mock"
 )
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
@@ -29,11 +30,11 @@ func TestSender(t *testing.T) {
 	input := make(chan *message.Message, 1)
 	output := make(chan *message.Message, 1)
 
-	destinationsCtx := NewDestinationsContext()
+	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
-	destination := AddrToDestination(l.Addr(), destinationsCtx)
-	destinations := NewDestinations(destination, nil)
+	destination := client.AddrToDestination(l.Addr(), destinationsCtx)
+	destinations := client.NewDestinations(destination, nil)
 
 	sender := NewSender(input, output, destinations)
 	sender.Start()
