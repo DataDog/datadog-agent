@@ -208,8 +208,6 @@ func CreateHTTPTransport() *http.Transport {
 			Timeout: 30 * time.Second,
 			// Enables TCP keepalives to detect broken connections
 			KeepAlive: 30 * time.Second,
-			// Enables happy eyeballs
-			DualStack: true,
 		}).DialContext,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 5,
