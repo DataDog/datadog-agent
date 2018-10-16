@@ -7,10 +7,10 @@ package status
 
 import (
 	"expvar"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 var (
