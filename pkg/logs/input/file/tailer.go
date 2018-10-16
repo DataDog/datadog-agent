@@ -214,24 +214,6 @@ func (t *Tailer) GetReadOffset() int64 {
 	return atomic.LoadInt64(&t.readOffset)
 }
 
-// SetReadOffset sets the position of the last byte read in the
-// file
-func (t *Tailer) SetReadOffset(off int64) {
-	atomic.StoreInt64(&t.readOffset, off)
-}
-
-// GetDecodedOffset gets the position of the last byte decoded in the
-// file
-func (t *Tailer) GetDecodedOffset() int64 {
-	return atomic.LoadInt64(&t.decodedOffset)
-}
-
-// SetDecodedOffset sets the position of the last byte decoded in the
-// file
-func (t *Tailer) SetDecodedOffset(off int64) {
-	atomic.StoreInt64(&t.decodedOffset, off)
-}
-
 // shouldTrackOffset returns whether the tailer should track the file offset or not
 func (t *Tailer) shouldTrackOffset() bool {
 	if atomic.LoadInt32(&t.didFileRotate) != 0 {
