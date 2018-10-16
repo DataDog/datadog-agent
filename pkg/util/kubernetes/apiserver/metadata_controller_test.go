@@ -469,8 +469,8 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 		informerFactory.Core().V1().Nodes(),
 		informerFactory.Core().V1().Endpoints(),
 	)
-	metaController.nodeListerSynced = informerFactory.Core().V1().Nodes().Informer().HasSynced
-	metaController.endpointsListerSynced = informerFactory.Core().V1().Endpoints().Informer().HasSynced
+	metaController.nodeListerSynced = func() bool { return true }
+	metaController.endpointsListerSynced = func() bool { return true }
 	metaController.endpoints = make(chan struct{}, 1)
 	metaController.nodes = make(chan struct{}, 1)
 
@@ -480,7 +480,7 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
 	select {
 	case <-ch:
-	case <-time.After(3 * time.Second):
+	case <-time.After(5 * time.Second):
 		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
 	}
 }
