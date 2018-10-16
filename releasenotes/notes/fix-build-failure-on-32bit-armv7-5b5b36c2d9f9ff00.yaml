@@ -8,4 +8,4 @@
 ----
 fixes:
   - |
-    Support building on 32bit armv7
+    Fix build failure on 32bit armv7

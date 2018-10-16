@@ -173,7 +173,12 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	length := int(argc)
 	subprocessArgs := make([]string, length-1)
+
+	// The maximum capacity of the following slice is limited to (2^29)-1 to remain compatible
+	// with 32-bit platforms. The size of a `*C.char` (a pointer) is 4 Byte on a 32-bit system
+	// and (2^29)*4 == math.MaxInt32 + 1. -- See issue golang/go#13656
 	cmdSlice := (*[1<<29 - 1]*C.char)(unsafe.Pointer(argv))[:length:length]
+
 	subprocessCmd := C.GoString(cmdSlice[0])
 	for i := 1; i < length; i++ {
 		subprocessArgs[i-1] = C.GoString(cmdSlice[i])
@@ -283,6 +288,10 @@ func SetExternalTags(hostname, sourceType *C.char, tags **C.char, tagsLen C.int)
 	hname := C.GoString(hostname)
 	stype := C.GoString(sourceType)
 	tlen := int(tagsLen)
+
+	// The maximum capacity of the following slice is limited to (2^29)-1 to remain compatible
+	// with 32-bit platforms. The size of a `*C.char` (a pointer) is 4 Byte on a 32-bit system
+	// and (2^29)*4 == math.MaxInt32 + 1. -- See issue golang/go#13656
 	tagsSlice := (*[1<<29 - 1]*C.char)(unsafe.Pointer(tags))[:tlen:tlen]
 	tagsStrings := []string{}
 
