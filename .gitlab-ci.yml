@@ -68,6 +68,14 @@ before_script:
   only:
     - triggers
 
+.run_when_testkitchen_triggered: &run_when_testkitchen_triggered
+  only:
+    - master
+    - tags
+    - triggers
+    - web
+    - pushes
+
 # run job only when triggered by an external tool (ex: Jenkins) and when
 # RELEASE_VERSION is NOT "nightly". In this setting we are building either a
 # new tagged version of the agent (an RC for example). In both cases the
@@ -503,7 +511,7 @@ deploy_deb_testing:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered
+  <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -525,7 +533,7 @@ deploy_deb_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_rpm_testing:
-  <<: *run_when_triggered
+  <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
@@ -542,7 +550,7 @@ deploy_rpm_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing:
-  <<: *run_when_triggered
+  <<: *run_when_testkitchen_triggered
   allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
@@ -560,25 +568,22 @@ deploy_suse_rpm_testing:
 
 # deploy windows packages to our testing bucket
 deploy_windows_testing:
-  <<: *run_when_triggered
+  <<: *run_when_testkitchen_triggered
   allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR_SUSE
+    - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # run dd-agent-testing on windows
 kitchen_windows:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -602,10 +607,7 @@ kitchen_centos:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -627,10 +629,7 @@ kitchen_ubuntu:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -653,10 +652,7 @@ kitchen_suse:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -678,10 +674,7 @@ kitchen_debian:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -702,10 +695,7 @@ kitchen_debian:
 testkitchen_cleanup_s3:
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
   before_script:
     - ls
@@ -724,10 +714,7 @@ testkitchen_cleanup_s3:
 testkitchen_cleanup_azure:
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
