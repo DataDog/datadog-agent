@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-// openFile open files with the standard Open method on *nix OSes
+// openFile opens a file with the standard Open method on *nix OSes
 func openFile(path string) (*os.File, error) {
 	return os.Open(path)
 }

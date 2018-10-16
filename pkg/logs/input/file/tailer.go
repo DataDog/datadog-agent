@@ -99,7 +99,10 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	if err != nil {
 		return err
 	}
+
+	// adds metadata to enable users to filter logs by filename
 	t.tags = []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
+
 	log.Info("Opening ", t.path)
 	f, err := openFile(fullpath)
 	if err != nil {

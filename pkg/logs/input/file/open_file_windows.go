@@ -12,7 +12,7 @@ import (
 	"syscall"
 )
 
-// openFile reimplement the os.Open function for Windows because the default
+// openFile reimplements the os.Open function for Windows because the default
 // implementation opens files without the FILE_SHARE_DELETE flag.
 // cf: https://github.com/golang/go/blob/release-branch.go1.11/src/syscall/syscall_windows.go#L271
 // This prevents users from moving/removing files when the tailer is reading the file.
