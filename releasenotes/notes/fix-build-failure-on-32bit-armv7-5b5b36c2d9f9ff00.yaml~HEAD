@@ -5,7 +5,7 @@
 # must be readable independently of the other.
 #
 # Each section note must be formatted as reStructuredText.
-----
+---
 fixes:
   - |
-    Support building on 32bit armv7
+    Fix build failure on 32bit armv7
