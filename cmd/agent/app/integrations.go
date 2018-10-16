@@ -52,13 +52,8 @@ func init() {
 	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
 	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
-	tufCmd.PersistentFlags().StringSlice("cmd-flags", []string{}, "command flags to pass onto pip (comma-separated or multiple flags)")
-	tufCmd.PersistentFlags().StringSlice("idx-flags", []string{}, "index flags to pass onto pip (comma-separated or multiple flags). "+
-		"Some flags may not work with TUF enabled")
 
 	// Power user flags - mark as hidden
-	tufCmd.PersistentFlags().MarkHidden("cmd-flags")
-	tufCmd.PersistentFlags().MarkHidden("idx-flags")
 	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
 }
 
@@ -184,28 +179,8 @@ func tuf(args []string) error {
 		args = append(args, "-vvv")
 	}
 
-	// Add pip power-user flags
-	// cmd-flags go before the actual command
-	cmdFlags, err := tufCmd.Flags().GetStringSlice("cmd-flags")
-	if err == nil {
-		args = append(args, cmdFlags...)
-	}
+	// Append implicit flags to the *pip* command
 	args = append(args, implicitFlags...)
-
-	// idx-flags go after the command and implicit flags
-	idxFlags, err := tufCmd.Flags().GetStringSlice("idx-flags")
-	if err == nil {
-		// If user specified index flags, then use that.
-		if len(idxFlags) > 0 {
-			args = append(args, idxFlags...)
-		} else {
-			// Otherwise, if the user has not explicitly overridden the pip indices,
-			// then we replace the PyPI index with our own by default, in order to
-			// prevent accidental installation of Datadog or even third-party
-			// packages from PyPI.
-			args = append(args, fmt.Sprintf("--index-url %s", tufIndex))
-		}
-	}
 
 	tufCmd := exec.Command(pipPath, args...)
 	tufCmd.Env = os.Environ()
@@ -314,6 +289,12 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	tufArgs := []string{
 		"install",
 		"--cache-dir", cachePath,
+		// We replace the PyPI index with our own by default, in order to prevent
+		// accidental installation of Datadog or even third-party packages from
+		// PyPI.
+		"--index-url", tufIndex,
+		// Do *not* install dependencies by default. This is partly to prevent
+		// accidental installation / updates of third-party dependencies from PyPI.
 		"--no-deps",
 	}
 
@@ -444,6 +425,10 @@ func freeze(cmd *cobra.Command, args []string) error {
 
 	tufArgs := []string{
 		"freeze",
+		// We replace the PyPI index with our own by default, in order to prevent
+		// accidental installation of Datadog or even third-party packages from
+		// PyPI.
+		"--index-url", tufIndex,
 	}
 
 	return tuf(tufArgs)

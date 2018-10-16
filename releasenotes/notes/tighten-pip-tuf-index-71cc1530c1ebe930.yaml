@@ -8,6 +8,9 @@
 ---
 security:
   - |
-    If the user has not explicitly overridden the pip indices, then we replace
-    the PyPI index with our own by default, in order to prevent accidental
-    installation of Datadog or even third-party packages from PyPI.
+    We replace the PyPI index with our own by default, in order to prevent
+    accidental installation of Datadog or even third-party packages from PyPI.
+  - |
+    Remove some undocumented power user options to the `datadog integration`
+    command to prevent accidental misconfiguration that may reduce security
+    guarantees.
