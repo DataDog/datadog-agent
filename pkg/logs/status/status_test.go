@@ -7,11 +7,12 @@ package status
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 func consumeSources(sources *config.LogSources) {
