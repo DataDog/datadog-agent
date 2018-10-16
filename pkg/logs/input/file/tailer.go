@@ -133,7 +133,7 @@ func (t *Tailer) readForever() {
 			if err != nil && err != io.EOF {
 				// an unexpected error occurred, stop the tailor
 				t.source.Status.Error(err)
-				log.Error("Err: ", err)
+				log.Error("Unexpected error occurred while reading file: ", err)
 				return
 			}
 			if n == 0 {
