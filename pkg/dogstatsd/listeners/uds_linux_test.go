@@ -29,8 +29,9 @@ func TestUDSPassCred(t *testing.T) {
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	config.Datadog.Set("dogstatsd_socket", socketPath)
-	config.Datadog.Set("dogstatsd_origin_detection", true)
+	mockConfig := config.NewMock()
+	mockConfig.Set("dogstatsd_socket", socketPath)
+	mockConfig.Set("dogstatsd_origin_detection", true)
 
 	packetPoolUDS := NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	s, err := NewUDSListener(nil, packetPoolUDS)

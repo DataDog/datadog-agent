@@ -19,15 +19,16 @@ import (
 
 func TestMkURL(t *testing.T) {
 	common.SetupConfig("./test")
-	config.Datadog.Set("dd_url", "https://example.com")
-	config.Datadog.Set("api_key", "123456")
+	mockConfig := config.NewMock()
+	mockConfig.Set("dd_url", "https://example.com")
+	mockConfig.Set("api_key", "123456")
 	expectedURLBase, _ := config.AddAgentVersionToDomain("https://example.com/", "flare")
 	assert.Equal(t, expectedURLBase+"support/flare/999?api_key=123456", mkURL("999"))
 	assert.Equal(t, expectedURLBase+"support/flare?api_key=123456", mkURL(""))
 
-	config.Datadog.Set("site", "datadoghq.eu")
-	config.Datadog.Set("dd_url", "")
-	config.Datadog.Set("api_key", "123456")
+	mockConfig.Set("site", "datadoghq.eu")
+	mockConfig.Set("dd_url", "")
+	mockConfig.Set("api_key", "123456")
 	expectedURLBase, _ = config.AddAgentVersionToDomain("https://app.datadoghq.eu/", "flare")
 	assert.Equal(t, expectedURLBase+"support/flare/999?api_key=123456", mkURL("999"))
 	assert.Equal(t, expectedURLBase+"support/flare?api_key=123456", mkURL(""))
@@ -47,7 +48,8 @@ func TestFlareHasRightForm(t *testing.T) {
 
 	ddURL := ts.URL
 
-	config.Datadog.Set("dd_url", ddURL)
+	mockConfig := config.NewMock()
+	mockConfig.Set("dd_url", ddURL)
 
 	archivePath := "./test/blank.zip"
 	caseID := "12345"

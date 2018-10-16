@@ -36,12 +36,14 @@ func (suite *SecureTestSuite) SetupTest() {
 // - tls_verify
 // - cacert
 func (suite *SecureTestSuite) TestWithTLSCA() {
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", true)
-	config.Datadog.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
@@ -73,14 +75,16 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 // - tls_verify
 // - WITHOUT cacert (expecting failure)
 func (suite *SecureTestSuite) TestTLSWithoutCA() {
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_client_crt", "")
-	config.Datadog.Set("kubelet_client_key", "")
-	config.Datadog.Set("kubelet_tls_verify", true)
-	config.Datadog.Set("kubelet_client_ca", "")
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_client_crt", "")
+	mockConfig.Set("kubelet_client_key", "")
+	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_client_ca", "")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	_, err := kubelet.GetKubeUtil()
 	require.NotNil(suite.T(), err)
@@ -94,14 +98,16 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 // - cacert
 // - certificate
 func (suite *SecureTestSuite) TestTLSWithCACertificate() {
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", true)
-	config.Datadog.Set("kubelet_client_crt", suite.certsConfig.CertFilePath)
-	config.Datadog.Set("kubelet_client_key", suite.certsConfig.KeyFilePath)
-	config.Datadog.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_client_crt", suite.certsConfig.CertFilePath)
+	mockConfig.Set("kubelet_client_key", suite.certsConfig.KeyFilePath)
+	mockConfig.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)

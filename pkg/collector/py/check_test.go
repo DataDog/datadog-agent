@@ -49,8 +49,9 @@ func getClass(moduleName, className string) (checkClass *python.PyObject) {
 }
 
 func getCheckInstance(moduleName, className string) (*PythonCheck, error) {
-	config.Datadog.Set("foo_agent", "bar_agent")
-	defer config.Datadog.Set("foo_agent", nil)
+	mockConfig := config.NewMock()
+	mockConfig.Set("foo_agent", "bar_agent")
+	defer mockConfig.Set("foo_agent", nil)
 
 	checkClass := getClass(moduleName, className)
 	check := NewPythonCheck(moduleName, checkClass)

@@ -64,9 +64,10 @@ func TestMarshalJSON(t *testing.T) {
 		SourceTypeName: "custom_source_type",
 	}}
 
-	oldName := config.Datadog.GetString("hostname")
-	defer config.Datadog.Set("hostname", oldName)
-	config.Datadog.Set("hostname", "test-hostname")
+	mockConfig := config.NewMock()
+	oldName := mockConfig.GetString("hostname")
+	defer mockConfig.Set("hostname", oldName)
+	mockConfig.Set("hostname", "test-hostname")
 
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
@@ -83,9 +84,10 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 		Host:  "my-hostname",
 	}}
 
-	oldName := config.Datadog.GetString("hostname")
-	defer config.Datadog.Set("hostname", oldName)
-	config.Datadog.Set("hostname", "test-hostname")
+	mockConfig := config.NewMock()
+	oldName := mockConfig.GetString("hostname")
+	defer mockConfig.Set("hostname", oldName)
+	mockConfig.Set("hostname", "test-hostname")
 
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)

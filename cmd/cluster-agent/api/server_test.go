@@ -18,7 +18,8 @@ import (
 )
 
 func TestValidateTokenMiddleware(t *testing.T) {
-	config.Datadog.Set("cluster_agent.auth_token", "abc123")
+	mockConfig := config.NewMock()
+	mockConfig.Set("cluster_agent.auth_token", "abc123")
 	util.SetDCAAuthToken()
 
 	tests := []struct {

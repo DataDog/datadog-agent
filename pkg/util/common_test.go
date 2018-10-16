@@ -136,23 +136,25 @@ func TestJSONConverter(t *testing.T) {
 }
 
 func TestCreateHTTPTransport(t *testing.T) {
+	mockConfig := config.NewMock()
+
 	skipSSL := config.Datadog.GetBool("skip_ssl_validation")
 	forceTLS := config.Datadog.GetBool("force_tls_12")
-	defer config.Datadog.Set("skip_ssl_validation", skipSSL)
-	defer config.Datadog.Set("force_tls_12", forceTLS)
+	defer mockConfig.Set("skip_ssl_validation", skipSSL)
+	defer mockConfig.Set("force_tls_12", forceTLS)
 
-	config.Datadog.Set("skip_ssl_validation", false)
-	config.Datadog.Set("force_tls_12", false)
+	mockConfig.Set("skip_ssl_validation", false)
+	mockConfig.Set("force_tls_12", false)
 	transport := CreateHTTPTransport()
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(0))
 
-	config.Datadog.Set("skip_ssl_validation", true)
+	mockConfig.Set("skip_ssl_validation", true)
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(0))
 
-	config.Datadog.Set("force_tls_12", true)
+	mockConfig.Set("force_tls_12", true)
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))

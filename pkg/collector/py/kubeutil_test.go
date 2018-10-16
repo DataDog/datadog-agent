@@ -21,8 +21,9 @@ import (
 )
 
 func TestGetKubeletConnectionInfoNotFound(t *testing.T) {
-	config.Datadog.Set("kubernetes_http_kubelet_port", 0)
-	config.Datadog.Set("kubernetes_https_kubelet_port", 0)
+	mockConfig := config.NewMock()
+	mockConfig.Set("kubernetes_http_kubelet_port", 0)
+	mockConfig.Set("kubernetes_https_kubelet_port", 0)
 	kubelet.ResetGlobalKubeUtil()
 	cache.Cache.Delete(kubeletCacheKey)
 

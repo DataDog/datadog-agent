@@ -81,7 +81,8 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *EtcdTestSuite) SetupTest() {
-	config.Datadog.Set("autoconf_template_dir", "/foo/")
+	mockConfig := config.NewMock()
+	mockConfig.Set("autoconf_template_dir", "/foo/")
 
 	suite.populateEtcd()
 	suite.toggleEtcdAuth(false)

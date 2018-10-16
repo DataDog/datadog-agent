@@ -30,8 +30,9 @@ func TestNewNoSSLWorker(t *testing.T) {
 	lowPrio := make(chan Transaction)
 	requeue := make(chan Transaction)
 
-	config.Datadog.Set("skip_ssl_validation", true)
-	defer config.Datadog.Set("skip_ssl_validation", false)
+	mockConfig := config.NewMock()
+	mockConfig.Set("skip_ssl_validation", true)
+	defer mockConfig.Set("skip_ssl_validation", false)
 
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)

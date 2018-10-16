@@ -175,32 +175,36 @@ type KubeletTestSuite struct {
 
 // Make sure globalKubeUtil is deleted before each test
 func (suite *KubeletTestSuite) SetupTest() {
+	mockConfig := config.NewMock()
+
 	ResetGlobalKubeUtil()
 	ResetCache()
 
-	config.Datadog.Set("kubelet_client_crt", "")
-	config.Datadog.Set("kubelet_client_key", "")
-	config.Datadog.Set("kubelet_client_ca", "")
-	config.Datadog.Set("kubelet_tls_verify", true)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_wait_on_missing_container", 0)
-	config.Datadog.Set("kubernetes_kubelet_host", "")
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10250)
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10255)
+	mockConfig.Set("kubelet_client_crt", "")
+	mockConfig.Set("kubelet_client_key", "")
+	mockConfig.Set("kubelet_client_ca", "")
+	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_wait_on_missing_container", 0)
+	mockConfig.Set("kubernetes_kubelet_host", "")
+	mockConfig.Set("kubernetes_http_kubelet_port", 10250)
+	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
 
 	ku := newKubeUtil()
 	err = ku.init()
@@ -222,16 +226,18 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 }
 
 func (suite *KubeletTestSuite) TestGetLocalPodList() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
@@ -253,16 +259,18 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 }
 
 func (suite *KubeletTestSuite) TestGetNodeInfo() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
@@ -284,16 +292,18 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 }
 
 func (suite *KubeletTestSuite) TestGetHostname() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
@@ -306,11 +316,11 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 
 	// Testing hostname when a cluster name is set
 	var testClusterName = "Laika"
-	config.Datadog.Set("cluster_name", testClusterName)
+	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 
 	// defer a reset of the state so that future hostname fetches are not impacted
-	defer config.Datadog.Set("cluster_name", "")
+	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
 	hostname, err = kubeutil.GetHostname()
@@ -327,16 +337,18 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 }
 
 func (suite *KubeletTestSuite) TestHostnameProvider() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_auth_token_path", "")
 
 	hostname, err := HostnameProvider("")
 	require.Nil(suite.T(), err)
@@ -344,14 +356,16 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 }
 
 func (suite *KubeletTestSuite) TestPodlistCache() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
@@ -382,14 +396,16 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 }
 
 func (suite *KubeletTestSuite) TestGetPodForContainerID() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
@@ -419,15 +435,17 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 }
 
 func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
 	require.NoError(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.NoError(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_wait_on_missing_container", 1)
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_wait_on_missing_container", 1)
 
 	kubeutil, err := GetKubeUtil()
 	require.NoError(suite.T(), err)
@@ -462,15 +480,17 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 }
 
 func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
+	mockConfig := config.NewMock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
 	require.NoError(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.NoError(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_wait_on_missing_container", 0)
+	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_wait_on_missing_container", 0)
 
 	kubeutil, err := GetKubeUtil()
 	require.NoError(suite.T(), err)
@@ -498,6 +518,8 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
+	mockConfig := config.NewMock()
+
 	// without token, with certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -508,10 +530,10 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_auth_token_path", fakePath)
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_auth_token_path", fakePath)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
 	err = ku.init()
@@ -521,6 +543,8 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
+	mockConfig := config.NewMock()
+
 	// with a token, without certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -531,10 +555,10 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_auth_token_path", "./testdata/fakeBearerToken")
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_auth_token_path", "./testdata/fakeBearerToken")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
 	err = ku.init()
@@ -561,6 +585,8 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
+	mockConfig := config.NewMock()
+
 	// with a token, without certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -571,13 +597,13 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", true)
-	config.Datadog.Set("kubelet_client_crt", k.testingCertificate)
-	config.Datadog.Set("kubelet_client_key", k.testingPrivateKey)
-	config.Datadog.Set("kubelet_client_ca", k.testingCertificate)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_client_crt", k.testingCertificate)
+	mockConfig.Set("kubelet_client_key", k.testingPrivateKey)
+	mockConfig.Set("kubelet_client_ca", k.testingCertificate)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
 	err = ku.init()
@@ -607,6 +633,8 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
+	mockConfig := config.NewMock()
+
 	// with an unused token, without certs on HTTP
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -615,10 +643,10 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_auth_token_path", "./testdata/unusedBearerToken")
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_auth_token_path", "./testdata/unusedBearerToken")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
 	err = ku.init()
@@ -640,6 +668,8 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitHttp() {
+	mockConfig := config.NewMock()
+
 	// without token, without certs on HTTP
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -648,10 +678,10 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
 	err = ku.init()

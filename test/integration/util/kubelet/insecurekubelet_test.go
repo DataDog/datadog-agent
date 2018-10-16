@@ -29,14 +29,16 @@ func (suite *InsecureTestSuite) SetupTest() {
 }
 
 func (suite *InsecureTestSuite) TestHTTP() {
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
 
 	// Giving 10255 http port to https setting will force an intended https discovery failure
 	// Then it forces the http usage
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10255)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -62,11 +64,13 @@ func (suite *InsecureTestSuite) TestHTTP() {
 }
 
 func (suite *InsecureTestSuite) TestInsecureHTTPS() {
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
+	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)

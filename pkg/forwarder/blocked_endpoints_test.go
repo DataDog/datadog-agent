@@ -40,6 +40,7 @@ func TestRandomBetween(t *testing.T) {
 }
 
 func TestMinBackoffFactorValid(t *testing.T) {
+	mockConfig := config.NewMock()
 	e := newBlockedEndpoints()
 
 	// Verify default
@@ -47,20 +48,21 @@ func TestMinBackoffFactorValid(t *testing.T) {
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Reset original value when finished
-	defer config.Datadog.Set("forwarder_backoff_factor", defaultValue)
+	defer mockConfig.Set("forwarder_backoff_factor", defaultValue)
 
 	// Verify configuration updates global var
-	config.Datadog.Set("forwarder_backoff_factor", 4)
+	mockConfig.Set("forwarder_backoff_factor", 4)
 	e = newBlockedEndpoints()
 	assert.Equal(t, float64(4), e.minBackoffFactor)
 
 	// Verify invalid values recover gracefully
-	config.Datadog.Set("forwarder_backoff_factor", 1.5)
+	mockConfig.Set("forwarder_backoff_factor", 1.5)
 	e = newBlockedEndpoints()
 	assert.Equal(t, defaultValue, e.minBackoffFactor)
 }
 
 func TestBaseBackoffTimeValid(t *testing.T) {
+	mockConfig := config.NewMock()
 	e := newBlockedEndpoints()
 
 	// Verify default
@@ -68,20 +70,21 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Reset original value when finished
-	defer config.Datadog.Set("forwarder_backoff_base", defaultValue)
+	defer mockConfig.Set("forwarder_backoff_base", defaultValue)
 
 	// Verify configuration updates global var
-	config.Datadog.Set("forwarder_backoff_base", 4)
+	mockConfig.Set("forwarder_backoff_base", 4)
 	e = newBlockedEndpoints()
 	assert.Equal(t, float64(4), e.baseBackoffTime)
 
 	// Verify invalid values recover gracefully
-	config.Datadog.Set("forwarder_backoff_base", 0)
+	mockConfig.Set("forwarder_backoff_base", 0)
 	e = newBlockedEndpoints()
 	assert.Equal(t, defaultValue, e.baseBackoffTime)
 }
 
 func TestMaxBackoffTimeValid(t *testing.T) {
+	mockConfig := config.NewMock()
 	e := newBlockedEndpoints()
 
 	// Verify default
@@ -89,20 +92,21 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 	assert.Equal(t, float64(64), defaultValue)
 
 	// Reset original value when finished
-	defer config.Datadog.Set("forwarder_backoff_max", defaultValue)
+	defer mockConfig.Set("forwarder_backoff_max", defaultValue)
 
 	// Verify configuration updates global var
-	config.Datadog.Set("forwarder_backoff_max", 128)
+	mockConfig.Set("forwarder_backoff_max", 128)
 	e = newBlockedEndpoints()
 	assert.Equal(t, float64(128), e.maxBackoffTime)
 
 	// Verify invalid values recover gracefully
-	config.Datadog.Set("forwarder_backoff_max", 0)
+	mockConfig.Set("forwarder_backoff_max", 0)
 	e = newBlockedEndpoints()
 	assert.Equal(t, defaultValue, e.maxBackoffTime)
 }
 
 func TestRecoveryIntervalValid(t *testing.T) {
+	mockConfig := config.NewMock()
 	e := newBlockedEndpoints()
 
 	// Verify default
@@ -112,21 +116,21 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	assert.Equal(t, false, recoveryReset)
 
 	// Reset original values when finished
-	defer config.Datadog.Set("forwarder_recovery_reset", recoveryReset)
-	defer config.Datadog.Set("forwarder_recovery_interval", defaultValue)
+	defer mockConfig.Set("forwarder_recovery_reset", recoveryReset)
+	defer mockConfig.Set("forwarder_recovery_interval", defaultValue)
 
 	// Verify configuration updates global var
-	config.Datadog.Set("forwarder_recovery_interval", 1)
+	mockConfig.Set("forwarder_recovery_interval", 1)
 	e = newBlockedEndpoints()
 	assert.Equal(t, 1, e.recoveryInterval)
 
 	// Verify invalid values recover gracefully
-	config.Datadog.Set("forwarder_recovery_interval", 0)
+	mockConfig.Set("forwarder_recovery_interval", 0)
 	e = newBlockedEndpoints()
 	assert.Equal(t, defaultValue, e.recoveryInterval)
 
 	// Verify reset error count
-	config.Datadog.Set("forwarder_recovery_reset", true)
+	mockConfig.Set("forwarder_recovery_reset", true)
 	e = newBlockedEndpoints()
 	assert.Equal(t, e.maxErrors, e.recoveryInterval)
 }

@@ -142,10 +142,12 @@ func TestSendV1Events(t *testing.T) {
 }
 
 func TestSendEvents(t *testing.T) {
+	mockConfig := config.NewMock()
+
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitEvents", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.events", true)
-	defer config.Datadog.Set("use_v2_api.events", nil)
+	mockConfig.Set("use_v2_api.events", true)
+	defer mockConfig.Set("use_v2_api.events", nil)
 
 	s := NewSerializer(f)
 
@@ -176,10 +178,12 @@ func TestSendV1ServiceChecks(t *testing.T) {
 }
 
 func TestSendServiceChecks(t *testing.T) {
+	mockConfig := config.NewMock()
+
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitServiceChecks", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.service_checks", true)
-	defer config.Datadog.Set("use_v2_api.service_checks", nil)
+	mockConfig.Set("use_v2_api.service_checks", true)
+	defer mockConfig.Set("use_v2_api.service_checks", nil)
 
 	s := NewSerializer(f)
 
@@ -210,10 +214,12 @@ func TestSendV1Series(t *testing.T) {
 }
 
 func TestSendSeries(t *testing.T) {
+	mockConfig := config.NewMock()
+
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.series", true)
-	defer config.Datadog.Set("use_v2_api.series", nil)
+	mockConfig.Set("use_v2_api.series", true)
+	defer mockConfig.Set("use_v2_api.series", nil)
 
 	s := NewSerializer(f)
 
@@ -289,19 +295,21 @@ func TestSendJSONToV1Intake(t *testing.T) {
 }
 
 func TestSendWithDisabledKind(t *testing.T) {
-	config.Datadog.Set("enable_payloads.events", false)
-	config.Datadog.Set("enable_payloads.series", false)
-	config.Datadog.Set("enable_payloads.service_checks", false)
-	config.Datadog.Set("enable_payloads.sketches", false)
-	config.Datadog.Set("enable_payloads.json_to_v1_intake", false)
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("enable_payloads.events", false)
+	mockConfig.Set("enable_payloads.series", false)
+	mockConfig.Set("enable_payloads.service_checks", false)
+	mockConfig.Set("enable_payloads.sketches", false)
+	mockConfig.Set("enable_payloads.json_to_v1_intake", false)
 
 	//restore default values
 	defer func() {
-		config.Datadog.Set("enable_payloads.events", true)
-		config.Datadog.Set("enable_payloads.series", true)
-		config.Datadog.Set("enable_payloads.service_checks", true)
-		config.Datadog.Set("enable_payloads.sketches", true)
-		config.Datadog.Set("enable_payloads.json_to_v1_intake", true)
+		mockConfig.Set("enable_payloads.events", true)
+		mockConfig.Set("enable_payloads.series", true)
+		mockConfig.Set("enable_payloads.service_checks", true)
+		mockConfig.Set("enable_payloads.sketches", true)
+		mockConfig.Set("enable_payloads.json_to_v1_intake", true)
 	}()
 
 	f := &forwarder.MockedForwarder{}

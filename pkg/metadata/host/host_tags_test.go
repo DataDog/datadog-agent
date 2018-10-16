@@ -8,8 +8,9 @@ import (
 )
 
 func TestGetHostTags(t *testing.T) {
-	config.Datadog.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
-	defer config.Datadog.Set("tags", nil)
+	mockConfig := config.NewMock()
+	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
+	defer mockConfig.Set("tags", nil)
 
 	hostTags := getHostTags()
 	assert.NotNil(t, hostTags.System)
@@ -24,9 +25,10 @@ func TestGetEmptyHostTags(t *testing.T) {
 }
 
 func TestGetHostTagsWithSplits(t *testing.T) {
-	config.Datadog.Set("tag_value_split_separator", map[string]string{"kafka_partition": ","})
-	config.Datadog.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
-	defer config.Datadog.Set("tags", nil)
+	mockConfig := config.NewMock()
+	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ","})
+	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
+	defer mockConfig.Set("tags", nil)
 
 	hostTags := getHostTags()
 	assert.NotNil(t, hostTags.System)
@@ -34,9 +36,10 @@ func TestGetHostTagsWithSplits(t *testing.T) {
 }
 
 func TestGetHostTagsWithoutSplits(t *testing.T) {
-	config.Datadog.Set("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
-	config.Datadog.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
-	defer config.Datadog.Set("tags", nil)
+	mockConfig := config.NewMock()
+	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
+	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
+	defer mockConfig.Set("tags", nil)
 
 	hostTags := getHostTags()
 	assert.NotNil(t, hostTags.System)

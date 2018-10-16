@@ -11,8 +11,10 @@ import (
 )
 
 func TestHostAliasDisable(t *testing.T) {
-	config.Datadog.Set("cloud_foundry", false)
-	config.Datadog.Set("bosh_id", "ID_CF")
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("cloud_foundry", false)
+	mockConfig.Set("bosh_id", "ID_CF")
 
 	alias, err := GetHostAlias()
 	assert.Nil(t, err)
@@ -20,8 +22,10 @@ func TestHostAliasDisable(t *testing.T) {
 }
 
 func TestHostAlias(t *testing.T) {
-	config.Datadog.Set("cloud_foundry", true)
-	config.Datadog.Set("bosh_id", "ID_CF")
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("cloud_foundry", true)
+	mockConfig.Set("bosh_id", "ID_CF")
 
 	alias, err := GetHostAlias()
 	assert.Nil(t, err)
@@ -29,8 +33,10 @@ func TestHostAlias(t *testing.T) {
 }
 
 func TestHostAliasDefault(t *testing.T) {
-	config.Datadog.Set("cloud_foundry", true)
-	config.Datadog.Set("bosh_id", nil)
+	mockConfig := config.NewMock()
+
+	mockConfig.Set("cloud_foundry", true)
+	mockConfig.Set("bosh_id", nil)
 
 	alias, err := GetHostAlias()
 	assert.Nil(t, err)

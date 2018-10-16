@@ -107,6 +107,7 @@ var expectedHostTags = map[string]string{
 }
 
 func TestConvertKubernetes(t *testing.T) {
+	mockConfig := config.NewMock()
 	dir, err := ioutil.TempDir("", "agent_test_legacy")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -145,7 +146,7 @@ func TestConvertKubernetes(t *testing.T) {
 	assert.Equal(t, 1200, config.Datadog.GetInt("leader_lease_duration"))
 	assert.Equal(t, 3000, config.Datadog.GetInt("kubernetes_service_tag_update_freq"))
 
-	config.Datadog.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_tls_verify", true)
 	deprecations, err = importKubernetesConfWithDeprec(srcEmpty, dstEmpty, true)
 	require.NoError(t, err)
 	assert.Equal(t, true, config.Datadog.GetBool("kubelet_tls_verify"))

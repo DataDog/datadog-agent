@@ -29,11 +29,12 @@ func TestFetchAuthTokenValidGen(t *testing.T) {
 	require.Nil(t, err, fmt.Errorf("%v", err))
 	defer os.Remove(f.Name())
 
-	config.Datadog.SetConfigFile(f.Name())
+	mockConfig := config.NewMock()
+	mockConfig.SetConfigFile(f.Name())
 	expectTokenPath := filepath.Join(testDir, "auth_token")
 	defer os.Remove(expectTokenPath)
 
-	config.Datadog.Set("auth_token", "")
+	mockConfig.Set("auth_token", "")
 	token, err := FetchAuthToken()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	assert.True(t, len(token) > authTokenMinimalLen, fmt.Sprintf("%d", len(token)))

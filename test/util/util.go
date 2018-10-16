@@ -36,5 +36,6 @@ func InitLogging(level string) error {
 
 // SetHostname sets the hostname
 func SetHostname(hostname string) {
-	config.Datadog.Set("hostname", hostname)
+	mockConfig := config.NewMock()
+	mockConfig.Set("hostname", hostname)
 }

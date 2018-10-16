@@ -179,9 +179,10 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusOK)
 	}))
-	ddURL := config.Datadog.Get("dd_url")
-	config.Datadog.Set("dd_url", ts.URL)
-	defer config.Datadog.Set("dd_url", ddURL)
+	mockConfig := config.NewMock()
+	ddURL := mockConfig.Get("dd_url")
+	mockConfig.Set("dd_url", ts.URL)
+	defer mockConfig.Set("dd_url", ddURL)
 
 	f := NewDefaultForwarder(map[string][]string{
 		ts.URL:     {"api_key1", "api_key2"},

@@ -38,7 +38,8 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	defer os.RemoveAll(tmp) // clean up
 
-	config.Datadog.Set("jmx_pipe_path", tmp)
+	mockConfig := config.NewMock()
+	mockConfig.Set("jmx_pipe_path", tmp)
 
 	jl, err := NewJMXCheckLoader()
 	assert.Nil(t, err)

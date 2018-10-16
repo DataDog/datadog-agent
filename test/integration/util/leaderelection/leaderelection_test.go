@@ -43,6 +43,7 @@ type apiserverSuite struct {
 }
 
 func TestSuiteAPIServer(t *testing.T) {
+	mockConfig := config.NewMock()
 	s := &apiserverSuite{}
 
 	// Start compose stack
@@ -59,7 +60,7 @@ func TestSuiteAPIServer(t *testing.T) {
 	pwd, err := os.Getwd()
 	require.Nil(t, err)
 	s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
-	config.Datadog.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
+	mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
 	_, err = os.Stat(s.kubeConfigPath)
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 
