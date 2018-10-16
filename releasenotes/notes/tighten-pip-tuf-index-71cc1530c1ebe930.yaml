@@ -6,11 +6,13 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-security:
+fixes:
   - |
-    We replace the PyPI index with our own by default, in order to prevent
-    accidental installation of Datadog or even third-party packages from PyPI.
+    When installing / updating wheels using the ``datadog-agent integration``
+    command, we replace the PyPI index with our own by default, in order to
+    prevent accidental installation of Datadog or even third-party packages
+    from PyPI.
   - |
-    Remove some undocumented power user options to the `datadog integration`
-    command to prevent accidental misconfiguration that may reduce security
-    guarantees.
+    Remove some undocumented power user options to the ``datadog-agent
+    integration`` command to prevent accidental misconfiguration that may
+    reduce security guarantees.
