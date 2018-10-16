@@ -411,10 +411,14 @@ func removeTuf(cmd *cobra.Command, args []string) error {
 
 func searchTuf(cmd *cobra.Command, args []string) error {
 
-	// NOTE: search will always go to pypi, Our TUF repository doesn't
+	// NOTE: search will always go to our TUF repository, which doesn't
 	//       support searching currently.
 	tufArgs := []string{
 		"search",
+		// We replace the PyPI index with our own by default, in order to prevent
+		// accidental installation of Datadog or even third-party packages from
+		// PyPI.
+		"--index", tufIndex,
 	}
 	tufArgs = append(tufArgs, args...)
 
@@ -425,10 +429,6 @@ func freeze(cmd *cobra.Command, args []string) error {
 
 	tufArgs := []string{
 		"freeze",
-		// We replace the PyPI index with our own by default, in order to prevent
-		// accidental installation of Datadog or even third-party packages from
-		// PyPI.
-		"--index-url", tufIndex,
 	}
 
 	return tuf(tufArgs)
