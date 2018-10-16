@@ -208,8 +208,10 @@ func CreateHTTPTransport() *http.Transport {
 			Timeout: 30 * time.Second,
 			// Enables TCP keepalives to detect broken connections
 			KeepAlive: 30 * time.Second,
-			// Enables happy eyeballs
-			DualStack: true,
+			// Disable happy eyeballs. This option will be deprecated in go 1.12.
+			// At this point we will need to disable it by setting a new attribute to false.
+			// See https://github.com/DataDog/datadog-agent/pull/2464
+			DualStack: false,
 		}).DialContext,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 5,
