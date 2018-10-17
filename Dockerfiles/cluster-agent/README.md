@@ -134,7 +134,7 @@ The following environment variables are supported:
 - `DD_KUBE_RESOURCES_NAMESPACE`: configures the namespace where the Cluster Agent creates the configmaps required for the Leader Election, the Event Collection (optional) and the Horizontal Pod Autoscaling.
 - `DD_KUBERNETES_INFORMERS_RESYNC_PERIOD`: frequency in seconds to query the API Server to resync the local cache. The default is 5 minutes.
 - `DD_KUBERNETES_INFORMERS_RESTCLIENT_TIMEOUT`: timeout in seconds of the client communicating with the API Server. Default is 60 seconds.
-- `DD_OPENMETRICS_PORT`: change the port for exposing openmetrics metrics from the Datadog Cluster Agent. The default is port 5000.
+- `DD_METRICS_PORT`: change the port for exposing metrics from the Datadog Cluster Agent. The default is port 5000.
 - `DD_EXTERNAL_METRICS_BATCH_WINDOW`: time waited in seconds to process a batch of metrics from multiple Autoscalers. Default to 10 seconds.
 - `DD_EXTERNAL_METRICS_MAX_AGE`: maximum age in seconds of a datapoint before considering it invalid to be served. Default to 90 seconds.
 - `DD_EXTERNAL_METRICS_AGGREGATOR`: aggregator for the Datadog metrics. Applies to all Autoscalers processed. Chose among [sum/avg/max/min]

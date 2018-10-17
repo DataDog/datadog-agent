@@ -35,11 +35,6 @@ func init() {
 
 // Install registers v1 API endpoints
 func Install(r *mux.Router, sc clusteragent.ServerContext) {
-	// The /metadata endpoints are deprecated. They will be removed as of 1.0.
-	// Agents < 6.5.0 are using /metadata.
-	r.HandleFunc("/metadata/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
-	r.HandleFunc("/metadata/{nodeName}", getPodMetadataForNode).Methods("GET")
-	r.HandleFunc("/metadata", getAllMetadata).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
 	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")

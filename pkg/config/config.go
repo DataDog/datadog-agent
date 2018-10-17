@@ -231,7 +231,7 @@ func init() {
 	BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	BindEnvAndSetDefault("cluster_agent.url", "")
 	BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
-	BindEnvAndSetDefault("openmetrics_port", "5000")
+	BindEnvAndSetDefault("metrics_port", "5000")
 
 	// ECS
 	BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
