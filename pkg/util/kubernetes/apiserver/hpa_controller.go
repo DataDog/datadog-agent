@@ -308,13 +308,24 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 // Adding the new obj and dropping the previous one is sufficient.
 // FIXME if the metric name or scope is changed in the HPA manifest we should propagate the change
 // to the Global store here
-func (h *AutoscalersController) updateAutoscaler(_, obj interface{}) {
+func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 	newAutoscaler, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if !ok {
 		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
 		return
 	}
-	log.Tracef("Updating autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
+	oldAutoscaler, ok := old.(*autoscalingv2.HorizontalPodAutoscaler)
+	if !ok {
+		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", old)
+		h.enqueue(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
+		return
+	}
+
+	if !hpa.AutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
+		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
+		return
+	}
+	log.Debugf("Updating autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueue(newAutoscaler)
 }
 
