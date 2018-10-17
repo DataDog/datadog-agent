@@ -9,3 +9,4 @@
 features:
   - |
     Support SysVinit on Debian
+    note: some warnings can appear if you enable/disable the agent manually on a systemd system. They can be safely ignored
