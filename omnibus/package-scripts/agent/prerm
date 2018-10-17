@@ -45,6 +45,7 @@ deregister_agent()
     # Disable agent start on system boot
     # Only supports systemd and upstart
     if command -v systemctl >/dev/null 2>&1; then
+        # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
         SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-process || true
         SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-trace || true
         SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME || true
