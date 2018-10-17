@@ -77,7 +77,7 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 		copy(tags, c.cfg.customTags)
 
 		if c.cfg.tagByFilesystem {
-			tags = append(tags, fmt.Sprintf("filesystem:%s", partition.Fstype))
+			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
 		}
 		var deviceName string
 		if c.cfg.useMount {
