@@ -1,0 +1,18 @@
+ad_identifiers:
+  - cluster-agent
+  - cluster-agent-dev
+
+init_config:
+
+instances:
+  # The following instance pulls the go_expvar metrics of the running datadog-cluster-agent
+  # Feel free to comment out the instance if you're not interested in these metrics
+  - prometheus_url: http://%%host%%:5000/metrics # if you've defined `openmetrics_port` in datadog.yaml, change the port here to that value
+    namespace: datadog.cluster_agent
+    metrics:
+      - go_goroutines
+      - go_memstats_*
+      - process_*
+      - api_requests
+      - datadog_requests
+      - external_metrics

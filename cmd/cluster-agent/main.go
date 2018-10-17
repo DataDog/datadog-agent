@@ -15,8 +15,9 @@ import (
 	"net/http"
 	"os"
 
-	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
@@ -28,10 +29,9 @@ import (
 )
 
 func main() {
-	// go_expvar server
-	go http.ListenAndServe(
-		fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("expvar_port")),
-		http.DefaultServeMux)
+	// Expose the registered metrics via HTTP.
+	http.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("openmetrics_port")), nil)
 
 	if err := app.ClusterAgentCmd.Execute(); err != nil {
 		log.Error(err)

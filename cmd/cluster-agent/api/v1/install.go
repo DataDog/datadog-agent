@@ -7,11 +7,12 @@ package v1
 
 import (
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -19,16 +20,17 @@ import (
 )
 
 var (
-	apiStats         = expvar.NewMap("apiv1")
-	metadataStats    = new(expvar.Map).Init()
-	metadataErrors   = &expvar.Int{}
-	metadataRequests = &expvar.Int{}
+	apiRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "api_requests",
+			Help: "Counter of requests made to the cluster agent API.",
+		},
+		[]string{"handler", "status"},
+	)
 )
 
 func init() {
-	apiStats.Set("Metadata", metadataStats)
-	metadataStats.Set("Errors", metadataErrors)
-	metadataStats.Set("Requests", metadataRequests)
+	prometheus.MustRegister(apiRequests)
 }
 
 // Install registers v1 API endpoints
@@ -43,7 +45,6 @@ func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
 	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
 	installClusterCheckEndpoints(r, sc)
-
 }
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
@@ -65,8 +66,6 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "no cached metadata found for the node localhost"
 	*/
 
-	metadataRequests.Add(1)
-
 	vars := mux.Vars(r)
 	var labelBytes []byte
 	nodeName := vars["nodeName"]
@@ -74,24 +73,37 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		metadataErrors.Add(1)
+		apiRequests.WithLabelValues(
+			"getNodeMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		).Inc()
 		return
 	}
 	labelBytes, err = json.Marshal(nodeLabels)
 	if err != nil {
 		log.Errorf("Could not process the labels of the node %s from the informer's cache: %v", nodeName, err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		metadataErrors.Add(1)
+		apiRequests.WithLabelValues(
+			"getNodeMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		).Inc()
 		return
 	}
 	if len(labelBytes) > 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(labelBytes)
+		apiRequests.WithLabelValues(
+			"getNodeMetadata",
+			strconv.Itoa(http.StatusOK),
+		).Inc()
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
+	apiRequests.WithLabelValues(
+		"getNodeMetadata",
+		strconv.Itoa(http.StatusNotFound),
+	).Inc()
 	w.Write([]byte(fmt.Sprintf("Could not find labels on the node: %s", nodeName)))
-
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.
@@ -114,8 +126,6 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
 	*/
 
-	metadataRequests.Add(1)
-
 	vars := mux.Vars(r)
 	var metaBytes []byte
 	nodeName := vars["nodeName"]
@@ -125,7 +135,10 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName)
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
-		metadataErrors.Add(1)
+		apiRequests.WithLabelValues(
+			"getPodMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		).Inc()
 		return
 	}
 
@@ -133,15 +146,26 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		metadataErrors.Add(1)
+		apiRequests.WithLabelValues(
+			"getPodMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		).Inc()
 		return
 	}
 	if len(metaBytes) != 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(metaBytes)
+		apiRequests.WithLabelValues(
+			"getPodMetadata",
+			strconv.Itoa(http.StatusOK),
+		).Inc()
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
+	apiRequests.WithLabelValues(
+		"getPodMetadata",
+		strconv.Itoa(http.StatusNotFound),
+	).Inc()
 	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)))
 }
 
@@ -157,15 +181,27 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	slcB, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.WithLabelValues(
+			"getPodMetadataForNode",
+			strconv.Itoa(http.StatusInternalServerError),
+		).Inc()
 		return
 	}
 
 	if len(slcB) != 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(slcB)
+		apiRequests.WithLabelValues(
+			"getPodMetadataForNode",
+			strconv.Itoa(http.StatusOK),
+		).Inc()
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
+	apiRequests.WithLabelValues(
+		"getPodMetadata",
+		strconv.Itoa(http.StatusNotFound),
+	).Inc()
 	return
 }
 
@@ -192,6 +228,10 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.WithLabelValues(
+			"getAllMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		).Inc()
 		return
 	}
 	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes(cl)
@@ -205,12 +245,24 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	metaListBytes, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.WithLabelValues(
+			"getAllMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		).Inc()
 		return
 	}
 	if len(metaListBytes) != 0 {
 		w.Write(metaListBytes)
+		apiRequests.WithLabelValues(
+			"getAllMetadata",
+			strconv.Itoa(http.StatusOK),
+		).Inc()
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
+	apiRequests.WithLabelValues(
+		"getAllMetadata",
+		strconv.Itoa(http.StatusNotFound),
+	).Inc()
 	return
 }
