@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -315,9 +316,19 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	// Run pip check to determine if the installed integration is compatible with the base check version
 	pipErr := pipCheck(cachePath)
 	if pipErr == nil {
-		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully installed %s %s", integration, versionToInstall,
-		)))
+		err := moveConfigurationFiles(integration)
+		if err == nil {
+			fmt.Println(color.GreenString(fmt.Sprintf(
+				"Successfully installed %s %s", integration, versionToInstall,
+			)))
+		} else {
+			fmt.Println(color.GreenString(fmt.Sprintf(
+				"Installed %s %s", integration, versionToInstall,
+			)))
+			fmt.Println(color.RedString(fmt.Sprintf(
+				"Error while moving configuration files for %s: %v", integration, err,
+			)))
+		}
 		return nil
 	}
 
@@ -402,6 +413,38 @@ func pipCheck(cachePath string) error {
 	}
 
 	return fmt.Errorf("error executing pip check: %v", err)
+}
+
+func moveConfigurationFiles(integration string) error {
+	confFolder := config.Datadog.GetString("confd_path")
+	check := strings.TrimPrefix(integration, "datadog-")
+	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
+	if err := os.MkdirAll(confFileDest, os.ModeDir); err != nil {
+		return err
+	}
+
+	here, _ := executable.Folder()
+	confFileSrc := filepath.Join(here, relChecksPath, check, "data")
+	files, err := ioutil.ReadDir(confFileSrc)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		filename := file.Name()
+		// Replace existing file
+		src := filepath.Join(confFileSrc, filename)
+		dst := filepath.Join(confFileDest, filename)
+		err := os.Rename(src, dst)
+		if err != nil {
+			return err
+		}
+		fmt.Println(color.GreenString(fmt.Sprintf(
+			"Successfully replaced %s configuration file %s", integration, filename,
+		)))
+	}
+
+	return nil
 }
 
 func removeTuf(cmd *cobra.Command, args []string) error {

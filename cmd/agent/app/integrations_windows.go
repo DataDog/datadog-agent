@@ -20,6 +20,7 @@ const (
 var (
 	relPyPath            = pythonBin
 	relTufConfigFilePath = filepath.Join("..", tufConfigFile)
+	relChecksPath        = filepath.Join("Lib", "site-packages", "datadog_checks")
 	tufPipCachePath      = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
 )
 
