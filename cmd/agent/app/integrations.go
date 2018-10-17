@@ -26,11 +26,12 @@ import (
 )
 
 const (
-	tufConfigFile          = "public-tuf-config.json"
-	tufPkgPattern          = "datadog-.*"
-	tufIndex               = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
-	pipFreezeOutputPattern = "%s==(\\d+\\.\\d+\\.\\d+)"
-	yamlFilePattern        = "[\\w_]+\\.yaml.*"
+	tufConfigFile       = "public-tuf-config.json"
+	reqAgentReleaseFile = "requirements-agent-release.txt"
+	tufPkgPattern       = "datadog-.*"
+	tufIndex            = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
+	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
+	yamlFilePattern     = "[\\w_]+\\.yaml.*"
 )
 
 var (
@@ -275,7 +276,18 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot upgrade datadog-checks-base")
 	}
 	versionToInstall := strings.TrimSpace(intVer[1])
-	currentVersion, err := getIntegrationVersion(integration, cachePath)
+	minVersion, err := getMinVersion(integration)
+	if err != nil {
+		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
+	}
+	ok, err := isAboveMinVersion(versionToInstall, minVersion)
+	if err != nil {
+		return fmt.Errorf("unable to verify minimal version of %s: %v", integration, err)
+	}
+	if !ok {
+		return fmt.Errorf("cannot install version %s of %s older than %s", versionToInstall, integration, minVersion)
+	}
+	currentVersion, err := getCurrentVersion(integration, cachePath)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
@@ -350,7 +362,58 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	)
 }
 
-func getIntegrationVersion(integration string, cachePath string) (string, error) {
+func getMinVersion(integration string) (string, error) {
+	here, _ := executable.Folder()
+	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
+	if err != nil {
+		return "", err
+	}
+	version, err := getVersionFromReqLine(integration, string(lines))
+	if err != nil {
+		return "", err
+	}
+
+	return version, nil
+}
+
+func isAboveMinVersion(version string, minVersion string) (bool, error) {
+	if minVersion == "" {
+		return true, nil
+	}
+
+	var major, minor, fix int
+	var minMajor, minMinor, minFix int
+	_, err := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &fix)
+	if err != nil {
+		return false, fmt.Errorf("unable to parse version string %s: %v", version, err)
+	}
+	_, err = fmt.Sscanf(minVersion, "%d.%d.%d", &minMajor, &minMinor, &minFix)
+	if err != nil {
+		return false, fmt.Errorf("unable to parse version string %s: %v", minVersion, err)
+	}
+
+	if major > minMajor {
+		return true, nil
+	} else if major < minMajor {
+		return false, nil
+	}
+
+	if minor > minMinor {
+		return true, nil
+	} else if minor < minMinor {
+		return false, nil
+	}
+
+	if fix > minFix {
+		return true, nil
+	} else if fix < minFix {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func getCurrentVersion(integration string, cachePath string) (string, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
 		return "", err
@@ -370,12 +433,21 @@ func getIntegrationVersion(integration string, cachePath string) (string, error)
 		return "", fmt.Errorf("error executing pip freeze: %s", errMsg)
 	}
 
-	exp, err := regexp.Compile(fmt.Sprintf(pipFreezeOutputPattern, integration))
+	version, err := getVersionFromReqLine(integration, string(output))
+	if err != nil {
+		return "", err
+	}
+
+	return version, nil
+}
+
+func getVersionFromReqLine(integration string, lines string) (string, error) {
+	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {
 		return "", fmt.Errorf("internal error: %v", err)
 	}
 
-	if groups := exp.FindStringSubmatch(string(output)); groups != nil {
+	if groups := exp.FindStringSubmatch(lines); groups != nil {
 		return groups[1], nil
 	}
 
