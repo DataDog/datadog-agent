@@ -70,8 +70,5 @@ func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, 
 // AutoscalerMetricsUpdate will return true if the applied configuration of the Autoscaler has changed.
 // We only care about updates of the metrics or their scopes.
 func AutoscalerMetricsUpdate(new, old *autoscalingv2.HorizontalPodAutoscaler) bool {
-	if reflect.DeepEqual(new.Annotations, old.Annotations) {
-		return false
-	}
-	return true
+	return old.Annotations["kubectl.kubernetes.io/last-applied-configuration"] != new.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
 }
