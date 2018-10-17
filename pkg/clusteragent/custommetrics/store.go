@@ -9,7 +9,6 @@ package custommetrics
 
 import (
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"strings"
 	"sync"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,18 +31,19 @@ const (
 )
 
 var (
-	storeStats    = expvar.NewMap("custommetrics")
-	externalStats = new(expvar.Map).Init()
-	externalTotal = &expvar.Int{}
-	externalValid = &expvar.Int{}
+	externalTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "external_metrics",
+			Help: "Number of external metrics tagged.",
+		},
+		[]string{"valid"},
+	)
 
 	errNotInitialized = fmt.Errorf("configmap not initialized")
 )
 
 func init() {
-	storeStats.Set("External", externalStats)
-	externalStats.Set("Total", externalTotal)
-	externalStats.Set("Valid", externalValid)
+	prometheus.MustRegister(externalTotal)
 }
 
 // Store is an interface for persistent storage of custom and external metrics.
@@ -251,14 +252,14 @@ func setStoreStats(store *configMapStore) {
 		return
 	}
 
-	total := int64(len(bundle.External))
-	externalTotal.Set(total)
-
-	valid := int64(0)
+	var valid, invalid float64
 	for _, metric := range bundle.External {
 		if metric.Valid {
 			valid += 1
+		} else {
+			invalid += 1
 		}
 	}
-	externalValid.Set(valid)
+	externalTotal.With(prometheus.Labels{"valid": "true"}).Set(valid)
+	externalTotal.With(prometheus.Labels{"valid": "false"}).Set(invalid)
 }

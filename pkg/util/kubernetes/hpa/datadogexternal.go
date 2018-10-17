@@ -9,11 +9,11 @@ package hpa
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -21,14 +21,17 @@ import (
 )
 
 var (
-	datadogStats   = expvar.NewMap("datadog-api")
-	datadogErrors  = &expvar.Int{}
-	datadogQueries = &expvar.Int{}
+	ddRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "datadog_requests",
+			Help: "Counter of requests made to datadog",
+		},
+		[]string{"status"},
+	)
 )
 
 func init() {
-	datadogStats.Set("Errors", datadogErrors)
-	datadogStats.Set("Queries", datadogQueries)
+	prometheus.MustRegister(ddRequests)
 }
 
 type Point struct {
@@ -59,13 +62,12 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 
 	query := strings.Join(toQuery, ",")
 
-	datadogQueries.Add(1)
-
 	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 	if err != nil {
-		datadogErrors.Add(1)
+		ddRequests.WithLabelValues("error").Inc()
 		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
+	ddRequests.WithLabelValues("success").Inc()
 
 	processedMetrics := make(map[string]Point)
 	for _, name := range metricNames {

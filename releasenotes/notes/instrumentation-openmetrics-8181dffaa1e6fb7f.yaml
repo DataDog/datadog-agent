@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Cluster agent instrumentation has been switched from expvar to openmetrics
