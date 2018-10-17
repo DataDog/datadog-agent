@@ -267,6 +267,10 @@ func (h *AutoscalersController) handleErr(err error, key interface{}) {
 }
 
 func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
+	if !h.le.IsLeader() {
+		log.Trace("Only the leader needs to sync the Autoscalers")
+		return nil
+	}
 	ns, name, err := cache.SplitMetaNamespaceKey(key.(string))
 	if err != nil {
 		log.Errorf("Could not split the key: %v", err)
