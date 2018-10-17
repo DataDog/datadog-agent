@@ -194,6 +194,11 @@ func (h *AutoscalersController) updateExternalMetrics() {
 		return
 	}
 
+	// prevent some update to get into the store between ListAllExternalMetricValues
+	// and SetExternalMetricValues otherwise it would get erased
+	h.toStore.m.Lock()
+	defer h.toStore.m.Unlock()
+
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Error while retrieving external metrics from the store: %s", err)
