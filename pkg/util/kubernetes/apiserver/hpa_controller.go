@@ -175,7 +175,10 @@ func (h *AutoscalersController) pushToGlobalStore() error {
 	localStore := h.toStore.data
 	h.toStore.data = nil
 	h.toStore.m.Unlock()
-
+	if localStore == nil {
+		log.Trace("No batched metrics to push to the Global Store")
+		return nil
+	}
 	if !h.le.IsLeader() {
 		return nil
 	}
@@ -185,9 +188,21 @@ func (h *AutoscalersController) pushToGlobalStore() error {
 }
 
 func (h *AutoscalersController) updateExternalMetrics() {
+	// We force a flush of the most up to date metrics that might remain in the batch
+	err := h.pushToGlobalStore()
+	if err != nil {
+		log.Errorf("Error while pushing external metrics to the store: %s", err)
+		return
+	}
+
+	// prevent some update to get into the store between ListAllExternalMetricValues
+	// and SetExternalMetricValues otherwise it would get erased
+	h.toStore.m.Lock()
+	defer h.toStore.m.Unlock()
+
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
-		log.Infof("Error while retrieving external metrics from the store: %s", err)
+		log.Errorf("Error while retrieving external metrics from the store: %s", err)
 		return
 	}
 
@@ -197,9 +212,10 @@ func (h *AutoscalersController) updateExternalMetrics() {
 	}
 
 	updated := h.hpaProc.UpdateExternalMetrics(emList)
-	h.toStore.m.Lock()
-	h.toStore.data = append(h.toStore.data, updated...)
-	h.toStore.m.Unlock()
+	err = h.store.SetExternalMetricValues(updated)
+	if err != nil {
+		log.Errorf("Not able to store the updated metrics in the Global Store: %v", err)
+	}
 }
 
 // gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
