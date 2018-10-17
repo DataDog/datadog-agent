@@ -68,6 +68,7 @@ type AutoscalersController struct {
 	clientSet kubernetes.Interface
 	poller    PollerConfig
 	le        LeaderElectorInterface
+	mu        sync.Mutex
 }
 
 // NewAutoscalersController returns a new AutoscalersController
@@ -205,6 +206,8 @@ func (h *AutoscalersController) updateExternalMetrics() {
 // not running) to clean the store.
 func (h *AutoscalersController) gc() {
 	log.Infof("Starting gc run")
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	list, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
@@ -271,6 +274,9 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 		log.Trace("Only the leader needs to sync the Autoscalers")
 		return nil
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	ns, name, err := cache.SplitMetaNamespaceKey(key.(string))
 	if err != nil {
 		log.Errorf("Could not split the key: %v", err)
@@ -334,7 +340,12 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 
 // Processing the Delete Events in the Eventhandler as obj is deleted from the local store thereafter.
 // Only here can we retrieve the content of the HPA to properly process and delete it.
+// FIXME we could have an update in the queue while processing the deletion, we should make
+// sure we process them in order instead. For now, the gc logic allows us to recover.
 func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	deletedHPA, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if ok {
 		log.Debugf("Deleting Metrics from HPA %s/%s", deletedHPA.Namespace, deletedHPA.Name)
