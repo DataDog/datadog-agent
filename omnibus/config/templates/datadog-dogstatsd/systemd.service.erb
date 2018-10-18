@@ -1,12 +1,12 @@
 [Unit]
-Description="Datadog statsd server"
+Description="Stackstate statsd server"
 After=network.target
 
 [Service]
 Type=simple
-User=dd-agent
+User=sts-agent
 Restart=on-failure
-ExecStart=<%= install_dir %>/bin/dogstatsd start -c /etc/datadog-dogstatsd
+ExecStart=<%= install_dir %>/bin/dogstatsd start -c /etc/stackstate-dogstatsd
 
 [Install]
 WantedBy=multi-user.target

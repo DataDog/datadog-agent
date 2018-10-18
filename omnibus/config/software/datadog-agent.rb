@@ -22,7 +22,7 @@ relative_path 'src/github.com/StackVista/stackstate-agent'
 build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  etc_dir = "/etc/datadog-agent"
+  etc_dir = "/etc/stackstate-agent"
   env = {
     'GOPATH' => gopath.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
@@ -39,7 +39,7 @@ build do
   if osx?
     conf_dir = "#{install_dir}/etc"
   else
-    conf_dir = "#{install_dir}/etc/datadog-agent"
+    conf_dir = "#{install_dir}/etc/stackstate-agent"
   end
   mkdir conf_dir
   unless windows?
@@ -68,44 +68,44 @@ build do
   if linux?
     if debian?
       erb source: "upstart_debian.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.process.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-process.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.trace.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-trace.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat? || suse?
       # Ship a different upstart job definition on RHEL to accommodate the old
       # version of upstart (0.6.5) that RHEL 6 provides.
       erb source: "upstart_redhat.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.process.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-process.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.trace.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-trace.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
 
     erb source: "systemd.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent.service",
+        dest: "#{install_dir}/scripts/stackstate-agent.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.process.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-process.service",
+        dest: "#{install_dir}/scripts/stackstate-agent-process.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.trace.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-trace.service",
+        dest: "#{install_dir}/scripts/stackstate-agent-trace.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
   end

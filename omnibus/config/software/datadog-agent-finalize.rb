@@ -19,13 +19,13 @@ build do
         # Conf files
 
         if windows?
-            conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
+            conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
-            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
-            move "#{install_dir}/etc/datadog-agent/root.json", conf_dir_root, :force=>true
-            delete "#{install_dir}/etc/datadog-agent/trace-agent.conf.example"
-            move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
+            move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", conf_dir_root, :force=>true
+            move "#{install_dir}/etc/stackstate-agent/root.json", conf_dir_root, :force=>true
+            delete "#{install_dir}/etc/stackstate-agent/trace-agent.conf.example"
+            move "#{install_dir}/etc/stackstate-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
             delete "#{install_dir}/bin/agent/agent.exe~"
@@ -44,36 +44,36 @@ build do
         elsif linux?
             # Move system service files
             mkdir "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
+            move "#{install_dir}/scripts/stackstate-agent.conf", "/etc/init"
+            move "#{install_dir}/scripts/stackstate-agent-trace.conf", "/etc/init"
+            move "#{install_dir}/scripts/stackstate-agent-process.conf", "/etc/init"
             systemd_directory = "/usr/lib/systemd/system"
             if debian?
                 # debian recommends using a different directory for systemd unit files
                 systemd_directory = "/lib/systemd/system"
             end
             mkdir systemd_directory
-            move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
+            move "#{install_dir}/scripts/stackstate-agent.service", systemd_directory
+            move "#{install_dir}/scripts/stackstate-agent-trace.service", systemd_directory
+            move "#{install_dir}/scripts/stackstate-agent-process.service", systemd_directory
 
             # Move checks and configuration files
-            mkdir "/etc/datadog-agent"
-            move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
-            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-            delete "#{install_dir}/etc/datadog-agent/trace-agent.conf.example"
-            move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+            mkdir "/etc/stackstate-agent"
+            move "#{install_dir}/bin/agent/sts-agent", "/usr/bin/sts-agent"
+            move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", "/etc/stackstate-agent"
+            delete "#{install_dir}/etc/stackstate-agent/trace-agent.conf.example"
+            move "#{install_dir}/etc/stackstate-agent/conf.d", "/etc/stackstate-agent", :force=>true
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
-            mkdir "/etc/datadog-agent/checks.d"
+            mkdir "/etc/stackstate-agent/checks.d"
             mkdir "/var/log/datadog"
 
             # remove unused configs
-            delete "/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "/etc/stackstate-agent/conf.d/apm.yaml.default"
 
             # remove windows specific configs
-            delete "/etc/datadog-agent/conf.d/winproc.d"
+            delete "/etc/stackstate-agent/conf.d/winproc.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"

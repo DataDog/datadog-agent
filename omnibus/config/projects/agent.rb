@@ -6,7 +6,7 @@
 require "./lib/ostools.rb"
 
 name 'agent'
-package_name 'datadog-agent'
+package_name 'stackstate-agent'
 
 homepage 'http://www.datadoghq.com'
 
@@ -14,10 +14,10 @@ if ohai['platform'] == "windows"
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
-  install_dir "C:/opt/datadog-agent/"
+  install_dir "C:/opt/stackstate-agent/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-agent'
+  install_dir '/opt/stackstate-agent'
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
@@ -84,7 +84,7 @@ package :msi do
   upgrade_code '0c50421b-aefb-4f15-a809-7af256d608a5'
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
-  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
+  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\stackstate-agent\\extra_package_files"
   additional_sign_files [
       "#{install_dir}\\bin\\agent\\trace-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
@@ -94,9 +94,9 @@ package :msi do
   end
   parameters({
     'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/StackVista/stackstate-agent/bin/agent",
-    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
+    'InstallFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/sts-agent/packaging/stackstate-agent/win32/install_files",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/src/github.com/StackVista/stackstate-agent/bin/agent",
+    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\stackstate-agent",
   })
 end
 
@@ -155,19 +155,19 @@ dependency 'version-manifest'
 dependency 'datadog-agent-finalize'
 
 if linux?
-  extra_package_file '/etc/init/datadog-agent.conf'
-  extra_package_file '/etc/init/datadog-agent-process.conf'
-  extra_package_file '/etc/init/datadog-agent-trace.conf'
+  extra_package_file '/etc/init/stackstate-agent.conf'
+  extra_package_file '/etc/init/stackstate-agent-process.conf'
+  extra_package_file '/etc/init/stackstate-agent-trace.conf'
   systemd_directory = "/usr/lib/systemd/system"
   if debian?
     systemd_directory = "/lib/systemd/system"
   end
-  extra_package_file "#{systemd_directory}/datadog-agent.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-process.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
-  extra_package_file '/etc/datadog-agent/'
-  extra_package_file '/usr/bin/dd-agent'
-  extra_package_file '/var/log/datadog/'
+  extra_package_file "#{systemd_directory}/stackstate-agent.service"
+  extra_package_file "#{systemd_directory}/stackstate-agent-process.service"
+  extra_package_file "#{systemd_directory}/stackstate-agent-trace.service"
+  extra_package_file '/etc/stackstate-agent/'
+  extra_package_file '/usr/bin/sts-agent'
+  extra_package_file '/var/log/stackstate/'
 end
 
 exclude '\.git*'

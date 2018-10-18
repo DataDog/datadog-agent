@@ -24,7 +24,7 @@ build do
   # we assume the go deps are already installed before running omnibus
   command "invoke -e dogstatsd.build --rebuild --use-embedded-libs", env: env
 
-  mkdir "#{install_dir}/etc/datadog-dogstatsd"
+  mkdir "#{install_dir}/etc/stackstate-dogstatsd"
   unless windows?
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
@@ -32,16 +32,16 @@ build do
 
   # move around bin and config files
   copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
-  move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
+  move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/stackstate-dogstatsd/dogstatsd.yaml.example"
 
   if linux?
     erb source: "upstart.conf.erb",
-        dest: "#{install_dir}/scripts/datadog-dogstatsd.conf",
+        dest: "#{install_dir}/scripts/stackstate-dogstatsd.conf",
         mode: 0644,
         vars: { install_dir: install_dir }
 
     erb source: "systemd.service.erb",
-        dest: "#{install_dir}/scripts/datadog-dogstatsd.service",
+        dest: "#{install_dir}/scripts/stackstate-dogstatsd.service",
         mode: 0644,
         vars: { install_dir: install_dir }
   end
