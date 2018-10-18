@@ -16,7 +16,7 @@ end
 default_version jmxfetch_version
 source sha256: jmxfetch_hash
 
-source :url => "https://dd-jmxfetch.s3.amazonaws.com/jmxfetch-#{version}-jar-with-dependencies.jar"
+source :url => "https://dl.bintray.com/datadog/datadog-maven/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar"
 
 jar_dir = "#{install_dir}/bin/agent/dist/jmx"
 
