@@ -47,6 +47,21 @@ export CI_PIPELINE_ID="$CI_PIPELINE_ID"
 export NOT_GITLAB="true"
 ```
 
+##### Images
+
+If for some reason you need to find another version of a specific image you will
+need to use the Azure CLI.
+
+This will list all the images available on Azure (and take ~10min to run)
+```bash
+az vm image list --all --output table
+```
+
+This will list all the images available on Azure for a specific OS (and take ~10min to run)
+```bash
+az vm image list --offer Ubuntu --all --output table
+```
+
 #### Common
 
 To see the rest of the rake commands, execute
