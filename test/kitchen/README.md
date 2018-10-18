@@ -57,7 +57,7 @@ This will list all the images available on Azure (and take ~10min to run)
 az vm image list --all --output table
 ```
 
-This will list all the images available on Azure for a specific OS (and take ~10min to run)
+This will list all the images available on Azure for a specific OS (and take ~2min to run)
 ```bash
 az vm image list --offer Ubuntu --all --output table
 ```
