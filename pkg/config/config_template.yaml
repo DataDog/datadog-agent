@@ -253,8 +253,9 @@ api_key:
 # might change depending on the OS.
 # dogstatsd_so_rcvbuf:
 #
-# Additional tags to append to all metrics received by this server. Useful for
-# tagging all metrics reporting from a single host without resorting to host tags.
+# Additional tags to append to all metrics, events and service checks received by
+# this server. Useful for tagging all metrics reporting from a single host without
+# resorting to host tags.
 # dogstatsd_tags:
 #   - name:value
 #
