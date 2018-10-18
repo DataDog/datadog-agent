@@ -28,7 +28,7 @@ import (
 const (
 	tufConfigFile       = "public-tuf-config.json"
 	reqAgentReleaseFile = "requirements-agent-release.txt"
-	tufPkgPattern       = "datadog-.*"
+	tufPkgPattern       = "datadog(-|_).*"
 	tufIndex            = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	yamlFilePattern     = "[\\w_]+\\.yaml.*"
@@ -271,7 +271,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	intVer := strings.Split(args[0], "==")
-	integration := strings.TrimSpace(intVer[0])
+	integration := strings.Replace(strings.TrimSpace(intVer[0]), "_", "-", -1)
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("cannot upgrade datadog-checks-base")
 	}
