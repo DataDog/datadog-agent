@@ -129,7 +129,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 type ErrorLogWriter struct{}
 
 func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
-	seelog.Error(string(p))
+	seelog.Error(fmt.Sprintf("Error from the agent http API server: %s", strings.TrimSpace(string(p))))
 	return len(p), nil
 }
 
