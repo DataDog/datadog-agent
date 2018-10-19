@@ -12,6 +12,17 @@ dependency 'datadog-agent'
 dependency 'pip2'
 dependency 'pip3'
 
+if arm?
+  # psycopg2 doesn't come with pre-built wheel on the arm architecture.
+  # to compile from source, it requires the `pg_config` executable present on the $PATH
+  dependency 'postgresql'
+  # same with libffi to build the cffi wheel
+  dependency 'libffi'
+  # same with libxml2 and libxslt to build the lxml wheel
+  dependency 'libxml2'
+  dependency 'libxslt'
+end
+
 if linux?
   # add nfsiostat script
   dependency 'unixodbc'
@@ -140,8 +151,8 @@ build do
       command "#{python2} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
     else
       command "#{pip2} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command "#{pip2} install --no-deps .", :cwd => "#{project_dir}/datadog_checks_downloader"
-      command "#{python2} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}"
+      command "#{pip2} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
+      command "#{python2} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
     end
 
     # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
