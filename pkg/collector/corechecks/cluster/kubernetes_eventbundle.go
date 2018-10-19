@@ -24,6 +24,8 @@ type kubernetesEventBundle struct {
 	readableKey   string         // Formated key used in the Title in the events
 	component     string         // Used to identify the Kubernetes component which generated the event
 	events        []*v1.Event    // List of events in the bundle
+	name          string         // name of the bundle
+	kind          string         // kind of the bundle
 	timeStamp     float64        // Used for the new events in the bundle to specify when they first occurred
 	lastTimestamp float64        // Used for the modified events in the bundle to specify when they last occurred
 	countByAction map[string]int // Map of count per action to aggregate several events from the same ObjUid in one event
@@ -57,6 +59,8 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	k.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
 	k.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Name, event.InvolvedObject.Kind)
+	k.kind = event.InvolvedObject.Kind
+	k.name = event.InvolvedObject.Name
 
 	if event.InvolvedObject.Kind == "Node" || event.InvolvedObject.Kind == "Pod" {
 		k.nodename = event.Source.Host
@@ -83,7 +87,7 @@ func (k *kubernetesEventBundle) formatEvents(modified bool, clusterName string) 
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(k.timeStamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", k.component)},
+		Tags:           []string{fmt.Sprintf("source_component:%s", k.component), fmt.Sprintf("kubernetes_kind:%s", k.kind), fmt.Sprintf("name:%s", k.name)},
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.objUid),
 	}
 	if k.namespace != "" {
