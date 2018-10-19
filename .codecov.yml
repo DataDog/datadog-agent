@@ -5,7 +5,7 @@ comment:
 
 
 coverage:
-  range: 50..100
+  range: 20..100
   round: down
   precision: 2
 
