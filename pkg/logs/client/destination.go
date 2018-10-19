@@ -34,6 +34,7 @@ type Destination struct {
 	connManager         *ConnectionManager
 	destinationsContext *DestinationsContext
 	conn                net.Conn
+	inputChan           chan []byte
 }
 
 // NewDestination returns a new destination.
@@ -73,4 +74,31 @@ func (d *Destination) Send(payload []byte) error {
 	}
 
 	return nil
+}
+
+// SendAsync sends a message to the destination without blocking. If the queue is full, the incoming messages will be
+// dropped
+func (d *Destination) SendAsync(payload []byte) {
+	select {
+	case d.inputChan <- payload:
+	default:
+		// FIXME: Is is OK to drop the logs when the pipe is full?
+		// Should we warn users when messages are dropped for the
+		// additional destinations
+	}
+}
+
+// ConsumeAsync read the messages from the queue and send them
+func (d *Destination) ConsumeAsync() {
+	// FIXME: Remove this magic number, how to decide of the right buffer size?
+	inputChan := make(chan []byte, 100)
+	d.inputChan = inputChan
+	ctx := d.destinationsContext.Context()
+	for {
+		select {
+		case payload := <-d.inputChan:
+			d.Send(payload)
+		case <-ctx.Done():
+		}
+	}
 }

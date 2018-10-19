@@ -5,8 +5,9 @@
 package sender
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 
 	"github.com/stretchr/testify/assert"
 
@@ -47,6 +48,42 @@ func TestSender(t *testing.T) {
 
 	assert.True(t, ok)
 	assert.Equal(t, message, expectedMessage)
+
+	sender.Stop()
+	destinationsCtx.Stop()
+}
+
+func TestSenderNotBlockedByAdditional(t *testing.T) {
+	l := mock.NewMockLogsIntake(t)
+	defer l.Close()
+
+	source := config.NewLogSource("", &config.LogsConfig{})
+
+	input := make(chan *message.Message, 1)
+	output := make(chan *message.Message, 1)
+
+	destinationsCtx := client.NewDestinationsContext()
+	destinationsCtx.Start()
+
+	mainDestination := client.AddrToDestination(l.Addr(), destinationsCtx)
+	// This destination doesn't exists
+	additionalDestination := client.NewDestination(client.Endpoint{Host: "dont.exist.local", Port: 0}, destinationsCtx)
+	destinations := client.NewDestinations(mainDestination, []*client.Destination{additionalDestination})
+
+	sender := NewSender(input, output, destinations)
+	sender.Start()
+
+	expectedMessage1 := newMessage([]byte("fake line"), source, "")
+	input <- expectedMessage1
+	message, ok := <-output
+	assert.True(t, ok)
+	assert.Equal(t, message, expectedMessage1)
+
+	expectedMessage2 := newMessage([]byte("fake line 2"), source, "")
+	input <- expectedMessage2
+	message, ok = <-output
+	assert.True(t, ok)
+	assert.Equal(t, message, expectedMessage2)
 
 	sender.Stop()
 	destinationsCtx.Stop()

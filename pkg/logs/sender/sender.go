@@ -48,6 +48,9 @@ func (s *Sender) run() {
 	defer func() {
 		s.done <- struct{}{}
 	}()
+	for _, destination := range s.destinations.Additionals {
+		go destination.ConsumeAsync()
+	}
 	for payload := range s.inputChan {
 		s.send(payload)
 	}
@@ -84,7 +87,7 @@ func (s *Sender) send(payload *message.Message) {
 			// FIXME: run all `Send` in parallel to avoid the effect on a slow
 			// destination on the others. Potentially add a buffer for secondary
 			// destinations.
-			destination.Send(payload.Content)
+			destination.SendAsync(payload.Content)
 		}
 
 		metrics.LogsSent.Add(1)
