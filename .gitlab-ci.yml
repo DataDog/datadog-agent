@@ -95,7 +95,7 @@ build_publish_deb:
   stage: build
   image: stackstate/stackstate-agent-runner-circle:latest
   before_script:
-  - apt-get install python-dev
+  - apt-get install python-dev python3-dev
   - mkdir -p /go/src/github.com/StackVista
   - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
