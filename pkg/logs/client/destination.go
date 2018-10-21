@@ -8,6 +8,13 @@ package client
 import (
 	"net"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	chanSize      = 100
+	warningPeriod = 1000
 )
 
 // FramingError represents a kind of error that can occur when a log can not properly
@@ -37,6 +44,7 @@ type Destination struct {
 	conn                net.Conn
 	inputChan           chan []byte
 	once                sync.Once
+	warningCounter      int
 }
 
 // NewDestination returns a new destination.
@@ -82,23 +90,24 @@ func (d *Destination) Send(payload []byte) error {
 // dropped
 func (d *Destination) SendAsync(payload []byte) {
 	d.once.Do(func() {
+		inputChan := make(chan []byte, chanSize)
+		d.inputChan = inputChan
 		go d.consumeAsync()
 	})
 
 	select {
 	case d.inputChan <- payload:
 	default:
-		// FIXME: Is is OK to drop the logs when the pipe is full?
-		// Should we warn users when messages are dropped for the
-		// additional destinations
+		// TODO: Display the warning in the status
+		if d.warningCounter%warningPeriod == 0 {
+			log.Warnf("Some logs sent to additional destination %v were dropped", d.connManager.endpoint.Host)
+		}
+		d.warningCounter++
 	}
 }
 
 // consumeAsync read the messages from the queue and send them
 func (d *Destination) consumeAsync() {
-	// FIXME: Remove this magic number, how to decide of the right buffer size?
-	inputChan := make(chan []byte, 100)
-	d.inputChan = inputChan
 	ctx := d.destinationsContext.Context()
 	for {
 		select {
