@@ -48,9 +48,6 @@ func (s *Sender) run() {
 	defer func() {
 		s.done <- struct{}{}
 	}()
-	for _, destination := range s.destinations.Additionals {
-		go destination.ConsumeAsync()
-	}
 	for payload := range s.inputChan {
 		s.send(payload)
 	}

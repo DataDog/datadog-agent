@@ -7,6 +7,7 @@ package client
 
 import (
 	"net"
+	"sync"
 )
 
 // FramingError represents a kind of error that can occur when a log can not properly
@@ -35,6 +36,7 @@ type Destination struct {
 	destinationsContext *DestinationsContext
 	conn                net.Conn
 	inputChan           chan []byte
+	once                sync.Once
 }
 
 // NewDestination returns a new destination.
@@ -79,6 +81,10 @@ func (d *Destination) Send(payload []byte) error {
 // SendAsync sends a message to the destination without blocking. If the queue is full, the incoming messages will be
 // dropped
 func (d *Destination) SendAsync(payload []byte) {
+	d.once.Do(func() {
+		go d.consumeAsync()
+	})
+
 	select {
 	case d.inputChan <- payload:
 	default:
@@ -88,8 +94,8 @@ func (d *Destination) SendAsync(payload []byte) {
 	}
 }
 
-// ConsumeAsync read the messages from the queue and send them
-func (d *Destination) ConsumeAsync() {
+// consumeAsync read the messages from the queue and send them
+func (d *Destination) consumeAsync() {
 	// FIXME: Remove this magic number, how to decide of the right buffer size?
 	inputChan := make(chan []byte, 100)
 	d.inputChan = inputChan
