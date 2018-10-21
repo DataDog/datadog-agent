@@ -78,7 +78,7 @@ Once the Datadog Cluster Agent is up and running, register it as an External Met
 
 To do so, apply the following RBAC rules:
 
-`kubectl apply -f Dockerfiles/manifests/hpa-example/rbac-hpa.yaml`
+`kubectl apply -f Dockerfiles/manifests/cluster-agent/hpa-example/rbac-hpa.yaml`
 
 ```
 clusterrolebinding.rbac.authorization.k8s.io "system:auth-delegator" created
