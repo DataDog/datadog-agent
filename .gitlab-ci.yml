@@ -1,5 +1,5 @@
 stages:
-- tests
+# - tests
 - build
 - publish
 
@@ -95,6 +95,7 @@ build_publish_deb:
   stage: build
   image: stackstate/stackstate-agent-runner-circle:latest
   before_script:
+  - whoami
   - apt-get install -y -q python-dev python3-dev
   - mkdir -p /go/src/github.com/StackVista
   - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
