@@ -1,7 +1,8 @@
 stages:
 - build
-- tests
 - publish
+- tests
+
 
 unit_tests:
  stage: tests
