@@ -116,13 +116,16 @@ dependency 'datadog-agent-prepare'
 
 # Additional software
 dependency 'pip'
-dependency 'datadog-agent-integrations'
 dependency 'datadog-a7'
 dependency 'datadog-agent-env-check'
+
 dependency 'jmxfetch'
 
 # External agents
 dependency 'datadog-process-agent' # Includes network-tracer
+
+# Integrations-core
+dependency 'datadog-agent-integrations'
 
 if osx?
   dependency 'datadog-agent-mac-app'
