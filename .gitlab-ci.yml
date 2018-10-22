@@ -1,6 +1,6 @@
 stages:
-# - tests
 - build
+- tests
 - publish
 
 unit_tests:
