@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Improve logging when python checks report invalid tags
+    Improve logging when python checks use invalid types for tags
