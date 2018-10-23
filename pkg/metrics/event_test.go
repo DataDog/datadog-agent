@@ -71,7 +71,7 @@ func TestMarshalJSON(t *testing.T) {
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("{\"apiKey\":\"\",\"events\":{\"custom_source_type\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"priority\":\"normal\",\"host\":\"my-hostname\",\"tags\":[\"tag1\",\"tag2:yes\"],\"alert_type\":\"error\",\"aggregation_key\":\"my_agg_key\",\"source_type_name\":\"custom_source_type\"}]},\"internalHostname\":\"test-hostname\"}\n"))
+	assert.JSONEq(t, string(payload), "{\"apiKey\":\"\",\"events\":{\"custom_source_type\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"priority\":\"normal\",\"host\":\"my-hostname\",\"tags\":[\"tag1\",\"tag2:yes\"],\"alert_type\":\"error\",\"aggregation_key\":\"my_agg_key\",\"source_type_name\":\"custom_source_type\"}]},\"internalHostname\":\"test-hostname\"}\n")
 }
 
 func TestMarshalJSONOmittedFields(t *testing.T) {
@@ -91,7 +91,7 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
 	// These optional fields are not present in the serialized payload, and a default source type name is used
-	assert.Equal(t, payload, []byte("{\"apiKey\":\"\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n"))
+	assert.JSONEq(t, string(payload), "{\"apiKey\":\"\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n")
 }
 
 func TestSplitEvents(t *testing.T) {
