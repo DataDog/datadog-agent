@@ -13,11 +13,12 @@ import (
 	"io"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
@@ -152,6 +153,7 @@ func (t *Tailer) tail() {
 			if t.shouldDrop(entry) {
 				continue
 			}
+			metrics.LogsCollected.Add(1)
 			t.outputChan <- t.toMessage(entry)
 		}
 	}

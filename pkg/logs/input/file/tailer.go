@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
@@ -192,6 +193,7 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
+		metrics.LogsCollected.Add(1)
 		offset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if !t.shouldTrackOffset() {

@@ -25,12 +25,16 @@ import (
 )
 
 // Agent represents the data pipeline that collects, decodes,
-// processes and sends logs to the backend
+// processes and sends logs to remote destinations:
 // + ------------------------------------------------------ +
 // |                                                        |
 // | Collector -> Decoder -> Processor -> Sender -> Auditor |
 // |                                                        |
 // + ------------------------------------------------------ +
+//
+// When the logs-agent can't send logs because of networking issues for example,
+// it keeps buffering logs in each stage of the pipeline until each gets completely full,
+// then it stops collecting logs from different inputs until the data can flow out.
 type Agent struct {
 	auditor          *auditor.Auditor
 	destinationsCtx  *client.DestinationsContext
@@ -43,14 +47,18 @@ type Agent struct {
 func NewAgent(sources *config.LogSources, services *service.Services, endpoints *client.Endpoints) *Agent {
 	health := health.Register("logs-agent")
 
+	// the size of the buffer of each stage of the logs pipeline,
+	// lower this value to reduce the memory footprint of the logs-agent.
+	pipelineBufferSize := config.LogsAgent.GetInt("logs_config.pipeline.buffer_size")
+
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
-	auditor := auditor.New(config.LogsAgent.GetString("logs_config.run_path"), health)
+	auditor := auditor.New(config.LogsAgent.GetString("logs_config.run_path"), pipelineBufferSize, health)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.LogsAgent.GetInt("logs_config.pipeline.count"), pipelineBufferSize, auditor, endpoints, destinationsCtx)
 
 	// setup the inputs
 	inputs := []restart.Restartable{

@@ -305,6 +305,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	config.BindEnvAndSetDefault("logs_config.pipeline.count", 4)
+	config.BindEnvAndSetDefault("logs_config.pipeline.buffer_size", 100)
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now

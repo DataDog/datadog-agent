@@ -19,12 +19,13 @@ import (
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 const defaultSleepDuration = 1 * time.Second
@@ -175,14 +176,13 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		if len(output.Content) > 0 {
-			origin := message.NewOrigin(t.source)
-			origin.Offset = output.Timestamp
-			origin.Identifier = t.Identifier()
-			origin.SetTags(t.containerTags)
-			output.Origin = origin
-			t.outputChan <- output
-		}
+		metrics.LogsCollected.Add(1)
+		origin := message.NewOrigin(t.source)
+		origin.Offset = output.Timestamp
+		origin.Identifier = t.Identifier()
+		origin.SetTags(t.containerTags)
+		output.Origin = origin
+		t.outputChan <- output
 	}
 }
 

@@ -18,6 +18,8 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // Start starts tailing the event log.
@@ -91,6 +93,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 		return
 	}
 
+	metrics.LogsCollected.Add(1)
 	t.outputChan <- msg
 }
 

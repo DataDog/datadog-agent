@@ -43,7 +43,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	_, err = os.Create(suite.testPath)
 	suite.Nil(err)
 
-	suite.a = New("", health.Register("fake"))
+	suite.a = New("", 100, health.Register("fake"))
 	suite.a.registryPath = suite.testPath
 	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
 }

@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 const defaultFlushPeriod = 1 * time.Second
@@ -52,23 +52,25 @@ type Auditor struct {
 	inputChan    chan *message.Message
 	registry     map[string]*RegistryEntry
 	registryPath string
+	bufferSize   int
 	mu           sync.Mutex
 	entryTTL     time.Duration
 	done         chan struct{}
 }
 
 // New returns an initialized Auditor
-func New(runPath string, health *health.Handle) *Auditor {
+func New(runPath string, bufferSize int, health *health.Handle) *Auditor {
 	return &Auditor{
 		health:       health,
 		registryPath: filepath.Join(runPath, "registry.json"),
+		bufferSize:   bufferSize,
 		entryTTL:     defaultTTL,
 	}
 }
 
 // Start starts the Auditor
 func (a *Auditor) Start() {
-	a.inputChan = make(chan *message.Message, config.ChanSize)
+	a.inputChan = make(chan *message.Message, a.bufferSize)
 	a.done = make(chan struct{})
 	a.registry = a.recoverRegistry()
 	a.cleanupRegistry()
@@ -131,6 +133,7 @@ func (a *Auditor) run() {
 				// inputChan has been closed, no need to update the registry anymore
 				return
 			}
+			metrics.LogsCommitted.Add(1)
 			// update the registry with new entry
 			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset)
 		case <-cleanUpTicker.C:

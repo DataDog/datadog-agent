@@ -7,7 +7,6 @@ package pipeline
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
@@ -21,7 +20,7 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, bufferSize int, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
 	// initialize the main destination
 	main := client.NewDestination(endpoints.Main, destinationsContext)
 
@@ -33,11 +32,11 @@ func NewPipeline(outputChan chan *message.Message, endpoints *client.Endpoints, 
 
 	// initialize the sender
 	destinations := client.NewDestinations(main, additionals)
-	senderChan := make(chan *message.Message, config.ChanSize)
+	senderChan := make(chan *message.Message, bufferSize)
 	sender := sender.NewSender(senderChan, outputChan, destinations)
 
 	// initialize the input chan
-	inputChan := make(chan *message.Message, config.ChanSize)
+	inputChan := make(chan *message.Message, bufferSize)
 
 	// initialize the processor
 	encoder := processor.NewEncoder(endpoints.Main.UseProto)

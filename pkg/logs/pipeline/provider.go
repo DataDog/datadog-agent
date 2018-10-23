@@ -24,6 +24,7 @@ type Provider interface {
 // provider implements providing logic
 type provider struct {
 	numberOfPipelines int
+	bufferSize        int
 	auditor           *auditor.Auditor
 	outputChan        chan *message.Message
 	endpoints         *client.Endpoints
@@ -34,9 +35,10 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, bufferSize int, auditor *auditor.Auditor, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
+		bufferSize:          bufferSize,
 		auditor:             auditor,
 		endpoints:           endpoints,
 		pipelines:           []*Pipeline{},
@@ -50,7 +52,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.endpoints, p.destinationsContext)
+		pipeline := NewPipeline(p.outputChan, p.bufferSize, p.endpoints, p.destinationsContext)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

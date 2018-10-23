@@ -74,10 +74,10 @@ func TestStatusDeduplicateWarnings(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	defer Clear()
 	Clear()
-	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
+	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": false, "LogsCollected": 0, "LogsCommitted": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
 
 	sources := createSources()
 	logSources := sources.GetSources()
 	logSources[0].Messages.AddWarning("bar", "Unique Warning")
-	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`)
+	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": true, "LogsCollected": 0, "LogsCommitted": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`)
 }

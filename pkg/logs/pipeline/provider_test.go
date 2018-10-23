@@ -23,9 +23,11 @@ type ProviderTestSuite struct {
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	suite.a = auditor.New("", health.Register("fake"))
+	bufferSize := 100
+	suite.a = auditor.New("", bufferSize, health.Register("fake"))
 	suite.p = &provider{
 		numberOfPipelines: 3,
+		bufferSize:        bufferSize,
 		auditor:           suite.a,
 		pipelines:         []*Pipeline{},
 		endpoints:         client.NewEndpoints(client.Endpoint{}, nil),

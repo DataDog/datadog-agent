@@ -12,21 +12,23 @@ import (
 var (
 	// LogsExpvars contains metrics for the logs agent.
 	LogsExpvars *expvar.Map
-	// LogsDecoded is the total number of decoded logs
-	LogsDecoded = expvar.Int{}
+	// LogsCollected is the total number of collected logs.
+	LogsCollected = expvar.Int{}
 	// LogsProcessed is the total number of processed logs.
 	LogsProcessed = expvar.Int{}
 	// LogsSent is the total number of sent logs.
 	LogsSent = expvar.Int{}
+	// LogsCommitted is the total number of committed logs.
+	LogsCommitted = expvar.Int{}
 	// DestinationErrors is the total number of network errors.
 	DestinationErrors = expvar.Int{}
-	// TODO: Add LogsCollected for the total number of collected logs.
 )
 
 func init() {
 	LogsExpvars = expvar.NewMap("logs-agent")
-	LogsExpvars.Set("LogsDecoded", &LogsDecoded)
+	LogsExpvars.Set("LogsCollected", &LogsCollected)
 	LogsExpvars.Set("LogsProcessed", &LogsProcessed)
 	LogsExpvars.Set("LogsSent", &LogsSent)
+	LogsExpvars.Set("LogsCommitted", &LogsCommitted)
 	LogsExpvars.Set("DestinationErrors", &DestinationErrors)
 }
