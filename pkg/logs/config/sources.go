@@ -30,6 +30,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 	s.mu.Lock()
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
+		s.mu.Unlock()
 		return
 	}
 	stream, exists := s.addedByType[source.Config.Type]

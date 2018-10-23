@@ -20,6 +20,9 @@ func TestAddSource(t *testing.T) {
 
 	sources.AddSource(NewLogSource("bar", &LogsConfig{Type: "boo"}))
 	assert.Equal(t, 2, len(sources.GetSources()))
+
+	sources.AddSource(NewLogSource("baz", &LogsConfig{})) // invalid config
+	assert.Equal(t, 3, len(sources.GetSources()))
 }
 
 func TestRemoveSource(t *testing.T) {
