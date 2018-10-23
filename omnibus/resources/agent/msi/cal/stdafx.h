@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <strsafe.h>
 #include <msiquery.h>
+#include <lm.h>
 #include <lmaccess.h>
 #include <lmerr.h>
 

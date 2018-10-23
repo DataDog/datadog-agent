@@ -87,11 +87,6 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
 {
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
-    LSA_HANDLE hLsa = NULL;
-    PSID sid = NULL;
-    DWORD nErr = 0;
-    LOCALGROUP_MEMBERS_INFO_0 lmi0;
-    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_3));
 
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: CreateOrUpdateDDUser");
@@ -104,6 +99,35 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
         hr = -1;
         goto LExit;
     } 
+LExit:
+
+    er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+    return WcaFinalize(er);
+
+}
+
+extern "C" UINT __stdcall AdjustDDRights(MSIHANDLE hInstall)
+{
+    HRESULT hr = S_OK;
+    UINT er = ERROR_SUCCESS;
+
+    LSA_HANDLE hLsa = NULL;
+    PSID sid = NULL;
+    DWORD nErr = 0;
+    LOCALGROUP_MEMBERS_INFO_0 lmi0;
+    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_3));
+
+    
+    // that's helpful.  WcaInitialize Log header silently limited to 32 chars
+    hr = WcaInitialize(hInstall, "CA: AdjustDDRights");
+    ExitOnFailure(hr, "Failed to initialize");
+    logProcCount();
+    WcaLog(LOGMSG_STANDARD, "Initialized.");
+    // get the ddagent user name
+    if(!loadDdAgentUserName(hInstall))
+    {
+        
+    }
     // if the log file or the auth token already exist, allow the dd-user to 
     // access them
 
@@ -166,10 +190,8 @@ LExit:
     if (hLsa) {
         LsaClose(hLsa);
     }
-
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
-
 }
 
 extern "C" UINT __stdcall EnableServicesForDDUser(MSIHANDLE hInstall) 

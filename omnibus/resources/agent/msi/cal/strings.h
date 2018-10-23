@@ -32,5 +32,9 @@ extern std::wstring strChangedRegistryPermissions;
 
 
 void toMbcs(std::string& target, LPCWSTR src);
+bool loadDdAgentUserName(MSIHANDLE hInstall);
+bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dst);
+bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len);
+bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **dst, DWORD *len);
 
 #define MAX_CUSTOM_PROPERTY_SIZE        128

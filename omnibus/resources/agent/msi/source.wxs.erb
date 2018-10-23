@@ -53,6 +53,7 @@
     <!-- No need to restart Windows after the installation -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
+    <Property Id="DDAGENTUSER_NAME" />
     <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
 
         <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
@@ -202,7 +203,7 @@
                           Type="ownProcess"
                           Vital="yes"
                           Interactive="no"
-                          Account=".\ddagentuser"
+                          Account="[DDAGENTUSER_NAME]"
                           Password="[DDAGENTUSER_PASSWORD]">
             <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
             <util:ServiceConfig
@@ -250,7 +251,7 @@
                             Type="ownProcess"
                             Vital="yes"
                             Interactive="no"
-                          Account=".\ddagentuser"
+                          Account="[DDAGENTUSER_NAME]"
                           Password="[DDAGENTUSER_PASSWORD]"
                             Arguments="--config=c:\programdata\datadog\datadog.yaml" >
               <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
@@ -449,6 +450,7 @@
 
     <InstallExecuteSequence>
       <Custom Action='adddduser' Before='CreateFolders'> NOT (REMOVE = "ALL") </Custom>
+      <Custom Action='adjustrights' After='adddduser'> NOT (REMOVE = "ALL") </Custom>
       <Custom Action='deldduser' After='DeleteServices'> (NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
       <Custom Action='verifyregperms' After='adddduser'> NOT (REMOVE = "ALL") </Custom>
       <Custom Action='enableservices' Before='InstallFinalize'> NOT (REMOVE = "ALL") </Custom>
@@ -585,6 +587,7 @@
 
     <CustomAction Id='enableservices' BinaryKey='wixcadll' DllEntry='EnableServicesForDDUser' Execute='deferred' Return='check'/>
     <CustomAction Id='adddduser' BinaryKey='wixcadll' DllEntry='CreateOrUpdateDDUser' Execute='immediate' Return='check'/>
+    <CustomAction Id='adjustrights' BinaryKey='wixcadll' DllEntry='AdjustDDRights' Execute='immediate' Return='check'/>
     <CustomAction Id='deldduser' BinaryKey='wixcadll' DllEntry='RemoveDDUser' Execute='immediate' Return='check'/>
     <CustomAction Id='verifyregperms' BinaryKey='wixcadll' DllEntry='VerifyDatadogRegistryPerms' Execute='immediate' Return='check'/>
     <CustomAction Id='InstallationRollback' BinaryKey='wixcadll' DllEntry='RollbackInstallation' Execute='rollback' />

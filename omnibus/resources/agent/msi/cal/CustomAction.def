@@ -8,3 +8,4 @@ EXPORTS
 	RemoveDDUser
 	RollbackInstallation
 	PreStopServices
+    AdjustDDRights

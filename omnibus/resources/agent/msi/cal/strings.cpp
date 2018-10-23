@@ -15,6 +15,7 @@ std::wstring processService(L"datadog-process-agent");
 std::wstring agentService(L"datadogagent");
 
 std::wstring propertyDDUserCreated(L"DDUSERCREATED");
+std::wstring propertyDDAgentUserName(L"DDAGENTUSER_NAME");
 std::wstring propertyRollbackState(L"CustomActionData");
 
 std::wstring programdataroot(L"c:\\ProgramData\\DataDog\\");
@@ -39,4 +40,58 @@ void toMbcs(std::string& target, LPCWSTR src) {
     target = tgt;
     delete[] tgt;
     return;
+}
+
+bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dststr)
+{
+    wchar_t *dst = NULL;
+    DWORD len = 0;
+    if(loadPropertyString(hInstall, propertyName, &dst, &len)) {
+        dststr = dst;
+        delete [] dst;
+        return true;
+    }
+    return false;
+}
+
+bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len)
+{
+    TCHAR* szValueBuf = NULL;
+    DWORD cchValueBuf = 0;
+    UINT uiStat =  MsiGetProperty(hInstall, propertyName, L"", &cchValueBuf);
+    //cchValueBuf now contains the size of the property's string, without null termination
+    if (ERROR_MORE_DATA == uiStat)
+    {
+        ++cchValueBuf; // add 1 for null termination
+        szValueBuf = new wchar_t[cchValueBuf];
+        if (szValueBuf)
+        {
+            uiStat = MsiGetProperty(hInstall, propertyName, szValueBuf, &cchValueBuf);
+        }
+    }
+    if (ERROR_SUCCESS != uiStat)
+    {
+        if (szValueBuf != NULL) 
+           delete[] szValueBuf;
+        WcaLog(LOGMSG_STANDARD, "failed to get  property");
+        return false;
+    }
+    *dst=szValueBuf;
+    *len = cchValueBuf;
+    std::string propertyname;
+    std::string propval;
+    toMbcs(propertyname, propertyName);
+    toMbcs(propval, szValueBuf);
+    WcaLog(LOGMSG_STANDARD, "loaded property %s = %s", propertyname.c_str(), propval.c_str());
+
+    
+    return ERROR_SUCCESS;
+}
+
+bool loadDdAgentUserName(MSIHANDLE hInstall) {
+    return loadPropertyString(hInstall, propertyDDAgentUserName.c_str(), ddAgentUserName);
+}
+
+bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **pass, DWORD *len) {
+    return loadPropertyString(hInstall, ddAgentUserPasswordProperty.c_str(), pass, len);
 }
