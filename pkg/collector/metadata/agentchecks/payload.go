@@ -6,8 +6,9 @@
 package agentchecks
 
 import (
-	"encoding/json"
 	"fmt"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
