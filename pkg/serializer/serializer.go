@@ -6,10 +6,11 @@
 package serializer
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
