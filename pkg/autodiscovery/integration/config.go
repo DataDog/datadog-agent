@@ -58,6 +58,10 @@ type CommonInstanceConfig struct {
 	EmptyDefaultHostname  bool `yaml:"empty_default_hostname"`
 }
 
+type ExtraInstanceConfig struct {
+	ExtraID string `yaml:"namespace"`
+}
+
 // Equal determines whether the passed config is the same
 func (c *Config) Equal(cfg *Config) bool {
 	if cfg == nil {

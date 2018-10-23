@@ -21,6 +21,7 @@ type Check interface {
 	Run() error                                          // run the check
 	Stop()                                               // stop the check if it's running
 	String() string                                      // provide a printable version of the check name
+	ExtraString() string                                 // provide an extra string to add to the ID
 	Configure(config, initConfig integration.Data) error // configure the check from the outside
 	Interval() time.Duration                             // return the interval time for the check
 	ID() ID                                              // provide a unique identifier for every check instance

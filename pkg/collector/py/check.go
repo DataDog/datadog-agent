@@ -29,6 +29,7 @@ import "C"
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
 	id           check.ID
+	extraId      string
 	version      string
 	instance     *python.PyObject
 	class        *python.PyObject
@@ -128,6 +129,11 @@ func (c *PythonCheck) String() string {
 	return c.ModuleName
 }
 
+// String representation (for debug and logging)
+func (c *PythonCheck) ExtraString() string {
+	return c.extraId
+}
+
 // Version returns the version of the check if load from a python wheel
 func (c *PythonCheck) Version() string {
 	return c.version
@@ -200,12 +206,23 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 
 // Configure the Python check from YAML data
 func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data) error {
+	// See if an extra ID was specified
+	extraOptions := integration.ExtraInstanceConfig{}
+	err := yaml.Unmarshal(data, &extraOptions)
+	if err != nil {
+		log.Errorf("invalid instance section for check %s: %s", string(c.ID()), err)
+		return err
+	}
+
+	// Set extra ID
+	c.extraId = extraOptions.ExtraID
+
 	// Generate check ID
 	c.id = check.Identify(c, data, initConfig)
 
 	// Unmarshal instances config to a RawConfigMap
 	rawInstances := integration.RawMap{}
-	err := yaml.Unmarshal(data, &rawInstances)
+	err = yaml.Unmarshal(data, &rawInstances)
 	if err != nil {
 		log.Errorf("error in yaml %s", err)
 		return err
