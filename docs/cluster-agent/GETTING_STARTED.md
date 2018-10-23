@@ -1,7 +1,5 @@
 # Datadog Cluster Agent | Getting Started
 
-The Datadog Cluster Agent is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
-
 ## Introduction
 
 This document aims at getting you started using the Datadog Cluster Agent. Refer to the [Datadog Cluster Agent | User Documentation](README.md) for more context about the Datadog Cluster agent. For more technical background, refer to the [Datadog Cluster Agent technical documentation](../../Dockerfiles/cluster-agent/README.md) documentation.
