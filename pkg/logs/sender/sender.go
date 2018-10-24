@@ -79,11 +79,8 @@ func (s *Sender) send(payload *message.Message) {
 			}
 		}
 		for _, destination := range s.destinations.Additionals {
-			// try and forget strategy for additional endpoints
-			// this call is also blocking when the connection is not established yet
-			// FIXME: run all `Send` in parallel to avoid the effect on a slow
-			// destination on the others. Potentially add a buffer for secondary
-			// destinations.
+			// send to a queue then send asynchronously for additional endpoints,
+			// it will drop messages if the queue is full
 			destination.SendAsync(payload.Content)
 		}
 

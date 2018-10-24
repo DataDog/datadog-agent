@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// FIXME: Changed chanSize to a constant once we refactor packages
 const (
 	chanSize      = 100
 	warningPeriod = 1000
@@ -86,13 +87,13 @@ func (d *Destination) Send(payload []byte) error {
 	return nil
 }
 
-// SendAsync sends a message to the destination without blocking. If the queue is full, the incoming messages will be
+// SendAsync sends a message to the destination without blocking. If the channel is full, the incoming messages will be
 // dropped
 func (d *Destination) SendAsync(payload []byte) {
 	d.once.Do(func() {
 		inputChan := make(chan []byte, chanSize)
 		d.inputChan = inputChan
-		go d.consumeAsync()
+		go d.runAsync()
 	})
 
 	select {
@@ -106,14 +107,15 @@ func (d *Destination) SendAsync(payload []byte) {
 	}
 }
 
-// consumeAsync read the messages from the queue and send them
-func (d *Destination) consumeAsync() {
+// runAsync read the messages from the channel and send them
+func (d *Destination) runAsync() {
 	ctx := d.destinationsContext.Context()
 	for {
 		select {
 		case payload := <-d.inputChan:
 			d.Send(payload)
 		case <-ctx.Done():
+			return
 		}
 	}
 }
