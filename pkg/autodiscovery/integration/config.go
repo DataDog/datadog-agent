@@ -58,7 +58,7 @@ type CommonInstanceConfig struct {
 	EmptyDefaultHostname  bool `yaml:"empty_default_hostname"`
 }
 
-// ExtraInstanceConfig holds the reserved fields for the extra instance id 
+// ExtraInstanceConfig holds the reserved fields for the extra instance id
 type ExtraInstanceConfig struct {
 	ExtraID string `yaml:"namespace"`
 }
