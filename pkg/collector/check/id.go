@@ -22,12 +22,12 @@ func Identify(check Check, instance integration.Data, initConfig integration.Dat
 }
 
 // BuildID returns an unique ID for a check name and its configuration
-func BuildID(checkName string, extraId string, instance, initConfig integration.Data) ID {
+func BuildID(checkName string, extraID string, instance, initConfig integration.Data) ID {
 	h := fnv.New64()
 	h.Write([]byte(instance))
 	h.Write([]byte(initConfig))
 
-	id := fmt.Sprintf("%s:%x %s", checkName, h.Sum64(), extraId)
+	id := fmt.Sprintf("%s:%x %s", checkName, h.Sum64(), extraID)
 	return ID(id)
 }
 
