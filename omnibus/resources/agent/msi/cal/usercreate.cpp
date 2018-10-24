@@ -216,8 +216,9 @@ doneRemove:
     return ;
 }
 
-int doCreateUser(std::wstring& name, std::wstring& comment, const wchar_t* passbuf)
+int doCreateUser(std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf)
 {
+    
     USER_INFO_1 ui;
     memset(&ui, 0, sizeof(USER_INFO_1));
     WcaLog(LOGMSG_STANDARD, "entered createuser");
@@ -227,9 +228,10 @@ int doCreateUser(std::wstring& name, std::wstring& comment, const wchar_t* passb
     ui.usri1_comment = (LPWSTR)comment.c_str();
     ui.usri1_flags = UF_DONT_EXPIRE_PASSWD;
     DWORD ret = 0;
+    
 
     WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
-    ret = NetUserAdd(NULL, // LOCAL_MACHINE
+    ret = NetUserAdd(domain, // LOCAL_MACHINE
         1, // indicates we're using a USER_INFO_1
         (LPBYTE)&ui,
         NULL);
@@ -254,10 +256,10 @@ int CreateDDUser(MSIHANDLE hInstall)
    
     if(isDomainController(hInstall)) {
         if(!ddAgentPropertySet || !ddAgentPasswordSet) {
-            WcaLog(LOGMSG_STANDARD, "Detected domain server, but username/password not providided.  Can't install");
+            WcaLog(LOGMSG_STANDARD, "Detected domain server, but username/password not provided.  Can't install");
             ret = -1; 
             goto ddUserReturn;
-        }
+        } 
     }
     
 
@@ -272,7 +274,7 @@ int CreateDDUser(MSIHANDLE hInstall)
             goto ddUserReturn;
         }
     }
-    ret = doCreateUser(ddAgentUserName, ddAgentUserDescription, passbuf);
+    ret = doCreateUser(ddAgentUserNameUnqualified, ddAgentUserDomainPtr, ddAgentUserDescription, passbuf);
     if (ret == NERR_UserExists) {
         WcaLog(LOGMSG_STANDARD, "Attempting to reset password of existing user");
         // if the user exists, update the password with the newly generated
@@ -289,6 +291,8 @@ int CreateDDUser(MSIHANDLE hInstall)
             NULL);
         if (0 == ret) {
             MarkInstallStepComplete(strDdUserPasswordChanged);
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Failed to reset password for user %d", ret);
         }
     } else if (ret != 0) {
         // failed with some unexpected reason
@@ -300,9 +304,17 @@ int CreateDDUser(MSIHANDLE hInstall)
         WcaLog(LOGMSG_STANDARD, "Created DD agent user");
         MarkInstallStepComplete(strDdUserCreated);
     }
-    // now store the password in the property so the installer can use it
-    MsiSetProperty(hInstall, (LPCWSTR)ddAgentUserPasswordProperty.c_str(), (LPCWSTR)passbuf);
-
+    if(!ddAgentPropertySet){
+        MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserName.c_str(), (LPCWSTR)ddAgentUserName.c_str());
+    }
+    if(!ddAgentPasswordSet){
+        // now store the password in the property so the installer can use it
+        MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserPassword.c_str(), (LPCWSTR)passbuf);
+    }
+    // write the user naem we used to the `enableservices` key, so that it can be retrieved during the 
+    // deferred custom action
+    MsiSetProperty(hInstall, (LPCWSTR) propertyEnableServicesDeferredKey.c_str(), (LPCWSTR)ddAgentUserName.c_str());
+    
 ddUserReturn:
     if(passbuf) {
         memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));

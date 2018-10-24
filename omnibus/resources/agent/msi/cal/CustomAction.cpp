@@ -126,7 +126,7 @@ extern "C" UINT __stdcall AdjustDDRights(MSIHANDLE hInstall)
     // get the ddagent user name
     if(!loadDdAgentUserName(hInstall))
     {
-        
+        WcaLog(LOGMSG_STANDARD, "DDAGENT username not supplied, using default");
     }
     // if the log file or the auth token already exist, allow the dd-user to 
     // access them
@@ -204,7 +204,11 @@ extern "C" UINT __stdcall EnableServicesForDDUser(MSIHANDLE hInstall)
     ExitOnFailure(hr, "Failed to initialize");
     logProcCount();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
-
+    // get the ddagent user name
+    if(!loadDdAgentUserName(hInstall, propertyCustomActionData.c_str() ))
+    {
+        WcaLog(LOGMSG_STANDARD, "DDAGENT username not supplied, using default");
+    }
     er = EnableServiceForUser(traceService, ddAgentUserName);
     if (0 != er) {
         hr = -1;
@@ -240,6 +244,11 @@ extern "C" UINT __stdcall VerifyDatadogRegistryPerms(MSIHANDLE hInstall) {
     ExitOnFailure(hr, "Failed to initialize");
     logProcCount();
     WcaLog(LOGMSG_STANDARD, "Initialized.");
+    // get the ddagent user name
+    if(!loadDdAgentUserName(hInstall))
+    {
+        WcaLog(LOGMSG_STANDARD, "DDAGENT username not supplied, using default");
+    }
     // make sure the key is there
     LSTATUS status = 0;
     HKEY hKey;

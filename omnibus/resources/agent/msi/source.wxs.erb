@@ -54,7 +54,7 @@
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
     <Property Id="DDAGENTUSER_NAME" />
-    <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
+    <Property Id="DDAGENTUSER_PASSWORD"  />
 
         <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
       same version gets installed "side by side" -->
@@ -66,8 +66,6 @@
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
-
-    <Property Id="DDUSER" Value="ddagentuser"/>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
@@ -81,7 +79,7 @@
             <CreateFolder>
                 <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
-                <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
             </CreateFolder>
           </Component>
@@ -379,7 +377,7 @@
               <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
               <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
               <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
-              <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+              <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
           </CreateFolder>
         </Component>
       </Directory>
@@ -394,7 +392,7 @@
                 <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
-                <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
             </CreateFolder>
      
         </Component>

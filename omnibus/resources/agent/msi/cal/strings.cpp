@@ -6,8 +6,10 @@ std::wstring datadog_acl_key_datadog = L"MACHINE\\SOFTWARE\\" + datadog_path;
 std::wstring installStepsKey = datadog_key_root + L"\\installSteps";
 std::wstring datadog_service_name(L"DataDog Agent");
 
-std::wstring ddAgentUserName(L"ddagentuser");
-std::wstring ddAgentUserPasswordProperty(L"DDAGENTUSER_PASSWORD");
+std::wstring ddAgentUserName(L".\\ddagentuser");
+std::wstring ddAgentUserNameUnqualified;
+std::wstring ddAgentUserDomain;
+const wchar_t *ddAgentUserDomainPtr = NULL;
 std::wstring ddAgentUserDescription(L"User context under which the DataDog Agent service runs");
 
 std::wstring traceService(L"datadog-trace-agent");
@@ -16,7 +18,10 @@ std::wstring agentService(L"datadogagent");
 
 std::wstring propertyDDUserCreated(L"DDUSERCREATED");
 std::wstring propertyDDAgentUserName(L"DDAGENTUSER_NAME");
+std::wstring propertyDDAgentUserPassword(L"DDAGENTUSER_PASSWORD");
+std::wstring propertyEnableServicesDeferredKey(L"enableservices");
 std::wstring propertyRollbackState(L"CustomActionData");
+std::wstring propertyCustomActionData(L"CustomActionData");
 
 std::wstring programdataroot(L"c:\\ProgramData\\DataDog\\");
 std::wstring logfilename(L"c:\\ProgramData\\DataDog\\logs\\agent.log");
@@ -58,6 +63,10 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
 {
     TCHAR* szValueBuf = NULL;
     DWORD cchValueBuf = 0;
+    std::string propertyname;
+    std::string propval;
+    toMbcs(propertyname, propertyName);
+
     UINT uiStat =  MsiGetProperty(hInstall, propertyName, L"", &cchValueBuf);
     //cchValueBuf now contains the size of the property's string, without null termination
     if (ERROR_MORE_DATA == uiStat)
@@ -76,22 +85,47 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
         WcaLog(LOGMSG_STANDARD, "failed to get  property");
         return false;
     }
+    if (wcslen(szValueBuf) == 0){
+        WcaLog(LOGMSG_STANDARD, "Property %s is empty", propertyname.c_str());
+        delete [] szValueBuf;
+        return false;
+    }
     *dst=szValueBuf;
     *len = cchValueBuf;
-    std::string propertyname;
-    std::string propval;
-    toMbcs(propertyname, propertyName);
     toMbcs(propval, szValueBuf);
     WcaLog(LOGMSG_STANDARD, "loaded property %s = %s", propertyname.c_str(), propval.c_str());
 
     
-    return ERROR_SUCCESS;
+    return true;
 }
 
-bool loadDdAgentUserName(MSIHANDLE hInstall) {
-    return loadPropertyString(hInstall, propertyDDAgentUserName.c_str(), ddAgentUserName);
+bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName ) {
+    std::wstring tmpName;
+    if(loadPropertyString(hInstall, propertyName ? propertyName : propertyDDAgentUserName.c_str(), tmpName)){
+        if(std::wstring::npos == tmpName.find(L'\\')) {
+            WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
+            ddAgentUserName = L".\\" + tmpName;
+        } else {
+            ddAgentUserName = tmpName;
+        }
+        // now create the splits between the domain and user for all to use, too
+        std::wstring domain, user;
+        std::wistringstream asStream(tmpName);
+        // username is going to be of the form <domain>\<username>
+        // if the <domain> is ".", then just do local machine
+        getline(asStream, ddAgentUserDomain, L'\\');
+        getline(asStream, ddAgentUserNameUnqualified, L'\\');
+        if(domain == L"."){
+            ddAgentUserDomainPtr = NULL;
+        } else {
+            ddAgentUserDomainPtr = ddAgentUserDomain.c_str();
+        }
+
+        return true;
+    }
+    return false;
 }
 
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **pass, DWORD *len) {
-    return loadPropertyString(hInstall, ddAgentUserPasswordProperty.c_str(), pass, len);
+    return loadPropertyString(hInstall, propertyDDAgentUserPassword.c_str(), pass, len);
 }
