@@ -8,8 +8,9 @@
 package v5
 
 import (
-	"encoding/json"
 	"testing"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
 	"github.com/stretchr/testify/require"
