@@ -47,6 +47,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 }
 
@@ -228,6 +229,17 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(jsonConfig)
+}
+
+func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	runtimeConfig, err := json.Marshal(config.Datadog.AllSettings())
+	if err != nil {
+		log.Errorf("Unable to marshal runtime config response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(runtimeConfig)
 }
 
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
