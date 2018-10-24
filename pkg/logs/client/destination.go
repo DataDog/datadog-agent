@@ -6,9 +6,11 @@
 package client
 
 import (
+	"expvar"
 	"net"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -90,9 +92,11 @@ func (d *Destination) Send(payload []byte) error {
 // SendAsync sends a message to the destination without blocking. If the channel is full, the incoming messages will be
 // dropped
 func (d *Destination) SendAsync(payload []byte) {
+	host := d.connManager.endpoint.Host
 	d.once.Do(func() {
 		inputChan := make(chan []byte, chanSize)
 		d.inputChan = inputChan
+		metrics.DestinationLogsDropped.Set(host, &expvar.Int{})
 		go d.runAsync()
 	})
 
@@ -100,10 +104,10 @@ func (d *Destination) SendAsync(payload []byte) {
 	case d.inputChan <- payload:
 	default:
 		// TODO: Display the warning in the status
-		if d.warningCounter%warningPeriod == 0 {
-			log.Warnf("Some logs sent to additional destination %v were dropped", d.connManager.endpoint.Host)
+		if metrics.DestinationLogsDropped.Get(host).(*expvar.Int).Value()%warningPeriod == 0 {
+			log.Warnf("Some logs sent to additional destination %v were dropped", host)
 		}
-		d.warningCounter++
+		metrics.DestinationLogsDropped.Add(host, 1)
 	}
 }
 
