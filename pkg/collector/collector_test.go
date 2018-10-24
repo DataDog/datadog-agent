@@ -42,10 +42,6 @@ func (c *TestCheck) String() string {
 	return "TestCheck"
 }
 
-func (c *TestCheck) ExtraString() string {
-	return ""
-}
-
 func (c *TestCheck) Version() string {
 	return ""
 }

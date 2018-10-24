@@ -53,7 +53,7 @@ func NewCheckBase(name string) CheckBase {
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
 func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
-	c.checkID = check.BuildID(c.checkName, c.checkExtraID, instance, initConfig)
+	c.checkID = check.BuildID(c.checkName, instance, initConfig, c.checkExtraID)
 }
 
 // Configure is provided for checks that require no config. If overridden,
@@ -129,11 +129,6 @@ func (c *CheckBase) Interval() time.Duration {
 // String returns the name of the check, the same for every instance
 func (c *CheckBase) String() string {
 	return c.checkName
-}
-
-// ExtraString returns an extra ID, configurable by instances
-func (c *CheckBase) ExtraString() string {
-	return ""
 }
 
 // Version returns an empty string as Go check can't be updated independently

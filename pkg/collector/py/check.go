@@ -29,7 +29,6 @@ import "C"
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
 	id           check.ID
-	extraId      string
 	version      string
 	instance     *python.PyObject
 	class        *python.PyObject
@@ -129,11 +128,6 @@ func (c *PythonCheck) String() string {
 	return c.ModuleName
 }
 
-// String representation (for debug and logging)
-func (c *PythonCheck) ExtraString() string {
-	return c.extraId
-}
-
 // Version returns the version of the check if load from a python wheel
 func (c *PythonCheck) Version() string {
 	return c.version
@@ -214,11 +208,8 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		return err
 	}
 
-	// Set extra ID
-	c.extraId = extraOptions.ExtraID
-
 	// Generate check ID
-	c.id = check.Identify(c, data, initConfig)
+	c.id = check.Identify(c, data, initConfig, extraOptions.ExtraID)
 
 	// Unmarshal instances config to a RawConfigMap
 	rawInstances := integration.RawMap{}

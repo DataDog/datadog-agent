@@ -17,17 +17,23 @@ import (
 type ID string
 
 // Identify returns an unique ID for a check and its configuration
-func Identify(check Check, instance integration.Data, initConfig integration.Data) ID {
-	return BuildID(check.String(), check.ExtraString(), instance, initConfig)
+func Identify(check Check, instance integration.Data, initConfig integration.Data, extraID string) ID {
+	return BuildID(check.String(), instance, initConfig, extraID)
 }
 
 // BuildID returns an unique ID for a check name and its configuration
-func BuildID(checkName string, extraID string, instance, initConfig integration.Data) ID {
+func BuildID(checkName string, instance, initConfig integration.Data, extraID string) ID {
 	h := fnv.New64()
 	h.Write([]byte(instance))
 	h.Write([]byte(initConfig))
 
-	id := fmt.Sprintf("%s:%x %s", checkName, h.Sum64(), extraID)
+	var id string
+	if extraID != "" {
+		id = fmt.Sprintf("%s:%x %s", checkName, h.Sum64(), extraID)
+	} else {
+		id = fmt.Sprintf("%s:%x", checkName, h.Sum64())
+	}
+
 	return ID(id)
 }
 
