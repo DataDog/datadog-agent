@@ -873,6 +873,8 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
+  only:
+    - master
   variables:
     <<: *docker_hub_variables
   script:
