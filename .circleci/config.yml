@@ -250,7 +250,7 @@ workflows:
       - build_puppy:
           requires:
             - dependencies
-      - build_publish_deb:
+      - build_publish_deb
         # requires:
         #  - build_binaries
       - build_publish_image:
