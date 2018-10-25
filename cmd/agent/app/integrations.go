@@ -29,6 +29,7 @@ const (
 	tufConfigFile          = "public-tuf-config.json"
 	tufPkgPattern          = "datadog-.*"
 	pipFreezeOutputPattern = "%s==(\\d+\\.\\d+\\.\\d+)"
+	yamlFilePattern        = "[\\w_]+\\.yaml.*"
 )
 
 var (
@@ -321,15 +322,11 @@ func installTuf(cmd *cobra.Command, args []string) error {
 			fmt.Println(color.GreenString(fmt.Sprintf(
 				"Successfully installed %s %s", integration, versionToInstall,
 			)))
-		} else {
-			fmt.Println(color.GreenString(fmt.Sprintf(
-				"Installed %s %s", integration, versionToInstall,
-			)))
-			fmt.Println(color.RedString(fmt.Sprintf(
-				"Error while moving configuration files for %s: %v", integration, err,
-			)))
+			return nil
 		}
-		return nil
+
+		fmt.Printf("Installed %s %s", integration, versionToInstall)
+		return fmt.Errorf("Error while moving configuration files for %s: %v", integration, err)
 	}
 
 	// We either detected a mismatch, or we failed to run pip check
@@ -418,6 +415,9 @@ func pipCheck(cachePath string) error {
 func moveConfigurationFiles(integration string) error {
 	confFolder := config.Datadog.GetString("confd_path")
 	check := strings.TrimPrefix(integration, "datadog-")
+	if check != "go-metro" {
+		check = strings.Replace(check, "-", "_", -1)
+	}
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
 	if err := os.MkdirAll(confFileDest, os.ModeDir); err != nil {
 		return err
@@ -430,9 +430,16 @@ func moveConfigurationFiles(integration string) error {
 		return err
 	}
 
+	exp, err := regexp.Compile(yamlFilePattern)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
 	for _, file := range files {
 		filename := file.Name()
 		// Replace existing file
+		if !exp.MatchString(filename) {
+			continue
+		}
 		src := filepath.Join(confFileSrc, filename)
 		dst := filepath.Join(confFileDest, filename)
 		err := os.Rename(src, dst)
