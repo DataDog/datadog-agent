@@ -35,7 +35,6 @@ import (
 type CheckBase struct {
 	checkName      string
 	checkID        check.ID
-	checkExtraID   string
 	latestWarnings []error
 	checkInterval  time.Duration
 }
@@ -45,15 +44,23 @@ func NewCheckBase(name string) CheckBase {
 	return CheckBase{
 		checkName:     name,
 		checkID:       check.ID(name),
-		checkExtraID:  "",
 		checkInterval: check.DefaultCheckInterval,
 	}
 }
 
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
-func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
-	c.checkID = check.BuildID(c.checkName, instance, initConfig, c.checkExtraID)
+func (c *CheckBase) BuildID(instance, initConfig integration.Data) error {
+	// See if an extra ID was specified
+	extraOptions := integration.ExtraInstanceConfig{}
+	err := yaml.Unmarshal(instance, &extraOptions)
+	if err != nil {
+		log.Errorf("invalid instance section for check %s: %s", string(c.ID()), err)
+		return err
+	}
+
+	c.checkID = check.BuildID(c.checkName, instance, initConfig, extraOptions.ExtraID)
+	return nil
 }
 
 // Configure is provided for checks that require no config. If overridden,
@@ -86,16 +93,6 @@ func (c *CheckBase) CommonConfigure(instance integration.Data) error {
 		}
 		s.DisableDefaultHostname(true)
 	}
-
-	// See if an extra ID was specified
-	extraOptions := integration.ExtraInstanceConfig{}
-	err = yaml.Unmarshal(instance, &extraOptions)
-	if err != nil {
-		log.Errorf("invalid instance section for check %s: %s", string(c.ID()), err)
-		return err
-	}
-
-	c.checkExtraID = extraOptions.ExtraID
 
 	return nil
 }

@@ -27,14 +27,11 @@ func BuildID(checkName string, instance, initConfig integration.Data, extraID st
 	h.Write([]byte(instance))
 	h.Write([]byte(initConfig))
 
-	var id string
 	if extraID != "" {
-		id = fmt.Sprintf("%s:%x %s", checkName, h.Sum64(), extraID)
-	} else {
-		id = fmt.Sprintf("%s:%x", checkName, h.Sum64())
+		return ID(fmt.Sprintf("%s:%s:%x", checkName, extraID, h.Sum64()))
 	}
 
-	return ID(id)
+	return ID(fmt.Sprintf("%s:%x", checkName, h.Sum64()))
 }
 
 // IDToCheckName returns the check name from a check ID

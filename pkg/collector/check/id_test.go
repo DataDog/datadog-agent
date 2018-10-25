@@ -34,11 +34,11 @@ func TestIdentify(t *testing.T) {
 	initConfig1 := integration.Data("key:value")
 	instance2 := instance1
 	initConfig2 := initConfig1
-	assert.Equal(t, Identify(testCheck, instance1, initConfig1), Identify(testCheck, instance2, initConfig2))
+	assert.Equal(t, Identify(testCheck, instance1, initConfig1, ""), Identify(testCheck, instance2, initConfig2, ""))
 
 	instance3 := integration.Data("key1:value1\nkey2:value3")
 	initConfig3 := integration.Data("key:value")
-	assert.NotEqual(t, Identify(testCheck, instance1, initConfig1), Identify(testCheck, instance3, initConfig3))
+	assert.NotEqual(t, Identify(testCheck, instance1, initConfig1, ""), Identify(testCheck, instance3, initConfig3, ""))
 }
 
 func TestIDToCheckName(t *testing.T) {
