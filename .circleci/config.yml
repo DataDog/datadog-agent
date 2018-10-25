@@ -173,7 +173,13 @@ jobs:
     - checkout
       # - restore_cache: *restore_source
       # - restore_cache: *restore_deps
+    - run:
+        name: setup virtual env
+        command: virtualenv /go/src/github.com/StackVista/stackstate-agent/venv
     - run: *enter_venv
+    - run:
+        name: setup python deps
+        command: source ./venv/bin/activate && pip install -r requirements.txt
     - run:
         name: Git configure email
         command: git config --global user.email "circleci@stackstate"
