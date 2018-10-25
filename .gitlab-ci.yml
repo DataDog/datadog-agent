@@ -15,8 +15,6 @@ unit_tests:
  - inv deps
  - inv -e agent.build --race --precompile-only
  - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
- tags:
- - sts-aws
 
 integration_tests:
  stage: tests
@@ -31,7 +29,6 @@ integration_tests:
  - inv  -e integration-tests --race --remote-docker
  tags:
  - sts-aws
-
 
 filename_linting:
   stage: tests
