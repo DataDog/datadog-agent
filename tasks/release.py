@@ -40,7 +40,7 @@ def update_changelog(ctx, new_version):
         print("Error: invalid version: {}".format(new_version_int))
         raise Exit(1)
 
-    # let's avoid loosing uncommitted change with 'git reset --hard'
+    # let's avoid losing uncommitted change with 'git reset --hard'
     try:
         ctx.run("git diff --exit-code HEAD", hide="both")
     except Failure as e:
@@ -59,7 +59,7 @@ def update_changelog(ctx, new_version):
 
     # removing releasenotes from bugfix on the old minor.
     previous_minor = "%s.%s" % (new_version_int[0], new_version_int[1] - 1)
-    ctx.run("git rm `git log {}.0...remotes/origin/{}.x --name-only \
+    ctx.run("git rm --ignore-unmatch `git log {}.0...remotes/origin/{}.x --name-only \
             | grep releasenotes/notes/`".format(previous_minor, previous_minor))
 
     # generate the new changelog
