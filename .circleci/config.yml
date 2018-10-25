@@ -87,6 +87,10 @@ jobs:
       - run:
           name: run unit tests
           command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
+      - run:
+          name: upload code coverage results
+          # Never fail on coverage upload
+          command: bash <(curl -s https://codecov.io/bash) -f profile.cov || true
 
   integration_tests:
     <<: *job_template
