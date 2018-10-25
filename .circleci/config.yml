@@ -49,6 +49,7 @@ jobs:
   dependencies:
     <<: *job_template
     steps:
+      - checkout
       # - restore_cache: *restore_source
       # - restore_cache: *restore_deps
       - run:
