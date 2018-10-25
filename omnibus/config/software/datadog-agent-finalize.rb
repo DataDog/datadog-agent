@@ -67,7 +67,7 @@ build do
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "/etc/stackstate-agent/checks.d"
-            mkdir "/var/log/datadog"
+            mkdir "/var/log/stackstate"
 
             # remove unused configs
             delete "/etc/stackstate-agent/conf.d/apm.yaml.default"
