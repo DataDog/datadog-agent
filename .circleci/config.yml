@@ -172,6 +172,7 @@ jobs:
     steps:
     - restore_cache: *restore_source
     - restore_cache: *restore_deps
+    - run: *enter_venv
     - run:
         name: Git configure email
         command: git config --global user.email "circleci@stackstate"
