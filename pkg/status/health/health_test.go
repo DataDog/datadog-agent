@@ -87,11 +87,13 @@ func TestUnhealthyAndBack(t *testing.T) {
 	cat := newCatalog()
 	token := cat.register("test1")
 
+	// Start healthy
 	status := cat.getStatus()
 	assert.Len(t, status.Healthy, 2)
 	assert.Len(t, status.Unhealthy, 0)
 
-	for i := 1; i < 10; i++ {
+	// Fail de 2 grace tests
+	for i := 1; i < 2; i++ {
 		cat.pingComponents()
 	}
 
@@ -99,11 +101,18 @@ func TestUnhealthyAndBack(t *testing.T) {
 	assert.Len(t, status.Healthy, 1)
 	assert.Len(t, status.Unhealthy, 1)
 
-	for i := 1; i < 10; i++ {
-		cat.pingComponents()
-		<-token.C
-	}
+	// Start responding, returns to healthy
+	<-token.C
+	cat.pingComponents()
+	status = cat.getStatus()
+	assert.Len(t, status.Healthy, 2)
+	assert.Len(t, status.Unhealthy, 0)
 
+	// Make sure we keep staying healthy
+	for i := 1; i < 10; i++ {
+		<-token.C
+		cat.pingComponents()
+	}
 	status = cat.getStatus()
 	assert.Len(t, status.Healthy, 2)
 	assert.Len(t, status.Unhealthy, 0)
