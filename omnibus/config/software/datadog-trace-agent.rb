@@ -26,7 +26,7 @@ else
 end
 
 build do
-  ship_license "https://raw.githubusercontent.com/DataDog/stackstate-trace-agent/#{version}/LICENSE"
+  ship_license "https://raw.githubusercontent.com/StackVista/stackstate-trace-agent/#{version}/LICENSE"
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   if windows?

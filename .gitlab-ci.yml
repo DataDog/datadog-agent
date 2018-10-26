@@ -95,6 +95,9 @@ build_puppy:
 build_publish_deb:
   stage: build
   image: stackstate/stackstate-agent-runner-circle:latest
+  variables:
+    OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
+    INTEGRATIONS_CORE_VERSION: 6.5.x
   before_script:
   - whoami
   - apt-get install -y -q python-dev python3-dev
@@ -110,7 +113,7 @@ build_publish_deb:
   - git config --global user.name "CircleCI Stackstate"
   - apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
   - printenv
-  - inv -e agent.omnibus-build --base-dir ./omnibus --omnibus-s3-cache --skip-sign
+  - inv -e agent.omnibus-build --base-dir ${OMNIBUS_BASE_DIR} --omnibus-s3-cache --skip-sign
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
   - cp -r  /go/src/github.com/StackVista/stackstate-agent/omnibus/pkg $CI_PROJECT_DIR/outcomes
   - cp -r  /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
