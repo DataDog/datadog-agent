@@ -55,7 +55,7 @@ func (c *catalog) register(name string) *Handle {
 	component := &component{
 		name:       name,
 		healthChan: make(chan struct{}, bufferSize),
-		healthy:    true,
+		healthy:    false,
 	}
 	h := &Handle{
 		C: component.healthChan,

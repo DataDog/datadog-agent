@@ -37,7 +37,7 @@ func TestCatalogGetsUnhealthyAndBack(t *testing.T) {
 	assert.Contains(t, status.Healthy, "healthcheck")
 }
 
-func TestRegisterAndHealthy(t *testing.T) {
+func TestRegisterAndUnhealthy(t *testing.T) {
 	cat := newCatalog()
 	token := cat.register("test1")
 
@@ -45,9 +45,9 @@ func TestRegisterAndHealthy(t *testing.T) {
 	require.True(t, found)
 
 	status := cat.getStatus()
-	assert.Len(t, status.Healthy, 2)
-	assert.Len(t, status.Unhealthy, 0)
-	assert.Contains(t, status.Healthy, "test1")
+	assert.Len(t, status.Healthy, 1)
+	assert.Len(t, status.Unhealthy, 1)
+	assert.Contains(t, status.Unhealthy, "test1")
 }
 
 func TestRegisterTriplets(t *testing.T) {
@@ -83,25 +83,16 @@ func TestDeregisterBadToken(t *testing.T) {
 	assert.Contains(t, cat.components, token1)
 }
 
-func TestUnhealthyAndBack(t *testing.T) {
+func TestGetHealthy(t *testing.T) {
 	cat := newCatalog()
 	token := cat.register("test1")
 
-	// Start healthy
+	// Start unhealthy
 	status := cat.getStatus()
-	assert.Len(t, status.Healthy, 2)
-	assert.Len(t, status.Unhealthy, 0)
-
-	// Fail de 2 grace tests
-	for i := 1; i < 2; i++ {
-		cat.pingComponents()
-	}
-
-	status = cat.getStatus()
 	assert.Len(t, status.Healthy, 1)
 	assert.Len(t, status.Unhealthy, 1)
 
-	// Start responding, returns to healthy
+	// Start responding, become healthy
 	<-token.C
 	cat.pingComponents()
 	status = cat.getStatus()
