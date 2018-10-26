@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/api/healthport"
+	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -145,7 +145,7 @@ func StartAgent() error {
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthport.Serve(common.MainCtx, healthPort)
+		err := healthprobe.Serve(common.MainCtx, healthPort)
 		if err != nil {
 			return log.Errorf("Error starting health port, exiting: %v", err)
 		}

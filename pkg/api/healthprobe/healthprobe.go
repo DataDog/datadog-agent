@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package healthport
+package healthprobe
 
 import (
 	"context"
@@ -18,8 +18,6 @@ import (
 )
 
 const defaultTimeout = time.Second
-
-var server *http.Server
 
 // Serve configures and starts the http server for the health check.
 // It returns an error if the setup failed, or runs the server in a goroutine.
@@ -46,8 +44,13 @@ func Serve(ctx context.Context, port int) error {
 }
 
 func closeOnContext(ctx context.Context, srv *http.Server) {
+	// Wait for the context to be canceled
 	<-ctx.Done()
-	srv.Close() // srv will close the listener
+
+	// Shutdown the server, it will close the listener
+	timeout, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	srv.Shutdown(timeout)
 }
 
 type healthHandler struct{}
