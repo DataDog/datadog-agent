@@ -43,26 +43,52 @@ var (
 	tufConfig    string
 )
 
-type versionStruct struct {
+type integrationVersion struct {
 	major int
 	minor int
 	fix   int
 }
 
-func newVersion(version string) (versionStruct, error) {
+func parseVersion(version string) (*integrationVersion, error) {
 	var major, minor, fix int
 	if version == "" {
-		return versionStruct{}, nil
+		return nil, nil
 	}
 	_, err := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &fix)
 	if err != nil {
-		return versionStruct{}, fmt.Errorf("unable to parse version string %s: %v", version, err)
+		return nil, fmt.Errorf("unable to parse version string %s: %v", version, err)
 	}
-	return versionStruct{major, minor, fix}, nil
+	return &integrationVersion{major, minor, fix}, nil
 }
 
-func (v versionStruct) String() string {
+func (v *integrationVersion) String() string {
 	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.fix)
+}
+
+func (v *integrationVersion) isAbove(otherVersion *integrationVersion) bool {
+	if otherVersion == nil {
+		return true
+	}
+
+	if v.major > otherVersion.major {
+		return true
+	} else if v.major < otherVersion.major {
+		return false
+	}
+
+	if v.minor > otherVersion.minor {
+		return true
+	} else if v.minor < otherVersion.minor {
+		return false
+	}
+
+	if v.fix > otherVersion.fix {
+		return true
+	} else if v.fix < otherVersion.fix {
+		return false
+	}
+
+	return true
 }
 
 func init() {
@@ -297,21 +323,21 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
-	versionToInstall, err := newVersion(strings.TrimSpace(intVer[1]))
+	versionToInstall, err := parseVersion(strings.TrimSpace(intVer[1]))
 	if err != nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
-	minVersion, err := getMinVersion(integration)
+	minVersion, err := minAllowedVersion(integration)
 	if err != nil {
 		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
 	}
-	if ok := isAbove(versionToInstall, minVersion); !ok {
+	if !versionToInstall.isAbove(minVersion) {
 		return fmt.Errorf(
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
 			versionToInstall, integration, minVersion,
 		)
 	}
-	currentVersion, err := getCurrentVersion(integration, cachePath)
+	currentVersion, err := installedVersion(integration, cachePath)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
@@ -358,7 +384,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 
 	// We either detected a mismatch, or we failed to run pip check
 	// Either way, roll back the install and return the error
-	if (currentVersion == versionStruct{}) {
+	if currentVersion == nil {
 		// Special case where we tried to install a new integration, not yet released with the agent
 		tufArgs = []string{
 			"uninstall",
@@ -386,53 +412,24 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	)
 }
 
-func getMinVersion(integration string) (versionStruct, error) {
+func minAllowedVersion(integration string) (*integrationVersion, error) {
 	here, _ := executable.Folder()
 	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
 	if err != nil {
-		return versionStruct{}, err
+		return nil, err
 	}
 	version, err := getVersionFromReqLine(integration, string(lines))
 	if err != nil {
-		return versionStruct{}, err
+		return nil, err
 	}
 
 	return version, nil
 }
 
-func isAbove(version1 versionStruct, version2 versionStruct) bool {
-	if (version2 == versionStruct{}) {
-		return true
-	}
-	if (version1 == versionStruct{}) {
-		return false
-	}
-
-	if version1.major > version2.major {
-		return true
-	} else if version1.major < version2.major {
-		return false
-	}
-
-	if version1.minor > version2.minor {
-		return true
-	} else if version1.minor < version1.minor {
-		return false
-	}
-
-	if version1.fix > version2.fix {
-		return true
-	} else if version1.fix < version2.fix {
-		return false
-	}
-
-	return true
-}
-
-func getCurrentVersion(integration string, cachePath string) (versionStruct, error) {
+func installedVersion(integration string, cachePath string) (*integrationVersion, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
-		return versionStruct{}, err
+		return nil, err
 	}
 
 	freezeCmd := exec.Command(pythonPath, "-mpip", "freeze", "--cache-dir", cachePath)
@@ -446,31 +443,31 @@ func getCurrentVersion(integration string, cachePath string) (versionStruct, err
 			errMsg = err.Error()
 		}
 
-		return versionStruct{}, fmt.Errorf("error executing pip freeze: %s", errMsg)
+		return nil, fmt.Errorf("error executing pip freeze: %s", errMsg)
 	}
 
 	version, err := getVersionFromReqLine(integration, string(output))
 	if err != nil {
-		return versionStruct{}, err
+		return nil, err
 	}
 
 	return version, nil
 }
 
-func getVersionFromReqLine(integration string, lines string) (versionStruct, error) {
+func getVersionFromReqLine(integration string, lines string) (*integrationVersion, error) {
 	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {
-		return versionStruct{}, fmt.Errorf("internal error: %v", err)
+		return nil, fmt.Errorf("internal error: %v", err)
 	}
 
 	groups := exp.FindStringSubmatch(lines)
 	if groups == nil {
-		return versionStruct{}, nil
+		return nil, nil
 	}
 
-	version, err := newVersion(groups[1])
+	version, err := parseVersion(groups[1])
 	if err != nil {
-		return versionStruct{}, err
+		return nil, err
 	}
 	return version, nil
 }
