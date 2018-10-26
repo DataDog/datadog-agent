@@ -8,7 +8,7 @@
 package common
 
 import (
-	"net/http"
+	"context"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -36,8 +36,11 @@ var (
 	// Forwarder is the global forwarder instance
 	Forwarder forwarder.Forwarder
 
-	// Optional dedicated server for the health check
-	HealthServer *http.Server
+	// Main agent context passed to other components
+	MainCtx context.Context
+
+	// Cancel function for the main agent context
+	MainCtxCancel context.CancelFunc
 
 	// utility variables
 	_here, _ = executable.Folder()

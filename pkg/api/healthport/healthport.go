@@ -6,8 +6,10 @@
 package healthport
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -19,19 +21,30 @@ const defaultTimeout = time.Second
 
 var server *http.Server
 
-func NewHealthServer(port int) (*http.Server, error) {
+func Serve(ctx context.Context, port int) error {
 	if port == 0 {
-		return nil, errors.New("port should be non-zero")
+		return errors.New("port should be non-zero")
 	}
-	s := &http.Server{
-		Addr:              fmt.Sprintf("127.0.0.1:%d", port),
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%v", port))
+	if err != nil {
+		return err
+	}
+
+	srv := &http.Server{
 		Handler:           healthHandler{},
 		ReadTimeout:       defaultTimeout,
 		ReadHeaderTimeout: defaultTimeout,
 		WriteTimeout:      defaultTimeout,
 	}
 
-	return s, nil
+	go srv.Serve(ln)
+	go closeOnContext(ctx, srv)
+	return nil
+}
+
+func closeOnContext(ctx context.Context, srv *http.Server) {
+	<-ctx.Done()
+	srv.Close() // srv will close the listener
 }
 
 type healthHandler struct{}
