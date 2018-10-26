@@ -326,7 +326,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Printf("Installed %s %s", integration, versionToInstall)
-		return fmt.Errorf("Error while moving configuration files for %s: %v", integration, err)
+		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
 	}
 
 	// We either detected a mismatch, or we failed to run pip check
@@ -434,6 +434,7 @@ func moveConfigurationFiles(integration string) error {
 	if err != nil {
 		return fmt.Errorf("internal error: %v", err)
 	}
+	errorMsg := ""
 	for _, file := range files {
 		filename := file.Name()
 		// Replace existing file
@@ -442,15 +443,18 @@ func moveConfigurationFiles(integration string) error {
 		}
 		src := filepath.Join(confFileSrc, filename)
 		dst := filepath.Join(confFileDest, filename)
-		err := os.Rename(src, dst)
+		err = os.Rename(src, dst)
 		if err != nil {
-			return err
+			errorMsg = fmt.Sprintf("%s\nError moving %s configuration file %s: %v", errorMsg, integration, filename, err)
+			continue
 		}
 		fmt.Println(color.GreenString(fmt.Sprintf(
 			"Successfully replaced %s configuration file %s", integration, filename,
 		)))
 	}
-
+	if errorMsg != "" {
+		return fmt.Errorf(errorMsg)
+	}
 	return nil
 }
 
