@@ -94,7 +94,8 @@ func PrintConfig(w io.Writer, c integration.Config) {
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.RedString("Unknown provider")))
 	}
 	for _, inst := range c.Instances {
-		ID := string(check.BuildID(c.Name, inst, c.InitConfig, ""))
+		extraID := inst.GetExtraIDForInstance()
+		ID := string(check.BuildID(c.Name, inst, c.InitConfig, extraID))
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Instance ID"), color.CyanString(ID)))
 		fmt.Fprint(w, fmt.Sprintf("%s", inst))
 		fmt.Fprintln(w, "~")

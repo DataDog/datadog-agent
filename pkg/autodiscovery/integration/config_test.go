@@ -121,6 +121,15 @@ func TestDigest(t *testing.T) {
 	assert.Equal(t, "6253da85b1624771", simpleConfigWithLogs.Digest())
 }
 
+func TestGetExtraIDForInstance(t *testing.T) {
+	config := &Config{}
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("namespace: foobar")}
+	assert.Equal(t, config.Instances[0].GetExtraIDForInstance(), "foobar")
+}
+
 // this is here to prevent compiler optimization on the benchmarking code
 var result string
 

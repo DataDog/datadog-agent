@@ -200,20 +200,12 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 
 // Configure the Python check from YAML data
 func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	// See if an extra ID was specified
-	extraOptions := integration.ExtraInstanceConfig{}
-	err := yaml.Unmarshal(data, &extraOptions)
-	if err != nil {
-		log.Errorf("invalid instance section for check %s: %s", string(c.ID()), err)
-		return err
-	}
-
 	// Generate check ID
-	c.id = check.Identify(c, data, initConfig, extraOptions.ExtraID)
+	c.id = check.Identify(c, data, initConfig)
 
 	// Unmarshal instances config to a RawConfigMap
 	rawInstances := integration.RawMap{}
-	err = yaml.Unmarshal(data, &rawInstances)
+	err := yaml.Unmarshal(data, &rawInstances)
 	if err != nil {
 		log.Errorf("error in yaml %s", err)
 		return err

@@ -47,7 +47,7 @@ func TestCommonConfigure(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
 	mycheck.BuildID([]byte(customInstance), []byte(initConfig))
-	assert.Contains(t, mycheck.ID(), "foobar")
+	assert.Equal(t, string(mycheck.ID()), "test:foobar:f219a2f2db337d9")
 	mockSender.AssertExpectations(t)
 }
 

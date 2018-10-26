@@ -159,6 +159,16 @@ func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
 	return tplVarRegex.FindAll(c.Instances[i], -1)
 }
 
+// GetExtraIDForInstance returns the extra ID from an instance if specified
+func (c *Data) GetExtraIDForInstance() string {
+	extraOptions := ExtraInstanceConfig{}
+	err := yaml.Unmarshal(*c, &extraOptions)
+	if err != nil {
+		log.Errorf("invalid instance section: %s", err)
+	}
+	return extraOptions.ExtraID
+}
+
 // MergeAdditionalTags merges additional tags to possible existing config tags
 func (c *Data) MergeAdditionalTags(tags []string) error {
 	rawConfig := RawMap{}

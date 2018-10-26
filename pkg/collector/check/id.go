@@ -17,8 +17,8 @@ import (
 type ID string
 
 // Identify returns an unique ID for a check and its configuration
-func Identify(check Check, instance integration.Data, initConfig integration.Data, extraID string) ID {
-	return BuildID(check.String(), instance, initConfig, extraID)
+func Identify(check Check, instance integration.Data, initConfig integration.Data) ID {
+	return BuildID(check.String(), instance, initConfig, instance.GetExtraIDForInstance())
 }
 
 // BuildID returns an unique ID for a check name and its configuration

@@ -50,17 +50,9 @@ func NewCheckBase(name string) CheckBase {
 
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
-func (c *CheckBase) BuildID(instance, initConfig integration.Data) error {
-	// See if an extra ID was specified
-	extraOptions := integration.ExtraInstanceConfig{}
-	err := yaml.Unmarshal(instance, &extraOptions)
-	if err != nil {
-		log.Errorf("invalid instance section for check %s: %s", string(c.ID()), err)
-		return err
-	}
-
-	c.checkID = check.BuildID(c.checkName, instance, initConfig, extraOptions.ExtraID)
-	return nil
+func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
+	extraID := instance.GetExtraIDForInstance()
+	c.checkID = check.BuildID(c.checkName, instance, initConfig, extraID)
 }
 
 // Configure is provided for checks that require no config. If overridden,

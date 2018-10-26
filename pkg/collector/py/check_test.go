@@ -125,7 +125,7 @@ func TestInterval(t *testing.T) {
 func TestExtraID(t *testing.T) {
 	c, _ := getCheckInstance("testcheck", "TestCheck")
 	c.Configure([]byte("namespace: test"), []byte("foo: bar"))
-	assert.Contains(t, c.ID(), "test")
+	assert.Equal(t, string(c.ID()), "testcheck:test:d5c9af2b64a6eedd")
 }
 
 func TestInitKwargsCheck(t *testing.T) {
