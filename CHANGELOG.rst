@@ -14,7 +14,7 @@ Prelude
 
 Release on: 2018-08-09
 
-- Please refer to the `6.4.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.2>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.4.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-642>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.4.2 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.4.2>`_ for the list of changes on the Trace Agent.
 
@@ -52,7 +52,7 @@ Prelude
 
 Release on: Unreleased
 
-- Please refer to the `6.4.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.0>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.4.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-641>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.4.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.4.0>`_ for the list of changes on the Trace Agent.
 
@@ -97,7 +97,7 @@ Enhancement Notes
 
 - Adding DD_EXPVAR_PORT to the configuration environment variables.
 
-- On Windows, Specifically log to both the log file and the event viewer 
+- On Windows, Specifically log to both the log file and the event viewer
   what initiated an agent shutdown.  Also logs specific startup errors
   to both the log file and event viewer.
 
@@ -114,7 +114,7 @@ Enhancement Notes
   options. The standard ``HTTP_PROXY``, ``HTTPS_PROXY`` and ``NO_PROXY`` are still honored but have
   known side effects on integrations, for simplicity we recommended using the new environment variables.
   For more information, please refer to our `proxy docs`_
-  
+
   .. _proxy docs: https://docs.datadoghq.com/agent/proxy/
 
 - Update to distribution metrics algorithm with improved accuracy
@@ -127,7 +127,7 @@ Enhancement Notes
 
 - The Agent will log failed healthchecks on query and during exit
 
-- On Windows, provides installation parameter to set the `cmd_port`, 
+- On Windows, provides installation parameter to set the `cmd_port`,
   the port on which the agent command interface runs.  To be used if
   the default (5001) is already used by another program.
 
@@ -191,7 +191,7 @@ Bug Fixes
 
 - Fixes installation, packaging scripts for OpenSUSE LEAP and greater.
 
-- In the event of being unable to lock the `dd-agent` user (eg. `dd-agent` 
+- In the event of being unable to lock the `dd-agent` user (eg. `dd-agent`
   is an LDAP user) during installation, do not fail; print relevant warning.
 
 - The leader election process is now restarted if the leader stops leading.
@@ -228,7 +228,7 @@ Prelude
 
 Release on: 2018-07-17
 
-- Please refer to the `6.3.3 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.3>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-633>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.3.3 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.3>`_ for the list of changes on the Trace Agent.
 
@@ -271,7 +271,7 @@ Prelude
 
 Released on: 2018-07-05
 
-- Please refer to the `6.3.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.2>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-632>`_ for the list of changes on the Core Checks.
 
 
 Bug Fixes
@@ -297,7 +297,7 @@ Prelude
 -------
 Release on: 2018-06-27
 
-- Please refer to the `6.3.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.1>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-631>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.3.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.1>`_ for the list of changes on the Trace Agent.
 
@@ -313,12 +313,12 @@ Upgrade Notes
 Bug Fixes
 ---------
 
-- Fixes panic when the agent receives an unsupported pattern in a log processing rule 
+- Fixes panic when the agent receives an unsupported pattern in a log processing rule
 
 - Fixes problem in 6.3.0 in which agent wouldn't start on Windows
   Server 2008r2.
 
-- Provide the actual JMX check name as `check_name` in configurations 
+- Provide the actual JMX check name as `check_name` in configurations
   provided to JMXFetch via the agent API. This addresses a regression
   in 6.3.0 that broke the `instance:` tag.
   Due to the nature of the regression, and the fix, this will cause
