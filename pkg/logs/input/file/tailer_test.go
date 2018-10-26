@@ -91,7 +91,7 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.decodedOffset))
 }
 
 func (suite *TailerTestSuite) TestTailFromEnd() {
@@ -120,7 +120,7 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.decodedOffset))
 }
 
 func (suite *TailerTestSuite) TestRecoverTailing() {
@@ -151,7 +151,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Equal("good bye", string(msg.Content))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetDecodedOffset()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.decodedOffset))
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
