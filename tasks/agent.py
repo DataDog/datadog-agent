@@ -174,6 +174,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
+    shutil.copy("./cmd/agent/dist/network-tracer.yaml", os.path.join(dist_folder, "network-tracer.yaml"))
 
     for check in AGENT_CORECHECKS if not puppy else PUPPY_CORECHECKS:
         check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))

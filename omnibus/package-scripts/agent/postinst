@@ -63,10 +63,11 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
     # Make network tracer configs read-only
-    if [ -f "$CONFIG_DIR/network-tracer.yaml" ] || [ -f "$CONFIG_DIR/network-tracer.example.yaml" ]; then
+    chmod 0440 ${CONFIG_DIR}/network-tracer.yaml.example || true
+    if [ -f "$CONFIG_DIR/network-tracer.yaml" ]; then
       chmod 0440 ${CONFIG_DIR}/network-tracer.yaml || true
-      chmod 0440 ${CONFIG_DIR}/network-tracer.example.yaml || true
     fi
+
 
     # Enable and restart the agent service here on Debian platforms
     # On RHEL, this is done in the posttrans script

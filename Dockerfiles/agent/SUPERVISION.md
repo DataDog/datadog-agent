@@ -33,7 +33,7 @@ The supported way to pass envvars to the agent is to set container envvars.
 
 ## Services
 
-The image starts three services:
+The image starts four services:
 
 - `agent` is the main agent. The container will exit if it stops.
 - `trace-agent`, `process-agent`, and `network-tracer` are auxiliary services.

@@ -1,6 +1,5 @@
 description "Datadog Network Tracer"
 
-start on started datadog-agent
 stop on (runlevel [!2345] or stopping datadog-agent)
 
 respawn
