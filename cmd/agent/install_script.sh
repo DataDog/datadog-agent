@@ -50,6 +50,10 @@ if [ -n "$DD_HOSTNAME" ]; then
     dd_hostname=$DD_HOSTNAME
 fi
 
+if [ -n "$DD_SITE" ]; then
+    site="$DD_SITE"
+fi
+
 if [ -n "$DD_API_KEY" ]; then
     apikey=$DD_API_KEY
 fi
@@ -223,6 +227,10 @@ else
       printf "\033[31mThe Agent won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the agent manually.\n\033[0m\n"
       no_start=true
     fi
+  fi
+  if [ $site ]; then
+    printf "\033[34m\n* Setting SITE in the Agent configuration: $CONF\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $CONF"
   fi
   if [ -n "$DD_URL" ]; then
     $sudo_cmd sh -c "sed -i 's/# dd_url:.*/dd_url: $DD_URL/' $CONF"
