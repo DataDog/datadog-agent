@@ -331,14 +331,14 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		// Rollback successful, return error encountered during `pip check`
 		return fmt.Errorf(
 			"error when validating the agent's python environment, %s wasn't installed: %v",
-			integration, err,
+			integration, pipErr,
 		)
 	}
 
 	// Rollback failed, mention that the integration could be broken
 	return fmt.Errorf(
-		"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken: %v",
-		integration, versionToInstall, err,
+		"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken:\n - %v\n- %v",
+		integration, versionToInstall, pipErr, tufErr,
 	)
 }
 
