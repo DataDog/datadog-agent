@@ -157,19 +157,15 @@ func TestGetLeastBusyNode(t *testing.T) {
 func TestExpireNodes(t *testing.T) {
 	dispatcher := newDispatcher()
 
-	// Empty node list
-	assert.Equal(t, 0, len(dispatcher.store.nodes))
-	configs := dispatcher.expireNodes()
-	assert.Nil(t, configs)
-
 	// Node with no status (bug ?), handled by expiration
 	dispatcher.addConfig(generateIntegration("one"), "node1")
 	assert.Equal(t, 1, len(dispatcher.store.nodes))
-	configs = dispatcher.expireNodes()
-	assert.Equal(t, 1, len(configs))
+	dispatcher.expireNodes()
 	assert.Equal(t, 0, len(dispatcher.store.nodes))
+	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
 
 	// Nodes with valid statuses
+	dispatcher.store.clearDangling()
 	dispatcher.addConfig(generateIntegration("A"), "nodeA")
 	dispatcher.addConfig(generateIntegration("B1"), "nodeB")
 	dispatcher.addConfig(generateIntegration("B2"), "nodeB")
@@ -181,12 +177,10 @@ func TestExpireNodes(t *testing.T) {
 	dispatcher.store.nodes["nodeA"].lastPing = timestampNow() - 25
 	dispatcher.store.nodes["nodeB"].lastPing = timestampNow() - 35
 
-	configs = dispatcher.expireNodes()
-	assert.Equal(t, 2, len(configs))
+	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+	dispatcher.expireNodes()
 	assert.Equal(t, 1, len(dispatcher.store.nodes))
-
-	// Make sure the expired configs are nodeB's
-	assert.Equal(t, []string{"B1", "B2"}, extractCheckNames(configs))
+	assert.Equal(t, 2, len(dispatcher.store.danglingConfigs))
 
 	requireNotLocked(t, dispatcher.store)
 }

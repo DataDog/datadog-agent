@@ -87,9 +87,9 @@ func (d *dispatcher) cleanupLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-cleanupTicker.C:
-			// Expire old configs
-			orphanedConfigs := d.expireNodes()
-			d.Schedule(orphanedConfigs)
+			// Expire old nodes, orphaned configs are moved to dangling
+			d.expireNodes()
+
 			// Re-dispatch dangling configs
 			if d.shouldDispatchDanling() {
 				d.Schedule(d.retrieveAndClearDangling())

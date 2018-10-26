@@ -68,10 +68,9 @@ func (d *dispatcher) getLeastBusyNode() string {
 }
 
 // expireNodes iterates over nodes and removes the ones that have not
-// reported for more than the expiration duration. It returns configs
-// that were dispatched to these nodes, to re-dispatch them.
-func (d *dispatcher) expireNodes() []integration.Config {
-	var orphanedConfigs []integration.Config
+// reported for more than the expiration duration. The configurations
+// dispatched to these nodes will be moved to the danglingConfigs map.
+func (d *dispatcher) expireNodes() {
 	cutoffTimestamp := timestampNow() - d.nodeExpirationSeconds
 
 	d.store.Lock()
@@ -84,13 +83,11 @@ func (d *dispatcher) expireNodes() []integration.Config {
 				// Don't report on the dummy "" host for unscheduled configs
 				log.Infof("Expiring out node %s, last status report %d seconds ago", name, timestampNow()-node.lastPing)
 			}
-			for _, c := range node.digestToConfig {
-				orphanedConfigs = append(orphanedConfigs, c)
+			for digest, config := range node.digestToConfig {
+				d.store.danglingConfigs[digest] = config
 			}
 			delete(d.store.nodes, name)
 		}
 		node.RUnlock()
 	}
-
-	return orphanedConfigs
 }
