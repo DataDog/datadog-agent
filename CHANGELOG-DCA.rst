@@ -14,7 +14,7 @@ Prelude
 
 Released on: 2018-10-18
 
-The Datadog Cluster Agent is compatible with the Datadog Agent 6.5.0.
+The Datadog Cluster Agent is compatible with versions 6.5.1 and up of the Datadog Agent.
 
 - Please refer to the `6.5.0 tag on datadog-agent  <https://github.com/DataDog/datadog-agent/releases/tag/6.5.0>`_ for the list of changes on the Datadog Agent.
 
