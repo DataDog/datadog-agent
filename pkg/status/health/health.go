@@ -82,7 +82,6 @@ func (c *catalog) run() {
 		if empty {
 			break
 		}
-
 	}
 	pingTicker.Stop()
 }
