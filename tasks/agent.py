@@ -252,7 +252,8 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "project_name": "puppy" if puppy else "agent",
             "log_level": log_level,
             "overrides": overrides_cmd,
-            "populate_s3_cache": ""
+            "populate_s3_cache": "",
+            "build_exclude": "coreos"
         }
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
