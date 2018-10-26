@@ -36,10 +36,10 @@ var (
 	// Forwarder is the global forwarder instance
 	Forwarder forwarder.Forwarder
 
-	// Main agent context passed to other components
+	// MainCtx is the main agent context passed to components
 	MainCtx context.Context
 
-	// Cancel function for the main agent context
+	// MainCtxCancel cancels the main agent context
 	MainCtxCancel context.CancelFunc
 
 	// utility variables

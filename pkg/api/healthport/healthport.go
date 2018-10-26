@@ -21,6 +21,9 @@ const defaultTimeout = time.Second
 
 var server *http.Server
 
+// Serve configures and starts the http server for the health check.
+// It returns an error if the setup failed, or runs the server in a goroutine.
+// Stop the server by cancelling the passed context.
 func Serve(ctx context.Context, port int) error {
 	if port == 0 {
 		return errors.New("port should be non-zero")
