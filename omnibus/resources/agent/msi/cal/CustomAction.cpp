@@ -116,11 +116,7 @@ extern "C" UINT __stdcall CreateOrUpdateDDUser(MSIHANDLE hInstall)
     WcaLog(LOGMSG_STANDARD, "%d setting token file perms",er);
     er = addDdUserPermsToFile(confddir);
     WcaLog(LOGMSG_STANDARD, "%d setting confd dir perms",er);
-<<<<<<< HEAD
-
-=======
     MarkInstallStepComplete(strFilePermissionsChanged);
->>>>>>> db/dd-agent-user-65-omnibus
 // change the rights on this user
     hr = -1;
     sid = GetSidForUser(NULL, (LPCWSTR)ddAgentUserName.c_str());
@@ -207,12 +203,6 @@ extern "C" UINT __stdcall EnableServicesForDDUser(MSIHANDLE hInstall)
 
 
 LExit:
-    if (sid) {
-        delete[](BYTE *) sid;
-    }
-    if (hLsa) {
-        LsaClose(hLsa);
-    }
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
 
