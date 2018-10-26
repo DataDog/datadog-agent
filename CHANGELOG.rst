@@ -158,7 +158,7 @@ Prelude
 
 Release on: 2018-09-20
 
-- Please refer to the `6.5.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.2>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.5.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-652>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.5.2 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.5.2>`_ for the list of changes on the Trace Agent.
 
@@ -185,7 +185,7 @@ Prelude
 
 Release on: 2018-09-17
 
-- Please refer to the `6.5.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.1>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.5.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-651>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.5.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.5.1>`_ for the list of changes on the Trace Agent.
 
@@ -226,7 +226,7 @@ deadlock. The severity of the issue has led us to remove the packages for the
 affected platforms (**Linux** and **Docker**). If you have upgraded to this version,
 on **Linux or Docker** we recommend you downgrade to ``6.4.2``.
 
-- Please refer to the `6.5.0 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.0>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.5.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-650>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.5.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.5.0>`_ for the list of changes on the Trace Agent.
 
@@ -421,7 +421,7 @@ Prelude
 
 Release on: 2018-08-13
 
-- Please refer to the `6.4.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.2>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.4.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-642>`_ for the list of changes on the Core Checks.
 
 .. _Release Notes_6.4.2_Enhancement Notes:
 
@@ -454,7 +454,7 @@ Prelude
 
 Release on: 2018-08-01
 
-- Please refer to the `6.4.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.4.1>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.4.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-641>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.4.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.4.1>`_ for the list of changes on the Trace Agent.
 
@@ -630,7 +630,7 @@ Prelude
 
 Release on: 2018-07-17
 
-- Please refer to the `6.3.3 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.3>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-633>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.3.3 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.3>`_ for the list of changes on the Trace Agent.
 
@@ -673,7 +673,7 @@ Prelude
 
 Released on: 2018-07-05
 
-- Please refer to the `6.3.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.2>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-632>`_ for the list of changes on the Core Checks.
 
 
 Bug Fixes
@@ -699,7 +699,7 @@ Prelude
 -------
 Release on: 2018-06-27
 
-- Please refer to the `6.3.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.1>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-631>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.3.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.1>`_ for the list of changes on the Trace Agent.
 
