@@ -14,7 +14,7 @@ Prelude
 
 Release on: 2018-07-16
 
-- Please refer to the `6.3.3 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.3>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-633>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.3.3 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.3>`_ for the list of changes on the Trace Agent.
 
@@ -58,7 +58,7 @@ Prelude
 
 Released on: 2018-07-05
 
-- Please refer to the `6.3.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.2>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-632>`_ for the list of changes on the Core Checks.
 
 
 Bug Fixes
@@ -85,7 +85,7 @@ Prelude
 
 Release on: 2018-06-27
 
-- Please refer to the `6.3.1 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.3.1>`_ for the list of changes on the Core Checks.
+- Please refer to the `6.3.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-631>`_ for the list of changes on the Core Checks.
 
 - Please refer to the `6.3.1 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.3.1>`_ for the list of changes on the Trace Agent.
 
@@ -101,12 +101,12 @@ Upgrade Notes
 Bug Fixes
 ---------
 
-- Fixes panic when the agent receives an unsupported pattern in a log processing rule 
+- Fixes panic when the agent receives an unsupported pattern in a log processing rule
 
 - Fixes problem in 6.3.0 in which agent wouldn't start on Windows
   Server 2008r2.
 
-- Provide the actual JMX check name as `check_name` in configurations 
+- Provide the actual JMX check name as `check_name` in configurations
   provided to JMXFetch via the agent API. This addresses a regression
   in 6.3.0 that broke the `instance:` tag.
   Due to the nature of the regression, and the fix, this will cause
