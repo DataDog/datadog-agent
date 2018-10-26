@@ -76,7 +76,9 @@ function new_config() {
     i_cmd="-i ''"
     if [ $(sed --version 2>/dev/null | grep -c "GNU") -ne 0 ]; then i_cmd="-i"; fi
     $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"/opt/datadog-agent/etc/datadog.yaml\""
-    $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    if [ $site ]; then
+        $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    fi
     $sudo_cmd chown $real_user:admin "/opt/datadog-agent/etc/datadog.yaml"
     $sudo_cmd chmod 640 /opt/datadog-agent/etc/datadog.yaml
 }
