@@ -33,6 +33,19 @@ RUN apt-get update \
 
 COPY --from=builder /output /
 
+# Allow running as an unprivileged user:
+# - General case is the dd-agent user
+# - OpenShift uses a random UID in the root group
+RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+ && mkdir -p /var/log/datadog/ \
+ && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ \
+ && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /var/log/datadog/
+
+USER dd-agent
+
+# Leave following directories RW to allow use of readonly rootfs
+VOLUME ["/etc/datadog-agent", "/var/log/datadog", "/tmp"]
+
 ENTRYPOINT ["/entrypoint.sh"]
 
 # No docker healthcheck, use a HTTP check
