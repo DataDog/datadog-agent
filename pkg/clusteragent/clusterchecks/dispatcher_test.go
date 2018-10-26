@@ -53,15 +53,14 @@ func TestScheduleUnschedule(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, stored, 1)
 	assert.Contains(t, stored, config2)
-
-	node, found := dispatcher.store.digestToNode[config2.Digest()]
-	assert.True(t, found)
-	assert.Equal(t, "", node)
+	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
 
 	dispatcher.Unschedule([]integration.Config{config1, config2})
 	stored, err = dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Len(t, stored, 0)
+	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+
 	requireNotLocked(t, dispatcher.store)
 }
 
@@ -229,20 +228,30 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
-func TestDispatchToDummyNode(t *testing.T) {
+func TestDanglingConfig(t *testing.T) {
 	dispatcher := newDispatcher()
 	config := integration.Config{
 		Name:         "cluster-check",
 		ClusterCheck: true,
 	}
 
+	assert.False(t, dispatcher.shouldDispatchDanling())
+
 	// No node is available, config will be dispatched to the dummy "" node
 	dispatcher.Schedule([]integration.Config{config})
-	node, found := dispatcher.store.digestToNode[config.Digest()]
-	assert.True(t, found)
-	assert.Equal(t, "", node)
+	assert.Equal(t, 0, len(dispatcher.store.digestToNode))
+	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
 
-	// When expiring that dummy node, the config will be listed for re-dispatching
-	expired := dispatcher.expireNodes()
-	assert.Equal(t, []integration.Config{config}, expired)
+	// shouldDispatchDanling is still false because no node is available
+	assert.False(t, dispatcher.shouldDispatchDanling())
+
+	// register a node, shouldDispatchDanling will become true
+	dispatcher.processNodeStatus("nodeA", types.NodeStatus{})
+	assert.True(t, dispatcher.shouldDispatchDanling())
+
+	// get the danglings and make sure they are removed from the store
+	configs := dispatcher.retrieveAndClearDangling()
+	assert.Equal(t, []integration.Config{config}, configs)
+	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+
 }

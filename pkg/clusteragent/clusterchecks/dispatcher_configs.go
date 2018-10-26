@@ -27,6 +27,12 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	digest := config.Digest()
 	d.store.digestToConfig[digest] = config
 
+	// No target node specified: store in danglingConfigs
+	if targetNodeName == "" {
+		d.store.danglingConfigs[digest] = config
+		return
+	}
+
 	currentNode, foundCurrent := d.store.getNodeStore(d.store.digestToNode[digest])
 	targetNode := d.store.getOrCreateNodeStore(targetNodeName)
 
@@ -49,6 +55,7 @@ func (d *dispatcher) removeConfig(digest string) {
 	defer d.store.Unlock()
 
 	delete(d.store.digestToConfig, digest)
+	delete(d.store.danglingConfigs, digest)
 
 	// Remove from node configs if assigned
 	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
@@ -57,4 +64,28 @@ func (d *dispatcher) removeConfig(digest string) {
 		node.removeConfig(digest)
 		node.Unlock()
 	}
+}
+
+// shouldDispatchDanling returns true if there are dangling configs
+// and node registered, available for dispatching.
+func (d *dispatcher) shouldDispatchDanling() bool {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	if len(d.store.danglingConfigs) == 0 {
+		return false
+	}
+	if len(d.store.nodes) == 0 {
+		return false
+	}
+	return true
+}
+
+// retrieveAndClearDangling extracts dangling configs from the store
+func (d *dispatcher) retrieveAndClearDangling() []integration.Config {
+	d.store.Lock()
+	defer d.store.Unlock()
+	configs := makeConfigArray(d.store.danglingConfigs)
+	d.store.clearDangling()
+	return configs
 }

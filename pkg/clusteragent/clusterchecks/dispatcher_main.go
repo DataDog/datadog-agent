@@ -57,8 +57,7 @@ func (d *dispatcher) add(config integration.Config) {
 
 	target := d.getLeastBusyNode()
 	if target == "" {
-		// If no node is found, dispatch it to the dummy "" node.
-		// The node will be expired out, and configurations dispatched on a real node later.
+		// If no node is found, store it in the danglingConfigs map for retrying later.
 		log.Infof("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
 	} else {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
@@ -80,16 +79,21 @@ func (d *dispatcher) remove(config integration.Config) {
 // cleanupLoop is the cleanup goroutine for the dispatcher.
 // It has to be called in a goroutine with a cancellable context.
 func (d *dispatcher) cleanupLoop(ctx context.Context) {
-	expireTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
-	defer expireTicker.Stop()
+	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
+	defer cleanupTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-expireTicker.C:
+		case <-cleanupTicker.C:
+			// Expire old configs
 			orphanedConfigs := d.expireNodes()
 			d.Schedule(orphanedConfigs)
+			// Re-dispatch dangling configs
+			if d.shouldDispatchDanling() {
+				d.Schedule(d.retrieveAndClearDangling())
+			}
 		}
 	}
 }
