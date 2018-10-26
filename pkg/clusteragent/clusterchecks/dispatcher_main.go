@@ -88,8 +88,8 @@ func (d *dispatcher) cleanupLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-expireTicker.C:
-			expired := d.expireNodes()
-			d.Schedule(expired)
+			orphanedConfigs := d.expireNodes()
+			d.Schedule(orphanedConfigs)
 		}
 	}
 }
