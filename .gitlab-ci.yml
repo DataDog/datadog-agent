@@ -68,6 +68,16 @@ before_script:
   only:
     - triggers
 
+
+# anchor to trigger test kitchen setup, run, and cleanup (so all stages
+# are run if one stage is run).  Triggers as defined:
+# - master
+# - tags (a tagged build)
+# - triggers (as above, when triggered by an external tool like jenkins)
+# - web (when the build is triggered by a specific build request through the
+#        web interface.  This way, if a kitchen run is desired on a specific branch,
+#        it can be triggered by requesting a specific build)
+#
 .run_when_testkitchen_triggered: &run_when_testkitchen_triggered
   only:
     - master
