@@ -175,7 +175,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
     # Network tracer not supported on windows
-    if sys.platform != 'win32':
+    if sys.platform.startswith('linux'):
       shutil.copy("./cmd/agent/dist/network-tracer.yaml", os.path.join(dist_folder, "network-tracer.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
