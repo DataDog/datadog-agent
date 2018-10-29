@@ -13,6 +13,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
@@ -25,10 +26,27 @@ var runtimeOS = runtime.GOOS
 // MemoryCheck doesn't need additional fields
 type MemoryCheck struct {
 	core.CheckBase
+	cache_bytes *pdhutil.PdhCounterSet
+	committed_bytes *pdhutil.PdhCounterSet
+	paged_bytes *pdhutil.PdhCounterSet
+	non_paged_bytes *pdhutil.PdhCounterSet
 }
 
 const mbSize float64 = 1024 * 1024
 
+func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Data) (err error) {
+	c.cache_bytes, err = pdhutil.GetCounterSet("Memory", "Cache Bytes", nil, nil)
+	if err != nil {
+		c.committed_bytes, err = pdhutil.GetCounterSet("Memory", "Committed Bytes", nil, nil)
+		if err != nil {
+			c.paged_bytes, err = pdhutil.GetCounterSet("Memory", "Pool Paged Bytes", nil, nil)
+			if err != nil {
+				c.non_paged_bytes, err = pdhutil.GetCounterSet("Memory", "Pool Nonpaged Bytes", nil, nil)
+			}
+		}
+	}
+	return err
+}
 // Run executes the check
 func (c *MemoryCheck) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
@@ -36,6 +54,33 @@ func (c *MemoryCheck) Run() error {
 		return err
 	}
 
+	val, err := c.cache_bytes.GetSingleValue()
+	if err != nil {
+		sender.Gauge("system.mem.cached", float64(val)/mbSize, "", nil)
+	} else {
+		log.Warnf("Could not retrieve value for system.mem.cached")
+	}
+
+	val, err := c.committed_bytes.GetSingleValue()
+	if err != nil {
+		sender.Gauge("system.mem.committed", float64(val)/mbSize, "", nil)
+	} else {
+		log.Warnf("Could not retrieve value for system.mem.committed")
+	}
+
+	val, err := c.paged_bytes.GetSingleValue()
+	if err != nil {
+		sender.Gauge("system.mem.paged", float64(val)/mbSize, "", nil)
+	} else {
+		log.Warnf("Could not retrieve value for system.mem.paged")
+	}
+
+	val, err := c.non_paged_bytes.GetSingleValue()
+	if err != nil {
+		sender.Gauge("system.mem.nonpaged", float64(val)/mbSize, "", nil)
+	} else {
+		log.Warnf("Could not retrieve value for system.mem.nonpaged")
+	}
 	v, errVirt := virtualMemory()
 	if errVirt == nil {
 		sender.Gauge("system.mem.total", float64(v.Total)/mbSize, "", nil)
