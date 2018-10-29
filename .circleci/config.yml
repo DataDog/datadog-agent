@@ -168,26 +168,6 @@ jobs:
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
 
-  build_publish_image:
-    <<: *job_template
-    docker:
-      - image: docker:18.06.0
-    steps:
-    - restore_cache: *restore_artifacts
-    - setup_remote_docker:
-        docker_layer_caching: true
-    - run:
-        name: Copy deb file to docker context
-        command: cp .omnibus/pkg/datadog-agent*_amd64.deb Dockerfiles/agent
-    - run:
-        name: Build image
-        command: |
-          TAG=${CIRCLE_SHA1:0:7}
-          docker build -t stackstate/stackstate-agent:$TAG Dockerfiles/agent
-          docker login -u $DOCKER_USER -p $DOCKER_PASS
-          docker push stackstate/stackstate-agent:$TAG
-
-
 workflows:
   version: 2
   build_test_deploy:
@@ -220,10 +200,4 @@ workflows:
       - build_puppy:
           requires:
             - dependencies
-      - build_publish_deb
-        # requires:
-        #  - build_binaries
-      - build_publish_image:
-          requires:
-          - build_publish_deb
 
