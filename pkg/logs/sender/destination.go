@@ -8,8 +8,8 @@ package sender
 import (
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 )
 
 // FramingError represents a kind of error that can occur when a log can not properly

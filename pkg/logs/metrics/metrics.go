@@ -9,7 +9,7 @@ import (
 	"expvar"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/StackVista/stackstate-agent/pkg/logs/status"
 )
 
 var (

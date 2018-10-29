@@ -8,7 +8,7 @@
 package clusterchecks
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 )
 
 // getAllConfigs returns all configurations known to the store, for reporting

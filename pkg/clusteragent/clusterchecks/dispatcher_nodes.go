@@ -10,8 +10,8 @@ package clusterchecks
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 // getNodeConfigs returns configurations dispatched to a given node

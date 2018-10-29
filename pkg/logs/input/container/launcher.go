@@ -6,15 +6,15 @@
 package container
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/docker"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input/kubernetes"
+	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
+	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
+	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // NewLauncher returns a new container launcher,

@@ -10,7 +10,7 @@ package clusterchecks
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice

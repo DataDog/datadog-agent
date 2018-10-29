@@ -6,9 +6,9 @@
 package listener
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
+	"github.com/StackVista/stackstate-agent/pkg/logs/restart"
 )
 
 // Launcher summons different protocol specific listeners based on configuration

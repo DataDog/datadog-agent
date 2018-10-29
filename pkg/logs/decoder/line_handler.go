@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/parser"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/parser"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // TRUNCATED is the warning we add at the beginning or/and at the end of a truncated message

@@ -10,11 +10,11 @@ package kubernetes
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 )
 
 func TestGetSource(t *testing.T) {

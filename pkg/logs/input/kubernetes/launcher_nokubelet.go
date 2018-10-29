@@ -8,8 +8,8 @@
 package kubernetes
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 )
 
 // Launcher is not supported on no kubelet environment

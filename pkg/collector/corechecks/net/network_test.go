@@ -10,7 +10,7 @@ package net
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/net"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

@@ -8,7 +8,7 @@ package file
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
 )
 

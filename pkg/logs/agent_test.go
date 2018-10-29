@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/logs/sender"
+	"github.com/StackVista/stackstate-agent/pkg/logs/sender/mock"
+	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 )
 
 type AgentTestSuite struct {
