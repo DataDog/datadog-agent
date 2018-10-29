@@ -342,6 +342,11 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
 
+	if *versionToInstall == *currentVersion {
+		fmt.Printf("%s %s is already installed. Nothing to do.", integration, versionToInstall)
+		return nil
+	}
+
 	// Run pip check first to see if the python environment is clean
 	if err := pipCheck(cachePath); err != nil {
 		return fmt.Errorf(
