@@ -88,8 +88,27 @@ build_puppy:
   - ./bin/agent/agent -c ./bin/agent/dist check cpu
 
 
-build_publish_deb:
+build_deb_clear_cache:
+  stage: publish
+  cache:
+    policy: push
+    key: "agent-build_publish_deb"
+    paths:
+      - .omnibus
+      - vendor
+  when: manual
+  script:
+    - mkdir -p .omnibus
+    - rm -rf .omnibus/*
+    - rm -rf vendor
+
+build_deb:
   stage: build
+  cache:
+    key: "agent-build_publish_deb"
+    paths:
+      - .omnibus
+      - vendor
   image: stackstate/stackstate-agent-runner-circle:latest
   before_script:
   - mkdir -p /go/src/github.com/StackVista
@@ -98,21 +117,24 @@ build_publish_deb:
   - printenv
   - echo "======================================================"
   - export CODE_ROOT=/go/src/github.com/StackVista/stackstate-agent
-    export OMNIBUS_ROOT=/omnibus
+    # We move .omnibus out of the CI root because this seems to cause issues with git
+    # cloning in omnibus and operations on datadog-agent
+  - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
   - cd $CODE_ROOT
   - pip install -r requirements.txt
-  - inv deps
   - git config --global user.email "circleci@stackstate"
   - git config --global user.name "CircleCI Stackstate"
   - apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
     # Drop symlink because it will fail the build when coming from a cache
-  - rm -f $OMNIBUS_ROOT/src/datadog-agent/src/github.com/DataDog/datadog-agent/vendor/github.com/coreos/etcd/cmd/etcd || true
+  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
+  - rm -rf /omnibus/pkg
   - printenv
-  - inv -e agent.omnibus-build --base-dir $OMNIBUS_ROOT --skip-sign --release-version=6.5.2
+  - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=6.5.2
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
-  - cp -r  $OMNIBUS_ROOT/pkg $CI_PROJECT_DIR/outcomes
+  - cp -r  /omnibus/pkg $CI_PROJECT_DIR/outcomes
   - cp -r  /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
-  - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $OMNIBUS_ROOT/pkg/*.deb
+  - rm -rf /omnibus/pkg
+  - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
         - $CI_PROJECT_DIR/outcomes/pkg/*.deb
@@ -123,20 +145,29 @@ build_publish_deb:
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
     expire_in: 1 week
 
-build_publish_image:
+publish_deb:
+  stage: publish
+  dependencies:
+    - build_deb
+  script:
+    - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $OMNIBUS_ROOT/pkg/*.deb
+
+publish_image:
   stage: publish
   image: docker:18.06.0
+  dependencies:
+    - build_deb
   variables:
     DOCKER_DRIVER: overlay
   services:
-  - docker:dind
+    - docker:dind
   script:
-  - cp $CI_PROJECT_DIR/outcomes/pkg/*.deb Dockerfiles/agent
-  - TAG=${CI_COMMIT_SHA:0:7}
-  - docker build -t stackstate/stackstate-agent:$TAG -t stackstate/stackstate-agent:latest Dockerfiles/agent
-  - docker login -u $DOCKER_USER -p $DOCKER_PASS
-  - docker push stackstate/stackstate-agent:$TAG
-  - docker push stackstate/stackstate-agent:latest
+    - cp $CI_PROJECT_DIR/outcomes/pkg/*.deb Dockerfiles/agent
+    - TAG=${CI_COMMIT_SHA:0:7}
+    - docker build -t stackstate/stackstate-agent:$TAG -t stackstate/stackstate-agent:latest Dockerfiles/agent
+    - docker login -u $DOCKER_USER -p $DOCKER_PASS
+    - docker push stackstate/stackstate-agent:$TAG
+    - docker push stackstate/stackstate-agent:latest
 
 #docker_test:
 #  stage: docker_test
