@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
@@ -232,7 +233,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	runtimeConfig, err := json.Marshal(config.Datadog.AllSettings())
+	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		log.Errorf("Unable to marshal runtime config response: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
