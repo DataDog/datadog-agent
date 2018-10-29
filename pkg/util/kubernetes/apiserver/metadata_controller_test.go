@@ -429,7 +429,7 @@ func TestMetadataController(t *testing.T) {
 	go metaController.Run(stop)
 
 	for !metaController.endpointsListerSynced() && !metaController.nodeListerSynced() {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 	}
 
 	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
