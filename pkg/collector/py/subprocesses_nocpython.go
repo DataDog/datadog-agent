@@ -8,6 +8,6 @@
 package py
 
 // TerminateRunningProcesses stub when cpython is not compiled in
-func TerminateRunningProcesses() error {
-	return nil
+func TerminateRunningProcesses() {
+	return
 }

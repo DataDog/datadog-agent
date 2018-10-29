@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"sync"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
@@ -178,11 +177,8 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	for i := 1; i < length; i++ {
 		subprocessArgs[i-1] = C.GoString(cmdSlice[i])
 	}
-	cmd := exec.Command(subprocessCmd, subprocessArgs...)
-
-	cmdKey := fmt.Sprintf("%s-%v", cmd.Path, time.Now().UnixNano())
-	runningProcesses.Add(cmdKey, cmd)
-	defer runningProcesses.Remove(cmdKey)
+	ctx, _ := GetSubprocessContextCancel()
+	cmd := exec.CommandContext(ctx, subprocessCmd, subprocessArgs...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

@@ -160,10 +160,7 @@ func (r *Runner) Stop() {
 	wg := sync.WaitGroup{}
 
 	// stop all python subprocesses
-	err := py.TerminateRunningProcesses()
-	if err != nil {
-		log.Warnf("Problem termination python processes: %v", err)
-	}
+	py.TerminateRunningProcesses()
 
 	// stop running checks
 	for _, c := range r.runningChecks {

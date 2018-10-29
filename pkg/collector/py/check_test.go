@@ -9,6 +9,7 @@
 package py
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -89,12 +90,42 @@ func TestSubprocessRunConcurrent(t *testing.T) {
 		instances[i] = check
 	}
 
+	// do this a few times, and cancel
+	wg := sync.WaitGroup{}
 	for _, check := range instances {
+		wg.Add(1)
 		go func(c *PythonCheck) {
 			err := c.Run()
 			assert.Nil(t, err)
+			wg.Done()
 		}(check)
 	}
+
+	wg.Wait()
+}
+
+func TestSubprocessRunConcurrentCancel(t *testing.T) {
+	instances := make([]*PythonCheck, 30)
+	for i := range instances {
+		check, _ := getCheckInstance("testsubprocess", "TestSubprocessCheck")
+		instances[i] = check
+	}
+
+	// do this a few times, and cancel
+	wg := sync.WaitGroup{}
+	for _, check := range instances {
+		wg.Add(1)
+		go func(c *PythonCheck) {
+			err := c.Run()
+			assert.Nil(t, err)
+			wg.Done()
+		}(check)
+	}
+
+	time.Sleep(2 * time.Second)
+	TerminateRunningProcesses()
+
+	wg.Wait()
 }
 
 func TestWarning(t *testing.T) {
