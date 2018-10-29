@@ -14,7 +14,16 @@ import (
 
 func TestStatusToSeverity(t *testing.T) {
 	severityLevels := [][]byte{SevEmergency, SevAlert, SevCritical, SevError, SevWarning, SevNotice, SevInfo, SevDebug}
-	statusValues := []string{StatusEmergency, StatusAlert, StatusCritical, StatusError, StatusWarning, StatusNotice, StatusInfo, StatusDebug}
+	statusValues := []string{
+		StatusEmergency,
+		StatusAlert,
+		StatusCritical,
+		StatusError,
+		StatusWarning,
+		StatusNotice,
+		StatusInfo,
+		StatusDebug,
+	}
 
 	// ensure 1:1 mapping
 	for i, status := range statusValues {

@@ -34,7 +34,6 @@ spec:
   group: external.metrics.k8s.io
   groupPriorityMinimum: 100
   versionPriority: 100
-  priority: 100
   service:
     name: datadog-custom-metrics-server
     namespace: default

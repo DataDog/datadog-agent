@@ -5,7 +5,12 @@
 
 package service
 
+import (
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
+)
+
 // Service providers
 const (
-	Docker = "docker"
+	Docker     = containers.RuntimeNameDocker
+	Containerd = containers.RuntimeNameContainerd
 )

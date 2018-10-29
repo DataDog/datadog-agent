@@ -36,8 +36,8 @@ func TestRawEncoder(t *testing.T) {
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
-	msg.GetOrigin().LogSource = source
-	msg.GetOrigin().SetTags([]string{"a", "b:c"})
+	msg.Origin.LogSource = source
+	msg.Origin.SetTags([]string{"a", "b:c"})
 
 	redactedMessage := "redacted"
 
@@ -127,8 +127,8 @@ func TestProtoEncoder(t *testing.T) {
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
-	msg.GetOrigin().LogSource = source
-	msg.GetOrigin().SetTags([]string{"a", "b:c"})
+	msg.Origin.LogSource = source
+	msg.Origin.SetTags([]string{"a", "b:c"})
 
 	redactedMessage := "redacted"
 

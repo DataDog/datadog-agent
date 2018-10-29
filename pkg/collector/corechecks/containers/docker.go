@@ -343,13 +343,17 @@ func (d *DockerCheck) Run() error {
 
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig integration.Data) error {
+	err := d.CommonConfigure(config)
+	if err != nil {
+		return err
+	}
+
 	d.instance.Parse(config)
 
 	if len(d.instance.FilteredEventType) == 0 {
 		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start", "exec_die"}
 	}
 
-	var err error
 	// Use the same hostname as the agent so that host tags (like `availability-zone:us-east-1b`)
 	// are attached to Docker events from this host. The hostname from the docker api may be
 	// different than the agent hostname depending on the environment (like EC2 or GCE).

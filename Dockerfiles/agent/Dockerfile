@@ -31,6 +31,8 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
     opt/datadog-agent/embedded/lib/libcurl.so.4.4.0 \
     # ditto for this older libsystemd
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
+    # self-test certificates that are detected (false positive) as private keys
+    opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
@@ -56,7 +58,9 @@ ENV DOCKER_DD_AGENT=true \
     # Direct all agent logs to stdout
     S6_LOGGING=0 \
     # Exit container if entrypoint fails
-    S6_BEHAVIOUR_IF_STAGE2_FAILS=2
+    S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
+    # Allow readonlyrootfs
+    S6_READ_ONLY_ROOT=1
 
 # Install openjdk-8-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then apt-get update \
@@ -109,5 +113,8 @@ EXPOSE 8125/udp 8126/tcp
 
 HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
+
+# Leave following directories RW to allow use of kubernetes readonlyrootfs flag
+VOLUME ["/var/run/s6", "/etc/datadog-agent", "/var/log/datadog", "/tmp"]
 
 CMD ["/init"]

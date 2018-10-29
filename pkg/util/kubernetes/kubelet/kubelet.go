@@ -50,6 +50,7 @@ type KubeUtil struct {
 	rawConnectionInfo        map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration     time.Duration
 	filter                   *containers.Filter
+	waitOnMissingContainer   time.Duration
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -69,6 +70,11 @@ func newKubeUtil() *KubeUtil {
 		kubeletApiRequestHeaders: &http.Header{},
 		rawConnectionInfo:        make(map[string]string),
 		podListCacheDuration:     10 * time.Second,
+	}
+
+	waitOnMissingContainer := config.Datadog.GetDuration("kubelet_wait_on_missing_container")
+	if waitOnMissingContainer > 0 {
+		ku.waitOnMissingContainer = waitOnMissingContainer * time.Second
 	}
 
 	return ku
@@ -201,23 +207,57 @@ func (ku *KubeUtil) ForceGetLocalPodList() ([]*Pod, error) {
 // a given container on the node. Reset the cache if needed.
 // Returns a nil pointer if not found.
 func (ku *KubeUtil) GetPodForContainerID(containerID string) (*Pod, error) {
+	// Best case scenario
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
 		return nil, err
 	}
 	pod, err := ku.searchPodForContainerID(pods, containerID)
+	if err == nil {
+		return pod, nil
+	}
+
+	// Retry with cache invalidation
 	if err != nil && errors.IsNotFound(err) {
-		log.Debugf("Cannot get the containerID %q: %s, retrying without cache...", containerID, err)
+		log.Debugf("Cannot get container %q: %s, retrying without cache...", containerID, err)
 		pods, err = ku.ForceGetLocalPodList()
 		if err != nil {
 			return nil, err
 		}
 		pod, err = ku.searchPodForContainerID(pods, containerID)
-		if err != nil {
+		if err == nil {
+			return pod, nil
+		}
+	}
+
+	// On some kubelet versions, containers can take up to a second to
+	// register in the podlist, retry a few times before failing
+	if ku.waitOnMissingContainer == 0 {
+		log.Tracef("Still cannot get container %q, wait disabled", containerID)
+		return pod, err
+	}
+	timeout := time.NewTimer(ku.waitOnMissingContainer)
+	defer timeout.Stop()
+	retryTicker := time.NewTicker(250 * time.Millisecond)
+	defer retryTicker.Stop()
+	for {
+		log.Tracef("Still cannot get container %q: %s, retrying in 250ms", containerID, err)
+		select {
+		case <-retryTicker.C:
+			pods, err = ku.ForceGetLocalPodList()
+			if err != nil {
+				continue
+			}
+			pod, err = ku.searchPodForContainerID(pods, containerID)
+			if err != nil {
+				continue
+			}
+			return pod, nil
+		case <-timeout.C:
+			// Return the latest error on timeout
 			return nil, err
 		}
 	}
-	return pod, err
 }
 
 func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) (*Pod, error) {

@@ -69,7 +69,6 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		return nil, err
 	}
 	log.Debugf("Current registered leader is %q, building leader elector %q as candidate", currentLeader, le.HolderIdentity)
-
 	callbacks := ld.LeaderCallbacks{
 		OnNewLeader: func(identity string) {
 			le.leaderIdentityMutex.Lock()

@@ -28,7 +28,7 @@ Bug Fixes
 
 - Fix possible deadlocks that could occur when new docker sources
   and services are pushed and:
-  
+
   * The docker socket is closed at agent setup
   * The docker socket is not mounted
   * The kubernetes integration is enabled
@@ -124,7 +124,7 @@ Enhancement Notes
 - Tags generated from GCE metadata may now be omitted by using
   ``collect_gce_tags`` configuration option.
 
-- Introduction of a new bucketed scheduler to enable multiple 
+- Introduction of a new bucketed scheduler to enable multiple
   check workers to increase concurrency while spreading the load
   over the collection interval.
 
@@ -144,7 +144,7 @@ Enhancement Notes
 
 - Tags and sources in the tagger-list command are now sorted to ease troubleshooting.
 
-- To allow concurrent execution of subprocess calls from python, we now 
+- To allow concurrent execution of subprocess calls from python, we now
   save the thread state and release the GIL to unblock the interpreter . We
   can reaquire the GIL and restore the thread state when the subprocess call
   returns.
@@ -167,7 +167,7 @@ Upgrade Notes
   make better use of resources, in particular it will help prevent
   or reduce the side-effects of slow checks delaying the execution
   of all other checks.
-  
+
   The change will affect custom checks not enforcing thread safety as
   they may, depending on the schedule, access unsynchronized structures
   concurrently with the corresponding data race ensuing. If you wish to
@@ -175,9 +175,9 @@ Upgrade Notes
   option in your `datadog.yaml` config or via the `DD_CHECK_RUNNERS` to 1.
   Also, please feel free to reach out to us if you need more information
   or help with the new multiple runner/concurrency model.
-  
-  For more details please read the technical note in the `datadog.yaml`_. 
-  
+
+  For more details please read the technical note in the `datadog.yaml`_.
+
   .. _datadog.yaml: https://github.com/DataDog/datadog-agent/blob/master/pkg/config/config_template.yaml#L130-L140
 
 - Prometheus custom checks are now limited to 2000 metrics by default

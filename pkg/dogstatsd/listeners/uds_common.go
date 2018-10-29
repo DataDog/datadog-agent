@@ -51,6 +51,19 @@ func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListene
 	if addrErr != nil {
 		return nil, fmt.Errorf("dogstatsd-uds: can't ResolveUnixAddr: %v", addrErr)
 	}
+	fileInfo, err := os.Stat(socketPath)
+	// Socket file already exists
+	if err == nil {
+		// Make sure it's a UNIX socket
+		if fileInfo.Mode()&os.ModeSocket == 0 {
+			return nil, fmt.Errorf("dogstatsd-uds: cannot reuse %s socket path: path already exists and is not a UNIX socket", socketPath)
+		}
+		err = os.Remove(socketPath)
+		if err != nil {
+			return nil, fmt.Errorf("dogstatsd-usd: cannot remove stale UNIX socket: %v", err)
+		}
+	}
+
 	conn, err := net.ListenUnixgram("unixgram", address)
 	if err != nil {
 		return nil, fmt.Errorf("can't listen: %s", err)

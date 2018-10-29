@@ -62,6 +62,21 @@ instances:
       - path: forwarder/Transactions/RetryQueueSize
       - path: forwarder/Transactions/Success
         type: rate
+      - path: forwarder/Transactions/Errors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/DNSErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/TLSErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/ConnectionErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/WroteRequestErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/SentRequestErrors
+        type: rate
+      - path: forwarder/Transactions/HTTPErrors
+        type: rate
+
 
       # datadog-agent dogstatsd monitoring
       - path: dogstatsd-udp/PacketReadingErrors
@@ -128,4 +143,16 @@ instances:
       - path: splitter/TotalLoops
         type: rate
       - path: splitter/PayloadDrops
+        type: rate
+
+      # datadog-agent logs-agent monitoring
+      - path: logs-agent/IsRunning
+        type: gauge
+      - path: logs-agent/DestinationErrors
+        type: rate
+      - path: logs-agent/LogsDecoded
+        type: rate
+      - path: logs-agent/LogsProcessed
+        type: rate
+      - path: logs-agent/LogsSent
         type: rate

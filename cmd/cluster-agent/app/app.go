@@ -15,6 +15,7 @@ import (
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
@@ -31,7 +32,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/stackstate-agent/pkg/version"
-	"github.com/fatih/color"
 )
 
 var stopCh chan struct{}
@@ -62,14 +62,14 @@ metadata for their metrics.`,
 			if flagNoColor {
 				color.NoColor = true
 			}
-			av, _ := version.New(version.DCAVersion, version.Commit)
+			av, _ := version.New(version.AgentVersion, version.Commit)
 			meta := ""
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
 			}
 			fmt.Fprintln(
 				color.Output,
-				fmt.Sprintf("Agent %s %s- Commit: '%s' - Serialization version: %s",
+				fmt.Sprintf("Cluster agent %s %s- Commit: '%s' - Serialization version: %s",
 					color.BlueString(av.GetNumberAndPre()),
 					meta,
 					color.GreenString(version.Commit),
@@ -90,11 +90,11 @@ func init() {
 
 	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
-	custommetrics.AddFlags(startCmd.Flags())
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	// Global Agent configuration
+	// we'll search for a config file named `datadog-cluster.yaml`
+	config.Datadog.SetConfigName("datadog-cluster")
 	err := common.SetupConfig(confPath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
@@ -144,8 +144,8 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname)
-	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
+	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
@@ -189,16 +189,10 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// HPA Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		err = custommetrics.ValidateArgs(args)
+		// Start the k8s custom metrics server. This is a blocking call
+		err = custommetrics.StartServer()
 		if err != nil {
-			log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
-
-		} else {
-			// Start the k8s custom metrics server. This is a blocking call
-			err = custommetrics.StartServer()
-			if err != nil {
-				log.Errorf("Could not start the custom metrics API server: %s", err.Error())
-			}
+			log.Errorf("Could not start the custom metrics API server: %s", err.Error())
 		}
 	}
 

@@ -28,7 +28,7 @@ way you can configure the Agent changed too, please read [this document][config]
 where all the new options are detailed. The latest Agent won't have feature parity
 with the previous one at first, you can see the list of what's missing [here][missing-features].
 
-## Secrets Managemet
+## Secrets Management
 
 If you need to retrieve secrets at run-time, please read this [document][secrets].
 
@@ -40,7 +40,7 @@ Agent 6 is currently available on these platforms:
 
 | System | Supported version |
 |--------|-------------------|
-| Debian x86_64 | version 7 (wheezy) and above (we do not support SysVinit)|
+| Debian x86_64 | version 7 (wheezy) and above (SysVinit support in agent >=6.6.0)|
 | Ubuntu x86_64 | version 12.04 and above |
 | RedHat/CentOS x86_64 | version 6 and above |
 | SUSE Enterprise Linux x86_64 | version 11 SP4 and above (we do not support SysVinit)|

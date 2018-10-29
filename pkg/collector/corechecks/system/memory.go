@@ -6,18 +6,11 @@
 package system
 
 import (
-	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 )
 
 const memCheckName = "memory"
-
-// Configure the Python check from YAML data
-func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	// do nothing
-	return nil
-}
 
 func memFactory() check.Check {
 	return &MemoryCheck{

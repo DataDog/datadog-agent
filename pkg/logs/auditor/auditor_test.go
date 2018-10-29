@@ -12,9 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/StackVista/stackstate-agent/pkg/logs/config"
-	"github.com/StackVista/stackstate-agent/pkg/logs/message"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/StackVista/stackstate-agent/pkg/status/health"
+
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 )
 
 var testpath = "testpath"
@@ -25,28 +28,36 @@ type AuditorTestSuite struct {
 	testPath string
 	testFile *os.File
 
-	inputChan chan message.Message
-	a         *Auditor
-	source    *config.LogSource
+	a      *Auditor
+	source *config.LogSource
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
-	suite.testDir = "tests/"
-	os.Remove(suite.testDir)
-	os.MkdirAll(suite.testDir, os.ModeDir)
+	var err error
+
+	suite.testDir, err = ioutil.TempDir("", "tests")
+	suite.NoError(err)
+
 	suite.testPath = fmt.Sprintf("%s/auditor.json", suite.testDir)
 
-	_, err := os.Create(suite.testPath)
+	_, err = os.Create(suite.testPath)
 	suite.Nil(err)
 
-	suite.inputChan = make(chan message.Message)
-	suite.a = New(suite.inputChan, "")
+	suite.a = New("", health.Register("fake"))
 	suite.a.registryPath = suite.testPath
 	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
 func (suite *AuditorTestSuite) TearDownTest() {
 	os.Remove(suite.testDir)
+}
+
+func (suite *AuditorTestSuite) TestAuditorStartStop() {
+	assert.Nil(suite.T(), suite.a.Channel())
+	suite.a.Start()
+	assert.NotNil(suite.T(), suite.a.Channel())
+	suite.a.Stop()
+	assert.Nil(suite.T(), suite.a.Channel())
 }
 
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {

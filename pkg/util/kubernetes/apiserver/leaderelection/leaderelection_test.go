@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 )
@@ -50,14 +50,13 @@ func TestSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
-func TestStoppedLeading(t *testing.T) {
+// TestNewLeaseAcquiring only test the proper creation of the lock,
+// the acquisition of the leadership and that the ConfigMap contains is properly updated.
+// The leadership transition is tested as part of an end to end test.
+func TestNewLeaseAcquiring(t *testing.T) {
 	const leaseName = "datadog-leader-election"
 
 	client := fake.NewSimpleClientset()
-
-	lock := newFakeLockObject("default", leaseName, "foo")
-	_, err := client.CoreV1().ConfigMaps("default").Create(lock)
-	require.NoError(t, err)
 
 	le := &LeaderEngine{
 		HolderIdentity:  "foo",
@@ -67,31 +66,21 @@ func TestStoppedLeading(t *testing.T) {
 
 		coreClient: client.CoreV1(),
 	}
+	_, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
+	require.True(t, errors.IsNotFound(err))
 
 	le.leaderElector, err = le.newElection()
 	require.NoError(t, err)
 
-	le.EnsureLeaderElectionRuns()
+	newCm, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, newCm.Name, leaseName)
+	require.Nil(t, newCm.Annotations)
 
+	le.EnsureLeaderElectionRuns()
+	Cm, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Contains(t, Cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
 	require.True(t, le.IsLeader())
 
-	lock = newFakeLockObject("default", leaseName, "bar")
-	_, err = client.CoreV1().ConfigMaps("default").Update(lock)
-	require.NoError(t, err)
-
-	// poll until election is lost
-	err = wait.Poll(1*time.Second, 10*time.Second, func() (done bool, err error) {
-		return le.IsLeader() == false, nil
-	})
-	require.NoError(t, err, "Should not be leader")
-
-	lock = newFakeLockObject("default", leaseName, "foo")
-	_, err = client.CoreV1().ConfigMaps("default").Update(lock)
-	require.NoError(t, err)
-
-	// poll until leader again
-	err = wait.Poll(1*time.Second, 10*time.Second, func() (done bool, err error) {
-		return le.IsLeader(), nil
-	})
-	require.NoError(t, err, "Should be leader")
 }

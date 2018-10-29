@@ -6,13 +6,10 @@
 package processor
 
 import (
-	"time"
-
 	"regexp"
-
-	"unicode/utf8"
-
+	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
@@ -22,7 +19,7 @@ import (
 
 // Encoder turns a message into a raw byte array ready to be sent.
 type Encoder interface {
-	encode(msg message.Message, redactedMsg []byte) ([]byte, error)
+	encode(msg *message.Message, redactedMsg []byte) ([]byte, error)
 }
 
 // Raw is an encoder implementation that writes messages as raw strings.
@@ -43,11 +40,11 @@ var rfc5424Pattern, _ = regexp.Compile("<[0-9]{1,3}>[0-9] ")
 
 type raw struct{}
 
-func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
+func (r *raw) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 
 	// if the first char is '<', we can assume it's already formatted as RFC5424, thus skip this step
 	// (for instance, using tcp forwarding. We don't want to override the hostname & co)
-	if len(msg.Content()) > 0 && !r.isRFC5424Formatted(msg.Content()) {
+	if len(msg.Content) > 0 && !r.isRFC5424Formatted(msg.Content) {
 		// fit RFC5424
 		// <%pri%>%protocol-version% %timestamp:::date-rfc3339% %HOSTNAME% %$!new-appname% - - - %msg%\n
 		extraContent := []byte("")
@@ -67,7 +64,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, ' ')
 
 		// Service
-		service := msg.GetOrigin().Service()
+		service := msg.Origin.Service()
 		if service != "" {
 			extraContent = append(extraContent, []byte(service)...)
 		} else {
@@ -78,7 +75,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, []byte(" - - ")...)
 
 		// Tags
-		tagsPayload := msg.GetOrigin().TagsPayload()
+		tagsPayload := msg.Origin.TagsPayload()
 		if len(tagsPayload) > 0 {
 			extraContent = append(extraContent, tagsPayload...)
 		} else {
@@ -106,15 +103,15 @@ func (r *raw) isRFC5424Formatted(content []byte) bool {
 
 type proto struct{}
 
-func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
+func (p *proto) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 	return (&pb.Log{
 		Message:   p.toValidUtf8(redactedMsg),
 		Status:    msg.GetStatus(),
 		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
-		Service:   msg.GetOrigin().Service(),
-		Source:    msg.GetOrigin().Source(),
-		Tags:      msg.GetOrigin().Tags(),
+		Service:   msg.Origin.Service(),
+		Source:    msg.Origin.Source(),
+		Tags:      msg.Origin.Tags(),
 	}).Marshal()
 }
 

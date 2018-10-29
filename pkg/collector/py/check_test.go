@@ -83,7 +83,6 @@ func TestSubprocessRun(t *testing.T) {
 }
 
 func TestSubprocessRunConcurrent(t *testing.T) {
-
 	instances := make([]*PythonCheck, 30)
 	for i := range instances {
 		check, _ := getCheckInstance("testsubprocess", "TestSubprocessCheck")

@@ -49,6 +49,11 @@ func (m *MockSender) ServiceCheck(checkName string, status metrics.ServiceCheckS
 	m.Called(checkName, status, hostname, tags, message)
 }
 
+//DisableDefaultHostname enables the hostname mock call.
+func (m *MockSender) DisableDefaultHostname(d bool) {
+	m.Called(d)
+}
+
 //Event enables the event mock call.
 func (m *MockSender) Event(e metrics.Event) {
 	m.Called(e)

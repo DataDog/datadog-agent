@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/tagger"
@@ -20,7 +21,6 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/decoder"
-	parser "github.com/StackVista/stackstate-agent/pkg/logs/docker"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 
 	"github.com/docker/docker/api/types"
@@ -31,34 +31,36 @@ const defaultSleepDuration = 1 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
 
 // Tailer tails logs coming from stdout and stderr of a docker container
-// With docker api, there is no way to know if a log comes from strout or stderr
-// so if we want to capture the severity, we need to tail both in two goroutines
+// Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
+// To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
 type Tailer struct {
 	ContainerID   string
-	outputChan    chan message.Message
+	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
 	reader        io.ReadCloser
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
 
-	sleepDuration time.Duration
-	shouldStop    bool
-	stop          chan struct{}
-	done          chan struct{}
+	sleepDuration      time.Duration
+	shouldStop         bool
+	stop               chan struct{}
+	done               chan struct{}
+	erroredContainerID chan string
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *Tailer {
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
-		ContainerID:   containerID,
-		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source),
-		source:        source,
-		cli:           cli,
-		sleepDuration: defaultSleepDuration,
-		stop:          make(chan struct{}, 1),
-		done:          make(chan struct{}, 1),
+		ContainerID:        containerID,
+		outputChan:         outputChan,
+		decoder:            decoder.InitializeDecoder(source, dockerParser),
+		source:             source,
+		cli:                cli,
+		sleepDuration:      defaultSleepDuration,
+		stop:               make(chan struct{}, 1),
+		done:               make(chan struct{}, 1),
+		erroredContainerID: erroredContainerID,
 	}
 }
 
@@ -134,13 +136,21 @@ func (t *Tailer) readForever() {
 		default:
 			inBuf := make([]byte, 4096)
 			n, err := t.reader.Read(inBuf)
-			if err != nil {
-				// an error occurred, stop from reading new logs
-				if err != io.EOF {
+			if err != nil { // an error occurred, stop from reading new logs
+				switch {
+				case isClosedConnError(err):
+					// This error is raised when the agent is stopping
+					return
+				case err == io.EOF:
+					// This error is raised when the container is stopping
+					t.source.RemoveInput(t.ContainerID)
+					return
+				default:
 					t.source.Status.Error(err)
-					log.Error("Err: ", err)
+					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.ContainerID), err)
+					t.erroredContainerID <- t.ContainerID
+					return
 				}
-				return
 			}
 			if n == 0 {
 				// wait for new data to come
@@ -165,17 +175,13 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		dockerMsg, err := parser.ParseMessage(output.Content)
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
-		if len(dockerMsg.Content) > 0 {
+		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.source)
-			origin.Offset = dockerMsg.Timestamp
+			origin.Offset = output.Timestamp
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
-			t.outputChan <- message.New(dockerMsg.Content, origin, dockerMsg.Status)
+			output.Origin = origin
+			t.outputChan <- output
 		}
 	}
 }
@@ -205,4 +211,10 @@ func (t *Tailer) checkForNewDockerTags() {
 // wait lets the reader sleep for a bit
 func (t *Tailer) wait() {
 	time.Sleep(t.sleepDuration)
+}
+
+// isConnClosedError returns true if the error is related to a closed connection,
+// for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
+func isClosedConnError(err error) bool {
+	return strings.Contains(err.Error(), "use of closed network connection")
 }

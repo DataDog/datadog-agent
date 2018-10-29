@@ -19,7 +19,6 @@ const (
 
 var (
 	relPyPath            = pythonBin
-	relConstraintsPath   = filepath.Join("..", constraintsFile)
 	relTufConfigFilePath = filepath.Join("..", tufConfigFile)
 	tufPipCachePath      = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
 )

@@ -17,7 +17,7 @@ import (
 
 // Launcher is in charge of starting and stopping new journald tailers
 type Launcher struct {
-	sources          *config.LogSources
+	sources          chan *config.LogSource
 	pipelineProvider pipeline.Provider
 	registry         auditor.Registry
 	tailers          map[string]*Tailer
@@ -27,7 +27,7 @@ type Launcher struct {
 // New returns a new Launcher.
 func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
 	return &Launcher{
-		sources:          sources,
+		sources:          sources.GetAddedForType(config.JournaldType),
 		pipelineProvider: pipelineProvider,
 		registry:         registry,
 		tailers:          make(map[string]*Tailer),
@@ -44,7 +44,7 @@ func (l *Launcher) Start() {
 func (l *Launcher) run() {
 	for {
 		select {
-		case source := <-l.sources.GetSourceStreamForType(config.JournaldType):
+		case source := <-l.sources:
 			identifier := source.Config.Path
 			if _, exists := l.tailers[identifier]; exists {
 				// set up only one tailer per journal

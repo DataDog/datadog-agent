@@ -14,8 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
 )
 
@@ -46,7 +48,8 @@ type JSONRegistry struct {
 
 // An Auditor handles messages successfully submitted to the intake
 type Auditor struct {
-	inputChan    chan message.Message
+	health       *health.Handle
+	inputChan    chan *message.Message
 	registry     map[string]*RegistryEntry
 	registryPath string
 	mu           sync.Mutex
@@ -55,17 +58,18 @@ type Auditor struct {
 }
 
 // New returns an initialized Auditor
-func New(inputChan chan message.Message, runPath string) *Auditor {
+func New(runPath string, health *health.Handle) *Auditor {
 	return &Auditor{
-		inputChan:    inputChan,
+		health:       health,
 		registryPath: filepath.Join(runPath, "registry.json"),
 		entryTTL:     defaultTTL,
-		done:         make(chan struct{}),
 	}
 }
 
 // Start starts the Auditor
 func (a *Auditor) Start() {
+	a.inputChan = make(chan *message.Message, config.ChanSize)
+	a.done = make(chan struct{})
 	a.registry = a.recoverRegistry()
 	a.cleanupRegistry()
 	go a.run()
@@ -73,13 +77,27 @@ func (a *Auditor) Start() {
 
 // Stop stops the Auditor
 func (a *Auditor) Stop() {
-	close(a.inputChan)
-	<-a.done
+	if a.inputChan != nil {
+		close(a.inputChan)
+	}
+
+	if a.done != nil {
+		<-a.done
+		a.done = nil
+	}
+	a.inputChan = nil
+
 	a.cleanupRegistry()
 	err := a.flushRegistry()
 	if err != nil {
 		log.Warn(err)
 	}
+}
+
+// Channel returns the channel to use to communicate with the auditor or nil
+// if the auditor is currently stopped.
+func (a *Auditor) Channel() chan *message.Message {
+	return a.inputChan
 }
 
 // GetOffset returns the last committed offset for a given identifier,
@@ -107,13 +125,14 @@ func (a *Auditor) run() {
 	var fileError sync.Once
 	for {
 		select {
+		case <-a.health.C:
 		case msg, isOpen := <-a.inputChan:
 			if !isOpen {
 				// inputChan has been closed, no need to update the registry anymore
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.GetOrigin().Identifier, msg.GetOrigin().Offset)
+			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset)
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()

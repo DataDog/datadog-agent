@@ -23,6 +23,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/errors"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/hpa"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 )
@@ -69,7 +70,7 @@ func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorI
 		informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
 
-	autoscalerController.autoscalersListerSynced = alwaysReady
+	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
 	return autoscalerController, informerFactory
 }
@@ -93,6 +94,21 @@ func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datado
 	return nil, nil
 }
 
+var maxAge = time.Duration(30 * time.Second)
+
+func makePoints(ts, val int) datadog.DataPoint {
+	if ts == 0 {
+		ts = (int(metav1.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000 // use ms
+	}
+	tsPtr := float64(ts)
+	valPtr := float64(val)
+	return datadog.DataPoint{&tsPtr, &valPtr}
+}
+
+func makePtr(val string) *string {
+	return &val
+}
+
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestAutoscalerController(t *testing.T) {
 	name := custommetrics.GetConfigmapName()
@@ -102,9 +118,18 @@ func TestAutoscalerController(t *testing.T) {
 		{
 			Metric: &metricName,
 			Points: []datadog.DataPoint{
-				{1531492452, 12},
-				{1531492486, 14},
+				makePoints(1531492452000, 12),
+				makePoints(0, 14),
 			},
+			Scope: makePtr("foo:bar"),
+		},
+		{
+			Metric: &metricName,
+			Points: []datadog.DataPoint{
+				makePoints(1531492452000, 12),
+				makePoints(0, 11),
+			},
+			Scope: makePtr("dcos_version:2.1.9"),
 		},
 	}
 	d := &fakeDatadogClient{
@@ -147,7 +172,6 @@ func TestAutoscalerController(t *testing.T) {
 	storedHPA, err := hctrl.autoscalersLister.HorizontalPodAutoscalers(mockedHPA.Namespace).Get(mockedHPA.Name)
 	require.NoError(t, err)
 	require.Equal(t, storedHPA, mockedHPA)
-
 	select {
 	case <-ticker.C:
 		hctrl.toStore.m.Lock()
@@ -217,7 +241,7 @@ func TestAutoscalerController(t *testing.T) {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
 		require.NotZero(t, len(storedExternal))
-		require.Equal(t, storedExternal[0].Value, int64(14))
+		require.Equal(t, storedExternal[0].Value, int64(11))
 		require.Equal(t, storedExternal[0].Labels, map[string]string{"dcos_version": "2.1.9"})
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
@@ -286,6 +310,19 @@ func TestAutoscalerControllerGC(t *testing.T) {
 					Name:      "foo",
 					Namespace: "default",
 					UID:       "1111",
+				},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "requests_per_s",
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{"bar": "baz"},
+								},
+							},
+						},
+					},
 				},
 			},
 			expected: []custommetrics.ExternalMetricValue{ // skipped by gc

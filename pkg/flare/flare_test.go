@@ -21,8 +21,16 @@ func TestMkURL(t *testing.T) {
 	common.SetupConfig("./test")
 	config.Datadog.Set("dd_url", "https://example.com")
 	config.Datadog.Set("api_key", "123456")
-	assert.Equal(t, "https://example.com/support/flare/999?api_key=123456", mkURL("999"))
-	assert.Equal(t, "https://example.com/support/flare?api_key=123456", mkURL(""))
+	expectedURLBase, _ := config.AddAgentVersionToDomain("https://example.com/", "flare")
+	assert.Equal(t, expectedURLBase+"support/flare/999?api_key=123456", mkURL("999"))
+	assert.Equal(t, expectedURLBase+"support/flare?api_key=123456", mkURL(""))
+
+	config.Datadog.Set("site", "datadoghq.eu")
+	config.Datadog.Set("dd_url", "")
+	config.Datadog.Set("api_key", "123456")
+	expectedURLBase, _ = config.AddAgentVersionToDomain("https://app.datadoghq.eu/", "flare")
+	assert.Equal(t, expectedURLBase+"support/flare/999?api_key=123456", mkURL("999"))
+	assert.Equal(t, expectedURLBase+"support/flare?api_key=123456", mkURL(""))
 }
 
 func TestFlareHasRightForm(t *testing.T) {

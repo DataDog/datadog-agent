@@ -17,7 +17,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Start starts tailing the event log.

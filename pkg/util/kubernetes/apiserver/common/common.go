@@ -21,6 +21,11 @@ func GetResourcesNamespace() string {
 		return namespace
 	}
 	log.Debugf("No configured namespace for the resource, fetching from the current context")
+	return GetMyNamespace()
+}
+
+// GetMyNamespace returns the namespace our pod is running in
+func GetMyNamespace() string {
 	namespacePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 	val, e := ioutil.ReadFile(namespacePath)
 	if e == nil && val != nil {

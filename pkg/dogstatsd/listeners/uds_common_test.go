@@ -24,14 +24,23 @@ import (
 
 var packetPoolUDS = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 
-func TestNewUDSListener(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
+func testFileExistsNewUDSListener(t *testing.T, socketPath string) {
+	_, err := os.Create(socketPath)
 	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
-	socketPath := filepath.Join(dir, "dsd.socket")
+	defer os.Remove(socketPath)
+	_, err = NewUDSListener(nil, packetPoolUDS)
+	assert.Error(t, err)
+}
 
-	config.Datadog.Set("dogstatsd_socket", socketPath)
+func testSocketExistsNewUSDListener(t *testing.T, socketPath string) {
+	address, err := net.ResolveUnixAddr("unix", socketPath)
+	assert.Nil(t, err)
+	_, err = net.ListenUnix("unix", address)
+	assert.Nil(t, err)
+	testWorkingNewUDSListener(t, socketPath)
+}
 
+func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 	s, err := NewUDSListener(nil, packetPoolUDS)
 	defer s.Stop()
 
@@ -40,6 +49,24 @@ func TestNewUDSListener(t *testing.T) {
 	fi, err := os.Stat(socketPath)
 	require.Nil(t, err)
 	assert.Equal(t, "Srwx-w--w-", fi.Mode().String())
+}
+
+func TestNewUDSListener(t *testing.T) {
+	dir, err := ioutil.TempDir("", "dd-test-")
+	assert.Nil(t, err)
+	defer os.RemoveAll(dir) // clean up
+	socketPath := filepath.Join(dir, "dsd.socket")
+	config.Datadog.Set("dogstatsd_socket", socketPath)
+
+	t.Run("fail_file_exists", func(tt *testing.T) {
+		testFileExistsNewUDSListener(tt, socketPath)
+	})
+	t.Run("socket_exists", func(tt *testing.T) {
+		testSocketExistsNewUSDListener(tt, socketPath)
+	})
+	t.Run("working", func(tt *testing.T) {
+		testWorkingNewUDSListener(tt, socketPath)
+	})
 }
 
 func TestStartStopUDSListener(t *testing.T) {

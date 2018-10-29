@@ -45,6 +45,13 @@ type DCAClient struct {
 	ClusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
 	clusterAgentAPIClient         *http.Client
 	clusterAgentAPIRequestHeaders http.Header
+	leaderClient                  *leaderClient
+}
+
+// resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
+// It is ONLY to be used for tests
+func resetGlobalClusterAgentClient() {
+	globalClusterAgentClient = nil
 }
 
 // resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
@@ -91,6 +98,9 @@ func (c *DCAClient) init() error {
 	// TODO remove insecure
 	c.clusterAgentAPIClient = util.GetClient(false)
 	c.clusterAgentAPIClient.Timeout = 2 * time.Second
+
+	// Clone the http client in a new client with built-in redirect handler
+	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.ClusterAgentAPIEndpoint)
 
 	return nil
 }

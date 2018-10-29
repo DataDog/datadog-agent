@@ -49,7 +49,7 @@ func StartControllers(ctx ControllerContext) error {
 		}
 		err := cntrlFuncs.start(ctx)
 		if err != nil {
-			log.Errorf("Error starting %q", name)
+			log.Errorf("Error starting %q: %s", name, err.Error())
 		}
 	}
 

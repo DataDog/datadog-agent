@@ -1,6 +1,6 @@
 ac_exclude: []
 ac_include: []
-api_key: 
+api_key:
 apm_config:
   enabled: false
 app_key: ""
@@ -90,7 +90,7 @@ logs_config:
   dev_mode_use_proto: false
   open_files_limit: 100
   run_path: ""
-logs_enabled: true
+logs_enabled: false
 logset: ""
 metadata_collectors:
 - interval: 60

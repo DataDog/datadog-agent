@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	configsPollIntl       = 10 * time.Second
 	listenerCandidateIntl = 30 * time.Second
 	acErrors              *expvar.Map
 	errorStats            = newAcErrorStats()
@@ -104,6 +103,7 @@ func (ac *AutoConfig) StartConfigPolling() {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
+	configsPollIntl := config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
 	ac.configsPollTicker = time.NewTicker(configsPollIntl)
 	ac.pollConfigs()
 	ac.pollerActive = true
@@ -541,7 +541,6 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 // resolver at this moment.
 func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Config {
 	// use a map to dedupe configurations
-	// FIXME: the config digest as the key is currently not reliable
 	resolvedSet := map[string]integration.Config{}
 
 	// go through the AD identifiers provided by the template
@@ -556,7 +555,12 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 		}
 
 		for serviceID := range serviceIds {
-			resolvedConfig, err := ac.resolveTemplateForService(tpl, ac.store.getServiceForEntity(serviceID))
+			svc := ac.store.getServiceForEntity(serviceID)
+			if svc == nil {
+				log.Warnf("Service %s was removed before we could resolve its config", serviceID)
+				continue
+			}
+			resolvedConfig, err := ac.resolveTemplateForService(tpl, svc)
 			if err != nil {
 				continue
 			}

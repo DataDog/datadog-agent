@@ -99,6 +99,10 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 		}
 	}
 	clientConfig.Timeout = timeout
+
+	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
+		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
+	}
 	return kubernetes.NewForConfig(clientConfig)
 }
 
@@ -120,7 +124,6 @@ func (c *APIClient) connect() error {
 		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
-
 	// informer factory uses its own clientset with a larger timeout
 	c.InformerFactory, err = getInformerFactory()
 	if err != nil {
@@ -345,6 +348,15 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 		return nil, err
 	}
 	return node.Labels, nil
+}
+
+// GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
+func (c *APIClient) GetNodeForPod(namespace, pod_name string) (string, error) {
+	pod, err := c.Cl.CoreV1().Pods(namespace).Get(pod_name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return pod.Spec.NodeName, nil
 }
 
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.

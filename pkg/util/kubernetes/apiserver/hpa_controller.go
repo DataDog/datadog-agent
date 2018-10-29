@@ -30,6 +30,11 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
+const (
+	// maxRetries is the maximum number of times we try to process an autoscaler before it is dropped out of the queue.
+	maxRetries = 10
+)
+
 type PollerConfig struct {
 	gcPeriodSeconds int
 	refreshPeriod   int
@@ -69,7 +74,7 @@ type AutoscalersController struct {
 func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) (*AutoscalersController, error) {
 	var err error
 	h := &AutoscalersController{
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoscalers"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
 	}
 
 	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
@@ -173,7 +178,7 @@ func (h *AutoscalersController) pushToGlobalStore() error {
 	if !h.le.IsLeader() {
 		return nil
 	}
-	log.Tracef("Batch call pushing %d metrics", len(localStore))
+	log.Debugf("Batch call pushing %v metrics", len(localStore))
 	err := h.store.SetExternalMetricValues(localStore)
 	return err
 }
@@ -191,9 +196,9 @@ func (h *AutoscalersController) updateExternalMetrics() {
 	}
 
 	updated := h.hpaProc.UpdateExternalMetrics(emList)
-	if err = h.store.SetExternalMetricValues(updated); err != nil {
-		log.Errorf("Could not update the external metrics in the store: %s", err.Error())
-	}
+	h.toStore.m.Lock()
+	h.toStore.data = append(h.toStore.data, updated...)
+	h.toStore.m.Unlock()
 }
 
 // gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
@@ -229,21 +234,36 @@ func (h *AutoscalersController) worker() {
 func (h *AutoscalersController) processNext() bool {
 	key, quit := h.queue.Get()
 	if quit {
+		log.Infof("Autoscaler queue is shutting down, stopping processing")
 		return false
 	}
-
+	log.Tracef("Processing %s", key)
 	defer h.queue.Done(key)
 
 	err := h.syncAutoscalers(key)
-	if err != nil {
-		log.Errorf("Could not sync HPAs %s", err)
-	}
+	h.handleErr(err, key)
 
+	// Debug output for unit tests only
 	if h.autoscalers != nil {
 		h.autoscalers <- key
 	}
-
 	return true
+}
+
+func (h *AutoscalersController) handleErr(err error, key interface{}) {
+	if err == nil {
+		log.Tracef("Faithfully dropping key %v", key)
+		h.queue.Forget(key)
+		return
+	}
+
+	if h.queue.NumRequeues(key) < maxRetries {
+		log.Debugf("Error syncing the autoscaler %v, will rety for another %d times: %v", key, maxRetries-h.queue.NumRequeues(key), err)
+		h.queue.AddRateLimited(key)
+		return
+	}
+	log.Errorf("Too many errors trying to sync the autoscaler %v, dropping out of the queue: %v", key, err)
+	h.queue.Forget(key)
 }
 
 func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
@@ -257,7 +277,7 @@ func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
 	switch {
 	case errors.IsNotFound(err):
 		// The object was deleted before we processed the add/update handle. Local store does not have the HPA data anymore. The GC will clean up the Global Store.
-		log.Debugf("HorizontalPodAutoscaler %v has been deleted but was not caught in the EventHandler. GC will cleanup.", key)
+		log.Infof("HorizontalPodAutoscaler %v has been deleted but was not caught in the EventHandler. GC will cleanup.", key)
 	case err != nil:
 		log.Errorf("Unable to retrieve Horizontal Pod Autoscaler %v from store: %v", key, err)
 	default:
@@ -280,18 +300,21 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
 		return
 	}
+	log.Debugf("Adding autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
 	h.enqueue(newAutoscaler)
 }
 
 // the AutoscalersController does not benefit from a diffing logic.
 // Adding the new obj and dropping the previous one is sufficient.
+// FIXME if the metric name or scope is changed in the HPA manifest we should propagate the change
+// to the Global store here
 func (h *AutoscalersController) updateAutoscaler(_, obj interface{}) {
 	newAutoscaler, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if !ok {
 		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
 		return
 	}
-	log.Infof("Updating autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
+	log.Tracef("Updating autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
 	h.enqueue(newAutoscaler)
 }
 

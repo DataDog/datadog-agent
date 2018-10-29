@@ -32,7 +32,7 @@ type ScannerTestSuite struct {
 	testRotatedPath string
 	testRotatedFile *os.File
 
-	outputChan       chan message.Message
+	outputChan       chan *message.Message
 	pipelineProvider pipeline.Provider
 	source           *config.LogSource
 	openFilesLimit   int
@@ -76,7 +76,7 @@ func (suite *ScannerTestSuite) TestScannerStartsTailers() {
 	_, err := suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg := <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
+	suite.Equal("hello world", string(msg.Content))
 }
 
 func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
@@ -86,13 +86,13 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 	var tailer *Tailer
 	var newTailer *Tailer
 	var err error
-	var msg message.Message
+	var msg *message.Message
 
 	tailer = s.tailers[source.Config.Path]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
+	suite.Equal("hello world", string(msg.Content))
 
 	s.scan()
 	newTailer = s.tailers[source.Config.Path]
@@ -102,7 +102,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 	_, err = suite.testFile.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content()))
+	suite.Equal("hello again", string(msg.Content))
 }
 
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
@@ -112,12 +112,12 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	var tailer *Tailer
 	var newTailer *Tailer
 	var err error
-	var msg message.Message
+	var msg *message.Message
 
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
+	suite.Equal("hello world", string(msg.Content))
 
 	tailer = s.tailers[source.Config.Path]
 	os.Rename(suite.testPath, suite.testRotatedPath)
@@ -130,7 +130,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	_, err = f.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content()))
+	suite.Equal("hello again", string(msg.Content))
 }
 
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
@@ -140,13 +140,13 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	var tailer *Tailer
 	var newTailer *Tailer
 	var err error
-	var msg message.Message
+	var msg *message.Message
 
 	tailer = s.tailers[source.Config.Path]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
+	suite.Equal("hello world", string(msg.Content))
 
 	suite.testFile.Truncate(0)
 	suite.testFile.Seek(0, 0)
@@ -159,7 +159,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
-	suite.Equal("third", string(msg.Content()))
+	suite.Equal("third", string(msg.Content))
 }
 
 func (suite *ScannerTestSuite) TestScannerScanWithFileRemovedAndCreated() {
@@ -200,7 +200,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	var path string
 	var file *os.File
 	var tailer *Tailer
-	var msg message.Message
+	var msg *message.Message
 
 	testDir, err := ioutil.TempDir("", "log-scanner-test-")
 	assert.Nil(t, err)
@@ -228,9 +228,9 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	assert.Equal(t, 1, len(scanner.tailers))
 	tailer = scanner.tailers[path]
 	msg = <-tailer.outputChan
-	assert.Equal(t, "hello", string(msg.Content()))
+	assert.Equal(t, "hello", string(msg.Content))
 	msg = <-tailer.outputChan
-	assert.Equal(t, "world", string(msg.Content()))
+	assert.Equal(t, "world", string(msg.Content))
 }
 
 func TestScannerScanWithTooManyFiles(t *testing.T) {
