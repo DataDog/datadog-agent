@@ -1,6 +1,6 @@
 stages:
-- build
 - tests
+- build
 - publish
 
 unit_tests:
@@ -89,7 +89,7 @@ build_puppy:
 
 
 build_publish_deb:
-  stage: publish
+  stage: build
   image: stackstate/stackstate-agent-runner-circle:latest
   before_script:
   - mkdir -p /go/src/github.com/StackVista
