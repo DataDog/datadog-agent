@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package sender
+package client
 
 import (
 	"context"
@@ -14,10 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/net/proxy"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -28,13 +27,13 @@ const (
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	endpoint  config.Endpoint
+	endpoint  Endpoint
 	mutex     sync.Mutex
 	firstConn sync.Once
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(endpoint config.Endpoint) *ConnectionManager {
+func NewConnectionManager(endpoint Endpoint) *ConnectionManager {
 	return &ConnectionManager{
 		endpoint: endpoint,
 	}

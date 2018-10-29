@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-func TestSourceAreGroupedByIntegrations(t *testing.T) {
-	sources := config.NewLogSources()
+func consumeSources(sources *config.LogSources) {
 	go func() {
 		sources := sources.GetAddedForType("foo")
 		for range sources {
@@ -22,11 +23,21 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 			// the producer to get stuck.
 		}
 	}()
+}
+
+func createSources() *config.LogSources {
+	sources := config.NewLogSources()
+	consumeSources(sources)
 	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
 	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}))
 	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
-
 	Initialize(sources)
+	return sources
+}
+
+func TestSourceAreGroupedByIntegrations(t *testing.T) {
+	defer Clear()
+	createSources()
 
 	status := Get()
 	assert.Equal(t, true, status.IsRunning)
@@ -45,19 +56,8 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 }
 
 func TestStatusDeduplicateWarnings(t *testing.T) {
-	sources := config.NewLogSources()
-	go func() {
-		sources := sources.GetAddedForType("foo")
-		for range sources {
-			// ensure that another component is consuming the channel to prevent
-			// the producer to get stuck.
-		}
-	}()
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
-	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}))
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
-
-	Initialize(sources)
+	defer Clear()
+	sources := createSources()
 
 	logSources := sources.GetSources()
 	assert.Equal(t, 3, len(logSources))
@@ -69,4 +69,15 @@ func TestStatusDeduplicateWarnings(t *testing.T) {
 
 	status := Get()
 	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Messages)
+}
+
+func TestMetrics(t *testing.T) {
+	defer Clear()
+	Clear()
+	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
+
+	sources := createSources()
+	logSources := sources.GetSources()
+	logSources[0].Messages.AddWarning("bar", "Unique Warning")
+	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`)
 }

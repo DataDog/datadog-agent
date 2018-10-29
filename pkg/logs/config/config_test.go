@@ -6,8 +6,11 @@
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
 func TestDefaultDatadogConfig(t *testing.T) {
@@ -52,9 +55,9 @@ func TestDefaultSources(t *testing.T) {
 }
 
 func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
-	var endpoints *Endpoints
+	var endpoints *client.Endpoints
 	var err error
-	var endpoint Endpoint
+	var endpoint client.Endpoint
 
 	LogsAgent.Set("api_key", "azerty")
 	LogsAgent.Set("logset", "baz")

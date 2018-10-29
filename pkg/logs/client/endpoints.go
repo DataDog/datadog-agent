@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package config
+package client
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {

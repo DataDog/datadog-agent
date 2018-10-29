@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
 type ProviderTestSuite struct {
@@ -28,7 +28,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		numberOfPipelines: 3,
 		auditor:           suite.a,
 		pipelines:         []*Pipeline{},
-		endpoints:         config.NewEndpoints(config.Endpoint{}, nil),
+		endpoints:         client.NewEndpoints(client.Endpoint{}, nil),
 	}
 }
 

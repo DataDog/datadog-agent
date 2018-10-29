@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package sender
+package client
 
 import (
 	"net"
@@ -12,8 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 )
 
 func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {
@@ -22,7 +21,7 @@ func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {
 }
 
 func newConnectionManagerForHostPort(host string, port int) *ConnectionManager {
-	endpoint := config.Endpoint{Host: host, Port: port}
+	endpoint := Endpoint{Host: host, Port: port}
 	return NewConnectionManager(endpoint)
 }
 

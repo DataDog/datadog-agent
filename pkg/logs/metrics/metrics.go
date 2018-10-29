@@ -7,13 +7,11 @@ package metrics
 
 import (
 	"expvar"
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 var (
-	logsExpvars *expvar.Map
+	// LogsExpvars contains metrics for the logs agent.
+	LogsExpvars *expvar.Map
 	// LogsDecoded is the total number of decoded logs
 	LogsDecoded = expvar.Int{}
 	// LogsProcessed is the total number of processed logs.
@@ -26,15 +24,9 @@ var (
 )
 
 func init() {
-	logsExpvars = expvar.NewMap("logs-agent")
-	logsExpvars.Set("LogsDecoded", &LogsDecoded)
-	logsExpvars.Set("LogsProcessed", &LogsProcessed)
-	logsExpvars.Set("LogsSent", &LogsSent)
-	logsExpvars.Set("DestinationErrors", &DestinationErrors)
-	logsExpvars.Set("Warnings", expvar.Func(func() interface{} {
-		return strings.Join(status.Get().Messages, ", ")
-	}))
-	logsExpvars.Set("IsRunning", expvar.Func(func() interface{} {
-		return status.Get().IsRunning
-	}))
+	LogsExpvars = expvar.NewMap("logs-agent")
+	LogsExpvars.Set("LogsDecoded", &LogsDecoded)
+	LogsExpvars.Set("LogsProcessed", &LogsProcessed)
+	LogsExpvars.Set("LogsSent", &LogsSent)
+	LogsExpvars.Set("DestinationErrors", &DestinationErrors)
 }

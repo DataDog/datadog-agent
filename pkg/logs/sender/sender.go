@@ -8,6 +8,7 @@ package sender
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
@@ -16,12 +17,12 @@ import (
 type Sender struct {
 	inputChan    chan *message.Message
 	outputChan   chan *message.Message
-	destinations *Destinations
+	destinations *client.Destinations
 	done         chan struct{}
 }
 
 // NewSender returns an new sender.
-func NewSender(inputChan, outputChan chan *message.Message, destinations *Destinations) *Sender {
+func NewSender(inputChan, outputChan chan *message.Message, destinations *client.Destinations) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
@@ -57,7 +58,7 @@ func (s *Sender) run() {
 func (s *Sender) send(payload *message.Message) {
 	for {
 		// this call is blocking until payload is sent (or the connection destination context cancelled)
-		err := s.destinations.Main.Send(payload)
+		err := s.destinations.Main.Send(payload.Content)
 		if err != nil {
 			if err == context.Canceled {
 				metrics.DestinationErrors.Add(1)
@@ -66,7 +67,7 @@ func (s *Sender) send(payload *message.Message) {
 				break
 			}
 			switch err.(type) {
-			case *FramingError:
+			case *client.FramingError:
 				metrics.DestinationErrors.Add(1)
 				// the message can not be framed properly,
 				// drop the message
@@ -83,7 +84,7 @@ func (s *Sender) send(payload *message.Message) {
 			// FIXME: run all `Send` in parallel to avoid the effect on a slow
 			// destination on the others. Potentially add a buffer for secondary
 			// destinations.
-			destination.Send(payload)
+			destination.Send(payload.Content)
 		}
 
 		metrics.LogsSent.Add(1)

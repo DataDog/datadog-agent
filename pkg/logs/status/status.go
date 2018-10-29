@@ -6,9 +6,11 @@
 package status
 
 import (
+	"expvar"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 var (
@@ -136,4 +138,13 @@ func toDictionary(c *config.LogsConfig) map[string]interface{} {
 		}
 	}
 	return dictionary
+}
+
+func init() {
+	metrics.LogsExpvars.Set("Warnings", expvar.Func(func() interface{} {
+		return strings.Join(Get().Messages, ", ")
+	}))
+	metrics.LogsExpvars.Set("IsRunning", expvar.Func(func() interface{} {
+		return Get().IsRunning
+	}))
 }
