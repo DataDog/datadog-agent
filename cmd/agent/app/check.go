@@ -26,6 +26,7 @@ import (
 
 var (
 	checkRate  bool
+	checkTimes int
 	checkName  string
 	checkDelay int
 	logLevel   string
@@ -38,6 +39,7 @@ func init() {
 	AgentCmd.AddCommand(checkCmd)
 
 	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice")
+	checkCmd.Flags().IntVarP(&checkTimes, "check-times", "t", 1, "number of times to run the check")
 	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	checkCmd.SetArgs([]string{"checkName"})
@@ -146,7 +148,7 @@ var checkCmd = &cobra.Command{
 func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	s := check.NewStats(c)
 	i := 0
-	times := 1
+	times := checkTimes
 	if checkRate {
 		times = 2
 	}
