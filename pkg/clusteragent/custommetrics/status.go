@@ -19,7 +19,7 @@ import (
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
 	if !config.Datadog.GetBool("external_metrics_provider.enabled") {
-		status["Error"] = "The external metrics provider is not enabled on the cluster-agent"
+		status["Disabled"] = "The external metrics provider is not enabled on the cluster-agent"
 		return status
 	}
 	configMapName := GetConfigmapName()

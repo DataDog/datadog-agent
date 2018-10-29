@@ -3,6 +3,9 @@ Custom Metrics Server
   {{- if .custommetrics.Error }}
   Error: {{ .custommetrics.Error }}
   {{ else }}
+  {{- if .custommetrics.Disabled }}
+  Disabled: {{ .custommetrics.Disabled }}
+  {{ else }}
   ConfigMap name: {{ .custommetrics.Cmname }}
   {{ if .custommetrics.StoreError }}
   Error: {{ .custommetrics.StoreError }}
@@ -27,5 +30,6 @@ Custom Metrics Server
     {{- end }}
     {{ end }}
     {{- end }}
+  {{- end }}
   {{- end }}
   {{- end }}
