@@ -43,3 +43,6 @@
 /pkg/procmatch/                         @DataDog/burrito
 
 /pkg/quantile                           @DataDog/metrics-aggregation
+
+# To keep ProdSec up-to-date with changes to requirements.txt.
+requirements.txt                        @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
