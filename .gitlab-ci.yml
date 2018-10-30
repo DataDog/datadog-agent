@@ -1,8 +1,7 @@
 stages:
+- tests
 - build
 - publish
-- tests
-
 
 unit_tests:
  stage: tests
@@ -16,8 +15,6 @@ unit_tests:
  - inv deps
  - inv -e agent.build --race --precompile-only
  - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
- tags:
- - sts-aws
 
 integration_tests:
  stage: tests
@@ -32,7 +29,6 @@ integration_tests:
  - inv  -e integration-tests --race --remote-docker
  tags:
  - sts-aws
-
 
 filename_linting:
   stage: tests
@@ -95,29 +91,28 @@ build_puppy:
 build_publish_deb:
   stage: build
   image: stackstate/stackstate-agent-runner-circle:latest
-  variables:
-    OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
-    INTEGRATIONS_CORE_VERSION: 6.5.x
   before_script:
-  - whoami
-  - apt-get install -y -q python-dev python3-dev
   - mkdir -p /go/src/github.com/StackVista
   - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
   - printenv
   - echo "======================================================"
-  - cd /go/src/github.com/StackVista/stackstate-agent
+  - export CODE_ROOT=/go/src/github.com/StackVista/stackstate-agent
+    export OMNIBUS_ROOT=/omnibus
+  - cd $CODE_ROOT
   - pip install -r requirements.txt
   - inv deps
   - git config --global user.email "circleci@stackstate"
   - git config --global user.name "CircleCI Stackstate"
   - apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
+    # Drop symlink because it will fail the build when coming from a cache
+  - rm -f $OMNIBUS_ROOT/src/datadog-agent/src/github.com/DataDog/datadog-agent/vendor/github.com/coreos/etcd/cmd/etcd || true
   - printenv
-  - inv -e agent.omnibus-build --base-dir ${OMNIBUS_BASE_DIR} --omnibus-s3-cache --skip-sign
+  - inv -e agent.omnibus-build --base-dir $OMNIBUS_ROOT --skip-sign --release-version=6.5.2
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
-  - cp -r  /go/src/github.com/StackVista/stackstate-agent/omnibus/pkg $CI_PROJECT_DIR/outcomes
+  - cp -r  $OMNIBUS_ROOT/pkg $CI_PROJECT_DIR/outcomes
   - cp -r  /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
-  - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} omnibus/pkg/*.deb
+  - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $OMNIBUS_ROOT/pkg/*.deb
   artifacts:
     paths:
         - $CI_PROJECT_DIR/outcomes/pkg/*.deb
