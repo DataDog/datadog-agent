@@ -133,7 +133,10 @@ build_deb:
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
   - cp -r  /omnibus/pkg $CI_PROJECT_DIR/outcomes
   - cp -r  /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
+    # Drop packages for cache
   - rm -rf /omnibus/pkg
+    # Drop agent for cache (will be resynced anyway)
+  - rm -rf /omnibus/src/datadog-agent
   - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
@@ -147,6 +150,7 @@ build_deb:
 
 publish_deb:
   stage: publish
+  image: stackstate/stackstate-agent-runner-circle:latest
   dependencies:
     - build_deb
   script:
