@@ -50,4 +50,4 @@ requirements.txt                        @DataDog/prodsec @DataDog/agent-integrat
 
 # Also keep ProdSec up-to-date with changes to the
 # `datadog-agent integration` subcommand.
-/cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-co
+/cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
