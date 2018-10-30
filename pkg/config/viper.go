@@ -162,11 +162,8 @@ func (c *safeConfig) BindEnv(input ...string) error {
 		// FIXME: for the purposes of GetEnvVars implementation, we only track env var keys
 		// that are interpolated by viper from the config option key name
 		key := input[0]
-		if !strings.Contains(key, "_key") {
-			// `_key`-suffixed env vars are sensitive: don't track them
-			envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-			c.configEnvVars = append(c.configEnvVars, envVarName)
-		}
+		envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
+		c.configEnvVars = append(c.configEnvVars, envVarName)
 	}
 	return c.Viper.BindEnv(input...)
 }

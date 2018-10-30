@@ -37,11 +37,23 @@ func TestEnvvarWhitelisting(t *testing.T) {
 			},
 		},
 		{
+			name: "_key env var case",
+			in: map[string]string{
+				"DOCKER_HOST": "tcp://10.0.0.10:8888",
+				"DD_API_KEY":  "don't pickup",
+				"GOGC":        "120",
+			},
+			out: []string{
+				"GOGC=120",
+				"DOCKER_HOST=tcp://10.0.0.10:8888",
+			},
+		},
+		{
 			name: "process config options",
 			in: map[string]string{
 				"DOCKER_HOST":              "tcp://10.0.0.10:8888",
 				"DD_PROCESS_AGENT_ENABLED": "true",
-				"GOGC": "120",
+				"GOGC":                     "120",
 			},
 			out: []string{
 				"DOCKER_HOST=tcp://10.0.0.10:8888",
@@ -54,7 +66,7 @@ func TestEnvvarWhitelisting(t *testing.T) {
 			in: map[string]string{
 				"DOCKER_HOST":                 "tcp://10.0.0.10:8888",
 				"DD_HPA_WATCHER_POLLING_FREQ": "12",
-				"GOGC": "120",
+				"GOGC":                        "120",
 			},
 			out: []string{
 				"DOCKER_HOST=tcp://10.0.0.10:8888",
