@@ -28,7 +28,7 @@ It is only supported in containerized environments.
 
 Enhancement Notes
 ------------------
-- Expose telemetry metrics with the Open Metrics format instead of goexpvar
+- Expose telemetry metrics with the Open Metrics format instead of expvar
 
 Bug Fixes
 ---------
