@@ -65,7 +65,7 @@ func (v *integrationVersion) String() string {
 	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.fix)
 }
 
-func (v *integrationVersion) isAbove(otherVersion *integrationVersion) bool {
+func (v *integrationVersion) isAboveOrEqualTo(otherVersion *integrationVersion) bool {
 	if otherVersion == nil {
 		return true
 	}
@@ -331,7 +331,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
 	}
-	if !versionToInstall.isAbove(minVersion) {
+	if !versionToInstall.isAboveOrEqualTo(minVersion) {
 		return fmt.Errorf(
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
 			versionToInstall, integration, minVersion,
