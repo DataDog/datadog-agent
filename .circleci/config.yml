@@ -43,7 +43,8 @@ jobs:
     <<: *job_template
     steps:
       - run:
-        echo "Done"
+          name: done
+          command: echo "Done"
 
   checkout_code:
     <<: *job_template
