@@ -137,7 +137,7 @@ var checkCmd = &cobra.Command{
 			fmt.Println(string(checkStatus))
 		}
 
-		if checkRate == false {
+		if checkRate == false && checkTimes < 2 {
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 		}
 
@@ -150,6 +150,9 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	i := 0
 	times := checkTimes
 	if checkRate {
+		if checkTimes > 2 {
+			color.Yellow("The check-rate option is overriding check-times to 2")
+		}
 		times = 2
 	}
 	for i < times {
