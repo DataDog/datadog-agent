@@ -26,6 +26,7 @@ agentmsg.h
 
 # go-generated files
 datadog.yaml
+network-tracer.yaml
 dogstatsd.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 

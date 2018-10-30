@@ -641,6 +641,18 @@ api_key:
 #   dd_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   dd_agent_env:
+{{ end -}} 
+
+{{- if .NetworkTracer }}
+# Network tracer specific settings
+#
+# network_tracer_config:
+#   A boolean indicating the enabled state of the network tracer.
+#   enabled: true
+#   The full path to the location of the unix socket where network traces will be accessed
+#   nettracer_socket: /opt/datadog-agent/run/nettracer.sock
+#   The full path to the file where network-tracer logs will be written.
+#   log_file: /var/log/datadog/network-tracer.log
 {{ end -}}
 
 {{- if .TraceAgent }}

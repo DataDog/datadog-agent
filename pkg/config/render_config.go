@@ -32,6 +32,7 @@ type context struct {
 	ECS               bool
 	CRI               bool
 	ProcessAgent      bool
+	NetworkTracer     bool
 	KubeApiServer     bool
 	TraceAgent        bool
 }
@@ -59,6 +60,10 @@ func mkContext(buildType string) context {
 			TraceAgent:        true,
 			Kubelet:           true,
 			KubeApiServer:     true, // TODO: remove when phasing out from node-agent
+		}
+	case "network-tracer":
+		return context{
+			NetworkTracer: true,
 		}
 	case "dogstatsd":
 		return context{
