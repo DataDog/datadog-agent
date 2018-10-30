@@ -54,7 +54,7 @@ type CPUCheck struct {
 	nbCPU       float64
 	lastNbCycle float64
 	lastTimes   TimesStat
-	counter *pdhutil.PdhCounterSet
+	counter     *pdhutil.PdhCounterSet
 }
 
 // Total returns the total number of seconds in a CPUTimesStat
@@ -125,6 +125,9 @@ func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data)
 	c.nbCPU = cpucount
 
 	c.counter, err = pdhutil.GetCounterSet("Processor", "% Interrupt Time", "_Total", nil)
+	if err != nil {
+		return fmt.Errorf("system.CPUCheck could not establish interrupt time counter %v", err)
+	}
 	return nil
 }
 

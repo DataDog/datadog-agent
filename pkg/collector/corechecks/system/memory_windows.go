@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -26,27 +28,29 @@ var runtimeOS = runtime.GOOS
 // MemoryCheck doesn't need additional fields
 type MemoryCheck struct {
 	core.CheckBase
-	cache_bytes *pdhutil.PdhCounterSet
-	committed_bytes *pdhutil.PdhCounterSet
-	paged_bytes *pdhutil.PdhCounterSet
-	non_paged_bytes *pdhutil.PdhCounterSet
+	cacheBytes     *pdhutil.PdhCounterSet
+	committedBytes *pdhutil.PdhCounterSet
+	pagedBytes     *pdhutil.PdhCounterSet
+	nonpagedBytes  *pdhutil.PdhCounterSet
 }
 
 const mbSize float64 = 1024 * 1024
 
+// Configure handles initial configuration/initialization of the check
 func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Data) (err error) {
-	c.cache_bytes, err = pdhutil.GetCounterSet("Memory", "Cache Bytes", nil, nil)
-	if err != nil {
-		c.committed_bytes, err = pdhutil.GetCounterSet("Memory", "Committed Bytes", nil, nil)
-		if err != nil {
-			c.paged_bytes, err = pdhutil.GetCounterSet("Memory", "Pool Paged Bytes", nil, nil)
-			if err != nil {
-				c.non_paged_bytes, err = pdhutil.GetCounterSet("Memory", "Pool Nonpaged Bytes", nil, nil)
+	c.cacheBytes, err = pdhutil.GetCounterSet("Memory", "Cache Bytes", "", nil)
+	if err == nil {
+		c.committedBytes, err = pdhutil.GetCounterSet("Memory", "Committed Bytes", "", nil)
+		if err == nil {
+			c.pagedBytes, err = pdhutil.GetCounterSet("Memory", "Pool Paged Bytes", "", nil)
+			if err == nil {
+				c.nonpagedBytes, err = pdhutil.GetCounterSet("Memory", "Pool Nonpaged Bytes", "", nil)
 			}
 		}
 	}
 	return err
 }
+
 // Run executes the check
 func (c *MemoryCheck) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
@@ -54,32 +58,41 @@ func (c *MemoryCheck) Run() error {
 		return err
 	}
 
-	val, err := c.cache_bytes.GetSingleValue()
-	if err != nil {
-		sender.Gauge("system.mem.cached", float64(val)/mbSize, "", nil)
-	} else {
-		log.Warnf("Could not retrieve value for system.mem.cached")
+	var val float64
+	if c.cacheBytes != nil {
+		val, err = c.cacheBytes.GetSingleValue()
+		if err == nil {
+			sender.Gauge("system.mem.cached", float64(val)/mbSize, "", nil)
+		} else {
+			log.Warnf("Could not retrieve value for system.mem.cached")
+		}
 	}
 
-	val, err := c.committed_bytes.GetSingleValue()
-	if err != nil {
-		sender.Gauge("system.mem.committed", float64(val)/mbSize, "", nil)
-	} else {
-		log.Warnf("Could not retrieve value for system.mem.committed")
+	if c.committedBytes != nil {
+		val, err = c.committedBytes.GetSingleValue()
+		if err == nil {
+			sender.Gauge("system.mem.committed", float64(val)/mbSize, "", nil)
+		} else {
+			log.Warnf("Could not retrieve value for system.mem.committed")
+		}
 	}
 
-	val, err := c.paged_bytes.GetSingleValue()
-	if err != nil {
-		sender.Gauge("system.mem.paged", float64(val)/mbSize, "", nil)
-	} else {
-		log.Warnf("Could not retrieve value for system.mem.paged")
+	if c.pagedBytes != nil {
+		val, err = c.pagedBytes.GetSingleValue()
+		if err == nil {
+			sender.Gauge("system.mem.paged", float64(val)/mbSize, "", nil)
+		} else {
+			log.Warnf("Could not retrieve value for system.mem.paged")
+		}
 	}
 
-	val, err := c.non_paged_bytes.GetSingleValue()
-	if err != nil {
-		sender.Gauge("system.mem.nonpaged", float64(val)/mbSize, "", nil)
-	} else {
-		log.Warnf("Could not retrieve value for system.mem.nonpaged")
+	if c.nonpagedBytes != nil {
+		val, err = c.nonpagedBytes.GetSingleValue()
+		if err == nil {
+			sender.Gauge("system.mem.nonpaged", float64(val)/mbSize, "", nil)
+		} else {
+			log.Warnf("Could not retrieve value for system.mem.nonpaged")
+		}
 	}
 	v, errVirt := virtualMemory()
 	if errVirt == nil {
