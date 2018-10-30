@@ -39,6 +39,11 @@ templates:
           - v2-artifacts-{{ .Revision }}
 
 jobs:
+  build:
+    steps:
+      - run:
+        - echo "Done"
+
   checkout_code:
     <<: *job_template
     steps:
