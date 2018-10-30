@@ -158,6 +158,7 @@ publish_image:
   stage: publish
   image: docker:18.06.0
   dependencies:
+    - deps
     - build_deb
   variables:
     DOCKER_DRIVER: overlay
