@@ -116,16 +116,10 @@ build_deb:
       - .omnibus
       - vendor
   script:
-  - printenv
-  - echo "======================================================"
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
-    # Drop symlink because it will fail the build when coming from a cache
-  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
-  - rm -rf /omnibus/pkg
 
-  - printenv
   - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=6.5.2
 
     # Prepare outputs
@@ -138,6 +132,8 @@ build_deb:
   - rm -rf /omnibus/pkg
     # Drop agent for cache (will be resynced anyway)
   - rm -rf /omnibus/src/datadog-agent
+    # Drop symlink because it will fail the build when coming from a cache
+  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
   - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
