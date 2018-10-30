@@ -120,9 +120,6 @@ if windows?
   dependency 'pywin32'
 end
 
-# Datadog agent
-dependency 'datadog-agent'
-
 # Additional software
 dependency 'datadog-pip'
 dependency 'datadog-agent-integrations'
@@ -144,6 +141,11 @@ end
 
 # version manifest file
 dependency 'version-manifest'
+
+#STS: We move this dependency down, becuase it will invalidate all consecutive builds in
+# the omnibus cache
+# Datadog agent
+dependency 'datadog-agent'
 
 # this dependency puts few files out of the omnibus install dir and move them
 # in the final destination. This way such files will be listed in the packages

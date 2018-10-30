@@ -1,10 +1,9 @@
 stages:
-- tests
-- build
+- build_and_test
 - publish
 
 unit_tests:
- stage: tests
+ stage: build_and_test
  image: stackstate/stackstate-agent-runner-circle:latest
  before_script:
  - mkdir -p /go/src/github.com/StackVista
@@ -17,7 +16,7 @@ unit_tests:
  - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
 
 integration_tests:
- stage: tests
+ stage: build_and_test
  image: stackstate/stackstate-agent-runner-circle:latest
  before_script:
  - mkdir -p /go/src/github.com/StackVista
@@ -31,7 +30,7 @@ integration_tests:
  - sts-aws
 
 filename_linting:
-  stage: tests
+  stage: build_and_test
   image: stackstate/stackstate-agent-runner-circle:latest
   before_script:
   - mkdir -p /go/src/github.com/StackVista
@@ -43,7 +42,7 @@ filename_linting:
   - inv -e lint-filenames
 
 docker_integration_tests:
-  stage: tests
+  stage: build_and_test
   image: stackstate/stackstate-agent-runner-circle:latest
   variables:
       DOCKER_DRIVER: overlay
@@ -61,7 +60,7 @@ docker_integration_tests:
   - sts-aws
 
 build_binaries:
-  stage: build
+  stage: build_and_test
   image: stackstate/stackstate-agent-runner-circle:latest
   before_script:
   - mkdir -p /go/src/github.com/StackVista
@@ -75,7 +74,7 @@ build_binaries:
 
 
 build_puppy:
-  stage: build
+  stage: build_and_test
   image: stackstate/stackstate-agent-runner-circle:latest
   before_script:
   - mkdir -p /go/src/github.com/StackVista
@@ -89,7 +88,7 @@ build_puppy:
 
 
 build_deb_clear_cache:
-  stage: publish
+  stage: build_and_test
   cache:
     policy: push
     key: "agent-build_publish_deb"
@@ -103,7 +102,7 @@ build_deb_clear_cache:
     - rm -rf vendor
 
 build_deb:
-  stage: build
+  stage: build_and_test
   cache:
     key: "agent-build_publish_deb"
     paths:
