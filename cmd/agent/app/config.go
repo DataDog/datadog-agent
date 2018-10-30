@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -23,7 +22,6 @@ var (
 
 func init() {
 	AgentCmd.AddCommand(configCommand)
-	configCommand.Flags().BoolVarP(&configJSON, "json", "j", false, "print out raw json")
 }
 
 var configCommand = &cobra.Command{
@@ -48,27 +46,12 @@ var configCommand = &cobra.Command{
 			return err
 		}
 
-		if configJSON {
-			jsonData, err := json.MarshalIndent(runtimeConfig, "", "    ")
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(jsonData))
-		} else {
-			yamlData, err := yaml.Marshal(runtimeConfig)
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(yamlData))
-		}
-
+		fmt.Println(runtimeConfig)
 		return nil
 	},
 }
 
-func requestConfig() (map[string]interface{}, error) {
-	var runtimeConfig map[string]interface{}
-
+func requestConfig() (string, error) {
 	c := util.GetClient(false)
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", config.Datadog.GetInt("cmd_port"))
 
@@ -78,17 +61,11 @@ func requestConfig() (map[string]interface{}, error) {
 		json.Unmarshal(r, errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			return runtimeConfig, fmt.Errorf(e)
+			return "", fmt.Errorf(e)
 		}
 
-		return runtimeConfig, fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
+		return "", fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
 	}
 
-	var rawConfig interface{}
-	if err = json.Unmarshal(r, &rawConfig); err != nil {
-		return runtimeConfig, fmt.Errorf("Error unmarshalling json: %s", err)
-	}
-	runtimeConfig = rawConfig.(map[string]interface{})
-
-	return runtimeConfig, nil
+	return string(r), nil
 }
