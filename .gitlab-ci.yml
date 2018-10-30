@@ -46,6 +46,8 @@ unit_tests:
   dependencies:
     - deps
   script:
+    #We run another inv deps here to get the go dependencies
+    - inv deps
     - inv -e agent.build --race --precompile-only
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
 
