@@ -43,6 +43,7 @@ func TestMoveConfigurationsFiles(t *testing.T) {
 	filesNotMoved, _ := ioutil.ReadDir(srcFolder)
 	assert.Equal(t, 1, len(filesNotMoved))
 	assert.Equal(t, otherFile, filesNotMoved[0].Name())
+}
 
 func TestParseVersion(t *testing.T) {
 	version, err := parseVersion("1.2.3")
