@@ -153,7 +153,7 @@ publish_deb:
   dependencies:
     - build_deb
   script:
-    - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $OMNIBUS_ROOT/pkg/*.deb
+    - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $CI_PROJECT_DIR/outcomes/pkg/*.deb
 
 publish_image:
   stage: publish
