@@ -45,7 +45,7 @@
 /pkg/quantile                           @DataDog/metrics-aggregation
 
 # To keep ProdSec up-to-date with changes to requirements.txt,
-# so that datadog/pip can be kept up to date accordingly.
+# so that datadog/pip can be kept up-to-date accordingly.
 requirements.txt                        @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
 
 # Also keep ProdSec up-to-date with changes to the
