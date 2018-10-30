@@ -50,7 +50,6 @@ jobs:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
-      - restore_cache: *restore_deps
       - run:
           name: setup virtual env
           command: virtualenv /go/src/github.com/StackVista/stackstate-agent/venv
