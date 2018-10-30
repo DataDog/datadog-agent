@@ -37,6 +37,7 @@ LINUX_ONLY_TAGS = [
     "kubelet",
     "kubeapiserver",
     "cri",
+    "netcgo",
 ]
 
 REDHAT_AND_DEBIAN_ONLY_TAGS = [
