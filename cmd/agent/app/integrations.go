@@ -317,7 +317,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	// Run pip check to determine if the installed integration is compatible with the base check version
 	pipErr := pipCheck(cachePath)
 	if pipErr == nil {
-		err := moveConfigurationFiles(integration)
+		err := moveConfigurationFilesOf(integration)
 		if err == nil {
 			fmt.Println(color.GreenString(fmt.Sprintf(
 				"Successfully installed %s %s", integration, versionToInstall,
@@ -412,7 +412,7 @@ func pipCheck(cachePath string) error {
 	return fmt.Errorf("error executing pip check: %v", err)
 }
 
-func moveConfigurationFiles(integration string) error {
+func moveConfigurationFilesOf(integration string) error {
 	confFolder := config.Datadog.GetString("confd_path")
 	check := strings.TrimPrefix(integration, "datadog-")
 	if check != "go-metro" {
@@ -425,7 +425,11 @@ func moveConfigurationFiles(integration string) error {
 
 	here, _ := executable.Folder()
 	confFileSrc := filepath.Join(here, relChecksPath, check, "data")
-	files, err := ioutil.ReadDir(confFileSrc)
+	return moveConfigurationFiles(confFileSrc, confFileDest)
+}
+
+func moveConfigurationFiles(srcFolder string, dstFolder string) error {
+	files, err := ioutil.ReadDir(srcFolder)
 	if err != nil {
 		return err
 	}
@@ -441,15 +445,15 @@ func moveConfigurationFiles(integration string) error {
 		if !exp.MatchString(filename) {
 			continue
 		}
-		src := filepath.Join(confFileSrc, filename)
-		dst := filepath.Join(confFileDest, filename)
+		src := filepath.Join(srcFolder, filename)
+		dst := filepath.Join(dstFolder, filename)
 		err = os.Rename(src, dst)
 		if err != nil {
-			errorMsg = fmt.Sprintf("%s\nError moving %s configuration file %s: %v", errorMsg, integration, filename, err)
+			errorMsg = fmt.Sprintf("%s\nError moving configuration file %s: %v", errorMsg, filename, err)
 			continue
 		}
 		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully replaced %s configuration file %s", integration, filename,
+			"Successfully moved configuration file %s", filename,
 		)))
 	}
 	if errorMsg != "" {
