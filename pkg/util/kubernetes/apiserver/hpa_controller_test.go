@@ -109,6 +109,27 @@ func makePtr(val string) *string {
 	return &val
 }
 
+func makeAnnotations(metricName string, labels map[string]string) map[string]string {
+	return map[string]string{
+		"kubectl.kubernetes.io/last-applied-configuration": fmt.Sprintf(`
+			"kind":"HorizontalPodAutoscaler",
+			"spec":{
+				"metrics":[{
+					"external":{
+						"metricName":"%s",
+						"metricSelector":{
+							"matchLabels":{
+								%s
+							}
+						},
+					},
+					"type":"External"
+					}],
+				}
+			}"`, metricName, labels),
+	}
+}
+
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestAutoscalerController(t *testing.T) {
 	name := custommetrics.GetConfigmapName()
@@ -158,6 +179,7 @@ func TestAutoscalerController(t *testing.T) {
 		"foo",
 		map[string]string{"foo": "bar"},
 	)
+	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
 	_, err := c.HorizontalPodAutoscalers("default").Create(mockedHPA)
 	require.NoError(t, err)
@@ -211,6 +233,7 @@ func TestAutoscalerController(t *testing.T) {
 			},
 		},
 	}
+	mockedHPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
 	_, err = c.HorizontalPodAutoscalers(mockedHPA.Namespace).Update(mockedHPA)
 	require.NoError(t, err)
 	select {
@@ -262,9 +285,8 @@ func TestAutoscalerController(t *testing.T) {
 
 func TestAutoscalerSync(t *testing.T) {
 	client := fake.NewSimpleClientset()
-	i := &fakeLeaderElector{}
 	d := &fakeDatadogClient{}
-	hctrl, inf := newFakeAutoscalerController(client, i, d)
+	hctrl, inf := newFakeAutoscalerController(client, alwaysLeader, d)
 	obj := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
 		"default",

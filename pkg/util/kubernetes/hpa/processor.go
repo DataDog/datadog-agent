@@ -88,7 +88,7 @@ func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []cu
 	metrics, err := p.validateExternalMetric(emList)
 	if err != nil && len(metrics) == 0 {
 		log.Errorf("Could not validate external metrics: %v", err)
-		return nil
+		return invalidate(emList)
 	}
 	for _, em := range emList {
 		maxAge := int64(p.externalMaxAge.Seconds())
