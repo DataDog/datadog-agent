@@ -8,7 +8,8 @@ stages:
 before_script:
  - mkdir -p /go/src/github.com/StackVista
  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
- - source $CI_PROJECT_DIR/venv/bin/activate || virtualenv  $CI_PROJECT_DIR/venv
+   # Either we already have a venv, or we still need to make it (as part of get_deps.sh)
+ - source $CI_PROJECT_DIR/venv/bin/activate || source .gitlab-scripts/ensure_deps.sh
  - cd /go/src/github.com/StackVista/stackstate-agent
 
 dependencies_clear_cache:
