@@ -1,91 +1,97 @@
+image: stackstate/stackstate-agent-runner-circle:omnibus-cache
+
 stages:
+- prepare
 - build_and_test
 - publish
 
-unit_tests:
- stage: build_and_test
- image: stackstate/stackstate-agent-runner-circle:latest
- before_script:
+before_script:
  - mkdir -p /go/src/github.com/StackVista
  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
- script:
+ - source $CI_PROJECT_DIR/venv/bin/activate || virtualenv  $CI_PROJECT_DIR/venv
  - cd /go/src/github.com/StackVista/stackstate-agent
- - pip install -r requirements.txt
- - inv deps
- - inv -e agent.build --race --precompile-only
- - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
+
+dependencies_clear_cache:
+  stage: prepare
+  cache:
+    policy: push
+    key: "agent-deps"
+    paths:
+      - vendor
+      - venv
+  when: manual
+  script:
+    - rm -rf $CI_PROJECT_DIR/venv
+    - rm -rf $CI_PROJECT_DIR/vendor
+
+deps:
+  stage: prepare
+  cache:
+    key: "agent-deps"
+    paths:
+      - vendor
+      - venv
+  script:
+    - pip install -r requirements.txt
+    - inv deps
+  artifacts:
+    paths:
+        - $CI_PROJECT_DIR/vendor
+        - $CI_PROJECT_DIR/venv
+    expire_in: 1 week
+
+unit_tests:
+  stage: build_and_test
+  dependencies:
+    - deps
+  script:
+    - inv -e agent.build --race --precompile-only
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
 
 integration_tests:
- stage: build_and_test
- image: stackstate/stackstate-agent-runner-circle:latest
- before_script:
- - mkdir -p /go/src/github.com/StackVista
- - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
- script:
- - cd /go/src/github.com/StackVista/stackstate-agent
- - pip install -r requirements.txt
- - inv deps
- - inv  -e integration-tests --race --remote-docker
- tags:
- - sts-aws
+  stage: build_and_test
+  dependencies:
+    - deps
+  script:
+    - inv  -e integration-tests --race --remote-docker
+  tags:
+    - sts-aws
 
 filename_linting:
   stage: build_and_test
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+  dependencies:
+    - deps
   script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - inv -e lint-filenames
+    - inv -e lint-filenames
 
 docker_integration_tests:
   stage: build_and_test
-  image: stackstate/stackstate-agent-runner-circle:latest
+  dependencies:
+    - deps
   variables:
       DOCKER_DRIVER: overlay
   services:
     - docker:dind
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - inv -e docker.integration-tests
+    - inv -e docker.integration-tests
   tags:
-  - sts-aws
+    - sts-aws
 
 build_binaries:
   stage: build_and_test
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+  dependencies:
+    - deps
   script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - inv -e dogstatsd.build --static
-  - inv -e agent.build
-
+    - inv -e dogstatsd.build --static
+    - inv -e agent.build
 
 build_puppy:
   stage: build_and_test
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+  dependencies:
+    - deps
   script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - inv -e agent.build --puppy
-  - ./bin/agent/agent -c ./bin/agent/dist check cpu
-
+    - inv -e agent.build --puppy
+    - ./bin/agent/agent -c ./bin/agent/dist check cpu
 
 build_deb_clear_cache:
   stage: build_and_test
@@ -108,30 +114,25 @@ build_deb:
     paths:
       - .omnibus
       - vendor
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
   - printenv
   - echo "======================================================"
-  - export CODE_ROOT=/go/src/github.com/StackVista/stackstate-agent
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
-  - cd $CODE_ROOT
-  - pip install -r requirements.txt
-  - git config --global user.email "circleci@stackstate"
-  - git config --global user.name "CircleCI Stackstate"
-  - apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
     # Drop symlink because it will fail the build when coming from a cache
   - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
   - rm -rf /omnibus/pkg
+
   - printenv
   - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=6.5.2
+
+    # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
   - cp -r  /omnibus/pkg $CI_PROJECT_DIR/outcomes
   - cp -r  /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
+
+    # Prepare cache
     # Drop packages for cache
   - rm -rf /omnibus/pkg
     # Drop agent for cache (will be resynced anyway)
@@ -149,7 +150,6 @@ build_deb:
 
 publish_deb:
   stage: publish
-  image: stackstate/stackstate-agent-runner-circle:latest
   dependencies:
     - build_deb
   script:

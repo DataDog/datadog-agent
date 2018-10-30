@@ -1,5 +1,7 @@
 version: 2
-
+# STS: When merging upstream changes, make sure changes to this config.yml are also put
+# into the gitlab-ci.yml
+#
 # This file uses YAML anchors to deduplicate steps
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
@@ -167,36 +169,37 @@ jobs:
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
 
-workflows:
-  version: 2
-  build_test_deploy:
-    jobs:
-      - checkout_code
-      - dependencies:
-          requires:
-            - checkout_code
-      - unit_tests:
-          requires:
-            - dependencies
-      - integration_tests:
-          requires:
-            - dependencies
+# STS: We move away from circleCI and only work with gitlab for now. 
+# workflows:
+#  version: 2
+#  build_test_deploy:
+#    jobs:
+#      - checkout_code
+#      - dependencies:
+#         requires:
+#            - checkout_code
+#      - unit_tests:
+#          requires:
+#            - dependencies
+#     - integration_tests:
+#          requires:
+#            - dependencies
     #   - release_note:
     #       requires:
     #         - dependencies
     #   - team_label:
     #       requires:
     #         - dependencies
-      - filename_linting:
-          requires:
-            - dependencies
-      - docker_integration_tests:
-          requires:
-            - dependencies
-      - build_binaries:
-          requires:
-            - dependencies
-      - build_puppy:
-          requires:
-            - dependencies
+#      - filename_linting:
+#          requires:
+#            - dependencies
+#      - docker_integration_tests:
+#          requires:
+#            - dependencies
+#      - build_binaries:
+#          requires:
+#            - dependencies
+#      - build_puppy:
+#          requires:
+#            - dependencies
 
