@@ -10,6 +10,6 @@ package custommetrics
 // GetStatus returns the status info of the Custom Metrics Server.
 func GetStatus(apiCl interface{}) map[string]interface{} {
 	status := make(map[string]interface{})
-	status["Error"] = "The Custom Metrics Server is not enabled"
+	status["Disabled"] = "The external metrics provider is not compiled-in"
 	return status
 }
