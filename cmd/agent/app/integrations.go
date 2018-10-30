@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +30,7 @@ const (
 	tufPkgPattern          = "datadog-.*"
 	tufIndex               = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
 	pipFreezeOutputPattern = "%s==(\\d+\\.\\d+\\.\\d+)"
+	yamlFilePattern        = "[\\w_]+\\.yaml.*"
 )
 
 var (
@@ -306,10 +308,16 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	// Run pip check to determine if the installed integration is compatible with the base check version
 	pipErr := pipCheck(cachePath)
 	if pipErr == nil {
-		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully installed %s %s", integration, versionToInstall,
-		)))
-		return nil
+		err := moveConfigurationFilesOf(integration)
+		if err == nil {
+			fmt.Println(color.GreenString(fmt.Sprintf(
+				"Successfully installed %s %s", integration, versionToInstall,
+			)))
+			return nil
+		}
+
+		fmt.Printf("Installed %s %s", integration, versionToInstall)
+		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
 	}
 
 	// We either detected a mismatch, or we failed to run pip check
@@ -393,6 +401,56 @@ func pipCheck(cachePath string) error {
 	}
 
 	return fmt.Errorf("error executing pip check: %v", err)
+}
+
+func moveConfigurationFilesOf(integration string) error {
+	confFolder := config.Datadog.GetString("confd_path")
+	check := strings.TrimPrefix(integration, "datadog-")
+	if check != "go-metro" {
+		check = strings.Replace(check, "-", "_", -1)
+	}
+	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
+	if err := os.MkdirAll(confFileDest, os.ModeDir); err != nil {
+		return err
+	}
+
+	here, _ := executable.Folder()
+	confFileSrc := filepath.Join(here, relChecksPath, check, "data")
+	return moveConfigurationFiles(confFileSrc, confFileDest)
+}
+
+func moveConfigurationFiles(srcFolder string, dstFolder string) error {
+	files, err := ioutil.ReadDir(srcFolder)
+	if err != nil {
+		return err
+	}
+
+	exp, err := regexp.Compile(yamlFilePattern)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+	errorMsg := ""
+	for _, file := range files {
+		filename := file.Name()
+		// Replace existing file
+		if !exp.MatchString(filename) {
+			continue
+		}
+		src := filepath.Join(srcFolder, filename)
+		dst := filepath.Join(dstFolder, filename)
+		err = os.Rename(src, dst)
+		if err != nil {
+			errorMsg = fmt.Sprintf("%s\nError moving configuration file %s: %v", errorMsg, filename, err)
+			continue
+		}
+		fmt.Println(color.GreenString(fmt.Sprintf(
+			"Successfully moved configuration file %s", filename,
+		)))
+	}
+	if errorMsg != "" {
+		return fmt.Errorf(errorMsg)
+	}
+	return nil
 }
 
 func removeTuf(cmd *cobra.Command, args []string) error {
