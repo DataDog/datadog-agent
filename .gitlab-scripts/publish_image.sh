@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 TAG=$1
 cp ${@:2} Dockerfiles/agent
