@@ -343,7 +343,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	if *versionToInstall == *currentVersion {
-		fmt.Printf("%s %s is already installed. Nothing to do.", integration, versionToInstall)
+		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
 		return nil
 	}
 
