@@ -10,7 +10,6 @@ before_script:
  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
    # Either we already have a venv, or we still need to make it (as part of get_deps.sh)
  - source .gitlab-scripts/setup_env.sh
- - cd /go/src/github.com/StackVista/stackstate-agent
 
 dependencies_clear_cache:
   stage: prepare
