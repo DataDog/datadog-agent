@@ -22,7 +22,7 @@ RUN apt-get update \
 #   - docs and manpages                  # FIXME: move upstream
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
-RUN dpkg -x /datadog-agent*_amd64.deb . \
+RUN dpkg -x /stackstate-agent*_amd64.deb . \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
