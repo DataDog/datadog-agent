@@ -465,12 +465,16 @@ func getVersionFromReqLine(integration string, lines string) (*integrationVersio
 		return nil, fmt.Errorf("internal error: %v", err)
 	}
 
-	groups := exp.FindStringSubmatch(lines)
+	groups := exp.FindAllStringSubmatch(lines, 2)
 	if groups == nil {
 		return nil, nil
 	}
 
-	version, err := parseVersion(groups[1])
+	if len(groups) > 1 {
+		return nil, fmt.Errorf("Found several matches for %s version in %s.\nAborting", integration, lines)
+	}
+
+	version, err := parseVersion(groups[0][1])
 	if err != nil {
 		return nil, err
 	}
