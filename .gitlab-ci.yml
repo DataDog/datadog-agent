@@ -157,12 +157,12 @@ publish_image:
   stage: publish
   image: docker:18.06.0
   dependencies:
-    - deps
     - build_deb
   variables:
     DOCKER_DRIVER: overlay
   services:
     - docker:dind
+  before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - ./.gitlab-scripts/publish_image.sh ${CI_COMMIT_SHA:0:7} $CI_PROJECT_DIR/outcomes/pkg/*.deb
