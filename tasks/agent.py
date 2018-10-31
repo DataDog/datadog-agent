@@ -68,9 +68,6 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         inv agent.build --build-exclude=snmp,systemd
     """
 
-    # STS: Apply branding
-    apply_branding(ctx)
-
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 

@@ -39,6 +39,10 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
+  # STS: apply branding
+
+  command "invoke -e agent.apply-branding", env: env
+
   # we assume the go deps are already installed before running omnibus
   command "invoke -e agent.build --rebuild --use-embedded-libs --no-development", env: env
   if windows?

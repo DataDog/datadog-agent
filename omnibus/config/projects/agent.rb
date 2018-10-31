@@ -44,7 +44,7 @@ description 'Datadog Monitoring Agent
 
 # .deb specific flags
 package :deb do
-  vendor 'Datadog <package@datadoghq.com>'
+  vendor 'StackState <info@stackstate.com>'
   epoch 1
   license 'Apache License Version 2.0'
   section 'utils'
@@ -53,7 +53,7 @@ end
 
 # .rpm specific flags
 package :rpm do
-  vendor 'Datadog <package@datadoghq.com>'
+  vendor 'StackState <package@stackstate.com>'
   epoch 1
   dist_tag ''
   license 'Apache License Version 2.0'
