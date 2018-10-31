@@ -150,7 +150,7 @@ build_deb:
 test_deb_renaming:
   stage: package_test
   dependencies:
-    build_deb
+    - build_deb
   script:
     ./test/renaming/test.sh $CI_PROJECT_DIR/outcomes/pkg/*.deb
 
