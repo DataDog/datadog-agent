@@ -1,8 +1,6 @@
-#!/bin/bash
+#!/bin/bash -x
 
 echo "Run a gitlab build step on the local machine"
-
-set -x
 
 gitlab-ci-multi-runner exec docker \
   --cache-type s3 \
