@@ -113,6 +113,7 @@ func TestGetVersionFromReqLine(t *testing.T) {
 	version, _ = getVersionFromReqLine("package3", reqLines)
 	assert.Nil(t, version)
 
+	// Add package2 a second time, should error out
 	reqLines += "\npackage2==2.2.0"
 	version, err := getVersionFromReqLine("package2", reqLines)
 	assert.Nil(t, version)
