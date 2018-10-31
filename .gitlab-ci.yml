@@ -164,7 +164,7 @@ publish_image:
   services:
     - docker:dind
   script:
-    - ./gitlab-scripts/publish_image.sh ${CI_COMMIT_SHA:0:7} ${CI_COMMIT_SHA:0:7} $CI_PROJECT_DIR/outcomes/pkg/*.deb
+    - ./.gitlab-scripts/publish_image.sh ${CI_COMMIT_SHA:0:7} ${CI_COMMIT_SHA:0:7} $CI_PROJECT_DIR/outcomes/pkg/*.deb
 
 #docker_test:
 #  stage: docker_test
