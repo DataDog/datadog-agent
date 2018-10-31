@@ -41,6 +41,21 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 
+def do_rename(ctx, rename, at):
+    ctx.run("gofmt -l -w -r {} {}".format(rename, at))
+
+@task
+def apply_branding(ctx):
+    """
+    Apply stackstate branding
+    """
+    do_rename(ctx, '\'"dd_url" -> "sts_url"\'', "./pkg/config")
+    do_rename(ctx, '\'"https://app.datadoghq.com" -> "http://localhost:7077"\'', "./pkg/config")
+    do_rename(ctx, '\'"DD_PROXY_HTTP" -> "STS_PROXY_HTTP"\'', "./pkg/config")
+    do_rename(ctx, '\'"DD_PROXY_HTTPS" -> "STS_PROXY_HTTPS"\'', "./pkg/config")
+    do_rename(ctx, '\'"DD_PROXY_NO_PROXY" -> "STS_PROXY_NO_PROXY"\'', "./pkg/config")
+    do_rename(ctx, '\'"DOCKER_DD_AGENT" -> "DOCKER_STS_AGENT"\'', "./pkg/config")
+
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
@@ -52,6 +67,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=snmp,systemd
     """
+
+    # STS: Apply branding
+    apply_branding(ctx)
 
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")

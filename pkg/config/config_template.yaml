@@ -1,6 +1,6 @@
 {{ if .Common }}
-# The host of the Datadog intake server to send Agent data to
-dd_url: https://app.datadoghq.com
+# The host of the StackState intake server to send Agent data to
+sts_url: http://localhost:7077/stsAgent
 
 # The Datadog api key to associate your Agent's data with your organization.
 # Can be found here:
@@ -11,7 +11,7 @@ api_key:
 # disabled). You can use the 'no_proxy' list to specify hosts that should
 # bypass the proxy. These settings might impact your checks requests, please
 # refer to the specific check documentation for more details. Environment
-# variables DD_PROXY_HTTP, DD_PROXY_HTTPS and DD_PROXY_NO_PROXY (space-separated string)
+# variables STS_PROXY_HTTP, STS_PROXY_HTTPS and STS_PROXY_NO_PROXY (space-separated string)
 # will override the values set here. See https://docs.datadoghq.com/agent/proxy/.
 #
 # proxy:
@@ -27,7 +27,7 @@ api_key:
 # skip_ssl_validation: false
 
 # Setting this option to "true" will force the agent to only use TLS 1.2 when
-# pushing data to the url specified in "dd_url".
+# pushing data to the url specified in "sts_url".
 # force_tls_12: false
 
 # Force the hostname to whatever you want. (default: auto-detected)
@@ -381,14 +381,14 @@ api_key:
 #
 # Change the root directory to look at to get cgroup statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set
+# Default if environment variable "DOCKER_STS_AGENT" is set
 # "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
 #
 # container_cgroup_root: /host/sys/fs/cgroup/
 #
 # Change the root directory to look at to get proc statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set
+# Default if environment variable "DOCKER_STS_AGENT" is set
 # "/host/proc" and "/proc" if not.
 #
 # container_proc_root: /host/proc
@@ -559,26 +559,28 @@ api_key:
 {{- if .ProcessAgent }}
 # Process agent specific settings
 #
-# process_config:
+process_config:
 #   A string indicating the enabled state of the Process Agent.
 #   If "false" (the default) it will only collect containers.
 #   If "true" it will collect containers and processes.
 #   If "disabled" it will be disabled altogether and won't start.
-#   enabled: "true"
+  enabled: "true"
+# Enable/disable network tracing
+  process_sts_url: http://localhost:7077/stsAgent
+  network_tracing_enabled: 'true'
 #   The full path to the file where process-agent logs will be written.
 #   log_file:
 #   The interval, in seconds, at which we will run each check. If you want consistent
 #   behavior between real-time you may set the Container/ProcessRT intervals to 10.
 #   Defaults to 10s for normal checks and 2s for others.
-#   intervals:
-#     container:
-#     container_realtime:
-#     process:
-#     process_realtime:
+  intervals:
+    container: 8
+    process: 30
+    connections: 8
 #   A list of regex patterns that will exclude a process if matched.
 #   blacklist_patterns:
 #   How many check results to buffer in memory when POST fails. The default is usually fine.
-#   queue_size:
+  queue_size: 10
 #   The maximum number of file descriptors to open when collecting net connections.
 #   Only change if you are running out of file descriptors from the Agent.
 #   max_proc_fds:
@@ -586,9 +588,9 @@ api_key:
 #   Only change if the defaults are causing issues.
 #   max_per_message:
 #   Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
-#   dd_agent_bin:
+#   sts_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
-#   dd_agent_env:
+#   sts_agent_env:
 {{ end -}}
 
 {{- if .TraceAgent }}

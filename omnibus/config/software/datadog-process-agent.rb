@@ -27,7 +27,7 @@ build do
     #binary = "process-agent-amd64-#{version}"
     binary = "process-agent-amd64-#{fixed_version}"
     target_binary = "process-agent"
-    url = "https://s3.amazonaws.com/stackstate-process-agent-test/binaries/master/#{binary}"
+    url = "https://s3.amazonaws.com/stackstate-process-agent-test/binaries/agent-constants-refactoring/#{binary}"
     #url = "https://s3.amazonaws.com/datad0g-process-agent/#{binary}"
     curl_cmd = "curl -f #{url} -o #{binary}"
     command curl_cmd
