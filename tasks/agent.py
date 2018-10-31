@@ -55,6 +55,7 @@ def apply_branding(ctx):
     do_rename(ctx, '\'"DD_PROXY_HTTPS" -> "STS_PROXY_HTTPS"\'', "./pkg/config")
     do_rename(ctx, '\'"DD_PROXY_NO_PROXY" -> "STS_PROXY_NO_PROXY"\'', "./pkg/config")
     do_rename(ctx, '\'"DOCKER_DD_AGENT" -> "DOCKER_STS_AGENT"\'', "./pkg/config")
+    do_rename(ctx, '\'"DD" -> "STS"\'', "./pkg/config")
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
