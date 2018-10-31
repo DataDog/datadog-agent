@@ -49,6 +49,7 @@ def apply_branding(ctx):
     """
     Apply stackstate branding
     """
+    # Pkg config
     do_rename(ctx, '\'"dd_url" -> "sts_url"\'', "./pkg/config")
     do_rename(ctx, '\'"https://app.datadoghq.com" -> "http://localhost:7077"\'', "./pkg/config")
     do_rename(ctx, '\'"DD_PROXY_HTTP" -> "STS_PROXY_HTTP"\'', "./pkg/config")
@@ -56,6 +57,15 @@ def apply_branding(ctx):
     do_rename(ctx, '\'"DD_PROXY_NO_PROXY" -> "STS_PROXY_NO_PROXY"\'', "./pkg/config")
     do_rename(ctx, '\'"DOCKER_DD_AGENT" -> "DOCKER_STS_AGENT"\'', "./pkg/config")
     do_rename(ctx, '\'"DD" -> "STS"\'', "./pkg/config")
+    do_rename(ctx, '\'"/etc/datadog-agent/conf.d" -> "/etc/stackstate-agent/conf.d"\'', "./pkg/config")
+    do_rename(ctx, '\'"/etc/datadog-agent/checks.d" -> "/etc/stackstate-agent/checks.d"\'', "./pkg/config")
+    do_rename(ctx, '\'"/opt/datadog-agent/run" -> "/op/stackstate-agent/run"\'', "./pkg/config")
+
+    # Defaults
+    do_rename(ctx, '\'"/etc/datadog-agent" -> "/etc/stackstate-agent"\'', "./cmd/agent/common")
+    do_rename(ctx, '\'"/var/log/datadog/agent.log" -> "/var/log/stackstate/agent.log"\'', "./cmd/agent/common")
+    do_rename(ctx, '\'"/var/log/datadog/cluster-agent.log" -> "/var/log/stackstate/cluster-agent.log"\'', "./cmd/agent/common")
+    do_rename(ctx, '\'"datadog.yaml" -> "stackstate.yaml"\'', "./cmd/agent/app")
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
