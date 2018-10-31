@@ -120,7 +120,6 @@ if windows?
   dependency 'pywin32'
 end
 
-# Datadog agent
 dependency 'datadog-agent'
 
 # Additional software
