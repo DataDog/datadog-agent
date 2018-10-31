@@ -327,6 +327,16 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
+	currentVersion, err := installedVersion(integration, cachePath)
+	if err != nil {
+		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+	}
+
+	if *versionToInstall == *currentVersion {
+		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
+		return nil
+	}
+
 	minVersion, err := minAllowedVersion(integration)
 	if err != nil {
 		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
@@ -336,15 +346,6 @@ func installTuf(cmd *cobra.Command, args []string) error {
 			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
 			versionToInstall, integration, minVersion,
 		)
-	}
-	currentVersion, err := installedVersion(integration, cachePath)
-	if err != nil {
-		return fmt.Errorf("could not get current version of %s: %v", integration, err)
-	}
-
-	if *versionToInstall == *currentVersion {
-		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
-		return nil
 	}
 
 	// Run pip check first to see if the python environment is clean
@@ -471,7 +472,7 @@ func getVersionFromReqLine(integration string, lines string) (*integrationVersio
 	}
 
 	if len(groups) > 1 {
-		return nil, fmt.Errorf("Found several matches for %s version in %s.\nAborting", integration, lines)
+		return nil, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
 	}
 
 	version, err := parseVersion(groups[0][1])
