@@ -6,7 +6,7 @@
 require "./lib/ostools.rb"
 require 'pathname'
 
-name "datadog-trace-agent"
+name "stackstate-trace-agent"
 
 dependency "datadog-agent"
 
