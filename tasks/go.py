@@ -20,6 +20,7 @@ WIN_MODULE_WHITELIST = [
     "iostats_wmi_windows.go",
     "pdh.go",
     "pdhhelper.go",
+    "shutil.go",
     "tailer_windows.go",
 ]
 
