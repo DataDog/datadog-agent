@@ -70,7 +70,7 @@ type Proxy struct {
 func init() {
 	// config identifiers
 	Datadog.SetConfigName("datadog")
-	Datadog.SetEnvPrefix("DD")
+	Datadog.SetEnvPrefix("STS")
 	Datadog.SetTypeByDefaultValue(true)
 
 	// Replace '.' from config keys with '_' in env variables bindings.
