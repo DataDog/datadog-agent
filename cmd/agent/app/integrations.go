@@ -49,6 +49,8 @@ type integrationVersion struct {
 	fix   int
 }
 
+// Parse a version string.
+// Return the version, or nil empty string
 func parseVersion(version string) (*integrationVersion, error) {
 	var major, minor, fix int
 	if version == "" {
@@ -89,6 +91,14 @@ func (v *integrationVersion) isAboveOrEqualTo(otherVersion *integrationVersion) 
 	}
 
 	return true
+}
+
+func (v *integrationVersion) equals(otherVersion *integrationVersion) bool {
+	if otherVersion == nil {
+		return false
+	}
+
+	return v.major == otherVersion.major && v.minor == otherVersion.minor && v.fix == otherVersion.fix
 }
 
 func init() {
@@ -324,7 +334,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
 	versionToInstall, err := parseVersion(strings.TrimSpace(intVer[1]))
-	if err != nil {
+	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
 	currentVersion, err := installedVersion(integration, cachePath)
@@ -332,7 +342,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
 
-	if *versionToInstall == *currentVersion {
+	if versionToInstall.equals(currentVersion) {
 		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
 		return nil
 	}
@@ -432,6 +442,7 @@ func minAllowedVersion(integration string) (*integrationVersion, error) {
 	return version, nil
 }
 
+// Return the version of an installed integration, or nil if the integration isn't installed
 func installedVersion(integration string, cachePath string) (*integrationVersion, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
@@ -460,6 +471,8 @@ func installedVersion(integration string, cachePath string) (*integrationVersion
 	return version, nil
 }
 
+// Parse requirements lines to get a package version.
+// Returns the version if found, or nil if package not present
 func getVersionFromReqLine(integration string, lines string) (*integrationVersion, error) {
 	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
 	if err != nil {

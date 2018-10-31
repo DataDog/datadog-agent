@@ -84,6 +84,19 @@ func TestIsAboveOrEqualTo(t *testing.T) {
 
 	version, _ = parseVersion("1.2.2")
 	assert.False(t, version.isAboveOrEqualTo(baseVersion))
+
+	baseVersion = nil
+	assert.True(t, version.isAboveOrEqualTo(baseVersion))
+}
+
+func TestEquals(t *testing.T) {
+	v1, _ := parseVersion("1.2.3")
+	v2, _ := parseVersion("1.2.3")
+
+	assert.True(t, v1.equals(v2))
+
+	v2 = nil
+	assert.False(t, v1.equals(v2))
 }
 
 func TestGetVersionFromReqLine(t *testing.T) {
