@@ -9,7 +9,7 @@ before_script:
  - mkdir -p /go/src/github.com/StackVista
  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
    # Either we already have a venv, or we still need to make it (as part of get_deps.sh)
- - source $CI_PROJECT_DIR/venv/bin/activate || source .gitlab-scripts/ensure_deps.sh
+ - source .gitlab-scripts/setup_env.sh
  - cd /go/src/github.com/StackVista/stackstate-agent
 
 dependencies_clear_cache:
@@ -165,12 +165,7 @@ publish_image:
   services:
     - docker:dind
   script:
-    - cp $CI_PROJECT_DIR/outcomes/pkg/*.deb Dockerfiles/agent
-    - TAG=${CI_COMMIT_SHA:0:7}
-    - docker build -t stackstate/stackstate-agent:$TAG -t stackstate/stackstate-agent:latest Dockerfiles/agent
-    - docker login -u $DOCKER_USER -p $DOCKER_PASS
-    - docker push stackstate/stackstate-agent:$TAG
-    - docker push stackstate/stackstate-agent:latest
+    - ./gitlab-scripts/setup_env.sh ${CI_COMMIT_SHA:0:7} ${CI_COMMIT_SHA:0:7} $CI_PROJECT_DIR/outcomes/pkg/*.deb
 
 #docker_test:
 #  stage: docker_test
