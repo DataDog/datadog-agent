@@ -73,6 +73,8 @@ type AutoConfig struct {
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
 	tagFreshnessTicker *time.Ticker
+	tagFreshnessStop   chan struct{}
+	tagFreshnessActive bool
 	healthTagFreshness *health.Handle
 	newService         chan listeners.Service
 	delService         chan listeners.Service
@@ -90,6 +92,7 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		healthPolling:      health.Register("ad-configpolling"),
 		listenerStop:       make(chan struct{}),
 		healthListening:    health.Register("ad-servicelistening"),
+		tagFreshnessStop:   make(chan struct{}),
 		healthTagFreshness: health.Register("ad-tagfreshnesschecker"),
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
@@ -116,10 +119,17 @@ func (ac *AutoConfig) StartConfigPolling() {
 // are up-to-date, act as the service was restarted to reschedule potential checks
 func (ac *AutoConfig) StartTagFreshnessChecker() {
 	ac.tagFreshnessTicker = time.NewTicker(15 * time.Second) // we can miss tags for one run
+	ac.tagFreshnessActive = true
 	go func() {
 		for {
 			select {
 			case <-ac.healthTagFreshness.C:
+			case <-ac.tagFreshnessStop:
+				if ac.tagFreshnessTicker != nil {
+					ac.tagFreshnessTicker.Stop()
+				}
+				ac.healthTagFreshness.Deregister()
+				return
 			case <-ac.tagFreshnessTicker.C:
 				// check if services tags are up to date
 				var servicesToRefresh []listeners.Service
@@ -174,9 +184,9 @@ func (ac *AutoConfig) Stop() {
 	defer ac.m.Unlock()
 
 	// stop the tag freshness ticker if running
-	if ac.tagFreshnessTicker != nil {
-		ac.healthTagFreshness.Deregister()
-		ac.tagFreshnessTicker.Stop()
+	if ac.tagFreshnessActive {
+		ac.tagFreshnessStop <- struct{}{}
+		ac.tagFreshnessActive = false
 	}
 
 	// stop the config poller if running
