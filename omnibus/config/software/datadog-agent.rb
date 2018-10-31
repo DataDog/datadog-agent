@@ -8,6 +8,15 @@ require 'pathname'
 
 name 'datadog-agent'
 
+# STS: Add some dependencies to make this run late in the build, this will avoid early
+# omnibus cache invalidation
+dependency 'six'
+dependency 'protobuf-py'
+dependency 'nfsiostat'
+dependency 'sysstat'
+dependency 'curl'
+
+# Actual dependencies
 dependency 'python'
 unless windows?
   dependency 'net-snmp-lib'
