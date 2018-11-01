@@ -2,7 +2,7 @@
 
 # Enable the Mesos integrations if relevant
 
-CONFD=/etc/datadog-agent/conf.d
+CONFD=/etc/stackstate-agent/conf.d
 
 if [[ $MESOS_MASTER ]]; then
   if [[ ! -e $CONFD/mesos_master.d/conf.yaml.default ]]; then

@@ -12,14 +12,14 @@ fi
 
 # Set a config for vanilla Docker if no orchestrator was detected
 # by the 50-* scripts
-# Don't override /etc/datadog-agent/datadog.yaml if it exists
-if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
-    ln -s  /etc/datadog-agent/datadog-docker.yaml \
-           /etc/datadog-agent/datadog.yaml
+# Don't override /etc/stackstate-agent/stackstate.yaml if it exists
+if [[ ! -e /etc/stackstate-agent/stackstate.yaml ]]; then
+    ln -s  /etc/stackstate-agent/stackstate-docker.yaml \
+           /etc/stackstate-agent/stackstate.yaml
 fi
 
 # Enable the docker corecheck
-if [[ ! -e /etc/datadog-agent/conf.d/docker.d/conf.yaml.default ]]; then
-    mv /etc/datadog-agent/conf.d/docker.d/conf.yaml.example \
-    /etc/datadog-agent/conf.d/docker.d/conf.yaml.default
+if [[ ! -e /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default ]]; then
+    mv /etc/stackstate-agent/conf.d/docker.d/conf.yaml.example \
+    /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default
 fi
