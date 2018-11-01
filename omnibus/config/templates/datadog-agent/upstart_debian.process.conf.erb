@@ -1,7 +1,7 @@
 description "Stackstate Process Agent"
 
 start on started stackstate-agent
-stop on (runlevel [!2345] or stopping datadog-agent)
+stop on (runlevel [!2345] or stopping stackstate-agent)
 
 respawn
 respawn limit 10 5
@@ -16,7 +16,7 @@ env STS_LOG_TO_CONSOLE=false
 setuid sts-agent
 
 script
-  exec <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --pid=<%= install_dir %>/run/process-agent.pid
+  exec <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/stackstate.yaml --pid=<%= install_dir %>/run/process-agent.pid
 end script
 
 post-stop script
