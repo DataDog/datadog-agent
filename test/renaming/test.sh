@@ -41,12 +41,15 @@ tar xvf data.tar.gz || true
 # Stuff in embedded is not important
 EMBEDDED_DIR="opt/stackstate-agent/embedded/lib/"
 
-find . -name \*datadog\* \
+find . -iname \*datadog\* \
   | grep -v "$EMBEDDED_DIR" \
   | grep -v "/opt/stackstate-agent/bin/agent/dist/views/private/images/datadog_icon_white.svg" \
-  | grep -v "/opt/stackstate-agent/LICENSES/go_dep-gopkg.in_zorkian_go-datadog-api.v2-v2.8.6-LICENSE" \
+  | grep -v "/opt/stackstate-agent/LICENSES/go_dep-gopkg.in_zorkian_go-datadog-api" \
+  | grep -v "/opt/stackstate-agent/LICENSES/go_dep-github.com_DataDog_agent-payload" \
+  | grep -v "/opt/stackstate-agent/LICENSES/go_dep-github.com_DataDog_gohai" \
+  | grep -v "/opt/stackstate-agent/LICENSES/go_dep-github.com_DataDog_zstd" \
   | tee -a out.txt
-find . -name \*dd-\* | tee -a out.txt
+find . -iname \*dd-\* | tee -a out.txt
 
 echo "Output:"
 cat out.txt
