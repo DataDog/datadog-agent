@@ -3,6 +3,7 @@
 package winutil
 
 import (
+	"C"
 	"syscall"
 	"unsafe"
 )
@@ -58,12 +59,15 @@ func CoTaskMemFree(pv uintptr) {
 // GetProgramDataDir() returns the current programdatadir, usually
 // c:\programdata
 func GetProgramDataDir() (path string, err error) {
-	var retstr uintptr
-	err = SHGetKnownFolderPath(&FOLDERID_ProgramData, 0, 0, &retstr)
+	var retstr *C.char
+	var retstrptr = uintptr(unsafe.Pointer(retstr))
+	err = SHGetKnownFolderPath(&FOLDERID_ProgramData, 0, 0, &retstrptr)
 	if err == nil {
 		// convert the string
-		defer CoTaskMemFree(retstr)
-		path = syscall.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
+		defer CoTaskMemFree(retstrptr)
+		// go vet: "possible misuse of unsafe.Pointer"
+		// path = syscall.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
+		path = C.GoString(retstr)
 	}
 	return
 }
