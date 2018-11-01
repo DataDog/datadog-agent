@@ -95,8 +95,8 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
 # as some docker versions re-create /run from zero at container start
  && adduser --system --no-create-home --disabled-password --ingroup root sts-agent \
  && rm /var/run && mkdir -p /var/run/s6 \
- && chown -R sts-agent:root /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate/ \
- && chmod g+r,g+w,g+X -R /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate/ \
+ && chown -R sts-agent:root /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate-agent/ \
+ && chmod g+r,g+w,g+X -R /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate-agent/ \
  && chmod 755 /probe.sh /initlog.sh \
  && chown root:root /readsecret.py \
  && chmod 500 /readsecret.py

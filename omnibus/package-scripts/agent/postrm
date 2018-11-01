@@ -10,7 +10,7 @@ DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || gre
 
 INSTALL_DIR=/opt/stackstate-agent
 TUF_REPO_DIR=/etc/stackstate-agent/repositories
-LOG_DIR=/var/log/stackstate
+LOG_DIR=/var/log/stackstate-agent
 CONFIG_DIR=/etc/stackstate-agent
 
 # Remove the symlink to the binary.

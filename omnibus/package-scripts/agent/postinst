@@ -7,7 +7,7 @@
 # .rpm: STEP 3 of 6
 
 INSTALL_DIR=/opt/stackstate-agent
-LOG_DIR=/var/log/stackstate
+LOG_DIR=/var/log/stackstate-agent
 CONFIG_DIR=/etc/stackstate-agent
 SERVICE_NAME=stackstate-agent
 

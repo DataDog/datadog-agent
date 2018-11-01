@@ -6,7 +6,7 @@
 # .rpm: STEP 2 of 6
 
 INSTALL_DIR=/opt/stackstate-agent
-LOG_DIR=/var/log/stackstate
+LOG_DIR=/var/log/stackstate-agent
 SERVICE_NAME=stackstate-agent
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"

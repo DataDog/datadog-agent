@@ -336,7 +336,7 @@ api_key:
 # Logging
 #
 # log_level: info
-# log_file: /var/log/stackstate/agent.log
+# log_file: /var/log/stackstate-agent/agent.log
 
 # Set to 'true' to output logs in JSON format
 # log_format_json: false

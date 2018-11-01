@@ -166,7 +166,7 @@ if linux?
   extra_package_file "#{systemd_directory}/stackstate-agent-trace.service"
   extra_package_file '/etc/stackstate-agent/'
   extra_package_file '/usr/bin/sts-agent'
-  extra_package_file '/var/log/stackstate/'
+  extra_package_file '/var/log/stackstate-agent/'
 end
 
 exclude '\.git*'

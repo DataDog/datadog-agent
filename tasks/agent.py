@@ -64,12 +64,13 @@ def apply_branding(ctx):
 
     # Defaults
     do_rename(ctx, '\'"/etc/datadog-agent" -> "/etc/stackstate-agent"\'', "./cmd/agent/common")
-    do_rename(ctx, '\'"/var/log/datadog/agent.log" -> "/var/log/stackstate/agent.log"\'', "./cmd/agent/common")
-    do_rename(ctx, '\'"/var/log/datadog/cluster-agent.log" -> "/var/log/stackstate/cluster-agent.log"\'', "./cmd/agent/common")
+    do_rename(ctx, '\'"/var/log/datadog/agent.log" -> "/var/log/stackstate-agent/agent.log"\'', "./cmd/agent/common")
+    do_rename(ctx, '\'"/var/log/datadog/cluster-agent.log" -> "/var/log/stackstate-agent/cluster-agent.log"\'', "./cmd/agent/common")
     do_rename(ctx, '\'"datadog.yaml" -> "stackstate.yaml"\'', "./cmd/agent")
     do_rename(ctx, '\'"datadog.conf" -> "stackstate.conf"\'', "./cmd/agent")
     do_rename(ctx, '\'"path to directory containing datadog.yaml" -> "path to directory containing stackstate.yaml"\'', "./cmd")
     do_rename(ctx, '\'"unable to load Datadog config file: %s" -> "unable to load StackState config file: %s"\'', "./cmd/agent/common")
+    do_rename(ctx, '\'"Starting Datadog Agent v%v" -> "Starting StackState Agent v%v"\'', "./cmd/agent/app")
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,

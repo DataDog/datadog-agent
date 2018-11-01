@@ -16,15 +16,15 @@ script
   #
   # setuid is not available in versions of upstart before 1.4. CentOS/RHEL6 use an earlier version of upstart.
   # This is the best way to set the user in the absence of setuid.
-  exec su -s /bin/sh -c 'STS_LOG_TO_CONSOLE=false exec "$0" "$@"' sts-agent -- <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/stackstate.yaml --pid=<%= install_dir %>/run/process-agent.pid &>> /var/log/stackstate/process-errors.log
+  exec su -s /bin/sh -c 'STS_LOG_TO_CONSOLE=false exec "$0" "$@"' sts-agent -- <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/stackstate.yaml --pid=<%= install_dir %>/run/process-agent.pid &>> /var/log/stackstate-agent/process-errors.log
 end script
 
 pre-start script
   # Manual rotation of errors log
-  log_file_size=`du -b /var/log/stackstate/process-errors.log | cut -f1`
+  log_file_size=`du -b /var/log/stackstate-agent/process-errors.log | cut -f1`
   if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then
     # Rotate log file if it's larger than 5MB
-    mv /var/log/stackstate/process-errors.log /var/log/stackstate/process-errors.log.1
+    mv /var/log/stackstate-agent/process-errors.log /var/log/stackstate-agent/process-errors.log.1
   fi
 end script
 
