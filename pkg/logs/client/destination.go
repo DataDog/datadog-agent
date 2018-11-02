@@ -6,7 +6,18 @@
 package client
 
 import (
+	"expvar"
 	"net"
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// FIXME: Changed chanSize to a constant once we refactor packages
+const (
+	chanSize      = 100
+	warningPeriod = 1000
 )
 
 // FramingError represents a kind of error that can occur when a log can not properly
@@ -34,6 +45,9 @@ type Destination struct {
 	connManager         *ConnectionManager
 	destinationsContext *DestinationsContext
 	conn                net.Conn
+	inputChan           chan []byte
+	once                sync.Once
+	warningCounter      int
 }
 
 // NewDestination returns a new destination.
@@ -73,4 +87,39 @@ func (d *Destination) Send(payload []byte) error {
 	}
 
 	return nil
+}
+
+// SendAsync sends a message to the destination without blocking. If the channel is full, the incoming messages will be
+// dropped
+func (d *Destination) SendAsync(payload []byte) {
+	host := d.connManager.endpoint.Host
+	d.once.Do(func() {
+		inputChan := make(chan []byte, chanSize)
+		d.inputChan = inputChan
+		metrics.DestinationLogsDropped.Set(host, &expvar.Int{})
+		go d.runAsync()
+	})
+
+	select {
+	case d.inputChan <- payload:
+	default:
+		// TODO: Display the warning in the status
+		if metrics.DestinationLogsDropped.Get(host).(*expvar.Int).Value()%warningPeriod == 0 {
+			log.Warnf("Some logs sent to additional destination %v were dropped", host)
+		}
+		metrics.DestinationLogsDropped.Add(host, 1)
+	}
+}
+
+// runAsync read the messages from the channel and send them
+func (d *Destination) runAsync() {
+	ctx := d.destinationsContext.Context()
+	for {
+		select {
+		case payload := <-d.inputChan:
+			d.Send(payload)
+		case <-ctx.Done():
+			return
+		}
+	}
 }
