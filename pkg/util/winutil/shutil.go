@@ -31,7 +31,6 @@ Legacy Default Path	%ALLUSERSPROFILE%\Application Data
 */
 var (
 	FOLDERID_ProgramData = GUID{0x62AB5D82, 0xFDC1, 0x4DC3, [8]byte{0xA9, 0xDD, 0x07, 0x0D, 0x1D, 0x49, 0x5D, 0x97}}
-	FOLDERID_Fonts       = GUID{0xFD228CB7, 0xAE11, 0x4AE3, [8]byte{0x86, 0x4C, 0x16, 0xF3, 0x91, 0x0A, 0xB8, 0xFE}}
 )
 
 var (
@@ -65,7 +64,9 @@ func GetProgramDataDir() (path string, err error) {
 	if err == nil {
 		// convert the string
 		defer CoTaskMemFree(retstrptr)
+		// the path = syscall.UTF16ToString... returns a 
 		// go vet: "possible misuse of unsafe.Pointer"
+		// Use the "C" GoString converter instead 
 		// path = syscall.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
 		path = C.GoString(retstr)
 	}
