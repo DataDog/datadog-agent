@@ -53,8 +53,8 @@ func TestNewConnectionReturnsWhenContextCancelled(t *testing.T) {
 	ctx := destinationsCtx.Context()
 
 	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		conn, err := connManager.NewConnection(ctx)
 		assert.Nil(t, conn)
 		assert.Error(t, err)
