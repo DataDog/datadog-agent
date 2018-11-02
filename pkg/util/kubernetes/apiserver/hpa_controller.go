@@ -210,11 +210,6 @@ func (h *AutoscalersController) updateExternalMetrics(emList []custommetrics.Ext
 		return
 	}
 
-	// prevent some update to get into the store between ListAllExternalMetricValues
-	// and SetExternalMetricValues otherwise it would get erased
-	h.toStore.m.Lock()
-	defer h.toStore.m.Unlock()
-
 	if len(emList) == 0 {
 		log.Debugf("No External Metrics to evaluate at the moment")
 		return
