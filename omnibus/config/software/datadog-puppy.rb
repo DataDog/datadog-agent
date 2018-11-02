@@ -18,9 +18,9 @@ build do
 
   if linux?
     # Config
-    mkdir '/etc/sts-agent'
-    move 'bin/agent/dist/stackstate.yaml', '/etc/sts-agent/stackstate.yaml.example'
-    mkdir '/etc/sts-agent/checks.d'
+    mkdir '/etc/stackstate-agent'
+    move 'bin/agent/dist/stackstate.yaml', '/etc/stackstate-agent/stackstate.yaml.example'
+    mkdir '/etc/stackstate-agent/checks.d'
 
     if debian?
       erb source: "upstart.conf.erb",

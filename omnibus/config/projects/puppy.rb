@@ -94,7 +94,7 @@ package :msi do
   end
   parameters({
     'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/sts-agent/packaging/stackstate-agent/win32/install_files",
+    'InstallFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/packaging/stackstate-agent/win32/install_files",
     'BinFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/bin/agent",
     'DistFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/pkg/collector/dist",
     'PerUserUpgradeCode' => per_user_upgrade_code
@@ -117,10 +117,10 @@ if linux?
   end
 
   # Example configuration files for the agent and the checks
-  extra_package_file '/etc/sts-agent/datadog.yaml.example'
+  extra_package_file '/etc/stackstate-agent/datadog.yaml.example'
 
   # Custom checks directory
-  extra_package_file '/etc/sts-agent/checks.d'
+  extra_package_file '/etc/stackstate-agent/checks.d'
 end
 
 # ------------------------------------

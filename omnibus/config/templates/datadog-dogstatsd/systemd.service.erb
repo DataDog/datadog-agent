@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=sts-agent
+User=stackstate-agent
 Restart=on-failure
 ExecStart=<%= install_dir %>/bin/dogstatsd start -c /etc/stackstate-dogstatsd
 

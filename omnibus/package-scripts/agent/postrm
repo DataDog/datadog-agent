@@ -21,10 +21,10 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
 
     case "$1" in
         purge)
-            echo "Deleting sts-agent user"
-            deluser sts-agent --quiet
-            echo "Deleting sts-agent group"
-            getent group sts-agent >/dev/null && delgroup sts-agent --quiet || true
+            echo "Deleting stackstate-agent user"
+            deluser stackstate-agent --quiet
+            echo "Deleting stackstate-agent group"
+            getent group stackstate-agent >/dev/null && delgroup stackstate-agent --quiet || true
             echo "Force-deleting $INSTALL_DIR"
             rm -rf $INSTALL_DIR
             rm -rf $LOG_DIR
@@ -37,7 +37,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
     case "$*" in
         0)
             # We're uninstalling.
-            # We don't delete the sts-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
+            # We don't delete the stackstate-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
             rm -rf $TUF_REPO_DIR
         ;;
         1)

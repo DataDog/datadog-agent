@@ -43,12 +43,12 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             /etc/init.d/stackstate-agent stop || true
         fi
 
-        # Set up `sts-agent` user and group
-        getent group sts-agent >/dev/null || groupadd -r sts-agent
-        getent passwd sts-agent >/dev/null || \
-            useradd -r -M -g sts-agent -d $INSTALL_DIR -s /sbin/nologin \
-                -c "Stackstate Agent" sts-agent && \
-                { usermod -L sts-agent || echo "[ WARNING ]\tCannot lock the 'sts-agent' user account"; }
+        # Set up `stackstate-agent` user and group
+        getent group stackstate-agent >/dev/null || groupadd -r stackstate-agent
+        getent passwd stackstate-agent >/dev/null || \
+            useradd -r -M -g stackstate-agent -d $INSTALL_DIR -s /sbin/nologin \
+                -c "Stackstate Agent" stackstate-agent && \
+                { usermod -L stackstate-agent || echo "[ WARNING ]\tCannot lock the 'stackstate-agent' user account"; }
 
         # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
         if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then

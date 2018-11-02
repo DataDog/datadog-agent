@@ -16,7 +16,7 @@ DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || gre
 
 # If we are inside the Docker container, do nothing
 if [ -n "$DOCKER_STS_AGENT" ]; then
-    echo "Installation from docker-sts-agent, nothing to do in postinst"
+    echo "Installation from docker-stackstate-agent, nothing to do in postinst"
     exit 0
 fi
 
@@ -30,19 +30,19 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         set -e
         case "$1" in
             configure)
-                # Only create sts-agent group and/or user if they don't already exist
-                getent group sts-agent >/dev/null || (echo "Creating sts-agent group" && addgroup --system sts-agent --quiet)
+                # Only create stackstate-agent group and/or user if they don't already exist
+                getent group stackstate-agent >/dev/null || (echo "Creating stackstate-agent group" && addgroup --system stackstate-agent --quiet)
                 set +e
-                id -u sts-agent >/dev/null 2>&1
+                id -u stackstate-agent >/dev/null 2>&1
                 USER_EXISTS=$?
                 set -e
                 if [ ! $USER_EXISTS -eq 0 ]; then
-                    echo "Creating sts-agent user"
-                    adduser --system sts-agent --disabled-login --shell /usr/sbin/nologin --home ${INSTALL_DIR} --no-create-home --group --quiet
-                elif id -nG sts-agent | grep --invert-match --word-regexp --quiet 'sts-agent'; then
-                    # User exists but is not part of the sts-agent group
-                    echo "Adding sts-agent user to sts-agent group"
-                    usermod -g sts-agent sts-agent
+                    echo "Creating stackstate-agent user"
+                    adduser --system stackstate-agent --disabled-login --shell /usr/sbin/nologin --home ${INSTALL_DIR} --no-create-home --group --quiet
+                elif id -nG stackstate-agent | grep --invert-match --word-regexp --quiet 'stackstate-agent'; then
+                    # User exists but is not part of the stackstate-agent group
+                    echo "Adding stackstate-agent user to stackstate-agent group"
+                    usermod -g stackstate-agent stackstate-agent
                 fi
 
                 # Create a symlink to the agent's binary
@@ -57,10 +57,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         #DEBHELPER#
     fi
 
-    # Set proper rights to the sts-agent user
-    chown -R sts-agent:sts-agent ${CONFIG_DIR}
-    chown -R sts-agent:sts-agent ${LOG_DIR}
-    chown -R sts-agent:sts-agent ${INSTALL_DIR}
+    # Set proper rights to the stackstate-agent user
+    chown -R stackstate-agent:stackstate-agent ${CONFIG_DIR}
+    chown -R stackstate-agent:stackstate-agent ${LOG_DIR}
+    chown -R stackstate-agent:stackstate-agent ${INSTALL_DIR}
 
     # Enable and restart the agent service here on Debian platforms
     # On RHEL, this is done in the posttrans script

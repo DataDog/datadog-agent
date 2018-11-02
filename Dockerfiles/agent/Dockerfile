@@ -90,12 +90,12 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
   && tar xzf s6.tgz -C /usr ./bin \
   && rm s6.tgz \
 # Prepare for running without root
-# - Create a sts-agent:root user and give it permissions on relevant folders
+# - Create a stackstate-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
 # as some docker versions re-create /run from zero at container start
- && adduser --system --no-create-home --disabled-password --ingroup root sts-agent \
+ && adduser --system --no-create-home --disabled-password --ingroup root stackstate-agent \
  && rm /var/run && mkdir -p /var/run/s6 \
- && chown -R sts-agent:root /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate-agent/ \
+ && chown -R stackstate-agent:root /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate-agent/ \
  && chmod g+r,g+w,g+X -R /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate-agent/ \
  && chmod 755 /probe.sh /initlog.sh \
  && chown root:root /readsecret.py \
