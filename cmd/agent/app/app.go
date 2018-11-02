@@ -19,7 +19,7 @@ var (
 		Short: "StackState Agent at your service.",
 		Long: `
 The StackState Agent faithfully collects events and metrics and brings them
-to Datadog on your behalf so that you can do something useful with your
+to StackState on your behalf so that you can do something useful with your
 monitoring and performance data.`,
 	}
 	// confFilePath holds the path to the folder containing the configuration

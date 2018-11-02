@@ -58,8 +58,10 @@ echo "end"
 # Verify we found no references to datadog we did not expect
 if [ -s out.txt ]
 then
-  echo "Test failed"
+  echo "Please fix branding: there is still something using (dd- | datadog) prefix"
   exit 1
+else
+  echo "Branding was successful"
 fi
 
 exit 0
