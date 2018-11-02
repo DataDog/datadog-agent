@@ -76,6 +76,9 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
                                   env=env, hide=True).stdout.strip()
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, embedded_prefix)
         ldflags += "-r {} ".format(embedded_lib_path)
+    elif os.getenv('VIRTUAL_ENV'):
+        venv_prefix = os.getenv('VIRTUAL_ENV')
+        ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, venv_prefix)
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
