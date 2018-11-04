@@ -5,40 +5,34 @@
 #
 require "./lib/ostools.rb"
 
-name 'datadog-puppy'
+name 'stackstate-puppy'
 if windows?
   # Windows doesn't want our e-mail address :(
-  maintainer 'Datadog Inc.'
+  maintainer 'StackState Inc.'
 else
-  maintainer 'Datadog Packages <package@datadoghq.com>'
+  maintainer 'StackState info@stackstate.com'
 end
-homepage 'http://www.datadoghq.com'
+homepage 'http://www.stackstate.com'
 if ohai['platform'] == "windows"
   # Note: this is not the final install dir, not even the default one, just a convenient
   # spaceless dir in which the agent will be built.
   # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
   # to put a space here...
-  install_dir "C:/opt/datadog-agent6/"
+  install_dir "C:/opt/stackstate-agent6/"
 else
-  install_dir '/opt/datadog-agent6'
+  install_dir '/opt/stackstate-agent6'
 end
 
 build_version do
-  source :git, from_dependency: 'datadog-puppy'
+  source :git, from_dependency: 'stackstate-puppy'
   output_format :dd_agent_format
 end
 
 build_iteration 1
 
-description 'Datadog Monitoring Agent
- The Datadog Monitoring Agent is a lightweight process that monitors system
- processes and services, and sends information back to your Datadog account.
- .
- This package installs and runs the advanced Agent daemon, which queues and
- forwards metrics from your applications as well as system services.
- .
- See http://www.datadoghq.com/ for more information
-'
+description 'StackState Monitoring Agent
+ The StackState Monitoring Agent is a lightweight process that monitors system
+ processes and services'
 
 # ------------------------------------
 # Generic package information
@@ -46,7 +40,7 @@ description 'Datadog Monitoring Agent
 
 # .deb specific flags
 package :deb do
-  vendor 'Datadog <package@datadoghq.com>'
+  vendor 'StackState <info@stackstate.com>'
   epoch 1
   license 'Simplified BSD License'
   section 'utils'
@@ -55,7 +49,7 @@ end
 
 # .rpm specific flags
 package :rpm do
-  vendor 'Datadog <package@datadoghq.com>'
+  vendor 'StackState info@stackstate.com'
   epoch 1
   dist_tag ''
   license 'Simplified BSD License'
@@ -68,8 +62,8 @@ end
 
 # OSX .pkg specific flags
 package :pkg do
-  identifier 'com.datadoghq.agent'
-  #signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
+  identifier 'com.stackstate.agent'
+  #signing_identity 'Developer ID Installer: StackState, Inc. (JKFCB4CN7C)'
 end
 compress :dmg do
   window_bounds '200, 200, 750, 600'
@@ -94,9 +88,9 @@ package :msi do
   end
   parameters({
     'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/bin/agent",
-    'DistFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/pkg/collector/dist",
+    'InstallFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/packaging/stackstate-agent/win32/install_files",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/bin/agent",
+    'DistFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/pkg/collector/dist",
     'PerUserUpgradeCode' => per_user_upgrade_code
   })
 end
@@ -108,19 +102,19 @@ end
 # Linux
 if linux?
   if debian?
-    extra_package_file '/etc/init/datadog-agent6.conf'
-    extra_package_file '/lib/systemd/system/datadog-agent6.service'
+    extra_package_file '/etc/init/stackstate-agent6.conf'
+    extra_package_file '/lib/systemd/system/stackstate-agent6.service'
   end
 
   if redhat? || suse?
-    extra_package_file '/lib/systemd/system/datadog-agent6.service'
+    extra_package_file '/lib/systemd/system/stackstate-agent6.service'
   end
 
   # Example configuration files for the agent and the checks
-  extra_package_file '/etc/dd-agent/datadog.yaml.example'
+  extra_package_file '/etc/stackstate-agent/stackstate.yaml.example'
 
   # Custom checks directory
-  extra_package_file '/etc/dd-agent/checks.d'
+  extra_package_file '/etc/stackstate-agent/checks.d'
 end
 
 # ------------------------------------

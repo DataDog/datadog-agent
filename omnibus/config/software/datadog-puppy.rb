@@ -3,7 +3,7 @@ require './lib/ostools.rb'
 
 source path: '..'
 
-relative_path 'datadog-puppy'
+relative_path 'stackstate-puppy'
 
 whitelist_file ".*"  # temporary hack, TODO: build libz with omnibus
 
@@ -18,20 +18,20 @@ build do
 
   if linux?
     # Config
-    mkdir '/etc/dd-agent'
-    move 'bin/agent/dist/datadog.yaml', '/etc/dd-agent/datadog.yaml.example'
-    mkdir '/etc/dd-agent/checks.d'
+    mkdir '/etc/stackstate-agent'
+    move 'bin/agent/dist/stackstate.yaml', '/etc/stackstate-agent/stackstate.yaml.example'
+    mkdir '/etc/stackstate-agent/checks.d'
 
     if debian?
       erb source: "upstart.conf.erb",
-          dest: "/etc/init/datadog-agent6.conf",
+          dest: "/etc/init/stackstate-agent6.conf",
           mode: 0644,
           vars: { install_dir: install_dir }
     end
 
     if redhat? || debian? || suse?
       erb source: "systemd.service.erb",
-          dest: "/lib/systemd/system/datadog-agent6.service",
+          dest: "/lib/systemd/system/stackstate-agent6.service",
           mode: 0644,
           vars: { install_dir: install_dir }
     end

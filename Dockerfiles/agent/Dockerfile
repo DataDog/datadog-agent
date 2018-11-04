@@ -4,7 +4,7 @@
 
 FROM debian:buster-slim as extract
 ARG WITH_JMX
-COPY datadog-agent*_amd64.deb /
+COPY stackstate-agent*_amd64.deb /
 WORKDIR /output
 
 # Get s6-overlay and check gpg signature
@@ -22,23 +22,23 @@ RUN apt-get update \
 #   - docs and manpages                  # FIXME: move upstream
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
-RUN dpkg -x /datadog-agent*_amd64.deb . \
+RUN dpkg -x /stackstate-agent*_amd64.deb . \
  && rm -rf usr etc/init lib \
-    opt/datadog-agent/sources \
-    opt/datadog-agent/embedded/share/doc \
-    opt/datadog-agent/embedded/share/man \
+    opt/stackstate-agent/sources \
+    opt/stackstate-agent/embedded/share/doc \
+    opt/stackstate-agent/embedded/share/man \
     # remove libcurl 4.4.0 - it gets removed later anyway but the docker store scanner doesn't see that
-    opt/datadog-agent/embedded/lib/libcurl.so.4.4.0 \
+    opt/stackstate-agent/embedded/lib/libcurl.so.4.4.0 \
     # ditto for this older libsystemd
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
- && find opt/datadog-agent/ -iname "*.a" -delete \
- && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
- && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
+ && find opt/stackstate-agent/ -iname "*.a" -delete \
+ && if [ -z "$WITH_JMX" ]; then rm -rf opt/stackstate-agent/bin/agent/dist/jmx; fi \
+ && ln -s /opt/stackstate-agent/embedded/ssl etc/ssl \
  && mkdir conf.d checks.d
 
 # Configuration:
 #   - copy default config files
-COPY datadog*.yaml etc/datadog-agent/
+COPY stackstate*.yaml etc/stackstate-agent/
 
 
 ####################################
@@ -46,11 +46,11 @@ COPY datadog*.yaml etc/datadog-agent/
 ####################################
 
 FROM debian:buster-slim
-LABEL maintainer "Datadog <package@datadoghq.com>"
+LABEL maintainer "StackState <info@stackstate.com>"
 ARG WITH_JMX
-ENV DOCKER_DD_AGENT=true \
-    PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
-    CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
+ENV DOCKER_STS_AGENT=true \
+    PATH=/opt/stackstate-agent/bin/agent/:/opt/stackstate-agent/embedded/bin/:$PATH \
+    CURL_CA_BUNDLE=/opt/stackstate-agent/embedded/ssl/certs/cacert.pem \
     # Pass envvar variables to agents
     S6_KEEP_ENV=1 \
     # Direct all agent logs to stdout
@@ -90,13 +90,13 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
   && tar xzf s6.tgz -C /usr ./bin \
   && rm s6.tgz \
 # Prepare for running without root
-# - Create a dd-agent:root user and give it permissions on relevant folders
+# - Create a stackstate-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
 # as some docker versions re-create /run from zero at container start
- && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+ && adduser --system --no-create-home --disabled-password --ingroup root stackstate-agent \
  && rm /var/run && mkdir -p /var/run/s6 \
- && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
- && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
+ && chown -R stackstate-agent:root /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate-agent/ \
+ && chmod g+r,g+w,g+X -R /etc/stackstate-agent/ /etc/s6/ /var/run/s6/ /var/log/stackstate-agent/ \
  && chmod 755 /probe.sh /initlog.sh \
  && chown root:root /readsecret.py \
  && chmod 500 /readsecret.py

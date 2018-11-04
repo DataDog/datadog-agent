@@ -3,6 +3,7 @@ image: stackstate/stackstate-agent-runner-circle:omnibus-cache
 stages:
 - prepare
 - build_and_test
+- package_test
 - publish
 
 before_script:
@@ -146,10 +147,18 @@ build_deb:
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
     expire_in: 1 week
 
+test_deb_renaming:
+  stage: package_test
+  dependencies:
+    - build_deb
+  script:
+    ./test/renaming/test.sh $CI_PROJECT_DIR/outcomes/pkg/*.deb
+
 publish_deb:
   stage: publish
   dependencies:
     - build_deb
+  before_script: []
   script:
     - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $CI_PROJECT_DIR/outcomes/pkg/*.deb
 

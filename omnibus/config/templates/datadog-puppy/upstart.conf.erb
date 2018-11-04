@@ -1,11 +1,11 @@
-description "Datadog Agent"
+description "Stackstate Agent"
 
 start on started networking or started network
 stop on runlevel [!2345]
 
 respawn
 
-setuid dd-agent
+setuid stackstate-agent
 console none
 
 script
