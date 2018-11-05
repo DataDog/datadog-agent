@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package legacy
+package config
 
 import (
 	"fmt"
@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -80,10 +79,10 @@ func (k kubeDeprecations) print() {
 	}
 }
 
-// ImportKubernetesConf reads the configuration from the kubernetes check (agent5)
+// ImportLegacyKubernetesConf reads the configuration from the kubernetes check (agent5)
 // and create the configuration for the new kubelet check (agent 6) and moves
 // relevant options to datadog.yaml
-func ImportKubernetesConf(src, dst string, overwrite bool) error {
+func ImportLegacyKubernetesConf(src, dst string, overwrite bool) error {
 	_, err := importKubernetesConfWithDeprec(src, dst, overwrite)
 	return err
 }
@@ -141,51 +140,51 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 	}
 
 	if instance.KubeletPort > 0 {
-		config.Datadog.Set("kubernetes_http_kubelet_port", instance.KubeletPort)
-		config.Datadog.Set("kubernetes_https_kubelet_port", instance.KubeletPort)
+		Datadog.Set("kubernetes_http_kubelet_port", instance.KubeletPort)
+		Datadog.Set("kubernetes_https_kubelet_port", instance.KubeletPort)
 	}
 	if len(instance.KubeletHost) > 0 {
-		config.Datadog.Set("kubernetes_kubelet_host", instance.KubeletHost)
+		Datadog.Set("kubernetes_kubelet_host", instance.KubeletHost)
 	}
 	if len(instance.KubeletClientCrt) > 0 {
-		config.Datadog.Set("kubelet_client_crt", instance.KubeletClientCrt)
+		Datadog.Set("kubelet_client_crt", instance.KubeletClientCrt)
 	}
 	if len(instance.KubeletClientKey) > 0 {
-		config.Datadog.Set("kubelet_client_key", instance.KubeletClientKey)
+		Datadog.Set("kubelet_client_key", instance.KubeletClientKey)
 	}
 	if len(instance.KubeletCACert) > 0 {
-		config.Datadog.Set("kubelet_client_ca", instance.KubeletCACert)
+		Datadog.Set("kubelet_client_ca", instance.KubeletCACert)
 	}
 	if len(instance.KubeletTokenPath) > 0 {
-		config.Datadog.Set("kubelet_auth_token_path", instance.KubeletTokenPath)
+		Datadog.Set("kubelet_auth_token_path", instance.KubeletTokenPath)
 	}
 	if len(instance.NodeLabelsToTags) > 0 {
-		config.Datadog.Set("kubernetes_node_labels_as_tags", instance.NodeLabelsToTags)
+		Datadog.Set("kubernetes_node_labels_as_tags", instance.NodeLabelsToTags)
 	}
 
 	// We need to verify the kubelet_tls_verify is actually present before
 	// changing the secure `true` default
 	if verify, err := strconv.ParseBool(instance.KubeletTLSVerify); err == nil {
-		config.Datadog.Set("kubelet_tls_verify", verify)
+		Datadog.Set("kubelet_tls_verify", verify)
 	}
 
 	// Implicit default in Agent5 was true
 	if verify, err := strconv.ParseBool(instance.CollectServiceTags); err == nil {
-		config.Datadog.Set("kubernetes_collect_service_tags", verify)
+		Datadog.Set("kubernetes_collect_service_tags", verify)
 	} else {
-		config.Datadog.Set("kubernetes_collect_service_tags", true)
+		Datadog.Set("kubernetes_collect_service_tags", true)
 	}
 
 	// Temporarily in main datadog.yaml, will move to DCA
 	// Booleans are always imported as zero value is false
-	config.Datadog.Set("collect_kubernetes_events", instance.CollectEvents)
-	config.Datadog.Set("leader_election", instance.LeaderCandidate)
+	Datadog.Set("collect_kubernetes_events", instance.CollectEvents)
+	Datadog.Set("leader_election", instance.LeaderCandidate)
 
 	if instance.LeaderLeaseDuration > 0 {
-		config.Datadog.Set("leader_lease_duration", instance.LeaderLeaseDuration)
+		Datadog.Set("leader_lease_duration", instance.LeaderLeaseDuration)
 	}
 	if instance.ServiceTagUpdateTag > 0 {
-		config.Datadog.Set("kubernetes_service_tag_update_freq", instance.ServiceTagUpdateTag)
+		Datadog.Set("kubernetes_service_tag_update_freq", instance.ServiceTagUpdateTag)
 	}
 
 	// Deprecations

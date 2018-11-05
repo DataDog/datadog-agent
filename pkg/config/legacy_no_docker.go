@@ -5,14 +5,14 @@
 
 // +build !docker
 
-package legacy
+package config
 
 import (
 	"fmt"
 )
 
-// ImportDockerConf is a place holder if the agent is built without the docker flag
-func ImportDockerConf(src, dst string, overwrite bool) error {
+// ImportLegacyDockerConf is a place holder if the agent is built without the docker flag
+func ImportLegacyDockerConf(src, dst string, overwrite bool) error {
 	fmt.Println("This agent was build without docker support: could not convert docker_daemon.yaml")
 	return nil
 }

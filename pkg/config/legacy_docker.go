@@ -5,7 +5,7 @@
 
 // +build docker
 
-package legacy
+package config
 
 import (
 	"fmt"
@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -62,10 +61,10 @@ type legacyDockerInstance struct {
 	Include     []string `yaml:"include"`
 }
 
-// ImportDockerConf read the configuration from docker_daemon check (agent5)
+// ImportLegacyDockerConf read the configuration from docker_daemon check (agent5)
 // and create the configuration for the new docker check (agent 6) and move
 // needed option to datadog.yaml
-func ImportDockerConf(src, dst string, overwrite bool) error {
+func ImportLegacyDockerConf(src, dst string, overwrite bool) error {
 	fmt.Printf("%s\n", warningNewCheck)
 
 	// read docker_daemon.yaml
@@ -81,8 +80,8 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		}
 
 		if initConf.DockerRoot != "" {
-			config.Datadog.Set("container_cgroup_root", filepath.Join(initConf.DockerRoot, "sys", "fs", "cgroup"))
-			config.Datadog.Set("container_proc_root", filepath.Join(initConf.DockerRoot, "proc"))
+			Datadog.Set("container_cgroup_root", filepath.Join(initConf.DockerRoot, "sys", "fs", "cgroup"))
+			Datadog.Set("container_proc_root", filepath.Join(initConf.DockerRoot, "proc"))
 		}
 	}
 
@@ -133,11 +132,11 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 
 	// filter include/exclude list
 	if ac_exclude := handleFilterList(instance.Exclude, "exclude"); len(ac_exclude) != 0 {
-		config.Datadog.Set("ac_exclude", ac_exclude)
+		Datadog.Set("ac_exclude", ac_exclude)
 	}
 
 	if ac_include := handleFilterList(instance.Include, "include"); len(ac_include) != 0 {
-		config.Datadog.Set("ac_include", ac_include)
+		Datadog.Set("ac_include", ac_include)
 	}
 
 	// move 'collect_labels_as_tags' to 'docker_labels_as_tags'
@@ -146,7 +145,7 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		for _, label := range instance.LabelAsTags {
 			dockerLabelAsTags[label] = label
 		}
-		config.Datadog.Set("docker_labels_as_tags", dockerLabelAsTags)
+		Datadog.Set("docker_labels_as_tags", dockerLabelAsTags)
 	}
 
 	fmt.Printf("Successfully imported the contents of %s into datadog.yaml (see 'Autodiscovery' section in datadog.yaml.example)\n\n", src)

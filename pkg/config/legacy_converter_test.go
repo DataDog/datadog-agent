@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package legacy
+package config
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestIsAffirmative(t *testing.T) {
@@ -200,16 +198,16 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 
 func TestDefaultValues(t *testing.T) {
 	agentConfig := make(Config)
-	FromAgentConfig(agentConfig)
+	FromLegacyAgentConfig(agentConfig)
 
-	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
+	assert.Equal(t, true, Datadog.GetBool("hostname_fqdn"))
 }
 
 func TestExtractURLAPIKeys(t *testing.T) {
 	defer func() {
-		config.Datadog.Set("dd_url", "")
-		config.Datadog.Set("api_key", "")
-		config.Datadog.Set("additional_endpoints", nil)
+		Datadog.Set("dd_url", "")
+		Datadog.Set("api_key", "")
+		Datadog.Set("additional_endpoints", nil)
 	}()
 	agentConfig := make(Config)
 
@@ -218,28 +216,28 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	agentConfig["api_key"] = ""
 	err := extractURLAPIKeys(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "", config.Datadog.Get("api_key"))
-	assert.Nil(t, config.Datadog.Get("additional_endpoints"))
+	assert.Equal(t, "", Datadog.Get("dd_url"))
+	assert.Equal(t, "", Datadog.Get("api_key"))
+	assert.Nil(t, Datadog.Get("additional_endpoints"))
 
 	// one url and one key
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
 	err = extractURLAPIKeys(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
-	assert.Nil(t, config.Datadog.Get("additional_endpoints"))
+	assert.Equal(t, "https://datadoghq.com", Datadog.Get("dd_url"))
+	assert.Equal(t, "123456789", Datadog.Get("api_key"))
+	assert.Nil(t, Datadog.Get("additional_endpoints"))
 
 	// multiple dd_url and api_key
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
 	err = extractURLAPIKeys(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
+	assert.Equal(t, "https://datadoghq.com", Datadog.Get("dd_url"))
+	assert.Equal(t, "123456789", Datadog.Get("api_key"))
 
-	endpoints := config.Datadog.Get("additional_endpoints").(map[string][]string)
+	endpoints := Datadog.Get("additional_endpoints").(map[string][]string)
 	assert.Equal(t, 2, len(endpoints))
 	assert.Equal(t, []string{"abcdef", "secret_key"}, endpoints["https://datadoghq.com"])
 	assert.Equal(t, []string{"secret_key2"}, endpoints["https://staging.com"])

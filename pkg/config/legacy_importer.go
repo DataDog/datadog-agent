@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package legacy
+package config
 
 // `aws-sdk-go` imports go-ini like this instead of `gopkg.in/ini.v1`, let's do
 // the same to avoid checking in the dependency twice with different names.
 import "github.com/go-ini/ini"
 
-// Config is a simple key/value representation of the legacy agentConfig
+// LegacyConfig is a simple key/value representation of the legacy agentConfig
 // dictionary
-type Config map[string]string
+type LegacyConfig map[string]string
 
 var (
 	// Note: we'll only import a subset of these values.
@@ -72,9 +72,9 @@ var (
 	}
 )
 
-// GetAgentConfig reads `datadog.conf` and returns a map that contains the same
+// GetLegacyAgentConfig reads `datadog.conf` and returns a map that contains the same
 // values as the agentConfig dictionary returned by `get_config()` in config.py
-func GetAgentConfig(datadogConfPath string) (Config, error) {
+func GetLegacyAgentConfig(datadogConfPath string) (LegacyConfig, error) {
 	config := make(map[string]string)
 	iniFile, err := ini.Load(datadogConfPath)
 	if err != nil {

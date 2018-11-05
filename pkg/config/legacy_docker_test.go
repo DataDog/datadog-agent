@@ -5,7 +5,7 @@
 
 // +build docker
 
-package legacy
+package config
 
 import (
 	"io/ioutil"
@@ -15,8 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
@@ -86,7 +84,7 @@ func TestConvertDocker(t *testing.T) {
 	err = ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
 	require.Nil(t, err)
 
-	err = ImportDockerConf(src, dst, true)
+	err = ImportLegacyDockerConf(src, dst, true)
 	require.Nil(t, err)
 
 	newConf, err := ioutil.ReadFile(filepath.Join(dir, "docker.yaml"))
@@ -94,23 +92,23 @@ func TestConvertDocker(t *testing.T) {
 
 	assert.Equal(t, dockerNewConf, string(newConf))
 
-	assert.Equal(t, true, config.Datadog.GetBool("exclude_pause_container"))
+	assert.Equal(t, true, Datadog.GetBool("exclude_pause_container"))
 	assert.Equal(t, []string{"name:test", "name:some_image.*", "image:some_image_2", "image:some_image_3"},
-		config.Datadog.GetStringSlice("ac_exclude"))
-	assert.Equal(t, []string{"image:some_image_3"}, config.Datadog.GetStringSlice("ac_include"))
+		Datadog.GetStringSlice("ac_exclude"))
+	assert.Equal(t, []string{"image:some_image_3"}, Datadog.GetStringSlice("ac_include"))
 
-	assert.Equal(t, "/host/test/proc", config.Datadog.GetString("container_proc_root"))
-	assert.Equal(t, "/host/test/sys/fs/cgroup", config.Datadog.GetString("container_cgroup_root"))
+	assert.Equal(t, "/host/test/proc", Datadog.GetString("container_proc_root"))
+	assert.Equal(t, "/host/test/sys/fs/cgroup", Datadog.GetString("container_cgroup_root"))
 	assert.Equal(t, map[string]string{"test1": "test1", "test2": "test2"},
-		config.Datadog.Get("docker_labels_as_tags").(map[string]string))
+		Datadog.Get("docker_labels_as_tags").(map[string]string))
 
 	// test overwrite
-	err = ImportDockerConf(src, dst, false)
+	err = ImportLegacyDockerConf(src, dst, false)
 	require.NotNil(t, err)
 	_, err = os.Stat(filepath.Join(dir, "docker.yaml.bak"))
 	assert.True(t, os.IsNotExist(err))
 
-	err = ImportDockerConf(src, dst, true)
+	err = ImportLegacyDockerConf(src, dst, true)
 	require.Nil(t, err)
 	_, err = os.Stat(filepath.Join(dir, "docker.yaml.bak"))
 	assert.False(t, os.IsNotExist(err))

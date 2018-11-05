@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package legacy
+package config
 
 import (
 	"github.com/go-ini/ini"
@@ -19,9 +19,9 @@ var (
 	}
 )
 
-// ImportTraceAgentConfig reads `datadog.conf` and returns an ini config object,
+// ImportLegacyTraceAgentConfig reads `datadog.conf` and returns an ini config object,
 // ready to be dumped to a .ini file.
-func ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath string) (bool, error) {
+func ImportLegacyTraceAgentConfig(datadogConfPath, traceAgentConfPath string) (bool, error) {
 	// read datadog.conf
 	iniFile, err := ini.Load(datadogConfPath)
 	if err != nil {

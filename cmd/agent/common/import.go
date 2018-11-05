@@ -21,7 +21,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/legacy"
 )
 
 // ImportConfig imports the agent5 configuration into the agent6 yaml config
@@ -33,7 +32,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	const dirExt = ".d"
 
 	// read the old configuration in memory
-	agentConfig, err := legacy.GetAgentConfig(datadogConfPath)
+	agentConfig, err := config.GetLegacyAgentConfig(datadogConfPath)
 	if err != nil {
 		return fmt.Errorf("unable to read data from %s: %v", datadogConfPath, err)
 	}
@@ -63,7 +62,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// merge current agent configuration with the converted data
-	err = legacy.FromAgentConfig(agentConfig)
+	err = config.FromLegacyAgentConfig(agentConfig)
 	if err != nil {
 		return fmt.Errorf("unable to convert configuration data from %s: %v", datadogConfPath, err)
 	}
@@ -114,7 +113,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
 
 		if f.Name() == "docker_daemon.yaml" {
-			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.yaml"), force)
+			err := config.ImportLegacyDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.yaml"), force)
 			if err != nil {
 				return err
 			}
@@ -127,7 +126,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			)
 			continue
 		} else if f.Name() == "kubernetes.yaml" {
-			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.yaml"), force)
+			err := config.ImportLegacyKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.yaml"), force)
 			if err != nil {
 				return err
 			}
@@ -284,5 +283,5 @@ func configTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool
 		}
 	}
 
-	return legacy.ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath)
+	return config.ImportLegacyTraceAgentConfig(datadogConfPath, traceAgentConfPath)
 }

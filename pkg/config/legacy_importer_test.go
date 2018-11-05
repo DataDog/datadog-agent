@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package legacy
+package config
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetAgentConfig(t *testing.T) {
+func TestGetLegacyAgentConfig(t *testing.T) {
 	py.Initialize("tests")
 	python.PyGILState_Ensure()
 
@@ -30,7 +30,7 @@ func TestGetAgentConfig(t *testing.T) {
 	require.NotNil(t, agentConfigPy)
 
 	// load configuration from Go
-	agentConfigGo, err := GetAgentConfig("./tests/datadog.conf")
+	agentConfigGo, err := GetLegacyAgentConfig("./tests/datadog.conf")
 	require.Nil(t, err)
 
 	// ensure we've all the items
