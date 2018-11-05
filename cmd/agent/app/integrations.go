@@ -26,11 +26,12 @@ import (
 )
 
 const (
-	tufConfigFile          = "public-tuf-config.json"
-	tufPkgPattern          = "datadog-.*"
-	tufIndex               = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
-	pipFreezeOutputPattern = "%s==(\\d+\\.\\d+\\.\\d+)"
-	yamlFilePattern        = "[\\w_]+\\.yaml.*"
+	tufConfigFile       = "public-tuf-config.json"
+	reqAgentReleaseFile = "requirements-agent-release.txt"
+	tufPkgPattern       = "datadog(-|_).*"
+	tufIndex            = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
+	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
+	yamlFilePattern     = "[\\w_]+\\.yaml.*"
 )
 
 var (
@@ -41,6 +42,64 @@ var (
 	useSysPython bool
 	tufConfig    string
 )
+
+type integrationVersion struct {
+	major int
+	minor int
+	fix   int
+}
+
+// Parse a version string.
+// Return the version, or nil empty string
+func parseVersion(version string) (*integrationVersion, error) {
+	var major, minor, fix int
+	if version == "" {
+		return nil, nil
+	}
+	_, err := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &fix)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse version string %s: %v", version, err)
+	}
+	return &integrationVersion{major, minor, fix}, nil
+}
+
+func (v *integrationVersion) String() string {
+	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.fix)
+}
+
+func (v *integrationVersion) isAboveOrEqualTo(otherVersion *integrationVersion) bool {
+	if otherVersion == nil {
+		return true
+	}
+
+	if v.major > otherVersion.major {
+		return true
+	} else if v.major < otherVersion.major {
+		return false
+	}
+
+	if v.minor > otherVersion.minor {
+		return true
+	} else if v.minor < otherVersion.minor {
+		return false
+	}
+
+	if v.fix > otherVersion.fix {
+		return true
+	} else if v.fix < otherVersion.fix {
+		return false
+	}
+
+	return true
+}
+
+func (v *integrationVersion) equals(otherVersion *integrationVersion) bool {
+	if otherVersion == nil {
+		return false
+	}
+
+	return v.major == otherVersion.major && v.minor == otherVersion.minor && v.fix == otherVersion.fix
+}
 
 func init() {
 	AgentCmd.AddCommand(tufCmd)
@@ -270,14 +329,33 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	intVer := strings.Split(args[0], "==")
-	integration := strings.TrimSpace(intVer[0])
+	integration := strings.Replace(strings.TrimSpace(intVer[0]), "_", "-", -1)
 	if integration == "datadog-checks-base" {
-		return fmt.Errorf("cannot upgrade datadog-checks-base")
+		return fmt.Errorf("this command does not allow installing datadog-checks-base")
 	}
-	versionToInstall := strings.TrimSpace(intVer[1])
-	currentVersion, err := getIntegrationVersion(integration, cachePath)
+	versionToInstall, err := parseVersion(strings.TrimSpace(intVer[1]))
+	if err != nil || versionToInstall == nil {
+		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
+	}
+	currentVersion, err := installedVersion(integration, cachePath)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+	}
+
+	if versionToInstall.equals(currentVersion) {
+		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
+		return nil
+	}
+
+	minVersion, err := minAllowedVersion(integration)
+	if err != nil {
+		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
+	}
+	if !versionToInstall.isAboveOrEqualTo(minVersion) {
+		return fmt.Errorf(
+			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
+			versionToInstall, integration, minVersion,
+		)
 	}
 
 	// Run pip check first to see if the python environment is clean
@@ -322,7 +400,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 
 	// We either detected a mismatch, or we failed to run pip check
 	// Either way, roll back the install and return the error
-	if currentVersion == "" {
+	if currentVersion == nil {
 		// Special case where we tried to install a new integration, not yet released with the agent
 		tufArgs = []string{
 			"uninstall",
@@ -350,10 +428,25 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	)
 }
 
-func getIntegrationVersion(integration string, cachePath string) (string, error) {
+func minAllowedVersion(integration string) (*integrationVersion, error) {
+	here, _ := executable.Folder()
+	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
+	if err != nil {
+		return nil, err
+	}
+	version, err := getVersionFromReqLine(integration, string(lines))
+	if err != nil {
+		return nil, err
+	}
+
+	return version, nil
+}
+
+// Return the version of an installed integration, or nil if the integration isn't installed
+func installedVersion(integration string, cachePath string) (*integrationVersion, error) {
 	pythonPath, err := getCommandPython()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	freezeCmd := exec.Command(pythonPath, "-mpip", "freeze", "--cache-dir", cachePath)
@@ -367,19 +460,39 @@ func getIntegrationVersion(integration string, cachePath string) (string, error)
 			errMsg = err.Error()
 		}
 
-		return "", fmt.Errorf("error executing pip freeze: %s", errMsg)
+		return nil, fmt.Errorf("error executing pip freeze: %s", errMsg)
 	}
 
-	exp, err := regexp.Compile(fmt.Sprintf(pipFreezeOutputPattern, integration))
+	version, err := getVersionFromReqLine(integration, string(output))
 	if err != nil {
-		return "", fmt.Errorf("internal error: %v", err)
+		return nil, err
 	}
 
-	if groups := exp.FindStringSubmatch(string(output)); groups != nil {
-		return groups[1], nil
+	return version, nil
+}
+
+// Parse requirements lines to get a package version.
+// Returns the version if found, or nil if package not present
+func getVersionFromReqLine(integration string, lines string) (*integrationVersion, error) {
+	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
+	if err != nil {
+		return nil, fmt.Errorf("internal error: %v", err)
 	}
 
-	return "", nil
+	groups := exp.FindAllStringSubmatch(lines, 2)
+	if groups == nil {
+		return nil, nil
+	}
+
+	if len(groups) > 1 {
+		return nil, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
+	}
+
+	version, err := parseVersion(groups[0][1])
+	if err != nil {
+		return nil, err
+	}
+	return version, nil
 }
 
 func pipCheck(cachePath string) error {
