@@ -23,7 +23,7 @@ type clusterStore struct {
 	digestToConfig  map[string]integration.Config // All configurations to dispatch
 	digestToNode    map[string]string             // Node running a config
 	nodes           map[string]*nodeStore         // All nodes known to the cluster-agent
-	danglingConfigs map[string]integration.Config // Configs we count not dispatch to any node
+	danglingConfigs map[string]integration.Config // Configs we could not dispatch to any node
 }
 
 func newClusterStore() *clusterStore {
@@ -62,7 +62,7 @@ func (s *clusterStore) clearDangling() {
 // Lock is to be held by the user (dispatcher)
 type nodeStore struct {
 	sync.RWMutex
-	lastPing         int64
+	heartbeat        int64
 	lastStatus       types.NodeStatus
 	lastConfigChange int64
 	digestToConfig   map[string]integration.Config

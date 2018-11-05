@@ -58,7 +58,7 @@ func (d *dispatcher) add(config integration.Config) {
 	target := d.getLeastBusyNode()
 	if target == "" {
 		// If no node is found, store it in the danglingConfigs map for retrying later.
-		log.Infof("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
 	} else {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}

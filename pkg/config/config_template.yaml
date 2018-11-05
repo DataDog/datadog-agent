@@ -475,6 +475,20 @@ api_key:
 # ad_config_poll_interval: 10
 #
 {{ end -}}
+{{- if .ClusterChecks }}
+# Cluster check dispatching
+#
+# The cluster-agent is able to autodiscover cluster resources and dispatch checks on
+# the node-agents (provided the clustercheck config provider is enabled on them).
+#
+# cluster_checks:
+#   Set to true to enable the dispatching logic on the leader cluster-agent.
+#   enabled: "true"
+#   Node-agents that have not queried the cluster-agent for 30 seconds will be deleted,
+#   and their checks re-dispatched to other nodes. This delay is configurable here.
+#   node_expiration_timeout: 30
+#
+{{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction
 #
@@ -641,7 +655,7 @@ api_key:
 #   dd_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   dd_agent_env:
-{{ end -}} 
+{{ end -}}
 
 {{- if .NetworkTracer }}
 # Network tracer specific settings

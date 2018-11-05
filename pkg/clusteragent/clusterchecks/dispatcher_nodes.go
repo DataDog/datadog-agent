@@ -40,7 +40,7 @@ func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus)
 	node.Lock()
 	defer node.Unlock()
 	node.lastStatus = status
-	node.lastPing = timestampNow()
+	node.heartbeat = timestampNow()
 
 	return (node.lastConfigChange == status.LastChange), nil
 }
@@ -78,10 +78,10 @@ func (d *dispatcher) expireNodes() {
 
 	for name, node := range d.store.nodes {
 		node.RLock()
-		if node.lastPing < cutoffTimestamp {
+		if node.heartbeat < cutoffTimestamp {
 			if name != "" {
 				// Don't report on the dummy "" host for unscheduled configs
-				log.Infof("Expiring out node %s, last status report %d seconds ago", name, timestampNow()-node.lastPing)
+				log.Infof("Expiring out node %s, last status report %d seconds ago", name, timestampNow()-node.heartbeat)
 			}
 			for digest, config := range node.digestToConfig {
 				d.store.danglingConfigs[digest] = config

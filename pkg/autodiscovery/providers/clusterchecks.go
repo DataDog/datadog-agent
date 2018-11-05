@@ -23,7 +23,7 @@ const defaultGraceDuration = 60 * time.Second
 type ClusterChecksConfigProvider struct {
 	dcaClient      *clusteragent.DCAClient
 	graceDuration  time.Duration
-	lastPing       time.Time
+	heartbeat      time.Time
 	lastChange     int64
 	nodeName       string
 	flushedConfigs bool
@@ -62,7 +62,7 @@ func (c *ClusterChecksConfigProvider) String() string {
 }
 
 func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {
-	return c.lastPing.Add(c.graceDuration).After(time.Now())
+	return c.heartbeat.Add(c.graceDuration).After(time.Now())
 }
 
 // IsUpToDate queries the cluster-agent to update its status and
@@ -90,7 +90,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
 		return false, err
 	}
 
-	c.lastPing = time.Now()
+	c.heartbeat = time.Now()
 	if reply.IsUpToDate {
 		log.Tracef("Up to date with change %d", c.lastChange)
 	} else {

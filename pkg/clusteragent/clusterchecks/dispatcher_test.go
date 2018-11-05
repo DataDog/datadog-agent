@@ -108,18 +108,18 @@ func TestProcessNodeStatus(t *testing.T) {
 	node1, found := dispatcher.store.getNodeStore("node1")
 	assert.True(t, found)
 	assert.Equal(t, status1, node1.lastStatus)
-	assert.True(t, timestampNow() >= node1.lastPing)
-	assert.True(t, timestampNow() <= node1.lastPing+1)
+	assert.True(t, timestampNow() >= node1.heartbeat)
+	assert.True(t, timestampNow() <= node1.heartbeat+1)
 
 	// Give changes
 	node1.lastConfigChange = timestampNow()
-	node1.lastPing = node1.lastPing - 50
+	node1.heartbeat = node1.heartbeat - 50
 	status2 := types.NodeStatus{LastChange: node1.lastConfigChange - 2}
 	upToDate, err = dispatcher.processNodeStatus("node1", status2)
 	assert.NoError(t, err)
 	assert.False(t, upToDate)
-	assert.True(t, timestampNow() >= node1.lastPing)
-	assert.True(t, timestampNow() <= node1.lastPing+1)
+	assert.True(t, timestampNow() >= node1.heartbeat)
+	assert.True(t, timestampNow() <= node1.heartbeat+1)
 
 	// No change
 	status3 := types.NodeStatus{LastChange: node1.lastConfigChange}
@@ -174,8 +174,8 @@ func TestExpireNodes(t *testing.T) {
 	assert.Equal(t, 2, len(dispatcher.store.nodes))
 
 	// Fake the status report timestamps, nodeB should expire
-	dispatcher.store.nodes["nodeA"].lastPing = timestampNow() - 25
-	dispatcher.store.nodes["nodeB"].lastPing = timestampNow() - 35
+	dispatcher.store.nodes["nodeA"].heartbeat = timestampNow() - 25
+	dispatcher.store.nodes["nodeB"].heartbeat = timestampNow() - 35
 
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
 	dispatcher.expireNodes()
