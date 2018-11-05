@@ -124,16 +124,14 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 // If the copy does not exist or is too old (>1 HPA controller default run cycle) we refresh it.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	matchingMetrics := []external_metrics.ExternalMetricValue{}
-
 	p.ListAllExternalMetrics() // get up to date values from the cache or the Global Store
-
 	for _, metric := range p.externalMetrics {
 		metricFromDatadog := external_metrics.ExternalMetricValue{
 			MetricName:   metric.info.Metric,
 			MetricLabels: metric.value.MetricLabels,
 			Value:        metric.value.Value,
 		}
-		if metric.info.Metric == metric.info.Metric &&
+		if info.Metric == metric.info.Metric &&
 			metricSelector.Matches(labels.Set(metric.value.MetricLabels)) {
 			metricValue := metricFromDatadog
 			metricValue.Timestamp = metav1.Now()
