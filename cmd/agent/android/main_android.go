@@ -12,12 +12,13 @@ import (
 	"log"
 
 	ddapp "github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/androidasset"
 )
 
 func AndroidMain(apikey string, hostname string, tags string) {
-	overrides := make(map[string]string)
+	overrides := make(map[string]interface{})
 	if len(apikey) != 0 {
 		overrides["apikey"] = apikey
 	}
@@ -25,7 +26,7 @@ func AndroidMain(apikey string, hostname string, tags string) {
 		overrides["hostname"] = hostname
 	}
 	if len(tags) != 0 {
-		overrides["tags"] = tags
+		overrides["tags"] = strings.Split(tags, ",")
 	}
 	//readAsset("android.yaml")
 	if _, err := androidasset.ReadFile("datadog.yaml"); err != nil {
@@ -36,8 +37,9 @@ func AndroidMain(apikey string, hostname string, tags string) {
 
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
+	config.Datadog.AddConfigPath("datadog.yaml")
+	config.SetOverrides(overrides)
 
-	ddapp.SetOverrides(overrides)
 	ddapp.StartAgent()
 }
 
