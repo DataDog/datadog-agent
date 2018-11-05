@@ -64,9 +64,9 @@ func GetProgramDataDir() (path string, err error) {
 	if err == nil {
 		// convert the string
 		defer CoTaskMemFree(retstrptr)
-		// the path = syscall.UTF16ToString... returns a 
+		// the path = syscall.UTF16ToString... returns a
 		// go vet: "possible misuse of unsafe.Pointer"
-		// Use the "C" GoString converter instead 
+		// Use the "C" GoString converter instead
 		// path = syscall.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
 		path = C.GoString(retstr)
 	}
