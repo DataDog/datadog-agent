@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
 
 	yaml "gopkg.in/yaml.v2"
@@ -68,7 +67,7 @@ func ImportLegacyDockerConf(src, dst string, overwrite bool) error {
 	fmt.Printf("%s\n", warningNewCheck)
 
 	// read docker_daemon.yaml
-	c, err := providers.GetIntegrationConfigFromFile("docker_daemon", src)
+	c, err := getLegacyIntegrationConfigFromFile("docker_daemon", src)
 	if err != nil {
 		return fmt.Errorf("Could not load %s: %s", src, err)
 	}

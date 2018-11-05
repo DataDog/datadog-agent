@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -93,7 +91,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 	deprecations := make(kubeDeprecations)
 
 	// read kubernetes.yaml
-	c, err := providers.GetIntegrationConfigFromFile("kubernetes", src)
+	c, err := getLegacyIntegrationConfigFromFile("kubernetes", src)
 	if err != nil {
 		return deprecations, fmt.Errorf("Could not load %s: %s", src, err)
 	}

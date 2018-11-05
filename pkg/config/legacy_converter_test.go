@@ -33,7 +33,7 @@ func TestIsAffirmative(t *testing.T) {
 }
 
 func TestBuildProxySettings(t *testing.T) {
-	agentConfig := make(Config)
+	agentConfig := make(LegacyConfig)
 
 	proxyOnlyHost := map[string]string{
 		"http":  "http://foobar.baz",
@@ -98,7 +98,7 @@ func TestBuildProxySettings(t *testing.T) {
 }
 
 func TestBuildSyslogURI(t *testing.T) {
-	agentConfig := make(Config)
+	agentConfig := make(LegacyConfig)
 
 	assert.Empty(t, buildSyslogURI(agentConfig))
 
@@ -108,7 +108,7 @@ func TestBuildSyslogURI(t *testing.T) {
 }
 
 func TestBuildConfigProviders(t *testing.T) {
-	agentConfig := make(Config)
+	agentConfig := make(LegacyConfig)
 
 	// unknown config provider
 	agentConfig["sd_config_backend"] = "foo"
@@ -133,7 +133,7 @@ func TestBuildConfigProviders(t *testing.T) {
 	assert.Empty(t, p.Token)
 
 	// consul has specific settings
-	agentConfig = make(Config)
+	agentConfig = make(LegacyConfig)
 	agentConfig["sd_config_backend"] = "consul"
 	agentConfig["consul_token"] = "123456"
 	providers, err = buildConfigProviders(agentConfig)
@@ -145,7 +145,7 @@ func TestBuildConfigProviders(t *testing.T) {
 }
 
 func TestBuildHistogramAggregates(t *testing.T) {
-	agentConfig := make(Config)
+	agentConfig := make(LegacyConfig)
 
 	// empty list
 	agentConfig["histogram_aggregates"] = ""
@@ -171,7 +171,7 @@ func TestBuildHistogramAggregates(t *testing.T) {
 }
 
 func TestBuildHistogramPercentiles(t *testing.T) {
-	agentConfig := make(Config)
+	agentConfig := make(LegacyConfig)
 
 	// empty list
 	agentConfig["histogram_percentiles"] = ""
@@ -197,7 +197,7 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 }
 
 func TestDefaultValues(t *testing.T) {
-	agentConfig := make(Config)
+	agentConfig := make(LegacyConfig)
 	FromLegacyAgentConfig(agentConfig)
 
 	assert.Equal(t, true, Datadog.GetBool("hostname_fqdn"))
@@ -209,7 +209,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 		Datadog.Set("api_key", "")
 		Datadog.Set("additional_endpoints", nil)
 	}()
-	agentConfig := make(Config)
+	agentConfig := make(LegacyConfig)
 
 	// empty
 	agentConfig["dd_url"] = ""

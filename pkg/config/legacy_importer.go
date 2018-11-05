@@ -7,11 +7,26 @@ package config
 
 // `aws-sdk-go` imports go-ini like this instead of `gopkg.in/ini.v1`, let's do
 // the same to avoid checking in the dependency twice with different names.
-import "github.com/go-ini/ini"
+import (
+	"errors"
+	"io/ioutil"
+
+	"github.com/go-ini/ini"
+	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+)
 
 // LegacyConfig is a simple key/value representation of the legacy agentConfig
 // dictionary
 type LegacyConfig map[string]string
+
+type legacyConfigFormat struct {
+	ADIdentifiers []string    `yaml:"ad_identifiers"`
+	InitConfig    interface{} `yaml:"init_config"`
+	Instances     []integration.RawMap
+	DockerImages  []string `yaml:"docker_images"`
+}
 
 var (
 	// Note: we'll only import a subset of these values.
@@ -129,4 +144,47 @@ func GetLegacyAgentConfig(datadogConfPath string) (LegacyConfig, error) {
 	config["service_discovery"] = "True"
 
 	return config, nil
+}
+
+func getLegacyIntegrationConfigFromFile(name, fpath string) (integration.Config, error) {
+	cf := legacyConfigFormat{}
+	config := integration.Config{Name: name}
+
+	// Read file contents
+	// FIXME: ReadFile reads the entire file, possible security implications
+	yamlFile, err := ioutil.ReadFile(fpath)
+	if err != nil {
+		return config, err
+	}
+
+	// Parse configuration
+	err = yaml.Unmarshal(yamlFile, &cf)
+	if err != nil {
+		return config, err
+	}
+
+	// If no valid instances were found this is not a valid configuration file
+	if len(cf.Instances) < 1 {
+		return config, errors.New("Configuration file contains no valid instances")
+	}
+
+	// at this point the Yaml was already parsed, no need to check the error
+	if cf.InitConfig != nil {
+		rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
+		config.InitConfig = rawInitConfig
+	}
+
+	// Go through instances and return corresponding []byte
+	for _, instance := range cf.Instances {
+		// at this point the Yaml was already parsed, no need to check the error
+		rawConf, _ := yaml.Marshal(instance)
+		config.Instances = append(config.Instances, rawConf)
+	}
+
+	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
+	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {
+		return config, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
+	}
+
+	return config, err
 }
