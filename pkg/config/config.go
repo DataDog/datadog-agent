@@ -623,8 +623,8 @@ func IsKubernetes() bool {
 }
 
 // SetOverrides provides an externally accessible method for
-// overriding config variables. Used by Android to set
-// the various config options from intent extras
+// overriding config variables.
+// This method must be called before Load() to be effective.
 func SetOverrides(vars map[string]interface{}) {
 	overrideVars = vars
 }
