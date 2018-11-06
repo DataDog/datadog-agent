@@ -23,6 +23,7 @@ PyObject* GetClusterName(PyObject *self, PyObject *args);
 PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 PyObject* GetSubprocessOutput(char **args, int argc, int raise);
+PyObject* SetCheckMetadata(const char *checkID, const char *name, const char *value);
 PyObject* SetExternalTags(const char *hostname, const char *source_type, char **tags, int tags_s);
 
 // Exceptions
@@ -114,6 +115,22 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     free(subprocess_args);
 
     return py_result;
+}
+
+static PyObject *set_check_metadata(PyObject *self, PyObject *args) {
+    char *check_id, *name, *value;
+
+    PyGILState_STATE gstate;
+    gstate = PyGILState_Ensure();
+
+    // datadog_agent.set_check_metadata(check_id, name, value)
+    if (!PyArg_ParseTuple(args, "sss", &check_id, &name, &value)) {
+      PyGILState_Release(gstate);
+      return NULL;
+    }
+
+    PyGILState_Release(gstate);
+    return SetCheckMetadata(check_id, name, value);
 }
 
 static PyObject *set_external_tags(PyObject *self, PyObject *args) {
@@ -237,6 +254,7 @@ static PyMethodDef datadogAgentMethods[] = {
   {"get_hostname", GetHostname, METH_VARARGS, "Get the agent hostname."},
   {"get_clustername", GetClusterName, METH_VARARGS, "Get the agent cluster name."},
   {"log", log_message, METH_VARARGS, "Log a message through the agent logger."},
+  {"set_check_metadata", set_check_metadata, METH_VARARGS, "Send check metadata."},
   {"set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags."},
   {NULL, NULL}
 };

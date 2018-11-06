@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/checkmetadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -20,6 +21,7 @@ type Payload struct {
 	CommonPayload
 	MetaPayload
 	ACPayload
+	CheckMetadataPayload
 	ExternalHostPayload
 }
 
@@ -36,6 +38,11 @@ type CommonPayload struct {
 // ACPayload wraps the Agent Checks payload
 type ACPayload struct {
 	AgentChecks []interface{} `json:"agent_checks"`
+}
+
+// CheckMetadataPayload wraps Payload from the `checkmetadata` package
+type CheckMetadataPayload struct {
+	checkmetadata.Payload `json:"check_metadata"`
 }
 
 // ExternalHostPayload wraps Payload from the `externalhost` package

@@ -3,6 +3,7 @@ package py
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/checkmetadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,25 @@ import (
 	python "github.com/sbinet/go-python"
 )
 
-func TestAddExternalTagsBindings(t *testing.T) {
+func TestSetCheckMetadataBindings(t *testing.T) {
+	gstate := newStickyLock()
+	defer gstate.unlock()
+
+	module := python.PyImport_ImportModule("check_metadata")
+	require.NotNil(t, module)
+	f := module.GetAttrString("test")
+	require.NotNil(t, f)
+	// this will add 2 entries to the check metadata cache
+	f.Call(python.PyList_New(0), python.PyDict_New())
+
+	cmp := *(checkmetadata.GetPayload())
+	require.Len(t, cmp, 2)
+
+	require.Contains(t, cmp, [2]string{"config.http_check.exists.check_certificate_expiration", "true"})
+	require.Contains(t, cmp, [2]string{"version.redis", "5.0.0"})
+}
+
+func TestSetExternalTagsBindings(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 

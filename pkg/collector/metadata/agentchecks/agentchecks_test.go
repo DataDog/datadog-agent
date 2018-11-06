@@ -8,9 +8,24 @@ package agentchecks
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/checkmetadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestCheckMetadata(t *testing.T) {
+	checkID1 := "mysql:12345"
+	checkID2 := "mysql:56789"
+	name := "version.mysql"
+	value := "5"
+
+	checkmetadata.SetCheckMetadata(checkID1, name, value)
+	checkmetadata.SetCheckMetadata(checkID2, name, value)
+
+	pl := GetPayload()
+	cmpl := pl.CheckMetadataPayload.Payload
+	assert.Len(t, cmpl, 2)
+}
 
 func TestExternalHostTags(t *testing.T) {
 	host1 := "localhost"
