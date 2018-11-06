@@ -227,7 +227,8 @@ func extractTags(tags *C.PyObject, checkID string) (_tags []string, err error) {
 			item := C.PySequence_Fast_Get_Item(seq, i) // `item` is borrowed, no need to decref
 			if int(C._PyString_Check(item)) == 0 {
 				typeName := C.GoString(C._object_type(item))
-				log.Infof("One of the submitted tag for the check with ID %s is not a string but a %s, ignoring it", checkID, typeName)
+				stringRepr := stringRepresentation(item)
+				log.Infof("One of the submitted tag for the check with ID %s is not a string but a %s: %s, ignoring it", checkID, typeName, stringRepr)
 				continue
 			}
 			// at this point we're sure that `item` is a string, no further error checking needed
@@ -240,6 +241,14 @@ func extractTags(tags *C.PyObject, checkID string) (_tags []string, err error) {
 
 func isNone(o *C.PyObject) bool {
 	return int(C._is_none(o)) != 0
+}
+
+func stringRepresentation(o *C.PyObject) string {
+	repr := C._PyObject_Repr(o)
+	if repr != nil {
+		return C.GoString(C.PyString_AsString(repr))
+	}
+	return ""
 }
 
 func initAPI() {

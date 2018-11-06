@@ -130,6 +130,11 @@ int _PyString_Check(PyObject *o) {
   return PyString_Check(o);
 }
 
+PyObject* _PyObject_Repr(PyObject *o)
+{
+  return _PyObject_Repr(o);
+}
+
 PyObject* PySequence_Fast_Get_Item(PyObject *o, Py_ssize_t i)
 {
   return PySequence_Fast_GET_ITEM(o, i);
