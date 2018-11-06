@@ -140,36 +140,25 @@ func ImportRegistryConfig() error {
 		return err
 	}
 	defer k.Close()
-	// Global Agent configuration
-	err = SetupConfig("")
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
 
-	// store the current datadog.yaml path
-	datadogYamlPath := config.Datadog.ConfigFileUsed()
-
-	if config.Datadog.GetString("api_key") != "" {
-		return fmt.Errorf("%s seems to contain a valid configuration, not overwriting config",
-			datadogYamlPath)
-	}
+	overrides := make(map[string]interface{})
 
 	var val string
 
 	if val, _, err = k.GetStringValue("api_key"); err == nil {
-		config.Datadog.Set("api_key", val)
+		overrides["api_key"] = val
 		log.Debug("Setting API key")
 	} else {
 		log.Debug("API key not found, not setting")
 	}
 	if val, _, err = k.GetStringValue("tags"); err == nil {
-		config.Datadog.Set("tags", strings.Split(val, ","))
+		overrides["tags"] = strings.Split(val, ",")
 		log.Debugf("Setting tags %s", val)
 	} else {
 		log.Debug("Tags not found, not setting")
 	}
 	if val, _, err = k.GetStringValue("hostname"); err == nil {
-		config.Datadog.Set("hostname", val)
+		overrides["hostname"] = val
 		log.Debugf("Setting hostname %s", val)
 	} else {
 		log.Debug("hostname not found in registry: using default value")
@@ -181,7 +170,7 @@ func ImportRegistryConfig() error {
 		} else if cmdPortInt <= 0 || cmdPortInt > 65534 {
 			log.Warnf("Not setting api port, invalid configuration %s", val)
 		} else {
-			config.Datadog.Set("cmd_port", cmdPortInt)
+			overrides["cmd_port"] = cmdPortInt
 			log.Debugf("Setting cmd_port  %d", cmdPortInt)
 		}
 	} else {
@@ -196,21 +185,21 @@ func ImportRegistryConfig() error {
 				if enabled {
 					switch cfg {
 					case "logs_enabled":
-						config.Datadog.Set(cfg, true)
+						overrides[cfg] = true
 					case "apm_config.enabled":
-						config.Datadog.Set(cfg, true)
+						overrides[cfg] = true
 					case "process_config.enabled":
-						config.Datadog.Set(cfg, "true")
+						overrides[cfg] = "true"
 					}
 					log.Debugf("Setting %s to true", cfg)
 				} else {
 					switch cfg {
 					case "logs_enabled":
-						config.Datadog.Set(cfg, false)
+						overrides[cfg] = false
 					case "apm_config.enabled":
-						config.Datadog.Set(cfg, false)
+						overrides[cfg] = false
 					case "process_config.enabled":
-						config.Datadog.Set(cfg, "false")
+						overrides[cfg] = "false"
 					}
 					log.Debugf("Setting %s to false", cfg)
 				}
@@ -242,29 +231,46 @@ func ImportRegistryConfig() error {
 		proxyMap := make(map[string]string)
 		proxyMap["http"] = u.String()
 		proxyMap["https"] = u.String()
-		config.Datadog.Set("proxy", proxyMap)
+		overrides["proxy"] = proxyMap
 	} else {
 		log.Debug("proxy key not found, not setting proxy config")
 	}
 	if val, _, err = k.GetStringValue("site"); err == nil && val != "" {
-		config.Datadog.Set("site", val)
+		overrides["site"] = val
 		log.Debugf("Setting site to %s", val)
 	}
 	if val, _, err = k.GetStringValue("dd_url"); err == nil && val != "" {
-		config.Datadog.Set("dd_url", val)
+		overrides["dd_url"] = val
 		log.Debugf("Setting dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
-		config.Datadog.Set("logs_config.dd_url", val)
+		overrides["logs_dd_url"] = val
 		log.Debugf("Setting logs_config.dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
-		config.Datadog.Set("process_config.process_dd_url", val)
+		overrides["process_config.process_dd_url"] = val
 		log.Debugf("Setting process_config.process_dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("trace_dd_url"); err == nil && val != "" {
-		config.Datadog.Set("apm_config.apm_dd_url", val)
+		overrides["apm_config.apm_dd_url"] = val
 		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
+	}
+
+	// apply overrides to the config
+	config.SetOverrides(overrides)
+
+	// build the global agent configuration
+	err = SetupConfig("")
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+
+	// store the current datadog.yaml path
+	datadogYamlPath := config.Datadog.ConfigFileUsed()
+
+	if config.Datadog.GetString("api_key") != "" {
+		return fmt.Errorf("%s seems to contain a valid configuration, not overwriting config",
+			datadogYamlPath)
 	}
 
 	// dump the current configuration to datadog.yaml
