@@ -733,3 +733,16 @@ func TestNamespace(t *testing.T) {
 	assert.Equal(t, "testNamespace.daemon", parsed.Name)
 	assert.Equal(t, "default-hostname", parsed.Host)
 }
+
+func TestParseGaugeWithEmptyTags(t *testing.T) {
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,,sometag2:somevalue2,"), "", "default-hostname")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}

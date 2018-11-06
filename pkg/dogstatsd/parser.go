@@ -74,7 +74,9 @@ func parseTags(rawTags []byte, extractHost bool, defaultHostname string) ([]stri
 		if extractHost && bytes.HasPrefix(tag, []byte("host:")) {
 			host = string(tag[5:])
 		} else {
-			tagsList = append(tagsList, string(tag))
+			if len(tag) > 0 {
+				tagsList = append(tagsList, string(tag))
+			}
 		}
 
 		if remainder == nil {
