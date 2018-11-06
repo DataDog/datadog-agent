@@ -1,8 +1,8 @@
 stages:
-  - binary_build
-  - package_build
   - source_test
+  - binary_build
   - integration_test
+  - package_build
   - check_deploy
   - testkitchen_deploy
   - testkitchen_testing
