@@ -122,16 +122,18 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
 }
 
 func setupAgent() error {
+	overrides := make(map[string]interface{})
 
+	// let the os assign an available port
+	overrides["cmd_port"] = 0
+
+	config.SetOverrides(overrides)
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
-
-	// let the os assign an available port
-	config.Datadog.Set("cmd_port", 0)
 
 	// start the cmd HTTP server
 	if err := api.StartServer(); err != nil {

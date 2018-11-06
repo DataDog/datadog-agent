@@ -50,15 +50,23 @@ var checkCmd = &cobra.Command{
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		overrides := make(map[string]interface{})
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
+		if logLevel != "" {
+			// Python calls config.Datadog.GetString("log_level")
+			overrides["log_level"] = logLevel
+		}
+
 		// Global Agent configuration
+		config.SetOverrides(overrides)
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
 			fmt.Printf("Cannot setup config, exiting: %v\n", err)
 			return err
-		}
-
-		if flagNoColor {
-			color.NoColor = true
 		}
 
 		if logLevel == "" {
@@ -67,9 +75,6 @@ var checkCmd = &cobra.Command{
 			} else {
 				logLevel = "off"
 			}
-		} else {
-			// Python calls config.Datadog.GetString("log_level")
-			config.Datadog.Set("log_level", logLevel)
 		}
 
 		// Setup logger
