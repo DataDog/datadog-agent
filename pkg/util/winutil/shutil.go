@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2018 Datadog, Inc.
+
 // +build windows
 
 package winutil
@@ -9,7 +14,6 @@ import (
 )
 
 // GUID is representation of the C GUID structure
-
 type GUID struct {
 	Data1 uint32
 	Data2 uint16
@@ -30,7 +34,7 @@ Legacy Display Name	Application Data
 Legacy Default Path	%ALLUSERSPROFILE%\Application Data
 */
 var (
-	FOLDERID_ProgramData = GUID{0x62AB5D82, 0xFDC1, 0x4DC3, [8]byte{0xA9, 0xDD, 0x07, 0x0D, 0x1D, 0x49, 0x5D, 0x97}}
+	FOLDERIDProgramData = GUID{0x62AB5D82, 0xFDC1, 0x4DC3, [8]byte{0xA9, 0xDD, 0x07, 0x0D, 0x1D, 0x49, 0x5D, 0x97}}
 )
 
 var (
@@ -55,12 +59,12 @@ func CoTaskMemFree(pv uintptr) {
 	return
 }
 
-// GetProgramDataDir() returns the current programdatadir, usually
+// GetProgramDataDir returns the current programdatadir, usually
 // c:\programdata
 func GetProgramDataDir() (path string, err error) {
 	var retstr *C.char
 	var retstrptr = uintptr(unsafe.Pointer(retstr))
-	err = SHGetKnownFolderPath(&FOLDERID_ProgramData, 0, 0, &retstrptr)
+	err = SHGetKnownFolderPath(&FOLDERIDProgramData, 0, 0, &retstrptr)
 	if err == nil {
 		// convert the string
 		defer CoTaskMemFree(retstrptr)

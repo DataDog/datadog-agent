@@ -6,9 +6,9 @@
 package main
 
 import (
-	"path/filepath"
-
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"path/filepath"
 )
 
 var defaultLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
@@ -18,6 +18,6 @@ func init() {
 	if err == nil {
 		defaultLogFile = filepath.Join(pd, "Datadog", "logs", "dogstatsd.log")
 	} else {
-		winutil.LogEventViewer(app.ServiceName, 0x8000000F, defaultLogFile)
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, defaultLogFile)
 	}
 }

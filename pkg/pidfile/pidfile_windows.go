@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -39,8 +38,6 @@ func Path() string {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		return filepath.Join(pd, "DataDog", "datadog-agent.pid")
-	} else {
-		winutil.LogEventViewer(config.ServiceName, 0x8000000F, "c:\\ProgramData\\DataDog\\datadog-agent.pid")
 	}
 	return "c:\\ProgramData\\DataDog\\datadog-agent.pid"
 }
