@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-
 )
 
 var defaultLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
