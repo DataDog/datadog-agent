@@ -128,30 +128,16 @@ func (t *Tailer) tail(since string) error {
 // readForever reads from the reader as fast as it can,
 // and sleeps when there is nothing to read
 func (t *Tailer) readForever() {
-	doneReading := make(chan struct{}, 1)
 	defer t.decoder.Stop()
 	for {
-		var n int
-		var err error
-
 		select {
 		case <-t.stop:
 			// stop reading new logs from container
 			return
 		default:
 			inBuf := make([]byte, 4096)
-			// Read can be blocking because it's a wrapper over an HTTP call
-			// If the Read() timeouts, the tailer will be restarted.
-			go func() {
-				n, err = t.reader.Read(inBuf)
-				doneReading <- struct{}{}
-			}()
+			n, err := t.read(inBuf, readTimeout)
 
-			select {
-			case <-doneReading:
-			case <-time.After(readTimeout):
-				err = fmt.Errorf("timeout reading from the docker socket")
-			}
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isClosedConnError(err):
@@ -176,6 +162,26 @@ func (t *Tailer) readForever() {
 			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
 	}
+}
+
+func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
+	var n int
+	var err error
+	doneReading := make(chan struct{}, 1)
+	// Read can be blocking because it's a wrapper over an HTTP call
+	// If the Read() timeouts, the tailer will be restarted.
+	go func() {
+		n, err = t.reader.Read(buffer)
+		doneReading <- struct{}{}
+	}()
+
+	select {
+	case <-doneReading:
+	case <-time.After(timeout):
+		err = fmt.Errorf("timeout reading from the docker socket")
+	}
+
+	return n, err
 }
 
 // forwardMessages forwards decoded messages to the next pipeline,
