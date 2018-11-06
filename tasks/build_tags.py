@@ -37,6 +37,8 @@ LINUX_ONLY_TAGS = [
     "kubelet",
     "kubeapiserver",
     "cri",
+
+    # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netcgo",
 ]
 

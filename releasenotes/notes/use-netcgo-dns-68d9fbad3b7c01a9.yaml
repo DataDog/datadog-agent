@@ -9,4 +9,4 @@
 other:
   - |
     Use the cgo dns resolver instead of the golang one. The will make the agent
-    use glibc to resolve hostnames and should give more predicatable results.
+    use glibc to resolve hostnames and should give more predictable results.
