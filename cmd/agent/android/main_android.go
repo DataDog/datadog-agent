@@ -10,6 +10,7 @@ package ddandroid
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	ddapp "github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/pkg/config"
