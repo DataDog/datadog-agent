@@ -134,14 +134,13 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 	listeners.ServiceListenerFactories = make(map[string]listeners.ServiceListenerFactory)
 }
 
-func (suite *AutoConfigTestSuite) TestAddProvider() {
+func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.StartConfigPolling()
 	assert.Len(suite.T(), ac.providers, 0)
 	mp := &MockProvider{}
-	ac.AddProvider(mp, false)
-	ac.AddProvider(mp, false) // this should be a noop
-	ac.AddProvider(&MockProvider2{}, true)
+	ac.AddConfigProvider(mp, false, 0)
+	ac.AddConfigProvider(mp, false, 0) // this should be a noop
+	ac.AddConfigProvider(&MockProvider2{}, true, 1*time.Second)
 	ac.LoadAndRun()
 	require.Len(suite.T(), ac.providers, 2)
 	assert.Equal(suite.T(), 1, mp.collectCounter)
@@ -177,7 +176,6 @@ func (suite *AutoConfigTestSuite) TestContains() {
 
 func (suite *AutoConfigTestSuite) TestStop() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.StartConfigPolling() // otherwise Stop would block
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory)

@@ -7,6 +7,7 @@ package common
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -53,19 +54,32 @@ func SetupAutoConfig(confdPath string) {
 		filepath.Join(GetDistPath(), "conf.d"),
 		"",
 	}
-	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
+	AC.AddConfigProvider(providers.NewFileConfigProvider(confSearchPaths), false, 0)
 
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders
 	err = config.Datadog.UnmarshalKey("config_providers", &CP)
+	defaultPollingInterval := config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
 	if err == nil {
 		for _, cp := range CP {
 			factory, found := providers.ProviderCatalog[cp.Name]
 			if found {
 				configProvider, err := factory(cp)
 				if err == nil {
-					AC.AddProvider(configProvider, cp.Polling)
-					log.Infof("Registering %s config provider", cp.Name)
+					pollInterval := defaultPollingInterval
+					if cp.PollInterval != "" {
+						customInterval, err := time.ParseDuration(cp.PollInterval)
+						if err == nil {
+							pollInterval = customInterval
+						}
+					}
+
+					AC.AddConfigProvider(configProvider, cp.Polling, pollInterval)
+					if cp.Polling {
+						log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
+					} else {
+						log.Infof("Registering %s config provider", cp.Name)
+					}
 				} else {
 					log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				}
@@ -91,11 +105,9 @@ func SetupAutoConfig(confdPath string) {
 }
 
 // StartAutoConfig starts the autoconfig:
-//   1. start polling the providers
-//   2. load all the configurations available at startup
-//   3. run all the Checks for each configuration found
+//   1. load all the configurations available at startup
+//   2. run all the Checks for each configuration found
 func StartAutoConfig() {
-	AC.StartConfigPolling()
 	AC.StartTagFreshnessChecker()
 	AC.LoadAndRun()
 }

@@ -47,6 +47,7 @@ type MetadataProviders struct {
 type ConfigurationProviders struct {
 	Name             string `mapstructure:"name"`
 	Polling          bool   `mapstructure:"polling"`
+	PollInterval     string `mapstructure:"poll_interval"`
 	TemplateURL      string `mapstructure:"template_url"`
 	TemplateDir      string `mapstructure:"template_dir"`
 	Username         string `mapstructure:"username"`
