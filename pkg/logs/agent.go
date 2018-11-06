@@ -8,6 +8,7 @@ package logs
 import (
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -46,7 +47,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, endpoints 
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
-	auditor := auditor.New(config.LogsAgent.GetString("logs_config.run_path"), health)
+	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), health)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
@@ -54,9 +55,9 @@ func NewAgent(sources *config.LogSources, services *service.Services, endpoints 
 
 	// setup the inputs
 	inputs := []restart.Restartable{
-		file.NewScanner(sources, config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		container.NewLauncher(sources, services, pipelineProvider, auditor),
-		listener.NewLauncher(sources, config.LogsAgent.GetInt("logs_config.frame_size"), pipelineProvider),
+		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		container.NewLauncher(coreConfig.Datadog.GetBool("logs_config.container_collect_all"), sources, services, pipelineProvider, auditor),
+		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
 	}
@@ -104,7 +105,7 @@ func (a *Agent) Stop() {
 		stopper.Stop()
 		close(c)
 	}()
-	timeout := time.Duration(config.LogsAgent.GetInt("logs_config.stop_grace_period")) * time.Second
+	timeout := time.Duration(coreConfig.Datadog.GetInt("logs_config.stop_grace_period")) * time.Second
 	select {
 	case <-c:
 	case <-time.After(timeout):
