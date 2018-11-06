@@ -28,7 +28,7 @@ import (
 )
 
 const defaultSleepDuration = 1 * time.Second
-const readTimeout = 1 * time.Second
+const readTimeout = 30 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
 
 // Tailer tails logs coming from stdout and stderr of a docker container
@@ -128,7 +128,7 @@ func (t *Tailer) tail(since string) error {
 // readForever reads from the reader as fast as it can,
 // and sleeps when there is nothing to read
 func (t *Tailer) readForever() {
-	c := make(chan struct{}, 1)
+	doneReading := make(chan struct{}, 1)
 	defer t.decoder.Stop()
 	for {
 		var n int
@@ -144,11 +144,11 @@ func (t *Tailer) readForever() {
 			// If the Read() timeouts, the tailer will be restarted.
 			go func() {
 				n, err = t.reader.Read(inBuf)
-				c <- struct{}{}
+				doneReading <- struct{}{}
 			}()
 
 			select {
-			case <-c:
+			case <-doneReading:
 			case <-time.After(readTimeout):
 				err = fmt.Errorf("timeout reading from the docker socket")
 			}
