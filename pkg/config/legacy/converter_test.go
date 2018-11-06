@@ -206,17 +206,18 @@ func TestDefaultValues(t *testing.T) {
 }
 
 func TestExtractURLAPIKeys(t *testing.T) {
-	defer func() {
-		config.Datadog.Set("dd_url", "")
-		config.Datadog.Set("api_key", "")
-		config.Datadog.Set("additional_endpoints", nil)
-	}()
+	configConverter := config.NewConfigConverter()
+	defer func(*config.LegacyConfigConverter) {
+		configConverter.Set("dd_url", "")
+		configConverter.Set("api_key", "")
+		configConverter.Set("additional_endpoints", nil)
+	}(configConverter)
 	agentConfig := make(Config)
 
 	// empty
 	agentConfig["dd_url"] = ""
 	agentConfig["api_key"] = ""
-	err := extractURLAPIKeys(agentConfig)
+	err := extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "", config.Datadog.Get("api_key"))
@@ -225,7 +226,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// one url and one key
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
@@ -234,7 +235,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// multiple dd_url and api_key
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
@@ -247,6 +248,6 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// config error
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,hhttps://datadoghq.com,ttps://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.NotNil(t, err)
 }
