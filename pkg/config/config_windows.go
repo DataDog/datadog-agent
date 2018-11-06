@@ -19,12 +19,17 @@ var (
 	defaultGuiPort              = "5002"
 )
 
+// ServiceName is the name that'll be used to register the Agent
+const ServiceName = "DatadogAgent"
+
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfdPath = filepath.Join(pd, "Datadog", "conf.d")
 		defaultAdditionalChecksPath = filepath.Join(pd, "Datadog", "checks.d")
 		defaultRunPath = filepath.Join(pd, "Datadog", "run")
+	} else {
+		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
 }
 
