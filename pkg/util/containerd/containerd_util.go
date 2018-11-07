@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ContainerdItf is the interface implementing a subset of methods that leverage the containerd api.
 type ContainerdItf interface {
 	GetEvents() containerd.EventService
 	EnsureServing(ctx context.Context) error
@@ -22,6 +23,7 @@ type ContainerdItf interface {
 	Containers(ctx context.Context) ([]containerd.Container, error)
 }
 
+// ContainerdUtil is the util used to interact with the containerd api.
 type ContainerdUtil struct {
 	cl *containerd.Client
 	initRetry retry.Retrier
@@ -43,32 +45,27 @@ func InstanciateContainerdUtil() ContainerdItf {
 	return util
 }
 
-// reconnect is our retry strategy, it can be retriggered when the check is running if we lose connectivity.
+// connect is our retry strategy, it can be retriggered when the check is running if we lose connectivity.
 func (c *ContainerdUtil) connect() error {
 	var err error
-	log.Infof("[DEV] Calling Containerd connect", c.initRetry.RetryStatus())
 	if c.cl != nil {
 		err = c.cl.Reconnect()
 		if err != nil {
 			log.Errorf("Could not reconnect to the containerd daemon: %v", err)
 			return c.cl.Close() // Attempt to close connections to avoid overloading the GRPC
 		}
-		log.Infof("returning here 1")
 		return nil
 	}
 	// If we lose the connection, let's reset the state including the Dial options
 	c.cl, err = containerd.New("/run/containerd/containerd.sock")
-	log.Infof("[DEV] client is %#v and error is %s", c.cl, err)
 	return err
 }
 
 // EnsureServing checks if the containerd daemon is healthy and tries to reconnect if need be.
 func (c * ContainerdUtil) EnsureServing(ctx context.Context) error {
-	log.Infof("[DEV] ensuring serving %#v", c)
 	if c.cl != nil {
 		//  Check if the current client is healthy
 		s, err := c.cl.IsServing(ctx)
-		log.Infof("[DEV] is serving %v err is %v", s, err)
 		if s {
 			return nil
 		}
@@ -82,15 +79,18 @@ func (c * ContainerdUtil) EnsureServing(ctx context.Context) error {
 	return nil
 }
 
-
+// GetEvents interfaces with the containerd api to get the event service.
 func (c *ContainerdUtil) GetEvents() containerd.EventService {
+	// Boilderplate to retrieve events from the client
 	return c.cl.EventService()
 }
 
+// GetNamespaces interfaces with the containerd api to get the list of available namespaces.
 func (c *ContainerdUtil) GetNamespaces(ctx context.Context) ([]string, error) {
 	return c.cl.NamespaceService().List(ctx)
 }
 
+// Containers interfaces with the containerd api to get the list of Containers.
 func (c *ContainerdUtil) Containers(ctx context.Context) ([]containerd.Container, error) {
 	return c.cl.Containers(ctx)
 }
