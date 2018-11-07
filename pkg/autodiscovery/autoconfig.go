@@ -256,7 +256,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	for _, pd := range ac.providers {
 		cfgs, err := pd.provider.Collect()
 		if err != nil {
-			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
+			log.Errorf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
 		}
 
 		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
