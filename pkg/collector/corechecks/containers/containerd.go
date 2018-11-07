@@ -10,13 +10,7 @@ package containers
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/containerd/cgroups"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/namespaces"
@@ -24,7 +18,14 @@ import (
 	"github.com/gogo/protobuf/types"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	util "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ContainerCheck grabs containerd metrics and events
@@ -32,12 +33,12 @@ type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
 	cl       containerd.Client
-	cu 		  util.ContainerdItf
+	cu       util.ContainerdItf
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	Tags             []string
+	Tags []string
 }
 
 func init() {
@@ -46,11 +47,10 @@ func init() {
 
 // ContainerdFactory is used to create register the check and initialize it.
 func ContainerdFactory() check.Check {
-	log.Infof("[DEV] factory of the check")
 	return &ContainerdCheck{
 		CheckBase: corechecks.NewCheckBase("containerd"),
 		instance:  &ContainerdConfig{},
-		cu:		   util.InstanciateContainerdUtil(),
+		cu:        util.InstanciateContainerdUtil(),
 	}
 }
 
@@ -58,7 +58,7 @@ func ContainerdFactory() check.Check {
 func (c *ContainerdCheck) Run() error {
 	errHealth := c.cu.EnsureServing(context.Background())
 	if errHealth != nil {
-		log.Infof("Error ensuring connectivity with containerd daemon %v also %v", errHealth, errHealth  == nil )
+		log.Infof("Error ensuring connectivity with containerd daemon %v also %v", errHealth, errHealth == nil)
 		return errHealth
 	}
 
@@ -79,7 +79,7 @@ func (c *ContainerdCheck) Run() error {
 	return nil
 }
 
-func computeMetrics(sender aggregator.Sender,nk context.Context, cu util.ContainerdItf, userTags []string) {
+func computeMetrics(sender aggregator.Sender, nk context.Context, cu util.ContainerdItf, userTags []string) {
 	containers, err := cu.Containers(nk)
 	if err != nil {
 		log.Errorf(err.Error())
@@ -98,6 +98,13 @@ func computeMetrics(sender aggregator.Sender,nk context.Context, cu util.Contain
 			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
 		}
 		tags = append(tags, userTags...)
+		// Tagger tags
+		taggerTags, err := tagger.Tag(ctn.ID(), false)
+		if err != nil {
+			log.Errorf(err.Error())
+			continue
+		}
+		tags = append(tags, taggerTags...)
 
 		metrics, err := convertTasktoMetrics(t, nk)
 		if err != nil {
@@ -137,16 +144,15 @@ func convertTasktoMetrics(task containerd.Task, nsCtx context.Context) (*cgroups
 	if err != nil {
 		return nil, err
 	}
+
 	metricAny, err := typeurl.UnmarshalAny(&types.Any{
 		TypeUrl: metricTask.Data.TypeUrl,
-		Value: metricTask.Data.Value,
+		Value:   metricTask.Data.Value,
 	})
-
 	if err != nil {
 		log.Errorf(err.Error())
 		return nil, err
 	}
-	log.Infof("[DEV] tasks are %v", metricAny)
 	return metricAny.(*cgroups.Metrics), nil
 }
 
@@ -159,7 +165,7 @@ func computeExtra(sender aggregator.Sender, ctn containerd.Container, nsCtx cont
 	if err != nil {
 		return err
 	}
-	sender.Rate("containerd.image.size", float64(size), "", tags)
+	sender.Gauge("containerd.image.size", float64(size), "", tags)
 	return nil
 }
 
@@ -171,7 +177,7 @@ func collectTags(ctn containerd.Container, nsCtx context.Context) ([]string, err
 	if err != nil {
 		return tags, err
 	}
-	imageName := fmt.Sprintf("image:", im.Name())
+	imageName := fmt.Sprintf("image:%s", im.Name())
 	tags = append(tags, imageName)
 
 	// Container labels
@@ -192,18 +198,10 @@ func collectTags(ctn containerd.Container, nsCtx context.Context) ([]string, err
 	runt := fmt.Sprintf("runtime:%s", i.Runtime.Name)
 	tags = append(tags, runt)
 
-	// Tagger tags
-	taggerTags, err := tagger.Tag(ctn.ID(), false)
-	if err != nil {
-		return tags, err
-	}
-	tags = append(tags, taggerTags...)
-	log.Infof("[DEV] tags are %v", tags)
 	return tags, nil
 }
 
 func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags []string) error {
-	log.Infof("[DEV] hugetbl is %#v", huge)
 	if huge == nil {
 		return fmt.Errorf("no hugetbl metrics available")
 	}
@@ -219,7 +217,6 @@ func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string
 	if mem == nil {
 		return fmt.Errorf("no mem metrics available")
 	}
-	log.Infof("[DEV] mem is %#v", mem)
 
 	memList := map[string]*cgroups.MemoryEntry{
 		"containerd.mem.current":    mem.Usage,
@@ -241,7 +238,6 @@ func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string
 }
 
 func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroups.MemoryEntry, tags []string) {
-	log.Infof("[DEV] stat for %s is %#v", metricName, stat)
 	if stat.Size() == 0 {
 		return
 	}
@@ -297,7 +293,6 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*cg
 		}
 
 		tags = append(tags, blkiotags...)
-		log.Infof("[DEV] submitting %s with tags %s", metricName, tags)
 		sender.Gauge(metricName, float64(m.Value), "", tags)
 	}
 }

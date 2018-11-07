@@ -8,11 +8,13 @@
 package containerd
 
 import (
-	"github.com/containerd/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"time"
 	"context"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/containerd/containerd"
 )
 
 // ContainerdItf is the interface implementing a subset of methods that leverage the containerd api.
@@ -25,7 +27,7 @@ type ContainerdItf interface {
 
 // ContainerdUtil is the util used to interact with the containerd api.
 type ContainerdUtil struct {
-	cl *containerd.Client
+	cl        *containerd.Client
 	initRetry retry.Retrier
 }
 
@@ -36,11 +38,11 @@ func InstanciateContainerdUtil() ContainerdItf {
 	util := &ContainerdUtil{}
 	// Initialize the client in the connect method
 	util.initRetry.SetupRetrier(&retry.Config{
-		Name:   "containerdutil",
-		AttemptMethod:  util.connect,
-		Strategy:   retry.RetryCount,
-		RetryCount: 10,
-		RetryDelay: 30 * time.Second,
+		Name:          "containerdutil",
+		AttemptMethod: util.connect,
+		Strategy:      retry.RetryCount,
+		RetryCount:    10,
+		RetryDelay:    30 * time.Second,
 	})
 	return util
 }
@@ -57,12 +59,13 @@ func (c *ContainerdUtil) connect() error {
 		return nil
 	}
 	// If we lose the connection, let's reset the state including the Dial options
-	c.cl, err = containerd.New("/run/containerd/containerd.sock")
+	socketAddress := config.Datadog.GetString("containerd_socket_path")
+	c.cl, err = containerd.New(socketAddress) // TODO 	ClientOpt to use grpc timeout
 	return err
 }
 
 // EnsureServing checks if the containerd daemon is healthy and tries to reconnect if need be.
-func (c * ContainerdUtil) EnsureServing(ctx context.Context) error {
+func (c *ContainerdUtil) EnsureServing(ctx context.Context) error {
 	if c.cl != nil {
 		//  Check if the current client is healthy
 		s, err := c.cl.IsServing(ctx)
