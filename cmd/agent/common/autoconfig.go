@@ -54,6 +54,7 @@ func SetupAutoConfig(confdPath string) {
 		"",
 	}
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
+	AC.AddProvider(providers.NewEnvProvider(), false)
 
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders
