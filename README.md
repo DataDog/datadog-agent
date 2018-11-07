@@ -58,10 +58,19 @@ You'll find information and help on how to contribute code to this project under
 
 ## Install
 
-To install the debian package you need to configure the (untrusted for now) debian repository:
+Prerequisites:
 
-    $ echo "deb [trusted=yes] https://s3.amazonaws.com/stackstate-agent-test master main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
-    $ sudo apt-get update --allow-unauthenticated
-    $ sudo apt-get install datadog-agent
+Before installing on debian distributions like `jessie` and `stretch` you have to:
+    
+    $ sudo apt-get install apt-transport-https
+    
+To install the debian package:
+
+    $ wget -qO - https://s3.amazonaws.com/stackstate-agent-test/gpg | sudo apt-key add -
+    $ echo "deb https://s3.amazonaws.com/stackstate-agent-test master main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
+    $ sudo apt-get update && sudo apt-get install stackstate-agent
+    $ sudo cp /etc/stackstate-agent/stackstate.yaml.example /etc/stackstate-agent/stackstate.yaml
+    $ sudo chown stackstate-agent:stackstate-agent /etc/stackstate-agent/stackstate.yaml
+    $ sudo service stackstate-agent start
     
 You can replace `master` with any published branch. 

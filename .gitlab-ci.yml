@@ -158,9 +158,12 @@ publish_deb:
   stage: publish
   dependencies:
     - build_deb
-  before_script: []
+  before_script:
+    - apt-get install -y apt-utils libtool debsigs && apt-get install -y --only-upgrade libtool
   script:
-    - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $CI_PROJECT_DIR/outcomes/pkg/*.deb
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh
+    - git status -s
 
 publish_image:
   stage: publish

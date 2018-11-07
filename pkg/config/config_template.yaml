@@ -3,7 +3,7 @@
 sts_url: http://localhost:7077/stsAgent
 
 # The StackState api key to associate your Agent's data with your organization.
-api_key:
+api_key: API_KEY
 
 # If you need a proxy to connect to the Internet, provide it here (default:
 # disabled). You can use the 'no_proxy' list to specify hosts that should

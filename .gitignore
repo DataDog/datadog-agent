@@ -3,6 +3,7 @@ Dockerfiles/dogstatsd/alpine/dogstatsd
 
 # folders
 vendor/
+outcomes/
 bin/
 /dev/
 __pycache__
