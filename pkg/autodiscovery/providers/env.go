@@ -6,12 +6,10 @@
 package providers
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 const name = "dd_logs_config_custom_configs"
@@ -30,25 +28,14 @@ func NewEnvProvider() *EnvProvider {
 // and generate an integrationConfig out of it.
 func (e *EnvProvider) Collect() ([]integration.Config, error) {
 	customConfigs := strings.TrimSpace(config.Datadog.GetString("logs_config.custom_configs"))
-	var confs []*logsConfig.LogsConfig
-	var integrationConfigs []integration.Config
 
 	if len(customConfigs) == 0 {
-		return integrationConfigs, nil
-	}
-
-	err := json.Unmarshal([]byte(customConfigs), &confs)
-	if err != nil {
-		return integrationConfigs, err
+		return []integration.Config{}, nil
 	}
 
 	integrationConfig := integration.Config{Provider: EnvironmentVariable, Name: name}
-	integrationConfig.LogsConfig, err = json.Marshal(confs)
-	if err != nil {
-		return integrationConfigs, err
-	}
-	integrationConfigs = append(integrationConfigs, integrationConfig)
-	return integrationConfigs, nil
+	integrationConfig.LogsConfig = []byte(customConfigs)
+	return []integration.Config{integrationConfig}, nil
 }
 
 // String returns a string representation of the EnvProvider

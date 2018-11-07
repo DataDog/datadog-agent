@@ -22,16 +22,6 @@ func TestEnvCollectEmpty(t *testing.T) {
 	assert.Equal(t, 0, len(integrationConfigs))
 }
 
-func TestEnvCollectInvalid(t *testing.T) {
-	// Missing closing parenthesis at type key
-	config.Datadog.Set("logs_config.custom_configs", "[{\"type:\"tcp\",\"port\":1234,\"service\":\"fooService\",\"source\":\"barSource\",\"tags\":[\"foo:bar\",\"baz\"]}]")
-	envProvider := NewEnvProvider()
-
-	integrationConfigs, err := envProvider.Collect()
-	assert.NotNil(t, err)
-	assert.Equal(t, 0, len(integrationConfigs))
-}
-
 func TestEnvCollectValid(t *testing.T) {
 	config.Datadog.Set("logs_config.custom_configs", "[{\"type\":\"tcp\",\"port\":1234,\"service\":\"fooService\",\"source\":\"barSource\",\"tags\":[\"foo:bar\",\"baz\"]}]")
 	envProvider := NewEnvProvider()
