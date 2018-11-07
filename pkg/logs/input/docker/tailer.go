@@ -48,6 +48,7 @@ type Tailer struct {
 	stop               chan struct{}
 	done               chan struct{}
 	erroredContainerID chan string
+	cancelFunc         context.CancelFunc
 }
 
 // NewTailer returns a new Tailer
@@ -76,6 +77,8 @@ func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 	t.reader.Close()
+	// no-op if already closed because of a timeout
+	t.cancelFunc()
 	t.source.RemoveInput(t.ContainerID)
 	// wait for the decoder to be flushed
 	<-t.done
@@ -92,7 +95,7 @@ func (t *Tailer) Start(since time.Time) error {
 
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
-func (t *Tailer) setupReader(since string) (io.ReadCloser, error) {
+func (t *Tailer) setupReader(since string) (io.ReadCloser, context.CancelFunc, error) {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -101,12 +104,14 @@ func (t *Tailer) setupReader(since string) (io.ReadCloser, error) {
 		Details:    false,
 		Since:      since,
 	}
-	return t.cli.ContainerLogs(context.Background(), t.ContainerID, options)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
+	return reader, cancelFunc, err
 }
 
 // tail sets up and starts the tailer
 func (t *Tailer) tail(since string) error {
-	reader, err := t.setupReader(since)
+	reader, cancelFunc, err := t.setupReader(since)
 	if err != nil {
 		// could not start the tailer
 		t.source.Status.Error(err)
@@ -116,6 +121,7 @@ func (t *Tailer) tail(since string) error {
 	t.source.AddInput(t.ContainerID)
 
 	t.reader = reader
+	t.cancelFunc = cancelFunc
 
 	go t.keepDockerTagsUpdated()
 	go t.forwardMessages()
@@ -137,7 +143,6 @@ func (t *Tailer) readForever() {
 		default:
 			inBuf := make([]byte, 4096)
 			n, err := t.read(inBuf, readTimeout)
-
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isClosedConnError(err):
@@ -164,21 +169,28 @@ func (t *Tailer) readForever() {
 	}
 }
 
+// read implement a timeout on t.reader.Read() because it can be blocking (it's a
+// wrapper over an HTTP call). If read timeouts, the tailer will be restarted.
 func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	var n int
 	var err error
-	doneReading := make(chan struct{}, 1)
-	// Read can be blocking because it's a wrapper over an HTTP call
-	// If the Read() timeouts, the tailer will be restarted.
+	doneReading := make(chan error, 1)
 	go func() {
 		n, err = t.reader.Read(buffer)
-		doneReading <- struct{}{}
+		doneReading <- err
+		close(doneReading)
 	}()
 
 	select {
 	case <-doneReading:
 	case <-time.After(timeout):
-		err = fmt.Errorf("timeout reading from the docker socket")
+		// Cancel the docker socket reader context
+		t.cancelFunc()
+		err = <-doneReading
+		if isContextCanceled(err) {
+			// override the error with a more explicit message
+			err = fmt.Errorf("timeout reading from the docker socket")
+		}
 	}
 
 	return n, err
@@ -239,4 +251,9 @@ func (t *Tailer) wait() {
 // for more details, see: https://golang.org/src/internal/poll/fd.go#L18.
 func isClosedConnError(err error) bool {
 	return strings.Contains(err.Error(), "use of closed network connection")
+}
+
+// isContextCanceled returns true if the error is related to a canceled context,
+func isContextCanceled(err error) bool {
+	return strings.Contains(err.Error(), "context canceled")
 }

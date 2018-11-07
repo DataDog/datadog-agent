@@ -8,8 +8,10 @@
 package docker
 
 import (
+	"context"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,20 +33,35 @@ func (m *mockReaderNoSleep) Close() error {
 	return nil
 }
 
-type mockReaderSleep struct{}
+type mockReaderSleep struct {
+	ctx context.Context
+}
 
+// Read mocks the Docker CLI read function
 func (m *mockReaderSleep) Read(p []byte) (int, error) {
 	s := strings.NewReader("Some bytes")
-	time.Sleep(2 * testReadTimeout)
-	n, _ := io.ReadFull(s, p)
-	return n, nil
+	var n int
+	var err error
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	time.AfterFunc(2*testReadTimeout, func() {
+		select {
+		case <-m.ctx.Done():
+			err = m.ctx.Err()
+		default:
+			n, err = io.ReadFull(s, p)
+		}
+		wg.Done()
+	})
+	wg.Wait()
+	return n, err
 }
 
 func (m *mockReaderSleep) Close() error {
 	return nil
 }
 
-func NewTestTailer(reader io.ReadCloser) *Tailer {
+func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
 	return &Tailer{
 		ContainerID:        "1234567890abcdef",
 		outputChan:         make(chan *message.Message, 100),
@@ -56,6 +73,7 @@ func NewTestTailer(reader io.ReadCloser) *Tailer {
 		done:               make(chan struct{}, 1),
 		erroredContainerID: make(chan string, 100),
 		reader:             reader,
+		cancelFunc:         cancelFunc,
 	}
 }
 
@@ -65,7 +83,7 @@ func TestTailerIdentifier(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
-	tailer := NewTestTailer(&mockReaderNoSleep{})
+	tailer := NewTestTailer(&mockReaderNoSleep{}, func() {})
 	inBuf := make([]byte, 4096)
 
 	n, err := tailer.read(inBuf, testReadTimeout)
@@ -75,7 +93,8 @@ func TestRead(t *testing.T) {
 }
 
 func TestReadTimeout(t *testing.T) {
-	tailer := NewTestTailer(&mockReaderSleep{})
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	tailer := NewTestTailer(&mockReaderSleep{ctx: ctx}, cancelFunc)
 	inBuf := make([]byte, 4096)
 
 	n, err := tailer.read(inBuf, testReadTimeout)
