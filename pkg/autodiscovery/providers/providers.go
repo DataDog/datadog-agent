@@ -10,23 +10,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// User-facing names for the config providers
 const (
-	// Consul represents the name of the Consul config provider
-	Consul = "consul"
-	// ClusterChecks represents the name of the Cluster checks config provider
+	Consul        = "consul"
 	ClusterChecks = "cluster-checks"
-	// Docker represents the name of the docker config provider
-	Docker = "docker"
-	// ECS represents the name of the ecs config provider
-	ECS = "ecs"
-	// Etcd represents the name of the etcd config provider
-	Etcd = "etcd"
-	// File represents the name of the file config provider
-	File = "file"
-	// Kubernetes represents the name of the kubernetes config provider
-	Kubernetes = "kubernetes"
-	// Zookeeper represents the name of the zookeeper config provider
-	Zookeeper = "zookeeper"
+	Docker        = "docker"
+	ECS           = "ecs"
+	Etcd          = "etcd"
+	File          = "file"
+	Kubernetes    = "kubernetes"
+	KubeServices  = "kubernetes services"
+	Zookeeper     = "zookeeper"
 )
 
 // ProviderCatalog keeps track of config providers by name
