@@ -14,6 +14,8 @@ import (
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
+const name = "dd_logs_config_custom_configs"
+
 // EnvProvider implements implements the ConfigProvider interface
 // It should be called once at the start of the agent.
 type EnvProvider struct{}
@@ -40,7 +42,7 @@ func (e *EnvProvider) Collect() ([]integration.Config, error) {
 		return integrationConfigs, err
 	}
 
-	integrationConfig := integration.Config{Provider: Env}
+	integrationConfig := integration.Config{Provider: Env, Name: name}
 	integrationConfig.LogsConfig, err = json.Marshal(confs)
 	if err != nil {
 		return integrationConfigs, err
