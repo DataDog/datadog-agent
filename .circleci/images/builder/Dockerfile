@@ -92,5 +92,8 @@ RUN git config --global user.email "gitlab@stackstate" && git config --global us
 # For deb package building
 RUN apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
 
+# For some tests
+RUN apt-get install sudo
+
 
 
