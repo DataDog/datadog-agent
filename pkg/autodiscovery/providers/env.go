@@ -42,7 +42,7 @@ func (e *EnvProvider) Collect() ([]integration.Config, error) {
 		return integrationConfigs, err
 	}
 
-	integrationConfig := integration.Config{Provider: Env, Name: name}
+	integrationConfig := integration.Config{Provider: EnvironmentVariable, Name: name}
 	integrationConfig.LogsConfig, err = json.Marshal(confs)
 	if err != nil {
 		return integrationConfigs, err
@@ -53,7 +53,7 @@ func (e *EnvProvider) Collect() ([]integration.Config, error) {
 
 // String returns a string representation of the EnvProvider
 func (e *EnvProvider) String() string {
-	return Env
+	return EnvironmentVariable
 }
 
 // IsUpToDate is not implemented for the env Provider as the env are not meant to change.

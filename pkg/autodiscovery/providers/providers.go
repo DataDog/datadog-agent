@@ -23,8 +23,8 @@ const (
 	Etcd = "etcd"
 	// File represents the name of the file config provider
 	File = "File"
-	// Env represents the name of the env config provider
-	Env = "Env"
+	// EnvironmentVariable represents the name of the env config provider
+	EnvironmentVariable = "Environment variable"
 	// Kubernetes represents the name of the kubernetes config provider
 	Kubernetes = "Kubernetes"
 	// Zookeeper represents the name of the zookeeper config provider

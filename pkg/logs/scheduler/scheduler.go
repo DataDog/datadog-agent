@@ -147,7 +147,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	case providers.File:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
-	case providers.Docker, providers.Kubernetes, providers.Env:
+	case providers.Docker, providers.Kubernetes, providers.EnvironmentVariable:
 		// config attached to a docker label or a pod annotation
 		// or coming from an env variable
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
