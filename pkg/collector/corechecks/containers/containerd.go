@@ -27,6 +27,7 @@ import (
 	util "github.com/DataDog/datadog-agent/pkg/util/containerd"
 )
 
+// ContainerCheck grabs containerd metrics and events
 type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
@@ -34,6 +35,7 @@ type ContainerdCheck struct {
 	cu 		  util.ContainerdItf
 }
 
+// ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
 	Tags             []string
 }
@@ -42,6 +44,7 @@ func init() {
 	corechecks.RegisterCheck("containerd", ContainerdFactory)
 }
 
+// ContainerdFactory is used to create register the check and initialize it.
 func ContainerdFactory() check.Check {
 	log.Infof("[DEV] factory of the check")
 	return &ContainerdCheck{
@@ -51,6 +54,7 @@ func ContainerdFactory() check.Check {
 	}
 }
 
+// Run executes the check
 func (c *ContainerdCheck) Run() error {
 	errHealth := c.cu.EnsureServing(context.Background())
 	if errHealth != nil {
@@ -298,6 +302,7 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*cg
 	}
 }
 
+// Parse is used to get the configuration set by the user
 func (co *ContainerdConfig) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, co); err != nil {
 		return err
@@ -305,12 +310,9 @@ func (co *ContainerdConfig) Parse(data []byte) error {
 	return nil
 }
 
+// Configure parses the check configuration and init the check
 func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 	c.instance.Parse(config)
 
 	return nil
-}
-
-func (c *ContainerdCheck) Stop() {
-	c.cl.Close()
 }

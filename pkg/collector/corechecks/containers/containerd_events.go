@@ -7,9 +7,3 @@
 
 package containers
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/containerd"
-)
-func retrieveEvents(cu *containerd.ContainerdUtil) {
- cu.GetEvents()
-}
