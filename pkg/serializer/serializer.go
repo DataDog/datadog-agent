@@ -157,7 +157,8 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 }
 
 func (s Serializer) serializeStreamablePayload(payload marshaler.StreamMarshaler) (forwarder.Payloads, http.Header, error) {
-	return nil, nil, nil
+	payloads, err := jsonstream.Payloads(payload)
+	return payloads, jsonExtraHeadersWithCompression, err
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
