@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
+	"fmt"
 	"github.com/CharlyF/custom-metrics-apiserver/pkg/provider"
 )
 
@@ -111,7 +112,7 @@ func TestGetExternalMetric(t *testing.T) {
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
 				ns,
-				badLabel,
+				goodLabel,
 			},
 			[]external_metrics.ExternalMetricValue{
 				{
@@ -154,11 +155,12 @@ func TestGetExternalMetric(t *testing.T) {
 			}
 			output, err := dp.GetExternalMetric(test.compared.namespace, test.compared.labels.AsSelector(), test.compared.name)
 			require.NoError(t, err)
-			require.Equal(t, len(output.Items), len(test.expected))
+			require.Equal(t, len(test.expected), len(output.Items))
 			// GetExternalMetric should only return one metric
 			if len(output.Items) == 1 {
-				require.Equal(t, output.Items[0].MetricName, test.expected[0].MetricName)
-				reflect.DeepEqual(output.Items[0].MetricLabels, test.expected[0].MetricLabels)
+				require.Equal(t, test.expected[0].MetricName, output.Items[0].MetricName)
+				fmt.Printf("test is %#v \n \n output is %#v \n \n", test.expected[0].MetricLabels, output.Items[0].MetricLabels)
+				require.True(t, reflect.DeepEqual(test.expected[0].MetricLabels, output.Items[0].MetricLabels))
 			}
 		})
 	}
