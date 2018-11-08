@@ -13,10 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -215,8 +215,7 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 	var extraHeaders http.Header
 	var err error
 
-	// TODO check if zstd is available
-	if useV1API {
+	if useV1API && jsonstream.Available {
 		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series)
 	} else {
 		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
