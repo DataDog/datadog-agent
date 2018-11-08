@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CODENAME=${1-:$CI_COMMIT_REF_NAME}
+CODENAME=${1:-$CI_COMMIT_REF_NAME}
 CURRENT_BRANCH=${CODENAME:-dirty}
 
 if [ -z ${STS_AWS_BUCKET+x} ]; then
@@ -17,5 +17,4 @@ echo $STACKSTATE_AGENT_VERSION
 
 ls $CI_PROJECT_DIR/outcomes/pkg/*.*
 
-deb-s3 upload --sign=${SIGNING_KEY_ID} --codename ${CURRENT_BRANCH:-dirty} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $CI_PROJECT_DIR/outcomes/pkg/*.deb
-
+deb-s3 upload --sign=${SIGNING_KEY_ID} --codename ${CURRENT_BRANCH} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} $CI_PROJECT_DIR/outcomes/pkg/*.deb
