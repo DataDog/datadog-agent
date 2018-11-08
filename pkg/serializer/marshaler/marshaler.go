@@ -16,6 +16,6 @@ type Marshaler interface {
 type StreamJSONMarshaler interface {
 	JSONHeader() []byte
 	Len() int
-	At(i int) ([]byte, error)
+	JSONItem(i int) ([]byte, error)
 	JSONFooter() []byte
 }

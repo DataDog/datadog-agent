@@ -15,6 +15,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -207,8 +208,8 @@ func (series Series) Len() int {
 	return len(series)
 }
 
-// At TODO
-func (series Series) At(i int) ([]byte, error) {
+// JSONItem TODO
+func (series Series) JSONItem(i int) ([]byte, error) {
 	return series[i].MarshalJSON()
 }
 
