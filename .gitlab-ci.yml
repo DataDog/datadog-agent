@@ -1,4 +1,4 @@
-image: stackstate/stackstate-agent-runner-circle:omnibus-cache
+image: stackstate/stackstate-agent-runner-circle:latest
 
 stages:
 - prepare
