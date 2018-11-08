@@ -156,6 +156,10 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 	return payloads, extraHeaders, nil
 }
 
+func (s Serializer) serializeStreamablePayload(payload marshaler.StreamMarshaler) (forwarder.Payloads, http.Header, error) {
+	return nil, nil, nil
+}
+
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 	if !s.enableEvents {
@@ -207,8 +211,17 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
-	compress := true
-	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1API)
+	var seriesPayloads forwarder.Payloads
+	var extraHeaders http.Header
+	var err error
+
+	// TODO check if zstd is available
+	if useV1API {
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series)
+	} else {
+		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
+	}
+
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
