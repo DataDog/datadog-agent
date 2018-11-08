@@ -24,14 +24,21 @@ var (
 	ddRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "datadog_requests",
-			Help: "Counter of requests made to datadog",
+			Help: "Counter of requests made to Datadog",
 		},
 		[]string{"status"},
+	)
+	metricsRawVal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "external_metrics_raw",
+		Help: "raw value gotten from querying Datadog",
+	},
+		[]string{"metric", "scope"},
 	)
 )
 
 func init() {
 	prometheus.MustRegister(ddRequests)
+	prometheus.MustRegister(metricsRawVal)
 }
 
 type Point struct {
@@ -55,9 +62,10 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
 
 	aggregator := config.Datadog.GetString("external_metrics.aggregator")
+	rollup := config.Datadog.GetInt("external_metrics.query_rollup")
 	var toQuery []string
 	for _, metric := range metricNames {
-		toQuery = append(toQuery, fmt.Sprintf("%s:%s", aggregator, metric))
+		toQuery = append(toQuery, fmt.Sprintf("%s:%s.rollup(%d)", aggregator, metric, rollup))
 	}
 
 	query := strings.Join(toQuery, ",")
@@ -88,6 +96,9 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			log.Infof("Could not collect values for all processedMetrics in the query %s", query)
 			continue
 		}
+
+		// Because of the intake pipeline, the very last bucket can be subject to variations - Let's use the previous bucket.
+		fullBucketSeen := 0
 		var point Point
 		// Find the most recent value.
 		for i := len(serie.Points) - 1; i >= 0; i-- {
@@ -95,14 +106,23 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 				// We need this as if multiple metrics are queried, their points' timestamps align this can result in empty values.
 				continue
 			}
+			// If there is only one datapoint in the bucket, let's use it.
+			// This can happen with the batch of sparse and a regular metric.
+			if fullBucketSeen == 0 && len(serie.Points) > 2 {
+				// Do not rely on the value stored in the last bucket
+				fullBucketSeen = fullBucketSeen + 1
+				continue
+			}
 			point.value = int64(*serie.Points[i][value])                // store the original value
 			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in ms
 			point.valid = true
 
+			metricsRawVal.WithLabelValues(*serie.Metric, *serie.Scope).Set(float64(point.value))
+
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
 			processedMetrics[m] = point
 
-			log.Debugf("Validated %#v after %d/%d values", point, i, len(serie.Points)-1)
+			log.Debugf("Validated %s | Value:%d at %d after %d/%d buckets", *serie.Metric, point.value, point.timestamp, i+1, len(serie.Points))
 			break
 		}
 	}

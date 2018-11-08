@@ -16,10 +16,33 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"math"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	metricsEval = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "external_metrics_processed_value",
+		Help: "value processed from querying Datadog",
+	},
+		[]string{"metric"},
+	)
+	metricsPrecision = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "external_metrics_delay",
+		Help: "freshness of the metric evaluated from querying Datadog",
+	},
+		[]string{"metric"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(metricsEval)
+	prometheus.MustRegister(metricsPrecision)
+}
 
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
@@ -33,9 +56,9 @@ type Processor struct {
 
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
-	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
+	externalMaxAge := math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), config.Datadog.GetFloat64("external_metrics_provider.rollup"))
 	return &Processor{
-		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
+		externalMaxAge: time.Duration(externalMaxAge) * time.Second, // Convert to int64 ?
 		datadogClient:  datadogCl,
 	}, nil
 }
@@ -58,25 +81,30 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 		metricIdentifier := getKey(em.MetricName, em.Labels)
 		metric := metrics[metricIdentifier]
 
-		if metav1.Now().Unix()-em.Timestamp <= maxAge && em.Valid {
+		if metric.timestamp-em.Timestamp <= maxAge && em.Valid {
 			// maxAge dictates how often we refresh the metric, otherwise sparse metrics would be refreshed too often.
 			continue
 		}
-		if metav1.Now().Unix()-metric.timestamp > maxAge || !metric.valid {
+		if time.Now().Unix()-metric.timestamp > maxAge*2 || !metric.valid {
 			// invalidating sparse metrics that are outdated
 			em.Valid = false
 			em.Value = metric.value
-			em.Timestamp = metav1.Now().Unix()
+			em.Timestamp = time.Now().Unix()
 			updated = append(updated, em)
 			continue
 		}
+
 		em.Valid = true
 		em.Value = metric.value
 		em.Timestamp = metric.timestamp
 		log.Debugf("Updated the external metric %#v", em)
 		updated = append(updated, em)
-	}
 
+		// Prometheus submissions on the processed external metrics
+		metricsEval.WithLabelValues(metricIdentifier).Set(float64(metric.value))
+		precision := time.Now().Unix() - metric.timestamp
+		metricsPrecision.WithLabelValues(metricIdentifier).Set(float64(precision))
+	}
 	return updated
 }
 

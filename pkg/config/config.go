@@ -325,6 +325,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 90)                 // value in seconds. 3 cycles from the HPA controller is enough to consider a metric stale
 	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                    // aggregator used for the external metrics. Choose from [avg,sum,max,min]
 	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window of the metric from Datadog
+	config.BindEnvAndSetDefault("external_metrics.query_rollup", 60)                     // Bucket size to circumvent time aggregation side effects.
 	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
 	config.BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
