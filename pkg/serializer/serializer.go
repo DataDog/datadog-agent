@@ -13,11 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-<<<<<<< HEAD
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
-=======
 	"github.com/DataDog/datadog-agent/pkg/metrics"
->>>>>>> stream json marshaler
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
