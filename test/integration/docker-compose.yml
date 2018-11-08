@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  kafka:
+    image: spotify/kafka:latest
+    ports:
+      - 9092:9092
+    environment:
+      ADVERTISED_HOST: kafka
+      ADVERTISED_PORT: 9092
+  receiver:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-receiver:release-1.12.0-rc1"
+    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true"
+    ports:
+      - 7077:7077
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERS: kafka:9092
