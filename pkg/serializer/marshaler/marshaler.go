@@ -12,6 +12,10 @@ type Marshaler interface {
 	SplitPayload(int) ([]Marshaler, error)
 }
 
-// StreamMarshaler is an interface for metrics that are able to serialize themselves in a stream
-type StreamMarshaler interface {
+// StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
+type StreamJSONMarshaler interface {
+	JSONHeader() []byte
+	Len() int
+	At(i int) ([]byte, error)
+	JSONFooter() []byte
 }

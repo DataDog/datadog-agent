@@ -13,7 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+<<<<<<< HEAD
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
+=======
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+>>>>>>> stream json marshaler
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -156,7 +160,7 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 	return payloads, extraHeaders, nil
 }
 
-func (s Serializer) serializeStreamablePayload(payload marshaler.StreamMarshaler) (forwarder.Payloads, http.Header, error) {
+func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler) (forwarder.Payloads, http.Header, error) {
 	payloads, err := jsonstream.Payloads(payload)
 	return payloads, jsonExtraHeadersWithCompression, err
 }
@@ -204,7 +208,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
+func (s *Serializer) SendSeries(series metrics.Series) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil

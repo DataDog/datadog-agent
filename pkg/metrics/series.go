@@ -197,6 +197,30 @@ func (p *Point) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
+// JSONHeader TODO
+func (s Series) JSONHeader() []byte {
+	return []byte(`{"series":[`)
+}
+
+// Len TODO
+func (series Series) Len() int {
+	return len(series)
+}
+
+// At TODO
+func (series Series) At(i int) ([]byte, error) {
+	return series[i].MarshalJSON()
+}
+
+// JSONFooter TODO
+func (series Series) JSONFooter() []byte {
+	return []byte(`]}`)
+}
+
+func (s *Serie) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s)
+}
+
 func (e Serie) String() string {
 	s, err := json.Marshal(e)
 	if err != nil {
