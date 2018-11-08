@@ -13,9 +13,11 @@ import (
 )
 
 const (
+	// Available is true if the code is compiled in
 	Available = false
 )
 
+// Payloads serializes a metadata payload and sends it to the forwarder
 func Payloads(m marshaler.StreamMarshaler) (forwarder.Payloads, error) {
 	return nil, nil
 }
