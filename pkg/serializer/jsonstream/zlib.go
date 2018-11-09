@@ -135,7 +135,8 @@ func (c *compressor) close() ([]byte, error) {
 		}
 	}
 	// Add json footer
-	_, err := c.zipper.Write(c.footer)
+	n, err := c.zipper.Write(c.footer)
+	c.uncompressedWritten += int(n)
 	if err != nil {
 		return nil, err
 	}
