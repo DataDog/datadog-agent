@@ -200,17 +200,17 @@ func (p *Point) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
-// JSONHeader TODO
-func (s Series) JSONHeader() []byte {
+// JSONHeader prints the payload header for this type
+func (series Series) JSONHeader() []byte {
 	return []byte(`{"series":[`)
 }
 
-// Len TODO
+// Len returns the number of items to marshal
 func (series Series) Len() int {
 	return len(series)
 }
 
-// JSONItem TODO
+// JSONItem prints the json representation of an item
 func (series Series) JSONItem(i int) ([]byte, error) {
 	if i < 0 || i > len(series)-1 {
 		return nil, errors.New("out of range")
@@ -218,7 +218,7 @@ func (series Series) JSONItem(i int) ([]byte, error) {
 	return jsoniter.Marshal(series[i])
 }
 
-// JSONFooter TODO
+// JSONFooter prints the payload footer for this type
 func (series Series) JSONFooter() []byte {
 	return []byte(`]}`)
 }

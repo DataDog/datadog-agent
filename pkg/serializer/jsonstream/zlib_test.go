@@ -15,8 +15,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestSplitPayloadsSeries(t *testing.T) {
@@ -51,10 +52,11 @@ func TestSplitPayloadsSeries(t *testing.T) {
 	var splitSeries = []metrics.Series{}
 	for _, compressedPayload := range payloads {
 		payload, err := decompressPayload(*compressedPayload)
+		require.NoError(t, err)
 
 		var s = map[string]metrics.Series{}
 		err = json.Unmarshal(payload, &s)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		splitSeries = append(splitSeries, s["series"])
 	}
 
