@@ -285,7 +285,7 @@ func initConfig(config Config) {
 	// collect all logs from all containers:
 	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	// collect logs from the specified sources
-	config.BindEnvAndSetDefault("logs_config.custom_configs", "")
+	config.BindEnvAndSetDefault("logs_config.custom_config", "")
 	// collect all logs forwarded by TCP on a specific port:
 	config.BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
 	// add a socks5 proxy:

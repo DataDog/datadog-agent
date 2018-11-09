@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-const name = "dd_logs_config_custom_configs"
+const name = "dd_logs_config_custom_config"
 
 var collectors = []func(*EnvVarProvider) ([]integration.Config, error){
 	(*EnvVarProvider).collectLogsConfigs,
@@ -54,7 +54,7 @@ func (e *EnvVarProvider) Collect() ([]integration.Config, error) {
 }
 
 func (e *EnvVarProvider) collectLogsConfigs() ([]integration.Config, error) {
-	customConfigs := strings.TrimSpace(config.Datadog.GetString("logs_config.custom_configs"))
+	customConfigs := strings.TrimSpace(config.Datadog.GetString("logs_config.custom_config"))
 
 	if len(customConfigs) == 0 {
 		return []integration.Config{}, nil

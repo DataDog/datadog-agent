@@ -25,7 +25,7 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, true, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
 	assert.Equal(t, 100, LogsAgent.GetInt("logs_config.open_files_limit"))
 	assert.Equal(t, 9000, LogsAgent.GetInt("logs_config.frame_size"))
-	assert.Equal(t, "", LogsAgent.GetString("logs_config.custom_configs"))
+	assert.Equal(t, "", LogsAgent.GetString("logs_config.custom_config"))
 	assert.Equal(t, -1, LogsAgent.GetInt("logs_config.tcp_forward_port"))
 	assert.Equal(t, "", LogsAgent.GetString("logs_config.socks5_proxy_address"))
 	assert.Equal(t, "", LogsAgent.GetString("logs_config.logs_dd_url"))
