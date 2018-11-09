@@ -50,7 +50,7 @@ var (
 	megaByte            = 1024 * 1024
 	maxPayloadSize      = 2*megaByte + megaByte/2
 	maxUncompressedSize = 45 * megaByte
-	maxRepacks          = 15
+	maxRepacks          = 40
 )
 
 var (
@@ -108,6 +108,7 @@ func (c *compressor) addItem(data []byte) error {
 		// Possibly reached maximum compressed size, compress and retry
 		if c.input.Len() > 0 {
 			expvarsTotalCycles.Add(1)
+			c.repacks++
 			n, err := c.input.WriteTo(c.zipper)
 			if err != nil {
 				return err
@@ -117,7 +118,6 @@ func (c *compressor) addItem(data []byte) error {
 			c.input.Reset()
 			return c.addItem(data)
 		}
-		c.repacks++
 		return errNeedSplit
 	}
 
