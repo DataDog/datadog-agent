@@ -2,4 +2,4 @@
 - name: Converge
   hosts: all
   roles:
-    - role: agent_integration
+    - role: molecule-role

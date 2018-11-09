@@ -48,7 +48,7 @@ care of adjusting paths and run the binary in foreground.
 You need to provide a valid API key. You can either use the config file or
 overwrite it with the environment variable like:
 ```
-DD_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/datadog.yaml
+STS_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/stackstate.yaml
 ```
 
 ## Contributing code

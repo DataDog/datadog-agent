@@ -14,6 +14,10 @@
         from_port: "{{ ssh_port }}"
         to_port: "{{ ssh_port }}"
         cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 7077  # StackState Receiver port
+        to_port: 7077
+        cidr_ip: '0.0.0.0/0'
       - proto: icmp
         from_port: 8
         to_port: -1

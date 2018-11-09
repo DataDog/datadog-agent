@@ -84,3 +84,5 @@ kubeconfig
 */**/*.tfstate
 */**/*.tfstate.backup
 
+# vagrant
+.vagrant

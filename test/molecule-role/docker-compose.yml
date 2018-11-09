@@ -1,3 +1,4 @@
+---
 version: '3'
 
 services:
@@ -9,7 +10,7 @@ services:
       ADVERTISED_HOST: kafka
       ADVERTISED_PORT: 9092
   receiver:
-    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-receiver:release-1.12.0-rc1"
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-receiver:release-1.12.1-rc1"
     command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true"
     ports:
       - 7077:7077

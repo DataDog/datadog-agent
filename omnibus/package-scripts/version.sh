@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#!/bin/bash
-
 function resolveLatest() {
 	git tag --sort=-taggerdate | head -1
 }
