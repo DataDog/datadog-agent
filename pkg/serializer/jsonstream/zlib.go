@@ -73,8 +73,8 @@ func newCompressor(header, footer []byte) (*compressor, error) {
 	c := &compressor{
 		header:     header,
 		footer:     footer,
-		input:      bytes.NewBuffer(make([]byte, 10*megaByte)),
-		compressed: bytes.NewBuffer(make([]byte, 1*megaByte)),
+		input:      bytes.NewBuffer(make([]byte, 0, 10*megaByte)),
+		compressed: bytes.NewBuffer(make([]byte, 0, 1*megaByte)),
 		firstItem:  true,
 	}
 
