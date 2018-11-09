@@ -50,6 +50,7 @@ var (
 	megaByte            = 1024 * 1024
 	maxPayloadSize      = 2*megaByte + megaByte/2
 	maxUncompressedSize = 45 * megaByte
+	maxRepacks          = 15
 )
 
 var (
@@ -67,6 +68,7 @@ type compressor struct {
 	footer              []byte
 	uncompressedWritten int // uncompressed bytes written
 	firstItem           bool
+	repacks             int
 }
 
 func newCompressor(header, footer []byte) (*compressor, error) {
@@ -85,6 +87,10 @@ func newCompressor(header, footer []byte) (*compressor, error) {
 
 // addItem will try to add
 func (c *compressor) addItem(data []byte) error {
+	if c.repacks >= maxRepacks {
+		return errNeedSplit
+	}
+
 	toWrite := c.input.Len() + len(data) + len(c.footer)
 	if !c.firstItem {
 		toWrite += len(jsonSeparator)
@@ -111,6 +117,7 @@ func (c *compressor) addItem(data []byte) error {
 			c.input.Reset()
 			return c.addItem(data)
 		}
+		c.repacks++
 		return errNeedSplit
 	}
 

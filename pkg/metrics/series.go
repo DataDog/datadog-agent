@@ -8,11 +8,13 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
+	jsoniter "github.com/json-iterator/go"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 
@@ -210,22 +212,13 @@ func (series Series) Len() int {
 
 // JSONItem TODO
 func (series Series) JSONItem(i int) ([]byte, error) {
-	return series[i].MarshalJSON()
+	if i < 0 || i > len(series)-1 {
+		return nil, errors.New("out of range")
+	}
+	return jsoniter.Marshal(series[i])
 }
 
 // JSONFooter TODO
 func (series Series) JSONFooter() []byte {
 	return []byte(`]}`)
-}
-
-func (s *Serie) MarshalJSON() ([]byte, error) {
-	return json.Marshal(s)
-}
-
-func (e Serie) String() string {
-	s, err := json.Marshal(e)
-	if err != nil {
-		return ""
-	}
-	return string(s)
 }
