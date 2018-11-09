@@ -12,8 +12,6 @@ import (
 	"compress/zlib"
 	"errors"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,15 +36,14 @@ var (
 
 var jsonSeparator = []byte(",")
 
-func zlibWorstCase(int i) int {
-
-	return 0
+func zlibWorstCase(i int) int {
+	return i
 }
 
 type chunk struct {
 	input               *bytes.Buffer
 	compressed          *bytes.Buffer
-	zipper              *zstd.Writer
+	zipper              *zlib.Writer
 	header              []byte
 	footer              []byte
 	uncompressedWritten int // uncompressed bytes written
@@ -71,7 +68,7 @@ func startChunk(header, footer []byte) (*chunk, error) {
 func (c *chunk) addItem(data []byte) error {
 	toWrite := c.input.Len() + len(data) + len(c.footer)
 	if !c.firstItem {
-		targetToWrite += len(jsonSeparator)
+		toWrite += len(jsonSeparator)
 	}
 	if c.uncompressedWritten+toWrite >= maxUncompressedSize {
 		// Reached maximum uncompressed size

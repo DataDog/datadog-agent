@@ -18,6 +18,6 @@ const (
 )
 
 // Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.StreamMarshaler) (forwarder.Payloads, error) {
+func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 	return nil, nil
 }
