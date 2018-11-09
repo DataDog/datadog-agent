@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,11 +59,6 @@ var (
 
 var jsonSeparator = []byte(",")
 
-func compressBound(sourceLen int) int {
-	// From https://code.woboq.org/gcc/zlib/compress.c.html#compressBound
-	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
-}
-
 type compressor struct {
 	input               *bytes.Buffer
 	compressed          *bytes.Buffer
@@ -102,7 +98,7 @@ func (c *compressor) addItem(data []byte) error {
 		return errNeedSplit
 	}
 
-	if compressBound(toWrite) >= c.remainingSpace() {
+	if compression.CompressBound(toWrite) >= c.remainingSpace() {
 		// Possibly reached maximum compressed size, compress and retry
 		if c.input.Len() > 0 {
 			expvarsTotalCycles.Add(1)
