@@ -12,6 +12,7 @@ import (
 	"compress/zlib"
 	"errors"
 	"expvar"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -60,6 +61,12 @@ var (
 
 var jsonSeparator = []byte(",")
 
+var inputBufferPool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 0, 3*megaByte))
+	},
+}
+
 type compressor struct {
 	input               *bytes.Buffer
 	compressed          *bytes.Buffer
@@ -75,11 +82,11 @@ func newCompressor(header, footer []byte) (*compressor, error) {
 	c := &compressor{
 		header:     header,
 		footer:     footer,
-		input:      bytes.NewBuffer(make([]byte, 0, 10*megaByte)),
 		compressed: bytes.NewBuffer(make([]byte, 0, 1*megaByte)),
 		firstItem:  true,
 	}
 
+	c.input = inputBufferPool.Get().(*bytes.Buffer)
 	c.zipper = zlib.NewWriter(c.compressed)
 	_, err := c.zipper.Write(header)
 	return c, err
@@ -152,6 +159,9 @@ func (c *compressor) close() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	c.input.Reset()
+	inputBufferPool.Put(c.input)
 
 	expvarsTotalPayloads.Add(1)
 	expvarsBytesIn.Add(int64(c.uncompressedWritten))
