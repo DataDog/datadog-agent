@@ -203,5 +203,12 @@ func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 		}
 	}
 
+	// Close last payload
+	payload, err := compressor.close()
+	if err != nil {
+		return output, err
+	}
+	output = append(output, &payload)
+
 	return output, nil
 }

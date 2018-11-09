@@ -6,16 +6,3 @@
 //+build zlib
 
 package jsonstream
-
-import (
-	"testing"
-)
-
-func TestHeaderFooter(t *testing.T) {
-	header := []byte("HEAD")
-	footer := []byte("FOOT")
-
-	chunk, err := startChunk(header, footer)
-
-	chunk
-}
