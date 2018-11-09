@@ -28,6 +28,7 @@ var (
 	expvarsTotalCalls    = expvar.Int{}
 	expvarsTotalItems    = expvar.Int{}
 	expvarsTotalPayloads = expvar.Int{}
+	expvarsTotalCycles   = expvar.Int{}
 	expvarsItemDrops     = expvar.Int{}
 	expvarsBytesIn       = expvar.Int{}
 	expvarsBytesOut      = expvar.Int{}
@@ -37,6 +38,7 @@ func init() {
 	expvars.Set("TotalCalls", &expvarsTotalCalls)
 	expvars.Set("TotalItem", &expvarsTotalItems)
 	expvars.Set("TotalPayloads", &expvarsTotalPayloads)
+	expvars.Set("TotalCompressCycles", &expvarsTotalCycles)
 	expvars.Set("ItemDrops", &expvarsItemDrops)
 	expvars.Set("BytesIn", &expvarsBytesIn)
 	expvars.Set("BytesOut", &expvarsBytesOut)
@@ -57,6 +59,7 @@ var (
 var jsonSeparator = []byte(",")
 
 func zlibWorstCase(i int) int {
+
 	return i
 }
 
@@ -102,6 +105,7 @@ func (c *compressor) addItem(data []byte) error {
 	if zlibWorstCase(toWrite) >= c.remainingSpace() {
 		// Possibly reached maximum compressed size, compress and retry
 		if c.input.Len() > 0 {
+			expvarsTotalCycles.Add(1)
 			n, err := c.input.WriteTo(c.zipper)
 			if err != nil {
 				return err
