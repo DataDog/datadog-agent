@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-//+build zstd
+//+build zlib
 
 package jsonstream
 
 import (
 	"bytes"
+	"compress/zlib"
 	"errors"
 
 	"github.com/DataDog/zstd"
@@ -37,6 +38,11 @@ var (
 
 var jsonSeparator = []byte(",")
 
+func zlibWorstCase(int i) int {
+
+	return 0
+}
+
 type chunk struct {
 	input               *bytes.Buffer
 	compressed          *bytes.Buffer
@@ -56,7 +62,7 @@ func startChunk(header, footer []byte) (*chunk, error) {
 		firstItem:  true,
 	}
 
-	c.zipper = zstd.NewWriter(c.compressed)
+	c.zipper = zlib.NewWriter(c.compressed)
 	_, err := c.zipper.Write(header)
 	return c, err
 }
@@ -76,7 +82,7 @@ func (c *chunk) addItem(data []byte) error {
 		return errNeedSplit
 	}
 
-	if zstd.CompressBound(toWrite) >= c.remainingSpace() {
+	if zlibWorstCase(toWrite) >= c.remainingSpace() {
 		// Possibly reached maximum compressed size, compress and retry
 		if c.input.Len() > 0 {
 			n, err := c.input.WriteTo(c.zipper)
@@ -84,6 +90,7 @@ func (c *chunk) addItem(data []byte) error {
 				return err
 			}
 			c.uncompressedWritten += int(n)
+			c.zipper.Flush()
 			c.input.Reset()
 			return c.addItem(data)
 		}
