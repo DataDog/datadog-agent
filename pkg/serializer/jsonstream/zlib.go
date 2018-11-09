@@ -40,7 +40,7 @@ func zlibWorstCase(i int) int {
 	return i
 }
 
-type chunk struct {
+type compressor struct {
 	input               *bytes.Buffer
 	compressed          *bytes.Buffer
 	zipper              *zlib.Writer
@@ -50,8 +50,8 @@ type chunk struct {
 	firstItem           bool
 }
 
-func startChunk(header, footer []byte) (*chunk, error) {
-	c := &chunk{
+func startChunk(header, footer []byte) (*compressor, error) {
+	c := &compressor{
 		header:     header,
 		footer:     footer,
 		input:      bytes.NewBuffer(make([]byte, 10*megaByte)),
@@ -65,7 +65,7 @@ func startChunk(header, footer []byte) (*chunk, error) {
 }
 
 // addItem will try to add
-func (c *chunk) addItem(data []byte) error {
+func (c *compressor) addItem(data []byte) error {
 	toWrite := c.input.Len() + len(data) + len(c.footer)
 	if !c.firstItem {
 		toWrite += len(jsonSeparator)
@@ -105,7 +105,7 @@ func (c *chunk) addItem(data []byte) error {
 	return nil
 }
 
-func (c *chunk) close() ([]byte, error) {
+func (c *compressor) close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {
 		_, err := c.input.WriteTo(c.zipper)
@@ -127,7 +127,7 @@ func (c *chunk) close() ([]byte, error) {
 	return c.compressed.Bytes(), nil
 }
 
-func (c *chunk) remainingSpace() int {
+func (c *compressor) remainingSpace() int {
 	return maxPayloadSize - c.compressed.Len() - len(c.footer)
 }
 
