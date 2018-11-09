@@ -18,13 +18,13 @@ const name = "dd_logs_config_custom_configs"
 // It should be called once at the start of the agent.
 type EnvProvider struct{}
 
-// NewEnvProvider create a EnvProvider searching for
-// configurations in env variable DD_LOGS_CONFIG_CUSTOM_CONFIGS
+// NewEnvProvider creates a EnvProvider searching for
+// configurations in env variables.
 func NewEnvProvider() *EnvProvider {
 	return &EnvProvider{}
 }
 
-// Collect get the value of env variable DD_LOGS_CONFIG_CUSTOM_CONFIGS
+// Collect gets the value of env variables
 // and generate an integrationConfig out of it.
 func (e *EnvProvider) Collect() ([]integration.Config, error) {
 	customConfigs := strings.TrimSpace(config.Datadog.GetString("logs_config.custom_configs"))
