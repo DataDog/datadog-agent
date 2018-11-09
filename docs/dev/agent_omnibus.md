@@ -85,3 +85,34 @@ at each Omnibus run:
 ### Windows
 
 TODO.
+
+### armv7
+
+:warning: This is experimental and community supported. Datadog does not provide support for ARM.
+
+Huge thanks to [Adrien Kohlbecker](https://github.com/adrienkohlbecker) that layed out the foundation work for this build.
+
+To build the agent on ARM, you will need an ARM server. We don't recommend using a Raspberry Pi because it will be very slow.
+[Scaleway C1](https://www.scaleway.com/pricing/#anchor_baremetal) instances are a good choice. They have an image that comes with Go
+preinstalled
+
+Assuming Go is installed and your GOPATH is set, run on your computer:
+
+```bash
+scp $GOPATH/src/github.com/DataDog/datadog-agent/omnibus/resources/agent/arm/build.sh root@<YOUR_SERVER_IP>:/root/build.sh
+```
+
+Then ssh on the server and run
+
+```bash
+# If you want to build the docker image. If not, comment it.
+# This will push an image to DockerHub at <YOUR_DOCKER_USERNAME>/datadog-agent:<AGENT_VERSION>
+# Agent version can be edited in build.sh
+export DOCKER_USERNAME=<YOUR_DOCKER_USERNAME>
+
+./build.sh
+```
+
+This should take between 2 and 3 hours but can run unattended. If your internet connection is flaky, we recommend running it into screen.
+
+The binary file can be found in `$HOME/.omnibus/pkg`. If you built the image, it can be found at https://hub.docker.com/r/<YOUR_DOCKER_USERNAME>/datadog-agent

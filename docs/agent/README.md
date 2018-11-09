@@ -47,6 +47,13 @@ Agent 6 is currently available on these platforms:
 | Docker | Version 1.12 and higher|
 |Kubernetes | Version 1.3 and higher |
 
+There are also experimental and community supported builds. Please note that Datadog does not
+provide support for these platfoms:
+
+| System | Information |
+|--------|-------------------|
+| armv7 | [.deb file](https://github.com/adrienkohlbecker/datadog-agent-armv7/releases) / [docker image](https://hub.docker.com/r/achntrl/datadog-agent/tags/) / [build instructions](../dev/agent_omnibus.md) tested on Raspbian on a Raspberry Pi 3 with Agent 6.6.0|
+
 
 [changes]: changes.md
 [config]: config.md
