@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"errors"
+	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -21,6 +22,25 @@ const (
 	// Available is true if the code is compiled in
 	Available = true
 )
+
+var (
+	expvars              = expvar.NewMap("jsonstream")
+	expvarsTotalCalls    = expvar.Int{}
+	expvarsTotalItems    = expvar.Int{}
+	expvarsTotalPayloads = expvar.Int{}
+	expvarsItemDrops     = expvar.Int{}
+	expvarsBytesIn       = expvar.Int{}
+	expvarsBytesOut      = expvar.Int{}
+)
+
+func init() {
+	expvars.Set("TotalCalls", &expvarsTotalCalls)
+	expvars.Set("TotalItem", &expvarsTotalItems)
+	expvars.Set("TotalPayloads", &expvarsTotalPayloads)
+	expvars.Set("ItemDrops", &expvarsItemDrops)
+	expvars.Set("BytesIn", &expvarsBytesIn)
+	expvars.Set("BytesOut", &expvarsBytesOut)
+}
 
 // the backend accepts payloads up to 3MB/50MB, but being conservative is okay
 var (
@@ -108,7 +128,8 @@ func (c *compressor) addItem(data []byte) error {
 func (c *compressor) close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {
-		_, err := c.input.WriteTo(c.zipper)
+		n, err := c.input.WriteTo(c.zipper)
+		c.uncompressedWritten += int(n)
 		if err != nil {
 			return nil, err
 		}
@@ -124,6 +145,10 @@ func (c *compressor) close() ([]byte, error) {
 		return nil, err
 	}
 
+	expvarsTotalPayloads.Add(1)
+	expvarsBytesIn.Add(int64(c.uncompressedWritten))
+	expvarsBytesOut.Add(int64(c.compressed.Len()))
+
 	return c.compressed.Bytes(), nil
 }
 
@@ -136,6 +161,7 @@ func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 	var output forwarder.Payloads
 	var i int
 	itemCount := m.Len()
+	expvarsTotalCalls.Add(1)
 
 	compressor, err := newCompressor(m.JSONHeader(), m.JSONFooter())
 	if err != nil {
@@ -165,11 +191,13 @@ func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 		case nil:
 			// All good, continue to next item
 			i++
+			expvarsTotalItems.Add(1)
 			continue
 		default:
 			// Unexpected error, drop the item
 			i++
 			log.Warnf("Dropping an item: %s", err)
+			expvarsItemDrops.Add(1)
 			continue
 		}
 	}
