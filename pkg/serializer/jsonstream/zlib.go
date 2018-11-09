@@ -50,7 +50,7 @@ type compressor struct {
 	firstItem           bool
 }
 
-func startChunk(header, footer []byte) (*compressor, error) {
+func newCompressor(header, footer []byte) (*compressor, error) {
 	c := &compressor{
 		header:     header,
 		footer:     footer,
@@ -137,7 +137,7 @@ func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 	var i int
 	itemCount := m.Len()
 
-	chunk, err := startChunk(m.JSONHeader(), m.JSONFooter())
+	compressor, err := newCompressor(m.JSONHeader(), m.JSONFooter())
 	if err != nil {
 		return nil, err
 	}
@@ -150,15 +150,15 @@ func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 			continue
 		}
 
-		switch chunk.addItem(json) {
+		switch compressor.addItem(json) {
 		case errNeedSplit:
 			// Need to split to a new payload
-			payload, err := chunk.close()
+			payload, err := compressor.close()
 			if err != nil {
 				return output, err
 			}
 			output = append(output, &payload)
-			chunk, err = startChunk(m.JSONHeader(), m.JSONFooter())
+			compressor, err = newCompressor(m.JSONHeader(), m.JSONFooter())
 			if err != nil {
 				return nil, err
 			}
