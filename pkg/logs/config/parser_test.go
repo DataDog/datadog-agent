@@ -39,6 +39,17 @@ func TestParseJSONWithValidFormatShouldSucceed(t *testing.T) {
 	rule := config.ProcessingRules[0]
 	assert.Equal(t, "multi_line", rule.Type)
 	assert.Equal(t, "numbers", rule.Name)
+
+	configs, err = ParseJSON([]byte(`[{"type":"tcp","port":1234,"service":"fooService"}, {"type":"file","path":"/tmp/file.log","service":"fooService"}]`))
+	assert.Nil(t, err)
+	config0 := configs[0]
+	assert.Equal(t, "tcp", config0.Type)
+	assert.Equal(t, 1234, config0.Port)
+	assert.Equal(t, "fooService", config0.Service)
+	config1 := configs[1]
+	assert.Equal(t, "file", config1.Type)
+	assert.Equal(t, "/tmp/file.log", config1.Path)
+	assert.Equal(t, "fooService", config1.Service)
 }
 
 func TestParseJSONWithInvalidFormatShouldFail(t *testing.T) {

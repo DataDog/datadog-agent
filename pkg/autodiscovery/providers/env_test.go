@@ -6,16 +6,14 @@
 package providers
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEnvCollectEmpty(t *testing.T) {
-	envProvider := NewEnvProvider()
+	envProvider := NewEnvVarProvider()
 
 	integrationConfigs, err := envProvider.Collect()
 	assert.Nil(t, err)
@@ -23,55 +21,19 @@ func TestEnvCollectEmpty(t *testing.T) {
 }
 
 func TestEnvCollectValid(t *testing.T) {
-	config.Datadog.Set("logs_config.custom_configs", "[{\"type\":\"tcp\",\"port\":1234,\"service\":\"fooService\",\"source\":\"barSource\",\"tags\":[\"foo:bar\",\"baz\"]}]")
-	envProvider := NewEnvProvider()
+	envVar := `[{"type":"tcp","port":1234,"service":"fooService","source":"barSource","tags":["foo:bar","baz"]}]`
+	config.Datadog.Set("logs_config.custom_configs", envVar)
+	envProvider := NewEnvVarProvider()
 
 	integrationConfigs, err := envProvider.Collect()
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(integrationConfigs))
+	assert.Equal(t, []byte(envVar), []byte(integrationConfigs[0].LogsConfig))
 
-	var logConfig []logsConfig.LogsConfig
-	err = json.Unmarshal(integrationConfigs[0].LogsConfig, &logConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(logConfig))
-
-	expectedConfig := logsConfig.LogsConfig{
-		Type:    "tcp",
-		Port:    1234,
-		Service: "fooService",
-		Source:  "barSource",
-		Tags:    []string{"foo:bar", "baz"},
-	}
-	assert.Equal(t, expectedConfig, logConfig[0])
-}
-
-func TestEnvCollectMultipleValid(t *testing.T) {
-	config.Datadog.Set("logs_config.custom_configs", "[{\"type\":\"tcp\",\"port\":1234,\"service\":\"fooService\",\"source\":\"barSource\",\"tags\":[\"foo:bar\",\"baz\"]}, {\"type\":\"file\",\"path\":\"/tmp/file.log\",\"service\":\"fooService\",\"source\":\"barSource\",\"tags\":[\"foo:bar\",\"log\"]}]")
-	envProvider := NewEnvProvider()
-
-	integrationConfigs, err := envProvider.Collect()
+	envVar = `[{"type":"tcp","port":1234,"service":"fooService","source":"barSource","tags":["foo:bar","baz"]}, {"type":"file","path":"/tmp/file.log","service":"fooService","source":"barSource","tags":["foo:bar","log"]}]`
+	config.Datadog.Set("logs_config.custom_configs", envVar)
+	integrationConfigs, err = envProvider.Collect()
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(integrationConfigs))
-
-	var logConfig []logsConfig.LogsConfig
-	err = json.Unmarshal(integrationConfigs[0].LogsConfig, &logConfig)
-	assert.Nil(t, err)
-	assert.Equal(t, 2, len(logConfig))
-
-	expectedConfig1 := logsConfig.LogsConfig{
-		Type:    "tcp",
-		Port:    1234,
-		Service: "fooService",
-		Source:  "barSource",
-		Tags:    []string{"foo:bar", "baz"},
-	}
-	expectedConfig2 := logsConfig.LogsConfig{
-		Type:    "file",
-		Path:    "/tmp/file.log",
-		Service: "fooService",
-		Source:  "barSource",
-		Tags:    []string{"foo:bar", "log"},
-	}
-	assert.Equal(t, expectedConfig1, logConfig[0])
-	assert.Equal(t, expectedConfig2, logConfig[1])
+	assert.Equal(t, []byte(envVar), []byte(integrationConfigs[0].LogsConfig))
 }
