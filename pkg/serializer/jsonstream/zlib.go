@@ -58,9 +58,9 @@ var (
 
 var jsonSeparator = []byte(",")
 
-func zlibWorstCase(i int) int {
-
-	return i
+func compressBound(sourceLen int) int {
+	// From https://code.woboq.org/gcc/zlib/compress.c.html#compressBound
+	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
 }
 
 type compressor struct {
@@ -102,7 +102,7 @@ func (c *compressor) addItem(data []byte) error {
 		return errNeedSplit
 	}
 
-	if zlibWorstCase(toWrite) >= c.remainingSpace() {
+	if compressBound(toWrite) >= c.remainingSpace() {
 		// Possibly reached maximum compressed size, compress and retry
 		if c.input.Len() > 0 {
 			expvarsTotalCycles.Add(1)
