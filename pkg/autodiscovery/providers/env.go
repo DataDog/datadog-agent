@@ -15,9 +15,9 @@ import (
 
 const name = "dd_logs_config_custom_config"
 
-var collectors = []func(*EnvVarProvider) ([]integration.Config, error){
-	(*EnvVarProvider).collectLogsConfigs,
-	(*EnvVarProvider).collectMetricsConfigs,
+var collectors = []func() ([]integration.Config, error){
+	collectLogsConfigs,
+	collectMetricsConfigs,
 }
 
 // EnvVarProvider implements implements the ConfigProvider interface
@@ -37,7 +37,7 @@ func (e *EnvVarProvider) Collect() ([]integration.Config, error) {
 	var errors []string
 	var err error
 	for _, collector := range collectors {
-		collectorConfigs, err := collector(e)
+		collectorConfigs, err := collector()
 		if err != nil {
 			errors = append(errors, err.Error())
 		}
@@ -48,12 +48,12 @@ func (e *EnvVarProvider) Collect() ([]integration.Config, error) {
 		err = fmt.Errorf("%v", errors[0])
 	}
 	if len(errors) > 1 {
-		err = fmt.Errorf("Multiple errors: %s", strings.Join(errors, ","))
+		err = fmt.Errorf("Multiple errors: %s", strings.Join(errors, ", "))
 	}
 	return integrationConfigs, err
 }
 
-func (e *EnvVarProvider) collectLogsConfigs() ([]integration.Config, error) {
+func collectLogsConfigs() ([]integration.Config, error) {
 	customConfigs := strings.TrimSpace(config.Datadog.GetString("logs_config.custom_config"))
 
 	if len(customConfigs) == 0 {
@@ -64,7 +64,7 @@ func (e *EnvVarProvider) collectLogsConfigs() ([]integration.Config, error) {
 	integrationConfig.LogsConfig = []byte(customConfigs)
 	return []integration.Config{integrationConfig}, nil
 }
-func (e *EnvVarProvider) collectMetricsConfigs() ([]integration.Config, error) {
+func collectMetricsConfigs() ([]integration.Config, error) {
 	return []integration.Config{}, nil
 }
 
