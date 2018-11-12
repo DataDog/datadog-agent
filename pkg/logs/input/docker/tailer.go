@@ -174,10 +174,10 @@ func (t *Tailer) readForever() {
 func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	var n int
 	var err error
-	doneReading := make(chan error, 1)
+	doneReading := make(chan struct{}, 1)
 	go func() {
 		n, err = t.reader.Read(buffer)
-		doneReading <- err
+		doneReading <- struct{}{}
 		close(doneReading)
 	}()
 
@@ -186,7 +186,7 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	case <-time.After(timeout):
 		// Cancel the docker socket reader context
 		t.cancelFunc()
-		err = <-doneReading
+		<-doneReading
 		if isContextCanceled(err) {
 			// override the error with a more explicit message
 			err = fmt.Errorf("timeout reading from the docker socket")
@@ -255,5 +255,5 @@ func isClosedConnError(err error) bool {
 
 // isContextCanceled returns true if the error is related to a canceled context,
 func isContextCanceled(err error) bool {
-	return strings.Contains(err.Error(), "context canceled")
+	return err == context.Canceled
 }
