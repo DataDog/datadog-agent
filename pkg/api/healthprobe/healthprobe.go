@@ -7,14 +7,15 @@ package healthprobe
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultTimeout = time.Second
@@ -60,26 +61,19 @@ func (h healthHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	var b strings.Builder
-	b.WriteString("Agent health: ")
 
 	if len(health.Unhealthy) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
-		b.WriteString("FAIL\n")
-	} else {
-		b.WriteString("PASS\n")
+		log.Debugf("Healthcheck failed on: %v", health.Unhealthy)
 	}
 
-	if len(health.Healthy) > 0 {
-		b.WriteString("=== Healthy components ===\n")
-		b.WriteString(strings.Join(health.Healthy, ", "))
-		b.WriteString("\n")
-	}
-	if len(health.Unhealthy) > 0 {
-		b.WriteString("=== Unhealthy components ===\n")
-		b.WriteString(strings.Join(health.Unhealthy, ", "))
-		b.WriteString("\n")
+	jsonHealth, err := json.Marshal(health)
+	if err != nil {
+		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
 	}
 
-	w.Write([]byte(b.String()))
+	w.Write(jsonHealth)
 }
