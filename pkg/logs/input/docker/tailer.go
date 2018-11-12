@@ -174,10 +174,9 @@ func (t *Tailer) readForever() {
 func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	var n int
 	var err error
-	doneReading := make(chan struct{}, 1)
+	doneReading := make(chan struct{})
 	go func() {
 		n, err = t.reader.Read(buffer)
-		doneReading <- struct{}{}
 		close(doneReading)
 	}()
 
