@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    JMXFetch upgraded to 0.22.1
+    JMXFetch upgraded to 0.22.1. See https://github.com/DataDog/jmxfetch/releases/tag/0.22.1
