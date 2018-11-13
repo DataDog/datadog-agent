@@ -134,7 +134,7 @@
               Errors By Type:<br>
               <span class="stat_subdata">
                 {{- range $type, $count := .Transactions.ErrorsByType }}
-                    {{$type}}: {{$count}}<br>
+                    {{$type}}: {{humanize $count}}<br>
                 {{- end}}
               </span>
             </span>
@@ -147,7 +147,7 @@
               HTTP Errors By Code:<br>
               <span class="stat_subdata">
                 {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
-                    {{$code}}: {{$count}}<br>
+                    {{$code}}: {{humanize $count}}<br>
                 {{- end}}
               </span>
             </span>
@@ -204,17 +204,23 @@
   </div>
 
   <div class="stat">
-    <span class="stat_title">DogStatsD</span>
+    <span class="stat_title">Aggregator</span>
     <span class="stat_data">
       {{- with .aggregatorStats -}}
         {{- if .ChecksMetricSample}}
           Checks Metric Sample: {{humanize .ChecksMetricSample}}<br>
         {{- end -}}
+        {{- if .DogstatsdMetricSample}}
+          Dogstatsd Metric Sample: {{.DogstatsdMetricSample}}<br>
+        {{- end}}
         {{- if .Event}}
           Event: {{humanize .Event}}<br>
         {{- end -}}
         {{- if .EventsFlushed}}
           Events Flushed: {{humanize .EventsFlushed}}<br>
+        {{- end -}}
+        {{- if .EventsFlushErrors}}
+          Events Flush Errors: {{.EventsFlushErrors}}<br>
         {{- end -}}
         {{- if .NumberOfFlush}}
           Number Of Flushes: {{humanize .NumberOfFlush}}<br>
@@ -222,21 +228,38 @@
         {{- if .SeriesFlushed}}
           Series Flushed: {{humanize .SeriesFlushed}}<br>
         {{- end -}}
+        {{- if .SeriesFlushErrors}}
+          Series Flush Errors: {{.SeriesFlushErrors}}<br>
+        {{- end -}}
         {{- if .ServiceCheck}}
           Service Check: {{humanize .ServiceCheck}}<br>
         {{- end -}}
         {{- if .ServiceCheckFlushed}}
           Service Checks Flushed: {{humanize .ServiceCheckFlushed}}<br>
         {{- end -}}
+        {{- if .ServiceCheckFlushErrors}}
+          Service Checks Flush Errors: {{.ServiceCheckFlushErrors}}<br>
+        {{- end -}}
         {{- if .SketchesFlushed}}
           Sketches Flushed: {{humanize .SketchesFlushed}}<br>
         {{- end -}}
+        {{- if .SketchesFlushErrors}}
+          Sketches Flush Errors: {{.SketchesFlushErrors}}<br>
+        {{- end -}}
         {{- if .HostnameUpdate}}
           Hostname Update: {{humanize .HostnameUpdate}}<br>
-        {{- end -}}
-        {{- if .DogstatsdMetricSample}}
-          Dogstatsd Metric Sample: {{humanize .DogstatsdMetricSample}}<br>
-        {{- end}}
+        {{- end }}
+      {{- end -}}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">DogStatsD</span>
+    <span class="stat_data">
+      {{- with .dogstatsdStats -}}
+        {{- range $key, $value := .}}
+          {{formatTitle $key}}: {{humanize $value}}<br>
+        {{- end }}
       {{- end -}}
     </span>
   </div>

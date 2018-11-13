@@ -8,11 +8,12 @@ package main
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func onRestart() {
-	if err := app.StopService(app.ServiceName, true); err == nil {
+	if err := app.StopService(config.ServiceName, true); err == nil {
 		app.StartService(nil, nil)
 	}
 
@@ -25,7 +26,7 @@ func onStart() {
 }
 
 func onStop() {
-	if err := app.StopService(app.ServiceName, true); err != nil {
+	if err := app.StopService(config.ServiceName, true); err != nil {
 		log.Warnf("Failed to stop datadog service %v", err)
 	}
 
