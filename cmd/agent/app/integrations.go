@@ -2,6 +2,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build !windows windows,integrationcmd
 // +build cpython
 
 package app
@@ -24,30 +25,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
-
-const (
-	tufConfigFile       = "public-tuf-config.json"
-	reqAgentReleaseFile = "requirements-agent-release.txt"
-	tufPkgPattern       = "datadog(-|_).*"
-	tufIndex            = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
-	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
-	yamlFilePattern     = "[\\w_]+\\.yaml.*"
-)
-
-var (
-	allowRoot    bool
-	withoutTuf   bool
-	inToto       bool
-	verbose      bool
-	useSysPython bool
-	tufConfig    string
-)
-
-type integrationVersion struct {
-	major int
-	minor int
-	fix   int
-}
 
 // Parse a version string.
 // Return the version, or nil empty string
@@ -99,61 +76,6 @@ func (v *integrationVersion) equals(otherVersion *integrationVersion) bool {
 	}
 
 	return v.major == otherVersion.major && v.minor == otherVersion.minor && v.fix == otherVersion.fix
-}
-
-func init() {
-	AgentCmd.AddCommand(tufCmd)
-	tufCmd.AddCommand(installCmd)
-	tufCmd.AddCommand(removeCmd)
-	tufCmd.AddCommand(searchCmd)
-	tufCmd.AddCommand(freezeCmd)
-	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
-	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
-	tufCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
-	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
-	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
-	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
-
-	// Power user flags - mark as hidden
-	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
-}
-
-var tufCmd = &cobra.Command{
-	Use:   "integration [command]",
-	Short: "Datadog integration manager (ALPHA feature)",
-	Long:  ``,
-}
-
-var installCmd = &cobra.Command{
-	Use:   "install [package]",
-	Short: "Install Datadog integration core/extra packages",
-	Long: `Install Datadog integration core/extra packages
-You must specify a version of the package to install using the syntax: <package>==<version>, with
- - <package> of the form datadog-<integration-name>
- - <version> of the form x.y.z`,
-	RunE: installTuf,
-}
-
-var removeCmd = &cobra.Command{
-	Use:   "remove [package]",
-	Short: "Remove Datadog integration core/extra packages",
-	Long:  ``,
-	RunE:  removeTuf,
-}
-
-var searchCmd = &cobra.Command{
-	Use:    "search [package]",
-	Short:  "Search Datadog integration core/extra packages",
-	Long:   ``,
-	RunE:   searchTuf,
-	Hidden: true,
-}
-
-var freezeCmd = &cobra.Command{
-	Use:   "freeze",
-	Short: "Freeze list of installed python packages",
-	Long:  ``,
-	RunE:  freeze,
 }
 
 func getTufConfigPath() string {

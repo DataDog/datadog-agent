@@ -1,0 +1,1 @@
+../../agent/app/integrations_windows.go
