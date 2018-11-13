@@ -92,12 +92,12 @@
     - name: Add stackstate-agent Apt signing key
       become: true
       apt_key:
-        url: https://s3.amazonaws.com/stackstate-agent-test/gpg
+        url: https://s3.amazonaws.com/stackstate-agent-2-test/public.key
         state: present
     - name: Add stackstate-agent Apt repository
       become: true
       apt_repository:
-        repo: deb https://s3.amazonaws.com/stackstate-agent-test master main
+        repo: deb https://s3.amazonaws.com/stackstate-agent-2-test master main
     - name: Install StackState-Agent
       become: true
       apt:

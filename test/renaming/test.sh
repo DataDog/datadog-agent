@@ -1,4 +1,5 @@
-#/bin/bash
+#!/bin/bash
+
 #
 # Script to test whether the StackState egnt contains no visible references to DataDog
 # (only to StackState)

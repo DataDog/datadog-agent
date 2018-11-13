@@ -3,9 +3,14 @@ image: stackstate/stackstate-agent-runner-circle:latest
 stages:
 - prepare
 - build_and_test
-- package_test
-- publish
+- pre_release
 - release
+
+variables:
+  STS_AWS_RELEASE_BUCKET: stackstate-agent-2
+  STS_AWS_TEST_BUCKET: stackstate-agent-2-test
+  STS_DOCKER_RELEASE_REPO: stackstate-agent-2
+  STS_DOCKER_TEST_REPO: stackstate-agent-2-test
 
 before_script:
  - mkdir -p /go/src/github.com/StackVista
@@ -36,10 +41,12 @@ deps:
   script:
     - pip install -r requirements.txt
     - inv deps
+    - inv version -u > version.txt
   artifacts:
     paths:
         - $CI_PROJECT_DIR/vendor
         - $CI_PROJECT_DIR/venv
+        - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
 unit_tests:
@@ -149,30 +156,48 @@ build_deb:
     expire_in: 1 week
 
 test_deb_renaming:
-  stage: package_test
+  stage: pre_release
   dependencies:
     - build_deb
+  before_script: []
   script:
     ./test/renaming/test.sh $CI_PROJECT_DIR/outcomes/pkg/*.deb
 
-publish_deb:
-  stage: publish
+pre_release_deb:
+  stage: pre_release
   dependencies:
+    - deps
     - build_deb
-  before_script:
-    - apt-get install -y apt-utils libtool debsigs && apt-get install -y --only-upgrade libtool
   script:
+    - source .gitlab-scripts/setup_env.sh
+    - apt-get install -y apt-utils libtool debsigs
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
     - git status -s
 
+pre_release_image:
+  stage: pre_release
+  image: docker:18.06.0
+  dependencies:
+    - build_deb
+    - deps
+  variables:
+    DOCKER_DRIVER: overlay
+  services:
+    - docker:dind
+  script:
+    - cd $CI_PROJECT_DIR
+    - export VERSION=`cat version.txt`
+    - ./.gitlab-scripts/publish_image.sh $VERSION $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/outcomes/pkg
+
 release_deb:
   stage: release
   dependencies:
+    - deps
     - build_deb
-  before_script:
-    - apt-get install -y apt-utils libtool debsigs && apt-get install -y --only-upgrade libtool
   script:
+    - source .gitlab-scripts/setup_env.sh
+    - apt-get install -y apt-utils libtool debsigs
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_RELEASE_BUCKET stable
   when: manual
@@ -180,19 +205,24 @@ release_deb:
     - tags
     - triggers
 
-publish_image:
-  stage: publish
+release_image:
+  stage: release
   image: docker:18.06.0
   dependencies:
     - build_deb
+    - deps
   variables:
     DOCKER_DRIVER: overlay
   services:
     - docker:dind
-  before_script: []
   script:
     - cd $CI_PROJECT_DIR
-    - ./.gitlab-scripts/publish_image.sh ${CI_COMMIT_SHA:0:7} $CI_PROJECT_DIR/outcomes/pkg/*.deb
+    - export VERSION=`cat version.txt`
+    - ./.gitlab-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/outcomes/pkg
+  when: manual
+  only:
+    - tags
+    - triggers
 
 #docker_test:
 #  stage: docker_test
