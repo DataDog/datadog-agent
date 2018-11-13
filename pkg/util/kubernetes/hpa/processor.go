@@ -9,6 +9,8 @@ package hpa
 
 import (
 	"fmt"
+	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,12 +18,9 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"math"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"sort"
 )
 
 type DatadogClient interface {
@@ -38,7 +37,7 @@ type Processor struct {
 func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
 	externalMaxAge := math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog.GetFloat64("external_metrics_provider.rollup"))
 	return &Processor{
-		externalMaxAge: time.Duration(externalMaxAge) * time.Second, // Convert to int64 ?
+		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		datadogClient:  datadogCl,
 	}, nil
 }

@@ -43,6 +43,11 @@ func makePoints(ts, val int) datadog.DataPoint {
 	return datadog.DataPoint{&tsPtr, &valPtr}
 }
 
+func makePartialPoints(ts int) datadog.DataPoint {
+	tsPtr := float64(ts)
+	return datadog.DataPoint{&tsPtr, nil}
+}
+
 func makePtr(val string) *string {
 	return &val
 }
