@@ -86,7 +86,8 @@ func (c *catalog) run() {
 	pingTicker.Stop()
 }
 
-// pingComponents is the actual pinging logic, separated for unit tests
+// pingComponents is the actual pinging logic, separated for unit tests.
+// Returns true if the component list is empty, to make the pooling logic stop.
 func (c *catalog) pingComponents() bool {
 	c.Lock()
 	defer c.Unlock()
