@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeDatadogClient struct {
@@ -58,7 +59,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			"update invalid metric",
 			[]custommetrics.ExternalMetricValue{
 				{
-					MetricName: "requests_per_s",
+					MetricName: metricName,
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 				},
@@ -133,6 +134,32 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, strippedTs)
 		})
 	}
+
+	// Test that Datadog not responding yields invaldation.
+	emList := []custommetrics.ExternalMetricValue{
+		{
+			MetricName: metricName,
+			Labels:     map[string]string{"foo": "bar"},
+			Valid:      true,
+		},
+		{
+			MetricName: metricName,
+			Labels:     map[string]string{"bar": "baz"},
+			Valid:      true,
+		},
+	}
+	datadogClient := &fakeDatadogClient{
+		queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
+			return nil, fmt.Errorf("API error 400 Bad Request: {\"error\": [\"Rate limit of 300 requests in 3600 seconds reqchec.\"]}")
+		},
+	}
+	hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
+	invList := hpaCl.UpdateExternalMetrics(emList)
+	require.Len(t, invList, len(emList))
+	for _, i := range invList {
+		require.False(t, i.Valid)
+	}
+
 }
 
 func TestProcessor_ProcessHPAs(t *testing.T) {
@@ -420,5 +447,61 @@ func TestProcessor_Batching(t *testing.T) {
 			hpaCl.UpdateExternalMetrics(tt.metrics)
 			assert.Equal(t, tt.expectedNumCalls, batchCallsNum)
 		})
+	}
+}
+
+// Test that we consistently get the same key.
+func TestGetKey(t *testing.T) {
+	tests := []struct {
+		desc     string
+		name     string
+		labels   map[string]string
+		expected string
+	}{
+		{
+			"correct name and label",
+			"kubernetes.io",
+			map[string]string{
+				"foo": "bar",
+			},
+			"kubernetes.io{foo:bar}",
+		},
+		{
+			"correct name and labels",
+			"kubernetes.io",
+			map[string]string{
+				"zfoo": "bar",
+				"afoo": "bar",
+				"ffoo": "bar",
+			},
+			"kubernetes.io{afoo:bar,ffoo:bar,zfoo:bar}",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			formatedKey := getKey(test.name, test.labels)
+			require.Equal(t, test.expected, formatedKey)
+		})
+	}
+}
+
+func TestInvalidate(t *testing.T) {
+	eml := []custommetrics.ExternalMetricValue{
+		{
+			MetricName: "foo",
+			Valid:      false,
+			Timestamp:  12,
+		},
+		{
+			MetricName: "bar",
+			Valid:      true,
+			Timestamp:  1300,
+		},
+	}
+
+	invalid := invalidate(eml)
+	for _, e := range invalid {
+		require.False(t, e.Valid)
+		require.WithinDuration(t, time.Now(), time.Unix(e.Timestamp, 0), 5*time.Second)
 	}
 }

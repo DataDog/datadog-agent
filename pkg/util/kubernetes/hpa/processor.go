@@ -21,28 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/prometheus/client_golang/prometheus"
+	"sort"
 )
-
-var (
-	metricsEval = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "external_metrics_processed_value",
-		Help: "value processed from querying Datadog",
-	},
-		[]string{"metric"},
-	)
-	metricsPrecision = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "external_metrics_delay",
-		Help: "freshness of the metric evaluated from querying Datadog",
-	},
-		[]string{"metric"},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(metricsEval)
-	prometheus.MustRegister(metricsPrecision)
-}
 
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
@@ -56,7 +36,7 @@ type Processor struct {
 
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
-	externalMaxAge := math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), config.Datadog.GetFloat64("external_metrics_provider.rollup"))
+	externalMaxAge := math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog.GetFloat64("external_metrics_provider.rollup"))
 	return &Processor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second, // Convert to int64 ?
 		datadogClient:  datadogCl,
@@ -64,6 +44,7 @@ func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
 }
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
+// TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
 func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue) {
 	maxAge := int64(p.externalMaxAge.Seconds())
 	var err error
@@ -81,11 +62,7 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 		metricIdentifier := getKey(em.MetricName, em.Labels)
 		metric := metrics[metricIdentifier]
 
-		if metric.timestamp-em.Timestamp <= maxAge && em.Valid {
-			// maxAge dictates how often we refresh the metric, otherwise sparse metrics would be refreshed too often.
-			continue
-		}
-		if time.Now().Unix()-metric.timestamp > maxAge*2 || !metric.valid {
+		if time.Now().Unix()-metric.timestamp > maxAge || !metric.valid {
 			// invalidating sparse metrics that are outdated
 			em.Valid = false
 			em.Value = metric.value
@@ -100,10 +77,6 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 		log.Debugf("Updated the external metric %#v", em)
 		updated = append(updated, em)
 
-		// Prometheus submissions on the processed external metrics
-		metricsEval.WithLabelValues(metricIdentifier).Set(float64(metric.value))
-		precision := time.Now().Unix() - metric.timestamp
-		metricsPrecision.WithLabelValues(metricIdentifier).Set(float64(precision))
 	}
 	return updated
 }
@@ -146,12 +119,13 @@ func (p *Processor) validateExternalMetric(emList []custommetrics.ExternalMetric
 	return p.queryDatadogExternal(batch)
 }
 
-func invalidate(emList []custommetrics.ExternalMetricValue) []custommetrics.ExternalMetricValue {
+func invalidate(emList []custommetrics.ExternalMetricValue) (invList []custommetrics.ExternalMetricValue) {
 	for _, e := range emList {
 		e.Valid = false
 		e.Timestamp = metav1.Now().Unix()
+		invList = append(invList, e)
 	}
-	return emList
+	return invList
 }
 
 func getKey(name string, labels map[string]string) string {
@@ -159,6 +133,7 @@ func getKey(name string, labels map[string]string) string {
 	for key, val := range labels {
 		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
 	}
+	sort.Strings(datadogTags)
 	tags := strings.Join(datadogTags, ",")
 	return fmt.Sprintf("%s{%s}", name, tags)
 }
