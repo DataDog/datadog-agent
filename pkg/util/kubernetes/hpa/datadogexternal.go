@@ -28,17 +28,24 @@ var (
 		},
 		[]string{"status"},
 	)
-	metricsRawVal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "external_metrics_raw",
-		Help: "raw value gotten from querying Datadog",
+	metricsEval = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "external_metrics_processed_value",
+		Help: "value processed from querying Datadog",
 	},
-		[]string{"metric", "scope"},
+		[]string{"metric"},
+	)
+	metricsPrecision = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "external_metrics_delay",
+		Help: "freshness of the metric evaluated from querying Datadog",
+	},
+		[]string{"metric"},
 	)
 )
 
 func init() {
 	prometheus.MustRegister(ddRequests)
-	prometheus.MustRegister(metricsRawVal)
+	prometheus.MustRegister(metricsEval)
+	prometheus.MustRegister(metricsPrecision)
 }
 
 type Point struct {
@@ -62,7 +69,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
 
 	aggregator := config.Datadog.GetString("external_metrics.aggregator")
-	rollup := config.Datadog.GetInt("external_metrics.query_rollup")
+	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
 	var toQuery []string
 	for _, metric := range metricNames {
 		toQuery = append(toQuery, fmt.Sprintf("%s:%s.rollup(%d)", aggregator, metric, rollup))
@@ -114,15 +121,18 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 				continue
 			}
 			point.value = int64(*serie.Points[i][value])                // store the original value
-			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in ms
+			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in s
 			point.valid = true
-
-			metricsRawVal.WithLabelValues(*serie.Metric, *serie.Scope).Set(float64(point.value))
 
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
 			processedMetrics[m] = point
 
-			log.Debugf("Validated %s | Value:%d at %d after %d/%d buckets", *serie.Metric, point.value, point.timestamp, i+1, len(serie.Points))
+			// Prometheus submissions on the processed external metrics
+			metricsEval.WithLabelValues(m).Set(float64(point.value))
+			precision := time.Now().Unix() - point.timestamp
+			metricsPrecision.WithLabelValues(m).Set(float64(precision))
+
+			log.Debugf("Validated %s | Value:%d at %d after %d/%d buckets", m, time.Now().Unix(), point.value, point.timestamp, i+1, len(serie.Points))
 			break
 		}
 	}
