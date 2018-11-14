@@ -133,7 +133,7 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector lab
 			MetricLabels: metric.value.MetricLabels,
 			Value:        metric.value.Value,
 		}
-		if metric.info.Metric == metric.info.Metric &&
+		if info.Metric == metric.info.Metric &&
 			metricSelector.Matches(labels.Set(metric.value.MetricLabels)) {
 			metricValue := metricFromDatadog
 			metricValue.Timestamp = metav1.Now()
