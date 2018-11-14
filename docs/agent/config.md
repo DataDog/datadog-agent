@@ -10,7 +10,7 @@ might mean:
 
 ## Environment variables
 
-All options supported by the Infrastructure Agent in the configuration file can also be set through environment variables;
+All options supported by the Infrastructure and Logs Agents in the configuration file can also be set through environment variables:
  * Option names should be put in uppercase with the `DD_` prefix. (example: `hostname` -> `DD_HOSTNAME`)
  * Nested variables should be specified with an underscore. (example: `DD_CLUSTER_AGENT_CMD_PORT` -> `cluster_agent.cmd_port`)
  * List of values should be separated by spaces. (example: `DD_AC_INCLUDE="image:cp-kafka image:k8szk"`)
@@ -79,8 +79,9 @@ hostname when set to `true`
 ## Removed options
 
 This is the list of configuration options that were removed in the new Agent
-beacause either superseded by new options or related to features that works
-differently from Agent version 5.
+because they're either:
+* superseded by new options, or
+* related to features that work differently from Agent version 5
 
 | Name | Notes |
 | --- | --- |
@@ -108,7 +109,7 @@ differently from Agent version 5.
 | `dogstream_log` | |
 | `use_curl_http_client` | |
 | `gce_updated_hostname` | v6 behaves like v5 with `gce_updated_hostname` set to true. May affect reported hostname, see [doc][gce-hostname] |
-| `collect_security_groups` | feature still available with the aws integration  |
+| `collect_security_groups` | v6 doesn't collect security group host tags, feature is still available with the aws integration  |
 
 [datadog-yaml]: https://raw.githubusercontent.com/DataDog/datadog-agent/master/pkg/config/config_template.yaml
 [gce-hostname]: changes.md#gce-hostname
