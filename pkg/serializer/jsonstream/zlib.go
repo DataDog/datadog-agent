@@ -55,27 +55,29 @@ var (
 )
 
 var (
-	errNeedSplit = errors.New("reached maximum payload size, need to split")
-	errTooBig    = errors.New("item alone exceeds maximum payload size")
+	errPayloadFull = errors.New("reached maximum payload size")
+	errTooBig      = errors.New("item alone exceeds maximum payload size")
 )
 
 var jsonSeparator = []byte(",")
 
+// inputBufferPool is an object pool of inputBuffers
 var inputBufferPool = sync.Pool{
 	New: func() interface{} {
-		return bytes.NewBuffer(make([]byte, 0, 3*megaByte))
+		return bytes.NewBuffer(make([]byte, 0, maxPayloadSize))
 	},
 }
 
+// compressor is in charge of compressing items for a single payload
 type compressor struct {
-	input               *bytes.Buffer
-	compressed          *bytes.Buffer
+	input               *bytes.Buffer // temporary buffer for data that has not been conpressed yet
+	compressed          *bytes.Buffer // output buffer containing the compressed payload
 	zipper              *zlib.Writer
-	header              []byte
-	footer              []byte
-	uncompressedWritten int // uncompressed bytes written
-	firstItem           bool
-	repacks             int
+	header              []byte // json header to append at the begining of the payload
+	footer              []byte // json footer to append at the end of the payload
+	uncompressedWritten int    // uncompressed bytes written
+	firstItem           bool   // tells if the first item has been writen
+	repacks             int    // numbers of time we had to pack this payload
 }
 
 func newCompressor(header, footer []byte) (*compressor, error) {
@@ -92,40 +94,61 @@ func newCompressor(header, footer []byte) (*compressor, error) {
 	return c, err
 }
 
-// addItem will try to add
-func (c *compressor) addItem(data []byte) error {
-	if c.repacks >= maxRepacks {
-		return errNeedSplit
-	}
+// checkItemSize checks that the item can fit in a payload. Worst case is used to
+// determine the size of the item after compression meaning we could drop an item
+// that could actually fit after compression. That said it is probably impossible
+// to have a 2MB+ item that is valid for the backend.
+func (c *compressor) checkItemSize(data []byte) bool {
+	totalMaxUncompressedItemSize := maxPayloadSize - len(c.footer) - len(c.header)
+	totalMaxCompressedItemSize := maxUncompressedSize - compression.CompressBound(len(c.footer)) - compression.CompressBound(len(c.header))
+	return len(data) < totalMaxUncompressedItemSize && compression.CompressBound(len(data)) < totalMaxCompressedItemSize
+}
 
-	toWrite := c.input.Len() + len(data) + len(c.footer)
+// canAddItem checks if the current payload has enough room to store the given item
+func (c *compressor) hasRoomForItem(item []byte) bool {
+	uncompressedDataSize := c.input.Len() + len(item)
 	if !c.firstItem {
-		toWrite += len(jsonSeparator)
+		uncompressedDataSize += len(jsonSeparator)
 	}
-	if c.uncompressedWritten+toWrite >= maxUncompressedSize {
-		// Reached maximum uncompressed size
-		if len(c.header)+len(data)+len(c.footer) >= maxUncompressedSize {
-			// Item alone is too big for max uncompressed size
-			return errTooBig
-		}
-		return errNeedSplit
+	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= maxUncompressedSize
+}
+
+// pack flush the temporary uncompressed buffer input to the compression writer
+func (c *compressor) pack() error {
+	expvarsTotalCycles.Add(1)
+	n, err := c.input.WriteTo(c.zipper)
+	if err != nil {
+		return err
+	}
+	c.uncompressedWritten += int(n)
+	c.zipper.Flush()
+	c.input.Reset()
+	return nil
+}
+
+// addItem will try to add the given item
+func (c *compressor) addItem(data []byte) error {
+	// check item size sanity
+	if !c.checkItemSize(data) {
+		return errTooBig
+	}
+	// check max depth
+	if c.repacks >= maxRepacks {
+		return errPayloadFull
 	}
 
-	if compression.CompressBound(toWrite) >= c.remainingSpace() {
-		// Possibly reached maximum compressed size, compress and retry
-		if c.input.Len() > 0 {
-			expvarsTotalCycles.Add(1)
-			c.repacks++
-			n, err := c.input.WriteTo(c.zipper)
-			if err != nil {
-				return err
-			}
-			c.uncompressedWritten += int(n)
-			c.zipper.Flush()
-			c.input.Reset()
-			return c.addItem(data)
+	if !c.hasRoomForItem(data) {
+		if c.input.Len() == 0 {
+			return errPayloadFull
 		}
-		return errNeedSplit
+		err := c.pack()
+		if err != nil {
+			return err
+		}
+		if !c.hasRoomForItem(data) {
+			return errPayloadFull
+		}
+		c.repacks++
 	}
 
 	// Write the separator between items
@@ -195,8 +218,8 @@ func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 		}
 
 		switch compressor.addItem(json) {
-		case errNeedSplit:
-			// Need to split to a new payload
+		case errPayloadFull:
+			// payload is full, we need to create a new one
 			payload, err := compressor.close()
 			if err != nil {
 				return output, err
