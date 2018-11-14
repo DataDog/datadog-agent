@@ -28,6 +28,7 @@ var (
 	logsBuffer           = []func(){}
 	bufferLogsBeforeInit = true
 	bufferMutex          sync.Mutex
+	defaultStackDepth    = 2
 )
 
 // DatadogLogger wrapper structure for seelog
@@ -58,7 +59,7 @@ func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	// The fact we need a constant "additional depth" means some
 	// theoretical refactor to avoid duplication in the functions
 	// below cannot be performed.
-	logger.inner.SetAdditionalStackDepth(2)
+	logger.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	// Flushing logs since the logger is now initialized
 	bufferMutex.Lock()
@@ -203,6 +204,23 @@ func (sw *DatadogLogger) error(s string) error {
 
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Error(scrubbed)
+
+	for _, l := range sw.extra {
+		l.Error(scrubbed)
+	}
+
+	return err
+}
+
+// error logs at the error level and the given stack depth
+func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.SetAdditionalStackDepth(depth)
+	err := sw.inner.Error(scrubbed)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	for _, l := range sw.extra {
 		l.Error(scrubbed)
@@ -387,6 +405,20 @@ func Error(v ...interface{}) error {
 		return logger.error(logger.scrub(s))
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(func() { Error(v...) })
+	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
+	err := formatError(v...)
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+	return err
+}
+
+// ErrorStackDepth logs at the error level and the given stack depth and returns an error containing the formated log message
+func ErrorStackDepth(depth int, v ...interface{}) error {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
+		s := buildLogEntry(v...)
+		return logger.errorStackDepth(logger.scrub(s), depth)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { ErrorStackDepth(depth, v...) })
 	}
 	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatError(v...)
