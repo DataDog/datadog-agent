@@ -53,18 +53,26 @@ func (d *dummyMarshaller) JSONFooter() []byte {
 	return []byte(d.footer)
 }
 
-func payloadToString(payload []byte) string {
+func decompressPayload(payload []byte) ([]byte, error) {
 	r, err := zlib.NewReader(bytes.NewReader(payload))
 	if err != nil {
-		return err.Error()
+		return nil, err
 	}
 	defer r.Close()
 
 	dst, err := ioutil.ReadAll(r)
 	if err != nil {
+		return nil, err
+	}
+	return dst, nil
+}
+
+func payloadToString(payload []byte) string {
+	p, err := decompressPayload(payload)
+	if err != nil {
 		return err.Error()
 	}
-	return string(dst)
+	return string(p)
 }
 
 func TestCompressorSimple(t *testing.T) {

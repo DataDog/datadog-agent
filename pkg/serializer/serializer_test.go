@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
@@ -88,7 +87,10 @@ func TestAgentPayloadVersion(t *testing.T) {
 var (
 	jsonPayloads     = forwarder.Payloads{}
 	protobufPayloads = forwarder.Payloads{}
-	jsonString       = []byte("TO JSON")
+	jsonHeader       = []byte("{")
+	jsonFooter       = []byte("}")
+	jsonItem         = []byte("TO JSON")
+	jsonString       = []byte("{TO JSON}")
 	protobufString   = []byte("TO PROTOBUF")
 )
 
@@ -104,6 +106,10 @@ func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil
 func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, nil
 }
+func (p *testPayload) JSONHeader() []byte             { return jsonHeader }
+func (p *testPayload) Len() int                       { return 1 }
+func (p *testPayload) JSONItem(i int) ([]byte, error) { return jsonItem, nil }
+func (p *testPayload) JSONFooter() []byte             { return jsonFooter }
 
 type testErrorPayload struct{}
 
@@ -112,18 +118,10 @@ func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Error
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, fmt.Errorf("some error")
 }
-
-var testMetricPayload = metrics.Series{{
-	Points: []metrics.Point{
-		{Ts: 12345.0, Value: float64(21.21)},
-		{Ts: 67890.0, Value: float64(12.12)},
-	},
-	MType:    metrics.APIGaugeType,
-	Name:     "test.metrics",
-	Interval: 1,
-	Host:     "localHost",
-	Tags:     []string{"tag1", "tag2:yes"},
-}}
+func (p *testErrorPayload) JSONHeader() []byte             { return jsonHeader }
+func (p *testErrorPayload) Len() int                       { return 1 }
+func (p *testErrorPayload) JSONItem(i int) ([]byte, error) { return jsonItem, fmt.Errorf("some error") }
+func (p *testErrorPayload) JSONFooter() []byte             { return jsonFooter }
 
 func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	payloads := forwarder.Payloads{}
@@ -213,12 +211,19 @@ func TestSendServiceChecks(t *testing.T) {
 func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
+	config.Datadog.Set("enable_stream_payload_serialization", false)
+	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
 
 	s := NewSerializer(f)
 
-	err := s.SendSeries(testMetricPayload)
+	payload := &testPayload{}
+	err := s.SendSeries(payload)
 	require.Nil(t, err)
 	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendSeries(errPayload)
+	require.NotNil(t, err)
 }
 
 func TestSendSeries(t *testing.T) {
@@ -231,9 +236,14 @@ func TestSendSeries(t *testing.T) {
 
 	s := NewSerializer(f)
 
-	err := s.SendSeries(testMetricPayload)
+	payload := &testPayload{}
+	err := s.SendSeries(payload)
 	require.Nil(t, err)
 	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendSeries(errPayload)
+	require.NotNil(t, err)
 }
 
 func TestSendSketch(t *testing.T) {
@@ -322,7 +332,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	payloads, _ := mkPayloads(jsonString, false)
 
 	s.SendEvents(payload)
-	s.SendSeries(testMetricPayload)
+	s.SendSeries(payload)
 	s.SendSketch(payload)
 	s.SendServiceChecks(payload)
 	s.SendJSONToV1Intake("test")
