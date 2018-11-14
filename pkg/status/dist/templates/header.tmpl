@@ -32,6 +32,7 @@ NOTE: Changes made to this template should be reflected on the following templat
     System UTC time: {{.time}}
 
 {{- if .hostinfo }}
+
   Host Info
   =========
   {{- range $name, $value := .hostinfo -}}
@@ -62,6 +63,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   {{- end }}
 
 {{- if .leaderelection}}
+
   Leader Election
   ===============
     Leader Election Status:  {{.leaderelection.status}}
