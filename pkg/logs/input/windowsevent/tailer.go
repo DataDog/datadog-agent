@@ -67,7 +67,7 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 		return &message.Message{}, err
 	}
 	if strings.HasPrefix(t.config.ChannelPath, "Microsoft-ServiceFabric/") {
-		mapTaskIdToTaskName(mv)
+		mapTaskIDToTaskName(mv)
 	}
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
@@ -77,13 +77,13 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	return message.NewMessage(jsonEvent, message.NewOrigin(t.source), message.StatusInfo), nil
 }
 
-// mapTaskIdToTaskName looks for the TASK_ID in {"Event": {"System": {"Task": <TASK_ID> }}}
+// mapTaskIDToTaskName looks for the TASK_ID in {"Event": {"System": {"Task": <TASK_ID> }}}
 // and maps it to the name of the task that match in the Microsoft Task Codes
-func mapTaskIdToTaskName(mv mxj.Map) {
+func mapTaskIDToTaskName(mv mxj.Map) {
 	if evt, ok := mv["Event"]; ok {
 		if sys, ok := evt.(map[string]interface{})["System"]; ok {
-			if taskId, ok := sys.(map[string]interface{})["Task"]; ok {
-				if taskName, ok := taskIdMapping[taskId]; ok {
+			if taskID, ok := sys.(map[string]interface{})["Task"]; ok {
+				if taskName, ok := taskIDMapping[taskID]; ok {
 					sys.(map[string]interface{})["Task"] = taskName
 				}
 			}
@@ -93,7 +93,7 @@ func mapTaskIdToTaskName(mv mxj.Map) {
 
 // Mapping can be found here
 // https://github.com/Microsoft/service-fabric/blob/c326b801c6c709f36684700edfe7bb88ceec9d7f/src/prod/src/Common/TraceTaskCodes.h
-var taskIdMapping = map[interface{}]string{
+var taskIDMapping = map[interface{}]string{
 	"1":   "Common",
 	"2":   "Config",
 	"3":   "Timer",
