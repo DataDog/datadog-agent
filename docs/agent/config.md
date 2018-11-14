@@ -11,10 +11,26 @@ might mean:
 ## Environment variables
 
 All the options supported by the Agent in the main configuration file (`datadog.yaml`) can also be set through environment variables, using the following rules:
- * Option names should be put in uppercase with the `DD_` prefix. (example: `hostname` -> `DD_HOSTNAME`)
- * Nested variables should be specified with an underscore. (example: `DD_CLUSTER_AGENT_CMD_PORT` -> `cluster_agent.cmd_port`)
- * List of values should be separated by spaces. (example: `DD_AC_INCLUDE="image:cp-kafka image:k8szk"`)
- * Any map structure but the proxy settings should be json-formatted. (example: `DD_DOCKER_ENV_AS_TAGS='{ "ENVVAR_NAME": "tag_name" }'`)
+ * Option names should be put in uppercase with the `DD_` prefix. Example: `hostname` -> `DD_HOSTNAME`
+ * The nesting of config options should be indicated with an underscore separator. Example:
+   ```yaml
+   cluster_agent:
+     cmd_port: <some_value>
+   ```
+   -> `DD_CLUSTER_AGENT_CMD_PORT=<some_value>`
+ * List of values should be separated by spaces. Example:
+   ```yaml
+   ac_include:
+     - "image:cp-kafka"
+     - "image:k8szk"
+   ```
+   -> `DD_AC_INCLUDE="image:cp-kafka image:k8szk"`
+ * Any map structure but the proxy settings should be json-formatted. Example:
+   ```yaml
+   docker_env_as_tags:
+     ENVVAR_NAME: tag_name
+   ```
+   -> `DD_DOCKER_ENV_AS_TAGS='{ "ENVVAR_NAME": "tag_name" }'`
 
 Exception: at the moment, only some of the options nested under `apm_config` and `process_config` can be set through environment variables.
 
