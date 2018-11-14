@@ -132,7 +132,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			precision := time.Now().Unix() - point.timestamp
 			metricsPrecision.WithLabelValues(m).Set(float64(precision))
 
-			log.Debugf("Validated %s | Value:%d at %d after %d/%d buckets", m, time.Now().Unix(), point.value, point.timestamp, i+1, len(serie.Points))
+			log.Debugf("Validated %s | Value:%d at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
 			break
 		}
 	}

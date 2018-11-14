@@ -36,7 +36,7 @@ var maxAge = time.Duration(30 * time.Second)
 
 func makePoints(ts, val int) datadog.DataPoint {
 	if ts == 0 {
-		ts = (int(metav1.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000 // use ms
+		ts = (int(metav1.Now().Unix()) - int(maxAge.Seconds())) * 1000 // use ms
 	}
 	tsPtr := float64(ts)
 	valPtr := float64(val)
@@ -53,6 +53,7 @@ func makePtr(val string) *string {
 }
 
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string
@@ -74,7 +75,8 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 12),
-						makePoints(0, 14), // Force the point to be considered fresh at all time(< externalMaxAge)
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
 					},
 					Scope: makePtr("foo:bar"),
 				},
@@ -93,7 +95,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "bar"},
+					Labels:     map[string]string{"2foo": "bar"},
 					Valid:      true,
 				},
 			},
@@ -103,14 +105,15 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 					Points: []datadog.DataPoint{
 						makePoints(1431492452000, 12),
 						makePoints(1431492453000, 14), // Force the point to be considered outdated at all time(> externalMaxAge)
+						makePoints(0, 1000),           // Force the point to be considered fresh at all time(< externalMaxAge)
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: makePtr("2foo:bar"),
 				},
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "bar"},
+					Labels:     map[string]string{"2foo": "bar"},
 					Value:      14,
 					Valid:      false,
 				},
@@ -168,6 +171,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 }
 
 func TestProcessor_ProcessHPAs(t *testing.T) {
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string
@@ -199,7 +203,8 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 12),
-						makePoints(0, 14),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 23),
 					},
 					Scope: makePtr("dcos_version:1.9.4"),
 				},
@@ -304,14 +309,16 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 22),
-						makePoints(0, 12),
+						makePoints(penTime, 12),
+						makePoints(0, 14),
 					},
 					Scope: makePtr("dcos_version:1.9.4"),
 				}, {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 22),
-						makePoints(0, 13), // Validate that there are 2 different entries for the metric metricName as there are 2 different scopes
+						makePoints(penTime, 13), // Validate that there are 2 different entries for the metric metricName as there are 2 different scopes
+						makePoints(0, 16),
 					},
 					Scope: makePtr("dcos_version:2.1.9"),
 				},
@@ -319,7 +326,8 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 22),
-						makePoints(1531492432000, 13), // old timestamp (over maxAge) - Keep the value, set to false
+						makePoints(1531492442000, 13), // old timestamp (over maxAge) - Keep the value, set to false
+						makePoints(1531492432000, 10),
 					},
 					Scope: makePtr("dcos_version:3.1.1"),
 				},
