@@ -66,6 +66,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 		log.Tracef("No processed external metrics to query")
 		return nil, nil
 	}
+	// TODO move viper parameters to the Processor struct
 	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
 
 	aggregator := config.Datadog.GetString("external_metrics.aggregator")
@@ -104,7 +105,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			continue
 		}
 
-		// Use on the penultimate bucket, since the very last bucket can be subject to variations due to the intake pipeline latency.
+		// Use on the penultimate bucket, since the very last bucket can be subject to variations due to late points.
 		fullBucketSeen := 0
 		var point Point
 		// Find the most recent value.
