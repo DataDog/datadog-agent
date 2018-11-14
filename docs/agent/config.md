@@ -10,11 +10,13 @@ might mean:
 
 ## Environment variables
 
-All options supported by the Infrastructure and Logs Agents in the configuration file can also be set through environment variables:
+All the options supported by the Agent in the main configuration file (`datadog.yaml`) can also be set through environment variables, using the following rules:
  * Option names should be put in uppercase with the `DD_` prefix. (example: `hostname` -> `DD_HOSTNAME`)
  * Nested variables should be specified with an underscore. (example: `DD_CLUSTER_AGENT_CMD_PORT` -> `cluster_agent.cmd_port`)
  * List of values should be separated by spaces. (example: `DD_AC_INCLUDE="image:cp-kafka image:k8szk"`)
  * Any map structure but the proxy settings should be json-formatted. (example: `DD_DOCKER_ENV_AS_TAGS='{ "ENVVAR_NAME": "tag_name" }'`)
+
+Exception: at the moment, only some of the options nested under `apm_config` and `process_config` can be set through environment variables.
 
 Notes:
  * Specifying nested variables with an environment variable overrides all the others nested variables of the parameter specified in the corresponding configuration file.
