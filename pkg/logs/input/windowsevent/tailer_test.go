@@ -18,3 +18,31 @@ func TestToMessage(t *testing.T) {
 	actual, _ := tailer.toMessage(evt1)
 	assert.Equal(t, expected1, string(actual.Content))
 }
+
+func TestToMessageWithFabric(t *testing.T) {
+	tailer := NewTailer(nil, &Config{ChannelPath: "Microsoft-ServiceFabric/Operational"}, nil)
+
+	// With <Task>0</Task>: doesn't exist in the mapping, should not change
+	evt1 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>7036</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data><Binary>4500760065006E0074004C006F0067002F0031000000</Binary></EventData></Event>`
+	expected1 := `{"Event":{"EventData":{"Binary":"4500760065006E0074004C006F0067002F0031000000","Data":[{"#text":"Windows Event Log","Name":"param1"},{"#text":"stopped","Name":"param2"}]},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":{"#text":"7036","Qualifiers":"16384"},"EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"0","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","Task":"0","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
+	actual, _ := tailer.toMessage(evt1)
+	assert.Equal(t, expected1, string(actual.Content))
+
+	// With <Task>1</Task>: should be mapped to "Common"
+	evt2 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>7036</EventID><Version>0</Version><Level>4</Level><Task>1</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data><Binary>4500760065006E0074004C006F0067002F0031000000</Binary></EventData></Event>`
+	expected2 := `{"Event":{"EventData":{"Binary":"4500760065006E0074004C006F0067002F0031000000","Data":[{"#text":"Windows Event Log","Name":"param1"},{"#text":"stopped","Name":"param2"}]},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":{"#text":"7036","Qualifiers":"16384"},"EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"0","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","Task":"Common","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
+	actual, _ = tailer.toMessage(evt2)
+	assert.Equal(t, expected2, string(actual.Content))
+
+	// Without <Task></Task> field
+	evt3 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>7036</EventID><Version>0</Version><Level>4</Level><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data><Binary>4500760065006E0074004C006F0067002F0031000000</Binary></EventData></Event>`
+	expected3 := `{"Event":{"EventData":{"Binary":"4500760065006E0074004C006F0067002F0031000000","Data":[{"#text":"Windows Event Log","Name":"param1"},{"#text":"stopped","Name":"param2"}]},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":{"#text":"7036","Qualifiers":"16384"},"EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"0","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
+	actual, _ = tailer.toMessage(evt3)
+	assert.Equal(t, expected3, string(actual.Content))
+
+	// Without <System></System> field
+	evt4 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data><Binary>4500760065006E0074004C006F0067002F0031000000</Binary></EventData></Event>`
+	expected4 := `{"Event":{"EventData":{"Binary":"4500760065006E0074004C006F0067002F0031000000","Data":[{"#text":"Windows Event Log","Name":"param1"},{"#text":"stopped","Name":"param2"}]},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
+	actual, _ = tailer.toMessage(evt4)
+	assert.Equal(t, expected4, string(actual.Content))
+}
