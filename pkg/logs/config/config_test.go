@@ -38,14 +38,9 @@ func TestDefaultSources(t *testing.T) {
 	LogsAgent.Set("logs_config.container_collect_all", true)
 
 	sources = DefaultSources()
-	assert.Equal(t, 2, len(sources))
+	assert.Equal(t, 1, len(sources))
 
 	source = sources[0]
-	assert.Equal(t, "tcp_forward", source.Name)
-	assert.Equal(t, TCPType, source.Config.Type)
-	assert.Equal(t, 1234, source.Config.Port)
-
-	source = sources[1]
 	assert.Equal(t, "container_collect_all", source.Name)
 	assert.Equal(t, DockerType, source.Config.Type)
 	assert.Equal(t, "docker", source.Config.Source)
