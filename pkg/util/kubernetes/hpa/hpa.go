@@ -23,7 +23,7 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 		case autoscalingv2.ExternalMetricSourceType:
 			// The metricSelector and the external fields are optional. We do not support *.
 			if metricSpec.External == nil || metricSpec.External.MetricSelector == nil {
-				log.Errorf("Unexpected type for the HPA %#v, skipping processing", hpa)
+				log.Errorf("Missing required fields for the External Metrics template of the HPA %s/%s, skipping processing", hpa.Namespace, hpa.Name)
 				continue
 			}
 			emList = append(emList, custommetrics.ExternalMetricValue{
