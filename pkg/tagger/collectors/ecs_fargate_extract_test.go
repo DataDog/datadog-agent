@@ -68,6 +68,7 @@ func TestParseMetadata(t *testing.T) {
 			HighCardTags: []string{
 				"container_id:1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 				"container_name:ecs-redis-datadog-3-datadog-agent-c2a8fffa8ee8d1f6a801",
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
 			},
 			DeleteEntity: false,
 		},
@@ -88,6 +89,7 @@ func TestParseMetadata(t *testing.T) {
 			HighCardTags: []string{
 				"container_name:ecs-redis-datadog-3-redis-f6eedfd8b18a8fbe1d00",
 				"hightag:value2",
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
 				"container_id:0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
 			},
 			DeleteEntity: false,
