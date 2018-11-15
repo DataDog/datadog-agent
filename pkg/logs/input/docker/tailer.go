@@ -49,6 +49,7 @@ type Tailer struct {
 	done               chan struct{}
 	erroredContainerID chan string
 	cancelFunc         context.CancelFunc
+	shouldTimeout      bool
 }
 
 // NewTailer returns a new Tailer
@@ -63,6 +64,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
+		shouldTimeout:      false,
 	}
 }
 
@@ -117,6 +119,8 @@ func (t *Tailer) tail(since string) error {
 		t.source.Status.Error(err)
 		return err
 	}
+	t.setShouldTimeout()
+
 	t.source.Status.Success()
 	t.source.AddInput(t.ContainerID)
 
@@ -131,6 +135,34 @@ func (t *Tailer) tail(since string) error {
 	return nil
 }
 
+func (t *Tailer) setShouldTimeout() {
+	du, err := dockerutil.GetDockerUtil()
+	if err != nil {
+		return
+	}
+	containerConfig, err := du.Inspect(t.ContainerID, false)
+	if err != nil {
+		return
+	}
+	t.shouldTimeout = shouldTimeout(containerConfig)
+}
+
+func shouldTimeout(containerConfig types.ContainerJSON) bool {
+	if containerConfig.HostConfig == nil {
+		return false
+	}
+	containerLogConfig := containerConfig.HostConfig.LogConfig
+
+	maxFileValue, foundMaxFile := containerLogConfig.Config["max-file"]
+	maxSizeValue, foundMaxSize := containerLogConfig.Config["max-size"]
+	// https://docs.docker.com/config/containers/logging/json-file/#options
+	if maxSizeValue != "-1" && foundMaxSize && (!foundMaxFile || maxFileValue == "1") {
+		return true
+	}
+
+	return false
+}
+
 // readForever reads from the reader as fast as it can,
 // and sleeps when there is nothing to read
 func (t *Tailer) readForever() {
@@ -142,7 +174,7 @@ func (t *Tailer) readForever() {
 			return
 		default:
 			inBuf := make([]byte, 4096)
-			n, err := t.read(inBuf, readTimeout)
+			n, err := t.read(inBuf)
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isClosedConnError(err):
@@ -169,9 +201,17 @@ func (t *Tailer) readForever() {
 	}
 }
 
+//
+func (t *Tailer) read(buffer []byte) (int, error) {
+	if t.shouldTimeout {
+		return t.readTimeout(buffer, readTimeout)
+	}
+	return t.reader.Read(buffer)
+}
+
 // read implement a timeout on t.reader.Read() because it can be blocking (it's a
 // wrapper over an HTTP call). If read timeouts, the tailer will be restarted.
-func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
+func (t *Tailer) readTimeout(buffer []byte, timeout time.Duration) (int, error) {
 	var n int
 	var err error
 	doneReading := make(chan struct{})

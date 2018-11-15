@@ -82,22 +82,22 @@ func TestTailerIdentifier(t *testing.T) {
 	assert.Equal(t, "docker:test", tailer.Identifier())
 }
 
-func TestRead(t *testing.T) {
+func TestReadTimeoutWithActiveSocket(t *testing.T) {
 	tailer := NewTestTailer(&mockReaderNoSleep{}, func() {})
 	inBuf := make([]byte, 4096)
 
-	n, err := tailer.read(inBuf, testReadTimeout)
+	n, err := tailer.readTimeout(inBuf, testReadTimeout)
 
 	assert.Nil(t, err)
 	assert.Equal(t, 10, n)
 }
 
-func TestReadTimeout(t *testing.T) {
+func TestReadTimeoutWithStaleSocket(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	tailer := NewTestTailer(&mockReaderSleep{ctx: ctx}, cancelFunc)
 	inBuf := make([]byte, 4096)
 
-	n, err := tailer.read(inBuf, testReadTimeout)
+	n, err := tailer.readTimeout(inBuf, testReadTimeout)
 
 	assert.NotNil(t, err)
 	assert.Equal(t, 0, n)
