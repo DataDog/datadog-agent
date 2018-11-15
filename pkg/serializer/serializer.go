@@ -95,6 +95,7 @@ type Serializer struct {
 	enableServiceChecks  bool
 	enableSketches       bool
 	enableJSONToV1Intake bool
+	enableJSONStream     bool
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -106,6 +107,7 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 		enableServiceChecks:  config.Datadog.GetBool("enable_payloads.service_checks"),
 		enableSketches:       config.Datadog.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake: config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
+		enableJSONStream:     jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
 	}
 
 	if !s.enableEvents {
@@ -216,7 +218,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	var extraHeaders http.Header
 	var err error
 
-	if useV1API && jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization") {
+	if useV1API && s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series)
 	} else {
 		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
