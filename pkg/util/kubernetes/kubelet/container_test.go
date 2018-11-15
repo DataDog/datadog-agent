@@ -103,6 +103,7 @@ func (suite *ContainersTestSuite) TestParseContainerInPod() {
 			AddressList: []containers.NetworkAddress{
 				{IP: net.ParseIP("172.17.0.3"), Port: 6379, Protocol: "TCP"},
 				{IP: net.ParseIP("192.168.128.141"), Port: 1337, Protocol: "TCP"},
+				{IP: net.ParseIP("172.17.0.3"), Port: 1337, Protocol: "TCP"},
 			},
 		},
 	}

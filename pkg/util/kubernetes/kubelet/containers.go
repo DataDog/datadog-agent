@@ -131,16 +131,20 @@ func parseContainerNetworkAdresses(status ContainerStatus, pod *Pod) []container
 	for _, s := range pod.Spec.Containers {
 		if s.Name == status.Name {
 			for _, port := range s.Ports {
-				address := containers.NetworkAddress{Protocol: port.Protocol}
 				if port.HostPort > 0 {
-					address.IP = hostIP
-					address.Port = port.HostPort
-				} else if port.ContainerPort > 0 {
-					address.IP = podIP
-					address.Port = port.ContainerPort
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       hostIP,
+						Port:     port.HostPort,
+						Protocol: port.Protocol,
+					})
 				}
-
-				addrList = append(addrList, address)
+				if port.ContainerPort > 0 && !pod.Spec.HostNetwork {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       podIP,
+						Port:     port.ContainerPort,
+						Protocol: port.Protocol,
+					})
+				}
 			}
 		}
 	}
