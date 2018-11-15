@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestSplitPayloadsSeries(t *testing.T) {
@@ -60,6 +62,61 @@ func TestSplitPayloadsSeries(t *testing.T) {
 
 	newLength := len(unrolledSeries)
 	require.Equal(t, originalLength, newLength)
+}
+
+var result forwarder.Payloads
+
+func BenchmarkSplitPayloadsSeries(b *testing.B) {
+	testSeries := metrics.Series{}
+	for i := 0; i < 300000; i++ {
+		point := metrics.Serie{
+			Points: []metrics.Point{
+				{Ts: 12345.0, Value: float64(21.21)},
+				{Ts: 67890.0, Value: float64(12.12)},
+				{Ts: 2222.0, Value: float64(22.12)},
+				{Ts: 333.0, Value: float64(32.12)},
+				{Ts: 444444.0, Value: float64(42.12)},
+				{Ts: 882787.0, Value: float64(52.12)},
+				{Ts: 99990.0, Value: float64(62.12)},
+				{Ts: 121212.0, Value: float64(72.12)},
+				{Ts: 222227.0, Value: float64(82.12)},
+				{Ts: 808080.0, Value: float64(92.12)},
+				{Ts: 9090.0, Value: float64(13.12)},
+				{Ts: 12345.0, Value: float64(21.21)},
+				{Ts: 67890.0, Value: float64(12.12)},
+				{Ts: 2222.0, Value: float64(22.12)},
+				{Ts: 333.0, Value: float64(32.12)},
+				{Ts: 444444.0, Value: float64(42.12)},
+				{Ts: 882787.0, Value: float64(52.12)},
+				{Ts: 99990.0, Value: float64(62.12)},
+				{Ts: 121212.0, Value: float64(72.12)},
+				{Ts: 222227.0, Value: float64(82.12)},
+				{Ts: 808080.0, Value: float64(92.12)},
+				{Ts: 9090.0, Value: float64(13.12)},
+			},
+			MType:    metrics.APIGaugeType,
+			Name:     fmt.Sprintf("test.metrics%d", i),
+			Interval: 1,
+			Host:     "localHost",
+			Tags:     []string{"tag1", "tag2:yes"},
+		}
+		testSeries = append(testSeries, &point)
+	}
+
+	var r forwarder.Payloads
+	for n := 0; n < b.N; n++ {
+		// always record the result of Payloads to prevent
+		// the compiler eliminating the function call.
+		r, _ = Payloads(testSeries, true, MarshalJSON)
+
+	}
+	// ensure we actually had to split
+	if len(r) == 2 {
+		panic(fmt.Sprintf("expecting two payloads, got %d", len(r)))
+	}
+	// always store the result to a package level variable
+	// so the compiler cannot eliminate the Benchmark itself.
+	result = r
 }
 
 func TestSplitPayloadsEvents(t *testing.T) {
