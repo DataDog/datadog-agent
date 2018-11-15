@@ -106,7 +106,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 		}
 
 		// Use on the penultimate bucket, since the very last bucket can be subject to variations due to late points.
-		fullBucketSeen := 0
+		var skippedLastPoint bool
 		var point Point
 		// Find the most recent value.
 		for i := len(serie.Points) - 1; i >= 0; i-- {
@@ -116,9 +116,9 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			}
 			// We need at least 2 points per window queried on batched metrics.
 			// If a single sparse metric is processed and only has 1 point in the window, use the value.
-			if fullBucketSeen == 0 && len(serie.Points) > 1 {
-				// Do not rely on the value stored in the last bucket
-				fullBucketSeen = fullBucketSeen + 1
+			if !skippedLastPoint && len(serie.Points) > 1 {
+				// Skip last point unless the query window only contains one valid point
+				skippedLastPoint = true
 				continue
 			}
 			point.value = int64(*serie.Points[i][value])                // store the original value
