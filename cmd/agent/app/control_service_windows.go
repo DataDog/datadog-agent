@@ -13,6 +13,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/windows"
@@ -80,13 +81,14 @@ func StartService(cmd *cobra.Command, args []string) error {
 	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
 
-	hSvc, err := windows.OpenService(m.Handle, syscall.StringToUTF16Ptr(ServiceName),
+	hSvc, err := windows.OpenService(m.Handle, syscall.StringToUTF16Ptr(config.ServiceName),
 		windows.SERVICE_START|windows.SERVICE_STOP)
+
 	if err != nil {
 		log.Warnf("Failed to open service %v", err)
 		return fmt.Errorf("could not access service: %v", err)
 	}
-	scm := &mgr.Service{Name: ServiceName, Handle: hSvc}
+	scm := &mgr.Service{Name: config.ServiceName, Handle: hSvc}
 	defer scm.Close()
 	err = scm.Start("is", "manual-started")
 	if err != nil {
@@ -97,12 +99,12 @@ func StartService(cmd *cobra.Command, args []string) error {
 }
 
 func stopService(cmd *cobra.Command, args []string) error {
-	return StopService(ServiceName, true)
+	return StopService(config.ServiceName, true)
 }
 
 func restartService(cmd *cobra.Command, args []string) error {
 	var err error
-	if err = StopService(ServiceName, true); err == nil {
+	if err = StopService(config.ServiceName, true); err == nil {
 		err = StartService(cmd, args)
 	}
 	return err

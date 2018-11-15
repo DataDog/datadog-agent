@@ -4,7 +4,7 @@
 // Copyright 2018 Datadog, Inc.
 // +build windows
 
-package app
+package daemon
 
 import (
 	"fmt"

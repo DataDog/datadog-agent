@@ -3,7 +3,7 @@
 #define APP_MANIFEST 1
 
 
-APP_MANIFEST RT_MANIFEST agent.exe.manifest
+APP_MANIFEST RT_MANIFEST ddservice.exe.manifest
 
 #define MAIN_ICON 1
 #define ICON_16_16 2
@@ -32,11 +32,11 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "Datadog, Inc."
-            VALUE "FileDescription", "Datadog Metrics Agent Command Line"
+            VALUE "FileDescription", "Datadog Metrics Agent"
             VALUE "FileVersion", FILE_VERSION_STRING
             VALUE "InternalName", "Agent6"
             VALUE "LegalCopyright", "Copyright (C) 2018"
-            VALUE "OriginalFilename", "agent.exe"
+            VALUE "OriginalFilename", "ddservice.exe"
             VALUE "ProductName", "Datadog Agent"
             VALUE "ProductVersion", FILE_VERSION_STRING
         END

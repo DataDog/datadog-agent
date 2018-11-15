@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/DataDog/datadog-agent/cmd/daemon"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
@@ -35,14 +36,6 @@ var (
 	pidfilePath   string
 )
 
-// run the host metadata collector every 14400 seconds (4 hours)
-const hostMetadataCollectorInterval = 14400
-
-// run the agent checks metadata collector every 600 seconds (10 minutes)
-const agentChecksMetadataCollectorInterval = 600
-
-// run the resources metadata collector every 300 seconds (5 minutes) by default, configurable
-const defaultResourcesMetadataCollectorInterval = 300
 
 func init() {
 
@@ -56,7 +49,7 @@ func init() {
 // Start the main loop
 func run(cmd *cobra.Command, args []string) error {
 	defer func() {
-		StopAgent()
+		daemon.StopAgent()
 	}()
 
 	// Setup a channel to catch OS signals
@@ -92,7 +85,7 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	if err := StartAgent(); err != nil {
+	if err := daemon.StartAgent(confFilePath, pidfilePath, overrideVars); err != nil {
 		return err
 	}
 
