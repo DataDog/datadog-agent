@@ -104,7 +104,7 @@ func (c *compressor) checkItemSize(data []byte) bool {
 	return len(data) < totalMaxUncompressedItemSize && compression.CompressBound(len(data)) < totalMaxCompressedItemSize
 }
 
-// canAddItem checks if the current payload has enough room to store the given item
+// hasRoomForItem checks if the current payload has enough room to store the given item
 func (c *compressor) hasRoomForItem(item []byte) bool {
 	uncompressedDataSize := c.input.Len() + len(item)
 	if !c.firstItem {
