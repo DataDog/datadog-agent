@@ -206,31 +206,10 @@ var result forwarder.Payloads
 
 func BenchmarkPayloadsSeries(b *testing.B) {
 	testSeries := metrics.Series{}
-	for i := 0; i < 300000; i++ {
+	for i := 0; i < 400000; i++ {
 		point := metrics.Serie{
 			Points: []metrics.Point{
-				{Ts: 12345.0, Value: float64(21.21)},
-				{Ts: 67890.0, Value: float64(12.12)},
-				{Ts: 2222.0, Value: float64(22.12)},
-				{Ts: 333.0, Value: float64(32.12)},
-				{Ts: 444444.0, Value: float64(42.12)},
-				{Ts: 882787.0, Value: float64(52.12)},
-				{Ts: 99990.0, Value: float64(62.12)},
-				{Ts: 121212.0, Value: float64(72.12)},
-				{Ts: 222227.0, Value: float64(82.12)},
-				{Ts: 808080.0, Value: float64(92.12)},
-				{Ts: 9090.0, Value: float64(13.12)},
-				{Ts: 12345.0, Value: float64(21.21)},
-				{Ts: 67890.0, Value: float64(12.12)},
-				{Ts: 2222.0, Value: float64(22.12)},
-				{Ts: 333.0, Value: float64(32.12)},
-				{Ts: 444444.0, Value: float64(42.12)},
-				{Ts: 882787.0, Value: float64(52.12)},
-				{Ts: 99990.0, Value: float64(62.12)},
-				{Ts: 121212.0, Value: float64(72.12)},
-				{Ts: 222227.0, Value: float64(82.12)},
-				{Ts: 808080.0, Value: float64(92.12)},
-				{Ts: 9090.0, Value: float64(13.12)},
+				{Ts: 12345.0, Value: 1.2 * float64(i)},
 			},
 			MType:    metrics.APIGaugeType,
 			Name:     fmt.Sprintf("test.metrics%d", i),
@@ -248,10 +227,20 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 		r, _ = Payloads(testSeries)
 	}
 	// ensure we actually had to split
-	if len(r) == 2 {
+	if len(r) != 2 {
 		panic(fmt.Sprintf("expecting two payloads, got %d", len(r)))
 	}
-
+	// test the compressed size
+	var compressedSize int
+	for _, p := range r {
+		if p == nil {
+			continue
+		}
+		compressedSize += len([]byte(*p))
+	}
+	if compressedSize > 3000000 {
+		panic(fmt.Sprintf("expecting no more than 3 MB, got %d", compressedSize))
+	}
 	// always store the result to a package level variable
 	// so the compiler cannot eliminate the Benchmark itself.
 	result = r
