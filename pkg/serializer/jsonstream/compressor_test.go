@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,6 +52,18 @@ func (d *dummyMarshaller) JSONItem(i int) ([]byte, error) {
 
 func (d *dummyMarshaller) JSONFooter() []byte {
 	return []byte(d.footer)
+}
+
+func (d *dummyMarshaller) MarshalJSON() ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (d *dummyMarshaller) Marshal() ([]byte, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (d *dummyMarshaller) SplitPayload(int) ([]marshaler.Marshaler, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func decompressPayload(payload []byte) ([]byte, error) {
