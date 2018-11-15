@@ -34,8 +34,8 @@ var (
 	},
 		[]string{"metric"},
 	)
-	metricsPrecision = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "external_metrics_delay",
+	metricsDelay = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "external_metrics_delay_seconds",
 		Help: "freshness of the metric evaluated from querying Datadog",
 	},
 		[]string{"metric"},
@@ -45,7 +45,7 @@ var (
 func init() {
 	prometheus.MustRegister(ddRequests)
 	prometheus.MustRegister(metricsEval)
-	prometheus.MustRegister(metricsPrecision)
+	prometheus.MustRegister(metricsDelay)
 }
 
 type Point struct {
@@ -131,7 +131,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			// Prometheus submissions on the processed external metrics
 			metricsEval.WithLabelValues(m).Set(float64(point.value))
 			precision := time.Now().Unix() - point.timestamp
-			metricsPrecision.WithLabelValues(m).Set(float64(precision))
+			metricsDelay.WithLabelValues(m).Set(float64(precision))
 
 			log.Debugf("Validated %s | Value:%d at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
 			break
