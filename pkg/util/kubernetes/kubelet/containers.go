@@ -146,6 +146,7 @@ func parseContainerNetworkAdresses(status ContainerStatus, pod *Pod) []container
 					})
 				}
 			}
+			break
 		}
 	}
 
