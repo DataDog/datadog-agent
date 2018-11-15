@@ -44,7 +44,6 @@ pathlib2==2.3.2
 pathspec==0.5.9
 pbr==4.1.0
 pexpect==4.6.0
-pkg-resources==0.0.0
 pluggy==0.8.0
 poyo==0.4.2
 psutil==5.4.6

@@ -45,7 +45,6 @@ description 'StackState Monitoring Agent
 # .deb specific flags
 package :deb do
   vendor 'StackState <info@stackstate.com>'
-  epoch 1
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
@@ -54,7 +53,6 @@ end
 # .rpm specific flags
 package :rpm do
   vendor 'StackState <info@stackstate.com>'
-  epoch 1
   dist_tag ''
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'

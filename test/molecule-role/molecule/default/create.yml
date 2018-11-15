@@ -3,6 +3,8 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  vars_files:
+    - common_vars.yml
   vars:
     ssh_user: ubuntu
     ssh_port: 22
@@ -18,6 +20,10 @@
         from_port: 7077  # StackState Receiver port
         to_port: 7077
         cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ test_connection_port }}"
+        to_port: "{{ test_connection_port }}"
+        cidr_ip: '0.0.0.0/0'
       - proto: icmp
         from_port: 8
         to_port: -1
@@ -28,7 +34,7 @@
         to_port: 0
         cidr_ip: '0.0.0.0/0'
 
-    keypair_name: molecule_key
+    keypair_name: "molecule_key_{{ molecule_run_id }}"
     keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
   tasks:
     - name: Create security group
@@ -70,11 +76,14 @@
         group: "{{ security_group_name }}"
         instance_tags:
           instance: "{{ item.name }}"
+          molecule_run_id: "{{ molecule_run_id }}"
+          molecule: yes
         wait: true
         assign_public_ip: true
         exact_count: 1
         count_tag:
           instance: "{{ item.name }}"
+          molecule_run_id: "{{ molecule_run_id }}"
       register: server
       with_items: "{{ molecule_yml.platforms }}"
       async: 7200
@@ -88,13 +97,15 @@
       retries: 300
       with_items: "{{ server.results }}"
 
+    - debug: var="ec2_jobs"
+
     # Mandatory configuration for Molecule to function.
 
     - name: Populate instance config dict
       set_fact:
         instance_conf_dict: {
-          'instance': "{{ item.instances[0].tags.instance }}",
-          'address': "{{ item.instances[0].public_ip }}",
+          'instance': "{{ item.tagged_instances[0].tags.instance }}",
+          'address': "{{ item.tagged_instances[0].public_ip }}",
           'user': "{{ ssh_user }}",
           'port': "{{ ssh_port }}",
           'identity_file': "{{ keypair_path }}",

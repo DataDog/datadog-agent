@@ -4,6 +4,7 @@ stages:
 - prepare
 - build_and_test
 - pre_release
+- acceptance
 - release
 
 variables:
@@ -120,6 +121,11 @@ build_deb_clear_cache:
 
 build_deb:
   stage: build_and_test
+  tags:
+    # We put the deb build on sts-aws because it runs long and we do want to have it run
+    # fast.
+    # It also cuts into our pipeline quotum
+    - sts-aws
   cache:
     key: "agent-build_publish_deb"
     paths:
@@ -130,7 +136,7 @@ build_deb:
     # cloning in omnibus and operations on datadog-agent
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
-  - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=6.5.2
+  - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=2.0.0-rc
 
     # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
@@ -189,6 +195,14 @@ pre_release_image:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - ./.gitlab-scripts/publish_image.sh $VERSION $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/outcomes/pkg
+
+molecule_tests:
+  stage: acceptance
+  before_script: []
+  script:
+   - export MOLECULE_RUN_ID=${CI_JOB_ID}
+   - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
+   - cd $CI_PROJECT_DIR/test && ./molecule.sh test
 
 release_deb:
   stage: release

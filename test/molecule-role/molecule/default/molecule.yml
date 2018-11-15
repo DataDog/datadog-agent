@@ -8,14 +8,21 @@ lint:
   options:
     config-file: .yamllint
 platforms:
-  - name: instance-1
+  - name: agent1
     image: ami-0da760e590e7de0e8  # Ubuntu 18.04
     instance_type: t2.micro
     vpc_subnet_id: subnet-41c8f224  # eu-west-1a
     region: eu-west-1
     groups:
       - agent_vm
-  - name: instance-2
+  - name: agent2
+    image: ami-0da760e590e7de0e8  # Ubuntu 18.04
+    instance_type: t2.micro
+    vpc_subnet_id: subnet-41c8f224  # eu-west-1a
+    region: eu-west-1
+    groups:
+      - agent_vm
+  - name: receiver
     image: ami-0da760e590e7de0e8  # Ubuntu 18.04
     instance_type: t2.small
     vpc_subnet_id: subnet-41c8f224  # eu-west-1a

@@ -4,7 +4,7 @@ echo "Run a gitlab build step on the local machine"
 
 #  --env SIGNING_KEY_ID="$SIGNING_KEY_ID" \
 #  --env SIGNING_PRIVATE_KEY="$SIGNING_PRIVATE_KEY" \
-#  --env SIGNING_PUBLIC_KEY="$SIGNING_PUBLIC_KEY" 
+#  --env SIGNING_PUBLIC_KEY="$SIGNING_PUBLIC_KEY"
 
 gitlab-ci-multi-runner exec docker \
   --cache-type s3 \
@@ -16,4 +16,8 @@ gitlab-ci-multi-runner exec docker \
   --env SIGNING_KEY_ID="$SIGNING_KEY_ID" \
   --env SIGNING_PRIVATE_KEY="$SIGNING_PRIVATE_KEY" \
   --env SIGNING_PUBLIC_KEY="$SIGNING_PUBLIC_KEY" \
+  --env AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+  --env AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+  --env AWS_REGION="$AWS_REGION" \
+  --env AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
   $@

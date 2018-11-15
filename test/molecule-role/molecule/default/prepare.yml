@@ -2,6 +2,8 @@
 - name: Prepare Receiver
   hosts: receiver_vm
   gather_facts: false
+  vars_files:
+    - common_vars.yml
   tasks:
     - name: Install python for Ansible
       raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream)
@@ -81,9 +83,11 @@
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
-- name: Prepare Agent
+- name: Prepare Agents
   hosts: agent_vm
   gather_facts: false
+  vars_files:
+    - common_vars.yml
   tasks:
     - name: Install python for Ansible
       raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip)
@@ -92,29 +96,60 @@
     - name: Add stackstate-agent Apt signing key
       become: true
       apt_key:
-        url: https://s3.amazonaws.com/stackstate-agent-2-test/public.key
+        url: "{{agent_repo_url}}/public.key"
         state: present
+    - name: Inform about current branch
+      debug: msg="deb {{agent_repo_url}} {{agent_current_branch}} main"
     - name: Add stackstate-agent Apt repository
       become: true
       apt_repository:
-        repo: deb https://s3.amazonaws.com/stackstate-agent-2-test master main
+        repo: "deb {{agent_repo_url}} {{agent_current_branch}} main"
     - name: Install StackState-Agent
       become: true
       apt:
         name: stackstate-agent
         state: present
         update_cache: yes
-    - name: Configure StackState-Agent
-      copy:
-        content: |
-          # The host of the Datadog intake server to send Agent data to
-          sts_url: http://{{ hostvars['instance-2']['ansible_host'] }}:7077/stsAgent
-          api_key: API_KEY
-        dest: /etc/stackstate-agent/stackstate.yaml
+    - name: Copy stackstate config file
       become: true
+      command: cp -a /etc/stackstate-agent/stackstate.yaml.example /etc/stackstate-agent/stackstate.yaml
+    - name: Replace sts_url
+      become: true
+      lineinfile:
+        path: /etc/stackstate-agent/stackstate.yaml
+        regexp: '^sts_url:'
+        line: "sts_url: http://{{ hostvars['receiver']['ansible_host'] }}:7077/stsAgent"
+    - name: Replace process_sts_url
+      become: true
+      lineinfile:
+        path: /etc/stackstate-agent/stackstate.yaml
+        regexp: '^  process_sts_url:.*'
+        line: "  process_sts_url: http://{{ hostvars['receiver']['ansible_host'] }}:7077/stsAgent"
     - name: Run stackstate-agent
       become: true
       systemd:
         name: stackstate-agent
         state: started
         daemon_reload: yes
+- name: Prepare Agent 1 listening
+  hosts: agent1
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    # Wait a bit for the process agent to have started
+    - name: Wait a bit for the process agent
+      pause:
+        seconds: 10
+    - name: Open listening port on agent 1
+      shell: "nohup nc -l -p {{ test_connection_port }} > /dev/null &"
+      become: true
+- name: Prepare Agent 2 connecting
+  hosts: agent2
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Connect to agent 2
+      shell: nohup bash -c "yes | nc {{ hostvars['agent1']['ansible_host'] }} {{ test_connection_port }}" &
+      become: true

@@ -10,7 +10,7 @@ services:
       ADVERTISED_HOST: kafka
       ADVERTISED_PORT: 9092
   receiver:
-    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-receiver:release-1.12.1-rc1"
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-receiver:master"
     command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true"
     ports:
       - 7077:7077
@@ -18,3 +18,13 @@ services:
       - kafka
     environment:
       KAFKA_BROKERS: kafka:9092
+  topic-api:
+    image: "508573134510.dkr.ecr.eu-west-1.amazonaws.com/stackstate-topic-api:master"
+    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true"
+    ports:
+      - 7070:7070
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      ZOOKEEPER_QUORUM: kafka
