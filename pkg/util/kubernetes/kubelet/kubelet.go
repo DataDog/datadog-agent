@@ -540,6 +540,9 @@ func IsPodReady(pod *Pod) bool {
 	if pod.Status.Phase != "Running" {
 		return false
 	}
+	if tolerate, ok := pod.Metadata.Annotations["ad.datadoghq.com/tolerate-unready"]; ok && tolerate == "true" {
+		return true
+	}
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true
