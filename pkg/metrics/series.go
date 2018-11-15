@@ -12,6 +12,7 @@ import (
 	"expvar"
 	"fmt"
 	"strings"
+	"unsafe"
 
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
@@ -24,6 +25,17 @@ import (
 
 var seriesExpvar = expvar.NewMap("series")
 
+var marshaller = jsoniter.Config{
+	EscapeHTML:                    false,
+	ObjectFieldMustBeSimpleString: true,
+}.Froze()
+
+var (
+	jsonSeparator  = []byte(",")
+	jsonArrayStart = []byte("[")
+	jsonArrayEnd   = []byte("]")
+)
+
 // Point represents a metric value at a specific time
 type Point struct {
 	Ts    float64
@@ -32,6 +44,7 @@ type Point struct {
 
 // MarshalJSON return a Point as an array of value (to be compatible with v1 API)
 // FIXME(maxime): to be removed when v2 endpoints are available
+// Note: it is not used with jsoniter, encodePoints takes over
 func (p *Point) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("[%v, %v]", int64(p.Ts), p.Value)), nil
 }
@@ -215,10 +228,42 @@ func (series Series) JSONItem(i int) ([]byte, error) {
 	if i < 0 || i > len(series)-1 {
 		return nil, errors.New("out of range")
 	}
-	return jsoniter.Marshal(series[i])
+	return marshaller.Marshal(series[i])
 }
 
 // JSONFooter prints the payload footer for this type
 func (series Series) JSONFooter() []byte {
 	return []byte(`]}`)
+}
+
+// encodePoints is registered to serialize a Point array with
+// limited reflections and heap allocations.
+// Called when using jsoniter
+func encodePoints(ptr unsafe.Pointer, stream *jsoniter.Stream) {
+	if ptr == nil {
+		stream.Write(jsonArrayStart)
+		stream.Write(jsonArrayEnd)
+		return
+	}
+
+	points := *(*[]Point)(ptr)
+	var needComa bool
+	stream.Write(jsonArrayStart)
+	for _, p := range points {
+		if needComa {
+			stream.Write(jsonSeparator)
+		} else {
+			needComa = true
+		}
+		fmt.Fprintf(stream, "[%v, %v]", int64(p.Ts), p.Value)
+	}
+	stream.Write(jsonArrayEnd)
+}
+
+func init() {
+	jsoniter.RegisterTypeEncoderFunc(
+		"[]metrics.Point",
+		encodePoints,
+		func(ptr unsafe.Pointer) bool { return ptr == nil },
+	)
 }
