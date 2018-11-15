@@ -64,7 +64,8 @@ func (c *MemoryCheck) Run() error {
 		if err == nil {
 			sender.Gauge("system.mem.cached", float64(val)/mbSize, "", nil)
 		} else {
-			log.Warnf("Could not retrieve value for system.mem.cached")
+			log.Warnf("Could not retrieve value for system.mem.cached %v", err)
+			return err
 		}
 	}
 
@@ -73,7 +74,8 @@ func (c *MemoryCheck) Run() error {
 		if err == nil {
 			sender.Gauge("system.mem.committed", float64(val)/mbSize, "", nil)
 		} else {
-			log.Warnf("Could not retrieve value for system.mem.committed")
+			log.Warnf("Could not retrieve value for system.mem.committed %v", err)
+			return err
 		}
 	}
 
@@ -82,7 +84,8 @@ func (c *MemoryCheck) Run() error {
 		if err == nil {
 			sender.Gauge("system.mem.paged", float64(val)/mbSize, "", nil)
 		} else {
-			log.Warnf("Could not retrieve value for system.mem.paged")
+			log.Warnf("Could not retrieve value for system.mem.paged %v", err)
+			return err
 		}
 	}
 
@@ -91,7 +94,8 @@ func (c *MemoryCheck) Run() error {
 		if err == nil {
 			sender.Gauge("system.mem.nonpaged", float64(val)/mbSize, "", nil)
 		} else {
-			log.Warnf("Could not retrieve value for system.mem.nonpaged")
+			log.Warnf("Could not retrieve value for system.mem.nonpaged %v", err)
+			return err
 		}
 	}
 	v, errVirt := virtualMemory()

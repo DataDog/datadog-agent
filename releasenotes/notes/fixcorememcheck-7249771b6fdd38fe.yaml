@@ -9,4 +9,4 @@
 enhancements:
   - |
     Adds system.cpu.interrupt, and system.mem.committed, system.mem.paged,
-    system.mem.nonpaged, system.mem.cached metrics.
+    system.mem.nonpaged, system.mem.cached metrics on Windows
