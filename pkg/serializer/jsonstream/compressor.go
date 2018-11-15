@@ -73,7 +73,7 @@ type compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been conpressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
 	zipper              *zlib.Writer
-	header              []byte // json header to append at the beginning of the payload
+	header              []byte // json header to print at the beginning of the payload
 	footer              []byte // json footer to append at the end of the payload
 	uncompressedWritten int    // uncompressed bytes written
 	firstItem           bool   // tells if the first item has been written

@@ -14,10 +14,9 @@ import (
 	"strings"
 	"unsafe"
 
+	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
-
-	agentpayload "github.com/DataDog/agent-payload/gogen"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
