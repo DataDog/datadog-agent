@@ -15,7 +15,7 @@ import (
 )
 
 // FromAgentConfig reads the old agentConfig configuration, converts and merges
-// the values into the current configConverter object
+// the values into the current configuration object
 func FromAgentConfig(agentConfig Config) error {
 	configConverter := config.NewConfigConverter()
 
