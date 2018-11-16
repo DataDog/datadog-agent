@@ -15,12 +15,20 @@ import (
 )
 
 // FromAgentConfig reads the old agentConfig configuration, converts and merges
-// the values into the current configuration object
+// the values into the Agent 6 configuration.
 func FromAgentConfig(agentConfig Config) error {
+	_, err := fromAgentConfig(agentConfig)
+	return err
+}
+
+// fromAgentConfig applies the given legacy agentConfig to the global configuration,
+// converting all keys to the new Agent 6 format and returns the converter for further
+// processing.
+func fromAgentConfig(agentConfig Config) (*config.LegacyConfigConverter, error) {
 	configConverter := config.NewConfigConverter()
 
 	if err := extractURLAPIKeys(agentConfig, configConverter); err != nil {
-		return err
+		return configConverter, err
 	}
 
 	if proxy, err := buildProxySettings(agentConfig); err == nil {
@@ -162,12 +170,20 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	if agentConfig["resource"] != "" {
-		configConverter.Set("apm_config.ignore_resources", strings.Split(agentConfig["resource"], ","))
+		var err error
+		r := strings.Split(agentConfig["resource"], ",")
+		for i := range r {
+			r[i], err = strconv.Unquote(r[i])
+			if err != nil {
+				return configConverter, err
+			}
+		}
+		configConverter.Set("apm_config.ignore_resources", r)
 	}
 
 	configConverter.Set("hostname_fqdn", true)
 
-	return nil
+	return configConverter, nil
 }
 
 func isAffirmative(value string) (bool, error) {

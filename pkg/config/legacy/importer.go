@@ -7,7 +7,10 @@ package legacy
 
 // `aws-sdk-go` imports go-ini like this instead of `gopkg.in/ini.v1`, let's do
 // the same to avoid checking in the dependency twice with different names.
-import "github.com/go-ini/ini"
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/go-ini/ini"
+)
 
 // Config is a simple key/value representation of the legacy agentConfig
 // dictionary
@@ -71,6 +74,49 @@ var (
 		"resource",
 	}
 )
+
+// Load loads the Agent 5 configuration located at path into the config package,
+// converting and merging all values from the "Main" section to their new format.
+// Besides the [Main] section, some values for trace are also imported, such as:
+//
+//   [trace.config]
+//     env
+//
+//   [trace.sampler]
+//     extra_sample_rate
+//     max_traces_per_second
+//
+//   [trace.receiver]
+//     receiver_port
+//
+//   [trace.ignore]
+//     resource
+//
+//   [trace.concentrator]
+//     bucket_size_seconds
+//
+// The `post` argument can be used to import further values from the ini file into
+// the new configuration format. Note that the keys used to set the config values
+// *must* match the keys in the new format to allow interoperability between
+// configurations. It is the callers responsibility to ensure compatibility.
+func Load(path string, post func(*ini.File, *config.LegacyConfigConverter) error) error {
+	cfg, err := GetAgentConfig(path)
+	if err != nil {
+		return err
+	}
+	converter, err := fromAgentConfig(cfg)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return nil
+	}
+	f, err := ini.Load(path)
+	if err != nil {
+		return err
+	}
+	return post(f, converter)
+}
 
 // GetAgentConfig reads `datadog.conf` and returns a map that contains the same
 // values as the agentConfig dictionary returned by `get_config()` in config.py
