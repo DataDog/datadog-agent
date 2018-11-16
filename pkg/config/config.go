@@ -333,9 +333,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
 
 	// Enable sending traces from the Cluster Agent
-	config.BindEnvAndSetDefault("tracer_addr", "")
-	config.BindEnvAndSetDefault("tracer_port", 8126)
-	config.BindEnvAndSetDefault("tracer_debug", false)
+	config.BindEnvAndSetDefault("agent_host", "")
+	config.BindEnvAndSetDefault("agent_apm_port", 8126)
+	config.BindEnvAndSetDefault("tracer_debug_level", false)
 	setAssetFs(config)
 }
 

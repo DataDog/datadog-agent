@@ -45,6 +45,8 @@ var envvarNameWhitelist = []string{
 	"DD_APM_DD_URL",
 	"DD_APM_ANALYZED_SPANS",
 	"DD_CONNECTION_LIMIT",
+	"DD_AGENT_HOST",
+	"DD_AGENT_APM_PORT",
 
 	// Process agent
 	"DD_PROCESS_AGENT_ENABLED",

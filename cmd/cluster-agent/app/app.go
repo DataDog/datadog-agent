@@ -130,8 +130,8 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Critical("no API key configured, exiting")
 		return nil
 	}
-	traceAddr := config.Datadog.GetString("tracer_addr")
-	tracePort := config.Datadog.GetInt("tracer_port")
+	traceAddr := config.Datadog.GetString("agent_host")
+	tracePort := config.Datadog.GetInt("agent_apm_port")
 	traceDebug := config.Datadog.GetBool("tracer_debug_level")
 	if traceAddr != "" {
 		log.Infof("Starting sending traces to %s:%s", traceAddr, tracePort)
