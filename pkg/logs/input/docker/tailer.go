@@ -19,6 +19,7 @@ import (
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -49,10 +50,11 @@ type Tailer struct {
 	done               chan struct{}
 	erroredContainerID chan string
 	cancelFunc         context.CancelFunc
+	registry           auditor.Registry
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string, registry auditor.Registry) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
@@ -63,6 +65,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
+		registry:           registry,
 	}
 }
 
@@ -145,6 +148,17 @@ func (t *Tailer) readForever() {
 			n, err := t.read(inBuf, readTimeout)
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
+				case isContextCanceled(err):
+					log.Debugf("Restarting reader for container %v after a reading timeout", ShortContainerID(t.ContainerID))
+					reader, cancelFunc, err := t.setupReader(t.registry.GetOffset(t.ContainerID))
+					if err != nil {
+						log.Errorf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
+						t.erroredContainerID <- t.ContainerID
+						return
+					}
+					t.reader = reader
+					t.cancelFunc = cancelFunc
+					continue
 				case isClosedConnError(err):
 					// This error is raised when the agent is stopping
 					return
@@ -186,10 +200,6 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 		// Cancel the docker socket reader context
 		t.cancelFunc()
 		<-doneReading
-		if isContextCanceled(err) {
-			// override the error with a more explicit message
-			err = fmt.Errorf("timeout reading from the docker socket")
-		}
 	}
 
 	return n, err
