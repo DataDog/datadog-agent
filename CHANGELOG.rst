@@ -7,6 +7,13 @@ Release Notes
 6.6.0
 =====
 
+.. _Release Notes_6.6.0_Known Issues:
+
+Known Issues
+------------
+
+- JMX garbage collection metrics `jvm.gc.parnew.time` and `jvm.gc.cms.count` got renamed to `jvm.gc.minor_collection_time` and `jvm.gc.major_collection_count`. Both metric names will be avilable after the root cause is fixed.
+
 .. _Release Notes_6.6.0_Prelude:
 
 Prelude
