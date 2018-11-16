@@ -30,6 +30,7 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response, targetDock
 				tags.AddLow("task_version", task.Version)
 				tags.AddLow("task_name", task.Family)
 				tags.AddLow("task_family", task.Family)
+				tags.AddLow("ecs_container_name", container.Name)
 
 				if c.clusterName != "" {
 					tags.AddLow("cluster_name", c.clusterName)
