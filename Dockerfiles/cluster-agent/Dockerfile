@@ -47,7 +47,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
  && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /tmp/ \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /var/log/datadog/ /tmp/
 
-USER dd-agent
+# Incompatible with the custom metrics API on port 443
+# USER dd-agent
 
 # Leave following directories RW to allow use of readonly rootfs
 VOLUME ["/etc/datadog-agent", "/var/log/datadog", "/tmp"]
