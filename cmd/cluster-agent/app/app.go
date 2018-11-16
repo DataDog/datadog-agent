@@ -135,7 +135,7 @@ func start(cmd *cobra.Command, args []string) error {
 	traceDebug := config.Datadog.GetBool("tracer_debug_level")
 	if traceAddr != "" {
 		log.Infof("Starting sending traces to %s:%s", traceAddr, tracePort)
-		tracer.Start(tracer.WithAgentAddr(fmt.Sprintf("%s:%s", traceAddr, tracePort)))
+		tracer.Start(tracer.WithAgentAddr(fmt.Sprintf("%s:%d", traceAddr, tracePort)))
 		tracer.WithDebugMode(traceDebug)
 		defer tracer.Stop()
 	}
