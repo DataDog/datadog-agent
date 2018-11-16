@@ -132,6 +132,7 @@ func makeAnnotations(metricName string, labels map[string]string) map[string]str
 
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestAutoscalerController(t *testing.T) {
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "default", name, nil)
 	metricName := "foo"
@@ -140,7 +141,8 @@ func TestAutoscalerController(t *testing.T) {
 			Metric: &metricName,
 			Points: []datadog.DataPoint{
 				makePoints(1531492452000, 12),
-				makePoints(0, 14),
+				makePoints(penTime, 14),
+				makePoints(0, 25),
 			},
 			Scope: makePtr("foo:bar"),
 		},
@@ -148,7 +150,8 @@ func TestAutoscalerController(t *testing.T) {
 			Metric: &metricName,
 			Points: []datadog.DataPoint{
 				makePoints(1531492452000, 12),
-				makePoints(0, 11),
+				makePoints(penTime, 11),
+				makePoints(0, 19),
 			},
 			Scope: makePtr("dcos_version:2.1.9"),
 		},
