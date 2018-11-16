@@ -31,6 +31,17 @@ func TestParseECSClusterName(t *testing.T) {
 	}
 }
 
+func TestParseFargateRegion(t *testing.T) {
+	cases := map[string]string{
+		"old-cluster-name-09":                                          "",
+		"arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate": "eu-central-1",
+	}
+
+	for value, expected := range cases {
+		assert.Equal(t, expected, parseFargateRegion(value))
+	}
+}
+
 func TestParseMetadata(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/fargate_meta.json")
 	require.NoError(t, err)
@@ -64,6 +75,7 @@ func TestParseMetadata(t *testing.T) {
 				"task_family:redis-datadog",
 				"task_version:3",
 				"ecs_container_name:datadog-agent",
+				"region:eu-central-1",
 			},
 			HighCardTags: []string{
 				"container_id:1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
@@ -85,6 +97,7 @@ func TestParseMetadata(t *testing.T) {
 				"task_version:3",
 				"ecs_container_name:redis",
 				"lowtag:myvalue",
+				"region:eu-central-1",
 			},
 			HighCardTags: []string{
 				"container_name:ecs-redis-datadog-3-redis-f6eedfd8b18a8fbe1d00",
