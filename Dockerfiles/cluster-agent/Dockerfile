@@ -50,9 +50,6 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
 # Incompatible with the custom metrics API on port 443
 # USER dd-agent
 
-# Custom metrics API server creates its certificate in the workdir
-WORKDIR /tmp
-
 # Leave following directories RW to allow use of readonly rootfs
 VOLUME ["/etc/datadog-agent", "/var/log/datadog", "/tmp"]
 
