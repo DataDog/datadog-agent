@@ -24,14 +24,28 @@ var (
 	ddRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "datadog_requests",
-			Help: "Counter of requests made to datadog",
+			Help: "Counter of requests made to Datadog",
 		},
 		[]string{"status"},
+	)
+	metricsEval = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "external_metrics_processed_value",
+		Help: "value processed from querying Datadog",
+	},
+		[]string{"metric"},
+	)
+	metricsDelay = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "external_metrics_delay_seconds",
+		Help: "freshness of the metric evaluated from querying Datadog",
+	},
+		[]string{"metric"},
 	)
 )
 
 func init() {
 	prometheus.MustRegister(ddRequests)
+	prometheus.MustRegister(metricsEval)
+	prometheus.MustRegister(metricsDelay)
 }
 
 type Point struct {
@@ -52,12 +66,14 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 		log.Tracef("No processed external metrics to query")
 		return nil, nil
 	}
+	// TODO move viper parameters to the Processor struct
 	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
 
 	aggregator := config.Datadog.GetString("external_metrics.aggregator")
+	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
 	var toQuery []string
 	for _, metric := range metricNames {
-		toQuery = append(toQuery, fmt.Sprintf("%s:%s", aggregator, metric))
+		toQuery = append(toQuery, fmt.Sprintf("%s:%s.rollup(%d)", aggregator, metric, rollup))
 	}
 
 	query := strings.Join(toQuery, ",")
@@ -88,6 +104,9 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			log.Infof("Could not collect values for all processedMetrics in the query %s", query)
 			continue
 		}
+
+		// Use on the penultimate bucket, since the very last bucket can be subject to variations due to late points.
+		var skippedLastPoint bool
 		var point Point
 		// Find the most recent value.
 		for i := len(serie.Points) - 1; i >= 0; i-- {
@@ -95,14 +114,26 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 				// We need this as if multiple metrics are queried, their points' timestamps align this can result in empty values.
 				continue
 			}
+			// We need at least 2 points per window queried on batched metrics.
+			// If a single sparse metric is processed and only has 1 point in the window, use the value.
+			if !skippedLastPoint && len(serie.Points) > 1 {
+				// Skip last point unless the query window only contains one valid point
+				skippedLastPoint = true
+				continue
+			}
 			point.value = int64(*serie.Points[i][value])                // store the original value
-			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in ms
+			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in s
 			point.valid = true
 
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
 			processedMetrics[m] = point
 
-			log.Debugf("Validated %#v after %d/%d values", point, i, len(serie.Points)-1)
+			// Prometheus submissions on the processed external metrics
+			metricsEval.WithLabelValues(m).Set(float64(point.value))
+			precision := time.Now().Unix() - point.timestamp
+			metricsDelay.WithLabelValues(m).Set(float64(precision))
+
+			log.Debugf("Validated %s | Value:%d at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
 			break
 		}
 	}
