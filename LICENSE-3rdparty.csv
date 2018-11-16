@@ -90,6 +90,7 @@ core,github.com/pborman/uuid,BSD-3-Clause
 core,github.com/pelletier/go-toml,MIT
 core,github.com/petar/GoLLRB,BSD-3-Clause
 core,github.com/peterbourgon/diskv,MIT
+code,github.com/philhofer/fwd,MIT
 core,github.com/pierrec/lz4,BSD-3-Clause
 core,github.com/pkg/errors,BSD-2-Clause
 core,github.com/pmezard/go-difflib,BSD-3-Clause
@@ -109,6 +110,7 @@ core,github.com/spf13/pflag,BSD-3-Clause
 core,github.com/spf13/viper,MIT
 core,github.com/stretchr/objx,MIT
 core,github.com/stretchr/testify,MIT
+core,github.com/tinylib/msgp,BSD-3-Clause
 core,github.com/ugorji/go,MIT
 core,github.com/ulikunitz/xz,BSD-3-Clause
 core,github.com/urfave/negroni,MIT
@@ -120,6 +122,7 @@ core,golang.org/x/text,BSD-3-Clause
 core,golang.org/x/time,BSD-3-Clause
 core,google.golang.org/genproto,Apache-2.0
 core,google.golang.org/grpc,Apache-2.0
+core,gopkg.in/DataDog/dd-trace-go.v1,BSD-3-Clause
 core,gopkg.in/Knetic/govaluate.v3,MIT
 core,gopkg.in/inf.v0,BSD-3-Clause
 core,gopkg.in/natefinch/lumberjack.v2,MIT
