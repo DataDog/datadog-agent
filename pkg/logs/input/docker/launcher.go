@@ -175,7 +175,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		return
 	}
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.registry)
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
@@ -214,7 +214,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		l.removeTailer(containerID)
 	}
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.registry)
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), service.Before)

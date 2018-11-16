@@ -13,13 +13,13 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -50,11 +50,12 @@ type Tailer struct {
 	done               chan struct{}
 	erroredContainerID chan string
 	cancelFunc         context.CancelFunc
-	registry           auditor.Registry
+	decodedOffset      string
+	mutex              sync.Mutex
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string, registry auditor.Registry) *Tailer {
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
@@ -65,7 +66,6 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
-		registry:           registry,
 	}
 }
 
@@ -114,6 +114,7 @@ func (t *Tailer) setupReader(since string) (io.ReadCloser, context.CancelFunc, e
 
 // tail sets up and starts the tailer
 func (t *Tailer) tail(since string) error {
+	t.decodedOffset = since
 	reader, cancelFunc, err := t.setupReader(since)
 	if err != nil {
 		// could not start the tailer
@@ -150,14 +151,17 @@ func (t *Tailer) readForever() {
 				switch {
 				case isContextCanceled(err):
 					log.Debugf("Restarting reader for container %v after a reading timeout", ShortContainerID(t.ContainerID))
-					reader, cancelFunc, err := t.setupReader(t.registry.GetOffset(t.ContainerID))
+					t.mutex.Lock()
+					reader, cancelFunc, err := t.setupReader(t.decodedOffset)
 					if err != nil {
 						log.Errorf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
 						t.erroredContainerID <- t.ContainerID
+						t.mutex.Unlock()
 						return
 					}
 					t.reader = reader
 					t.cancelFunc = cancelFunc
+					t.mutex.Unlock()
 					continue
 				case isClosedConnError(err):
 					// This error is raised when the agent is stopping
@@ -221,6 +225,9 @@ func (t *Tailer) forwardMessages() {
 		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.source)
 			origin.Offset = output.Timestamp
+			t.mutex.Lock()
+			t.decodedOffset = output.Timestamp
+			t.mutex.Unlock()
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
 			output.Origin = origin
