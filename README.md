@@ -66,15 +66,16 @@ Before installing on debian distributions like `jessie` and `stretch` you have t
     
 To install the debian package:
 
-    $ wget -qO - https://s3.amazonaws.com/stackstate-agent-2/public.key | sudo apt-key add -
-    $ echo "deb https://s3.amazonaws.com/stackstate-agent-2 stable main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
+    $ wget -qO - https://stackstate-agent-2.s3.amazonaws.com/public.key | sudo apt-key add -
+    $ echo "deb https://stackstate-agent-2.s3.amazonaws.com stable main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
     $ sudo apt-get update && sudo apt-get install stackstate-agent
     $ sudo cp /etc/stackstate-agent/stackstate.yaml.example /etc/stackstate-agent/stackstate.yaml
     $ sudo chown stackstate-agent:stackstate-agent /etc/stackstate-agent/stackstate.yaml
     $ sudo service stackstate-agent start
     
-To install a PR branch version use another repository:
+If you wanna install a branch version use the test repository:
 
-`https://s3.amazonaws.com/stackstate-agent-2-test PR_NAME main` 
+    $ wget -qO - https://stackstate-agent-2-test.s3.amazonaws.com/public.key | sudo apt-key add -
+    $ echo "deb https://stackstate-agent-2-test.s3.amazonaws.com <PR_NAME> main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
 
 and replace `PR_NAME` with the branch name (e.g. master, STAC-xxxx). 
