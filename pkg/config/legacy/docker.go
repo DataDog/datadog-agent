@@ -68,6 +68,8 @@ type legacyDockerInstance struct {
 func ImportDockerConf(src, dst string, overwrite bool) error {
 	fmt.Printf("%s\n", warningNewCheck)
 
+	configConverter := config.NewConfigConverter()
+
 	// read docker_daemon.yaml
 	c, err := providers.GetIntegrationConfigFromFile("docker_daemon", src)
 	if err != nil {
@@ -81,8 +83,8 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		}
 
 		if initConf.DockerRoot != "" {
-			config.Datadog.Set("container_cgroup_root", filepath.Join(initConf.DockerRoot, "sys", "fs", "cgroup"))
-			config.Datadog.Set("container_proc_root", filepath.Join(initConf.DockerRoot, "proc"))
+			configConverter.Set("container_cgroup_root", filepath.Join(initConf.DockerRoot, "sys", "fs", "cgroup"))
+			configConverter.Set("container_proc_root", filepath.Join(initConf.DockerRoot, "proc"))
 		}
 	}
 
@@ -133,11 +135,11 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 
 	// filter include/exclude list
 	if ac_exclude := handleFilterList(instance.Exclude, "exclude"); len(ac_exclude) != 0 {
-		config.Datadog.Set("ac_exclude", ac_exclude)
+		configConverter.Set("ac_exclude", ac_exclude)
 	}
 
 	if ac_include := handleFilterList(instance.Include, "include"); len(ac_include) != 0 {
-		config.Datadog.Set("ac_include", ac_include)
+		configConverter.Set("ac_include", ac_include)
 	}
 
 	// move 'collect_labels_as_tags' to 'docker_labels_as_tags'
@@ -146,7 +148,7 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		for _, label := range instance.LabelAsTags {
 			dockerLabelAsTags[label] = label
 		}
-		config.Datadog.Set("docker_labels_as_tags", dockerLabelAsTags)
+		configConverter.Set("docker_labels_as_tags", dockerLabelAsTags)
 	}
 
 	fmt.Printf("Successfully imported the contents of %s into datadog.yaml (see 'Autodiscovery' section in datadog.yaml.example)\n\n", src)
