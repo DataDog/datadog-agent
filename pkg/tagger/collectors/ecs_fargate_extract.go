@@ -39,6 +39,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 			// task
 			tags.AddLow("task_family", meta.Family)
 			tags.AddLow("task_version", meta.Version)
+			tags.AddHigh("task_arn", meta.TaskARN)
 
 			// container
 			tags.AddLow("ecs_container_name", ctr.Name)

@@ -21,7 +21,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/legacy"
+	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 )
 
 // ImportConfig imports the agent5 configuration into the agent6 yaml config

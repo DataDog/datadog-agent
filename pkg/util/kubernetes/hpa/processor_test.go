@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeDatadogClient struct {
@@ -35,11 +36,16 @@ var maxAge = time.Duration(30 * time.Second)
 
 func makePoints(ts, val int) datadog.DataPoint {
 	if ts == 0 {
-		ts = (int(metav1.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000 // use ms
+		ts = (int(metav1.Now().Unix()) - int(maxAge.Seconds())) * 1000 // use ms
 	}
 	tsPtr := float64(ts)
 	valPtr := float64(val)
 	return datadog.DataPoint{&tsPtr, &valPtr}
+}
+
+func makePartialPoints(ts int) datadog.DataPoint {
+	tsPtr := float64(ts)
+	return datadog.DataPoint{&tsPtr, nil}
 }
 
 func makePtr(val string) *string {
@@ -47,6 +53,7 @@ func makePtr(val string) *string {
 }
 
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string
@@ -58,7 +65,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			"update invalid metric",
 			[]custommetrics.ExternalMetricValue{
 				{
-					MetricName: "requests_per_s",
+					MetricName: metricName,
 					Labels:     map[string]string{"foo": "bar"},
 					Valid:      false,
 				},
@@ -68,7 +75,8 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 12),
-						makePoints(0, 14), // Force the point to be considered fresh at all time(< externalMaxAge)
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
 					},
 					Scope: makePtr("foo:bar"),
 				},
@@ -87,7 +95,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "bar"},
+					Labels:     map[string]string{"2foo": "bar"},
 					Valid:      true,
 				},
 			},
@@ -97,14 +105,15 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 					Points: []datadog.DataPoint{
 						makePoints(1431492452000, 12),
 						makePoints(1431492453000, 14), // Force the point to be considered outdated at all time(> externalMaxAge)
+						makePoints(0, 1000),           // Force the point to be considered fresh at all time(< externalMaxAge)
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: makePtr("2foo:bar"),
 				},
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "requests_per_s",
-					Labels:     map[string]string{"foo": "bar"},
+					Labels:     map[string]string{"2foo": "bar"},
 					Value:      14,
 					Valid:      false,
 				},
@@ -133,9 +142,36 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, strippedTs)
 		})
 	}
+
+	// Test that Datadog not responding yields invaldation.
+	emList := []custommetrics.ExternalMetricValue{
+		{
+			MetricName: metricName,
+			Labels:     map[string]string{"foo": "bar"},
+			Valid:      true,
+		},
+		{
+			MetricName: metricName,
+			Labels:     map[string]string{"bar": "baz"},
+			Valid:      true,
+		},
+	}
+	datadogClient := &fakeDatadogClient{
+		queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
+			return nil, fmt.Errorf("API error 400 Bad Request: {\"error\": [\"Rate limit of 300 requests in 3600 seconds reqchec.\"]}")
+		},
+	}
+	hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
+	invList := hpaCl.UpdateExternalMetrics(emList)
+	require.Len(t, invList, len(emList))
+	for _, i := range invList {
+		require.False(t, i.Valid)
+	}
+
 }
 
 func TestProcessor_ProcessHPAs(t *testing.T) {
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string
@@ -167,7 +203,8 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 12),
-						makePoints(0, 14),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 23),
 					},
 					Scope: makePtr("dcos_version:1.9.4"),
 				},
@@ -272,14 +309,16 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 22),
-						makePoints(0, 12),
+						makePoints(penTime, 12),
+						makePoints(0, 14),
 					},
 					Scope: makePtr("dcos_version:1.9.4"),
 				}, {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 22),
-						makePoints(0, 13), // Validate that there are 2 different entries for the metric metricName as there are 2 different scopes
+						makePoints(penTime, 13), // Validate that there are 2 different entries for the metric metricName as there are 2 different scopes
+						makePoints(0, 16),
 					},
 					Scope: makePtr("dcos_version:2.1.9"),
 				},
@@ -287,7 +326,8 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 					Metric: &metricName,
 					Points: []datadog.DataPoint{
 						makePoints(1531492452000, 22),
-						makePoints(1531492432000, 13), // old timestamp (over maxAge) - Keep the value, set to false
+						makePoints(1531492442000, 13), // old timestamp (over maxAge) - Keep the value, set to false
+						makePoints(1531492432000, 10),
 					},
 					Scope: makePtr("dcos_version:3.1.1"),
 				},
@@ -420,5 +460,61 @@ func TestProcessor_Batching(t *testing.T) {
 			hpaCl.UpdateExternalMetrics(tt.metrics)
 			assert.Equal(t, tt.expectedNumCalls, batchCallsNum)
 		})
+	}
+}
+
+// Test that we consistently get the same key.
+func TestGetKey(t *testing.T) {
+	tests := []struct {
+		desc     string
+		name     string
+		labels   map[string]string
+		expected string
+	}{
+		{
+			"correct name and label",
+			"kubernetes.io",
+			map[string]string{
+				"foo": "bar",
+			},
+			"kubernetes.io{foo:bar}",
+		},
+		{
+			"correct name and labels",
+			"kubernetes.io",
+			map[string]string{
+				"zfoo": "bar",
+				"afoo": "bar",
+				"ffoo": "bar",
+			},
+			"kubernetes.io{afoo:bar,ffoo:bar,zfoo:bar}",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			formatedKey := getKey(test.name, test.labels)
+			require.Equal(t, test.expected, formatedKey)
+		})
+	}
+}
+
+func TestInvalidate(t *testing.T) {
+	eml := []custommetrics.ExternalMetricValue{
+		{
+			MetricName: "foo",
+			Valid:      false,
+			Timestamp:  12,
+		},
+		{
+			MetricName: "bar",
+			Valid:      true,
+			Timestamp:  1300,
+		},
+	}
+
+	invalid := invalidate(eml)
+	for _, e := range invalid {
+		require.False(t, e.Valid)
+		require.WithinDuration(t, time.Now(), time.Unix(e.Timestamp, 0), 5*time.Second)
 	}
 }
