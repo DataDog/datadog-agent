@@ -124,9 +124,9 @@ end
 
 def is_running?
   if os == :windows
-    return is_service_running("datadogagent")
+    return is_service_running?("datadogagent")
   else
-    return is_service_running("datadog-agent")
+    return is_service_running?("datadog-agent")
   end
 end
 
