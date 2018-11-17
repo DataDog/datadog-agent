@@ -91,7 +91,7 @@ chef gem install net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-
 cp .kitchen-azure.yml .kitchen.yml
 
 ## check to see if we want the windows-installer tester instead
-if [ "$1" == "windows-install-test"]; then
+if [[ $#  != 0 && $1 == "windows-install-test" ]]; then
   cp .kitchen-azure-winstall.yml .kitchen.yml
 fi
 
