@@ -16,22 +16,20 @@ shared_examples_for 'an Agent with APM enabled' do
 end
 
 shared_examples_for 'an Agent with logs enabled' do
-  it 'has apm enabled' do
+  it 'has logs enabled' do
     confYaml = read_conf_file()
     expect(confYaml).to have_key("logs_config")
     expect(confYaml).to have_key("logs_enabled")
     expect(confYaml["logs_enabled"]).to be_truthy
-    expect(is_port_bound(8126)).to be_truthy
   end
 end
 
 shared_examples_for 'an Agent with process enabled' do
-  it 'has apm enabled' do
+  it 'has process enabled' do
     confYaml = read_conf_file()
     expect(confYaml).to have_key("process_config")
     expect(confYaml["process_config"]).to have_key("enabled")
     expect(confYaml["process_config"]["enabled"]).to be_truthy
-    expect(is_port_bound(8126)).to be_truthy
   end
   it 'has the process agent running' do
     expect(is_process_running?("process-agent.exe")).to be_truthy

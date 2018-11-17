@@ -144,7 +144,7 @@ end
 
 def agent_processes_running?
   %w(datadog-agent agent.exe).each do |p|
-    return true if is_process_running(p)
+    return true if is_process_running?(p)
   end
   false
 end
