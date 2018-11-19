@@ -93,6 +93,13 @@ func (c *DCAClient) init() error {
 	c.clusterAgentAPIClient = util.GetClient(false)
 	c.clusterAgentAPIClient.Timeout = 2 * time.Second
 
+	// Validate the cluster-agent client by checking the version
+	ver, err := c.GetVersion()
+	if err != nil {
+		return err
+	}
+	log.Infof("Successfully connected to the Datadog Cluster Agent %v", ver)
+
 	// Clone the http client in a new client with built-in redirect handler
 	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.ClusterAgentAPIEndpoint)
 
