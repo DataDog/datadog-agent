@@ -96,30 +96,40 @@ func (t *Tailer) Start(since time.Time) error {
 	return t.tail(since.Format(config.DateFormat))
 }
 
+func (t *Tailer) getLastSince() string {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return t.lastSince
+}
+
+func (t *Tailer) setLastSince(since string) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.lastSince = since
+}
+
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
-func (t *Tailer) setupReader(since string) error {
+func (t *Tailer) setupReader() error {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
 		Timestamps: true,
 		Details:    false,
-		Since:      since,
+		Since:      t.getLastSince(),
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
-	t.mutex.Lock()
 	t.reader = reader
 	t.cancelFunc = cancelFunc
-	t.mutex.Unlock()
 	return err
 }
 
 // tail sets up and starts the tailer
 func (t *Tailer) tail(since string) error {
-	t.lastSince = since
-	err := t.setupReader(since)
+	t.setLastSince(since)
+	err := t.setupReader()
 	if err != nil {
 		// could not start the tailer
 		t.source.Status.Error(err)
@@ -152,7 +162,7 @@ func (t *Tailer) readForever() {
 				switch {
 				case isContextCanceled(err):
 					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.ContainerID))
-					err := t.setupReader(t.lastSince)
+					err := t.setupReader()
 					if err != nil {
 						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
 						t.erroredContainerID <- t.ContainerID
@@ -221,9 +231,7 @@ func (t *Tailer) forwardMessages() {
 		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.source)
 			origin.Offset = output.Timestamp
-			t.mutex.Lock()
-			t.lastSince = output.Timestamp
-			t.mutex.Unlock()
+			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
 			output.Origin = origin
