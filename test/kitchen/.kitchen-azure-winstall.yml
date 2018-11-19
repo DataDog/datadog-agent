@@ -1,0 +1,215 @@
+---
+<%
+  ENV['AZURE_LOCATION'] ||= "North Central US"
+%>
+
+<%
+  vm_tags = {
+    'dd_agent_testing': 'dd_agent_testing'
+  }
+  if ENV['CI_PIPELINE_ID']
+    vm_tags['pipeline_id'] = ENV['CI_PIPELINE_ID']
+  else
+    vm_tags['pipeline_id'] = 'nopipeline'
+  end
+%>
+
+driver:
+  name: azurerm
+
+driver_config:
+  subscription_id: <%= ENV['AZURE_SUBSCRIPTION_ID'] %>
+  location: <%= ENV['AZURE_LOCATION'] %>
+  <% if ENV['CI_PIPELINE_ID'] %>
+  azure_resource_group_suffix: pl<%= ENV['CI_PIPELINE_ID'] %>
+  <% else %>
+  azure_resource_group_suffix: plnone
+  <% end %>
+
+provisioner:
+  name: chef_solo
+  require_chef_omnibus: true
+  product_version: 13.6.4
+  require_chef_omnibus: 13.6.4
+
+platforms:
+# Loop through two lists and output a total matrix of all possible platform + chef versions,
+# for both drivers
+
+
+<%
+    # TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
+    azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+
+    chef_versions = %w(
+      13.6.4
+    )
+
+    sizes = [
+      "Standard_D1",
+      "Standard_A1",
+    ]
+
+    windows_sizes = [
+      "Standard_D1"
+    ]
+
+    # we wanna spread out our quotas
+    locations = [
+      "North Central US",
+      "South Central US",
+      "Central US",
+    ]
+
+    drivers = %w(
+      azurerm
+    )
+
+    platforms_x64 = azure_test_platforms.product(chef_versions, drivers).select{|p, c, d| not p[0].include? "i386"}.collect{|p, c, d| p[0] + "-" + c + "-" + d}
+
+    exclude_platforms = []
+    windows_platforms = []
+
+    idx = 0
+    azure_test_platforms.product(chef_versions).each do |platform, chef_version|
+    idx += 1
+    location = locations[idx % locations.length]
+
+    platform_name = platform[0] + "-azure"
+    windows = platform_name.include?("win")
+    if windows
+      windows_platforms << platform_name
+      size = "Standard_D1"
+      size = windows_sizes[idx % windows_sizes.length]
+    else
+      size = sizes[idx % sizes.length]
+    end
+
+%>
+- name: <%= platform_name %>
+  driver_config:
+    machine_size: <%= size %>
+    image_urn: <%= platform[1] %>
+    location: <%= location %>
+    <% if windows %>
+    vm_name: ddat<%= platform[0] %>
+    username: datadog
+    password: <%= ENV['SERVER_PASSWORD'] %>
+    <% else %>
+    vm_name: dd-agent-testing-<%= platform[0] %>-azure
+    <% end %>
+    vm_tags:
+      <% vm_tags.each do |key,value| %>
+      <%= key %>: <%= value %>
+      <% end %>
+  transport:
+    <% if windows %>
+    name: winrm
+    <% else %>
+    ssh_key: <%= ENV['AZURE_SSH_KEY_PATH'] %>
+    <% end %>
+
+<% end %>
+
+suites:
+
+<%
+  aptrepo = "http://apttesting.datad0g.com/"
+  api_key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  yumrepo = "http://yumtesting.datad0g.com/pipeline-#{ENV['CI_PIPELINE_ID']}/x86_64/"
+  yumrepo_suse = "http://yumtesting.datad0g.com/suse/pipeline-#{ENV['CI_PIPELINE_ID']}/x86_64/"
+  windows_agent_url = "https://s3.amazonaws.com/#{ENV['WINDOWS_TESTING_S3_BUCKET']}/"
+  dd_agent_config = {
+    'agent6': true,
+    'api_key': api_key,
+    'application_key': "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    'url': "https://app.datad0g.com",
+    'aptrepo': aptrepo,
+    'aptrepo_dist': "pipeline-#{ENV['CI_PIPELINE_ID']}",
+    'yumrepo': yumrepo,
+    'yumrepo_suse': yumrepo_suse,
+    'agent6_aptrepo': "http://apttesting.datad0g.com/",
+    'agent6_aptrepo_dist': "pipeline-#{ENV['CI_PIPELINE_ID']}",
+    'agent6_yumrepo': "http://yumtesting.datad0g.com/pipeline-#{ENV['CI_PIPELINE_ID']}/x86_64/",
+    'agent6_yumrepo_suse': "http://yumtesting.datad0g.com/suse/pipeline-#{ENV['CI_PIPELINE_ID']}/x86_64/",
+    'windows_agent_url': windows_agent_url,
+  }
+%>
+
+  - name: dd-agent-installopts
+    run_list:
+      - "recipe[dd-agent-install::_install_windows_base]"
+    attributes:
+      apt:
+        unattended_upgrades:
+          enable: false
+      datadog:
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+      dd-agent-install:
+        agent6: true
+        <% if ENV['AGENT_VERSION'] %>
+        windows_version: "<%= ENV['AGENT_VERSION'] %>"
+        <% end %>
+        windows_agent_url: <%= windows_agent_url %>
+        agent_install_options: >
+          TAGS=k1:v1,k2:v2 
+          HOSTNAME=dd-agent-installopts 
+          CMD_PORT=4999
+          PROXY_HOST=proxy.foo.com 
+          PROXY_PORT=1234 
+          PROXY_USER=puser 
+          PROXY_PASSWORD=ppass 
+          SITE=eu 
+          DD_URL=https://someurl.datadoghq.com 
+          LOGS_DD_URL=https://logs.someurl.datadoghq.com
+          PROCESS_DD_URL=https://process.someurl.datadoghq.com
+          TRACE_DD_URL=https://trace.someurl.datadoghq.com
+
+  - name: dd-agent-all-subservices
+    run_list:
+      - "recipe[dd-agent-install::_install_windows_base]"
+    attributes:
+      apt:
+        unattended_upgrades:
+          enable: false
+      datadog:
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+      dd-agent-install:
+        agent6: true
+        <% if ENV['AGENT_VERSION'] %>
+        windows_version: "<%= ENV['AGENT_VERSION'] %>"
+        <% end %>
+        windows_agent_url: <%= windows_agent_url %>
+        agent_install_options: >
+          APIKEY=<%= api_key %>
+          LOGS_ENABLED=true
+          PROCESS_ENABLED=true
+          APM_ENABLED=true
+
+  - name: dd-agent-no-subservices
+    run_list:
+      - "recipe[dd-agent-install::_install_windows_base]"
+    attributes:
+      apt:
+        unattended_upgrades:
+          enable: false
+      datadog:
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+      dd-agent-install:
+        agent6: true
+        <% if ENV['AGENT_VERSION'] %>
+        windows_version: "<%= ENV['AGENT_VERSION'] %>"
+        <% end %>
+        windows_agent_url: <%= windows_agent_url %>
+        agent_install_options: >
+          APIKEY=<%= api_key %>
+          LOGS_ENABLED=false
+          PROCESS_ENABLED=false
+          APM_ENABLED=false
+

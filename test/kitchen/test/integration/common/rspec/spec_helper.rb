@@ -2,6 +2,7 @@ require 'json'
 require 'open-uri'
 require 'rspec'
 require 'rbconfig'
+require 'yaml'
 
 os_cache = nil
 
@@ -108,29 +109,42 @@ def status
   end
 end
 
-def is_running?
+def is_service_running?(svcname)
   if os == :windows
-    `sc interrogate datadogagent 2>&1`.include?('RUNNING')
+    `sc interrogate #{svcname} 2>&1`.include?('RUNNING')
   else
     if has_systemctl
-      system('sudo systemctl status --no-pager datadog-agent.service')
+        system("sudo systemctl status --no-pager #{svcname}.service")
     else
-      status = `sudo initctl status datadog-agent`
-      status.include?('start/running')
+        status = `sudo initctl status #{svcname}`
+        status.include?('start/running')
     end
   end
 end
 
+def is_running?
+  if os == :windows
+    return is_service_running?("datadogagent")
+  else
+    return is_service_running?("datadog-agent")
+  end
+end
+
+def is_process_running?(pname)
+  if os == :windows
+    tasklist = `tasklist /fi \"ImageName eq #{pname}\" 2>&1`
+    if tasklist.include?(pname)
+      return true
+    end
+  else
+    return true if system("pgrep -f #{pname}")
+  end
+  return false
+end
+
 def agent_processes_running?
   %w(datadog-agent agent.exe).each do |p|
-    if os == :windows
-      tasklist = `tasklist /fi \"ImageName eq #{p}\" 2>&1`
-      if tasklist.include?(p)
-        return true
-      end
-    else
-      return true if system("pgrep -f #{p}")
-    end
+    return true if is_process_running?(p)
   end
   false
 end
@@ -174,13 +188,31 @@ def is_port_bound(port)
   end
 end
 
+
+def read_conf_file
+    conf_path = ""
+    if os == :windows
+      conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
+    else
+      conf_path = '/etc/datadog-agent/datadog.yaml'
+    end
+    puts "cp is #{conf_path}"
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    confYaml
+end
+
+
 shared_examples_for 'Agent' do
   it_behaves_like 'an installed Agent'
   it_behaves_like 'a running Agent with no errors'
+  it_behaves_like 'a running Agent with APM'
+  it_behaves_like 'a running Agent with APM manually disabled'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
   it_behaves_like 'an Agent that is removed'
 end
+
 
 shared_examples_for "an installed Agent" do
   it 'has an example config file' do
@@ -203,8 +235,11 @@ shared_examples_for "an installed Agent" do
       msi_path_end = '\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi'
       msi_path_azure = msi_path_base + 'azure' + msi_path_end
       msi_path_datadog = msi_path_base + 'datadog' + msi_path_end
+      msi_path_admin = msi_path_base + 'administrator' + msi_path_end
       if File.exist?(msi_path_azure)
         msi_path = msi_path_azure
+      elsif File.exist?(msi_path_admin)
+        msi_path = msi_path_admin
       else
         msi_path = msi_path_datadog
       end
@@ -274,11 +309,15 @@ shared_examples_for "a running Agent with no errors" do
     info_output = info_output.gsub "[ERROR] API Key is invalid" "API Key is invalid"
     expect(info_output).to_not include 'ERROR'
   end
+end
 
+shared_examples_for "a running Agent with APM" do
   it 'is bound to the port that receives traces by default' do
     expect(is_port_bound(8126)).to be_truthy
   end
+end
 
+shared_examples_for "a running Agent with APM manually disabled" do
   it 'is not bound to the port that receives traces when apm_enabled is set to false' do
     conf_path = ""
     if os != :windows
@@ -286,9 +325,15 @@ shared_examples_for "a running Agent with no errors" do
     else
       conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
     end
-    open(conf_path, 'a') do |f|
-      f.puts "\napm_config:\n  enabled: false"
+
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    if !confYaml.key("apm_config")
+      confYaml["apm_config"] = {}
     end
+    confYaml["apm_config"]["enabled"] = false
+    File.write(conf_path, confYaml.to_yaml)
+
     output = restart
     if os != :windows
       expect(output).to be_truthy
