@@ -20,6 +20,7 @@ WIN_MODULE_WHITELIST = [
     "iostats_wmi_windows.go",
     "pdh.go",
     "pdhhelper.go",
+    "shutil.go",
     "tailer_windows.go",
 ]
 
@@ -106,6 +107,7 @@ def vet(ctx, targets, use_embedded_libs=False):
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
     build_tags = get_default_build_tags()
+    build_tags.append("novet")
 
     _, _, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
