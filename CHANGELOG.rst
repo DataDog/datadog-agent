@@ -20,6 +20,12 @@ Release on: 2018-10-25
 
 - Please refer to the `6.6.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.6.0>`_ for the list of changes on the Process Agent.
 
+.. _Release Notes_6.6.0_Known Issues:
+
+Known Issues
+------------
+
+- JMX garbage collection metrics `jvm.gc.parnew.time` and `jvm.gc.cms.count` got renamed to `jvm.gc.minor_collection_time` and `jvm.gc.major_collection_count` on some JMX integrations. Since this change on the name of these 2 metrics may affect your dashboards and monitors, these metrics will also be sent under their older names in a later version of the Agent.
 
 .. _Release Notes_6.6.0_New Features:
 
