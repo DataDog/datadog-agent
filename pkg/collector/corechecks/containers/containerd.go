@@ -11,13 +11,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/containerd/cgroups"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/typeurl"
-	"github.com/gogo/protobuf/types"
-	"gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -26,13 +19,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	util "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/containerd/cgroups"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/typeurl"
+	"github.com/gogo/protobuf/types"
+	"gopkg.in/yaml.v2"
+)
+
+const (
+	containerdCheckName = "containerd"
 )
 
 // ContainerCheck grabs containerd metrics and events
 type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
-	cl       containerd.Client
 	cu       util.ContainerdItf
 }
 
@@ -42,36 +44,55 @@ type ContainerdConfig struct {
 }
 
 func init() {
-	corechecks.RegisterCheck("containerd", ContainerdFactory)
+	corechecks.RegisterCheck(containerdCheckName, ContainerdFactory)
 }
 
 // ContainerdFactory is used to create register the check and initialize it.
 func ContainerdFactory() check.Check {
 	return &ContainerdCheck{
-		CheckBase: corechecks.NewCheckBase("containerd"),
+		CheckBase: corechecks.NewCheckBase(containerdCheckName),
 		instance:  &ContainerdConfig{},
 		cu:        util.InstanciateContainerdUtil(),
 	}
 }
 
+// Parse is used to get the configuration set by the user
+func (co *ContainerdConfig) Parse(data []byte) error {
+	if err := yaml.Unmarshal(data, co); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Configure parses the check configuration and init the check
+func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
+	err := c.CommonConfigure(config)
+	if err != nil {
+		return err
+	}
+	return c.instance.Parse(config)
+}
+
 // Run executes the check
 func (c *ContainerdCheck) Run() error {
+	// As we do not rely on a singleton, we ensure connectivity every check run.
 	errHealth := c.cu.EnsureServing(context.Background())
 	if errHealth != nil {
-		log.Infof("Error ensuring connectivity with containerd daemon %v also %v", errHealth, errHealth == nil)
+		log.Infof("Error ensuring connectivity with containerd daemon %v", errHealth)
 		return errHealth
 	}
 
 	sender, err := aggregator.GetSender(c.ID())
+	defer sender.Commit()
 	if err != nil {
 		return err
 	}
-	defer sender.Commit()
 
 	nsList, err := c.cu.GetNamespaces(context.Background())
 	if err != nil {
 		return err
 	}
+
 	for _, n := range nsList {
 		nk := namespaces.WithNamespace(context.Background(), n)
 		computeMetrics(sender, nk, c.cu, c.instance.Tags)
@@ -295,19 +316,4 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*cg
 		tags = append(tags, blkiotags...)
 		sender.Gauge(metricName, float64(m.Value), "", tags)
 	}
-}
-
-// Parse is used to get the configuration set by the user
-func (co *ContainerdConfig) Parse(data []byte) error {
-	if err := yaml.Unmarshal(data, co); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Configure parses the check configuration and init the check
-func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
-	c.instance.Parse(config)
-
-	return nil
 }

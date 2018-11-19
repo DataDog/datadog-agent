@@ -222,8 +222,6 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
-	// Containerd
-	config.BindEnvAndSetDefault("containerd_socket_path", "") // containerd socket path
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)

@@ -23,6 +23,8 @@ type ContainerdItf interface {
 	EnsureServing(ctx context.Context) error
 	GetNamespaces(ctx context.Context) ([]string, error)
 	Containers(ctx context.Context) ([]containerd.Container, error)
+	Close() error
+	Metadata(ctx context.Context) (containerd.Version, error)
 }
 
 // ContainerdUtil is the util used to interact with the containerd api.
@@ -34,7 +36,6 @@ type ContainerdUtil struct {
 // InstanciateContainerdUtil creates the containerd util containing the containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.
 func InstanciateContainerdUtil() ContainerdItf {
-	log.Infof("[DEV] Calling Containerd init")
 	util := &ContainerdUtil{}
 	// Initialize the client in the connect method
 	util.initRetry.SetupRetrier(&retry.Config{
@@ -45,6 +46,19 @@ func InstanciateContainerdUtil() ContainerdItf {
 		RetryDelay:    30 * time.Second,
 	})
 	return util
+}
+
+// Metadata is used to collect the version and revision of the Containerd API
+func (c *ContainerdUtil) Metadata(ctx context.Context) (containerd.Version, error) {
+	return c.cl.Version(ctx)
+}
+
+// Close is used when done with a ContainerdUtil
+func (c *ContainerdUtil) Close() error {
+	if c.cl == nil {
+		return log.Errorf("Containerd Client not initialized")
+	}
+	return c.cl.Close()
 }
 
 // connect is our retry strategy, it can be retriggered when the check is running if we lose connectivity.
@@ -59,7 +73,7 @@ func (c *ContainerdUtil) connect() error {
 		return nil
 	}
 	// If we lose the connection, let's reset the state including the Dial options
-	socketAddress := config.Datadog.GetString("containerd_socket_path")
+	socketAddress := config.Datadog.GetString("cri_socket_path")
 	c.cl, err = containerd.New(socketAddress) // TODO 	ClientOpt to use grpc timeout
 	return err
 }
