@@ -87,7 +87,7 @@ func StartService(cmd *cobra.Command, args []string) error {
 		log.Warnf("Failed to open service %v", err)
 		return fmt.Errorf("could not access service: %v", err)
 	}
-	scm := &mgr.Service{Name: ServiceName, Handle: hSvc}
+	scm := &mgr.Service{Name: config.ServiceName, Handle: hSvc}
 	defer scm.Close()
 	err = scm.Start("is", "manual-started")
 	if err != nil {
