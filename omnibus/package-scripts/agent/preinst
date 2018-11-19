@@ -45,9 +45,11 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         fi
     fi
 
-    echo "Resetting integrations..."
     PIP_PATH=$INSTALL_DIR/embedded/bin/pip
-    $PIP_PATH freeze | grep datadog | grep  -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q
+    if [ -x $PIP_PATH ]; then
+        echo "Resetting integrations..."
+        $PIP_PATH freeze | grep datadog | grep  -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir
+    fi
 
     if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
         # Nothing specific on Debian
