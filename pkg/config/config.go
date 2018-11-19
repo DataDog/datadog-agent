@@ -335,7 +335,8 @@ func initConfig(config Config) {
 	// Enable sending traces from the Cluster Agent
 	config.BindEnvAndSetDefault("agent_host", "")
 	config.BindEnvAndSetDefault("agent_apm_port", 8126)
-	config.BindEnvAndSetDefault("tracer_debug_level", false)
+	config.BindEnvAndSetDefault("agent_apm_debug_level", false)
+	config.BindEnvAndSetDefault("agent_apm_service_name", "datadog-cluster-agent")
 	setAssetFs(config)
 }
 

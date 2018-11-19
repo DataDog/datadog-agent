@@ -132,11 +132,18 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	traceAddr := config.Datadog.GetString("agent_host")
 	tracePort := config.Datadog.GetInt("agent_apm_port")
-	traceDebug := config.Datadog.GetBool("tracer_debug_level")
+	traceDebug := config.Datadog.GetBool("agent_apm_debug_level")
+	serviceName := config.Datadog.GetString("agent_apm_service_name")
 	if traceAddr != "" {
-		log.Infof("Starting sending traces to %s:%s", traceAddr, tracePort)
-		tracer.Start(tracer.WithAgentAddr(fmt.Sprintf("%s:%d", traceAddr, tracePort)))
-		tracer.WithDebugMode(traceDebug)
+		startOpts := []tracer.StartOption{
+			tracer.WithAgentAddr(fmt.Sprintf("%s:%d", traceAddr, tracePort)),
+			tracer.WithDebugMode(traceDebug),
+		}
+		if serviceName != "" {
+			startOpts = append(startOpts, tracer.WithServiceName(serviceName))
+		}
+		log.Infof("Starting sending traces to %s:%s under the service name: %s", traceAddr, tracePort, serviceName)
+		tracer.Start(startOpts...)
 		defer tracer.Stop()
 	}
 
