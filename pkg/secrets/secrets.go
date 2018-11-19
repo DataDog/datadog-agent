@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build secrets
 
 package secrets
 
@@ -119,7 +119,6 @@ var secretFetcher = fetchSecret
 // "secret_backend_command" once if all secrets aren't present in the cache.
 func Decrypt(data []byte) ([]byte, error) {
 	if data == nil || secretBackendCommand == "" {
-		log.Debugf("No data to decrypt or no secretBackendCommand set: skipping")
 		return data, nil
 	}
 

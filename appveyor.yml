@@ -29,6 +29,8 @@ install:
   - go version
   - pip install codecov
   - pip install -r %GOPATH%\src\github.com\DataDog\datadog-agent\requirements.txt
+  # create 'ddagentuser' user to test the secrets feature on windows
+  - ps: $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force; New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
 
 cache:
   - '%GOPATH%\bin'
