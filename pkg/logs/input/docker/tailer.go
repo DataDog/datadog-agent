@@ -50,7 +50,7 @@ type Tailer struct {
 	done               chan struct{}
 	erroredContainerID chan string
 	cancelFunc         context.CancelFunc
-	decodedOffset      string
+	lastSince          string
 	mutex              sync.Mutex
 }
 
@@ -118,7 +118,7 @@ func (t *Tailer) setupReader(since string) error {
 
 // tail sets up and starts the tailer
 func (t *Tailer) tail(since string) error {
-	t.decodedOffset = since
+	t.lastSince = since
 	err := t.setupReader(since)
 	if err != nil {
 		// could not start the tailer
@@ -151,10 +151,10 @@ func (t *Tailer) readForever() {
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isContextCanceled(err):
-					log.Debugf("Restarting reader for container %v after a reading timeout", ShortContainerID(t.ContainerID))
-					err := t.setupReader(t.decodedOffset)
+					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.ContainerID))
+					err := t.setupReader(t.lastSince)
 					if err != nil {
-						log.Errorf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
+						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
 						t.erroredContainerID <- t.ContainerID
 						return
 					}
@@ -222,7 +222,7 @@ func (t *Tailer) forwardMessages() {
 			origin := message.NewOrigin(t.source)
 			origin.Offset = output.Timestamp
 			t.mutex.Lock()
-			t.decodedOffset = output.Timestamp
+			t.lastSince = output.Timestamp
 			t.mutex.Unlock()
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
