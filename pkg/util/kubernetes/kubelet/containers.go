@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -16,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ListContainers lists all non-excluded running containers, and retrives their performance metrics
+// ListContainers lists all non-excluded running containers, and retrieves their performance metrics
 func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
@@ -99,6 +100,7 @@ func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Containe
 		c.State = containers.ContainerRunningState
 		c.Created = status.State.Running.StartedAt.Unix()
 		c.Health = parseContainerReadiness(status, pod)
+		c.AddressList = parseContainerNetworkAdresses(status, pod)
 	case status.State.Terminated != nil:
 		if status.State.Terminated.ExitCode == 0 {
 			c.State = containers.ContainerExitedState
@@ -111,6 +113,44 @@ func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Containe
 	}
 
 	return c, nil
+}
+
+func parseContainerNetworkAdresses(status ContainerStatus, pod *Pod) []containers.NetworkAddress {
+	addrList := []containers.NetworkAddress{}
+	podIP := net.ParseIP(pod.Status.PodIP)
+	if podIP == nil {
+		log.Warnf("Unable to parse pod IP: %v for pod: %s", pod.Status.PodIP, pod.Metadata.Name)
+		return addrList
+	}
+	hostIP := net.ParseIP(pod.Status.HostIP)
+	if hostIP == nil {
+		log.Warnf("Unable to parse host IP: %v for pod: %s", pod.Status.HostIP, pod.Metadata.Name)
+		return addrList
+	}
+	// Look for the ports in container spec
+	for _, s := range pod.Spec.Containers {
+		if s.Name == status.Name {
+			for _, port := range s.Ports {
+				if port.HostPort > 0 {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       hostIP,
+						Port:     port.HostPort,
+						Protocol: port.Protocol,
+					})
+				}
+				if port.ContainerPort > 0 && !pod.Spec.HostNetwork {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       podIP,
+						Port:     port.ContainerPort,
+						Protocol: port.Protocol,
+					})
+				}
+			}
+			break
+		}
+	}
+
+	return addrList
 }
 
 func parseContainerReadiness(status ContainerStatus, pod *Pod) string {

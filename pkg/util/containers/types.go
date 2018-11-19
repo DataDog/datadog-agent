@@ -6,6 +6,8 @@
 package containers
 
 import (
+	"net"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
@@ -58,8 +60,16 @@ type Container struct {
 	Memory         *metrics.CgroupMemStat
 	IO             *metrics.CgroupIOStat
 	Network        metrics.ContainerNetStats
+	AddressList    []NetworkAddress
 	StartedAt      int64
 
 	// For internal use only
 	cgroup *metrics.ContainerCgroup
+}
+
+// NetworkAddress represents a tuple IP/Port/Protocol
+type NetworkAddress struct {
+	IP       net.IP
+	Port     int
+	Protocol string
 }
