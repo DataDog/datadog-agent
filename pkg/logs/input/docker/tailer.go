@@ -98,7 +98,7 @@ func (t *Tailer) Start(since time.Time) error {
 
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
-func (t *Tailer) setupReader(since string) (io.ReadCloser, context.CancelFunc, error) {
+func (t *Tailer) setupReader(since string) error {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -109,13 +109,17 @@ func (t *Tailer) setupReader(since string) (io.ReadCloser, context.CancelFunc, e
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
-	return reader, cancelFunc, err
+	t.mutex.Lock()
+	t.reader = reader
+	t.cancelFunc = cancelFunc
+	t.mutex.Unlock()
+	return err
 }
 
 // tail sets up and starts the tailer
 func (t *Tailer) tail(since string) error {
 	t.decodedOffset = since
-	reader, cancelFunc, err := t.setupReader(since)
+	err := t.setupReader(since)
 	if err != nil {
 		// could not start the tailer
 		t.source.Status.Error(err)
@@ -123,9 +127,6 @@ func (t *Tailer) tail(since string) error {
 	}
 	t.source.Status.Success()
 	t.source.AddInput(t.ContainerID)
-
-	t.reader = reader
-	t.cancelFunc = cancelFunc
 
 	go t.keepDockerTagsUpdated()
 	go t.forwardMessages()
@@ -151,17 +152,12 @@ func (t *Tailer) readForever() {
 				switch {
 				case isContextCanceled(err):
 					log.Debugf("Restarting reader for container %v after a reading timeout", ShortContainerID(t.ContainerID))
-					t.mutex.Lock()
-					reader, cancelFunc, err := t.setupReader(t.decodedOffset)
+					err := t.setupReader(t.decodedOffset)
 					if err != nil {
 						log.Errorf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
 						t.erroredContainerID <- t.ContainerID
-						t.mutex.Unlock()
 						return
 					}
-					t.reader = reader
-					t.cancelFunc = cancelFunc
-					t.mutex.Unlock()
 					continue
 				case isClosedConnError(err):
 					// This error is raised when the agent is stopping
