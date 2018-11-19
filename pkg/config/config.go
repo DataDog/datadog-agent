@@ -477,7 +477,7 @@ func GetMainInfraEndpoint() string {
 
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
 func GetMainEndpoint(prefix string, ddURLKey string) string {
-	return getMainEndpoint(Datadog, prefix, ddURLKey)
+	return GetMainEndpointWithConfig(Datadog, prefix, ddURLKey)
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
@@ -511,11 +511,11 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 }
 
 func getMainInfraEndpoint(config Config) string {
-	return getMainEndpoint(config, infraURLPrefix, "dd_url")
+	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
 }
 
-// getMainEndpoint implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
-func getMainEndpoint(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
+// GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
+func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
 		resolvedDDURL = config.GetString(ddURLKey)
