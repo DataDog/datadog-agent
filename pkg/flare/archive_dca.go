@@ -179,11 +179,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, sByte, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	return err
+	return ioutil.WriteFile(f, sByte, os.ModePerm)
 }
 
 func zipHPAStatus(tempDir, hostname string) error {
