@@ -472,7 +472,7 @@ func sanitizeAPIKey(config Config) {
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
 func GetMainInfraEndpoint() string {
-	return getMainInfraEndpoint(Datadog)
+	return getMainInfraEndpointWithConfig(Datadog)
 }
 
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
@@ -482,7 +482,7 @@ func GetMainEndpoint(prefix string, ddURLKey string) string {
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {
-	return getMultipleEndpoints(Datadog)
+	return getMultipleEndpointsWithConfig(Datadog)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
@@ -510,7 +510,7 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 	return u.String(), nil
 }
 
-func getMainInfraEndpoint(config Config) string {
+func getMainInfraEndpointWithConfig(config Config) string {
 	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
 }
 
@@ -530,10 +530,10 @@ func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (r
 	return
 }
 
-// getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
-func getMultipleEndpoints(config Config) (map[string][]string, error) {
+// getMultipleEndpointsWithConfig implements the logic to extract the api keys per domain from an agent config
+func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) {
 	// Validating domain
-	ddURL := getMainInfraEndpoint(config)
+	ddURL := getMainInfraEndpointWithConfig(config)
 	_, err := url.Parse(ddURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse main endpoint: %s", err)

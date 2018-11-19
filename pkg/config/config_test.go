@@ -45,7 +45,7 @@ api_key: fakeapikey
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
@@ -66,7 +66,7 @@ api_key: fakeapikey
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
@@ -87,7 +87,7 @@ func TestSiteEnvVar(t *testing.T) {
 	defer os.Unsetenv("DD_SITE")
 	testConfig := setupConfFromYAML("")
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
@@ -111,7 +111,7 @@ func TestDDURLEnvVar(t *testing.T) {
 	testConfig := setupConfFromYAML("")
 	testConfig.BindEnv("external_config.external_agent_dd_url")
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
@@ -136,7 +136,7 @@ external_config:
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
@@ -160,7 +160,7 @@ external_config:
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
@@ -188,7 +188,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://foo.datadoghq.com": {
@@ -220,7 +220,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
@@ -254,7 +254,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://foo.datadoghq.com": {
@@ -279,7 +279,7 @@ api_key: fakeapikey
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -307,7 +307,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -340,7 +340,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
