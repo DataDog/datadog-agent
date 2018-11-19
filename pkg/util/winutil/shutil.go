@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build windows
+// +build windows,!novet
 
 package winutil
 
@@ -34,6 +34,7 @@ Legacy Display Name	Application Data
 Legacy Default Path	%ALLUSERSPROFILE%\Application Data
 */
 var (
+	//DEFINE_KNOWN_FOLDER(FOLDERID_ProgramData,         0x62AB5D82, 0xFDC1, 0x4DC3, 0xA9, 0xDD, 0x07, 0x0D, 0x1D, 0x49, 0x5D, 0x97);
 	FOLDERIDProgramData = GUID{0x62AB5D82, 0xFDC1, 0x4DC3, [8]byte{0xA9, 0xDD, 0x07, 0x0D, 0x1D, 0x49, 0x5D, 0x97}}
 )
 
@@ -62,17 +63,16 @@ func CoTaskMemFree(pv uintptr) {
 // GetProgramDataDir returns the current programdatadir, usually
 // c:\programdata
 func GetProgramDataDir() (path string, err error) {
-	var retstr *C.char
-	var retstrptr = uintptr(unsafe.Pointer(retstr))
-	err = SHGetKnownFolderPath(&FOLDERIDProgramData, 0, 0, &retstrptr)
+	var retstr uintptr
+	err = SHGetKnownFolderPath(&FOLDERIDProgramData, 0, 0, &retstr)
 	if err == nil {
 		// convert the string
-		defer CoTaskMemFree(retstrptr)
+		defer CoTaskMemFree(retstr)
 		// the path = syscall.UTF16ToString... returns a
 		// go vet: "possible misuse of unsafe.Pointer"
 		// Use the "C" GoString converter instead
-		// path = syscall.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
-		path = C.GoString(retstr)
+		path = syscall.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
+		//path = C.GoString(retstr)
 	}
 	return
 }
