@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -142,23 +143,20 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 	}
 
 	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
-	if err != nil {
-		return err
-	}
 	return err
 }
 
 func zipMetadataMap(tempDir, hostname string) error {
+	metaList := make(map[string]interface{})
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		log.Infof("Can't create client to query the API Server: %v", err)
-		return err
-	}
-
-	// Grab the metadata map for all nodes.
-	metaList, err := apiserver.GetMetadataMapBundleOnAllNodes(cl)
-	if err != nil {
-		log.Infof("Error while collecting the cluster level metadata: %q", err)
+		metaList["Errors"] = fmt.Sprintf("Can't create client to query the API Server: %s", err.Error())
+	} else {
+		// Grab the metadata map for all nodes.
+		metaList, err = apiserver.GetMetadataMapBundleOnAllNodes(cl)
+		if err != nil {
+			log.Infof("Error while collecting the cluster level metadata: %q", err)
+		}
 	}
 
 	metaBytes, err := json.Marshal(metaList)
@@ -181,11 +179,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, sByte, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	return err
+	return ioutil.WriteFile(f, sByte, os.ModePerm)
 }
 
 func zipHPAStatus(tempDir, hostname string) error {
@@ -194,9 +188,9 @@ func zipHPAStatus(tempDir, hostname string) error {
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
-		return err
+	} else {
+		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
-	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	statsBytes, err := json.Marshal(stats)
 	if err != nil {
 		log.Infof("Error while marshalling the cluster level metadata: %q", err)
