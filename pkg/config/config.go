@@ -284,8 +284,6 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	// collect all logs from all containers:
 	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
-	// collect all logs forwarded by TCP on a specific port:
-	config.BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
 	// add a socks5 proxy:
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// send the logs to a proxy:

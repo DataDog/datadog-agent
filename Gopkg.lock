@@ -10,22 +10,6 @@
   revision = "75cd24fc2f2c2a2088577d12123ddee5f54e0675"
 
 [[projects]]
-  digest = "1:457212d305ca8e8f68765cc6adb4e259a3aecc6513d79066736fbccbefc32485"
-  name = "github.com/CharlyF/custom-metrics-apiserver"
-  packages = [
-    "pkg/apiserver",
-    "pkg/apiserver/installer",
-    "pkg/cmd",
-    "pkg/cmd/server",
-    "pkg/dynamicmapper",
-    "pkg/provider",
-    "pkg/registry/custom_metrics",
-    "pkg/registry/external_metrics",
-  ]
-  pruneopts = ""
-  revision = "56ec6921a4cfec971e5a8c89d5f4629c17cbb21a"
-
-[[projects]]
   digest = "1:b5c465c820ef1df848ddc2da97e7ebfc1e152fcc2bef8262f047522692e9fc6f"
   name = "github.com/DataDog/agent-payload"
   packages = ["gogen"]
@@ -667,6 +651,22 @@
   revision = "ae77be60afb1dcacde03767a8c37337fad28ac14"
 
 [[projects]]
+  digest = "1:9314e60768bf56a75991ba1a205cd2b084641179ee8cdd39f15d98ba45a98f01"
+  name = "github.com/kubernetes-incubator/custom-metrics-apiserver"
+  packages = [
+    "pkg/apiserver",
+    "pkg/apiserver/installer",
+    "pkg/cmd",
+    "pkg/cmd/server",
+    "pkg/dynamicmapper",
+    "pkg/provider",
+    "pkg/registry/custom_metrics",
+    "pkg/registry/external_metrics",
+  ]
+  pruneopts = ""
+  revision = "85ebc283a57287a8fcb3ad4b488d633cd63ef7d8"
+
+[[projects]]
   branch = "master"
   digest = "1:d87655a081b5e572a6400447ba5d39b9c91a94d4259e54bd93fbf53e24170182"
   name = "github.com/lxn/walk"
@@ -866,7 +866,10 @@
 [[projects]]
   digest = "1:4142d94383572e74b42352273652c62afec5b23f325222ed09198f46009022d1"
   name = "github.com/prometheus/client_golang"
-  packages = ["prometheus"]
+  packages = [
+    "prometheus",
+    "prometheus/promhttp",
+  ]
   pruneopts = ""
   revision = "c5b7fccd204277076155f10851dad72b76a49317"
   version = "v0.8.0"
@@ -1711,9 +1714,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/CharlyF/custom-metrics-apiserver/pkg/apiserver",
-    "github.com/CharlyF/custom-metrics-apiserver/pkg/cmd",
-    "github.com/CharlyF/custom-metrics-apiserver/pkg/provider",
     "github.com/DataDog/agent-payload/gogen",
     "github.com/DataDog/gohai/cpu",
     "github.com/DataDog/gohai/filesystem",
@@ -1753,6 +1753,9 @@
     "github.com/hectane/go-acl",
     "github.com/k-sone/snmpgo",
     "github.com/kardianos/osext",
+    "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver",
+    "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd",
+    "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
     "github.com/lxn/walk",
     "github.com/lxn/win",
     "github.com/mholt/archiver",
@@ -1760,6 +1763,8 @@
     "github.com/openshift/api/quota/v1",
     "github.com/patrickmn/go-cache",
     "github.com/pkg/errors",
+    "github.com/prometheus/client_golang/prometheus",
+    "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/samuel/go-zookeeper/zk",
     "github.com/sbinet/go-python",
     "github.com/shirou/gopsutil/cpu",
