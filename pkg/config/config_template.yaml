@@ -667,6 +667,12 @@ api_key:
 #   nettracer_socket: /opt/datadog-agent/run/nettracer.sock
 #   The full path to the file where network-tracer logs will be written.
 #   log_file: /var/log/datadog/network-tracer.log
+#   Whether the tracer should disable collection for TCP
+#   disable_tcp: false
+#   Whether the tracer should disable collection for UDP
+#   disable_udp: false
+#   Whether the tracer should disable collection for IPv6
+#   disable_ipv6: false
 {{ end -}}
 
 {{- if .TraceAgent }}
