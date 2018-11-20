@@ -16,7 +16,8 @@ import (
 	"k8s.io/metrics/pkg/apis/external_metrics"
 
 	"fmt"
-	"github.com/CharlyF/custom-metrics-apiserver/pkg/provider"
+
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 )
 
 type mockDatadogProvider struct {
