@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -201,8 +202,25 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 func TestDefaultValues(t *testing.T) {
 	agentConfig := make(Config)
 	FromAgentConfig(agentConfig)
-
 	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
+}
+
+func TestConverter(t *testing.T) {
+	require := require.New(t)
+	cfg, err := GetAgentConfig("./tests/datadog.conf")
+	require.NoError(err)
+	err = FromAgentConfig(cfg)
+	require.NoError(err)
+
+	require.True(config.Datadog.GetBool("hostname_fqdn"))
+	require.Equal("staging", config.Datadog.GetString("apm_config.env"))
+	require.Equal(1, config.Datadog.GetInt("apm_config.extra_sample_rate"))
+	require.Equal(10., config.Datadog.GetFloat64("apm_config.max_traces_per_second"))
+	require.Equal(8126, config.Datadog.GetInt("apm_config.receiver_port"))
+	require.Equal([]string{
+		"GET|POST /healthcheck",
+		"GET /V1",
+	}, config.Datadog.GetStringSlice("apm_config.ignore_resources"))
 }
 
 func TestExtractURLAPIKeys(t *testing.T) {

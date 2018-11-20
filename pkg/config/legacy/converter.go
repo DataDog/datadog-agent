@@ -138,11 +138,11 @@ func FromAgentConfig(agentConfig Config) error {
 		}
 	}
 
-	if agentConfig["env"] != "" {
-		configConverter.Set("apm_config.env", agentConfig["env"])
+	if agentConfig["trace.config.env"] != "" {
+		configConverter.Set("apm_config.env", agentConfig["trace.config.env"])
 	}
 
-	if receiverPort, err := strconv.Atoi(agentConfig["receiver_port"]); err == nil {
+	if receiverPort, err := strconv.Atoi(agentConfig["trace.receiver.receiver_port"]); err == nil {
 		configConverter.Set("apm_config.receiver_port", receiverPort)
 	}
 
@@ -153,16 +153,24 @@ func FromAgentConfig(agentConfig Config) error {
 		}
 	}
 
-	if sampleRate, err := strconv.ParseFloat(agentConfig["extra_sample_rate"], 64); err == nil {
+	if sampleRate, err := strconv.ParseFloat(agentConfig["trace.sampler.extra_sample_rate"], 64); err == nil {
 		configConverter.Set("apm_config.extra_sample_rate", sampleRate)
 	}
 
-	if maxTraces, err := strconv.ParseFloat(agentConfig["max_traces_per_second"], 64); err == nil {
+	if maxTraces, err := strconv.ParseFloat(agentConfig["trace.sampler.max_traces_per_second"], 64); err == nil {
 		configConverter.Set("apm_config.max_traces_per_second", maxTraces)
 	}
 
-	if agentConfig["resource"] != "" {
-		configConverter.Set("apm_config.ignore_resources", strings.Split(agentConfig["resource"], ","))
+	if v := agentConfig["trace.ignore.resource"]; v != "" {
+		var err error
+		r := strings.Split(v, ",")
+		for i := range r {
+			r[i], err = strconv.Unquote(r[i])
+			if err != nil {
+				return err
+			}
+		}
+		configConverter.Set("apm_config.ignore_resources", r)
 	}
 
 	configConverter.Set("hostname_fqdn", true)
