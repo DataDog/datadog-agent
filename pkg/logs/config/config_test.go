@@ -25,7 +25,6 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, true, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
 	assert.Equal(t, 100, LogsAgent.GetInt("logs_config.open_files_limit"))
 	assert.Equal(t, 9000, LogsAgent.GetInt("logs_config.frame_size"))
-	assert.Equal(t, -1, LogsAgent.GetInt("logs_config.tcp_forward_port"))
 	assert.Equal(t, "", LogsAgent.GetString("logs_config.socks5_proxy_address"))
 	assert.Equal(t, "", LogsAgent.GetString("logs_config.logs_dd_url"))
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.logs_no_ssl"))
@@ -36,18 +35,12 @@ func TestDefaultSources(t *testing.T) {
 	var sources []*LogSource
 	var source *LogSource
 
-	LogsAgent.Set("logs_config.tcp_forward_port", 1234)
 	LogsAgent.Set("logs_config.container_collect_all", true)
 
 	sources = DefaultSources()
-	assert.Equal(t, 2, len(sources))
+	assert.Equal(t, 1, len(sources))
 
 	source = sources[0]
-	assert.Equal(t, "tcp_forward", source.Name)
-	assert.Equal(t, TCPType, source.Config.Type)
-	assert.Equal(t, 1234, source.Config.Port)
-
-	source = sources[1]
 	assert.Equal(t, "container_collect_all", source.Name)
 	assert.Equal(t, DockerType, source.Config.Type)
 	assert.Equal(t, "docker", source.Config.Source)
