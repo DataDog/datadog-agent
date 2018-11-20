@@ -350,7 +350,6 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 
 // NodeLabels is used to fetch the labels attached to a given node.
 func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
-
 	node, err := c.Cl.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err

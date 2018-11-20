@@ -333,10 +333,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
 
 	// Enable sending traces from the Cluster Agent
-	config.BindEnvAndSetDefault("agent_host", "")
-	config.BindEnvAndSetDefault("agent_apm_port", 8126)
-	config.BindEnvAndSetDefault("agent_apm_debug_level", false)
-	config.BindEnvAndSetDefault("agent_apm_service_name", "datadog-cluster-agent")
+	config.BindEnvAndSetDefault("cluster_agent.apm.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.apm.debug_level", false)
+	config.BindEnvAndSetDefault("cluster_agent.apm.service_name", "datadog-cluster-agent")
 	setAssetFs(config)
 }
 

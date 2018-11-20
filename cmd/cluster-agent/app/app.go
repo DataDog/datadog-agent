@@ -130,13 +130,15 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Critical("no API key configured, exiting")
 		return nil
 	}
-	traceAddr := config.Datadog.GetString("agent_host")
-	tracePort := config.Datadog.GetInt("agent_apm_port")
-	traceDebug := config.Datadog.GetBool("agent_apm_debug_level")
-	serviceName := config.Datadog.GetString("agent_apm_service_name")
-	if traceAddr != "" {
+	enabled := config.Datadog.GetBool("cluster_agent.apm.enabled")
+	traceDebug := config.Datadog.GetBool("cluster_agent.apm.debug_level")
+	serviceName := config.Datadog.GetString("cluster_agent.apm.service_name")
+	// The env var for the trace host are set conventionally with the following - This is just for debugging purposes.
+	traceAddr := os.Getenv("DD_AGENT_HOST")
+	tracePort := os.Getenv("DD_TRACE_AGENT_PORT")
+
+	if enabled {
 		startOpts := []tracer.StartOption{
-			tracer.WithAgentAddr(fmt.Sprintf("%s:%d", traceAddr, tracePort)),
 			tracer.WithDebugMode(traceDebug),
 		}
 		if serviceName != "" {

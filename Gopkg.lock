@@ -1203,7 +1203,7 @@
   version = "v1.13.0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:5a7dac3c69ee4cc53ca1175c61068d27c06f324a83e84d6a9632cab47a891469"
   name = "gopkg.in/DataDog/dd-trace-go.v1"
   packages = [
     "contrib/internal/httputil",
@@ -1216,8 +1216,8 @@
     "ddtrace/tracer",
   ]
   pruneopts = ""
-  revision = ""
-  version = "v1.5.0"
+  revision = "debe776ba8e7014bc48aa87c0f6b64a502d6efec"
+  version = "v1.6.0"
 
 [[projects]]
   digest = "1:8ec1618fc3ee146af104d6c13be250f25e5976e34557d4afbfe4b28035ce6c05"
