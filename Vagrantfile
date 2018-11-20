@@ -7,7 +7,7 @@ Vagrant.configure("2") do |config|
 
     xenial.vm.network :private_network, ip: "192.168.56.101"
 
-    # config.vm.synced_folder ".", "/opt/stackstate-agent"
+    config.vm.synced_folder ".", "/opt/stackstate-agent-dev"
 
     xenial.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
@@ -23,7 +23,7 @@ Vagrant.configure("2") do |config|
 
     bionic.vm.network :private_network, ip: "192.168.56.102"
 
-    # config.vm.synced_folder ".", "/opt/stackstate-agent"
+    config.vm.synced_folder ".", "/opt/stackstate-agent-dev"
 
     bionic.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
@@ -39,7 +39,7 @@ Vagrant.configure("2") do |config|
 
     jessie.vm.network :private_network, ip: "192.168.56.103"
 
-    # config.vm.synced_folder ".", "/opt/stackstate-agent"
+    config.vm.synced_folder ".", "/opt/stackstate-agent-dev"
 
     jessie.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
@@ -55,7 +55,7 @@ Vagrant.configure("2") do |config|
 
     stretch.vm.network :private_network, ip: "192.168.56.104"
 
-    # config.vm.synced_folder ".", "/opt/stackstate-agent"
+    config.vm.synced_folder ".", "/opt/stackstate-agent-dev"
 
     stretch.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]

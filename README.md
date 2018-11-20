@@ -58,24 +58,16 @@ You'll find information and help on how to contribute code to this project under
 
 ## Install
 
-Prerequisites:
-
-Before installing on debian distributions like `jessie` and `stretch` you have to:
-    
-    $ sudo apt-get install apt-transport-https
-    
 To install the debian package:
 
-    $ wget -qO - https://stackstate-agent-2.s3.amazonaws.com/public.key | sudo apt-key add -
-    $ echo "deb https://stackstate-agent-2.s3.amazonaws.com stable main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
-    $ sudo apt-get update && sudo apt-get install stackstate-agent
-    $ sudo cp /etc/stackstate-agent/stackstate.yaml.example /etc/stackstate-agent/stackstate.yaml
-    $ sudo chown stackstate-agent:stackstate-agent /etc/stackstate-agent/stackstate.yaml
-    $ sudo service stackstate-agent start
+    $ curl -o- https://s3-eu-west-1.amazonaws.com/stackstate-agent-2/install_script.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
+     or
+    $ wget -qO- https://s3-eu-west-1.amazonaws.com/stackstate-agent-2/install_script.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
     
 If you wanna install a branch version use the test repository:
 
-    $ wget -qO - https://stackstate-agent-2-test.s3.amazonaws.com/public.key | sudo apt-key add -
-    $ echo "deb https://stackstate-agent-2-test.s3.amazonaws.com <PR_NAME> main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
+    $ curl -o- https://s3-eu-west-1.amazonaws.com/stackstate-agent-2-test/install_script.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
+     or
+    $ wget -qO- https://s3-eu-west-1.amazonaws.com/stackstate-agent-2-test/install_script.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
 
 and replace `PR_NAME` with the branch name (e.g. master, STAC-xxxx). 
