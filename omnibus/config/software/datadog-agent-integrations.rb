@@ -11,10 +11,10 @@ name 'datadog-agent-integrations'
 dependency 'datadog-pip'
 dependency 'datadog-agent'
 dependency 'protobuf-py'
-dependency 'unixodbc'
 
 if linux?
   # add nfsiostat script
+  dependency 'unixodbc'
   dependency 'nfsiostat'
 end
 
