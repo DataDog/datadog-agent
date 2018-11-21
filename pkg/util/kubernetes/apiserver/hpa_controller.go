@@ -30,6 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// maxRetries is the maximum number of times we try to process an autoscaler before it is dropped out of the queue.
+	maxRetries = 10
+)
+
 type PollerConfig struct {
 	gcPeriodSeconds int
 	refreshPeriod   int
@@ -63,13 +68,14 @@ type AutoscalersController struct {
 	clientSet kubernetes.Interface
 	poller    PollerConfig
 	le        LeaderElectorInterface
+	mu        sync.Mutex
 }
 
 // NewAutoscalersController returns a new AutoscalersController
 func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl hpa.DatadogClient, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) (*AutoscalersController, error) {
 	var err error
 	h := &AutoscalersController{
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoscalers"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
 	}
 
 	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
@@ -169,7 +175,10 @@ func (h *AutoscalersController) pushToGlobalStore() error {
 	localStore := h.toStore.data
 	h.toStore.data = nil
 	h.toStore.m.Unlock()
-
+	if localStore == nil {
+		log.Trace("No batched metrics to push to the Global Store")
+		return nil
+	}
 	if !h.le.IsLeader() {
 		return nil
 	}
@@ -179,9 +188,21 @@ func (h *AutoscalersController) pushToGlobalStore() error {
 }
 
 func (h *AutoscalersController) updateExternalMetrics() {
+	// We force a flush of the most up to date metrics that might remain in the batch
+	err := h.pushToGlobalStore()
+	if err != nil {
+		log.Errorf("Error while pushing external metrics to the store: %s", err)
+		return
+	}
+
+	// prevent some update to get into the store between ListAllExternalMetricValues
+	// and SetExternalMetricValues otherwise it would get erased
+	h.toStore.m.Lock()
+	defer h.toStore.m.Unlock()
+
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
-		log.Infof("Error while retrieving external metrics from the store: %s", err)
+		log.Errorf("Error while retrieving external metrics from the store: %s", err)
 		return
 	}
 
@@ -191,15 +212,18 @@ func (h *AutoscalersController) updateExternalMetrics() {
 	}
 
 	updated := h.hpaProc.UpdateExternalMetrics(emList)
-	h.toStore.m.Lock()
-	h.toStore.data = append(h.toStore.data, updated...)
-	h.toStore.m.Unlock()
+	err = h.store.SetExternalMetricValues(updated)
+	if err != nil {
+		log.Errorf("Not able to store the updated metrics in the Global Store: %v", err)
+	}
 }
 
 // gc checks if any hpas have been deleted (possibly while the Datadog Cluster Agent was
 // not running) to clean the store.
 func (h *AutoscalersController) gc() {
 	log.Infof("Starting gc run")
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	list, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
@@ -229,24 +253,46 @@ func (h *AutoscalersController) worker() {
 func (h *AutoscalersController) processNext() bool {
 	key, quit := h.queue.Get()
 	if quit {
+		log.Infof("Autoscaler queue is shutting down, stopping processing")
 		return false
 	}
-
+	log.Tracef("Processing %s", key)
 	defer h.queue.Done(key)
 
 	err := h.syncAutoscalers(key)
-	if err != nil {
-		log.Errorf("Could not sync HPAs %s", err)
-	}
+	h.handleErr(err, key)
 
+	// Debug output for unit tests only
 	if h.autoscalers != nil {
 		h.autoscalers <- key
 	}
-
 	return true
 }
 
+func (h *AutoscalersController) handleErr(err error, key interface{}) {
+	if err == nil {
+		log.Tracef("Faithfully dropping key %v", key)
+		h.queue.Forget(key)
+		return
+	}
+
+	if h.queue.NumRequeues(key) < maxRetries {
+		log.Debugf("Error syncing the autoscaler %v, will rety for another %d times: %v", key, maxRetries-h.queue.NumRequeues(key), err)
+		h.queue.AddRateLimited(key)
+		return
+	}
+	log.Errorf("Too many errors trying to sync the autoscaler %v, dropping out of the queue: %v", key, err)
+	h.queue.Forget(key)
+}
+
 func (h *AutoscalersController) syncAutoscalers(key interface{}) error {
+	if !h.le.IsLeader() {
+		log.Trace("Only the leader needs to sync the Autoscalers")
+		return nil
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	ns, name, err := cache.SplitMetaNamespaceKey(key.(string))
 	if err != nil {
 		log.Errorf("Could not split the key: %v", err)
@@ -288,19 +334,35 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 // Adding the new obj and dropping the previous one is sufficient.
 // FIXME if the metric name or scope is changed in the HPA manifest we should propagate the change
 // to the Global store here
-func (h *AutoscalersController) updateAutoscaler(_, obj interface{}) {
+func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 	newAutoscaler, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if !ok {
 		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", obj)
 		return
 	}
-	log.Tracef("Updating autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
+	oldAutoscaler, ok := old.(*autoscalingv2.HorizontalPodAutoscaler)
+	if !ok {
+		log.Errorf("Expected an HorizontalPodAutoscaler type, got: %v", old)
+		h.enqueue(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
+		return
+	}
+
+	if !hpa.AutoscalerMetricsUpdate(newAutoscaler, oldAutoscaler) {
+		log.Tracef("Update received for the %s/%s, without a relevant change to the configuration", newAutoscaler.Namespace, newAutoscaler.Name)
+		return
+	}
+	log.Debugf("Updating autoscaler %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueue(newAutoscaler)
 }
 
 // Processing the Delete Events in the Eventhandler as obj is deleted from the local store thereafter.
 // Only here can we retrieve the content of the HPA to properly process and delete it.
+// FIXME we could have an update in the queue while processing the deletion, we should make
+// sure we process them in order instead. For now, the gc logic allows us to recover.
 func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	deletedHPA, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler)
 	if ok {
 		log.Debugf("Deleting Metrics from HPA %s/%s", deletedHPA.Namespace, deletedHPA.Name)

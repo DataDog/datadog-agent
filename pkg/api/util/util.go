@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -103,12 +102,8 @@ func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
 		http.Error(w, err.Error(), 401)
 		return err
 	}
-	dcaToken := config.Datadog.GetString("cluster_agent.auth_token")
-	if dcaToken == "" {
-		dcaToken = GetDCAAuthToken()
-	}
 
-	if len(tok) != 2 || tok[1] != dcaToken {
+	if len(tok) != 2 || tok[1] != GetDCAAuthToken() {
 		err = fmt.Errorf("invalid session token")
 		http.Error(w, err.Error(), 403)
 	}

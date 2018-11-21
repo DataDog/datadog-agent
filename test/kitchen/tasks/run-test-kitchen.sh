@@ -78,7 +78,7 @@ set -x
 # on linux it can just download the latest version from the package manager
 if [ -z ${AGENT_VERSION+x} ]; then
   pushd ../..
-    export AGENT_VERSION=`inv version --url-safe --git-sha-length=8`
+    export AGENT_VERSION=`inv version --url-safe --git-sha-length=9`
   popd
 fi
 
@@ -89,6 +89,12 @@ fi
 
 chef gem install net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen
 cp .kitchen-azure.yml .kitchen.yml
+
+## check to see if we want the windows-installer tester instead
+if [[ $#  != 0 && $1 == "windows-install-test" ]]; then
+  cp .kitchen-azure-winstall.yml .kitchen.yml
+fi
+
 chef exec kitchen diagnose --no-instances --loader
 
 rm -rf cookbooks

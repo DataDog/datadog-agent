@@ -66,12 +66,17 @@ var envvarNameWhitelist = []string{
 }
 
 func getWhitelistedEnvvars() []string {
-	envVarWhiteList := append(envvarNameWhitelist, config.ConfigEnvVars...)
+	envVarWhiteList := append(envvarNameWhitelist, config.Datadog.GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
+		key := strings.ToUpper(parts[0])
+		if strings.Contains(key, "_KEY") {
+			// `_key`-suffixed env vars are sensitive: don't track them
+			continue
+		}
 		for _, whitelisted := range envVarWhiteList {
-			if parts[0] == whitelisted {
+			if key == whitelisted {
 				found = append(found, envvar)
 				continue
 			}

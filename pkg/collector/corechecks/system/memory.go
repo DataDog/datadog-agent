@@ -6,18 +6,11 @@
 package system
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 const memCheckName = "memory"
-
-// Configure the Python check from YAML data
-func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	// do nothing
-	return nil
-}
 
 func memFactory() check.Check {
 	return &MemoryCheck{

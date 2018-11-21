@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 )
@@ -108,8 +109,30 @@ func makePtr(val string) *string {
 	return &val
 }
 
+func makeAnnotations(metricName string, labels map[string]string) map[string]string {
+	return map[string]string{
+		"kubectl.kubernetes.io/last-applied-configuration": fmt.Sprintf(`
+			"kind":"HorizontalPodAutoscaler",
+			"spec":{
+				"metrics":[{
+					"external":{
+						"metricName":"%s",
+						"metricSelector":{
+							"matchLabels":{
+								%s
+							}
+						},
+					},
+					"type":"External"
+					}],
+				}
+			}"`, metricName, labels),
+	}
+}
+
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestAutoscalerController(t *testing.T) {
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "default", name, nil)
 	metricName := "foo"
@@ -118,7 +141,8 @@ func TestAutoscalerController(t *testing.T) {
 			Metric: &metricName,
 			Points: []datadog.DataPoint{
 				makePoints(1531492452000, 12),
-				makePoints(0, 14),
+				makePoints(penTime, 14),
+				makePoints(0, 25),
 			},
 			Scope: makePtr("foo:bar"),
 		},
@@ -126,7 +150,8 @@ func TestAutoscalerController(t *testing.T) {
 			Metric: &metricName,
 			Points: []datadog.DataPoint{
 				makePoints(1531492452000, 12),
-				makePoints(0, 11),
+				makePoints(penTime, 11),
+				makePoints(0, 19),
 			},
 			Scope: makePtr("dcos_version:2.1.9"),
 		},
@@ -157,6 +182,7 @@ func TestAutoscalerController(t *testing.T) {
 		"foo",
 		map[string]string{"foo": "bar"},
 	)
+	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
 	_, err := c.HorizontalPodAutoscalers("default").Create(mockedHPA)
 	require.NoError(t, err)
@@ -210,6 +236,7 @@ func TestAutoscalerController(t *testing.T) {
 			},
 		},
 	}
+	mockedHPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
 	_, err = c.HorizontalPodAutoscalers(mockedHPA.Namespace).Update(mockedHPA)
 	require.NoError(t, err)
 	select {
@@ -261,9 +288,8 @@ func TestAutoscalerController(t *testing.T) {
 
 func TestAutoscalerSync(t *testing.T) {
 	client := fake.NewSimpleClientset()
-	i := &fakeLeaderElector{}
 	d := &fakeDatadogClient{}
-	hctrl, inf := newFakeAutoscalerController(client, i, d)
+	hctrl, inf := newFakeAutoscalerController(client, alwaysLeader, d)
 	obj := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
 		"default",
@@ -309,6 +335,19 @@ func TestAutoscalerControllerGC(t *testing.T) {
 					Name:      "foo",
 					Namespace: "default",
 					UID:       "1111",
+				},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "requests_per_s",
+								MetricSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{"bar": "baz"},
+								},
+							},
+						},
+					},
 				},
 			},
 			expected: []custommetrics.ExternalMetricValue{ // skipped by gc

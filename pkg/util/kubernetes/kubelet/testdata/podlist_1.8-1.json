@@ -246,7 +246,19 @@
             },
             "terminationMessagePath": "/dev/termination-log",
             "terminationMessagePolicy": "File",
-            "imagePullPolicy": "IfNotPresent"
+            "imagePullPolicy": "IfNotPresent",
+            "ports": [
+              {
+                "hostPort": 80,
+                "containerPort": 80,
+                "protocol": "TCP"
+              },
+              {
+                "hostPort": 443,
+                "containerPort": 443,
+                "protocol": "TCP"
+              }
+            ]
           }
         ],
         "restartPolicy": "Always",
@@ -731,7 +743,18 @@
             ],
             "terminationMessagePath": "/dev/termination-log",
             "terminationMessagePolicy": "File",
-            "imagePullPolicy": "Always"
+            "imagePullPolicy": "Always",
+            "ports": [
+                {
+                  "containerPort": 6379,
+                  "protocol": "TCP"
+                },
+                {
+                  "hostPort": 1337,
+                  "containerPort": 1337,
+                  "protocol": "TCP"
+                }
+            ]
           }
         ],
         "restartPolicy": "Always",

@@ -10,6 +10,6 @@ ifthenelse
         foreground { /bin/s6-svc -d /var/run/s6/services/process/log }
     }
     {
-        foreground { /initlog.sh "trace-agent exited with code ${1}, signal ${2}, restarting in 2 seconds" }
+        foreground { /initlog.sh "process-agent exited with code ${1}, signal ${2}, restarting in 2 seconds" }
         foreground { s6-sleep 2 }
     }

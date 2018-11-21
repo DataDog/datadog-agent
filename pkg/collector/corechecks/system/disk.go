@@ -10,10 +10,11 @@ import (
 	"regexp"
 	"strings"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -31,7 +32,7 @@ type diskConfig struct {
 	excludedMountpointRe *regexp.Regexp
 	allPartitions        bool
 	deviceTagRe          map[*regexp.Regexp][]string
-	customeTags          []string
+	customTags           []string
 }
 
 func (c *DiskCheck) excludeDisk(mountpoint, device, fstype string) bool {
@@ -78,7 +79,7 @@ func (c *DiskCheck) excludeDisk(mountpoint, device, fstype string) bool {
 	return false
 }
 
-func (c *DiskCheck) commonConfigure(data integration.Data) error {
+func (c *DiskCheck) instanceConfigure(data integration.Data) error {
 	conf := make(map[interface{}]interface{})
 	c.cfg = &diskConfig{}
 	err := yaml.Unmarshal([]byte(data), &conf)
@@ -148,10 +149,10 @@ func (c *DiskCheck) commonConfigure(data integration.Data) error {
 
 	tags, found := conf["tags"]
 	if tags, ok := tags.([]interface{}); found && ok {
-		c.cfg.customeTags = make([]string, 0, len(tags))
+		c.cfg.customTags = make([]string, 0, len(tags))
 		for _, tag := range tags {
 			if tag, ok := tag.(string); ok {
-				c.cfg.customeTags = append(c.cfg.customeTags, tag)
+				c.cfg.customTags = append(c.cfg.customTags, tag)
 			}
 		}
 	}

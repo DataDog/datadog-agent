@@ -1,0 +1,53 @@
+init_config:
+
+instances:
+  # The use_mount parameter will instruct the check to collect disk
+  # and fs metrics using mount points instead of volumes
+  - use_mount: false
+    # The (optional) excluded_filesystems parameter will instruct the check to
+    # ignore disks using these filesystems. Note: On some linux distributions,
+    # rootfs will be found and tagged as a device, add rootfs here to exclude.
+    # excluded_filesystems:
+    #   - tmpfs
+
+    # The (optional) excluded_disks parameter will instruct the check to
+    # ignore this list of disks.
+    # Linux example:
+    # excluded_disks:
+    #   - /dev/sda1
+    #   - /dev/sda2
+    #
+    # The (optional) excluded_disk_re parameter will instruct the check to
+    # ignore all disks matching this regex.
+    # excluded_disk_re: /dev/sde.*
+    #
+    # The (optional) tag_by_filesystem parameter will instruct the check to
+    # tag all disks with their filesystem (for ex: filesystem:nfs).
+    # tag_by_filesystem: false
+    #
+    # The (optional) excluded_mountpoint_re parameter will instruct the check to
+    # ignore all mountpoints matching this regex.
+    # excluded_mountpoint_re: /mnt/somebody-elses-problem.*
+    #
+    # The (optional) all_partitions parameter will instruct the check to
+    # get metrics for all partitions. use_mount should be set to yes (to avoid
+    # collecting empty device names) when using this option.
+    # all_partitions: false
+    #
+    # The (optional) device_tag_re parameter will instruct the check to apply additional tags to
+    # volumes/mountpoints matching these regexes. Multiple comma-separated tags are supported.
+    # You must properly quote the string if the pattern contains special characters e.g. colons.
+    # Character casing is ignored on Windows.
+    # device_tag_re:
+    #  /san/.*: device_type:san
+    #  /dev/sda3: role:db,disk_size:large
+    #  "c:": volume:boot
+    #
+    # The (optional) tags parameter allows you to customize tags for the instance
+    # tags:
+    #   - optional_tag1
+    #   - optional_tag2
+    #
+    # The (optional) service_check_rw parameter notifies when one of the partitions is in
+    # read-only mode
+    # service_check_rw: false

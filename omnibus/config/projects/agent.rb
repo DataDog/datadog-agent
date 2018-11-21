@@ -115,11 +115,6 @@ dependency 'cacerts'
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
-# Windows-specific dependencies
-if windows?
-  dependency 'pywin32'
-end
-
 # Datadog agent
 dependency 'datadog-agent'
 
@@ -130,7 +125,7 @@ dependency 'jmxfetch'
 
 # External agents
 dependency 'datadog-trace-agent'
-dependency 'datadog-process-agent'
+dependency 'datadog-process-agent' # Includes network-tracer
 
 if osx?
   dependency 'datadog-agent-mac-app'
@@ -157,13 +152,19 @@ dependency 'datadog-agent-finalize'
 if linux?
   extra_package_file '/etc/init/datadog-agent.conf'
   extra_package_file '/etc/init/datadog-agent-process.conf'
+  extra_package_file '/etc/init/datadog-agent-network.conf'
   extra_package_file '/etc/init/datadog-agent-trace.conf'
   systemd_directory = "/usr/lib/systemd/system"
   if debian?
     systemd_directory = "/lib/systemd/system"
+
+    extra_package_file "/etc/init.d/datadog-agent"
+    extra_package_file "/etc/init.d/datadog-agent-process"
+    extra_package_file "/etc/init.d/datadog-agent-trace"
   end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"
+  extra_package_file "#{systemd_directory}/datadog-agent-network.service"
   extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/usr/bin/dd-agent'

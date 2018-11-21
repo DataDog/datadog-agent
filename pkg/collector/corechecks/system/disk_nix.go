@@ -10,11 +10,12 @@ package system
 import (
 	"fmt"
 
+	"github.com/shirou/gopsutil/disk"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/disk"
 )
 
 // for testing
@@ -72,11 +73,11 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 			continue
 		}
 
-		tags := make([]string, len(c.cfg.customeTags), len(c.cfg.customeTags)+2)
-		copy(tags, c.cfg.customeTags)
+		tags := make([]string, len(c.cfg.customTags), len(c.cfg.customTags)+2)
+		copy(tags, c.cfg.customTags)
 
 		if c.cfg.tagByFilesystem {
-			tags = append(tags, fmt.Sprintf("filesystem:%s", partition.Fstype))
+			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
 		}
 		var deviceName string
 		if c.cfg.useMount {
@@ -101,8 +102,8 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	}
 	for deviceName, ioCounter := range iomap {
 
-		tags := make([]string, len(c.cfg.customeTags), len(c.cfg.customeTags)+1)
-		copy(tags, c.cfg.customeTags)
+		tags := make([]string, len(c.cfg.customTags), len(c.cfg.customTags)+1)
+		copy(tags, c.cfg.customTags)
 		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
 
 		tags = c.applyDeviceTags(deviceName, "", tags)
@@ -142,6 +143,9 @@ func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOC
 
 // Configure the disk check
 func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.commonConfigure(data)
-	return err
+	err := c.CommonConfigure(data)
+	if err != nil {
+		return err
+	}
+	return c.instanceConfigure(data)
 }

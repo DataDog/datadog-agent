@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Disk check support for the puppy agent
+    Disk check support for the puppy agent on unix-like systems

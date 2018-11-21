@@ -40,10 +40,10 @@
     </Upgrade>
 
     <!-- Close application when uninstalling -->
-    <util:CloseApplication Id="CloseTrayApp" 
-                          CloseMessage="yes" 
+    <util:CloseApplication Id="CloseTrayApp"
+                          CloseMessage="yes"
                           EndSessionMessage="yes"
-                          Target="ddtray.exe" 
+                          Target="ddtray.exe"
                           ElevatedCloseMessage="yes"
                           TerminateProcess="1"
                           Timeout="1"
@@ -155,6 +155,21 @@
           <RegistryValue Name="cmd_port"
                          Type="string"
                          Value="[CMD_PORT]" />
+          <RegistryValue Name="site"
+                         Type="string"
+                         Value="[SITE]" />
+          <RegistryValue Name="dd_url"
+                         Type="string"
+                         Value="[DD_URL]" />
+          <RegistryValue Name="logs_dd_url"
+                         Type="string"
+                         Value="[LOGS_DD_URL]" />
+          <RegistryValue Name="process_dd_url"
+                         Type="string"
+                         Value="[PROCESS_DD_URL]" />
+          <RegistryValue Name="trace_dd_url"
+                         Type="string"
+                         Value="[TRACE_DD_URL]" />
         </RegistryKey>
 
       </Component>
@@ -341,6 +356,17 @@
         </Component>
       </Directory>
 
+      <!-- Directory to store the registry that keep track of tailed file offsets -->
+      <Directory Id="REGISTRYDIRECTORY" Name="run">
+        <Component Id="REGISTRYDIRECTORY"
+                   Guid="5acf7ec1-3bcf-40d7-8840-f8de8a472c3c"
+                   Permanent="yes"
+                   Location="either"
+                   NeverOverwrite="yes">
+          <CreateFolder/>
+        </Component>
+      </Directory>
+
       <Directory Id="EXAMPLECONFSLOCATION" Name= "conf.d">
         <Component Id="conf.d"
                    Guid="54fcfacb-726b-46e3-a699-ec19258a24be"
@@ -424,6 +450,7 @@
       <ComponentRef Id="cache" />
       <ComponentRef Id="current_metadata" />
       <ComponentRef Id="previous_metadata" />
+      <ComponentRef Id="REGISTRYDIRECTORY" />
       <ComponentRef Id="root.json" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
@@ -541,7 +568,7 @@
 
    <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />
     <Binary Id="BackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
-    
+
     <Property Id="ShortCompanyName" Value="!(loc.CompanyNameShort)" />
 
   </Product>

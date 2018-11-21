@@ -6,9 +6,11 @@
 package status
 
 import (
+	"expvar"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 var (
@@ -49,8 +51,18 @@ func Initialize(sources *config.LogSources) {
 	}
 }
 
+// Clear clears the status (which means it needs to be initialized again to be used).
+func Clear() {
+	builder = nil
+}
+
 // Get returns the status of the logs-agent computed on the fly.
 func Get() Status {
+	if builder == nil {
+		return Status{
+			IsRunning: false,
+		}
+	}
 	// Sort sources by name (ie. by integration name ~= file name)
 	sources := make(map[string][]*config.LogSource)
 	for _, source := range builder.sources.GetSources() {
@@ -126,4 +138,13 @@ func toDictionary(c *config.LogsConfig) map[string]interface{} {
 		}
 	}
 	return dictionary
+}
+
+func init() {
+	metrics.LogsExpvars.Set("Warnings", expvar.Func(func() interface{} {
+		return strings.Join(Get().Messages, ", ")
+	}))
+	metrics.LogsExpvars.Set("IsRunning", expvar.Func(func() interface{} {
+		return Get().IsRunning
+	}))
 }

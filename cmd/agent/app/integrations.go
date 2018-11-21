@@ -10,10 +10,12 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -24,17 +26,80 @@ import (
 )
 
 const (
-	constraintsFile = "agent_requirements.txt"
-	tufConfigFile   = "public-tuf-config.json"
-	tufPkgPattern   = "datadog-.*"
+	tufConfigFile       = "public-tuf-config.json"
+	reqAgentReleaseFile = "requirements-agent-release.txt"
+	tufPkgPattern       = "datadog(-|_).*"
+	tufIndex            = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
+	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
+	yamlFilePattern     = "[\\w_]+\\.yaml.*"
 )
 
 var (
 	allowRoot    bool
 	withoutTuf   bool
+	inToto       bool
+	verbose      bool
 	useSysPython bool
 	tufConfig    string
 )
+
+type integrationVersion struct {
+	major int
+	minor int
+	fix   int
+}
+
+// Parse a version string.
+// Return the version, or nil empty string
+func parseVersion(version string) (*integrationVersion, error) {
+	var major, minor, fix int
+	if version == "" {
+		return nil, nil
+	}
+	_, err := fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &fix)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse version string %s: %v", version, err)
+	}
+	return &integrationVersion{major, minor, fix}, nil
+}
+
+func (v *integrationVersion) String() string {
+	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.fix)
+}
+
+func (v *integrationVersion) isAboveOrEqualTo(otherVersion *integrationVersion) bool {
+	if otherVersion == nil {
+		return true
+	}
+
+	if v.major > otherVersion.major {
+		return true
+	} else if v.major < otherVersion.major {
+		return false
+	}
+
+	if v.minor > otherVersion.minor {
+		return true
+	} else if v.minor < otherVersion.minor {
+		return false
+	}
+
+	if v.fix > otherVersion.fix {
+		return true
+	} else if v.fix < otherVersion.fix {
+		return false
+	}
+
+	return true
+}
+
+func (v *integrationVersion) equals(otherVersion *integrationVersion) bool {
+	if otherVersion == nil {
+		return false
+	}
+
+	return v.major == otherVersion.major && v.minor == otherVersion.minor && v.fix == otherVersion.fix
+}
 
 func init() {
 	AgentCmd.AddCommand(tufCmd)
@@ -43,16 +108,13 @@ func init() {
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.AddCommand(freezeCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
+	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
+	tufCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
 	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
 	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
-	tufCmd.PersistentFlags().StringSlice("cmd-flags", []string{}, "command flags to pass onto pip (comma-separated or multiple flags)")
-	tufCmd.PersistentFlags().StringSlice("idx-flags", []string{}, "index flags to pass onto pip (comma-separated or multiple flags). "+
-		"Some flags may not work with TUF enabled")
 
 	// Power user flags - mark as hidden
-	tufCmd.PersistentFlags().MarkHidden("cmd-flags")
-	tufCmd.PersistentFlags().MarkHidden("idx-flags")
 	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
 }
 
@@ -65,8 +127,11 @@ var tufCmd = &cobra.Command{
 var installCmd = &cobra.Command{
 	Use:   "install [package]",
 	Short: "Install Datadog integration core/extra packages",
-	Long:  ``,
-	RunE:  installTuf,
+	Long: `Install Datadog integration core/extra packages
+You must specify a version of the package to install using the syntax: <package>==<version>, with
+ - <package> of the form datadog-<integration-name>
+ - <version> of the form x.y.z`,
+	RunE: installTuf,
 }
 
 var removeCmd = &cobra.Command{
@@ -111,19 +176,6 @@ func getCommandPython() (string, error) {
 	}
 
 	return pyPath, nil
-}
-
-func getConstraintsFilePath() (string, error) {
-	here, _ := executable.Folder()
-	cPath := filepath.Join(here, relConstraintsPath)
-
-	if _, err := os.Stat(cPath); err != nil {
-		if os.IsNotExist(err) {
-			return cPath, err
-		}
-	}
-
-	return cPath, nil
 }
 
 func getTUFConfigFilePath() (string, error) {
@@ -184,33 +236,48 @@ func tuf(args []string) error {
 	implicitFlags = append(implicitFlags, "--disable-pip-version-check")
 	args = append([]string{"-mpip"}, cmd)
 
-	// Add pip power-user flags
-	// cmd-flags go before the actual command
-	cmdFlags, err := tufCmd.Flags().GetStringSlice("cmd-flags")
-	if err == nil {
-		args = append(args, cmdFlags...)
+	if verbose {
+		args = append(args, "-vvv")
 	}
+
+	// Append implicit flags to the *pip* command
 	args = append(args, implicitFlags...)
+
+	tufCmd := exec.Command(pipPath, args...)
+	tufCmd.Env = os.Environ()
 
 	// Proxy support
 	proxies := config.GetProxies()
 	if proxies != nil {
-		proxyFlags := fmt.Sprintf("--proxy=%s", proxies.HTTPS)
-		args = append(args, proxyFlags)
+		tufCmd.Env = append(tufCmd.Env,
+			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
+			fmt.Sprintf("HTTPS_PROXY=%s", proxies.HTTPS),
+			fmt.Sprintf("NO_PROXY=%s", strings.Join(proxies.NoProxy, ",")),
+		)
 	}
-
-	// idx-flags go after the command and implicit flags
-	idxFlags, err := tufCmd.Flags().GetStringSlice("idx-flags")
-	if err == nil {
-		args = append(args, idxFlags...)
-	}
-
-	tufCmd := exec.Command(pipPath, args...)
 
 	if !withoutTuf {
-		tufCmd.Env = append(os.Environ(),
+		tufCmd.Env = append(tufCmd.Env,
 			fmt.Sprintf("TUF_CONFIG_FILE=%s", tufPath),
 		)
+
+		// Enable tuf logging
+		if verbose {
+			tufCmd.Env = append(tufCmd.Env,
+				"TUF_ENABLE_LOGGING=1",
+			)
+		}
+
+		// Enable phase 1, aka in-toto
+		if inToto {
+			tufCmd.Env = append(tufCmd.Env,
+				"TUF_DOWNLOAD_IN_TOTO_METADATA=1",
+			)
+		}
+	} else {
+		if inToto {
+			return errors.New("--in-toto conflicts with --no-tuf")
+		}
 	}
 
 	// forward the standard output to the Agent logger
@@ -251,9 +318,9 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	constraintsPath, err := getConstraintsFilePath()
-	if err != nil {
-		return err
+	// Additional verification for installation
+	if len(strings.Split(args[0], "==")) != 2 {
+		return fmt.Errorf("you must specify a version to install with <package>==<version>")
 	}
 
 	cachePath, err := getTUFPipCachePath()
@@ -261,15 +328,242 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	intVer := strings.Split(args[0], "==")
+	integration := strings.Replace(strings.TrimSpace(intVer[0]), "_", "-", -1)
+	if integration == "datadog-checks-base" {
+		return fmt.Errorf("this command does not allow installing datadog-checks-base")
+	}
+	versionToInstall, err := parseVersion(strings.TrimSpace(intVer[1]))
+	if err != nil || versionToInstall == nil {
+		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
+	}
+	currentVersion, err := installedVersion(integration, cachePath)
+	if err != nil {
+		return fmt.Errorf("could not get current version of %s: %v", integration, err)
+	}
+
+	if versionToInstall.equals(currentVersion) {
+		fmt.Printf("%s %s is already installed. Nothing to do.\n", integration, versionToInstall)
+		return nil
+	}
+
+	minVersion, err := minAllowedVersion(integration)
+	if err != nil {
+		return fmt.Errorf("unable to get minimal version of %s: %v", integration, err)
+	}
+	if !versionToInstall.isAboveOrEqualTo(minVersion) {
+		return fmt.Errorf(
+			"this command does not allow installing version %s of %s older than version %s shipped with the agent",
+			versionToInstall, integration, minVersion,
+		)
+	}
+
+	// Run pip check first to see if the python environment is clean
+	if err := pipCheck(cachePath); err != nil {
+		return fmt.Errorf(
+			"error when validating the agent's python environment, won't install %s: %v",
+			integration, err,
+		)
+	}
+
 	tufArgs := []string{
 		"install",
 		"--cache-dir", cachePath,
-		"-c", constraintsPath,
+		// We replace the PyPI index with our own by default, in order to prevent
+		// accidental installation of Datadog or even third-party packages from
+		// PyPI.
+		"--index-url", tufIndex,
+		// Do *not* install dependencies by default. This is partly to prevent
+		// accidental installation / updates of third-party dependencies from PyPI.
+		"--no-deps",
 	}
 
-	tufArgs = append(tufArgs, args...)
+	// Install the wheel
+	if err := tuf(append(tufArgs, args[0])); err != nil {
+		return err
+	}
 
-	return tuf(tufArgs)
+	// Run pip check to determine if the installed integration is compatible with the base check version
+	pipErr := pipCheck(cachePath)
+	if pipErr == nil {
+		err := moveConfigurationFilesOf(integration)
+		if err == nil {
+			fmt.Println(color.GreenString(fmt.Sprintf(
+				"Successfully installed %s %s", integration, versionToInstall,
+			)))
+			return nil
+		}
+
+		fmt.Printf("Installed %s %s", integration, versionToInstall)
+		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+	}
+
+	// We either detected a mismatch, or we failed to run pip check
+	// Either way, roll back the install and return the error
+	if currentVersion == nil {
+		// Special case where we tried to install a new integration, not yet released with the agent
+		tufArgs = []string{
+			"uninstall",
+			integration,
+			"-y",
+		}
+	} else {
+		tufArgs = append(tufArgs, fmt.Sprintf("%s==%s", integration, currentVersion))
+	}
+
+	// Perform the rollback
+	tufErr := tuf(tufArgs)
+	if tufErr == nil {
+		// Rollback successful, return error encountered during `pip check`
+		return fmt.Errorf(
+			"error when validating the agent's python environment, %s wasn't installed: %v",
+			integration, pipErr,
+		)
+	}
+
+	// Rollback failed, mention that the integration could be broken
+	return fmt.Errorf(
+		"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken:\n - %v\n- %v",
+		integration, versionToInstall, pipErr, tufErr,
+	)
+}
+
+func minAllowedVersion(integration string) (*integrationVersion, error) {
+	here, _ := executable.Folder()
+	lines, err := ioutil.ReadFile(filepath.Join(here, relReqAgentReleasePath))
+	if err != nil {
+		return nil, err
+	}
+	version, err := getVersionFromReqLine(integration, string(lines))
+	if err != nil {
+		return nil, err
+	}
+
+	return version, nil
+}
+
+// Return the version of an installed integration, or nil if the integration isn't installed
+func installedVersion(integration string, cachePath string) (*integrationVersion, error) {
+	pythonPath, err := getCommandPython()
+	if err != nil {
+		return nil, err
+	}
+
+	freezeCmd := exec.Command(pythonPath, "-mpip", "freeze", "--cache-dir", cachePath)
+	output, err := freezeCmd.Output()
+
+	if err != nil {
+		errMsg := ""
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			errMsg = string(exitErr.Stderr)
+		} else {
+			errMsg = err.Error()
+		}
+
+		return nil, fmt.Errorf("error executing pip freeze: %s", errMsg)
+	}
+
+	version, err := getVersionFromReqLine(integration, string(output))
+	if err != nil {
+		return nil, err
+	}
+
+	return version, nil
+}
+
+// Parse requirements lines to get a package version.
+// Returns the version if found, or nil if package not present
+func getVersionFromReqLine(integration string, lines string) (*integrationVersion, error) {
+	exp, err := regexp.Compile(fmt.Sprintf(reqLinePattern, integration))
+	if err != nil {
+		return nil, fmt.Errorf("internal error: %v", err)
+	}
+
+	groups := exp.FindAllStringSubmatch(lines, 2)
+	if groups == nil {
+		return nil, nil
+	}
+
+	if len(groups) > 1 {
+		return nil, fmt.Errorf("Found several matches for %s version in %s\nAborting", integration, lines)
+	}
+
+	version, err := parseVersion(groups[0][1])
+	if err != nil {
+		return nil, err
+	}
+	return version, nil
+}
+
+func pipCheck(cachePath string) error {
+	pythonPath, err := getCommandPython()
+	if err != nil {
+		return err
+	}
+
+	checkCmd := exec.Command(pythonPath, "-mpip", "check", "--cache-dir", cachePath)
+	output, err := checkCmd.CombinedOutput()
+
+	if err == nil {
+		// Clean python environment
+		return nil
+	}
+
+	if _, ok := err.(*exec.ExitError); ok {
+		return fmt.Errorf("error executing pip check: %v", string(output))
+	}
+
+	return fmt.Errorf("error executing pip check: %v", err)
+}
+
+func moveConfigurationFilesOf(integration string) error {
+	confFolder := config.Datadog.GetString("confd_path")
+	check := strings.TrimPrefix(integration, "datadog-")
+	if check != "go-metro" {
+		check = strings.Replace(check, "-", "_", -1)
+	}
+	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
+	if err := os.MkdirAll(confFileDest, os.ModeDir); err != nil {
+		return err
+	}
+
+	here, _ := executable.Folder()
+	confFileSrc := filepath.Join(here, relChecksPath, check, "data")
+	return moveConfigurationFiles(confFileSrc, confFileDest)
+}
+
+func moveConfigurationFiles(srcFolder string, dstFolder string) error {
+	files, err := ioutil.ReadDir(srcFolder)
+	if err != nil {
+		return err
+	}
+
+	exp, err := regexp.Compile(yamlFilePattern)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+	errorMsg := ""
+	for _, file := range files {
+		filename := file.Name()
+		// Replace existing file
+		if !exp.MatchString(filename) {
+			continue
+		}
+		src := filepath.Join(srcFolder, filename)
+		dst := filepath.Join(dstFolder, filename)
+		err = os.Rename(src, dst)
+		if err != nil {
+			errorMsg = fmt.Sprintf("%s\nError moving configuration file %s: %v", errorMsg, filename, err)
+			continue
+		}
+		fmt.Println(color.GreenString(fmt.Sprintf(
+			"Successfully moved configuration file %s", filename,
+		)))
+	}
+	if errorMsg != "" {
+		return fmt.Errorf(errorMsg)
+	}
+	return nil
 }
 
 func removeTuf(cmd *cobra.Command, args []string) error {
@@ -288,10 +582,14 @@ func removeTuf(cmd *cobra.Command, args []string) error {
 
 func searchTuf(cmd *cobra.Command, args []string) error {
 
-	// NOTE: search will always go to pypi, Our TUF repository doesn't
+	// NOTE: search will always go to our TUF repository, which doesn't
 	//       support searching currently.
 	tufArgs := []string{
 		"search",
+		// We replace the PyPI index with our own by default, in order to prevent
+		// accidental installation of Datadog or even third-party packages from
+		// PyPI.
+		"--index", tufIndex,
 	}
 	tufArgs = append(tufArgs, args...)
 

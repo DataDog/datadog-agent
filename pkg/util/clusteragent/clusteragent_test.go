@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,10 +30,13 @@ import (
 )
 
 type dummyClusterAgent struct {
-	node      map[string]map[string]string
-	responses map[string][]string
+	node         map[string]map[string]string
+	responses    map[string][]string
+	rawResponses map[string]string
+	requests     chan *http.Request
 	sync.RWMutex
-	token string
+	token       string
+	redirectURL string
 }
 
 func newDummyClusterAgent() (*dummyClusterAgent, error) {
@@ -56,17 +60,45 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			"pod/node2/bar/pod-00005": {"kube_service:svc3"},
 			"pod/node2/bar/pod-00006": {},
 		},
-		token: config.Datadog.GetString("cluster_agent.auth_token"),
+		rawResponses: map[string]string{},
+		token:        config.Datadog.GetString("cluster_agent.auth_token"),
+		requests:     make(chan *http.Request, 6),
 	}
 	return dca, nil
 }
 
 func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("dummyDCA received %s on %s", r.Method, r.URL.Path)
+	d.requests <- r
+
 	token := r.Header.Get("Authorization")
+	if token == "" {
+		log.Errorf("no token provided")
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	if token != fmt.Sprintf("Bearer %s", d.token) {
 		log.Errorf("wrong token %s", token)
 		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	// Handle http redirect
+	d.RLock()
+	redirectURL := d.redirectURL
+	d.RUnlock()
+	if redirectURL != "" {
+		url, _ := url.Parse(redirectURL)
+		url.Path = r.URL.Path
+		http.Redirect(w, r, url.String(), http.StatusFound)
+	}
+
+	// Handle raw responses if listed
+	d.RLock()
+	response, found := d.rawResponses[r.URL.Path]
+	d.RUnlock()
+	if found {
+		w.Write([]byte(response))
 		return
 	}
 
@@ -127,6 +159,15 @@ func (d *dummyClusterAgent) parsePort(ts *httptest.Server) (*httptest.Server, in
 func (d *dummyClusterAgent) StartTLS() (*httptest.Server, int, error) {
 	ts := httptest.NewTLSServer(d)
 	return d.parsePort(ts)
+}
+
+func (d *dummyClusterAgent) PopRequest() *http.Request {
+	select {
+	case r := <-d.requests:
+		return r
+	case <-time.After(100 * time.Millisecond):
+		return nil
+	}
 }
 
 type clusterAgentSuite struct {

@@ -1,0 +1,33 @@
+# This file is overwritten upon Agent upgrade.
+# To make modifications to the check configuration, please copy this file
+# to `network.yaml` and make your changes on that file.
+
+init_config:
+
+instances:
+  # Network check only supports one configured instance
+  - collect_connection_state: false
+    excluded_interfaces:
+      - lo
+      - lo0
+    # Optionally completely ignore any network interface
+    # matching the given regex:
+    # excluded_interface_re: my-network-interface.*
+
+    # Do not combine connection states
+    # By default we combine states like fin_wait_1 and fin_wait_2
+    # together into one state: 'closing'
+    # For some people, this is fine, but others need more granular data
+    # enable this option to get more granular data
+    # combine_connection_states: no
+
+    # By default, most metrics are submitted as rates.
+    # However, some metrics like tcp/udp retransmissions and errors are
+    # better handled as counts.
+    # You can choose to enable either or both types of metrics.
+    # Count metrics will have '.count' added to the metric name.
+    # collect_rate_metrics: true
+    # collect_count_metrics: false
+
+    # tags:
+    #   - optional:tag1

@@ -6,11 +6,10 @@
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultExpiry = 300.0 // number of seconds after which contexts are expired
@@ -28,18 +27,16 @@ type TimeSampler struct {
 	interval                    int64
 	contextResolver             *ContextResolver
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
-	defaultHostname             string
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(interval int64, defaultHostname string) *TimeSampler {
+func NewTimeSampler(interval int64) *TimeSampler {
 	return &TimeSampler{
 		interval:                    interval,
 		contextResolver:             newContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
-		defaultHostname:             defaultHostname,
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 	}
 }

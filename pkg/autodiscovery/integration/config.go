@@ -8,15 +8,14 @@ package integration
 import (
 	"fmt"
 	"hash/fnv"
-	"regexp"
+	"sort"
 	"strconv"
 
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
-
-var tplVarRegex = regexp.MustCompile(`%%.+?%%`)
 
 // Data contains YAML code
 type Data []byte
@@ -49,6 +48,12 @@ type Config struct {
 	Entity        string       `json:"-"`              // the id of the entity (optional)
 	ClusterCheck  bool         `json:"-"`              // cluster-check configuration flag, don't expose in JSON
 	CreationTime  CreationTime `json:"-"`              // creation time of service
+}
+
+// CommonInstanceConfig holds the reserved fields for the yaml instance data
+type CommonInstanceConfig struct {
+	MinCollectionInterval int  `yaml:"min_collection_interval"`
+	EmptyDefaultHostname  bool `yaml:"empty_default_hostname"`
 }
 
 // Equal determines whether the passed config is the same
@@ -140,11 +145,11 @@ func (c *Config) AddMetrics(metrics Data) error {
 
 // GetTemplateVariablesForInstance returns a slice of raw template variables
 // it found in a config instance template.
-func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
+func (c *Config) GetTemplateVariablesForInstance(i int) []tmplvar.TemplateVar {
 	if len(c.Instances) < i {
-		return vars
+		return nil
 	}
-	return tplVarRegex.FindAll(c.Instances[i], -1)
+	return tmplvar.Parse(c.Instances[i])
 }
 
 // MergeAdditionalTags merges additional tags to possible existing config tags
@@ -191,12 +196,25 @@ func (c *Config) Digest() string {
 	h := fnv.New64()
 	h.Write([]byte(c.Name))
 	for _, i := range c.Instances {
-		h.Write([]byte(i))
+		inst := RawMap{}
+		err := yaml.Unmarshal(i, &inst)
+		if err != nil {
+			continue
+		}
+		tagList, _ := inst["tags"].([]string)
+		sort.Strings(tagList)
+		inst["tags"] = tagList
+		out, err := yaml.Marshal(&inst)
+		if err != nil {
+			continue
+		}
+		h.Write(out)
 	}
 	h.Write([]byte(c.InitConfig))
 	for _, i := range c.ADIdentifiers {
 		h.Write([]byte(i))
 	}
+	h.Write([]byte(c.LogsConfig))
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

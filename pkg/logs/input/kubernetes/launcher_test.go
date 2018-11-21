@@ -103,6 +103,29 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Nil(t, source)
 }
 
+func TestGetSourceAddContainerdParser(t *testing.T) {
+	launcher := &Launcher{}
+	container := kubelet.ContainerStatus{
+		Name:  "foo",
+		Image: "bar",
+		ID:    "boo",
+	}
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "fuz",
+			Namespace: "buu",
+			UID:       "baz",
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{container},
+		},
+	}
+
+	source, err := launcher.getSource(pod, container)
+	assert.Nil(t, err)
+	assert.Equal(t, config.FileType, source.Config.Type)
+}
+
 func TestSearchContainer(t *testing.T) {
 	containerFoo := kubelet.ContainerStatus{
 		Name:  "fooName",

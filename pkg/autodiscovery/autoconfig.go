@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	configsPollIntl       = 10 * time.Second
 	listenerCandidateIntl = 30 * time.Second
 	acErrors              *expvar.Map
 	errorStats            = newAcErrorStats()
@@ -73,6 +72,10 @@ type AutoConfig struct {
 	healthPolling      *health.Handle
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
+	tagFreshnessTicker *time.Ticker
+	tagFreshnessStop   chan struct{}
+	tagFreshnessActive bool
+	healthTagFreshness *health.Handle
 	newService         chan listeners.Service
 	delService         chan listeners.Service
 	store              *store
@@ -82,13 +85,15 @@ type AutoConfig struct {
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
-		providers:          make([]*providerDescriptor, 0, 5),
+		providers:          make([]*providerDescriptor, 0, 8),
 		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
 		listenerRetryStop:  nil, // We'll open it if needed
 		pollerStop:         make(chan struct{}),
 		healthPolling:      health.Register("ad-configpolling"),
 		listenerStop:       make(chan struct{}),
 		healthListening:    health.Register("ad-servicelistening"),
+		tagFreshnessStop:   make(chan struct{}),
+		healthTagFreshness: health.Register("ad-tagfreshnesschecker"),
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
@@ -104,9 +109,49 @@ func (ac *AutoConfig) StartConfigPolling() {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
+	configsPollIntl := config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
 	ac.configsPollTicker = time.NewTicker(configsPollIntl)
 	ac.pollConfigs()
 	ac.pollerActive = true
+}
+
+// StartTagFreshnessChecker checks periodically if tags associated to a service
+// are up-to-date, act as the service was restarted to reschedule potential checks
+func (ac *AutoConfig) StartTagFreshnessChecker() {
+	ac.tagFreshnessTicker = time.NewTicker(15 * time.Second) // we can miss tags for one run
+	ac.tagFreshnessActive = true
+	go func() {
+		for {
+			select {
+			case <-ac.healthTagFreshness.C:
+			case <-ac.tagFreshnessStop:
+				if ac.tagFreshnessTicker != nil {
+					ac.tagFreshnessTicker.Stop()
+				}
+				ac.healthTagFreshness.Deregister()
+				return
+			case <-ac.tagFreshnessTicker.C:
+				// check if services tags are up to date
+				var servicesToRefresh []listeners.Service
+				for _, service := range ac.store.getServices() {
+					previousHash := ac.store.getTagsHashForService(service.GetEntity())
+					currentHash := tagger.GetEntityHash(service.GetEntity())
+					if currentHash != previousHash {
+						ac.store.setTagsHashForService(service.GetEntity(), currentHash)
+						if previousHash != "" {
+							// only refresh service if we already had a hash to avoid resetting it
+							servicesToRefresh = append(servicesToRefresh, service)
+						}
+					}
+				}
+				for _, service := range servicesToRefresh {
+					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
+					ac.processDelService(service)
+					ac.processNewService(service)
+				}
+			}
+		}
+	}()
 }
 
 // startServiceListening waits on services and templates and process them as they come.
@@ -137,6 +182,12 @@ func (ac *AutoConfig) startServiceListening() {
 func (ac *AutoConfig) Stop() {
 	ac.m.Lock()
 	defer ac.m.Unlock()
+
+	// stop the tag freshness ticker if running
+	if ac.tagFreshnessActive {
+		ac.tagFreshnessStop <- struct{}{}
+		ac.tagFreshnessActive = false
+	}
 
 	// stop the config poller if running
 	if ac.pollerActive {
@@ -464,24 +515,6 @@ func (ac *AutoConfig) pollConfigs() {
 				return
 			case <-ac.healthPolling.C:
 			case <-ac.configsPollTicker.C:
-				// check if services tags are up to date
-				var servicesToRefresh []listeners.Service
-				for _, service := range ac.store.getServices() {
-					previousHash := ac.store.getTagsHashForService(service.GetEntity())
-					currentHash := tagger.GetEntityHash(service.GetEntity())
-					if currentHash != previousHash {
-						ac.store.setTagsHashForService(service.GetEntity(), currentHash)
-						if previousHash != "" {
-							// only refresh service if we already had a hash to avoid resetting it
-							servicesToRefresh = append(servicesToRefresh, service)
-						}
-					}
-				}
-				for _, service := range servicesToRefresh {
-					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
-					ac.processDelService(service)
-					ac.processNewService(service)
-				}
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
 					// skip providers that don't want to be polled
@@ -541,7 +574,6 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 // resolver at this moment.
 func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Config {
 	// use a map to dedupe configurations
-	// FIXME: the config digest as the key is currently not reliable
 	resolvedSet := map[string]integration.Config{}
 
 	// go through the AD identifiers provided by the template
@@ -556,7 +588,12 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 		}
 
 		for serviceID := range serviceIds {
-			resolvedConfig, err := ac.resolveTemplateForService(tpl, ac.store.getServiceForEntity(serviceID))
+			svc := ac.store.getServiceForEntity(serviceID)
+			if svc == nil {
+				log.Warnf("Service %s was removed before we could resolve its config", serviceID)
+				continue
+			}
+			resolvedConfig, err := ac.resolveTemplateForService(tpl, svc)
 			if err != nil {
 				continue
 			}

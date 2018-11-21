@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync/atomic"
 	"time"
 
+	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -35,25 +37,31 @@ type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
 
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	decoder    *decoder.Decoder
 	source     *config.LogSource
 
 	sleepDuration time.Duration
 
 	closeTimeout  time.Duration
-	shouldStop    bool
-	didFileRotate bool
+	shouldStop    int32
+	didFileRotate int32
 	stop          chan struct{}
 	done          chan struct{}
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+	var parser logParser.Parser
+	if source.GetSourceType() == config.ContainerdType {
+		parser = containerdFileParser
+	} else {
+		parser = logParser.NoopParser
+	}
 	return &Tailer{
 		path:          path,
 		outputChan:    outputChan,
-		decoder:       decoder.InitializeDecoder(source),
+		decoder:       decoder.InitializeDecoder(source, parser),
 		source:        source,
 		readOffset:    0,
 		sleepDuration: sleepDuration,
@@ -85,6 +93,60 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	return nil
 }
 
+// setup sets up the file tailer
+func (t *Tailer) setup(offset int64, whence int) error {
+	fullpath, err := filepath.Abs(t.path)
+	if err != nil {
+		return err
+	}
+
+	// adds metadata to enable users to filter logs by filename
+	t.tags = []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
+
+	log.Info("Opening ", t.path)
+	f, err := openFile(fullpath)
+	if err != nil {
+		return err
+	}
+
+	t.file = f
+	ret, _ := f.Seek(offset, whence)
+	t.readOffset = ret
+	t.decodedOffset = ret
+
+	return nil
+}
+
+// readForever lets the tailer tail the content of a file
+// until it is closed or the tailer is stopped.
+func (t *Tailer) readForever() {
+	defer t.onStop()
+	for {
+		select {
+		case <-t.stop:
+			// stop reading data from file
+			return
+		default:
+			// keep reading data from file
+			inBuf := make([]byte, 4096)
+			n, err := t.file.Read(inBuf)
+			if err != nil && err != io.EOF {
+				// an unexpected error occurred, stop the tailor
+				t.source.Status.Error(err)
+				log.Error("Unexpected error occurred while reading file: ", err)
+				return
+			}
+			if n == 0 {
+				// wait for new data to come
+				t.wait()
+				continue
+			}
+			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.incrementReadOffset(n)
+		}
+	}
+}
+
 // StartFromBeginning lets the tailer start tailing its file
 // from the beginning
 func (t *Tailer) StartFromBeginning() error {
@@ -93,7 +155,7 @@ func (t *Tailer) StartFromBeginning() error {
 
 // Stop stops the tailer and returns only when the decoder is flushed
 func (t *Tailer) Stop() {
-	t.didFileRotate = false
+	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
@@ -103,7 +165,7 @@ func (t *Tailer) Stop() {
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
-	t.didFileRotate = true
+	atomic.StoreInt32(&t.didFileRotate, 1)
 	go t.startStopTimer()
 	t.source.RemoveInput(t.path)
 }
@@ -126,7 +188,7 @@ func (t *Tailer) onStop() {
 func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
-		t.shouldStop = true
+		atomic.StoreInt32(&t.shouldStop, 1)
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
@@ -141,7 +203,8 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(t.tags)
-		t.outputChan <- message.New(output.Content, origin, "")
+		output.Origin = origin
+		t.outputChan <- output
 	}
 }
 
@@ -154,27 +217,9 @@ func (t *Tailer) GetReadOffset() int64 {
 	return atomic.LoadInt64(&t.readOffset)
 }
 
-// SetReadOffset sets the position of the last byte read in the
-// file
-func (t *Tailer) SetReadOffset(off int64) {
-	atomic.StoreInt64(&t.readOffset, off)
-}
-
-// GetDecodedOffset gets the position of the last byte decoded in the
-// file
-func (t *Tailer) GetDecodedOffset() int64 {
-	return atomic.LoadInt64(&t.decodedOffset)
-}
-
-// SetDecodedOffset sets the position of the last byte decoded in the
-// file
-func (t *Tailer) SetDecodedOffset(off int64) {
-	atomic.StoreInt64(&t.decodedOffset, off)
-}
-
 // shouldTrackOffset returns whether the tailer should track the file offset or not
 func (t *Tailer) shouldTrackOffset() bool {
-	if t.didFileRotate {
+	if atomic.LoadInt32(&t.didFileRotate) != 0 {
 		return false
 	}
 	return true

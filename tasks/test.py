@@ -154,6 +154,29 @@ def lint_teamassignment(ctx):
         print("PR not yet created, skipping check for team assignment")
 
 @task
+def lint_milestone(ctx):
+    """
+    Make sure PRs are assigned a milestone
+    """
+    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    if pr_url:
+        import requests
+        pr_id = pr_url.rsplit('/')[-1]
+
+        res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
+        pr = res.json()
+        if pr.get("milestone"):
+            print("Milestone: %s" % pr["milestone"].get("title", "NO_TITLE"))
+            return
+
+        print("PR %s requires a milestone" % pr_url)
+        raise Exit(code=1)
+
+    # The PR has not been created yet
+    else:
+        print("PR not yet created, skipping check for milestone")
+
+@task
 def lint_releasenote(ctx):
     """
     Lint release notes with Reno

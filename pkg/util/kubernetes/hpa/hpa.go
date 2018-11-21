@@ -8,8 +8,9 @@
 package hpa
 
 import (
+	"reflect"
+
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,15 +21,23 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 	for _, metricSpec := range hpa.Spec.Metrics {
 		switch metricSpec.Type {
 		case autoscalingv2.ExternalMetricSourceType:
-			emList = append(emList, custommetrics.ExternalMetricValue{
+			if metricSpec.External == nil {
+				log.Errorf("Missing required \"external\" section in the %s/%s HPA, skipping processing", hpa.Namespace, hpa.Name)
+				continue
+			}
+
+			em := custommetrics.ExternalMetricValue{
 				MetricName: metricSpec.External.MetricName,
 				HPA: custommetrics.ObjectReference{
 					Name:      hpa.Name,
 					Namespace: hpa.Namespace,
 					UID:       string(hpa.UID),
 				},
-				Labels: metricSpec.External.MetricSelector.MatchLabels,
-			})
+			}
+			if metricSpec.External.MetricSelector != nil {
+				em.Labels = metricSpec.External.MetricSelector.MatchLabels
+			}
+			emList = append(emList, em)
 		default:
 			log.Debugf("Unsupported metric type %s", metricSpec.Type)
 		}
@@ -37,15 +46,37 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 }
 
 // DiffExternalMetrics returns the list of external metrics that reference hpas that are not in the given list of hpas.
-func DiffExternalMetrics(lhs []*autoscalingv2.HorizontalPodAutoscaler, rhs []custommetrics.ExternalMetricValue) (toDelete []custommetrics.ExternalMetricValue) {
-	uids := sets.NewString()
-	for _, hpa := range lhs {
-		uids.Insert(string(hpa.UID))
+func DiffExternalMetrics(informerList []*autoscalingv2.HorizontalPodAutoscaler, storedMetricsList []custommetrics.ExternalMetricValue) (toDelete []custommetrics.ExternalMetricValue) {
+	hpaMetrics := map[string][]custommetrics.ExternalMetricValue{}
+
+	for _, hpa := range informerList {
+		hpaMetrics[string(hpa.UID)] = Inspect(hpa)
 	}
-	for _, em := range rhs {
-		if !uids.Has(em.HPA.UID) {
+
+	for _, em := range storedMetricsList {
+		var found bool
+		emList := hpaMetrics[em.HPA.UID]
+		if emList == nil {
+			toDelete = append(toDelete, em)
+			continue
+		}
+		for _, m := range emList {
+			// We have previously processed an external metric from this HPA.
+			// Check that it's still the same. If not, remove the entry from the Global Store.
+			if em.MetricName == m.MetricName && reflect.DeepEqual(em.Labels, m.Labels) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			toDelete = append(toDelete, em)
 		}
 	}
 	return
+}
+
+// AutoscalerMetricsUpdate will return true if the applied configuration of the Autoscaler has changed.
+// We only care about updates of the metrics or their scopes.
+func AutoscalerMetricsUpdate(new, old *autoscalingv2.HorizontalPodAutoscaler) bool {
+	return old.Annotations["kubectl.kubernetes.io/last-applied-configuration"] != new.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
 }

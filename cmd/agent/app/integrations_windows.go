@@ -11,6 +11,9 @@ package app
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -18,12 +21,21 @@ const (
 )
 
 var (
-	relPyPath            = pythonBin
-	relConstraintsPath   = filepath.Join("..", constraintsFile)
-	relTufConfigFilePath = filepath.Join("..", tufConfigFile)
-	tufPipCachePath      = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
+	relPyPath              = pythonBin
+	relTufConfigFilePath   = filepath.Join("..", tufConfigFile)
+	relChecksPath          = filepath.Join("Lib", "site-packages", "datadog_checks")
+	relReqAgentReleasePath = filepath.Join("..", reqAgentReleaseFile)
+	tufPipCachePath        = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
 )
 
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		tufPipCachePath = filepath.Join(pd, "Datadog", "repositories", "cache")
+	} else {
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, tufPipCachePath)
+	}
+}
 func authorizedUser() bool {
 	// TODO: implement something useful
 	return true

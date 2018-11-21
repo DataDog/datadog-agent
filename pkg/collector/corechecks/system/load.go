@@ -9,12 +9,13 @@ package system
 import (
 	"fmt"
 
+	"github.com/shirou/gopsutil/load"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/load"
 )
 
 const loadCheckName = "load"
@@ -53,9 +54,12 @@ func (c *LoadCheck) Run() error {
 	return nil
 }
 
-// Configure the CPU check doesn't need configuration
+// Configure the CPU check
 func (c *LoadCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	// do nothing
+	err := c.CommonConfigure(data)
+	if err != nil {
+		return err
+	}
 	// NOTE: This check is disabled on windows - so the following doesn't apply
 	//       currently:
 	//
