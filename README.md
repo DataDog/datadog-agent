@@ -60,14 +60,14 @@ You'll find information and help on how to contribute code to this project under
 
 To install the debian package:
 
-    $ curl -o- https://s3-eu-west-1.amazonaws.com/stackstate-agent-2/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
+    $ curl -o- https://stackstate-agent-2.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
      or
-    $ wget -qO- https://s3-eu-west-1.amazonaws.com/stackstate-agent-2/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
+    $ wget -qO- https://stackstate-agent-2.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
     
 If you wanna install a branch version use the test repository:
 
-    $ curl -o- https://s3-eu-west-1.amazonaws.com/stackstate-agent-2-test/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
+    $ curl -o- https://stackstate-agent-2-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
      or
-    $ wget -qO- https://s3-eu-west-1.amazonaws.com/stackstate-agent-2-test/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
+    $ wget -qO- https://stackstate-agent-2-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
 
 and replace `PR_NAME` with the branch name (e.g. master, STAC-xxxx). 
