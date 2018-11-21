@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	"github.com/stretchr/testify/require"
+	datadog "gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/stretchr/testify/require"
 )
 
 type fakeDatadogClient struct {
@@ -488,6 +488,12 @@ func TestGetKey(t *testing.T) {
 				"ffoo": "bar",
 			},
 			"kubernetes.io{afoo:bar,ffoo:bar,zfoo:bar}",
+		},
+		{
+			"correct name, no labels",
+			"kubernetes.io",
+			nil,
+			"kubernetes.io{*}",
 		},
 	}
 	for _, test := range tests {
