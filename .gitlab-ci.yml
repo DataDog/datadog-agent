@@ -15,7 +15,7 @@ variables:
 
 before_script:
  - mkdir -p /go/src/github.com/StackVista
- - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+ - ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
    # Either we already have a venv, or we still need to make it (as part of get_deps.sh)
  - source .gitlab-scripts/setup_env.sh
 
@@ -43,7 +43,6 @@ deps:
     - pip install -r requirements.txt
     - inv deps
     - inv version -u > version.txt
-    - inv release.generate-install -t
   artifacts:
     paths:
         - $CI_PROJECT_DIR/vendor
@@ -66,7 +65,7 @@ integration_tests:
   dependencies:
     - deps
   script:
-    - inv  -e integration-tests --race --remote-docker
+    - inv -e integration-tests --race --remote-docker
   tags:
     - sts-aws
 
@@ -141,8 +140,8 @@ build_deb:
 
     # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
-  - cp -r  /omnibus/pkg $CI_PROJECT_DIR/outcomes
-  - cp -r  /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
+  - cp -r /omnibus/pkg $CI_PROJECT_DIR/outcomes
+  - cp -r /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
 
     # Prepare cache
     # Drop packages for cache
@@ -180,7 +179,7 @@ pre_release_deb:
     - apt-get install -y apt-utils libtool debsigs
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
-    - inv release.generate-install -t
+    - cd $CI_PROJECT_DIR && inv release.generate-install -t
     - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket($STS_AWS_TEST_BUCKET).object('install.sh').upload_file('./install.sh', acl:'public-read')"
 
 pre_release_image:
