@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 
@@ -56,6 +58,38 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 		}
 	}
 	return bestMatch
+}
+
+// GetSourceShortImageName resolves image name for a container if ContainerCollectAll
+// option is enabled. In that case it returns a new LogSource with the short image name
+// as Source and Service tags. If ContainerCollectAll option is not enable,
+// GetSourceShortImageName returns the source
+func (c *Container) GetSourceShortImageName(source *config.LogSource) *config.LogSource {
+	if source.Name != config.ContainerCollectAll {
+		return source
+	}
+	du, err := dockerUtil.GetDockerUtil()
+	if err != nil {
+		log.Debugf("Cannot get DockerUtil: %v", err)
+		return source
+	}
+
+	imageName := c.container.Image
+	imageName, err = du.ResolveImageName(imageName)
+	if err != nil {
+		log.Debugf("Could not resolve image name %d: %d", imageName, err)
+		return source
+	}
+	_, shortName, _, err := containers.SplitImageName(imageName)
+	if err != nil {
+		log.Debugf("Cannot parse image name: %v", err)
+		return source
+	}
+	return config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
+		Type:    config.DockerType,
+		Service: shortName,
+		Source:  shortName,
+	})
 }
 
 // computeScore returns the matching score between the container and the source.
