@@ -24,7 +24,12 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	if proxy, err := buildProxySettings(agentConfig); err == nil {
-		configConverter.Set("proxy", proxy)
+		if u, ok := proxy["http"]; ok {
+			configConverter.Set("proxy.http", u)
+		}
+		if u, ok := proxy["https"]; ok {
+			configConverter.Set("proxy.https", u)
+		}
 	}
 
 	if enabled, err := isAffirmative(agentConfig["skip_ssl_validation"]); err == nil {

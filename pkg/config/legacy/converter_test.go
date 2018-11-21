@@ -212,6 +212,8 @@ func TestConverter(t *testing.T) {
 	err = FromAgentConfig(cfg)
 	require.NoError(err)
 
+	require.Equal("http://user:password@my-proxy.com:3128", config.Datadog.GetString("proxy.http"))
+	require.Equal("http://user:password@my-proxy.com:3128", config.Datadog.GetString("proxy.https"))
 	require.True(config.Datadog.GetBool("hostname_fqdn"))
 	require.Equal("staging", config.Datadog.GetString("apm_config.env"))
 	require.Equal(1, config.Datadog.GetInt("apm_config.extra_sample_rate"))
