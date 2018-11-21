@@ -36,14 +36,16 @@ const tagsUpdatePeriod = 10 * time.Second
 // Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
 // To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
 type Tailer struct {
-	container     *Container
-	outputChan    chan *message.Message
-	decoder       *decoder.Decoder
-	reader        io.ReadCloser
-	cli           *client.Client
-	source        *config.LogSource
-	originSource  *config.LogSource
-	containerTags []string
+	container  *Container
+	outputChan chan *message.Message
+	decoder    *decoder.Decoder
+	reader     io.ReadCloser
+	cli        *client.Client
+	source     *config.LogSource
+	// containersSource is the source that uses short image name as source and service
+	// tag if applicable (i.e. no k8s annotation nor docker label)
+	containerSource *config.LogSource
+	containerTags   []string
 
 	sleepDuration    time.Duration
 	shouldStop       bool
@@ -62,7 +64,7 @@ func NewTailer(cli *client.Client, container *Container, source *config.LogSourc
 		outputChan:       outputChan,
 		decoder:          decoder.InitializeDecoder(source, dockerParser),
 		source:           source,
-		originSource:     container.GetSourceShortImageName(source),
+		containerSource:  container.GetSourceShortImageName(source),
 		cli:              cli,
 		sleepDuration:    defaultSleepDuration,
 		stop:             make(chan struct{}, 1),
@@ -235,7 +237,7 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.Content) > 0 {
-			origin := message.NewOrigin(t.originSource)
+			origin := message.NewOrigin(t.containerSource)
 			origin.Offset = output.Timestamp
 			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
