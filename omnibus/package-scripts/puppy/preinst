@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps before package is installed.
+#
+# .deb: STEP 2 of 5
+
+INSTALL_DIR=/opt/datadog-agent
+LOG_DIR=/var/log/datadog
+SERVICE_NAME=datadog-agent
+
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
+
+# Linux installation
+if [ "$DISTRIBUTION" != "Darwin" ]; then
+    set -e
+
+    if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/system/$SERVICE_NAME.service" ]; then
+        # Stop an already running agent
+        # Only supports systemd and upstart
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop $SERVICE_NAME || true
+        elif command -v initctl >/dev/null 2>&1; then
+            initctl stop $SERVICE_NAME || true
+        else
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+        fi
+    fi
+
+    if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
+        # Nothing specific on Debian
+        :
+        #DEBHELPER#
+    else
+        echo "[ FAILED ]\tYour system is currently not supported by this script.";
+        exit 1;
+    fi
+fi
+
+exit 0

@@ -191,18 +191,18 @@ If the `service` wrapper command is not available on your system, use:
 
 If you're unsure which init system your distribution uses by default, please refer to the table below:
 
-| distribution \ init system | `upstart` | `systemd` | Notes |
-| -------------------------- |:---------:|:---------:| ----- |
-| Amazon Linux (<= 2017.09) | ✅ |  |  |
-| Amazon Linux 2 (>= 2017.12) |  | ✅ |  |
-| CentOS/RHEL 6 | ✅ |  |  |
-| CentOS/RHEL 7 |  | ✅ |  |
-| Debian 7 (wheezy) |  |  | _currently unsupported unless you install systemd_ |
-| Debian 8 (jessie) & 9 (stretch) |  | ✅ |  |
-| SUSE 11 |  |  | _currently unsupported unless you install systemd_ |
-| SUSE 12 |  | ✅ |  |
-| Ubuntu < 15.04 | ✅ | |  |
-| Ubuntu >= 15.04 |  | ✅ |  |
+| distribution \ init system | `upstart` | `systemd` | `sysvinit` | Notes |
+| -------------------------- |:---------:|:---------:|:----------:|----- |
+| Amazon Linux (<= 2017.09) | ✅ |  |  |  |
+| Amazon Linux 2 (>= 2017.12) |  | ✅ |  |  |
+| CentOS/RHEL 6 | ✅ |  |  |  |
+| CentOS/RHEL 7 |  | ✅ |  |  |
+| Debian 7 (wheezy) |  |  | ✅ (agent >= 6.6.0) | |
+| Debian 8 (jessie) & 9 (stretch) |  | ✅ |  |  |
+| SUSE 11 |  |  |  | _currently unsupported unless you install systemd_ |
+| SUSE 12 |  | ✅ |  |  |
+| Ubuntu < 15.04 | ✅ | |  |  |
+| Ubuntu >= 15.04 |  | ✅ |  |  |
 
 #### Agent commands
 

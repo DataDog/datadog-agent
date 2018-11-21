@@ -12,12 +12,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 const fileHandlesCheckName = "file_handle"
@@ -86,12 +84,6 @@ func (c *fhCheck) Run() error {
 	sender.Gauge("system.fs.file_handles.max", maxFh, "", nil)
 	sender.Commit()
 
-	return nil
-}
-
-// The check doesn't need configuration
-func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	// do nothing
 	return nil
 }
 

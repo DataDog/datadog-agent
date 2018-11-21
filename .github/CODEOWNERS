@@ -40,5 +40,8 @@
 
 /pkg/metadata/ecs/                      @DataDog/burrito
 /pkg/metadata/kubernetes/               @DataDog/burrito
+/pkg/procmatch/                         @DataDog/burrito
 
 /pkg/quantile                           @DataDog/metrics-aggregation
+
+/cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core

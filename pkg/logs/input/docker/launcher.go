@@ -30,7 +30,8 @@ const (
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider   pipeline.Provider
-	sources            chan *config.LogSource
+	addedSources       chan *config.LogSource
+	removedSources     chan *config.LogSource
 	addedServices      chan *service.Service
 	removedServices    chan *service.Service
 	activeSources      []*config.LogSource
@@ -62,7 +63,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	// a channel that will lock the scheduler in case of setup failure
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
-	launcher.sources = sources.GetSourceStreamForType(config.DockerType)
+	launcher.addedSources = sources.GetAddedForType(config.DockerType)
+	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
 	launcher.addedServices = services.GetAddedServices(service.Docker)
 	launcher.removedServices = services.GetRemovedServices(service.Docker)
 	return launcher, nil
@@ -126,7 +128,7 @@ func (l *Launcher) run() {
 				// so it's put in a cache until a matching source is found.
 				l.pendingContainers[service.Identifier] = container
 			}
-		case source := <-l.sources:
+		case source := <-l.addedSources:
 			// detected a new source that has been created either from a configuration file,
 			// a docker label or a pod annotation.
 			l.activeSources = append(l.activeSources, source)
@@ -142,6 +144,15 @@ func (l *Launcher) run() {
 			}
 			// keep the containers that have not found any source yet for next iterations
 			l.pendingContainers = pendingContainers
+		case source := <-l.removedSources:
+			for i, src := range l.activeSources {
+				if src == source {
+					// no need to stop any tailer here, it will be stopped after receiving a
+					// "remove service" event.
+					l.activeSources = append(l.activeSources[:i], l.activeSources[i+1:]...)
+					break
+				}
+			}
 		case service := <-l.removedServices:
 			// detected that a container has been stopped.
 			containerID := service.Identifier

@@ -13,6 +13,8 @@ import (
 const (
 	// Consul represents the name of the Consul config provider
 	Consul = "Consul"
+	// ClusterChecks represents the name of the Cluster checks config provider
+	ClusterChecks = "Cluster checks"
 	// Docker represents the name of the docker config provider
 	Docker = "Docker"
 	// ECS represents the name of the ecs config provider

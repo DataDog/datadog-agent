@@ -8,12 +8,11 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
-
-	_ "expvar" // Blank import used because this isn't directly used in this file
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -62,14 +61,14 @@ metadata for their metrics.`,
 			if flagNoColor {
 				color.NoColor = true
 			}
-			av, _ := version.New(version.DCAVersion, version.Commit)
+			av, _ := version.New(version.AgentVersion, version.Commit)
 			meta := ""
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
 			}
 			fmt.Fprintln(
 				color.Output,
-				fmt.Sprintf("Agent %s %s- Commit: '%s' - Serialization version: %s",
+				fmt.Sprintf("Cluster agent %s %s- Commit: '%s' - Serialization version: %s",
 					color.BlueString(av.GetNumberAndPre()),
 					meta,
 					color.GreenString(version.Commit),
@@ -93,7 +92,8 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	// Global Agent configuration
+	// we'll search for a config file named `datadog-cluster.yaml`
+	config.Datadog.SetConfigName("datadog-cluster")
 	err := common.SetupConfig(confPath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
@@ -108,6 +108,9 @@ func start(cmd *cobra.Command, args []string) error {
 		// this will prevent any logging on file
 		logFile = ""
 	}
+
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel() // Calling cancel twice is safe
 
 	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
@@ -143,8 +146,8 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname)
-	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.DCAVersion))
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
+	aggregatorInstance.AddAgentStartupEvent(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
@@ -177,7 +180,7 @@ func start(cmd *cobra.Command, args []string) error {
 	common.StartAutoConfig()
 
 	// Start the cluster-check discovery if configured
-	clusterCheckHandler := setupClusterCheck()
+	clusterCheckHandler := setupClusterCheck(mainCtx)
 	// start the cmd HTTPS server
 	sc := clusteragent.ServerContext{
 		ClusterCheckHandler: clusterCheckHandler,
@@ -197,9 +200,10 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Block here until we receive the interrupt signal
 	<-signalCh
-	if clusterCheckHandler != nil {
-		clusterCheckHandler.StopDiscovery()
-	}
+
+	// Cancel the main context to stop components
+	mainCtxCancel()
+
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		custommetrics.StopServer()
 	}
@@ -211,23 +215,19 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func setupClusterCheck() *clusterchecks.Handler {
+func setupClusterCheck(ctx context.Context) *clusterchecks.Handler {
 	if !config.Datadog.GetBool("cluster_checks.enabled") {
 		log.Debug("Cluster check Autodiscovery disabled")
 		return nil
 	}
 
-	clusterCheckHandler, err := clusterchecks.SetupHandler(common.AC)
+	handler, err := clusterchecks.NewHandler(common.AC)
 	if err != nil {
 		log.Errorf("Could not setup the cluster-checks Autodiscovery: %s", err.Error())
 		return nil
 	}
-	err = clusterCheckHandler.StartDiscovery()
-	if err != nil {
-		log.Errorf("Could not start the cluster-checks Autodiscovery: %s", err.Error())
-		return nil
-	}
+	go handler.Run(ctx)
 
 	log.Info("Started cluster check Autodiscovery")
-	return clusterCheckHandler
+	return handler
 }

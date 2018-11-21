@@ -14,13 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // Tailer reads data from a connection
 type Tailer struct {
 	source     *config.LogSource
 	conn       net.Conn
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	read       func(*Tailer) ([]byte, error)
 	decoder    *decoder.Decoder
 	stop       chan struct{}
@@ -28,13 +29,13 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
+func NewTailer(source *config.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		conn:       conn,
 		outputChan: outputChan,
 		read:       read,
-		decoder:    decoder.InitializeDecoder(source),
+		decoder:    decoder.InitializeDecoder(source, parser.NoopParser),
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}
@@ -61,7 +62,9 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		t.outputChan <- message.New(output.Content, message.NewOrigin(t.source), "")
+		output.Origin = message.NewOrigin(t.source)
+		output.SetStatus(message.StatusInfo)
+		t.outputChan <- output
 	}
 }
 

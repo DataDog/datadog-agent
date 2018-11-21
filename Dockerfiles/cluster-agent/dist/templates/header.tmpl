@@ -60,6 +60,9 @@
     {{- if .custommetrics.Error }}
     Error: {{ .custommetrics.Error }}
     {{ else }}
+    {{- if .custommetrics.Disabled }}
+    Disabled: {{ .custommetrics.Disabled }}
+    {{ else }}
     ConfigMap name: {{ .custommetrics.Cmname }}
     {{ if .custommetrics.StoreError }}
     Error: {{ .custommetrics.StoreError }}
@@ -71,7 +74,20 @@
       {{ else }}
       Total: {{ .custommetrics.External.Total }}
       Valid: {{ .custommetrics.External.Valid }}
-      {{ end -}}
+      {{ range $metric := .custommetrics.External.Metrics }}
+      {{- range $name, $value := $metric }}
+      {{- if or (eq $name "hpa") (eq $name "labels") }}
+      {{$name}}:
+      {{- range $k, $v := $value }}
+      - {{$k}}: {{$v}}
+      {{- end -}}
+      {{else}}
+      {{$name}}: {{$value}}
+      {{- end }}
+      {{- end }}
+      {{ end }}
+      {{- end }}
+    {{- end }}
     {{- end }}
     {{- end }}
 {{/* this line intentionally left blank */}}

@@ -122,7 +122,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	}
 	stats["config"] = getDCAPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-	stats["version"] = version.DCAVersion
+	stats["version"] = version.AgentVersion
 	stats["pid"] = os.Getpid()
 	hostname, err := util.GetHostname()
 	if err != nil {
@@ -210,6 +210,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
 	stats["aggregatorStats"] = aggregatorStats
+
+	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+	dogstatsdStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	stats["dogstatsdStats"] = dogstatsdStats
 
 	pyLoaderData := expvar.Get("pyLoader")
 	if pyLoaderData != nil {

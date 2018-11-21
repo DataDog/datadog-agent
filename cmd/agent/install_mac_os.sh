@@ -25,6 +25,10 @@ if [ -n "$DD_API_KEY" ]; then
     apikey=$DD_API_KEY
 fi
 
+if [ -n "$DD_SITE" ]; then
+    site=$DD_SITE
+fi
+
 if [ $dd_upgrade ]; then
     if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
         printf "\033[31mDD_UPGRADE set but no config was found at /opt/datadog-agent/etc/datadog.conf.\033[0m\n"
@@ -72,6 +76,9 @@ function new_config() {
     i_cmd="-i ''"
     if [ $(sed --version 2>/dev/null | grep -c "GNU") -ne 0 ]; then i_cmd="-i"; fi
     $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    if [ $site ]; then
+        $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    fi
     $sudo_cmd chown $real_user:admin "/opt/datadog-agent/etc/datadog.yaml"
     $sudo_cmd chmod 640 /opt/datadog-agent/etc/datadog.yaml
 }

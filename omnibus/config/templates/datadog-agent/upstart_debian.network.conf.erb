@@ -1,0 +1,21 @@
+description "Datadog Network Tracer"
+
+stop on (runlevel [!2345] or stopping datadog-agent)
+
+respawn
+respawn limit 10 5
+normal exit 0
+
+# Logging to console from the agent is disabled since the agent already logs using file or
+# syslog depending on its configuration. We make upstart log what the process still outputs in order
+# to log panics/crashes to /var/log/upstart/datadog-agent.log
+console log
+env DD_LOG_TO_CONSOLE=false
+
+script
+  exec <%= install_dir %>/embedded/bin/network-tracer --config=<%= etc_dir %>/network-tracer.yaml --pid=<%= install_dir %>/run/network-tracer.pid
+end script
+
+post-stop script
+  rm -f <%= install_dir %>/run/network-tracer.pid
+end script

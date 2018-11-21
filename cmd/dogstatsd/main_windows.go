@@ -5,4 +5,19 @@
 
 package main
 
-const defaultLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"path/filepath"
+)
+
+var defaultLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		defaultLogFile = filepath.Join(pd, "Datadog", "logs", "dogstatsd.log")
+	} else {
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, defaultLogFile)
+	}
+}

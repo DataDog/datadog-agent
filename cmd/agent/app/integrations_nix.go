@@ -20,10 +20,11 @@ const (
 )
 
 var (
-	relPyPath            = filepath.Join("..", "..", "embedded", "bin", pythonBin)
-	relConstraintsPath   = filepath.Join("..", "..", constraintsFile)
-	relTufConfigFilePath = filepath.Join("..", "..", tufConfigFile)
-	relTufPipCache       = filepath.Join("..", "..", "repositories", "cache")
+	relPyPath              = filepath.Join("..", "..", "embedded", "bin", pythonBin)
+	relTufConfigFilePath   = filepath.Join("..", "..", tufConfigFile)
+	relChecksPath          = filepath.Join("..", "..", "embedded", "lib", "python2.7", "site-packages", "datadog_checks")
+	relReqAgentReleasePath = filepath.Join("..", "..", reqAgentReleaseFile)
+	relTufPipCache         = filepath.Join("..", "..", "repositories", "cache")
 )
 
 func authorizedUser() bool {

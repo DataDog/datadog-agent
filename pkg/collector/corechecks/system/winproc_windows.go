@@ -24,7 +24,6 @@ type processChk struct {
 
 // Run executes the check
 func (c *processChk) Run() error {
-
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
@@ -40,7 +39,12 @@ func (c *processChk) Run() error {
 	return nil
 }
 
-func (c *processChk) Configure(data integration.Data, initConfig integration.Data) (err error) {
+func (c *processChk) Configure(data integration.Data, initConfig integration.Data) error {
+	err := c.CommonConfigure(data)
+	if err != nil {
+		return err
+	}
+
 	c.numprocs, err = pdhutil.GetCounterSet("System", "Processes", "", nil)
 	if err != nil {
 		return err

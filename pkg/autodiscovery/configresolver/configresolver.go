@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -59,8 +58,8 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
 			name, key := parseTemplateVar(bytes.Replace(v, tplOptionalToken, []byte(integration.TplToken), 1))
-			if f, found := templateVariables[string(name)]; found {
-				resolvedVar, err := f(key, svc)
+			if f, found := templateVariables[string(v.Name)]; found {
+				resolvedVar, err := f(v.Key, svc)
 				if err != nil {
 					// If not mandatory replace by empty byte slice
 					if bytes.HasPrefix(v, tplOptionalToken) {
@@ -71,8 +70,8 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 				}
 
 				// init config vars are replaced by the first found
-				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v, resolvedVar, -1)
-				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v, resolvedVar, -1)
+				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v.Raw, resolvedVar, -1)
+				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v.Raw, resolvedVar, -1)
 			}
 		}
 		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
@@ -187,6 +186,7 @@ func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	}
 	return []byte(value), nil
 }
+<<<<<<< HEAD
 
 // getUnixSocket returns unix sockets used by the service
 func getUnixSocket(tplVar []byte, svc listeners.Service) ([]byte, error) {
@@ -227,3 +227,5 @@ func parseTemplateVar(v []byte) (name, key []byte) {
 	}
 	return name, []byte("")
 }
+=======
+>>>>>>> master

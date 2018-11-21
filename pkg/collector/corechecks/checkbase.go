@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CheckBase provides default implementations for most of the check.Check
@@ -24,6 +25,9 @@ import (
 // - long-running checks must override Stop() and Interval()
 // - checks supporting multiple instances must call BuildID() from
 // their Config() method
+// - after optionally building a unique ID, CommonConfigure() must
+// be called from the Config() method to handle the common instance
+// fields
 //
 // Integration warnings are handled via the Warn and Warnf methods
 // that forward the warning to the logger and send the warning to
@@ -32,13 +36,15 @@ type CheckBase struct {
 	checkName      string
 	checkID        check.ID
 	latestWarnings []error
+	checkInterval  time.Duration
 }
 
 // NewCheckBase returns a check base struct with a given check name
 func NewCheckBase(name string) CheckBase {
 	return CheckBase{
-		checkName: name,
-		checkID:   check.ID(name),
+		checkName:     name,
+		checkID:       check.ID(name),
+		checkInterval: check.DefaultCheckInterval,
 	}
 }
 
@@ -46,6 +52,39 @@ func NewCheckBase(name string) CheckBase {
 // the unique check ID.
 func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
 	c.checkID = check.BuildID(c.checkName, instance, initConfig)
+}
+
+// Configure is provided for checks that require no config. If overridden,
+// the call to CommonConfigure must be preserved.
+func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data) error {
+	return c.CommonConfigure(data)
+}
+
+// CommonConfigure is called when checks implement their own Configure method,
+// in order to setup common options (run interval, empty hostname)
+func (c *CheckBase) CommonConfigure(instance integration.Data) error {
+	commonOptions := integration.CommonInstanceConfig{}
+	err := yaml.Unmarshal(instance, &commonOptions)
+	if err != nil {
+		log.Errorf("invalid instance section for check %s: %s", string(c.ID()), err)
+		return err
+	}
+
+	// See if a collection interval was specified
+	if commonOptions.MinCollectionInterval > 0 {
+		c.checkInterval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+	}
+
+	// Disable default hostname if specified
+	if commonOptions.EmptyDefaultHostname {
+		s, err := aggregator.GetSender(c.checkID)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+			return err
+		}
+		s.DisableDefaultHostname(true)
+	}
+	return nil
 }
 
 // Warn sends an integration warning to logs + agent status.
@@ -71,7 +110,7 @@ func (c *CheckBase) Stop() {}
 // Interval returns the scheduling time for the check.
 // Long-running checks should override to return 0.
 func (c *CheckBase) Interval() time.Duration {
-	return check.DefaultCheckInterval
+	return c.checkInterval
 }
 
 // String returns the name of the check, the same for every instance

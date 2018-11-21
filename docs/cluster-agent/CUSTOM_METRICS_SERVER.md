@@ -1,7 +1,5 @@
 # Datadog Cluster Agent | Custom & External Metrics Provider 
 
-The Datadog Cluster Agent is a **beta** feature and the Custom Metrics Server is in **alpha** if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help).
-
 ## Introduction
 
 The Horizontal Pod Autoscaling feature was introduced in [Kubernetes v1.2](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#before-you-begin).
@@ -66,7 +64,7 @@ default       datadog-cluster-agent-7b7f6d5547-cmdtc   1/1       Running   0    
 
 SVCS:
 
-NAMESPACE     NAME                  TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)         AGE
+NAMESPACE     NAME                            TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)         AGE
 default       datadog-custom-metrics-server   ClusterIP   192.168.254.87    <none>        443/TCP         28m
 default       datadog-cluster-agent           ClusterIP   192.168.254.197   <none>        5005/TCP        28m
 
@@ -225,7 +223,7 @@ The flare command generates a zip file containing the `custom-metrics-provider.l
     labels:
     - cluster: eks
     metricName: redis.key
-    ts: 1532042322e&#43;09
+    ts: 1532042322
     valid: false
     value: 0
     
@@ -235,9 +233,9 @@ The flare command generates a zip file containing the `custom-metrics-provider.l
     labels:
     - dcos_version: 1.9.4
     metricName: docker.mem.limit
-    ts: 1.532042322e&#43;09
+    ts: 1.532042322
     valid: true
-    value: 2.68435456e&#43;08
+    value: 268435456
 
 
 ```
@@ -285,7 +283,7 @@ Example:
     - app: puppet
     - env: demo
     metricName: nginx.net.request_per_s
-    ts: 1.532042322e&#43;09
+    ts: 1532042322
     valid: true
     value: 2472
 ``` 

@@ -17,30 +17,28 @@ Agent in Golang. Don’t worry! We still support Python checks.
 
 ## Installation and management
 
-To install the Agent you can either [upgrade][upgrade] from an older version, or start
-fresh with a new installation - in this case, please refer to the [official
-documentation](https://docs.datadoghq.com/agent/). If you want to go back to
+To install the Agent you can either upgrade from an older version, or start
+fresh with a new installation - in both cases, please refer to the [official
+documentation](https://docs.datadoghq.com/agent/) for your system. If you want to go back to
 version 5.x, please follow the instructions about [how to downgrade][downgrade].
 
 There are a number of differences between the old major version of the Agent and
-the new one - to see what changed, please refer to [this document][changes]. The
-way you can configure the Agent changed too, please read [this document][config]
-where all the new options are detailed. The latest Agent won't have feature parity
-with the previous one at first, you can see the list of what's missing [here][missing-features].
+the new one, please refer to:
+* [the doc on the general Agent changes][changes]
+* [the doc on the differences in the Agent config options][config]
+* [the list of Agent 5 features that are not ported to Agent 6][missing-features]
 
-## Secrets Managemet
+## Secrets Management
 
 If you need to retrieve secrets at run-time, please read this [document][secrets].
 
 ## Systems
 
-We do not yet build packages for the full gamut of systems that Agent 5 targets.
-While some will be dropped as unsupported, others are simply not yet supported.
 Agent 6 is currently available on these platforms:
 
 | System | Supported version |
 |--------|-------------------|
-| Debian x86_64 | version 7 (wheezy) and above (we do not support SysVinit)|
+| Debian x86_64 | version 7 (wheezy) and above (SysVinit support in agent >=6.6.0)|
 | Ubuntu x86_64 | version 12.04 and above |
 | RedHat/CentOS x86_64 | version 6 and above |
 | SUSE Enterprise Linux x86_64 | version 11 SP4 and above (we do not support SysVinit)|
