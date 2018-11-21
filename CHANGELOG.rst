@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_6.7.0:
+
+6.7.0
+=====
+
+.. _Release Notes_6.7.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-11-21
+
+This release focuses on bringing you
+[Trace Search](link to https://docs.datadoghq.com/tracing/visualization/search/)
+out-of-the-box. Setting up APM Event extraction no longer requires explicit agent
+configuration and can now be done at the tracer level. Over the course of the next
+weeks, we'll be enriching our tracing libraries to automatically extract events from
+services of interest (e.g. http endpoints).
+
+- Please refer to the `6.6.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.6.0>`_ for the list of changes on the Trace Agent.
+
 .. _Release Notes_6.6.0:
 
 6.6.0
