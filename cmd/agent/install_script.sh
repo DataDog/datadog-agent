@@ -164,6 +164,7 @@ if [ $api_key ]; then
     $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $api_key/' $CONF"
 fi
 if [ $sts_url ]; then
+    printf "\033[34m\n* Adding StackState url to the Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's/sts_url:.*/sts_url: $sts_url/' $CONF"
 fi
 if [ $sts_hostname ]; then
@@ -175,6 +176,17 @@ if [ $host_tags ]; then
     formatted_host_tags="['"$( echo "$host_tags" | sed "s/,/','/g" )"']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
     $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: "$formatted_host_tags"/\" $CONF"
 fi
+
+function version_gt() { test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"; }
+
+#Minimum kernel version required for network tracer https://github.com/StackVista/tcptracer-bpf/blob/master/pkg/tracer/tracer.go#L33
+min_required_kernel="4.3.0"
+current_kernel=`uname -r`
+if version_gt $min_required_kernel $current_kernel; then
+    printf "\033[32m\n* The network tracer does not support your kernel version (min required $min_required_kernel), disabling it\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i \"s/network_tracing_enabled:.*/network_tracing_enabled: 'false'/\" /etc/stackstate-agent/stackstate.yaml"
+fi
+
 $sudo_cmd chown $PKG_USER:$PKG_USER $CONF
 $sudo_cmd chmod 640 $CONF
 
