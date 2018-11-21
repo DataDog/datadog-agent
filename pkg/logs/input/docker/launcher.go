@@ -99,7 +99,7 @@ func (l *Launcher) Stop() {
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
-		l.removeTailer(tailer.ContainerID)
+		l.removeTailer(tailer.getContainerID())
 	}
 	stopper.Stop()
 }

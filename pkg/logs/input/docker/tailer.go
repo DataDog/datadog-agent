@@ -36,7 +36,6 @@ const tagsUpdatePeriod = 10 * time.Second
 // Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
 // To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
 type Tailer struct {
-	ContainerID   string
 	container     *Container
 	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
@@ -59,7 +58,6 @@ type Tailer struct {
 // NewTailer returns a new Tailer
 func NewTailer(cli *client.Client, container *Container, source *config.LogSource, outputChan chan *message.Message, erroredContainer chan *Container) *Tailer {
 	return &Tailer{
-		ContainerID:      container.service.Identifier,
 		container:        container,
 		outputChan:       outputChan,
 		decoder:          decoder.InitializeDecoder(source, dockerParser),
@@ -75,18 +73,18 @@ func NewTailer(cli *client.Client, container *Container, source *config.LogSourc
 
 // Identifier returns a string that uniquely identifies a source
 func (t *Tailer) Identifier() string {
-	return fmt.Sprintf("docker:%s", t.ContainerID)
+	return fmt.Sprintf("docker:%s", t.getContainerID())
 }
 
 // Stop stops the tailer from reading new container logs,
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
-	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
+	log.Infof("Stop tailing container: %v", ShortContainerID(t.getContainerID()))
 	t.stop <- struct{}{}
 	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
-	t.source.RemoveInput(t.ContainerID)
+	t.source.RemoveInput(t.getContainerID())
 	// wait for the decoder to be flushed
 	<-t.done
 }
@@ -96,7 +94,7 @@ func (t *Tailer) Stop() {
 // start from now if the container has been created before the agent started
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
-	log.Infof("Start tailing container: %v", ShortContainerID(t.ContainerID))
+	log.Infof("Start tailing container: %v", ShortContainerID(t.getContainerID()))
 	return t.tail(since.Format(config.DateFormat))
 }
 
@@ -112,6 +110,10 @@ func (t *Tailer) setLastSince(since string) {
 	t.lastSince = since
 }
 
+func (t *Tailer) getContainerID() string {
+	return t.container.service.Identifier
+}
+
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
 func (t *Tailer) setupReader() error {
@@ -124,7 +126,7 @@ func (t *Tailer) setupReader() error {
 		Since:      t.getLastSince(),
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
+	reader, err := t.cli.ContainerLogs(ctx, t.getContainerID(), options)
 	t.reader = reader
 	t.cancelFunc = cancelFunc
 	return err
@@ -140,7 +142,7 @@ func (t *Tailer) tail(since string) error {
 		return err
 	}
 	t.source.Status.Success()
-	t.source.AddInput(t.ContainerID)
+	t.source.AddInput(t.getContainerID())
 
 	go t.keepDockerTagsUpdated()
 	go t.forwardMessages()
@@ -165,10 +167,10 @@ func (t *Tailer) readForever() {
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isContextCanceled(err):
-					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.ContainerID))
+					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.getContainerID()))
 					err := t.setupReader()
 					if err != nil {
-						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
+						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.getContainerID()), err)
 						t.erroredContainer <- t.container
 						return
 					}
@@ -178,11 +180,11 @@ func (t *Tailer) readForever() {
 					return
 				case err == io.EOF:
 					// This error is raised when the container is stopping
-					t.source.RemoveInput(t.ContainerID)
+					t.source.RemoveInput(t.getContainerID())
 					return
 				default:
 					t.source.Status.Error(err)
-					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.ContainerID), err)
+					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.getContainerID()), err)
 					t.erroredContainer <- t.container
 					return
 				}
@@ -256,7 +258,7 @@ func (t *Tailer) keepDockerTagsUpdated() {
 }
 
 func (t *Tailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.ContainerID), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.getContainerID()), true)
 	if err != nil {
 		log.Warn(err)
 	} else {

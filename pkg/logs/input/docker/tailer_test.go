@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,7 +64,6 @@ func (m *mockReaderSleep) Close() error {
 
 func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
 	return &Tailer{
-		ContainerID:   "1234567890abcdef",
 		outputChan:    make(chan *message.Message, 100),
 		decoder:       nil,
 		source:        nil,
@@ -77,7 +77,8 @@ func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer 
 }
 
 func TestTailerIdentifier(t *testing.T) {
-	tailer := &Tailer{ContainerID: "test"}
+	container := &Container{service: &service.Service{Identifier: "test"}}
+	tailer := &Tailer{container: container}
 	assert.Equal(t, "docker:test", tailer.Identifier())
 }
 
