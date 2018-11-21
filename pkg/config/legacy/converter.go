@@ -137,7 +137,7 @@ func FromAgentConfig(agentConfig Config) error {
 	//Trace APM based configurations
 
 	if agentConfig["apm_enabled"] != "" {
-		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil && !enabled {
+		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
 			// apm is enabled by default, convert the config only if it was disabled
 			configConverter.Set("apm_config.enabled", enabled)
 		}
@@ -152,7 +152,7 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	if agentConfig["non_local_traffic"] != "" {
-		if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil && enabled {
+		if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil {
 			// trace-agent listen locally by default, convert the config only if configured to listen to more
 			configConverter.Set("apm_config.apm_non_local_traffic", enabled)
 		}
@@ -180,7 +180,50 @@ func FromAgentConfig(agentConfig Config) error {
 
 	configConverter.Set("hostname_fqdn", true)
 
+	extractTraceAgentConfig(agentConfig, configConverter)
+
 	return nil
+}
+
+func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyConfigConverter) {
+	for iniKey, yamlKey := range map[string]string{
+		"trace.api.api_key":                      "apm_config.api_key",
+		"trace.api.endpoint":                     "apm_config.apm_dd_url",
+		"trace.config.log_level":                 "apm_config.log_level",
+		"trace.config.log_file":                  "apm_config.log_file",
+		"trace.concentrator.extra_aggregators":   "apm_config.extra_aggregators",
+		"trace.concentrator.bucket_size_seconds": "apm_config.bucket_size_seconds",
+		"trace.receiver.receiver_port":           "apm_config.receiver_port",
+		"trace.receiver.connection_limit":        "apm_config.connection_limit",
+		"trace.receiver.timeout":                 "apm_config.receiver_timeout",
+		"trace.watchdog.max_connections":         "apm_config.max_connections",
+		"trace.watchdog.check_delay_seconds":     "apm_config.watchdog_check_delay",
+		"trace.sampler.extra_sample_rate":        "apm_config.extra_sample_rate",
+		"trace.sampler.max_traces_per_second":    "apm_config.max_traces_per_second",
+		"trace.sampler.max_events_per_second":    "apm_config.max_events_per_second",
+		"trace.watchdog.max_memory":              "apm_config.max_memory",
+		"trace.watchdog.max_cpu_percent":         "apm_config.max_cpu_percent",
+		"trace.config.log_throttling":            "apm_config.log_throttling",
+	} {
+		if v, ok := agentConfig[iniKey]; ok {
+			configConverter.Set(yamlKey, v)
+		}
+	}
+
+	prefix1 := "trace.analyzed_rate_by_service."
+	prefix2 := "trace.analyzed_spans."
+	for k, v := range agentConfig {
+		switch {
+		case strings.HasPrefix(k, prefix1):
+			yamlKey := "apm_config.analyzed_rate_by_service." + strings.TrimPrefix(k, prefix1)
+			configConverter.Set(yamlKey, v)
+		case strings.HasPrefix(k, prefix2):
+			yamlKey := "apm_config.analyzed_spans." + strings.TrimPrefix(k, prefix2)
+			configConverter.Set(yamlKey, v)
+		default:
+			continue
+		}
+	}
 }
 
 func isAffirmative(value string) (bool, error) {

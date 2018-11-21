@@ -211,18 +211,74 @@ func TestConverter(t *testing.T) {
 	require.NoError(err)
 	err = FromAgentConfig(cfg)
 	require.NoError(err)
+	c := config.Datadog
 
-	require.Equal("http://user:password@my-proxy.com:3128", config.Datadog.GetString("proxy.http"))
-	require.Equal("http://user:password@my-proxy.com:3128", config.Datadog.GetString("proxy.https"))
-	require.True(config.Datadog.GetBool("hostname_fqdn"))
-	require.Equal("staging", config.Datadog.GetString("apm_config.env"))
-	require.Equal(1, config.Datadog.GetInt("apm_config.extra_sample_rate"))
-	require.Equal(10., config.Datadog.GetFloat64("apm_config.max_traces_per_second"))
-	require.Equal(8126, config.Datadog.GetInt("apm_config.receiver_port"))
 	require.Equal([]string{
 		"GET|POST /healthcheck",
 		"GET /V1",
-	}, config.Datadog.GetStringSlice("apm_config.ignore_resources"))
+	}, c.GetStringSlice("apm_config.ignore_resources"))
+
+	// string values
+	for k, v := range map[string]string{
+		"api_key":                      "",
+		"apm_config.api_key":           "1234",          // trace.api.api_key
+		"apm_config.apm_dd_url":        "http://ip.url", // trace.api.endpoint
+		"apm_config.env":               "staging",       // trace.config.env
+		"apm_config.log_level":         "warn",          // trace.config.log_level
+		"apm_config.log_file":          "/path/to/file", // trace.config.log_file
+		"apm_config.extra_aggregators": "a,b,c",         // trace.concentrator.extra_aggregators
+		"proxy.http":                   "http://user:password@my-proxy.com:3128",
+		"proxy.https":                  "http://user:password@my-proxy.com:3128",
+		"hostname":                     "mymachine.mydomain",
+		"bind_host":                    "localhost",
+		"log_level":                    "INFO",
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetString(k), k)
+	}
+
+	// bool values
+	for k, v := range map[string]bool{
+		"hostname_fqdn":                    true,
+		"apm_config.enabled":               false,
+		"apm_config.apm_non_local_traffic": false,
+		"skip_ssl_validation":              false,
+		"apm_config.log_throttling":        true, // trace.config.log_throttling
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetBool(k), k)
+	}
+
+	// int values
+	for k, v := range map[string]int{
+		"apm_config.bucket_size_seconds":  5,    // trace.concentrator.bucket_size_seconds
+		"apm_config.receiver_port":        8126, // trace.receiver.receiver_port
+		"apm_config.connection_limit":     2000, // trace.receiver.connection_limit
+		"apm_config.receiver_timeout":     4,    // trace.receiver.timeout
+		"apm_config.max_connections":      40,   // trace.watchdog.max_connections
+		"apm_config.watchdog_check_delay": 5,    // trace.watchdog.check_delay_seconds
+		"apm_config.extra_sample_rate":    1,
+		"dogstatsd_port":                  8125,
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetInt(k), k)
+	}
+
+	// float64 values
+	for k, v := range map[string]float64{
+		"apm_config.extra_sample_rate":                 1.,     // trace.sampler.extra_sample_rate
+		"apm_config.max_traces_per_second":             10.,    // trace.sampler.max_traces_per_second
+		"apm_config.max_events_per_second":             10.4,   // trace.sampler.max_events_per_second
+		"apm_config.max_memory":                        1234.5, // trace.watchdog.max_memory
+		"apm_config.max_cpu_percent":                   85.4,   // trace.watchdog.max_cpu_percent
+		"apm_config.analyzed_rate_by_service.service1": 1.1,
+		"apm_config.analyzed_rate_by_service.service2": 1.2,
+		"apm_config.analyzed_spans.service3|op3":       1.3,
+		"apm_config.analyzed_spans.service4|op4":       1.4,
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetFloat64(k), k)
+	}
 }
 
 func TestExtractURLAPIKeys(t *testing.T) {
