@@ -249,10 +249,18 @@ else
 fi
 
 
-# Use systemd by default
-restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
-stop_instructions="$sudo_cmd systemctl stop datadog-agent"
-start_instructions="$sudo_cmd systemctl start datadog-agent"
+# Use /usr/sbin/service by default. 
+# Some distros usually include compatibility scripts with Upstart or Systemd. Check with: `command -v service | xargs grep -E "(upstart|systemd)"`
+restart_cmd="$sudo_cmd service datadog-agent restart"
+stop_instructions="$sudo_cmd service datadog-agent stop"
+start_instructions="$sudo_cmd service datadog-agent start"
+
+if [ command -v systemctl >/dev/null ]
+then # Use systemd
+  restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
+  stop_instructions="$sudo_cmd systemctl stop datadog-agent"
+  start_instructions="$sudo_cmd systemctl start datadog-agent"
+fi
 
 # Try to detect Upstart, this works most of the times but still a best effort
 if /sbin/init --version 2>&1 | grep -q upstart; then
