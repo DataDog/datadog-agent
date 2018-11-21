@@ -255,7 +255,7 @@ restart_cmd="$sudo_cmd service datadog-agent restart"
 stop_instructions="$sudo_cmd service datadog-agent stop"
 start_instructions="$sudo_cmd service datadog-agent start"
 
-if [ command -v systemctl >/dev/null ]
+if [ "$(command -v systemctl >/dev/null)" ];
 then # Use systemd
   restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
   stop_instructions="$sudo_cmd systemctl stop datadog-agent"
