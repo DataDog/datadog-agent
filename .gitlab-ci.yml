@@ -179,7 +179,8 @@ pre_release_deb:
     - apt-get install -y apt-utils libtool debsigs
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
-    - git status -s
+    - inv release.generate-install -t
+    - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket($STS_AWS_TEST_BUCKET).object('install.sh').upload_file('./install.sh', acl:'public-read')"
 
 pre_release_image:
   stage: pre_release
@@ -214,6 +215,8 @@ release_deb:
     - apt-get install -y apt-utils libtool debsigs
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_RELEASE_BUCKET stable
+    - inv release.generate-install
+    - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket($STS_AWS_RELEASE_BUCKET).object('install.sh').upload_file('./install.sh', acl:'public-read')"
   when: manual
   only:
     - tags

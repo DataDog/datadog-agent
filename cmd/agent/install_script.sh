@@ -118,22 +118,7 @@ else
 fi
 
 # Install the necessary package sources
-if [ $OS = "RedHat" ]; then
-    echo -e "\033[34m\n* Installing YUM sources for Datadog\n\033[0m"
-
-    UNAME_M=$(uname -m)
-    if [ "$UNAME_M"  == "i686" -o "$UNAME_M"  == "i386" -o "$UNAME_M"  == "x86" ]; then
-        ARCHI="i386"
-    else
-        ARCHI="x86_64"
-    fi
-
-    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.${sts_url}/${code_name}/6/$ARCHI/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.${sts_url}/DATADOG_RPM_KEY.public\n       https://yum.${sts_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/yum.repos.d/datadog.repo"
-
-    printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
-    $sudo_cmd yum -y clean metadata
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $PKG_NAME || $sudo_cmd yum -y install $PKG_NAME
-elif [ $OS = "Debian" ]; then
+if [ $OS = "Debian" ]; then
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
     $sudo_cmd apt-get install -y apt-transport-https
@@ -144,7 +129,7 @@ elif [ $OS = "Debian" ]; then
       $sudo_cmd apt-get install -y dirmngr
     fi
     printf "\033[34m\n* Configuring APT package sources for StackState\n\033[0m\n"
-    $sudo_cmd sh -c "echo 'deb https://stackstate-agent-2.s3.amazonaws.com ${code_name} main' > /etc/apt/sources.list.d/stackstate.list"
+    $sudo_cmd sh -c "echo 'deb $DEBIAN_REPO $code_name main' > /etc/apt/sources.list.d/stackstate.list"
     $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 B3CC4376
 
     printf "\033[34m\n* Installing the StackState Agent v2 package\n\033[0m\n"
@@ -165,32 +150,9 @@ If the cause is unclear, please contact StackState support.
 "
     $sudo_cmd apt-get install -y --force-yes $PKG_NAME
     ERROR_MESSAGE=""
-elif [ $OS = "SUSE" ]; then
-
-  UNAME_M=$(uname -m)
-  if [ "$UNAME_M"  == "i686" -o "$UNAME_M"  == "i386" -o "$UNAME_M"  == "x86" ]; then
-      printf "\033[31mThe Datadog Agent installer is only available for 64 bit SUSE Enterprise machines.\033[0m\n"
-      exit;
-  fi
-
-  echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
-  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://yum.${sts_url}/suse/${code_name}/6/x86_64\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${sts_url}/DATADOG_RPM_KEY.public' > /etc/zypp/repos.d/datadog.repo"
-
-  echo -e "\033[34m\n* Importing the Datadog GPG Key\n\033[0m"
-  $sudo_cmd rpm --import https://yum.${sts_url}/DATADOG_RPM_KEY.public
-
-  echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
-  $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
-
-  echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
-  $sudo_cmd zypper --non-interactive install $PKG_NAME
-
 else
-    printf "\033[31mYour OS or distribution are not supported by this install script.
-Please follow the instructions on the StackState Agent v2 setup page:
-
-    https://docs.stackstate.com/guides/basic_agent_usage/\033[0m\n"
-    exit;
+    printf "\033[31mYour OS or distribution is not supported yet.\033[0m\n"
+    exit 1;
 fi
 
 # Set the configuration
