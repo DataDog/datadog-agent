@@ -43,12 +43,12 @@ deps:
     - pip install -r requirements.txt
     - inv deps
     - inv version -u > version.txt
+    - inv release.generate-install -t
   artifacts:
     paths:
         - $CI_PROJECT_DIR/vendor
         - $CI_PROJECT_DIR/venv
         - $CI_PROJECT_DIR/version.txt
-        - $CI_PROJECT_DIR/cmd/agent/install_script.sh
     expire_in: 1 week
 
 unit_tests:

@@ -94,4 +94,4 @@ def generate_install(ctx, test_repo=False):
     debian_test_repo = "stackstate-agent-2-test.s3.amazonaws.com"
     repo = debian_test_repo if test_repo else debian_official_repo
     print("Generating install.sh")
-    ctx.run("sed -e 's/$DEBIAN_REPO/https:\/\/{0}/' cmd/agent/install_script.sh > cmd/agent/install.sh".format(repo))
+    ctx.run("sed -e 's/$DEBIAN_REPO/https:\/\/{0}/' ./cmd/agent/install_script.sh > ./cmd/agent/install.sh".format(repo))
