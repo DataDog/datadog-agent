@@ -15,7 +15,7 @@ Prelude
 Release on: 2018-11-21
 
 This release focuses on bringing you
-`Trace Search <https://docs.datadoghq.com/tracing/visualization/search/>`
+`Trace Search <https://docs.datadoghq.com/tracing/visualization/search/>`_
 out-of-the-box. Setting up APM Event extraction no longer requires explicit agent
 configuration and can now be done at the tracer level. Over the course of the next
 weeks, we'll be enriching our tracing libraries to automatically extract events from
