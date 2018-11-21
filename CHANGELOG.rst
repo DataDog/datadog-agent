@@ -21,7 +21,7 @@ configuration and can now be done at the tracer level. Over the course of the ne
 weeks, we'll be enriching our tracing libraries to automatically extract events from
 services of interest (e.g. http endpoints).
 
-- Please refer to the `6.6.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.6.0>`_ for the list of changes on the Trace Agent.
+- Please refer to the `6.7.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.7.0>`_ for the list of changes on the Trace Agent.
 
 .. _Release Notes_6.6.0:
 
