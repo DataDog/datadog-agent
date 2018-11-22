@@ -15,7 +15,7 @@ func init() {
 }
 
 func diagnose() error {
-	_, err := getClusterAgentEndpoint()
+	_, err := GetClusterAgentClient()
 	if err != nil {
 		log.Error(err)
 	}
