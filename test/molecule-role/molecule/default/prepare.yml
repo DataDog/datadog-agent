@@ -98,7 +98,6 @@
       environment:
         STS_API_KEY: "API_KEY"
         STS_URL: "http://{{ hostvars['receiver']['ansible_host'] }}:7077/stsAgent"
-        DEBIAN_REPO: "{{agent_repo_url}}"
         CODE_NAME: "{{agent_current_branch}}"
     - name: Run stackstate-agent
       become: true
