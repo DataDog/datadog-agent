@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"expvar"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -64,6 +65,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	hostname, err := util.GetHostname()
 	if err != nil {
 		hostname = "unknown"
+	}
+
+	// create the permissions.log file and write its headers
+	if err := initPermsInfo(tempDir, hostname, os.ModePerm); err != nil {
+		log.Errorf("can't init the permissions info file: %s", err)
 	}
 
 	if local {
@@ -193,6 +199,11 @@ func zipLogFiles(tempDir, hostname, logFilePath string) error {
 
 		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
 			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
+
+			if err = addPermsInfo(tempDir, hostname, os.ModePerm, dst); err != nil {
+				return fmt.Errorf("can't write perm infos for %s: %s", dst, err)
+			}
+
 			return util.CopyFileAll(src, dst)
 		}
 		return nil
@@ -289,6 +300,10 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 			_, err = w.WriteFromFile(filePath)
 			if err != nil {
 				return err
+			}
+
+			if err = addPermsInfo(tempDir, hostname, os.ModePerm, filePath); err != nil {
+				return fmt.Errorf("can't write permission infos for %s: %s", filePath, err)
 			}
 		}
 	}
@@ -399,6 +414,10 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) 
 
 				if _, err = w.WriteFromFile(src); err != nil {
 					return err
+				}
+
+				if err = addPermsInfo(tempDir, hostname, os.ModePerm, f); err != nil {
+					return fmt.Errorf("can't write permission infos for %s: %s", f, err)
 				}
 			}
 
