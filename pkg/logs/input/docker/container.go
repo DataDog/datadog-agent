@@ -21,7 +21,7 @@ import (
 )
 
 // configPath refers to the configuration that can be passed over a docker label,
-// this feature is commonly named 'ad' or 'autodicovery'.
+// this feature is commonly named 'ad' or 'autodiscovery'.
 const configPath = "com.datadoghq.ad.logs"
 
 // Container represents a container to tail logs from.
@@ -60,36 +60,31 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 	return bestMatch
 }
 
-// GetSourceShortImageName resolves image name for a container if ContainerCollectAll
-// option is enabled. In that case it returns a new LogSource with the short image name
-// as Source and Service tags. If ContainerCollectAll option is not enable,
-// GetSourceShortImageName returns the source
-func (c *Container) GetSourceShortImageName(source *config.LogSource) *config.LogSource {
-	if source.Name != config.ContainerCollectAll {
-		return source
-	}
+// getShortImageName resolves the short image name of a container by calling the docker daemon
+// This call is blocking
+func (c *Container) getShortImageName() (string, error) {
+	var (
+		err       error
+		shortName string
+	)
+
 	du, err := dockerUtil.GetDockerUtil()
 	if err != nil {
 		log.Debugf("Cannot get DockerUtil: %v", err)
-		return source
+		return shortName, err
 	}
 
 	imageName := c.container.Image
 	imageName, err = du.ResolveImageName(imageName)
 	if err != nil {
 		log.Debugf("Could not resolve image name %d: %d", imageName, err)
-		return source
+		return shortName, err
 	}
-	_, shortName, _, err := containers.SplitImageName(imageName)
+	_, shortName, _, err = containers.SplitImageName(imageName)
 	if err != nil {
 		log.Debugf("Cannot parse image name: %v", err)
-		return source
 	}
-	return config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
-		Type:    config.DockerType,
-		Service: shortName,
-		Source:  shortName,
-	})
+	return shortName, err
 }
 
 // computeScore returns the matching score between the container and the source.

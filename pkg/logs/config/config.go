@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
-// ContainerCollectAll is the name of the docker integration that catches all containers
+// ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
 
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.

@@ -29,31 +29,31 @@ const (
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
-	pipelineProvider  pipeline.Provider
-	addedSources      chan *config.LogSource
-	removedSources    chan *config.LogSource
-	addedServices     chan *service.Service
-	removedServices   chan *service.Service
-	activeSources     []*config.LogSource
-	pendingContainers map[string]*Container
-	tailers           map[string]*Tailer
-	cli               *client.Client
-	registry          auditor.Registry
-	stop              chan struct{}
-	erroredContainer  chan *Container
-	lock              *sync.Mutex
+	pipelineProvider   pipeline.Provider
+	addedSources       chan *config.LogSource
+	removedSources     chan *config.LogSource
+	addedServices      chan *service.Service
+	removedServices    chan *service.Service
+	activeSources      []*config.LogSource
+	pendingContainers  map[string]*Container
+	tailers            map[string]*Tailer
+	cli                *client.Client
+	registry           auditor.Registry
+	stop               chan struct{}
+	erroredContainerID chan string
+	lock               *sync.Mutex
 }
 
 // NewLauncher returns a new launcher
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
 	launcher := &Launcher{
-		pipelineProvider:  pipelineProvider,
-		tailers:           make(map[string]*Tailer),
-		pendingContainers: make(map[string]*Container),
-		registry:          registry,
-		stop:              make(chan struct{}),
-		erroredContainer:  make(chan *Container),
-		lock:              &sync.Mutex{},
+		pipelineProvider:   pipelineProvider,
+		tailers:            make(map[string]*Tailer),
+		pendingContainers:  make(map[string]*Container),
+		registry:           registry,
+		stop:               make(chan struct{}),
+		erroredContainerID: make(chan string),
+		lock:               &sync.Mutex{},
 	}
 	err := launcher.setup()
 	if err != nil {
@@ -158,13 +158,33 @@ func (l *Launcher) run() {
 			containerID := service.Identifier
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
-		case container := <-l.erroredContainer:
-			go l.restartTailer(container)
+		case containerID := <-l.erroredContainerID:
+			go l.restartTailer(containerID)
 		case <-l.stop:
 			// no docker container should be tailed anymore
 			return
 		}
 	}
+}
+
+// overrideSource create a new source with
+func (l *Launcher) overrideSource(container *Container, source *config.LogSource) *config.LogSource {
+	if source.Name != config.ContainerCollectAll {
+		return source
+	}
+
+	shortName, err := container.getShortImageName()
+	if err != nil {
+		containerID := container.service.Identifier
+		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
+		return source
+	}
+
+	return config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
+		Type:    config.DockerType,
+		Service: shortName,
+		Source:  shortName,
+	})
 }
 
 // startTailer starts a new tailer for the container matching with the source.
@@ -175,7 +195,8 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		return
 	}
 
-	tailer := NewTailer(l.cli, container, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainer)
+	overridenSource := l.overrideSource(container, source)
+	tailer := NewTailer(l.cli, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
@@ -202,8 +223,7 @@ func (l *Launcher) stopTailer(containerID string) {
 	}
 }
 
-func (l *Launcher) restartTailer(container *Container) {
-	containerID := container.service.Identifier
+func (l *Launcher) restartTailer(containerID string) {
 	backoffDuration := backoffInitialDuration
 	cumulatedBackoff := 0 * time.Second
 	var source *config.LogSource
@@ -215,7 +235,7 @@ func (l *Launcher) restartTailer(container *Container) {
 		l.removeTailer(containerID)
 	}
 
-	tailer := NewTailer(l.cli, container, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainer)
+	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), service.Before)

@@ -37,39 +37,35 @@ const tagsUpdatePeriod = 10 * time.Second
 // To multiplex logs, docker adds a header to all logs with format '[SEV][TS] [MSG]'.
 type Tailer struct {
 	ContainerID   string
-	container     *Container
 	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
 	reader        io.ReadCloser
 	cli           *client.Client
 	source        *config.LogSource
-	originSource  *config.LogSource
 	containerTags []string
 
-	sleepDuration    time.Duration
-	shouldStop       bool
-	stop             chan struct{}
-	done             chan struct{}
-	erroredContainer chan *Container
-	cancelFunc       context.CancelFunc
-	lastSince        string
-	mutex            sync.Mutex
+	sleepDuration      time.Duration
+	shouldStop         bool
+	stop               chan struct{}
+	done               chan struct{}
+	erroredContainerID chan string
+	cancelFunc         context.CancelFunc
+	lastSince          string
+	mutex              sync.Mutex
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, container *Container, source *config.LogSource, outputChan chan *message.Message, erroredContainer chan *Container) *Tailer {
+func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
-		ContainerID:      container.service.Identifier,
-		container:        container,
-		outputChan:       outputChan,
-		decoder:          decoder.InitializeDecoder(source, dockerParser),
-		source:           source,
-		originSource:     container.GetSourceShortImageName(source),
-		cli:              cli,
-		sleepDuration:    defaultSleepDuration,
-		stop:             make(chan struct{}, 1),
-		done:             make(chan struct{}, 1),
-		erroredContainer: erroredContainer,
+		ContainerID:        containerID,
+		outputChan:         outputChan,
+		decoder:            decoder.InitializeDecoder(source, dockerParser),
+		source:             source,
+		cli:                cli,
+		sleepDuration:      defaultSleepDuration,
+		stop:               make(chan struct{}, 1),
+		done:               make(chan struct{}, 1),
+		erroredContainerID: erroredContainerID,
 	}
 }
 
@@ -169,7 +165,7 @@ func (t *Tailer) readForever() {
 					err := t.setupReader()
 					if err != nil {
 						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
-						t.erroredContainer <- t.container
+						t.erroredContainerID <- t.ContainerID
 						return
 					}
 					continue
@@ -183,7 +179,7 @@ func (t *Tailer) readForever() {
 				default:
 					t.source.Status.Error(err)
 					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.ContainerID), err)
-					t.erroredContainer <- t.container
+					t.erroredContainerID <- t.ContainerID
 					return
 				}
 			}
@@ -233,7 +229,7 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.Content) > 0 {
-			origin := message.NewOrigin(t.originSource)
+			origin := message.NewOrigin(t.source)
 			origin.Offset = output.Timestamp
 			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
