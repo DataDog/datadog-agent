@@ -47,12 +47,12 @@ type LeaderEngine struct {
 	m       sync.Mutex
 	once    sync.Once
 
-	HolderIdentity  string
-	LeaseDuration   time.Duration
-	LeaseName       string
-	LeaderNamespace string
-	coreClient      corev1.CoreV1Interface
-
+	HolderIdentity      string
+	LeaseDuration       time.Duration
+	LeaseName           string
+	LeaderNamespace     string
+	coreClient          corev1.CoreV1Interface
+	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
 
@@ -64,6 +64,7 @@ func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
 		LeaseName:       defaultLeaseName,
 		LeaderNamespace: common.GetResourcesNamespace(),
+		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
 	}
 }
 
@@ -197,6 +198,26 @@ func (le *LeaderEngine) GetLeader() string {
 	defer le.leaderIdentityMutex.RUnlock()
 
 	return le.leaderIdentity
+}
+
+// GetLeaderIP returns the IP the leader can be reached at, assuming its
+// identity is its pod name. Returns empty if we are the leader.
+// The result is not cached.
+func (le *LeaderEngine) GetLeaderIP() (string, error) {
+	leaderName := le.GetLeader()
+	if leaderName == "" || leaderName == le.HolderIdentity {
+		return "", nil
+	}
+
+	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(le.ServiceName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	target, err := apiserver.SearchTargetPerName(endpointList, leaderName)
+	if err != nil {
+		return "", err
+	}
+	return target.IP, nil
 }
 
 // IsLeader returns true if the last observed leader was this client else returns false.
