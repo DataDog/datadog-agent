@@ -291,19 +291,25 @@ func TestConverter(t *testing.T) {
 
 	// float64 values
 	for k, v := range map[string]float64{
-		"apm_config.extra_sample_rate":                 1.,     // trace.sampler.extra_sample_rate
-		"apm_config.max_traces_per_second":             10.,    // trace.sampler.max_traces_per_second
-		"apm_config.max_events_per_second":             10.4,   // trace.sampler.max_events_per_second
-		"apm_config.max_memory":                        1234.5, // trace.watchdog.max_memory
-		"apm_config.max_cpu_percent":                   85.4,   // trace.watchdog.max_cpu_percent
-		"apm_config.analyzed_rate_by_service.service1": 1.1,
-		"apm_config.analyzed_rate_by_service.service2": 1.2,
-		"apm_config.analyzed_spans.service3|op3":       1.3,
-		"apm_config.analyzed_spans.service4|op4":       1.4,
+		"apm_config.extra_sample_rate":     1.,     // trace.sampler.extra_sample_rate
+		"apm_config.max_traces_per_second": 10.,    // trace.sampler.max_traces_per_second
+		"apm_config.max_events_per_second": 10.4,   // trace.sampler.max_events_per_second
+		"apm_config.max_memory":            1234.5, // trace.watchdog.max_memory
+		"apm_config.max_cpu_percent":       85.4,   // trace.watchdog.max_cpu_percent
 	} {
 		require.True(c.IsSet(k), k)
 		require.Equal(v, c.GetFloat64(k), k)
 	}
+
+	require.Equal(map[string]string{
+		"service1": "1.1",
+		"service2": "1.2",
+	}, c.GetStringMapString("apm_config.analyzed_rate_by_service"))
+
+	require.Equal(map[string]string{
+		"service3|op3": "1.3",
+		"service4|op4": "1.4",
+	}, c.GetStringMapString("apm_config.analyzed_spans"))
 }
 
 func TestExtractURLAPIKeys(t *testing.T) {
