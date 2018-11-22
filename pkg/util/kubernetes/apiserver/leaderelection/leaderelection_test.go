@@ -9,7 +9,6 @@ package leaderelection
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -42,21 +41,6 @@ func makeLeaderCM(name, namespace, leaderIdentity string, leaseDuration int) *co
 			Namespace: namespace,
 			Annotations: map[string]string{
 				"control-plane.alpha.kubernetes.io/leader": string(b),
-			},
-		},
-	}
-}
-
-func newFakeLockObject(namespace, name, leaderIdentity string) *v1.ConfigMap {
-	return &v1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind: "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-			Annotations: map[string]string{
-				rl.LeaderElectionRecordAnnotationKey: fmt.Sprintf(`{"holderIdentity":"%s"}`, leaderIdentity),
 			},
 		},
 	}
@@ -109,6 +93,10 @@ func TestNewLeaseAcquiring(t *testing.T) {
 	require.Contains(t, Cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
 	require.True(t, le.IsLeader())
 
+	// As a leader, GetLeaderIP should return an empty IP
+	ip, err := le.GetLeaderIP()
+	assert.Equal(t, "", ip)
+	assert.NoError(t, err)
 }
 
 func TestGetLeaderIPFollower(t *testing.T) {
