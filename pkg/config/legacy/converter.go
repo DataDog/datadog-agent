@@ -205,21 +205,29 @@ func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyC
 		}
 	}
 
+	// event extraction rates
 	prefix1 := "trace.analyzed_rate_by_service."
 	prefix2 := "trace.analyzed_spans."
+	set1 := make(map[string]string)
+	set2 := make(map[string]string)
 	for k, v := range agentConfig {
 		switch {
 		case strings.HasPrefix(k, prefix1):
-			yamlKey := "apm_config.analyzed_rate_by_service." + strings.TrimPrefix(k, prefix1)
-			configConverter.Set(yamlKey, v)
+			set1[strings.TrimPrefix(k, prefix1)] = v
 		case strings.HasPrefix(k, prefix2):
-			yamlKey := "apm_config.analyzed_spans." + strings.TrimPrefix(k, prefix2)
-			configConverter.Set(yamlKey, v)
+			set2[strings.TrimPrefix(k, prefix2)] = v
 		default:
 			continue
 		}
 	}
+	if len(set1) > 0 {
+		configConverter.Set("apm_config.analyzed_rate_by_service", set1)
+	}
+	if len(set2) > 0 {
+		configConverter.Set("apm_config.analyzed_spans", set2)
+	}
 
+	// ignored resources
 	if v, ok := agentConfig["trace.ignore.resource"]; ok {
 		var err error
 		r := strings.Split(v, ",")
