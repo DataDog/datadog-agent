@@ -107,7 +107,7 @@ func parseFargateRegion(arn string) string {
 	region := arnParts[3]
 
 	// Sanity check
-	if strings.Count(region, "-") != 2 {
+	if strings.Count(region, "-") < 2 {
 		return ""
 	}
 
