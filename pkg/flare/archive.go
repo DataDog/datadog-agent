@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -102,6 +103,12 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		if err != nil {
 			log.Errorf("Could not zip config check: %s", err)
 		}
+	}
+
+	// auth token permissions info
+	err = addPermsInfo(tempDir, hostname, os.ModePerm, security.GetAuthTokenFilepath())
+	if err != nil {
+		log.Errorf("Could not get permissions of the auth token: %s", err)
 	}
 
 	err = zipConfigFiles(tempDir, hostname, confSearchPaths)
