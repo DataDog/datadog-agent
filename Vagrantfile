@@ -13,7 +13,7 @@ Vagrant.configure("2") do |config|
     config.vm.provision "shell",
       env: {
         "STS_API_KEY" => "API_KEY",
-        "STS_URL" => "http://192.168.56.101:7077/stsAgent",
+        "STS_URL" => "http://192.168.56.1:7077/stsAgent",
         "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
         "CODE_NAME" => "master" # or PR_NAME
       },
@@ -39,7 +39,7 @@ Vagrant.configure("2") do |config|
     config.vm.provision "shell",
       env: {
         "STS_API_KEY" => "API_KEY",
-        "STS_URL" => "http://192.168.56.101:7077/stsAgent",
+        "STS_URL" => "http://192.168.56.1:7077/stsAgent",
         "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
         "CODE_NAME" => "master" # or PR_NAME
       },
@@ -65,7 +65,7 @@ Vagrant.configure("2") do |config|
     config.vm.provision "shell",
       env: {
         "STS_API_KEY" => "API_KEY",
-        "STS_URL" => "http://192.168.56.101:7077/stsAgent",
+        "STS_URL" => "http://192.168.56.1:7077/stsAgent",
         "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
         "CODE_NAME" => "master" # or PR_NAME
       },
@@ -91,7 +91,7 @@ Vagrant.configure("2") do |config|
     config.vm.provision "shell",
       env: {
         "STS_API_KEY" => "API_KEY",
-        "STS_URL" => "http://192.168.56.101:7077/stsAgent",
+        "STS_URL" => "http://192.168.56.1:7077/stsAgent",
         "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
         "CODE_NAME" => "master" # or PR_NAME
       },
