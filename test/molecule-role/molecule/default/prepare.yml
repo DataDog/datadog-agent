@@ -93,38 +93,12 @@
       raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip)
       become: true
       changed_when: false
-    - name: Add stackstate-agent Apt signing key
-      become: true
-      apt_key:
-        url: "{{agent_repo_url}}/public.key"
-        state: present
-    - name: Inform about current branch
-      debug: msg="deb {{agent_repo_url}} {{agent_current_branch}} main"
-    - name: Add stackstate-agent Apt repository
-      become: true
-      apt_repository:
-        repo: "deb {{agent_repo_url}} {{agent_current_branch}} main"
-    - name: Install StackState-Agent
-      become: true
-      apt:
-        name: stackstate-agent
-        state: present
-        update_cache: yes
-    - name: Copy stackstate config file
-      become: true
-      command: cp -a /etc/stackstate-agent/stackstate.yaml.example /etc/stackstate-agent/stackstate.yaml
-    - name: Replace sts_url
-      become: true
-      lineinfile:
-        path: /etc/stackstate-agent/stackstate.yaml
-        regexp: '^sts_url:'
-        line: "sts_url: http://{{ hostvars['receiver']['ansible_host'] }}:7077/stsAgent"
-    - name: Replace process_sts_url
-      become: true
-      lineinfile:
-        path: /etc/stackstate-agent/stackstate.yaml
-        regexp: '^  process_sts_url:.*'
-        line: "  process_sts_url: http://{{ hostvars['receiver']['ansible_host'] }}:7077/stsAgent"
+    - name: Install stackstate-agent
+      shell: "curl -o- {{agent_repo_url}}/install.sh | bash"
+      environment:
+        STS_API_KEY: "API_KEY"
+        STS_URL: "http://{{ hostvars['receiver']['ansible_host'] }}:7077/stsAgent"
+        CODE_NAME: "{{agent_current_branch}}"
     - name: Run stackstate-agent
       become: true
       systemd:
