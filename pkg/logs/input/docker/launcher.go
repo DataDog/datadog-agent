@@ -42,6 +42,7 @@ type Launcher struct {
 	stop               chan struct{}
 	erroredContainerID chan string
 	lock               *sync.Mutex
+	collectAllSource   *config.LogSource
 }
 
 // NewLauncher returns a new launcher
@@ -173,6 +174,10 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		return source
 	}
 
+	if l.collectAllSource == nil {
+		l.collectAllSource = source
+	}
+
 	shortName, err := container.getShortImageName()
 	if err != nil {
 		containerID := container.service.Identifier
@@ -208,8 +213,11 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	err = tailer.Start(since)
 	if err != nil {
 		log.Warnf("Could not start tailer: %v", containerID, err)
+		source.Status.Error(err)
 		return
 	}
+	source.Status.Success()
+	source.AddInput(containerID)
 
 	// keep the tailer in track to stop it later on
 	l.addTailer(containerID, tailer)
@@ -218,6 +226,9 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
 	if tailer, isTailed := l.tailers[containerID]; isTailed {
+		// One of those two RemoveInput is a no-op
+		tailer.source.RemoveInput(containerID)
+		l.collectAllSource.RemoveInput(containerID)
 		go tailer.Stop()
 		l.removeTailer(containerID)
 	}
@@ -231,6 +242,8 @@ func (l *Launcher) restartTailer(containerID string) {
 	oldTailer, exists := l.tailers[containerID]
 	if exists {
 		source = oldTailer.source
+		source.RemoveInput(containerID)
+		l.collectAllSource.RemoveInput(containerID)
 		oldTailer.Stop()
 		l.removeTailer(containerID)
 	}
@@ -260,6 +273,8 @@ func (l *Launcher) restartTailer(containerID string) {
 		}
 		// keep the tailer in track to stop it later on
 		l.addTailer(containerID, tailer)
+		source.Status.Success()
+		source.AddInput(containerID)
 		return
 	}
 }
