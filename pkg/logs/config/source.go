@@ -75,3 +75,12 @@ func (s *LogSource) GetSourceType() string {
 	defer s.lock.Unlock()
 	return s.sourceType
 }
+
+// UpdateTags update the tags of the its LogConfig
+func (s *LogSource) UpdateTags(tags []string) {
+	s.lock.Lock()
+	if s.Config != nil {
+		s.Config.updateTags(tags)
+	}
+	s.lock.Unlock()
+}

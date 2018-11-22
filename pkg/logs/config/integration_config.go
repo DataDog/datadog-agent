@@ -139,3 +139,20 @@ func (c *LogsConfig) Compile() error {
 	}
 	return nil
 }
+
+func (c *LogsConfig) updateTags(tags []string) {
+	tagSet := make(map[string]struct{})
+
+	for _, tag := range tags {
+		tagSet[tag] = struct{}{}
+	}
+	for _, tag := range c.Tags {
+		tagSet[tag] = struct{}{}
+	}
+
+	var updatedTags []string
+	for tag := range tagSet {
+		updatedTags = append(updatedTags, tag)
+	}
+	c.Tags = updatedTags
+}

@@ -70,3 +70,27 @@ func TestCompileShouldFailWithInvalidRules(t *testing.T) {
 		assert.Nil(t, rule.Reg)
 	}
 }
+
+func TestUpdateTags(t *testing.T) {
+	config := &LogsConfig{}
+	tags := []string{"foo:bar", "baz:qux"}
+	config.updateTags(tags)
+	assert.ElementsMatch(t, []string{"foo:bar", "baz:qux"}, config.Tags)
+
+	config = &LogsConfig{Tags: []string{"foobar:bazqux"}}
+	tags = []string{"foo:bar", "baz:qux"}
+	config.updateTags(tags)
+	assert.ElementsMatch(t, []string{"foobar:bazqux", "foo:bar", "baz:qux"}, config.Tags)
+	config.updateTags(tags)
+	assert.ElementsMatch(t, []string{"foobar:bazqux", "foo:bar", "baz:qux"}, config.Tags)
+
+	config = &LogsConfig{Tags: []string{"foo:bar", "baz:qux"}}
+	tags = []string{"foo:bar", "baz:qux"}
+	config.updateTags(tags)
+	assert.ElementsMatch(t, []string{"foo:bar", "baz:qux"}, config.Tags)
+
+	config = &LogsConfig{Tags: []string{"foo:bar", "baz:qux"}}
+	tags = []string(nil)
+	config.updateTags(tags)
+	assert.ElementsMatch(t, []string{"foo:bar", "baz:qux"}, config.Tags)
+}

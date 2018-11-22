@@ -9,6 +9,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -21,6 +22,9 @@ import (
 // The path to the pods log directory.
 const podsDirectoryPath = "/var/log/pods"
 
+// tagsUpdatePeriod is the period at which we try to fetch new tags for a container
+const tagsUpdatePeriod = 30 * time.Second
+
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
 	sources                   *config.LogSources
@@ -31,6 +35,7 @@ type Launcher struct {
 	dockerRemovedServices     chan *service.Service
 	containerdAddedServices   chan *service.Service
 	containerdRemovedServices chan *service.Service
+	stopRefreshTags           chan struct{}
 }
 
 // NewLauncher returns a new launcher.
@@ -43,6 +48,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services) (*Launc
 		sources:            sources,
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
+		stopRefreshTags:    make(chan struct{}),
 		kubeutil:           kubeutil,
 	}
 	err = launcher.setup()
@@ -75,11 +81,13 @@ func (l *Launcher) setup() error {
 func (l *Launcher) Start() {
 	log.Info("Starting Kubernetes launcher")
 	go l.run()
+	go l.refreshTags()
 }
 
 // Stop stops the launcher
 func (l *Launcher) Stop() {
 	log.Info("Stopping Kubernetes launcher")
+	l.stopRefreshTags <- struct{}{}
 	l.stopped <- struct{}{}
 }
 
@@ -135,6 +143,21 @@ func (l *Launcher) addSource(svc *service.Service) {
 	l.sources.AddSource(source)
 }
 
+func (l *Launcher) refreshTags() {
+	ticker := time.NewTicker(tagsUpdatePeriod)
+	for {
+		select {
+		case <-ticker.C:
+			for containerID, source := range l.sourcesByContainer {
+				tags := l.getTags(containerID)
+				source.UpdateTags(tags)
+			}
+		case <-l.stopRefreshTags:
+			return
+		}
+	}
+}
+
 func searchContainer(service *service.Service, pod *kubelet.Pod) (kubelet.ContainerStatus, error) {
 	for _, container := range pod.Status.Containers {
 		if service.GetEntityID() == container.ID {
@@ -174,7 +197,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(pod, container)
 	cfg.Identifier = container.ID
-	cfg.Tags = append(cfg.Tags, l.getTags(container)...)
+	cfg.Tags = append(cfg.Tags, l.getTags(container.ID)...)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
 	}
@@ -219,7 +242,7 @@ func (l *Launcher) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) 
 }
 
 // getTags returns all the tags of the container
-func (l *Launcher) getTags(container kubelet.ContainerStatus) []string {
-	tags, _ := tagger.Tag(container.ID, true)
+func (l *Launcher) getTags(containerID string) []string {
+	tags, _ := tagger.Tag(containerID, true)
 	return tags
 }
