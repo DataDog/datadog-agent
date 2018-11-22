@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/api/core/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -25,7 +24,7 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 )
 
-func makeLeaderCM(name, namespace, leaderIdentity string, leaseDuration int) *corev1.ConfigMap {
+func makeLeaderCM(name, namespace, leaderIdentity string, leaseDuration int) *v1.ConfigMap {
 	record := rl.LeaderElectionRecord{
 		HolderIdentity:       leaderIdentity,
 		LeaseDurationSeconds: leaseDuration,
@@ -35,7 +34,7 @@ func makeLeaderCM(name, namespace, leaderIdentity string, leaseDuration int) *co
 	}
 	b, _ := json.Marshal(&record)
 
-	return &corev1.ConfigMap{
+	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -119,7 +118,7 @@ func TestGetLeaderIPFollower(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create endpoints
-	endpoints := &corev1.Endpoints{
+	endpoints := &v1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      endpointsName,
 			Namespace: "default",
