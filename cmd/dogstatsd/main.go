@@ -85,6 +85,7 @@ func init() {
 func start(cmd *cobra.Command, args []string) error {
 	// Main context passed to components
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel() // Calling cancel twice is safe
 
 	configFound := false
 
