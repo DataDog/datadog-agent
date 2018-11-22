@@ -138,17 +138,8 @@ func FromAgentConfig(agentConfig Config) error {
 
 	if agentConfig["apm_enabled"] != "" {
 		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
-			// apm is enabled by default, convert the config only if it was disabled
 			configConverter.Set("apm_config.enabled", enabled)
 		}
-	}
-
-	if agentConfig["trace.config.env"] != "" {
-		configConverter.Set("apm_config.env", agentConfig["trace.config.env"])
-	}
-
-	if receiverPort, err := strconv.Atoi(agentConfig["trace.receiver.receiver_port"]); err == nil {
-		configConverter.Set("apm_config.receiver_port", receiverPort)
 	}
 
 	if agentConfig["non_local_traffic"] != "" {
@@ -158,37 +149,16 @@ func FromAgentConfig(agentConfig Config) error {
 		}
 	}
 
-	if sampleRate, err := strconv.ParseFloat(agentConfig["trace.sampler.extra_sample_rate"], 64); err == nil {
-		configConverter.Set("apm_config.extra_sample_rate", sampleRate)
-	}
-
-	if maxTraces, err := strconv.ParseFloat(agentConfig["trace.sampler.max_traces_per_second"], 64); err == nil {
-		configConverter.Set("apm_config.max_traces_per_second", maxTraces)
-	}
-
-	if v := agentConfig["trace.ignore.resource"]; v != "" {
-		var err error
-		r := strings.Split(v, ",")
-		for i := range r {
-			r[i], err = strconv.Unquote(r[i])
-			if err != nil {
-				return err
-			}
-		}
-		configConverter.Set("apm_config.ignore_resources", r)
-	}
-
 	configConverter.Set("hostname_fqdn", true)
 
-	extractTraceAgentConfig(agentConfig, configConverter)
-
-	return nil
+	return extractTraceAgentConfig(agentConfig, configConverter)
 }
 
-func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyConfigConverter) {
+func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyConfigConverter) error {
 	for iniKey, yamlKey := range map[string]string{
 		"trace.api.api_key":                                      "apm_config.api_key",
 		"trace.api.endpoint":                                     "apm_config.apm_dd_url",
+		"trace.config.env":                                       "apm_config.env",
 		"trace.config.log_level":                                 "apm_config.log_level",
 		"trace.config.log_file":                                  "apm_config.log_file",
 		"trace.config.log_throttling":                            "apm_config.log_throttling",
@@ -249,6 +219,20 @@ func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyC
 			continue
 		}
 	}
+
+	if v, ok := agentConfig["trace.ignore.resource"]; ok {
+		var err error
+		r := strings.Split(v, ",")
+		for i := range r {
+			r[i], err = strconv.Unquote(r[i])
+			if err != nil {
+				return err
+			}
+		}
+		configConverter.Set("apm_config.ignore_resources", r)
+	}
+
+	return nil
 }
 
 func isAffirmative(value string) (bool, error) {
