@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The agent now requires a cluster agent vesion 1.0+ to establish
+    a valid connection
