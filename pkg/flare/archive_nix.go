@@ -28,13 +28,13 @@ func zipTypeperfData(tempDir, hostname string) error {
 
 // Add puts the given filepath in the map
 // of files to process later during the commit phase.
-func (p *PermsInfos) Add(filePath string) {
+func (p *PermsInfos) add(filePath string) {
 	p.infos[filePath] = permsInfo{}
 }
 
 // Commit resolves the infos of every stacked files in the map
 // and then writes the permissions.log file on the filesystem.
-func (p *PermsInfos) Commit() error {
+func (p *PermsInfos) commit() error {
 	if err := p.statFiles(); err != nil {
 		return err
 	}

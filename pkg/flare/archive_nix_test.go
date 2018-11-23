@@ -60,12 +60,12 @@ func TestAddPermsInfo(t *testing.T) {
 	assert.NoError(err, "creating a temporary file should not fail")
 	assert.NotNil(f2, "temporary file should not be nil")
 
-	permsInfos.Add(f1.Name())
-	permsInfos.Add(f2.Name())
+	permsInfos.add(f1.Name())
+	permsInfos.add(f2.Name())
 
 	permsFilePath := filepath.Join(os.TempDir(), "permissions.log")
 
-	err = permsInfos.Commit()
+	err = permsInfos.commit()
 	assert.NoError(err, "stating files + writing permissions.log should not fail")
 
 	// should have created a permissions.log in the tmp dir

@@ -133,7 +133,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 
 	// auth token permissions info (only if existing)
 	if _, err = os.Stat(security.GetAuthTokenFilepath()); err == nil && !os.IsNotExist(err) {
-		permsInfos.Add(security.GetAuthTokenFilepath())
+		permsInfos.add(security.GetAuthTokenFilepath())
 	}
 
 	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
@@ -190,7 +190,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	}
 
 	// gets files infos and write the permissions.log file
-	if err := permsInfos.Commit(); err != nil {
+	if err := permsInfos.commit(); err != nil {
 		log.Errorf("Could not write permissions.log file: %s", err)
 	}
 
@@ -239,7 +239,7 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos *PermsInfos) 
 			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
 
 			if permsInfos != nil {
-				permsInfos.Add(dst)
+				permsInfos.add(dst)
 			}
 
 			return util.CopyFileAll(src, dst)
@@ -341,7 +341,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 			}
 
 			if permsInfos != nil {
-				permsInfos.Add(filePath)
+				permsInfos.add(filePath)
 			}
 		}
 	}
@@ -455,7 +455,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 				}
 
 				if permsInfos != nil {
-					permsInfos.Add(src)
+					permsInfos.add(src)
 				}
 			}
 

@@ -83,7 +83,7 @@ func zipTypeperfData(tempDir, hostname string) error {
 	return nil
 }
 
-func (p *PermsInfos) Add(filePath string) {}
-func (p *PermsInfos) Commit() error {
+func (p *PermsInfos) add(filePath string) {}
+func (p *PermsInfos) commit() error {
 	return nil
 }
