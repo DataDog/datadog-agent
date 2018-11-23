@@ -3,3 +3,7 @@ fixes:
   - |
     The cluster agent client init now fail as expected if the
     cluster agent URL is not valid
+upgrade:
+  - |
+    The agent now requires a cluster agent version 1.0+ to establish
+    a valid connection
