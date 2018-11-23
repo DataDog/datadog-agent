@@ -98,7 +98,9 @@ func (p *PermsInfos) write() error {
 	if _, err = f.Write([]byte(s)); err != nil {
 		return err
 	}
-	_, err = f.Write([]byte(strings.Repeat("-", len(s)) + "\n"))
+	if _, err = f.Write([]byte(strings.Repeat("-", len(s)) + "\n")); err != nil {
+		return err
+	}
 
 	// write each file permissions infos
 	for filePath, perms := range p.infos {
