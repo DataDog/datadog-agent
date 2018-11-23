@@ -91,9 +91,8 @@ func (h *SingleLineHandler) process(line []byte) {
 		output, err := h.parser.Parse(content)
 		if err != nil {
 			log.Warn(err)
-			return
 		}
-		if len(output.Content) > 0 {
+		if output != nil && len(output.Content) > 0 {
 			output.RawDataLen = lineLen + 1
 			h.outputChan <- output
 		}
@@ -103,9 +102,8 @@ func (h *SingleLineHandler) process(line []byte) {
 		output, err := h.parser.Parse(content)
 		if err != nil {
 			log.Warn(err)
-			return
 		}
-		if len(output.Content) > 0 {
+		if output != nil && len(output.Content) > 0 {
 			output.RawDataLen = lineLen
 			h.outputChan <- output
 			h.shouldTruncate = true
@@ -186,7 +184,6 @@ func (h *MultiLineHandler) process(line []byte) {
 	unwrappedLine, err := h.parser.Unwrap(line)
 	if err != nil {
 		log.Warn(err)
-		return
 	}
 	if h.newContentRe.Match(unwrappedLine) {
 		// send content from lineBuffer
@@ -221,9 +218,8 @@ func (h *MultiLineHandler) sendContent() {
 		output, err := h.parser.Parse(content)
 		if err != nil {
 			log.Warn(err)
-			return
 		}
-		if len(output.Content) > 0 {
+		if output != nil && len(output.Content) > 0 {
 			output.RawDataLen = rawDataLen
 			h.outputChan <- output
 		}

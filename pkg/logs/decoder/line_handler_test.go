@@ -7,6 +7,7 @@ package decoder
 
 import (
 	"bytes"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -30,10 +31,15 @@ type MockUnwrapper struct {
 	header []byte
 }
 
+type MockFailingParser struct {
+	header []byte
+}
+
 func NewMockParser(header string) parser.Parser {
 	return &MockParser{header: []byte(header)}
 }
 
+// Parse removes header from line and returns a message
 func (u *MockParser) Parse(msg []byte) (*message.Message, error) {
 	return &message.Message{Content: bytes.Replace(msg, u.header, []byte(""), 1)}, nil
 }
@@ -55,6 +61,29 @@ func (u *MockUnwrapper) Parse(msg []byte) (*message.Message, error) {
 // Unwrap removes header from line
 func (u *MockUnwrapper) Unwrap(line []byte) ([]byte, error) {
 	return bytes.Replace(line, u.header, []byte(""), 1), nil
+}
+
+func NewMockFailingParser(header string) parser.Parser {
+	return &MockFailingParser{header: []byte(header)}
+}
+
+// Parse removes header from line and returns a message if its header matches the Parser header
+// or returns an error
+func (u *MockFailingParser) Parse(msg []byte) (*message.Message, error) {
+	if bytes.HasPrefix(msg, u.header) {
+		return &message.Message{Content: bytes.Replace(msg, u.header, []byte(""), 1)}, nil
+	} else {
+		return &message.Message{Content: msg}, fmt.Errorf("error")
+	}
+}
+
+// Unwrap removes header from line if the header matches the Parser header or returns an error
+func (u *MockFailingParser) Unwrap(line []byte) ([]byte, error) {
+	if bytes.HasPrefix(line, u.header) {
+		return bytes.Replace(line, u.header, []byte(""), 1), nil
+	} else {
+		return line, fmt.Errorf("error")
+	}
 }
 
 func TestSingleLineHandler(t *testing.T) {
@@ -255,6 +284,36 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 	h.Handle([]byte(header))
 
 	h.Handle([]byte(header + "1.third line"))
+	h.Handle([]byte("fourth line"))
+
+	var output *message.Message
+
+	output = <-outputChan
+	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
+}
+
+func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
+	const header = "HEADER"
+	outputChan := make(chan *message.Message, 10)
+	h := NewSingleLineHandler(outputChan, NewMockFailingParser(header))
+	h.Start()
+
+	h.Handle([]byte("one message"))
+
+	var output *message.Message
+
+	output = <-outputChan
+	assert.Equal(t, "one message", string(output.Content))
+}
+
+func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
+	const header = "HEADER"
+	outputChan := make(chan *message.Message, 10)
+	re := regexp.MustCompile("[0-9]+\\.")
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header))
+	h.Start()
+
+	h.Handle([]byte("1.third line"))
 	h.Handle([]byte("fourth line"))
 
 	var output *message.Message
