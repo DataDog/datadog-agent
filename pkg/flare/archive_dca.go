@@ -78,12 +78,12 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		}
 	}
 
-	err = zipLogFiles(tempDir, hostname, logFilePath)
+	err = zipLogFiles(tempDir, hostname, logFilePath, nil)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipConfigFiles(tempDir, hostname, confSearchPaths)
+	err = zipConfigFiles(tempDir, hostname, confSearchPaths, nil)
 
 	if err != nil {
 		return "", err

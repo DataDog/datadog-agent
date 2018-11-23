@@ -83,10 +83,7 @@ func zipTypeperfData(tempDir, hostname string) error {
 	return nil
 }
 
-func initPermsInfo(tempDir, hostname string, p os.FileMode) error {
-	return nil
-}
-
-func addPermsInfo(tempDir, hostname string, p os.FileMode, filepath string) error {
+func (p *PermsInfos) Add(filePath string) {}
+func (p *PermsInfos) Commit() error {
 	return nil
 }
