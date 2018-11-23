@@ -185,11 +185,13 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		return source
 	}
 
-	return config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
+	overridenSource := config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
 		Type:    config.DockerType,
 		Service: shortName,
 		Source:  shortName,
 	})
+	overridenSource.Status = source.Status
+	return overridenSource
 }
 
 // startTailer starts a new tailer for the container matching with the source.
@@ -213,10 +215,8 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	err = tailer.Start(since)
 	if err != nil {
 		log.Warnf("Could not start tailer: %v", containerID, err)
-		source.Status.Error(err)
 		return
 	}
-	source.Status.Success()
 	source.AddInput(containerID)
 
 	// keep the tailer in track to stop it later on
@@ -226,8 +226,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
 	if tailer, isTailed := l.tailers[containerID]; isTailed {
-		// One of those two RemoveInput is a no-op
-		tailer.source.RemoveInput(containerID)
+		// No-op if the tailer source came from AD
 		l.collectAllSource.RemoveInput(containerID)
 		go tailer.Stop()
 		l.removeTailer(containerID)
@@ -242,7 +241,6 @@ func (l *Launcher) restartTailer(containerID string) {
 	oldTailer, exists := l.tailers[containerID]
 	if exists {
 		source = oldTailer.source
-		source.RemoveInput(containerID)
 		l.collectAllSource.RemoveInput(containerID)
 		oldTailer.Stop()
 		l.removeTailer(containerID)
@@ -273,7 +271,6 @@ func (l *Launcher) restartTailer(containerID string) {
 		}
 		// keep the tailer in track to stop it later on
 		l.addTailer(containerID, tailer)
-		source.Status.Success()
 		source.AddInput(containerID)
 		return
 	}

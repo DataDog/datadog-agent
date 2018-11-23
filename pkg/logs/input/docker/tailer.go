@@ -82,6 +82,7 @@ func (t *Tailer) Stop() {
 	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
+	t.source.RemoveInput(t.ContainerID)
 	// wait for the decoder to be flushed
 	<-t.done
 }
@@ -131,8 +132,11 @@ func (t *Tailer) tail(since string) error {
 	err := t.setupReader()
 	if err != nil {
 		// could not start the tailer
+		t.source.Status.Error(err)
 		return err
 	}
+	t.source.Status.Success()
+	t.source.AddInput(t.ContainerID)
 
 	go t.keepDockerTagsUpdated()
 	go t.forwardMessages()
