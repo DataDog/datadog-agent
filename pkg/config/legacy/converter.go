@@ -24,7 +24,12 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	if proxy, err := buildProxySettings(agentConfig); err == nil {
-		configConverter.Set("proxy", proxy)
+		if u, ok := proxy["http"]; ok {
+			configConverter.Set("proxy.http", u)
+		}
+		if u, ok := proxy["https"]; ok {
+			configConverter.Set("proxy.https", u)
+		}
 	}
 
 	if enabled, err := isAffirmative(agentConfig["skip_ssl_validation"]); err == nil {
@@ -132,40 +137,108 @@ func FromAgentConfig(agentConfig Config) error {
 	//Trace APM based configurations
 
 	if agentConfig["apm_enabled"] != "" {
-		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil && !enabled {
-			// apm is enabled by default, convert the config only if it was disabled
+		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
 			configConverter.Set("apm_config.enabled", enabled)
 		}
 	}
 
-	if agentConfig["env"] != "" {
-		configConverter.Set("apm_config.env", agentConfig["env"])
-	}
-
-	if receiverPort, err := strconv.Atoi(agentConfig["receiver_port"]); err == nil {
-		configConverter.Set("apm_config.receiver_port", receiverPort)
-	}
-
 	if agentConfig["non_local_traffic"] != "" {
-		if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil && enabled {
+		if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil {
 			// trace-agent listen locally by default, convert the config only if configured to listen to more
 			configConverter.Set("apm_config.apm_non_local_traffic", enabled)
 		}
 	}
 
-	if sampleRate, err := strconv.ParseFloat(agentConfig["extra_sample_rate"], 64); err == nil {
-		configConverter.Set("apm_config.extra_sample_rate", sampleRate)
-	}
-
-	if maxTraces, err := strconv.ParseFloat(agentConfig["max_traces_per_second"], 64); err == nil {
-		configConverter.Set("apm_config.max_traces_per_second", maxTraces)
-	}
-
-	if agentConfig["resource"] != "" {
-		configConverter.Set("apm_config.ignore_resources", strings.Split(agentConfig["resource"], ","))
-	}
-
 	configConverter.Set("hostname_fqdn", true)
+
+	return extractTraceAgentConfig(agentConfig, configConverter)
+}
+
+func extractTraceAgentConfig(agentConfig Config, configConverter *config.LegacyConfigConverter) error {
+	for iniKey, yamlKey := range map[string]string{
+		"trace.api.api_key":                                      "apm_config.api_key",
+		"trace.api.endpoint":                                     "apm_config.apm_dd_url",
+		"trace.config.env":                                       "apm_config.env",
+		"trace.config.log_level":                                 "apm_config.log_level",
+		"trace.config.log_file":                                  "apm_config.log_file",
+		"trace.config.log_throttling":                            "apm_config.log_throttling",
+		"trace.concentrator.bucket_size_seconds":                 "apm_config.bucket_size_seconds",
+		"trace.concentrator.extra_aggregators":                   "apm_config.extra_aggregators",
+		"trace.receiver.receiver_port":                           "apm_config.receiver_port",
+		"trace.receiver.connection_limit":                        "apm_config.connection_limit",
+		"trace.receiver.timeout":                                 "apm_config.receiver_timeout",
+		"trace.sampler.extra_sample_rate":                        "apm_config.extra_sample_rate",
+		"trace.sampler.max_traces_per_second":                    "apm_config.max_traces_per_second",
+		"trace.sampler.max_events_per_second":                    "apm_config.max_events_per_second",
+		"trace.watchdog.max_memory":                              "apm_config.max_memory",
+		"trace.watchdog.max_cpu_percent":                         "apm_config.max_cpu_percent",
+		"trace.watchdog.max_connections":                         "apm_config.max_connections",
+		"trace.watchdog.check_delay_seconds":                     "apm_config.watchdog_check_delay",
+		"trace.writer.services.flush_period_seconds":             "apm_config.service_writer.flush_period_seconds",
+		"trace.writer.services.update_info_period_seconds":       "apm_config.service_writer.update_info_period_seconds",
+		"trace.writer.services.queue_max_age_seconds":            "apm_config.service_writer.queue.max_age_seconds",
+		"trace.writer.services.queue_max_bytes":                  "apm_config.service_writer.queue.max_bytes",
+		"trace.writer.services.queue_max_payloads":               "apm_config.service_writer.queue.max_payloads",
+		"trace.writer.services.exp_backoff_max_duration_seconds": "apm_config.service_writer.queue.exp_backoff_max_duration_seconds",
+		"trace.writer.services.exp_backoff_base_milliseconds":    "apm_config.service_writer.queue.exp_backoff_base_milliseconds",
+		"trace.writer.services.exp_backoff_growth_base":          "apm_config.service_writer.queue.exp_backoff_growth_base",
+		"trace.writer.stats.max_entries_per_payload":             "apm_config.stats_writer.max_entries_per_payload",
+		"trace.writer.stats.update_info_period_seconds":          "apm_config.stats_writer.update_info_period_seconds",
+		"trace.writer.stats.queue_max_age_seconds":               "apm_config.stats_writer.queue.max_age_seconds",
+		"trace.writer.stats.queue_max_bytes":                     "apm_config.stats_writer.queue.max_bytes",
+		"trace.writer.stats.queue_max_payloads":                  "apm_config.stats_writer.queue.max_payloads",
+		"trace.writer.stats.exp_backoff_max_duration_seconds":    "apm_config.stats_writer.queue.exp_backoff_max_duration_seconds",
+		"trace.writer.stats.exp_backoff_base_milliseconds":       "apm_config.stats_writer.queue.exp_backoff_base_milliseconds",
+		"trace.writer.stats.exp_backoff_growth_base":             "apm_config.stats_writer.queue.exp_backoff_growth_base",
+		"trace.writer.traces.max_spans_per_payload":              "apm_config.trace_writer.max_spans_per_payload",
+		"trace.writer.traces.flush_period_seconds":               "apm_config.trace_writer.flush_period_seconds",
+		"trace.writer.traces.update_info_period_seconds":         "apm_config.trace_writer.update_info_period_seconds",
+		"trace.writer.traces.queue_max_age_seconds":              "apm_config.trace_writer.queue.max_age_seconds",
+		"trace.writer.traces.queue_max_bytes":                    "apm_config.trace_writer.queue.max_bytes",
+		"trace.writer.traces.queue_max_payloads":                 "apm_config.trace_writer.queue.max_payloads",
+		"trace.writer.traces.exp_backoff_max_duration_seconds":   "apm_config.trace_writer.queue.exp_backoff_max_duration_seconds",
+		"trace.writer.traces.exp_backoff_base_milliseconds":      "apm_config.trace_writer.queue.exp_backoff_base_milliseconds",
+		"trace.writer.traces.exp_backoff_growth_base":            "apm_config.trace_writer.queue.exp_backoff_growth_base",
+	} {
+		if v, ok := agentConfig[iniKey]; ok {
+			configConverter.Set(yamlKey, v)
+		}
+	}
+
+	// event extraction rates
+	prefix1 := "trace.analyzed_rate_by_service."
+	prefix2 := "trace.analyzed_spans."
+	set1 := make(map[string]string)
+	set2 := make(map[string]string)
+	for k, v := range agentConfig {
+		switch {
+		case strings.HasPrefix(k, prefix1):
+			set1[strings.TrimPrefix(k, prefix1)] = v
+		case strings.HasPrefix(k, prefix2):
+			set2[strings.TrimPrefix(k, prefix2)] = v
+		default:
+			continue
+		}
+	}
+	if len(set1) > 0 {
+		configConverter.Set("apm_config.analyzed_rate_by_service", set1)
+	}
+	if len(set2) > 0 {
+		configConverter.Set("apm_config.analyzed_spans", set2)
+	}
+
+	// ignored resources
+	if v, ok := agentConfig["trace.ignore.resource"]; ok {
+		var err error
+		r := strings.Split(v, ",")
+		for i := range r {
+			r[i], err = strconv.Unquote(r[i])
+			if err != nil {
+				return err
+			}
+		}
+		configConverter.Set("apm_config.ignore_resources", r)
+	}
 
 	return nil
 }
