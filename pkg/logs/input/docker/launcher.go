@@ -42,6 +42,7 @@ type Launcher struct {
 	stop               chan struct{}
 	erroredContainerID chan string
 	lock               *sync.Mutex
+	collectAllSource   *config.LogSource
 }
 
 // NewLauncher returns a new launcher
@@ -158,13 +159,39 @@ func (l *Launcher) run() {
 			containerID := service.Identifier
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
-		case containerId := <-l.erroredContainerID:
-			go l.restartTailer(containerId)
+		case containerID := <-l.erroredContainerID:
+			go l.restartTailer(containerID)
 		case <-l.stop:
 			// no docker container should be tailed anymore
 			return
 		}
 	}
+}
+
+// overrideSource create a new source with the image short name if the source is ContainerCollectAll
+func (l *Launcher) overrideSource(container *Container, source *config.LogSource) *config.LogSource {
+	if source.Name != config.ContainerCollectAll {
+		return source
+	}
+
+	if l.collectAllSource == nil {
+		l.collectAllSource = source
+	}
+
+	shortName, err := container.getShortImageName()
+	if err != nil {
+		containerID := container.service.Identifier
+		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
+		return source
+	}
+
+	overridenSource := config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
+		Type:    config.DockerType,
+		Service: shortName,
+		Source:  shortName,
+	})
+	overridenSource.Status = source.Status
+	return overridenSource
 }
 
 // startTailer starts a new tailer for the container matching with the source.
@@ -175,7 +202,9 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		return
 	}
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
+	overridenSource := l.overrideSource(container, source)
+	tailer := NewTailer(l.cli, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
@@ -189,6 +218,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		log.Warnf("Could not start tailer: %v", containerID, err)
 		return
 	}
+	source.AddInput(containerID)
 
 	// keep the tailer in track to stop it later on
 	l.addTailer(containerID, tailer)
@@ -197,6 +227,8 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
 	if tailer, isTailed := l.tailers[containerID]; isTailed {
+		// No-op if the tailer source came from AD
+		l.collectAllSource.RemoveInput(containerID)
 		go tailer.Stop()
 		l.removeTailer(containerID)
 	}
@@ -210,6 +242,7 @@ func (l *Launcher) restartTailer(containerID string) {
 	oldTailer, exists := l.tailers[containerID]
 	if exists {
 		source = oldTailer.source
+		l.collectAllSource.RemoveInput(containerID)
 		oldTailer.Stop()
 		l.removeTailer(containerID)
 	}
@@ -239,6 +272,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		}
 		// keep the tailer in track to stop it later on
 		l.addTailer(containerID, tailer)
+		source.AddInput(containerID)
 		return
 	}
 }
