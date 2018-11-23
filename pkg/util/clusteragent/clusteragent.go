@@ -43,6 +43,7 @@ type DCAClient struct {
 	initRetry retry.Retrier
 
 	ClusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
+	ClusterAgentVersion           string // Version of the cluster-agent we're connected to
 	clusterAgentAPIClient         *http.Client
 	clusterAgentAPIRequestHeaders http.Header
 	leaderClient                  *leaderClient
@@ -92,6 +93,13 @@ func (c *DCAClient) init() error {
 	// TODO remove insecure
 	c.clusterAgentAPIClient = util.GetClient(false)
 	c.clusterAgentAPIClient.Timeout = 2 * time.Second
+
+	// Validate the cluster-agent client by checking the version
+	c.ClusterAgentVersion, err = c.GetVersion()
+	if err != nil {
+		return err
+	}
+	log.Infof("Successfully connected to the Datadog Cluster Agent %v", c.ClusterAgentVersion)
 
 	// Clone the http client in a new client with built-in redirect handler
 	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.ClusterAgentAPIEndpoint)
