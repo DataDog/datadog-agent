@@ -72,18 +72,16 @@ func NewMockFailingParser(header string) parser.Parser {
 func (u *MockFailingParser) Parse(msg []byte) (*message.Message, error) {
 	if bytes.HasPrefix(msg, u.header) {
 		return &message.Message{Content: bytes.Replace(msg, u.header, []byte(""), 1)}, nil
-	} else {
-		return &message.Message{Content: msg}, fmt.Errorf("error")
 	}
+	return &message.Message{Content: msg}, fmt.Errorf("error")
 }
 
 // Unwrap removes header from line if the header matches the Parser header or returns an error
 func (u *MockFailingParser) Unwrap(line []byte) ([]byte, error) {
 	if bytes.HasPrefix(line, u.header) {
 		return bytes.Replace(line, u.header, []byte(""), 1), nil
-	} else {
-		return line, fmt.Errorf("error")
 	}
+	return line, fmt.Errorf("error")
 }
 
 func TestSingleLineHandler(t *testing.T) {
