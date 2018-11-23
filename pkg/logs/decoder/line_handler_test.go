@@ -308,7 +308,7 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	const header = "HEADER"
 	outputChan := make(chan *message.Message, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockParser(header))
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockFailingParser(header))
 	h.Start()
 
 	h.Handle([]byte("1.third line"))
