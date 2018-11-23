@@ -21,7 +21,7 @@ Vagrant.configure("2") do |config|
 
     xenial.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-      v.customize ["modifyvm", :id, "--memory", 512]
+      v.customize ["modifyvm", :id, "--memory", 1028]
       v.customize ["modifyvm", :id, "--name", "xenial"]
     end
   end
@@ -47,7 +47,7 @@ Vagrant.configure("2") do |config|
 
     bionic.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-      v.customize ["modifyvm", :id, "--memory", 512]
+      v.customize ["modifyvm", :id, "--memory", 1028]
       v.customize ["modifyvm", :id, "--name", "bionic"]
     end
   end
@@ -73,7 +73,7 @@ Vagrant.configure("2") do |config|
 
     jessie.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-      v.customize ["modifyvm", :id, "--memory", 512]
+      v.customize ["modifyvm", :id, "--memory", 1028]
       v.customize ["modifyvm", :id, "--name", "jessie"]
     end
   end
@@ -99,7 +99,7 @@ Vagrant.configure("2") do |config|
 
     stretch.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-      v.customize ["modifyvm", :id, "--memory", 512]
+      v.customize ["modifyvm", :id, "--memory", 1028]
       v.customize ["modifyvm", :id, "--name", "stretch"]
     end
   end
