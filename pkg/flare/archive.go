@@ -455,7 +455,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 				}
 
 				if permsInfos != nil {
-					permsInfos.Add(f)
+					permsInfos.Add(src)
 				}
 			}
 
