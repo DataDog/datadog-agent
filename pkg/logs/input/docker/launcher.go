@@ -168,7 +168,7 @@ func (l *Launcher) run() {
 	}
 }
 
-// overrideSource create a new source with
+// overrideSource create a new source with the image short name if the source is ContainerCollectAll
 func (l *Launcher) overrideSource(container *Container, source *config.LogSource) *config.LogSource {
 	if source.Name != config.ContainerCollectAll {
 		return source
@@ -202,6 +202,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		return
 	}
 
+	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
 	overridenSource := l.overrideSource(container, source)
 	tailer := NewTailer(l.cli, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
