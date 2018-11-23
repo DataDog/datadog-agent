@@ -15,6 +15,8 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 )
 
+// SearchTargetPerName returns the endpoint matching a given target name. It allows
+// to retrieve a given pod's endpoint address from a service.
 func SearchTargetPerName(endpoints *v1.Endpoints, targetName string) (v1.EndpointAddress, error) {
 	if endpoints == nil {
 		return v1.EndpointAddress{}, errors.New("nil endpoints object passed")

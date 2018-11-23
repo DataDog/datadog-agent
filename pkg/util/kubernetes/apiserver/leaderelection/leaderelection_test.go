@@ -153,9 +153,9 @@ func TestGetLeaderIPFollower(t *testing.T) {
 	le.leaderElector, err = le.newElection()
 	require.NoError(t, err)
 	le.EnsureLeaderElectionRuns()
-	Cm, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
+	cm, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Contains(t, Cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
+	require.Contains(t, cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
 
 	// We should be follower, and GetLeaderIP should return bar's IP
 	require.False(t, le.IsLeader())
