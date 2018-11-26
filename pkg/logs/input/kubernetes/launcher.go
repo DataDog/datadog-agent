@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -166,9 +167,17 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		}
 		cfg = configs[0]
 	} else {
-		cfg = &config.LogsConfig{
-			Source:  kubernetesIntegration,
-			Service: kubernetesIntegration,
+		shortImageName, err := l.getShortImageName(container)
+		if err != nil {
+			cfg = &config.LogsConfig{
+				Source:  kubernetesIntegration,
+				Service: kubernetesIntegration,
+			}
+		} else {
+			cfg = &config.LogsConfig{
+				Source:  shortImageName,
+				Service: shortImageName,
+			}
 		}
 	}
 	cfg.Type = config.FileType
@@ -222,4 +231,14 @@ func (l *Launcher) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) 
 func (l *Launcher) getTags(container kubelet.ContainerStatus) []string {
 	tags, _ := tagger.Tag(container.ID, true)
 	return tags
+}
+
+// getShortImageName returns the short image name of a container
+func (l *Launcher) getShortImageName(container kubelet.ContainerStatus) (string, error) {
+	_, shortName, _, err := containers.SplitImageName(container.Image)
+	if err != nil {
+		log.Debugf("Cannot parse image name: %v", err)
+	}
+	return shortName, err
+
 }
