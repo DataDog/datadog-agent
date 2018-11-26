@@ -38,7 +38,7 @@ var (
 
 func init() {
 	expvars.Set("TotalCalls", &expvarsTotalCalls)
-	expvars.Set("TotalItem", &expvarsTotalItems)
+	expvars.Set("TotalItems", &expvarsTotalItems)
 	expvars.Set("TotalPayloads", &expvarsTotalPayloads)
 	expvars.Set("TotalCompressCycles", &expvarsTotalCycles)
 	expvars.Set("ItemDrops", &expvarsItemDrops)
@@ -70,7 +70,7 @@ var inputBufferPool = sync.Pool{
 
 // compressor is in charge of compressing items for a single payload
 type compressor struct {
-	input               *bytes.Buffer // temporary buffer for data that has not been conpressed yet
+	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
 	zipper              *zlib.Writer
 	header              []byte // json header to print at the beginning of the payload
@@ -78,19 +78,25 @@ type compressor struct {
 	uncompressedWritten int    // uncompressed bytes written
 	firstItem           bool   // tells if the first item has been written
 	repacks             int    // numbers of time we had to pack this payload
+	maxUnzippedItemSize int
+	maxZippedItemSize   int
 }
 
 func newCompressor(header, footer []byte) (*compressor, error) {
 	c := &compressor{
-		header:     header,
-		footer:     footer,
-		compressed: bytes.NewBuffer(make([]byte, 0, 1*megaByte)),
-		firstItem:  true,
+		header:              header,
+		footer:              footer,
+		compressed:          bytes.NewBuffer(make([]byte, 0, 1*megaByte)),
+		firstItem:           true,
+		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
+		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
 	}
 
 	c.input = inputBufferPool.Get().(*bytes.Buffer)
 	c.zipper = zlib.NewWriter(c.compressed)
-	_, err := c.zipper.Write(header)
+	n, err := c.zipper.Write(header)
+	c.uncompressedWritten += n
+
 	return c, err
 }
 
@@ -99,9 +105,7 @@ func newCompressor(header, footer []byte) (*compressor, error) {
 // that could actually fit after compression. That said it is probably impossible
 // to have a 2MB+ item that is valid for the backend.
 func (c *compressor) checkItemSize(data []byte) bool {
-	totalMaxUncompressedItemSize := maxPayloadSize - len(c.footer) - len(c.header)
-	totalMaxCompressedItemSize := maxUncompressedSize - compression.CompressBound(len(c.footer)) - compression.CompressBound(len(c.header))
-	return len(data) < totalMaxUncompressedItemSize && compression.CompressBound(len(data)) < totalMaxCompressedItemSize
+	return len(data) < c.maxUnzippedItemSize && compression.CompressBound(len(data)) < c.maxZippedItemSize
 }
 
 // hasRoomForItem checks if the current payload has enough room to store the given item
@@ -113,7 +117,7 @@ func (c *compressor) hasRoomForItem(item []byte) bool {
 	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= maxUncompressedSize
 }
 
-// pack flush the temporary uncompressed buffer input to the compression writer
+// pack flushes the temporary uncompressed buffer input to the compression writer
 func (c *compressor) pack() error {
 	expvarsTotalCycles.Add(1)
 	n, err := c.input.WriteTo(c.zipper)
@@ -132,7 +136,7 @@ func (c *compressor) addItem(data []byte) error {
 	if !c.checkItemSize(data) {
 		return errTooBig
 	}
-	// check max depth
+	// check max repack cycles
 	if c.repacks >= maxRepacks {
 		return errPayloadFull
 	}
