@@ -35,7 +35,6 @@ const (
 type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
-	cu       util.ContainerdItf
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -52,7 +51,6 @@ func ContainerdFactory() check.Check {
 	return &ContainerdCheck{
 		CheckBase: corechecks.NewCheckBase(containerdCheckName),
 		instance:  &ContainerdConfig{},
-		cu:        util.InstanciateContainerdUtil(),
 	}
 }
 
@@ -76,7 +74,7 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 // Run executes the check
 func (c *ContainerdCheck) Run() error {
 	// As we do not rely on a singleton, we ensure connectivity every check run.
-	errHealth := c.cu.EnsureServing(context.Background())
+	cu, errHealth := util.GetContainerdUtil()
 	if errHealth != nil {
 		log.Infof("Error ensuring connectivity with containerd daemon %v", errHealth)
 		return errHealth
@@ -88,14 +86,14 @@ func (c *ContainerdCheck) Run() error {
 		return err
 	}
 
-	nsList, err := c.cu.GetNamespaces(context.Background())
+	nsList, err := cu.GetNamespaces(context.Background())
 	if err != nil {
 		return err
 	}
 
 	for _, n := range nsList {
 		nk := namespaces.WithNamespace(context.Background(), n)
-		computeMetrics(sender, nk, c.cu, c.instance.Tags)
+		computeMetrics(sender, nk, cu, c.instance.Tags)
 	}
 	return nil
 }

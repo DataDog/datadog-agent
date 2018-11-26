@@ -10,11 +10,17 @@ package containerd
 import (
 	"context"
 	"time"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/containerd/containerd"
+)
+
+var (
+	globalContainerdUtil *ContainerdUtil
+	once          sync.Once
 )
 
 // ContainerdItf is the interface implementing a subset of methods that leverage the containerd api.
@@ -23,7 +29,6 @@ type ContainerdItf interface {
 	EnsureServing(ctx context.Context) error
 	GetNamespaces(ctx context.Context) ([]string, error)
 	Containers(ctx context.Context) ([]containerd.Container, error)
-	Close() error
 	Metadata(ctx context.Context) (containerd.Version, error)
 }
 
@@ -33,19 +38,25 @@ type ContainerdUtil struct {
 	initRetry retry.Retrier
 }
 
-// InstanciateContainerdUtil creates the containerd util containing the containerd client and implementing the ContainerdItf
+// GetContainerdUtil creates the containerd util containing the containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.
-func InstanciateContainerdUtil() ContainerdItf {
-	util := &ContainerdUtil{}
-	// Initialize the client in the connect method
-	util.initRetry.SetupRetrier(&retry.Config{
-		Name:          "containerdutil",
-		AttemptMethod: util.connect,
-		Strategy:      retry.RetryCount,
-		RetryCount:    10,
-		RetryDelay:    30 * time.Second,
+func GetContainerdUtil() (ContainerdItf, error) {
+	once.Do(func() {
+		globalContainerdUtil = &ContainerdUtil{}
+		// Initialize the client in the connect method
+		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
+			Name:          "containerdutil",
+			AttemptMethod: globalContainerdUtil.connect,
+			Strategy:      retry.RetryCount,
+			RetryCount:    10,
+			RetryDelay:    30 * time.Second,
+		})
 	})
-	return util
+	if err := globalContainerdUtil.initRetry.TriggerRetry(); err != nil {
+		log.Error("Containerd init error: %s", err.Error())
+		return nil, err
+	}
+	return globalContainerdUtil, nil
 }
 
 // Metadata is used to collect the version and revision of the Containerd API

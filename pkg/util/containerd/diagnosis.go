@@ -20,11 +20,13 @@ func init() {
 // diagnose the Containerd socket connectivity
 func diagnose() error {
 	ctx := context.Background()
-	cu := InstanciateContainerdUtil()
-	defer cu.Close()
-	err := cu.EnsureServing(ctx)
+	cu, err := GetContainerdUtil()
 	if err != nil {
-		log.Error(err)
+		return err
+	}
+	ver, err := cu.Metadata(ctx)
+	if err == nil {
+		log.Infof("Connected to containerd - Version %s/%s", ver.Version, ver.Revision)
 	}
 	return err
 }
