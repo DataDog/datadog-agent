@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -51,58 +52,42 @@ func TestMarshalSeries(t *testing.T) {
 }
 
 func TestPopulateDeviceField(t *testing.T) {
-	tags := [][]string{
-		{},
-		{"some:tag", "device:/dev/sda1"},
-		{"some:tag", "device:/dev/sda2", "some_other:tag"},
-		{"yet_another:value", "one_last:tag_value"},
+	for _, tc := range []struct {
+		Tags           []string
+		ExpectedTags   []string
+		ExpectedDevice string
+	}{
+		{
+			[]string{"some:tag", "device:/dev/sda1"},
+			[]string{"some:tag"},
+			"/dev/sda1",
+		},
+		{
+			[]string{"some:tag", "device:/dev/sda2", "some_other:tag"},
+			[]string{"some:tag", "some_other:tag"},
+			"/dev/sda2",
+		},
+		{
+			[]string{"yet_another:value", "one_last:tag_value", "long:array", "very_long:array", "many:tags", "such:wow"},
+			[]string{"yet_another:value", "one_last:tag_value", "long:array", "very_long:array", "many:tags", "such:wow"},
+			"",
+		},
+	} {
+		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			s := &Serie{Tags: []string{}}
+			for _, t := range tc.Tags {
+				s.Tags = append(s.Tags, t)
+			}
+
+			// Run a few times to ensure stability
+			for i := 0; i < 4; i++ {
+				populateDeviceField(s)
+				assert.Equal(t, tc.ExpectedTags, s.Tags)
+				assert.Equal(t, tc.ExpectedDevice, s.Device)
+			}
+
+		})
 	}
-	series := Series{
-		&Serie{},
-		&Serie{
-			Tags: tags[1],
-		},
-		&Serie{
-			Tags: tags[2],
-		},
-		&Serie{
-			Tags: tags[3],
-		}}
-
-	populateDeviceField(series)
-
-	require.Len(t, series, 4)
-	assert.Empty(t, series[0].Tags)
-	assert.Empty(t, series[0].Device)
-	assert.Equal(t, series[1].Tags, []string{"some:tag"})
-	assert.Equal(t, series[1].Device, "/dev/sda1")
-	assert.Equal(t, series[2].Tags, []string{"some:tag", "some_other:tag"})
-	assert.Equal(t, series[2].Device, "/dev/sda2")
-	assert.Equal(t, series[3].Tags, []string{"yet_another:value", "one_last:tag_value"})
-	assert.Empty(t, series[3].Device)
-
-	series = Series{
-		&Serie{},
-		&Serie{
-			Tags: tags[1],
-		},
-		&Serie{
-			Tags: tags[2],
-		},
-		&Serie{
-			Tags: tags[3],
-		}}
-	populateDeviceField(series)
-
-	require.Len(t, series, 4)
-	assert.Empty(t, series[0].Tags)
-	assert.Empty(t, series[0].Device)
-	assert.Equal(t, series[1].Tags, []string{"some:tag"})
-	assert.Equal(t, series[1].Device, "/dev/sda1")
-	assert.Equal(t, series[2].Tags, []string{"some:tag", "some_other:tag"})
-	assert.Equal(t, series[2].Device, "/dev/sda2")
-	assert.Equal(t, series[3].Tags, []string{"yet_another:value", "one_last:tag_value"})
-	assert.Empty(t, series[3].Device)
 }
 
 func TestMarshalJSONSeries(t *testing.T) {
@@ -275,34 +260,38 @@ func TestUnmarshalSeriesJSON(t *testing.T) {
 }
 
 func TestStreamJSONMarshaler(t *testing.T) {
-	series := Series{{
-		Points: []Point{
-			{Ts: 12345.0, Value: float64(21.21)},
-			{Ts: 67890.0, Value: float64(12.12)},
+	series := Series{
+		{
+			Points: []Point{
+				{Ts: 12345.0, Value: float64(21.21)},
+				{Ts: 67890.0, Value: float64(12.12)},
+			},
+			MType:    APIGaugeType,
+			Name:     "test.metrics",
+			Interval: 15,
+			Host:     "localHost",
+			Tags:     []string{"tag1", "tag2:yes"},
 		},
-		MType:    APIGaugeType,
-		Name:     "test.metrics",
-		Interval: 15,
-		Host:     "localHost",
-		Tags:     []string{"tag1", "tag2:yes"},
-	}, {
-		Points: []Point{
-			{Ts: 12345.0, Value: float64(21.21)},
-			{Ts: 67890.0, Value: float64(12.12)},
+		{
+			Points: []Point{
+				{Ts: 12345.0, Value: float64(21.21)},
+				{Ts: 67890.0, Value: float64(12.12)},
+			},
+			MType:    APIRateType,
+			Name:     "test.metrics",
+			Interval: 15,
+			Host:     "localHost",
+			Tags:     []string{"tag1", "tag2:yes"},
 		},
-		MType:    APIRateType,
-		Name:     "test.metrics",
-		Interval: 15,
-		Host:     "localHost",
-		Tags:     []string{"tag1", "tag2:yes"},
-	}, {
-		Points:   []Point{},
-		MType:    APICountType,
-		Name:     "test.metrics",
-		Interval: 15,
-		Host:     "localHost",
-		Tags:     nil,
-	}}
+		{
+			Points:   []Point{},
+			MType:    APICountType,
+			Name:     "test.metrics",
+			Interval: 15,
+			Host:     "localHost",
+			Tags:     nil,
+		},
+	}
 
 	assert.Equal(t, 3, series.Len())
 	assert.Equal(t, `{"series":[`, string(series.JSONHeader()))
@@ -327,4 +316,29 @@ func TestStreamJSONMarshaler(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, series[i], item)
 	}
+}
+
+func TestStreamJSONMarshalerWithDevice(t *testing.T) {
+	series := Series{
+		{
+			Points: []Point{
+				{Ts: 12345.0, Value: float64(21.21)},
+				{Ts: 67890.0, Value: float64(12.12)},
+			},
+			MType:    APIGaugeType,
+			Name:     "test.metrics",
+			Interval: 15,
+			Host:     "localHost",
+			Tags:     []string{"tag1", "tag2:yes", "device:/dev/sda1"},
+		},
+	}
+
+	out, err := series.JSONItem(0)
+	assert.NoError(t, err)
+
+	// Make sure the output is valid and fields are as expected
+	item := &Serie{}
+	err = json.Unmarshal(out, item)
+	assert.Equal(t, item.Device, "/dev/sda1")
+	assert.Equal(t, item.Tags, []string{"tag1", "tag2:yes"})
 }
