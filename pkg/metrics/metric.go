@@ -43,7 +43,15 @@ func (a APIMetricType) MarshalText() ([]byte, error) {
 }
 
 // UnmarshalText is a custom unmarshaller for APIMetricType (used for testing)
-func (a APIMetricType) UnmarshalText(buf []byte) error {
+func (a *APIMetricType) UnmarshalText(buf []byte) error {
+	switch string(buf) {
+	case "gauge":
+		*a = APIGaugeType
+	case "rate":
+		*a = APIRateType
+	case "count":
+		*a = APICountType
+	}
 	return nil
 }
 

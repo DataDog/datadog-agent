@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -272,4 +273,60 @@ func TestUnmarshalSeriesJSON(t *testing.T) {
 	var badPoint Point
 	err = json.Unmarshal(badPointJSON, &badPoint)
 	require.NotNil(t, err)
+}
+
+func TestStreamJSONMarshaler(t *testing.T) {
+	series := Series{{
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType:    APIGaugeType,
+		Name:     "test.metrics",
+		Interval: 15,
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}, {
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType:    APIRateType,
+		Name:     "test.metrics",
+		Interval: 15,
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}, {
+		Points:   []Point{},
+		MType:    APICountType,
+		Name:     "test.metrics",
+		Interval: 15,
+		Host:     "localHost",
+		Tags:     nil,
+	}}
+
+	assert.Equal(t, 3, series.Len())
+	assert.Equal(t, `{"series":[`, string(series.JSONHeader()))
+	assert.Equal(t, `]}`, string(series.JSONFooter()))
+
+	// Access an out-of-bounds item
+	out, err := series.JSONItem(10)
+	assert.Nil(t, out)
+	assert.EqualError(t, err, "out of range")
+	out, err = series.JSONItem(-10)
+	assert.Nil(t, out)
+	assert.EqualError(t, err, "out of range")
+
+	// Test each item type
+	for i := range series {
+		out, err = series.JSONItem(i)
+		assert.NoError(t, err)
+
+		fmt.Println(string(out))
+		// Make sure the output is valid and matches the original item
+		item := &Serie{}
+		err = json.Unmarshal(out, item)
+		assert.NoError(t, err)
+		assert.EqualValues(t, series[i], item)
+	}
 }
