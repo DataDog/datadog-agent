@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -57,12 +58,11 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		// Copy original content from template
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
-			name, key := parseTemplateVar(bytes.Replace(v, tplOptionalToken, []byte(integration.TplToken), 1))
 			if f, found := templateVariables[string(v.Name)]; found {
 				resolvedVar, err := f(v.Key, svc)
 				if err != nil {
 					// If not mandatory replace by empty byte slice
-					if bytes.HasPrefix(v, tplOptionalToken) {
+					if bytes.HasPrefix(v.Name, tplOptionalToken) {
 						resolvedVar = []byte{}
 					} else {
 						return integration.Config{}, err
@@ -186,7 +186,6 @@ func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	}
 	return []byte(value), nil
 }
-<<<<<<< HEAD
 
 // getUnixSocket returns unix sockets used by the service
 func getUnixSocket(tplVar []byte, svc listeners.Service) ([]byte, error) {
@@ -227,5 +226,3 @@ func parseTemplateVar(v []byte) (name, key []byte) {
 	}
 	return name, []byte("")
 }
-=======
->>>>>>> master
