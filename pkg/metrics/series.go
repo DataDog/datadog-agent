@@ -99,8 +99,9 @@ func (series Series) Marshal() ([]byte, error) {
 	return proto.Marshal(payload)
 }
 
-// populateDeviceField removes any `device:` tag in the series tags and uses the value to
+// populateDeviceField removes any `device:` tag in the serie tags and uses the value to
 // populate the Serie.Device field
+// Mutates the `serie` struct in place
 //FIXME(olivier): remove this as soon as the v1 API can handle `device` as a regular tag
 func populateDeviceField(serie *Serie) {
 	if !hasDeviceTag(serie) {

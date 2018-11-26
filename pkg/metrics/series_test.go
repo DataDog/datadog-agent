@@ -342,3 +342,23 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 	assert.Equal(t, item.Device, "/dev/sda1")
 	assert.Equal(t, item.Tags, []string{"tag1", "tag2:yes"})
 }
+
+func BenchmarkPopulateDeviceFieldNoDevice(b *testing.B) {
+	tags := []string{"tag1", "tag2:yes", "tag3", "tag4:yes", "tag5", "tag6:yes", "tag7", "tag8:yes"}
+	for n := 0; n < b.N; n++ {
+		s := &Serie{
+			Tags: tags,
+		}
+		populateDeviceField(s)
+	}
+}
+
+func BenchmarkPopulateDeviceFieldWithDevice(b *testing.B) {
+	tags := []string{"tag1", "tag2:yes", "tag3", "device:/dev/sda1", "tag5", "tag6:yes", "tag7", "tag8:yes"}
+	for n := 0; n < b.N; n++ {
+		s := &Serie{
+			Tags: tags,
+		}
+		populateDeviceField(s)
+	}
+}
