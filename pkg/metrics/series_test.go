@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -322,7 +321,6 @@ func TestStreamJSONMarshaler(t *testing.T) {
 		out, err = series.JSONItem(i)
 		assert.NoError(t, err)
 
-		fmt.Println(string(out))
 		// Make sure the output is valid and matches the original item
 		item := &Serie{}
 		err = json.Unmarshal(out, item)

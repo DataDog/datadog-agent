@@ -221,6 +221,9 @@ func (e Serie) String() string {
 	return string(s)
 }
 
+//// The following methods implement the StreamJSONMarshaler interface
+//// for support of the enable_stream_payload_serialization option.
+
 // JSONHeader prints the payload header for this type
 func (series Series) JSONHeader() []byte {
 	return []byte(`{"series":[`)
