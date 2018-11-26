@@ -60,7 +60,7 @@ func (t *Tailer) Identifier() string {
 
 // toMessage converts an XML message into json
 func (t *Tailer) toMessage(event string) (*message.Message, error) {
-	log.Debug("Rendered XML: ", event)
+	log.Debug("Rendered XML:", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
 	if err != nil {
@@ -73,22 +73,28 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	if err != nil {
 		return &message.Message{}, err
 	}
-	log.Debug("Sending JSON: ", string(jsonEvent))
+	log.Debug("Sending JSON:", string(jsonEvent))
 	return message.NewMessage(jsonEvent, message.NewOrigin(t.source), message.StatusInfo), nil
 }
 
 // mapTaskIDToTaskName looks for the TASK_ID in {"Event": {"System": {"Task": <TASK_ID> }}}
 // and maps it to the name of the task that match in the Microsoft Task Codes
 func mapTaskIDToTaskName(mv mxj.Map) {
-	if evt, ok := mv["Event"]; ok {
-		if sys, ok := evt.(map[string]interface{})["System"]; ok {
-			if taskID, ok := sys.(map[string]interface{})["Task"]; ok {
-				if taskName, ok := taskIDMapping[taskID]; ok {
-					sys.(map[string]interface{})["Task"] = taskName
-				}
-			}
-		}
+	taskPath := "Event.System.Task"
+
+	values, err := mv.ValuesForPath(taskPath)
+	if err != nil || len(values) == 0 {
+		log.Debug("Could not find path:", taskPath)
+		return
 	}
+
+	taskName, found := taskIDMapping[values[0]]
+	if !found {
+		log.Debug("Could not resolve task id:", values[0])
+		return
+	}
+
+	mv.UpdateValuesForPath("Task:"+taskName, taskPath)
 }
 
 // Mapping can be found here
