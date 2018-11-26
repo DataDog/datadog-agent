@@ -181,7 +181,7 @@ func (c *compressor) close() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Add zstd footer and close
+	// Add zlib footer and close
 	err = c.zipper.Close()
 	if err != nil {
 		return nil, err
