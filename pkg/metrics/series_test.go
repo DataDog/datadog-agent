@@ -339,6 +339,7 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 	// Make sure the output is valid and fields are as expected
 	item := &Serie{}
 	err = json.Unmarshal(out, item)
+	assert.NoError(t, err)
 	assert.Equal(t, item.Device, "/dev/sda1")
 	assert.Equal(t, item.Tags, []string{"tag1", "tag2:yes"})
 }
