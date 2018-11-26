@@ -84,9 +84,14 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		if err != nil {
 			return "", err
 		}
-	} else {
+
 		// Status informations will be unavailable unless the agent is running.
-		// Only zip them up if the agent is running
+		err = writeStatusFile(tempDir, hostname, []byte("agent is not running"))
+		if err != nil {
+			return "", err
+		}
+	} else {
+		// Status informations are available, zip them up as the agent is running.
 		err = zipStatusFile(tempDir, hostname)
 		if err != nil {
 			log.Errorf("Could not zip status: %s", err)
@@ -164,9 +169,12 @@ func zipStatusFile(tempDir, hostname string) error {
 	if err != nil {
 		return err
 	}
+	return writeStatusFile(tempDir, hostname, s)
+}
 
+func writeStatusFile(tempDir, hostname string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, "status.log")
-	err = ensureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -177,7 +185,7 @@ func zipStatusFile(tempDir, hostname string) error {
 	}
 	defer w.Close()
 
-	_, err = w.Write(s)
+	_, err = w.Write(data)
 	return err
 }
 
