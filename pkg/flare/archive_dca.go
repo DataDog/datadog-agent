@@ -78,12 +78,14 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		}
 	}
 
-	err = zipLogFiles(tempDir, hostname, logFilePath, nil)
+	permsInfos := make(permissionsInfos)
+
+	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipConfigFiles(tempDir, hostname, confSearchPaths, nil)
+	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
 
 	if err != nil {
 		return "", err
@@ -109,6 +111,11 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		if err != nil {
 			return "", err
 		}
+	}
+
+	err = permsInfos.commit(tempDir, hostname, os.ModePerm)
+	if err != nil {
+		return "", fmt.Errorf("while creating permissions infos file: %s", err)
 	}
 
 	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
