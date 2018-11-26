@@ -66,6 +66,7 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	if err != nil {
 		return &message.Message{}, err
 	}
+	remapDataField(mv)
 	if strings.HasPrefix(t.config.ChannelPath, "Microsoft-ServiceFabric/") {
 		mapTaskIDToTaskName(mv)
 	}
@@ -94,7 +95,50 @@ func mapTaskIDToTaskName(mv mxj.Map) {
 		return
 	}
 
-	mv.UpdateValuesForPath("Task:"+taskName, taskPath)
+	_, err = mv.UpdateValuesForPath("Task:"+taskName, taskPath)
+	if err != nil {
+		log.Debugf("An error occurred updating %s: %s", taskPath, err)
+	}
+}
+
+// remapDataField transform the fields parsed from <Data Name='NAME1'>VALUE1</Data><Data Name='NAME2'>VALUE2</Data> to
+// fields that will be JSON serialized to {"NAME1": "VALUE1", "NAME2": "VALUE2"}
+// Data fields always have this schema:
+// https://docs.microsoft.com/en-us/windows/desktop/WES/eventschema-complexdatatype-complextype
+func remapDataField(mv mxj.Map) {
+	dataPath := "Event.EventData.Data"
+	values, err := mv.ValuesForPath(dataPath)
+	if err != nil || len(values) == 0 {
+		log.Debug("Could not find path:", dataPath)
+		return
+	}
+	nameTextMaps := make([]map[string]interface{}, 0, len(values))
+	for _, value := range values {
+		valueMap, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, foundName := valueMap["Name"]
+		text, foundText := valueMap["#text"]
+		if !foundName || !foundText {
+			continue
+		}
+		nameString, ok := name.(string)
+		if !ok {
+			continue
+		}
+		elt := make(map[string]interface{})
+		elt[nameString] = text
+		fmt.Println(name, text)
+		nameTextMaps = append(nameTextMaps, elt)
+	}
+	if len(nameTextMaps) == 0 {
+		return
+	}
+	err = mv.SetValueForPath(nameTextMaps, dataPath)
+	if err != nil {
+		log.Debug("Could not format", dataPath)
+	}
 }
 
 // Mapping can be found here
