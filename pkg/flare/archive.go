@@ -239,7 +239,7 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos *PermsInfos) 
 			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
 
 			if permsInfos != nil {
-				permsInfos.add(dst)
+				permsInfos.add(src)
 			}
 
 			return util.CopyFileAll(src, dst)
