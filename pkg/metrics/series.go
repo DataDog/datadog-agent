@@ -212,6 +212,15 @@ func (p *Point) UnmarshalJSON(buf []byte) error {
 	return nil
 }
 
+// String could be used for debug logging
+func (e Serie) String() string {
+	s, err := json.Marshal(e)
+	if err != nil {
+		return ""
+	}
+	return string(s)
+}
+
 // JSONHeader prints the payload header for this type
 func (series Series) JSONHeader() []byte {
 	return []byte(`{"series":[`)
