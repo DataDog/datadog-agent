@@ -34,34 +34,15 @@ import (
 // SearchPaths is just an alias for a map of strings
 type SearchPaths map[string]string
 
-// PermsInfos holds permissions info about the files shipped
+// permissionsInfos holds permissions info about the files shipped
 // in the flare.
-// It is bound to a given flare by the tempDir/hostname fields.
-// The filemode field is the file mode which will be used to create
-// the temporary permissions.log file on filesystem before being written in the zip.
-type PermsInfos struct {
-	tempDir  string
-	hostname string
-	filemode os.FileMode
-	// the key is the filepath of the file.
-	infos map[string]permsInfo
-}
+// The key is the filepath of the file.
+type permissionsInfos map[string]filePermsInfo
 
-type permsInfo struct {
+type filePermsInfo struct {
 	mode  os.FileMode
 	owner string
 	group string
-}
-
-// NewPermsInfos creates an instance of PermsInfos linked to
-// a given flare by the tempDir and the hostname. See PermsInfos struct doc.
-func NewPermsInfos(tempDir, hostname string, p os.FileMode) *PermsInfos {
-	return &PermsInfos{
-		tempDir:  tempDir,
-		hostname: hostname,
-		filemode: p,
-		infos:    make(map[string]permsInfo),
-	}
 }
 
 // CreateArchive packages up the files
@@ -97,7 +78,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		hostname = "unknown"
 	}
 
-	permsInfos := NewPermsInfos(tempDir, hostname, os.ModePerm)
+	permsInfos := make(permissionsInfos)
 
 	if local {
 		f := filepath.Join(tempDir, hostname, "local")
@@ -190,7 +171,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	}
 
 	// gets files infos and write the permissions.log file
-	if err := permsInfos.commit(); err != nil {
+	if err := permsInfos.commit(tempDir, hostname, os.ModePerm); err != nil {
 		log.Errorf("Could not write permissions.log file: %s", err)
 	}
 
@@ -225,7 +206,7 @@ func zipStatusFile(tempDir, hostname string) error {
 	return err
 }
 
-func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos *PermsInfos) error {
+func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
@@ -288,7 +269,7 @@ func zipExpVar(tempDir, hostname string) error {
 	return nil
 }
 
-func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos *PermsInfos) error {
+func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		return err
@@ -421,7 +402,7 @@ func zipHealth(tempDir, hostname string) error {
 	return err
 }
 
-func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos *PermsInfos) error {
+func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	for prefix, filePath := range confSearchPaths {
 		err := filepath.Walk(filePath, func(src string, f os.FileInfo, err error) error {
 			if f == nil {

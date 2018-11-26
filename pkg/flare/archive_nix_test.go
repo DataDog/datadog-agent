@@ -50,7 +50,7 @@ func TestPermsFile(t *testing.T) {
 func TestAddPermsInfo(t *testing.T) {
 	assert := assert.New(t)
 
-	permsInfos := NewPermsInfos(os.TempDir(), "", os.ModePerm)
+	permsInfos := make(permissionsInfos)
 
 	// create two files for which we'll add infos into the permissions.log
 	f1, err := ioutil.TempFile("", "ddtests*")
@@ -65,7 +65,7 @@ func TestAddPermsInfo(t *testing.T) {
 
 	permsFilePath := filepath.Join(os.TempDir(), "permissions.log")
 
-	err = permsInfos.commit()
+	err = permsInfos.commit(os.TempDir(), "", os.ModePerm)
 	assert.NoError(err, "stating files + writing permissions.log should not fail")
 
 	// should have created a permissions.log in the tmp dir

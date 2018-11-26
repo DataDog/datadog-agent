@@ -28,24 +28,24 @@ func zipTypeperfData(tempDir, hostname string) error {
 
 // Add puts the given filepath in the map
 // of files to process later during the commit phase.
-func (p *PermsInfos) add(filePath string) {
-	p.infos[filePath] = permsInfo{}
+func (p permissionsInfos) add(filePath string) {
+	p[filePath] = filePermsInfo{}
 }
 
 // Commit resolves the infos of every stacked files in the map
 // and then writes the permissions.log file on the filesystem.
-func (p *PermsInfos) commit() error {
+func (p permissionsInfos) commit(tempDir, hostname string, mode os.FileMode) error {
 	if err := p.statFiles(); err != nil {
 		return err
 	}
-	if err := p.write(); err != nil {
+	if err := p.write(tempDir, hostname, mode); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (p *PermsInfos) statFiles() error {
-	for filePath := range p.infos {
+func (p permissionsInfos) statFiles() error {
+	for filePath := range p {
 		fi, err := os.Stat(filePath)
 		if err != nil {
 			log.Println(err)
@@ -69,7 +69,7 @@ func (p *PermsInfos) statFiles() error {
 			return fmt.Errorf("can't lookup for gid info: %v", err)
 		}
 
-		p.infos[filePath] = permsInfo{
+		p[filePath] = filePermsInfo{
 			mode:  fi.Mode(),
 			owner: u.Name,
 			group: g.Name,
@@ -78,15 +78,15 @@ func (p *PermsInfos) statFiles() error {
 	return nil
 }
 
-func (p *PermsInfos) write() error {
+func (p permissionsInfos) write(tempDir, hostname string, mode os.FileMode) error {
 	// init the file
-	t := filepath.Join(p.tempDir, p.hostname, "permissions.log")
+	t := filepath.Join(tempDir, hostname, "permissions.log")
 
 	if err := ensureParentDirsExist(t); err != nil {
 		return err
 	}
 
-	f, err := os.OpenFile(t, os.O_RDWR|os.O_CREATE|os.O_APPEND, p.filemode)
+	f, err := os.OpenFile(t, os.O_RDWR|os.O_CREATE|os.O_APPEND, mode)
 	if err != nil {
 		return fmt.Errorf("while opening: %s", err)
 	}
@@ -103,7 +103,7 @@ func (p *PermsInfos) write() error {
 	}
 
 	// write each file permissions infos
-	for filePath, perms := range p.infos {
+	for filePath, perms := range p {
 		_, err = f.WriteString(fmt.Sprintf("%-50s | %-5s | %-10s | %-10s\n", filePath, perms.mode.String(), perms.owner, perms.group))
 		if err != nil {
 			return err
