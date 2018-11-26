@@ -115,7 +115,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 
 	err = permsInfos.commit(tempDir, hostname, os.ModePerm)
 	if err != nil {
-		return "", fmt.Errorf("while creating permissions infos file: %s", err)
+		log.Infof("Error while creating permissions.log infos file: %s", err)
 	}
 
 	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
