@@ -59,6 +59,5 @@ func (h *Handler) PostStatus(nodeName string, status types.NodeStatus) (types.St
 	response := types.StatusResponse{
 		IsUpToDate: upToDate,
 	}
-
 	return response, err
 }

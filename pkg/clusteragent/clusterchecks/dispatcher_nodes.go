@@ -36,11 +36,12 @@ func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus)
 	var upToDate bool
 
 	d.store.Lock()
-	node := d.store.getOrCreateNodeStore(nodeName)
 	if !d.store.active {
-		// Keep node-agent caches up during warmup phase
+		// Keep node-agent caches up during warmup phase,
+		// but continue processing the node status.
 		upToDate = true
 	}
+	node := d.store.getOrCreateNodeStore(nodeName)
 	d.store.Unlock()
 
 	node.Lock()

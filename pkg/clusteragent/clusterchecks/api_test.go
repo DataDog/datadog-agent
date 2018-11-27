@@ -24,22 +24,13 @@ func TestShouldHandle(t *testing.T) {
 
 	// Leader and ready
 	h.state = leader
-	h.dispatcher = newDispatcher()
 	code, reason = h.ShouldHandle()
 	assert.Equal(t, http.StatusOK, code)
 	assert.Equal(t, "", reason)
 
-	// Follower with an active dispatcher (ongoing stop)
+	// Follower
 	h.state = follower
 	h.leaderIP = "1.2.3.4"
-	h.dispatcher = newDispatcher()
-	code, reason = h.ShouldHandle()
-	assert.Equal(t, http.StatusFound, code)
-	assert.Equal(t, "1.2.3.4", reason)
-
-	// Follower
-	h.leaderIP = "1.2.3.4"
-	h.dispatcher = nil
 	code, reason = h.ShouldHandle()
 	assert.Equal(t, http.StatusFound, code)
 	assert.Equal(t, "1.2.3.4", reason)
