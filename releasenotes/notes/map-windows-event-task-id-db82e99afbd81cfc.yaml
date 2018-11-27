@@ -8,4 +8,5 @@
 ---
 enhancements:
   - |
-    Map task id to its name for Azure Fabric Windows Event 
+    Improve Windows Event parsing. Event.EventData.Data fields are parsed as one JSON object. Event.EventData.Binary field
+    is parsed to its string value
