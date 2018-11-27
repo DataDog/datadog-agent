@@ -98,15 +98,11 @@ func assertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, con
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	ok := make(chan struct{}, 1)
-	var ranOnce bool
+	r := make(chan bool, 1)
 
 	go func() {
 		// Try once immediately
-		if condition() {
-			ok <- struct{}{}
-			return
-		}
+		r <- condition()
 
 		// Retry until timeout
 		checkTicker := time.NewTicker(frequency)
@@ -114,26 +110,32 @@ func assertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, con
 		for {
 			select {
 			case <-checkTicker.C:
-				if condition() {
-					ok <- struct{}{}
+				ok := condition()
+				r <- ok
+				if ok {
 					return
 				}
-				ranOnce = true
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
 
-	select {
-	case <-ok:
-		return
-	case <-ctx.Done():
-		if ranOnce {
-			assert.Fail(t, "Timeout waiting for condition to happen, function returned false")
-		} else {
-			assert.Fail(t, "Timeout waiting for condition to happen, function never returned")
+	var ranOnce bool
+	for {
+		select {
+		case ok := <-r:
+			if ok {
+				return
+			}
+			ranOnce = true
+		case <-ctx.Done():
+			if ranOnce {
+				assert.Fail(t, "Timeout waiting for condition to happen, function returned false")
+			} else {
+				assert.Fail(t, "Timeout waiting for condition to happen, function never returned")
+			}
+			return
 		}
-		return
 	}
 }
