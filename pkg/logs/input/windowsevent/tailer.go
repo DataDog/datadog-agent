@@ -6,8 +6,12 @@
 package windowsevent
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	"strings"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -67,6 +71,7 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 		return &message.Message{}, err
 	}
 	remapDataField(mv)
+	replaceBinaryData(mv)
 	if strings.HasPrefix(t.config.ChannelPath, "Microsoft-ServiceFabric/") {
 		mapTaskIDToTaskName(mv)
 	}
@@ -82,7 +87,6 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 // and maps it to the name of the task that match in the Microsoft Task Codes
 func mapTaskIDToTaskName(mv mxj.Map) {
 	taskPath := "Event.System.Task"
-
 	values, err := mv.ValuesForPath(taskPath)
 	if err != nil || len(values) == 0 {
 		log.Debug("Could not find path:", taskPath)
@@ -101,7 +105,7 @@ func mapTaskIDToTaskName(mv mxj.Map) {
 	}
 }
 
-// remapDataField transform the fields parsed from <Data Name='NAME1'>VALUE1</Data><Data Name='NAME2'>VALUE2</Data> to
+// remapDataField transforms the fields parsed from <Data Name='NAME1'>VALUE1</Data><Data Name='NAME2'>VALUE2</Data> to
 // fields that will be JSON serialized to {"NAME1": "VALUE1", "NAME2": "VALUE2"}
 // Data fields always have this schema:
 // https://docs.microsoft.com/en-us/windows/desktop/WES/eventschema-complexdatatype-complextype
@@ -129,7 +133,6 @@ func remapDataField(mv mxj.Map) {
 		}
 		elt := make(map[string]interface{})
 		elt[nameString] = text
-		fmt.Println(name, text)
 		nameTextMaps = append(nameTextMaps, elt)
 	}
 	if len(nameTextMaps) == 0 {
@@ -137,8 +140,61 @@ func remapDataField(mv mxj.Map) {
 	}
 	err = mv.SetValueForPath(nameTextMaps, dataPath)
 	if err != nil {
-		log.Debug("Could not format", dataPath)
+		log.Debugf("Error formatting %s: %s", dataPath, err)
 	}
+}
+
+// replaceBinaryData remaps the field Event.EventData.Binary to its string value
+func replaceBinaryData(mv mxj.Map) {
+	binaryPath := "Event.EventData.Binary"
+	values, err := mv.ValuesForPath(binaryPath)
+	if err != nil || len(values) == 0 {
+		log.Debug("Could not find path:", binaryPath)
+		return
+	}
+	valueString, ok := values[0].(string)
+	if !ok {
+		log.Debug("Could not cast binary data to string:", err)
+		return
+	}
+
+	decodedString, _ := parseBinaryData(valueString)
+	if err != nil {
+		log.Debugf("could not decode %s: %s", valueString, err)
+		return
+	}
+	_, err = mv.UpdateValuesForPath("Binary:"+string(decodedString), binaryPath)
+	if err != nil {
+		log.Debugf("Error formatting %s: %s", binaryPath, err)
+	}
+}
+
+// parseBinaryData parses the hex string found in the field Event.EventData.Binary to an utf-8 valid string
+func parseBinaryData(s string) (string, error) {
+	// decoded is an utf-16 array of byte
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return "", err
+	}
+
+	// https://gist.github.com/bradleypeabody/185b1d7ed6c0c2ab6cec
+	if len(b)%2 != 0 {
+		return "", fmt.Errorf("Must have even length byte slice")
+	}
+	ret := &bytes.Buffer{}
+	u16s := make([]uint16, 1)
+	b8buf := make([]byte, 4)
+
+	lb := len(b)
+	for i := 0; i < lb; i += 2 {
+		u16s[0] = uint16(b[i]) + (uint16(b[i+1]) << 8)
+		r := utf16.Decode(u16s)
+		n := utf8.EncodeRune(b8buf, r[0])
+		ret.Write(b8buf[:n])
+	}
+
+	// The string might be utf16 null-terminated (2 null bytes)
+	return strings.Trim(ret.String(), "\x00"), nil
 }
 
 // Mapping can be found here
