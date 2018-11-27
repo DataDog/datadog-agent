@@ -570,9 +570,9 @@ process_config:
 #   behavior between real-time you may set the Container/ProcessRT intervals to 10.
 #   Defaults to 10s for normal checks and 2s for others.
   intervals:
-    container: 8
+    container: 30
     process: 30
-    connections: 8
+    connections: 30
 #   A list of regex patterns that will exclude a process if matched.
 #   blacklist_patterns:
 #   How many check results to buffer in memory when POST fails. The default is usually fine.
