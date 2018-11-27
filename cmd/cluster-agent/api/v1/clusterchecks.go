@@ -123,8 +123,8 @@ func writeJSONResponse(w http.ResponseWriter, data interface{}) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
-// redirectToLeader handles the logic for followers to transparently
-// redirect the requests to the leader cluster-agent
+// shouldHandle is common code to handle redirection and errors
+// due to the handler state
 func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handler) bool {
 	code, reason := h.ShouldHandle()
 
@@ -132,11 +132,13 @@ func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handl
 	case http.StatusOK:
 		return true
 	case http.StatusFound:
+		// Redirection to leader
 		url := r.URL
 		url.Host = reason
 		http.Redirect(w, r, url.String(), http.StatusFound)
 		return false
 	default:
+		// Unexpected error
 		http.Error(w, reason, code)
 		return false
 	}

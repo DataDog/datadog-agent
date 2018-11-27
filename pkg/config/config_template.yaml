@@ -508,9 +508,14 @@ api_key:
 # cluster_checks:
 #   Set to true to enable the dispatching logic on the leader cluster-agent.
 #   enabled: "true"
+#
 #   Node-agents that have not queried the cluster-agent for 30 seconds will be deleted,
 #   and their checks re-dispatched to other nodes. This delay is configurable here.
 #   node_expiration_timeout: 30
+#
+#   The cluster-agent needs to wait for all node-agents to report to it before
+#   dispatching configurations. This delay is configurable here.
+#   warmup_duration: 30
 #
 {{ end -}}
 {{- if .DockerTagging }}
