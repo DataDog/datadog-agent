@@ -130,7 +130,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def image_build(ctx):
+def image_build(ctx, tag=AGENT_TAG, push=False):
     """
     Build the docker image
     """
@@ -145,5 +145,7 @@ def image_build(ctx):
     ctx.run("chmod +x {}".format(latest_file))
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
-    ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
+    ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(tag))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
+    if push:
+        ctx.run("docker push {}".format(tag))

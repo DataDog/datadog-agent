@@ -63,17 +63,16 @@ func (m *mockReaderSleep) Close() error {
 
 func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
 	return &Tailer{
-		ContainerID:        "1234567890abcdef",
-		outputChan:         make(chan *message.Message, 100),
-		decoder:            nil,
-		source:             nil,
-		cli:                nil,
-		sleepDuration:      defaultSleepDuration,
-		stop:               make(chan struct{}, 1),
-		done:               make(chan struct{}, 1),
-		erroredContainerID: make(chan string, 100),
-		reader:             reader,
-		cancelFunc:         cancelFunc,
+		ContainerID:   "1234567890abcdef",
+		outputChan:    make(chan *message.Message, 100),
+		decoder:       nil,
+		source:        nil,
+		cli:           nil,
+		sleepDuration: defaultSleepDuration,
+		stop:          make(chan struct{}, 1),
+		done:          make(chan struct{}, 1),
+		reader:        reader,
+		cancelFunc:    cancelFunc,
 	}
 }
 

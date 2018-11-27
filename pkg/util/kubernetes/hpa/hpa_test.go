@@ -259,7 +259,7 @@ func TestInspect(t *testing.T) {
 			},
 			[]custommetrics.ExternalMetricValue{},
 		},
-		"incomplete, missing labels": {
+		"missing labels, still OK": {
 			&autoscalingv2.HorizontalPodAutoscaler{
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
 					Metrics: []autoscalingv2.MetricSpec{
@@ -272,7 +272,15 @@ func TestInspect(t *testing.T) {
 					},
 				},
 			},
-			[]custommetrics.ExternalMetricValue{},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "foo",
+					Labels:     nil,
+					Timestamp:  0,
+					Value:      0,
+					Valid:      false,
+				},
+			},
 		},
 		"incomplete, missing external metrics": {
 			&autoscalingv2.HorizontalPodAutoscaler{

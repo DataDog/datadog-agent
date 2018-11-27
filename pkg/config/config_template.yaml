@@ -127,6 +127,11 @@ api_key:
 # Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
 
+# The agent can expose its health check on a dedicated http port.
+# This is useful for orchestrators that support http probes.
+# Default is 0 (disabled), set a valid port number (eg. 5555) to enable.
+# health_port: 0
+
 # The `check_runners` refers to the number of concurrent check runners available
 # for check instance execution. The scheduler will attempt to spread the
 # instances over the collection interval and will _at most_ be running the

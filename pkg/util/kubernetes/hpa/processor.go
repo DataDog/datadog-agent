@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	datadog "gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -128,11 +128,17 @@ func invalidate(emList []custommetrics.ExternalMetricValue) (invList []custommet
 }
 
 func getKey(name string, labels map[string]string) string {
+	// Support queries with no tags
+	if len(labels) == 0 {
+		return fmt.Sprintf("%s{*}", name)
+	}
+
 	datadogTags := []string{}
 	for key, val := range labels {
 		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
 	}
 	sort.Strings(datadogTags)
 	tags := strings.Join(datadogTags, ",")
+
 	return fmt.Sprintf("%s{%s}", name, tags)
 }

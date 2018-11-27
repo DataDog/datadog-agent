@@ -10,22 +10,22 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
-// LogsAgent is the global configuration object
-var LogsAgent = config.Datadog
+// ContainerCollectAll is the name of the docker integration that collect logs from all containers
+const ContainerCollectAll = "container_collect_all"
 
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
 func DefaultSources() []*LogSource {
 	var sources []*LogSource
 
-	if LogsAgent.GetBool("logs_config.container_collect_all") {
+	if coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
 		// append a new source to collect all logs from all containers
-		source := NewLogSource("container_collect_all", &LogsConfig{
+		source := NewLogSource(ContainerCollectAll, &LogsConfig{
 			Type:    DockerType,
 			Service: "docker",
 			Source:  "docker",
@@ -38,26 +38,26 @@ func DefaultSources() []*LogSource {
 
 // BuildEndpoints returns the endpoints to send logs to.
 func BuildEndpoints() (*client.Endpoints, error) {
-	if LogsAgent.GetBool("logs_config.dev_mode_no_ssl") {
+	if coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 
 	var useSSL bool
-	useProto := LogsAgent.GetBool("logs_config.dev_mode_use_proto")
-	proxyAddress := LogsAgent.GetString("logs_config.socks5_proxy_address")
+	useProto := coreConfig.Datadog.GetBool("logs_config.dev_mode_use_proto")
+	proxyAddress := coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")
 
 	main := client.Endpoint{
-		APIKey:       LogsAgent.GetString("api_key"),
-		Logset:       LogsAgent.GetString("logset"),
+		APIKey:       coreConfig.Datadog.GetString("api_key"),
+		Logset:       coreConfig.Datadog.GetString("logset"),
 		UseProto:     useProto,
 		ProxyAddress: proxyAddress,
 	}
 	switch {
-	case LogsAgent.GetString("logs_config.logs_dd_url") != "":
+	case coreConfig.Datadog.GetString("logs_config.logs_dd_url") != "":
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
 		// and '<PORT>' to be an integer.
 		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
-		host, portString, err := net.SplitHostPort(LogsAgent.GetString("logs_config.logs_dd_url"))
+		host, portString, err := net.SplitHostPort(coreConfig.Datadog.GetString("logs_config.logs_dd_url"))
 		if err != nil {
 			return nil, fmt.Errorf("could not parse logs_dd_url: %v", err)
 		}
@@ -67,21 +67,21 @@ func BuildEndpoints() (*client.Endpoints, error) {
 		}
 		main.Host = host
 		main.Port = port
-		useSSL = !LogsAgent.GetBool("logs_config.logs_no_ssl")
-	case LogsAgent.GetBool("logs_config.use_port_443"):
-		main.Host = LogsAgent.GetString("logs_config.dd_url_443")
+		useSSL = !coreConfig.Datadog.GetBool("logs_config.logs_no_ssl")
+	case coreConfig.Datadog.GetBool("logs_config.use_port_443"):
+		main.Host = coreConfig.Datadog.GetString("logs_config.dd_url_443")
 		main.Port = 443
 		useSSL = true
 	default:
 		// datadog settings
-		main.Host = LogsAgent.GetString("logs_config.dd_url")
-		main.Port = LogsAgent.GetInt("logs_config.dd_port")
-		useSSL = !LogsAgent.GetBool("logs_config.dev_mode_no_ssl")
+		main.Host = coreConfig.Datadog.GetString("logs_config.dd_url")
+		main.Port = coreConfig.Datadog.GetInt("logs_config.dd_port")
+		useSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 	main.UseSSL = useSSL
 
 	var additionals []client.Endpoint
-	err := LogsAgent.UnmarshalKey("logs_config.additional_endpoints", &additionals)
+	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}

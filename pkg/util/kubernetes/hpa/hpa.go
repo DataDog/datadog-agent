@@ -21,20 +21,23 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 	for _, metricSpec := range hpa.Spec.Metrics {
 		switch metricSpec.Type {
 		case autoscalingv2.ExternalMetricSourceType:
-			// The metricSelector and the external fields are optional. We do not support *.
-			if metricSpec.External == nil || metricSpec.External.MetricSelector == nil {
-				log.Errorf("Missing required fields for the External Metrics template of the HPA %s/%s, skipping processing", hpa.Namespace, hpa.Name)
+			if metricSpec.External == nil {
+				log.Errorf("Missing required \"external\" section in the %s/%s HPA, skipping processing", hpa.Namespace, hpa.Name)
 				continue
 			}
-			emList = append(emList, custommetrics.ExternalMetricValue{
+
+			em := custommetrics.ExternalMetricValue{
 				MetricName: metricSpec.External.MetricName,
 				HPA: custommetrics.ObjectReference{
 					Name:      hpa.Name,
 					Namespace: hpa.Namespace,
 					UID:       string(hpa.UID),
 				},
-				Labels: metricSpec.External.MetricSelector.MatchLabels,
-			})
+			}
+			if metricSpec.External.MetricSelector != nil {
+				em.Labels = metricSpec.External.MetricSelector.MatchLabels
+			}
+			emList = append(emList, em)
 		default:
 			log.Debugf("Unsupported metric type %s", metricSpec.Type)
 		}
