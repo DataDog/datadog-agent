@@ -64,13 +64,7 @@ func (h *Handler) PostStatus(nodeName string, status types.NodeStatus) (types.St
 	h.m.RLock()
 	defer h.m.RUnlock()
 
-	select {
-	case h.nodeStatusChan <- struct{}{}:
-	default:
-	}
-
 	upToDate, err := h.dispatcher.processNodeStatus(nodeName, status)
-
 	response := types.StatusResponse{
 		IsUpToDate: upToDate,
 	}

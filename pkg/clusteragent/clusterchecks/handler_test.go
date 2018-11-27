@@ -117,7 +117,6 @@ func TestHandlerRun(t *testing.T) {
 		leaderStatusFreq: 100 * time.Millisecond,
 		warmupDuration:   250 * time.Millisecond,
 		leadershipChan:   make(chan state, 1),
-		nodeStatusChan:   make(chan struct{}, 1),
 		dispatcher:       newDispatcher(),
 	}
 	h.setCallback("", errors.New("failing"))
@@ -172,15 +171,11 @@ func TestHandlerRun(t *testing.T) {
 		defer h.m.RUnlock()
 		return h.state == leader && h.leaderIP == ""
 	})
-	// We should not hook up to the AD yet
-	assert.Len(t, ac.Calls, 0)
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// API serves requests
 		code, reason := h.ShouldHandle()
 		return code == http.StatusOK && reason == ""
 	})
-
-	// Trigger warmup and AC connection
 	ac.On("AddScheduler", schedulerName, mock.AnythingOfType("*clusterchecks.dispatcher"), true).Return()
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// Keep node-agent caches even when timestamp is off (warmup)
@@ -190,9 +185,7 @@ func TestHandlerRun(t *testing.T) {
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
 		// Test whether we're connected to the AD
 		return ac.AssertNumberOfCalls(dummyT, "AddScheduler", 1)
-
 	})
-	ac.AssertExpectations(t)
 
 	// Schedule a check and make sure it is assigned to the node "dummy"
 	testConfig := integration.Config{
@@ -237,7 +230,6 @@ func TestHandlerRun(t *testing.T) {
 		// RemoveScheduler is called
 		return ac.AssertNumberOfCalls(dummyT, "RemoveScheduler", 1)
 	})
-	ac.AssertExpectations(t)
 
 	//
 	// Follower -> leader again

@@ -336,7 +336,7 @@ func initConfig(config Config) {
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
-	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 15)         // value in seconds
+	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
 
 	setAssetFs(config)
 }

@@ -53,7 +53,6 @@ type Handler struct {
 	leaderStatusFreq     time.Duration
 	leaderStatusCallback leaderIPCallback
 	leadershipChan       chan state
-	nodeStatusChan       chan struct{}
 }
 
 // NewHandler returns a populated Handler
@@ -67,7 +66,6 @@ func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
 		leaderStatusFreq: 5 * time.Second,
 		warmupDuration:   config.Datadog.GetDuration("cluster_checks.warmup_duration") * time.Second,
 		leadershipChan:   make(chan state, 1),
-		nodeStatusChan:   make(chan struct{}, 1),
 		dispatcher:       newDispatcher(),
 	}
 
@@ -107,27 +105,8 @@ func (h *Handler) Run(ctx context.Context) {
 			}
 		}
 
-		// Leading, first empty nodeStatusChan
-		select {
-		case <-h.nodeStatusChan:
-		default:
-		}
-
-		// Wait until first node status to start warmup
-		log.Info("Gained leadership, waiting for first agent to connect")
-		select {
-		case <-ctx.Done():
-			return
-		case newState := <-h.leadershipChan:
-			if newState == leader {
-				continue
-			}
-		case <-h.nodeStatusChan:
-			break
-		}
-
-		// Got first node status, sleep for warmup duration
-		log.Infof("Got a node-agent status, waiting %s for other agents", h.warmupDuration)
+		// Leading, start warmup
+		log.Infof("Becoming leader, waiting %s for node-agents to report", h.warmupDuration)
 		select {
 		case <-ctx.Done():
 			return
