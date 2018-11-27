@@ -116,7 +116,7 @@ func remapDataField(mv mxj.Map) {
 		log.Debug("Could not find path:", dataPath)
 		return
 	}
-	nameTextMaps := make([]map[string]interface{}, 0, len(values))
+	nameTextMap := make(map[string]interface{})
 	for _, value := range values {
 		valueMap, ok := value.(map[string]interface{})
 		if !ok {
@@ -131,14 +131,12 @@ func remapDataField(mv mxj.Map) {
 		if !ok {
 			continue
 		}
-		elt := make(map[string]interface{})
-		elt[nameString] = text
-		nameTextMaps = append(nameTextMaps, elt)
+		nameTextMap[nameString] = text
 	}
-	if len(nameTextMaps) == 0 {
+	if len(nameTextMap) == 0 {
 		return
 	}
-	err = mv.SetValueForPath(nameTextMaps, dataPath)
+	err = mv.SetValueForPath(nameTextMap, dataPath)
 	if err != nil {
 		log.Debugf("Error formatting %s: %s", dataPath, err)
 	}
