@@ -19,6 +19,12 @@ import (
 	"github.com/clbanning/mxj"
 )
 
+const (
+	binaryPath = "Event.EventData.Binary"
+	dataPath   = "Event.EventData.Data"
+	taskPath   = "Event.System.Task"
+)
+
 // Config is a event log tailer configuration
 type Config struct {
 	ChannelPath string
@@ -70,10 +76,10 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	if err != nil {
 		return &message.Message{}, err
 	}
-	remapDataField(mv)
-	replaceBinaryData(mv)
+	mv = remapDataField(mv)
+	mv = replaceBinaryData(mv)
 	if strings.HasPrefix(t.config.ChannelPath, "Microsoft-ServiceFabric/") {
-		mapTaskIDToTaskName(mv)
+		mv = mapTaskIDToTaskName(mv)
 	}
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
@@ -85,36 +91,35 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 
 // mapTaskIDToTaskName looks for the TASK_ID in {"Event": {"System": {"Task": <TASK_ID> }}}
 // and maps it to the name of the task that match in the Microsoft Task Codes
-func mapTaskIDToTaskName(mv mxj.Map) {
-	taskPath := "Event.System.Task"
+func mapTaskIDToTaskName(mv mxj.Map) mxj.Map {
 	values, err := mv.ValuesForPath(taskPath)
 	if err != nil || len(values) == 0 {
 		log.Debug("Could not find path:", taskPath)
-		return
+		return mv
 	}
 
 	taskName, found := taskIDMapping[values[0]]
 	if !found {
 		log.Debug("Could not resolve task id:", values[0])
-		return
+		return mv
 	}
 
 	_, err = mv.UpdateValuesForPath("Task:"+taskName, taskPath)
 	if err != nil {
 		log.Debugf("An error occurred updating %s: %s", taskPath, err)
 	}
+	return mv
 }
 
 // remapDataField transforms the fields parsed from <Data Name='NAME1'>VALUE1</Data><Data Name='NAME2'>VALUE2</Data> to
 // fields that will be JSON serialized to {"NAME1": "VALUE1", "NAME2": "VALUE2"}
 // Data fields always have this schema:
 // https://docs.microsoft.com/en-us/windows/desktop/WES/eventschema-complexdatatype-complextype
-func remapDataField(mv mxj.Map) {
-	dataPath := "Event.EventData.Data"
+func remapDataField(mv mxj.Map) mxj.Map {
 	values, err := mv.ValuesForPath(dataPath)
 	if err != nil || len(values) == 0 {
 		log.Debug("Could not find path:", dataPath)
-		return
+		return mv
 	}
 	nameTextMap := make(map[string]interface{})
 	for _, value := range values {
@@ -134,37 +139,38 @@ func remapDataField(mv mxj.Map) {
 		nameTextMap[nameString] = text
 	}
 	if len(nameTextMap) == 0 {
-		return
+		return mv
 	}
 	err = mv.SetValueForPath(nameTextMap, dataPath)
 	if err != nil {
 		log.Debugf("Error formatting %s: %s", dataPath, err)
 	}
+	return mv
 }
 
 // replaceBinaryData remaps the field Event.EventData.Binary to its string value
-func replaceBinaryData(mv mxj.Map) {
-	binaryPath := "Event.EventData.Binary"
+func replaceBinaryData(mv mxj.Map) mxj.Map {
 	values, err := mv.ValuesForPath(binaryPath)
 	if err != nil || len(values) == 0 {
 		log.Debug("Could not find path:", binaryPath)
-		return
+		return mv
 	}
 	valueString, ok := values[0].(string)
 	if !ok {
 		log.Debug("Could not cast binary data to string:", err)
-		return
+		return mv
 	}
 
 	decodedString, _ := parseBinaryData(valueString)
 	if err != nil {
 		log.Debugf("could not decode %s: %s", valueString, err)
-		return
+		return mv
 	}
 	_, err = mv.UpdateValuesForPath("Binary:"+string(decodedString), binaryPath)
 	if err != nil {
 		log.Debugf("Error formatting %s: %s", binaryPath, err)
 	}
+	return mv
 }
 
 // parseBinaryData parses the hex string found in the field Event.EventData.Binary to an utf-8 valid string
@@ -192,7 +198,7 @@ func parseBinaryData(s string) (string, error) {
 	}
 
 	// The string might be utf16 null-terminated (2 null bytes)
-	return strings.Trim(ret.String(), "\x00"), nil
+	return strings.TrimRight(ret.String(), "\x00"), nil
 }
 
 // Mapping can be found here
