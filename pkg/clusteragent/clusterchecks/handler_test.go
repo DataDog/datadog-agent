@@ -21,12 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-func (h *Handler) setCallback(ip string, err error) {
-	h.m.Lock()
-	defer h.m.Unlock()
-	h.leaderStatusCallback = func() (string, error) { return ip, err }
-}
-
 func (h *Handler) assertLeadershipMessage(t *testing.T, expected state) {
 	t.Helper()
 	select {
@@ -48,12 +42,14 @@ func (h *Handler) assertNoLeadershipMessage(t *testing.T) {
 }
 
 func TestUpdateLeaderIP(t *testing.T) {
+	le := &fakeLeaderEngine{}
 	h := &Handler{
-		leadershipChan: make(chan state, 1),
+		leadershipChan:       make(chan state, 1),
+		leaderStatusCallback: le.get,
 	}
 
 	// First run, become leader
-	h.setCallback("", nil)
+	le.set("", nil)
 	err := h.updateLeaderIP(true)
 	assert.NoError(t, err)
 	assert.Equal(t, "", h.leaderIP)
@@ -67,38 +63,40 @@ func TestUpdateLeaderIP(t *testing.T) {
 
 	// Query error
 	queryError := errors.New("test query error")
-	h.setCallback("1.2.3.4", queryError)
+	le.set("1.2.3.4", queryError)
 	err = h.updateLeaderIP(false)
 	assert.Equal(t, queryError, err)
 	assert.Equal(t, "", h.leaderIP)
 	h.assertNoLeadershipMessage(t)
 
 	// Lose leadership
-	h.setCallback("1.2.3.4", nil)
+	le.set("1.2.3.4", nil)
 	err = h.updateLeaderIP(false)
 	assert.NoError(t, err)
 	assert.Equal(t, "1.2.3.4", h.leaderIP)
 	h.assertLeadershipMessage(t, follower)
 
 	// New leader, still following
-	h.setCallback("1.2.3.40", nil)
+	le.set("1.2.3.40", nil)
 	err = h.updateLeaderIP(false)
 	assert.NoError(t, err)
 	assert.Equal(t, "1.2.3.40", h.leaderIP)
 	h.assertNoLeadershipMessage(t)
 
 	// Back to leader
-	h.setCallback("", nil)
+	le.set("", nil)
 	err = h.updateLeaderIP(false)
 	assert.NoError(t, err)
 	assert.Equal(t, "", h.leaderIP)
 	h.assertLeadershipMessage(t, leader)
 
 	// Start fresh, test unknown -> follower
+	le = &fakeLeaderEngine{}
 	h = &Handler{
-		leadershipChan: make(chan state, 1),
+		leadershipChan:       make(chan state, 1),
+		leaderStatusCallback: le.get,
 	}
-	h.setCallback("1.2.3.4", nil)
+	le.set("1.2.3.4", nil)
 	err = h.updateLeaderIP(true)
 	assert.NoError(t, err)
 	assert.Equal(t, "1.2.3.4", h.leaderIP)
@@ -111,15 +109,18 @@ func TestHandlerRun(t *testing.T) {
 	dummyT := &testing.T{}
 	ac := &mockedPluggableAutoConfig{}
 	ac.Test(t)
+	le := &fakeLeaderEngine{
+		err: errors.New("failing"),
+	}
 
 	h := &Handler{
-		autoconfig:       ac,
-		leaderStatusFreq: 100 * time.Millisecond,
-		warmupDuration:   250 * time.Millisecond,
-		leadershipChan:   make(chan state, 1),
-		dispatcher:       newDispatcher(),
+		autoconfig:           ac,
+		leaderStatusFreq:     100 * time.Millisecond,
+		warmupDuration:       250 * time.Millisecond,
+		leadershipChan:       make(chan state, 1),
+		dispatcher:           newDispatcher(),
+		leaderStatusCallback: le.get,
 	}
-	h.setCallback("", errors.New("failing"))
 
 	//
 	// Initialisation and unknown state
@@ -147,7 +148,7 @@ func TestHandlerRun(t *testing.T) {
 	// Unknown -> follower
 	//
 
-	h.setCallback("1.2.3.4", nil)
+	le.set("1.2.3.4", nil)
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// Internal state change
 		h.m.RLock()
@@ -164,7 +165,7 @@ func TestHandlerRun(t *testing.T) {
 	// Follower -> leader
 	//
 
-	h.setCallback("", nil)
+	le.set("", nil)
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// Internal state change
 		h.m.RLock()
@@ -209,7 +210,7 @@ func TestHandlerRun(t *testing.T) {
 	//
 
 	ac.On("RemoveScheduler", schedulerName).Return()
-	h.setCallback("1.2.3.6", nil)
+	le.set("1.2.3.6", nil)
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// Internal state change
 		h.m.RLock()
@@ -235,7 +236,7 @@ func TestHandlerRun(t *testing.T) {
 	// Follower -> leader again
 	//
 
-	h.setCallback("", nil)
+	le.set("", nil)
 	h.PostStatus("dummy", types.NodeStatus{})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// API serves requests

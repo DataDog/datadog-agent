@@ -139,3 +139,22 @@ func assertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, con
 		}
 	}
 }
+
+type fakeLeaderEngine struct {
+	sync.Mutex
+	ip  string
+	err error
+}
+
+func (e *fakeLeaderEngine) get() (string, error) {
+	e.Lock()
+	defer e.Unlock()
+	return e.ip, e.err
+}
+
+func (e *fakeLeaderEngine) set(ip string, err error) {
+	e.Lock()
+	defer e.Unlock()
+	e.ip = ip
+	e.err = err
+}

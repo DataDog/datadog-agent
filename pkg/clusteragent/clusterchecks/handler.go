@@ -187,13 +187,14 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 //   - true: becoming leader
 //   - false: lost leadership
 func (h *Handler) updateLeaderIP(firstRun bool) error {
-	h.m.Lock()
-	defer h.m.Unlock()
-
 	newIP, err := h.leaderStatusCallback()
 	if err != nil {
 		return err
 	}
+
+	// Lock after the kubernetes call returns, leaderStatusCallback is constant
+	h.m.Lock()
+	defer h.m.Unlock()
 
 	// Fast exit if no change
 	if !firstRun && (newIP == h.leaderIP) {
