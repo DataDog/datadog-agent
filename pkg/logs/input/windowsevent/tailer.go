@@ -173,14 +173,36 @@ func replaceBinaryData(mv mxj.Map) mxj.Map {
 	return mv
 }
 
-// parseBinaryData parses the hex string found in the field Event.EventData.Binary to an utf-8 valid string
+// parseBinaryData parses the hex string found in the field Event.EventData.Binary to an UTF-8 valid string
 func parseBinaryData(s string) (string, error) {
 	// decoded is an utf-16 array of byte
-	b, err := hex.DecodeString(s)
+	decodedHex, err := decodeHex(s)
 	if err != nil {
 		return "", err
 	}
 
+	utf8String, err := decodeUTF16(decodedHex)
+	if err != nil {
+		return "", err
+	}
+
+	// The string might be utf16 null-terminated (2 null bytes)
+	parsedString := strings.TrimRight(utf8String, "\x00")
+	return parsedString, nil
+}
+
+// decodeHex reads an hexadecimal string to an array of bytes
+func decodeHex(s string) ([]byte, error) {
+	decoded, err := hex.DecodeString(s)
+	if err != nil {
+		return []byte(nil), err
+	}
+
+	return decoded, nil
+}
+
+// decodeUTF16 transforms an array of bytes of an UTF-16 string to an UTF-8 string
+func decodeUTF16(b []byte) (string, error) {
 	// https://gist.github.com/bradleypeabody/185b1d7ed6c0c2ab6cec
 	if len(b)%2 != 0 {
 		return "", fmt.Errorf("Must have even length byte slice")
@@ -197,8 +219,7 @@ func parseBinaryData(s string) (string, error) {
 		ret.Write(b8buf[:n])
 	}
 
-	// The string might be utf16 null-terminated (2 null bytes)
-	return strings.TrimRight(ret.String(), "\x00"), nil
+	return ret.String(), nil
 }
 
 // Mapping can be found here
