@@ -28,12 +28,18 @@ type clusterStore struct {
 }
 
 func newClusterStore() *clusterStore {
-	return &clusterStore{
-		digestToConfig:  make(map[string]integration.Config),
-		digestToNode:    make(map[string]string),
-		nodes:           make(map[string]*nodeStore),
-		danglingConfigs: make(map[string]integration.Config),
-	}
+	s := &clusterStore{}
+	s.reset()
+	return s
+}
+
+// reset empties the store and resets all states
+func (s *clusterStore) reset() {
+	s.active = false
+	s.digestToConfig = make(map[string]integration.Config)
+	s.digestToNode = make(map[string]string)
+	s.nodes = make(map[string]*nodeStore)
+	s.danglingConfigs = make(map[string]integration.Config)
 }
 
 // getNodeStore retrieves the store struct for a given node name, if it exists

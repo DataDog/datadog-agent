@@ -43,16 +43,15 @@ type pluggableAutoConfig interface {
 
 // The handler is the glue holding all components for cluster-checks management
 type Handler struct {
-	m                    sync.RWMutex
 	autoconfig           pluggableAutoConfig
 	dispatcher           *dispatcher
-	dispatcherCancel     context.CancelFunc
-	state                state
-	leaderIP             string
-	warmupDuration       time.Duration
 	leaderStatusFreq     time.Duration
+	warmupDuration       time.Duration
 	leaderStatusCallback leaderIPCallback
 	leadershipChan       chan state
+	m                    sync.RWMutex // Below fields protected by the mutex
+	state                state
+	leaderIP             string
 }
 
 // NewHandler returns a populated Handler
@@ -152,10 +151,8 @@ func (h *Handler) runDispatch(ctx context.Context) {
 	// Run dispatcher cleanup loop - blocking until context is cancelled
 	h.dispatcher.run(ctx)
 
-	h.m.Lock()
-	defer h.m.Unlock()
-	// Churn the dispatcher and restart fresh
-	h.dispatcher = newDispatcher()
+	// Reset the dispatcher
+	h.dispatcher.reset()
 	h.autoconfig.RemoveScheduler(schedulerName)
 }
 

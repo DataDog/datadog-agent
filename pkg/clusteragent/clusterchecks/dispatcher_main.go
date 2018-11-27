@@ -77,6 +77,13 @@ func (d *dispatcher) remove(config integration.Config) {
 	d.removeConfig(digest)
 }
 
+// reset empties the store and resets all states
+func (d *dispatcher) reset() {
+	d.store.Lock()
+	defer d.store.Unlock()
+	d.store.reset()
+}
+
 // run is the main management goroutine for the dispatcher
 func (d *dispatcher) run(ctx context.Context) {
 	d.store.Lock()

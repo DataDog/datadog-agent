@@ -252,5 +252,26 @@ func TestDanglingConfig(t *testing.T) {
 	configs := dispatcher.retrieveAndClearDangling()
 	assert.Equal(t, []integration.Config{config}, configs)
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+}
 
+func TestReset(t *testing.T) {
+	dispatcher := newDispatcher()
+	config := generateIntegration("cluster-check")
+
+	// Register to node1
+	dispatcher.addConfig(config, "node1")
+	configs1, _, err := dispatcher.getNodeConfigs("node1")
+	assert.NoError(t, err)
+	assert.Len(t, configs1, 1)
+	assert.Contains(t, configs1, config)
+
+	// Reset
+	dispatcher.reset()
+	stored, err := dispatcher.getAllConfigs()
+	assert.NoError(t, err)
+	assert.Len(t, stored, 0)
+	configs1, _, err = dispatcher.getNodeConfigs("node1")
+	assert.EqualError(t, err, "node node1 is unknown")
+
+	requireNotLocked(t, dispatcher.store)
 }
