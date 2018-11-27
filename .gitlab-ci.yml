@@ -136,7 +136,7 @@ build_deb:
     # cloning in omnibus and operations on datadog-agent
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
-  - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=2.0.0-rc
+  - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=nightly
 
     # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
