@@ -49,7 +49,7 @@ def pkg_config_path(use_embedded_libs):
     return retval
 
 
-def get_build_flags(ctx, static=False, use_embedded_libs=False):
+def get_build_flags(ctx, static=False, use_embedded_libs=False, use_venv=False):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -76,7 +76,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
                                   env=env, hide=True).stdout.strip()
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, embedded_prefix)
         ldflags += "-r {} ".format(embedded_lib_path)
-    elif os.getenv('VIRTUAL_ENV'):
+    elif use_venv and os.getenv('VIRTUAL_ENV'):
         venv_prefix = os.getenv('VIRTUAL_ENV')
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, venv_prefix)
 
