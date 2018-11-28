@@ -144,8 +144,8 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	ac.LoadAndRun()
 	require.Len(suite.T(), ac.providers, 2)
 	assert.Equal(suite.T(), 1, mp.collectCounter)
-	assert.False(suite.T(), ac.providers[0].poll)
-	assert.True(suite.T(), ac.providers[1].poll)
+	assert.False(suite.T(), ac.providers[0].canPoll)
+	assert.True(suite.T(), ac.providers[1].canPoll)
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {

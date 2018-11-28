@@ -74,12 +74,12 @@ func SetupAutoConfig(confdPath string) {
 						}
 					}
 
-					AC.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 					if cp.Polling {
 						log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
 					} else {
 						log.Infof("Registering %s config provider", cp.Name)
 					}
+					AC.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 				} else {
 					log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				}

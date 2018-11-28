@@ -41,18 +41,6 @@ func init() {
 	}))
 }
 
-// providerDescriptor keeps track of the configurations loaded by a certain
-// `providers.ConfigProvider` and whether it should be polled or not.
-type providerDescriptor struct {
-	provider     providers.ConfigProvider
-	configs      []integration.Config
-	poll         bool
-	pollInterval time.Duration
-	ticker       *time.Ticker
-	stopChan     chan struct{}
-	healthHandle *health.Handle
-}
-
 // AutoConfig is responsible to collect integrations configurations from
 // different sources and then schedule or unschedule them.
 // It owns and orchestrates several key modules:
@@ -70,7 +58,6 @@ type AutoConfig struct {
 	listenerCandidates map[string]listeners.ServiceListenerFactory
 	listenerRetryStop  chan struct{}
 	scheduler          *scheduler.MetaScheduler
-	pollerActive       bool
 	healthPolling      *health.Handle
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
@@ -179,14 +166,11 @@ func (ac *AutoConfig) Stop() {
 	}
 
 	// stop polled config providers
-	if ac.pollerActive {
-		for _, pd := range ac.providers {
-			if !pd.poll {
-				continue
-			}
-			pd.stopChan <- struct{}{}
+	for _, pd := range ac.providers {
+		if !pd.isPolling {
+			continue
 		}
-		ac.pollerActive = false
+		pd.stop()
 	}
 
 	// stop the service listener
@@ -230,12 +214,12 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 	pd := &providerDescriptor{
 		provider:     provider,
 		configs:      []integration.Config{},
-		poll:         shouldPoll,
+		canPoll:      shouldPoll,
 		pollInterval: pollInterval,
 	}
 	ac.providers = append(ac.providers, pd)
-	if pd.poll {
-		ac.scheduleConfigProvider(pd)
+	if pd.canPoll {
+		pd.start(ac)
 	}
 }
 
@@ -500,51 +484,6 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	return conf, nil
 }
 
-func (ac *AutoConfig) scheduleConfigProvider(pd *providerDescriptor) {
-	if !pd.poll {
-		return
-	}
-	pd.ticker = time.NewTicker(pd.pollInterval)
-	pd.stopChan = make(chan struct{})
-	pd.healthHandle = health.Register(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
-	go func(pd *providerDescriptor) {
-		for {
-			select {
-			case <-pd.healthHandle.C:
-			case <-pd.stopChan:
-				pd.healthHandle.Deregister()
-				pd.ticker.Stop()
-				return
-			case <-pd.ticker.C:
-				log.Tracef("Polling %s config provider", pd.provider.String())
-				// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outdated.
-				upToDate, err := pd.provider.IsUpToDate()
-				if err != nil {
-					log.Errorf("Cache processing of %v configuration provider failed: %v", pd.provider, err)
-				}
-				if upToDate == true {
-					log.Debugf("No modifications in the templates stored in %v configuration provider", pd.provider)
-					break
-				}
-
-				// retrieve the list of newly added configurations as well
-				// as removed configurations
-				newConfigs, removedConfigs := ac.collect(pd)
-				// Process removed configs first to handle the case where a
-				// container churn would result in the same configuration hash.
-				ac.processRemovedConfigs(removedConfigs)
-
-				for _, config := range newConfigs {
-					config.Provider = pd.provider.String()
-					resolvedConfigs := ac.processNewConfig(config)
-					ac.schedule(resolvedConfigs)
-				}
-			}
-		}
-	}(pd)
-	ac.pollerActive = true
-}
-
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.unschedule(configs)
 	for _, c := range configs {
@@ -624,39 +563,6 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	return resolvedConfig, nil
 }
 
-// collect is just a convenient wrapper to fetch configurations from a provider and
-// see what changed from the last time we called Collect().
-func (ac *AutoConfig) collect(pd *providerDescriptor) ([]integration.Config, []integration.Config) {
-	var newConf []integration.Config
-	var removedConf []integration.Config
-	old := pd.configs
-
-	fetched, err := pd.provider.Collect()
-	if err != nil {
-		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
-		return nil, nil
-	}
-
-	for _, c := range fetched {
-		if !pd.contains(&c) {
-			newConf = append(newConf, c)
-		}
-	}
-
-	pd.configs = fetched
-	for _, c := range old {
-		if !pd.contains(&c) {
-			removedConf = append(removedConf, c)
-		}
-	}
-	if len(newConf) > 0 || len(removedConf) > 0 {
-		log.Infof("%v provider: collected %d new configurations, removed %d", pd.provider, len(newConf), len(removedConf))
-	} else {
-		log.Debugf("%v provider: no configuration change", pd.provider)
-	}
-	return newConf, removedConf
-}
-
 // GetLoadedConfigs returns configs loaded
 func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 	return ac.store.getLoadedConfigs()
@@ -665,16 +571,6 @@ func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string]integration.Config {
 	return ac.store.templateCache.GetUnresolvedTemplates()
-}
-
-// check if the descriptor contains the Config passed
-func (pd *providerDescriptor) contains(c *integration.Config) bool {
-	for _, config := range pd.configs {
-		if config.Equal(c) {
-			return true
-		}
-	}
-	return false
 }
 
 // GetConfigErrors gets the config errors
