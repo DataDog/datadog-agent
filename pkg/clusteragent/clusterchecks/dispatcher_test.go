@@ -270,7 +270,7 @@ func TestReset(t *testing.T) {
 	stored, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Len(t, stored, 0)
-	configs1, _, err = dispatcher.getNodeConfigs("node1")
+	_, _, err = dispatcher.getNodeConfigs("node1")
 	assert.EqualError(t, err, "node node1 is unknown")
 
 	requireNotLocked(t, dispatcher.store)
