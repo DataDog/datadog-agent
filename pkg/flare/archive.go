@@ -86,7 +86,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		}
 
 		// Status informations will be unavailable unless the agent is running.
-		err = writeStatusFile(tempDir, hostname, []byte("agent is not running"))
+		err = writeStatusFile(tempDir, hostname, []byte("unable to get the status of the agent, is it running?"))
 		if err != nil {
 			return "", err
 		}
