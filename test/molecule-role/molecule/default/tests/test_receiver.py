@@ -22,7 +22,7 @@ def test_receiver_ok(host):
     assert host.check_output(c) == "200"
 
 
-def test_created_connection(host, Ansible):
+def test_created_connection_with_metrics(host, Ansible):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
     # FIXME: Maybe there is a more direct way to get this variable
     conn_port = int(Ansible("include_vars", "./common_vars.yml")
@@ -31,25 +31,29 @@ def test_created_connection(host, Ansible):
     def wait_for_connection():
         data = host.check_output("curl %s" % url)
         json_data = json.loads(data)
-        outgoing = next(record
-                        for record
-                        in json_data["messages"]
-                        if record["message"]["Connection"]
-                        ["remoteEndpoint"]["endpoint"]["port"] == conn_port
-                        )
-        outgoing_conn = outgoing["message"]["Connection"]
+        outgoing_conn = next(connection for message in json_data["messages"]
+                             for connection
+                             in message["message"]
+                             ["Connections"]["connections"]
+                             if connection["remoteEndpoint"]
+                             ["endpoint"]["port"] == conn_port
+                             )
         print outgoing_conn
         assert outgoing_conn["direction"] == "OUTGOING"
         assert outgoing_conn["connectionType"] == "TCP"
-        incoming = next(record
-                        for record
-                        in json_data["messages"]
-                        if record["message"]["Connection"]
-                        ["localEndpoint"]["endpoint"]["port"] == conn_port
-                        )
-        incoming_conn = incoming["message"]["Connection"]
+        assert outgoing_conn["bytesSentPerSecond"] > 10.0
+        assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
+        incoming_conn = next(connection for message in json_data["messages"]
+                             for connection
+                             in message["message"]
+                             ["Connections"]["connections"]
+                             if connection["localEndpoint"]
+                             ["endpoint"]["port"] == conn_port
+                             )
         print incoming_conn
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
+        assert incoming_conn["bytesSentPerSecond"] == 0.0
+        assert incoming_conn["bytesReceivedPerSecond"] > 10.0
 
     util.wait_until(wait_for_connection, 30, 3)
