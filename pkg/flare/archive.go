@@ -85,8 +85,12 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 			return "", err
 		}
 
-		// Status informations will be unavailable unless the agent is running.
+		// Can't reach the agent, mention it in those two files
 		err = writeStatusFile(tempDir, hostname, []byte("unable to get the status of the agent, is it running?"))
+		if err != nil {
+			return "", err
+		}
+		err = writeConfigCheck(tempDir, hostname, []byte("unable to get loaded checks config, is the agent running?"))
 		if err != nil {
 			return "", err
 		}
@@ -334,6 +338,10 @@ func zipConfigCheck(tempDir, hostname string) error {
 	GetConfigCheck(writer, true)
 	writer.Flush()
 
+	return writeConfigCheck(tempDir, hostname, b.Bytes())
+}
+
+func writeConfigCheck(tempDir, hostname string, data []byte) error {
 	f := filepath.Join(tempDir, hostname, "config-check.log")
 	err := ensureParentDirsExist(f)
 	if err != nil {
@@ -346,7 +354,7 @@ func zipConfigCheck(tempDir, hostname string) error {
 	}
 	defer w.Close()
 
-	_, err = w.Write(b.Bytes())
+	_, err = w.Write(data)
 	return err
 }
 
