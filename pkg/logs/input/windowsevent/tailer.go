@@ -85,6 +85,7 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	if err != nil {
 		return &message.Message{}, err
 	}
+	jsonEvent = replaceTextKeyToValue(jsonEvent)
 	log.Debug("Sending JSON:", string(jsonEvent))
 	return message.NewMessage(jsonEvent, message.NewOrigin(t.source), message.StatusInfo), nil
 }
@@ -220,6 +221,13 @@ func decodeUTF16(b []byte) (string, error) {
 	}
 
 	return ret.String(), nil
+}
+
+// replaceTextKeyValue replaces a "#text" key to a "value" key.
+// That happens when a tag has an attribute and a content. E.g. <EventID Qualifiers='16384'>7036</EventID>
+func replaceTextKeyToValue(jsonEvent []byte) []byte {
+	jsonEvent = bytes.Replace(jsonEvent, []byte("\"#text\":"), []byte("\"value\":"), -1)
+	return jsonEvent
 }
 
 // Mapping can be found here
