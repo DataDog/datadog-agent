@@ -170,7 +170,15 @@ func (h *MultiLineHandler) run() {
 				return
 			}
 			// process the new line and restart the timeout
-			flushTimer.Stop()
+			if !flushTimer.Stop() {
+				// stop doesn't not prevent a tick from the Timer if they happen at the same time
+				// we read from the timer channel to prevent an incorrect read
+				// in <-flushTimer.C in the case below
+				select {
+				case <-flushTimer.C:
+				default:
+				}
+			}
 			h.process(line)
 			flushTimer.Reset(h.flushTimeout)
 		case <-flushTimer.C:
