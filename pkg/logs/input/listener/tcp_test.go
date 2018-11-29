@@ -7,6 +7,7 @@ package listener
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"strings"
 	"testing"
@@ -18,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
-// FIXME: Use a randomly assigned port, but this means allowing '0' in the config.
-const tcpTestPort = 10512
+// use a randomly assigned port between 10000 and 65535.
+var tcpTestPort = 10000 + rand.Intn(55535)
 
 func TestTCPShouldReceivesMessages(t *testing.T) {
 	pp := mock.NewMockProvider()

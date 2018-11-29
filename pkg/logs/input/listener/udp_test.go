@@ -7,6 +7,7 @@ package listener
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"testing"
 
@@ -17,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
-const udpTestPort = 10513
+// use a randomly assigned port between 10000 and 65535.
+var udpTestPort = 10000 + rand.Intn(55535)
 
 func TestUDPShouldReceiveMessage(t *testing.T) {
 	pp := mock.NewMockProvider()
