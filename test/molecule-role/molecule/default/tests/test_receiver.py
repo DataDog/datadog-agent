@@ -57,3 +57,73 @@ def test_created_connection_with_metrics(host, Ansible):
         assert incoming_conn["bytesReceivedPerSecond"] > 10.0
 
     util.wait_until(wait_for_connection, 30, 3)
+
+
+def test_host_metrics(host, Ansible):
+    url = "http://localhost:7070/api/topic/sts_metrics?limit=200"
+
+    def wait_for_metrics():
+        data = host.check_output("curl %s" % url)
+        json_data = json.loads(data)
+        metrics = {message["message"]["Metric"]["name"]: value["value"]
+                   for message in json_data["messages"]
+                   for value in message["message"]["Metric"]["value"]
+                   }
+
+        print metrics
+
+        # These values are based on an ec2 micro instance
+        # (as created by molecule.yml)
+
+        # No swap in these tests, we still wanna know whether it is reported
+        assert metrics["system.swap.total"] == 0.0
+        assert metrics["system.swap.pct_free"] == 1.0
+
+        # Memory
+        assert metrics["system.mem.total"] > 900.0
+        assert metrics["system.mem.usable"] > 500.0
+        assert metrics["system.mem.usable"] < 1000.0
+        assert metrics["system.mem.pct_usable"] > 0.5
+        assert metrics["system.mem.pct_usable"] < 1.0
+
+        # Load
+        assert metrics["system.load.norm.1"] > 0.0
+
+        # CPU
+        assert metrics["system.cpu.idle"] > 0.0
+        assert metrics["system.cpu.iowait"] > 0.0
+        assert metrics["system.cpu.system"] > 0.0
+        assert metrics["system.cpu.user"] > 0.0
+
+        # Inodes
+        assert metrics["system.fs.file_handles.in_use"] > 0.0
+        assert metrics["system.fs.file_handles.max"] > 10000.0
+
+    util.wait_until(wait_for_metrics, 30, 3)
+
+
+def test_process_metrics(host, Ansible):
+    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=200"
+
+    def wait_for_metrics():
+        data = host.check_output("curl %s" % url)
+        json_data = json.loads(data)
+        metrics = next(set(message["message"]["MultiMetric"]["values"].keys())
+                       for message in json_data["messages"]
+                       if message["message"]["MultiMetric"]["name"] ==
+                       "processMetrics"
+                       )
+
+        print metrics
+        expected = set(["cpu_nice", "cpu_userPct", "cpu_userTime",
+                        "cpu_systemPct", "cpu_numThreads", "io_writeRate",
+                        "io_writeBytesRate", "cpu_totalPct",
+                        "voluntaryCtxSwitches", "mem_dirty",
+                        "involuntaryCtxSwitches", "io_readRate", "openFdCount",
+                        "mem_shared", "cpu_systemTime", "io_readBytesRate",
+                        "mem_data", "mem_vms", "mem_lib", "mem_text",
+                        "mem_swap", "mem_rss"])
+
+        assert metrics == expected
+
+    util.wait_until(wait_for_metrics, 30, 3)
