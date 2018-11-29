@@ -264,9 +264,6 @@ func TestNetworkCheck(t *testing.T) {
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
-tags:
-    - "test:tag"
-    - "test:another_tag"
 `)
 
 	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
@@ -282,8 +279,7 @@ tags:
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	customTags := []string{"test:tag", "test:another_tag"}
-	eth0Tags := append(customTags, "device:eth0")
+	eth0Tags := []string{"device:eth0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -291,7 +287,7 @@ tags:
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
 
-	lo0Tags := append(customTags, "device:lo0")
+	lo0Tags := []string{"device:lo0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", lo0Tags)
@@ -299,50 +295,50 @@ tags:
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(20), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(21), "", lo0Tags)
 
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.retrans_segs", float64(22), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_segs", float64(23), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_segs", float64(24), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.retrans_segs", float64(22), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_segs", float64(23), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_segs", float64(24), "", nil)
 
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.retrans_segs.count", float64(22), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_segs.count", float64(23), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_segs.count", float64(24), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.retrans_segs.count", float64(22), "", nil)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_segs.count", float64(23), "", nil)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_segs.count", float64(24), "", nil)
 
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_datagrams", float64(25), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.no_ports", float64(26), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_errors", float64(27), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.out_datagrams", float64(28), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.rcv_buf_errors", float64(29), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.snd_buf_errors", float64(30), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_csum_errors", float64(31), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_datagrams", float64(25), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.no_ports", float64(26), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_errors", float64(27), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.out_datagrams", float64(28), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.rcv_buf_errors", float64(29), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.snd_buf_errors", float64(30), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_csum_errors", float64(31), "", nil)
 
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_datagrams.count", float64(25), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.no_ports.count", float64(26), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_errors.count", float64(27), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.out_datagrams.count", float64(28), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.rcv_buf_errors.count", float64(29), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.snd_buf_errors.count", float64(30), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_csum_errors.count", float64(31), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_datagrams.count", float64(25), "", nil)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.no_ports.count", float64(26), "", nil)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_errors.count", float64(27), "", nil)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.out_datagrams.count", float64(28), "", nil)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.rcv_buf_errors.count", float64(29), "", nil)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.snd_buf_errors.count", float64(30), "", nil)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_csum_errors.count", float64(31), "", nil)
 
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_overflows", float64(32), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_overflows", float64(32), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", nil)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", nil)
 
-	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", nil)
 
-	mockSender.AssertCalled(t, "Gauge", "system.net.udp6.connections", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.udp6.connections", float64(2), "", nil)
 
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.established", float64(1), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.opening", float64(2), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(1), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.closing", float64(6), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listening", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.established", float64(1), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.opening", float64(2), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(1), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.closing", float64(6), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listening", float64(1), "", nil)
 
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.established", float64(2), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.opening", float64(4), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.time_wait", float64(2), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(12), "", customTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.listening", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.established", float64(2), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.opening", float64(4), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.time_wait", float64(2), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(12), "", nil)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.listening", float64(2), "", nil)
 
 	mockSender.AssertCalled(t, "Commit")
 }
