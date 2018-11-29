@@ -64,6 +64,11 @@ func (m *MockSender) Commit() {
 	m.Called()
 }
 
+//SetCheckCustomTags enables the set of check custom tags mock call.
+func (m *MockSender) SetCheckCustomTags(tags []string) {
+	m.Called(tags)
+}
+
 //GetMetricStats enables the get metric stats mock call.
 func (m *MockSender) GetMetricStats() map[string]int64 {
 	m.Called()
