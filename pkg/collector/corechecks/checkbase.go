@@ -32,6 +32,10 @@ import (
 // Integration warnings are handled via the Warn and Warnf methods
 // that forward the warning to the logger and send the warning to
 // the collector for display in the status page and the web UI.
+//
+// If custom tags are set in the check configuration file,
+// they will be automatically appended to each send done by this
+// check.
 type CheckBase struct {
 	checkName      string
 	checkID        check.ID
