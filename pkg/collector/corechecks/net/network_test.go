@@ -79,10 +79,6 @@ excluded_interfaces:
     - eth0
     - lo0
 excluded_interface_re: "eth.*"
-
-tags:
-    - "a:test1"
-    - "b:test2"
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``))
 
@@ -90,7 +86,6 @@ tags:
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
 	assert.ElementsMatch(t, []string{"eth0", "lo0"}, check.config.instance.ExcludedInterfaces)
 	assert.Equal(t, "eth.*", check.config.instance.ExcludedInterfaceRe)
-	assert.ElementsMatch(t, []string{"a:test1", "b:test2"}, check.config.instance.CustomTags)
 }
 
 func TestNetworkCheck(t *testing.T) {

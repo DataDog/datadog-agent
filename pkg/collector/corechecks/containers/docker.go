@@ -42,7 +42,6 @@ type DockerConfig struct {
 	CollectImageSize         bool               `yaml:"collect_image_size"`
 	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
 	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
-	Tags                     []string           `yaml:"tags"`
 	CollectEvent             bool               `yaml:"collect_events"`
 	FilteredEventType        []string           `yaml:"filtered_event_types"`
 	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
@@ -139,14 +138,14 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 				log.Errorf("Could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
 			}
-			tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
+			tags := []string{fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag)}
 
 			sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
 			sender.Gauge("docker.image.size", float64(i.Size), "", tags)
 		}
 	}
-	sender.Gauge("docker.images.available", float64(len(availableImages)), "", d.instance.Tags)
-	sender.Gauge("docker.images.intermediate", float64(len(allImages)-len(availableImages)), "", d.instance.Tags)
+	sender.Gauge("docker.images.available", float64(len(availableImages)), "", nil)
+	sender.Gauge("docker.images.intermediate", float64(len(allImages)-len(availableImages)), "", nil)
 	return nil
 }
 
@@ -159,13 +158,13 @@ func (d *DockerCheck) Run() error {
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error initialising check: %s", err)
 		return err
 	}
 	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error collecting containers: %s", err)
 		return err
 	}
@@ -182,7 +181,6 @@ func (d *DockerCheck) Run() error {
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 		}
-		tags = append(tags, d.instance.Tags...)
 
 		if c.CPU != nil {
 			sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)

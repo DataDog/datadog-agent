@@ -103,7 +103,6 @@ func (c *CRICheck) processContainerStats(sender aggregator.Sender, runtime strin
 			log.Errorf("Could not collect tags for container %s: %s", cid[:12], err)
 		}
 		tags = append(tags, "runtime:"+runtime)
-		tags = append(tags, c.instance.Tags...)
 		sender.Gauge("cri.mem.rss", float64(stats.GetMemory().GetWorkingSetBytes().GetValue()), "", tags)
 		// Cumulative CPU usage (sum across all cores) since object creation.
 		sender.Rate("cri.cpu.usage", float64(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()), "", tags)
