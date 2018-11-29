@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -32,6 +33,17 @@ import (
 
 // SearchPaths is just an alias for a map of strings
 type SearchPaths map[string]string
+
+// permissionsInfos holds permissions info about the files shipped
+// in the flare.
+// The key is the filepath of the file.
+type permissionsInfos map[string]filePermsInfo
+
+type filePermsInfo struct {
+	mode  os.FileMode
+	owner string
+	group string
+}
 
 // CreateArchive packages up the files
 func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
@@ -65,6 +77,8 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	if err != nil {
 		hostname = "unknown"
 	}
+
+	permsInfos := make(permissionsInfos)
 
 	if local {
 		f := filepath.Join(tempDir, hostname, "local")
@@ -107,7 +121,12 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		}
 	}
 
-	err = zipConfigFiles(tempDir, hostname, confSearchPaths)
+	// auth token permissions info (only if existing)
+	if _, err = os.Stat(security.GetAuthTokenFilepath()); err == nil && !os.IsNotExist(err) {
+		permsInfos.add(security.GetAuthTokenFilepath())
+	}
+
+	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
 	if err != nil {
 		log.Errorf("Could not zip config: %s", err)
 	}
@@ -152,11 +171,17 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	if err != nil {
 		log.Errorf("Could not write counter strings: %s", err)
 	}
+
 	// force a log flush before zipping them
 	log.Flush()
-	err = zipLogFiles(tempDir, hostname, logFilePath)
+	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
 	if err != nil {
 		log.Errorf("Could not zip logs: %s", err)
+	}
+
+	// gets files infos and write the permissions.log file
+	if err := permsInfos.commit(tempDir, hostname, os.ModePerm); err != nil {
+		log.Errorf("Could not write permissions.log file: %s", err)
 	}
 
 	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
@@ -193,7 +218,7 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 	return err
 }
 
-func zipLogFiles(tempDir, hostname, logFilePath string) error {
+func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
@@ -205,6 +230,11 @@ func zipLogFiles(tempDir, hostname, logFilePath string) error {
 
 		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
 			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
+
+			if permsInfos != nil {
+				permsInfos.add(src)
+			}
+
 			return util.CopyFileAll(src, dst)
 		}
 		return nil
@@ -251,7 +281,7 @@ func zipExpVar(tempDir, hostname string) error {
 	return nil
 }
 
-func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error {
+func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		return err
@@ -274,7 +304,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 		return err
 	}
 
-	err = walkConfigFilePaths(tempDir, hostname, confSearchPaths)
+	err = walkConfigFilePaths(tempDir, hostname, confSearchPaths, permsInfos)
 	if err != nil {
 		return err
 	}
@@ -301,6 +331,10 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 			_, err = w.WriteFromFile(filePath)
 			if err != nil {
 				return err
+			}
+
+			if permsInfos != nil {
+				permsInfos.add(filePath)
 			}
 		}
 	}
@@ -384,7 +418,7 @@ func zipHealth(tempDir, hostname string) error {
 	return err
 }
 
-func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) error {
+func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	for prefix, filePath := range confSearchPaths {
 		err := filepath.Walk(filePath, func(src string, f os.FileInfo, err error) error {
 			if f == nil {
@@ -415,6 +449,10 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) 
 
 				if _, err = w.WriteFromFile(src); err != nil {
 					return err
+				}
+
+				if permsInfos != nil {
+					permsInfos.add(src)
 				}
 			}
 
