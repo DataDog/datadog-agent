@@ -67,7 +67,7 @@ func InitHostMetadata() error {
 
 func fillOsVersion(stats *systemStats, info *InfoStat) {
 	// TODO
-	stats.Winver = osVersion{info.PlatformFamily, info.PlatformVersion}
+	stats.Winver = osVersion{info.Platform, info.PlatformVersion}
 }
 
 // GetStatusInformation just returns an InfoStat object, filled in with various
