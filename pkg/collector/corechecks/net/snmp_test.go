@@ -163,22 +163,6 @@ func TestConfigureV2(t *testing.T) {
 	if cfg.instance.Retries != 5 {
 		t.Fatalf("Failed retries: expected '5' got '%v'", cfg.instance.Retries)
 	}
-
-	tag1Found := false
-	tag2Found := false
-
-	for _, tag := range cfg.instance.Tags {
-		if tag == "optional_tag_1" {
-			tag1Found = true
-		}
-		if tag == "optional_tag_2" {
-			tag2Found = true
-		}
-	}
-
-	if !tag1Found || !tag2Found {
-		t.Fatalf("Instance tags not properly unmarshalled.")
-	}
 }
 
 func TestConfigureV3(t *testing.T) {
@@ -254,8 +238,6 @@ func TestSubmitSNMP(t *testing.T) {
 	}
 
 	expectedTags := []string{
-		"optional_tag_1",
-		"optional_tag_2",
 		"snmp_device:localhost:161"}
 
 	for _, oid := range oids {

@@ -89,33 +89,31 @@ func TestParseComponentStatus(t *testing.T) {
 
 	// FIXME: use the factory instead
 	kubeASCheck := &KubeASCheck{
-		instance: &KubeASConfig{
-			Tags: []string{"test"},
-		},
+		instance:              &KubeASConfig{},
 		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
 		KubeAPIServerHostname: "hostname",
 	}
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"test", "component:Zookeeper"}, "")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "")
 	kubeASCheck.parseComponentStatus(mocked, expected)
 
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 1)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"test", "component:Zookeeper"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "")
 
 	err := kubeASCheck.parseComponentStatus(mocked, unExpected)
 	assert.EqualError(t, err, "metadata structure has changed. Not collecting API Server's Components status")
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"test", "component:ETCD"}, "")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "")
 	kubeASCheck.parseComponentStatus(mocked, unHealthy)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 2)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"test", "component:ETCD"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "")
 
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"test", "component:DCA"}, "")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
 	kubeASCheck.parseComponentStatus(mocked, unknown)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 3)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"test", "component:DCA"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
 
 	empty_resp := kubeASCheck.parseComponentStatus(mocked, empty)
 	assert.Nil(t, empty_resp, "metadata structure has changed. Not collecting API Server's Components status")
@@ -159,7 +157,6 @@ func TestProcessBundledEvents(t *testing.T) {
 
 	kubeASCheck := &KubeASCheck{
 		instance: &KubeASConfig{
-			Tags:              []string{"test"},
 			FilteredEventType: []string{"ignored"},
 		},
 		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
@@ -195,7 +192,7 @@ func TestProcessBundledEvents(t *testing.T) {
 		Title:          "Events from the machine-blue Node",
 		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
-		Tags:           []string{"test", "namespace:default", "source_component:kubelet"},
+		Tags:           []string{"namespace:default", "source_component:kubelet"},
 		AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709675200,
@@ -222,7 +219,7 @@ func TestProcessBundledEvents(t *testing.T) {
 		Title:          "Events from the machine-blue Node",
 		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
-		Tags:           []string{"test", "namespace:default", "source_component:kubelet"},
+		Tags:           []string{"namespace:default", "source_component:kubelet"},
 		AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709675200,
@@ -247,7 +244,6 @@ func TestProcessEvent(t *testing.T) {
 
 	kubeASCheck := &KubeASCheck{
 		instance: &KubeASConfig{
-			Tags:              []string{"test"},
 			FilteredEventType: []string{"ignored"},
 		},
 		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
@@ -263,7 +259,7 @@ func TestProcessEvent(t *testing.T) {
 		Title:          "Events from the dca-789976f5d7-2ljx6 ReplicaSet",
 		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n \n _New events emitted by the default-scheduler seen at " + time.Unix(709662600000, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
-		Tags:           []string{"test", "source_component:default-scheduler", "namespace:default"},
+		Tags:           []string{"source_component:default-scheduler", "namespace:default"},
 		AggregationKey: "kubernetes_apiserver:e6417a7f-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709662600,
