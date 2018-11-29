@@ -84,6 +84,17 @@ func (c *CheckBase) CommonConfigure(instance integration.Data) error {
 		}
 		s.DisableDefaultHostname(true)
 	}
+
+	// Set custom tags configured for this check
+	if commonOptions.Tags != nil && len(commonOptions.Tags) > 0 {
+		s, err := aggregator.GetSender(c.checkID)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+			return err
+		}
+		s.SetCheckCustomTags(commonOptions.Tags)
+	}
+
 	return nil
 }
 
