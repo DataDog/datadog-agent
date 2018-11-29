@@ -40,13 +40,14 @@ func TestContainerdParserShouldFailWithInvalidInput(t *testing.T) {
 	parser := containerdFileParser
 	// Only timestamp
 	var err error
-	msg := []byte("2018-09-20T11:54:11.753589172Z foo")
-	_, err = parser.Parse(msg)
+	log := []byte("2018-09-20T11:54:11.753589172Z foo")
+	msg, err := parser.Parse(log)
 	assert.NotNil(t, err)
+	assert.Equal(t, log, msg.Content)
 
 	// Missing timestamp but with 3 spaces, the message is valid
 	// FIXME: We might want to handle that
-	msg = []byte("stdout F foo bar")
-	_, err = parser.Parse(msg)
+	log = []byte("stdout F foo bar")
+	_, err = parser.Parse(log)
 	assert.Nil(t, err)
 }

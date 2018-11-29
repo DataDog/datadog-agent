@@ -34,7 +34,7 @@ type parser struct {
 func (p *parser) Parse(msg []byte) (*message.Message, error) {
 	components, err := parse(msg)
 	if err != nil {
-		return nil, err
+		return message.NewMessage(msg, nil, message.StatusInfo), err
 	}
 	status := getContainerdStatus(components[1])
 
@@ -47,7 +47,7 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 func (p *parser) Unwrap(line []byte) ([]byte, error) {
 	components, err := parse(line)
 	if err != nil {
-		return nil, err
+		return line, err
 	}
 	return components[3], nil
 }

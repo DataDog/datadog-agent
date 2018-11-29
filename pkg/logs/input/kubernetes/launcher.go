@@ -240,5 +240,4 @@ func (l *Launcher) getShortImageName(container kubelet.ContainerStatus) (string,
 		log.Debugf("Cannot parse image name: %v", err)
 	}
 	return shortName, err
-
 }
