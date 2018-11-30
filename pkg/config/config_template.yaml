@@ -324,6 +324,18 @@ api_key:
 # Duration of the restart interval in seconds
 # jmx_restart_interval: 5
 #
+# JMXFetch now collects multiples instances concurrently. The following metrics may
+# help fine-tune the level of concurrency and timeouts that come into play during the
+# collection of metrics from configured instances:
+#
+# thread_pool_size: determines the maximum level of concurrency.
+# jmx_thread_pool_size: 3
+#
+# collection_timeout: the maximum waiting period before timing up on metric collection
+# jmx_collection_timeout: 60
+#
+# reconnection_timeout: the maximum waiting period before timing up on instance reconnection
+# jmx_reconnection_timeout: 10
 #
 {{ end -}}
 {{- if .Autoconfig }}

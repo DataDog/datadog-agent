@@ -177,8 +177,8 @@ func (j *JMXFetch) Start(manage bool) error {
 		"--ipc_port", fmt.Sprintf("%v", ipcPort),
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--thread_pool_size", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_thread_pool_size")), // Size for the JMXFetch thread pool
-		"--collection_timeout", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_collection_to")), // Timeout for metric collection in seconds
-		"--reconnection_timeout", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_reconnection_to")), // Timeout for instance reconnection in seconds
+		"--collection_timeout", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_collection_timeout")), // Timeout for metric collection in seconds
+		"--reconnection_timeout", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_reconnection_timeout")), // Timeout for instance reconnection in seconds
 		"--log_level", jmxLogLevel,
 		"--reporter", reporter, // Reporter to use
 	)

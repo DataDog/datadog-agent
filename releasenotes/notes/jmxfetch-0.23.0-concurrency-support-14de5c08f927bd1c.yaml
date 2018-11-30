@@ -11,9 +11,4 @@ features:
     JMXFetch 0.23.0 introduces support for concurrent instance
     metric collection. Concurrent collection should avoid stalling
     healthy instances in the event of issues (networking, system) in 
-    any of the other instances configured. Threenew settings are
-    introduced - thread pool size, which determines the maximum level
-    of concurrency. Collection timeout, determines the time in seconds
-    before giving up on collecting instance metrics. And reconnection
-    timeout, specifies the maximum time before giving up on instance
-    reconnection.
+    any of the other instances configured.
