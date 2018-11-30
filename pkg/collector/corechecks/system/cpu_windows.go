@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 	"github.com/DataDog/gohai/cpu"
 	"golang.org/x/sys/windows"
 
@@ -53,6 +54,7 @@ type CPUCheck struct {
 	nbCPU       float64
 	lastNbCycle float64
 	lastTimes   TimesStat
+	counter     *pdhutil.PdhCounterSet
 }
 
 // Total returns the total number of seconds in a CPUTimesStat
@@ -98,8 +100,14 @@ func (c *CPUCheck) Run() error {
 		sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
 		sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
 		sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
-		sender.Commit()
 	}
+	val, err := c.counter.GetSingleValue()
+	if err != nil {
+		log.Warnf("Error getting handle value %v", err)
+	} else {
+		sender.Gauge("system.cpu.interrupt", float64(val), "", nil)
+	}
+	sender.Commit()
 
 	c.lastNbCycle = nbCycle
 	c.lastTimes = t
@@ -115,6 +123,11 @@ func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data)
 	}
 	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
 	c.nbCPU = cpucount
+
+	c.counter, err = pdhutil.GetCounterSet("Processor", "% Interrupt Time", "_Total", nil)
+	if err != nil {
+		return fmt.Errorf("system.CPUCheck could not establish interrupt time counter %v", err)
+	}
 	return nil
 }
 
