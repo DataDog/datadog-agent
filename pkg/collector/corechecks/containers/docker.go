@@ -42,6 +42,7 @@ type DockerConfig struct {
 	CollectImageSize         bool               `yaml:"collect_image_size"`
 	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
 	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
+	Tags                     []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
 	CollectEvent             bool               `yaml:"collect_events"`
 	FilteredEventType        []string           `yaml:"filtered_event_types"`
 	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`

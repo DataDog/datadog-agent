@@ -17,7 +17,6 @@ func init() {
 
 func TestContainerExit(t *testing.T) {
 	expectedTags := []string{
-		instanceTag,
 		"docker_image:datadog/docker-library:busybox_1_28_0",
 		"image_name:datadog/docker-library",
 		"short_image:docker-library",

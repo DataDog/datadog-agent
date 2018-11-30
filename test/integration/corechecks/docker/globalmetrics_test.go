@@ -16,7 +16,7 @@ func init() {
 }
 
 func TestGlobalMetrics(t *testing.T) {
-	expectedTags := []string{instanceTag}
+	expectedTags := []string{}
 
 	sender.AssertCalled(t, "Gauge", "docker.images.available", mocksender.IsGreaterOrEqual(2), "", mocksender.MatchTagsContains(expectedTags))
 	sender.AssertCalled(t, "Gauge", "docker.images.intermediate", mocksender.IsGreaterOrEqual(0), "", mocksender.MatchTagsContains(expectedTags))
