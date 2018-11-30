@@ -246,6 +246,7 @@ func isNone(o *C.PyObject) bool {
 func stringRepresentation(o *C.PyObject) string {
 	repr := C._PyObject_Repr(o)
 	if repr != nil {
+		defer C.Py_DecRef(repr)
 		return C.GoString(C.PyString_AsString(repr))
 	}
 	// error flag is set, not interesting to us so we can simply clear it
