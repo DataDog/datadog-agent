@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Rename the Windows Event "#text" field to "value". This fix the facet
+    Rename the Windows Event "#text" field to "value". This fixes the facet
     creation of those fields
