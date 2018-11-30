@@ -53,7 +53,7 @@ func SetupAutoConfig(confdPath string) {
 		filepath.Join(GetDistPath(), "conf.d"),
 		"",
 	}
-	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
+	AC.AddConfigProvider(providers.NewFileConfigProvider(confSearchPaths), false, 0)
 
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders
@@ -64,8 +64,13 @@ func SetupAutoConfig(confdPath string) {
 			if found {
 				configProvider, err := factory(cp)
 				if err == nil {
-					AC.AddProvider(configProvider, cp.Polling)
-					log.Infof("Registering %s config provider", cp.Name)
+					pollInterval := providers.GetPollInterval(cp)
+					if cp.Polling {
+						log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
+					} else {
+						log.Infof("Registering %s config provider", cp.Name)
+					}
+					AC.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 				} else {
 					log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				}
@@ -91,11 +96,9 @@ func SetupAutoConfig(confdPath string) {
 }
 
 // StartAutoConfig starts the autoconfig:
-//   1. start polling the providers
-//   2. load all the configurations available at startup
-//   3. run all the Checks for each configuration found
+//   1. load all the configurations available at startup
+//   2. run all the Checks for each configuration found
 func StartAutoConfig() {
-	AC.StartConfigPolling()
 	AC.StartTagFreshnessChecker()
 	AC.LoadAndRun()
 }

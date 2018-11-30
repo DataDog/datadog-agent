@@ -9,11 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestParseJSONValue(t *testing.T) {
@@ -297,4 +299,17 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetPollInterval(t *testing.T) {
+	cp := config.ConfigurationProviders{}
+	assert.Equal(t, GetPollInterval(cp), 10*time.Second)
+	cp = config.ConfigurationProviders{
+		PollInterval: "foo",
+	}
+	assert.Equal(t, GetPollInterval(cp), 10*time.Second)
+	cp = config.ConfigurationProviders{
+		PollInterval: "1s",
+	}
+	assert.Equal(t, GetPollInterval(cp), 1*time.Second)
 }
