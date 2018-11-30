@@ -142,7 +142,7 @@ var checkCmd = &cobra.Command{
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 		}
 		if runtime.GOOS == "windows" {
-			printWindowsUserWarning()
+			printWindowsUserWarning("check")
 		}
 
 		return nil
@@ -201,9 +201,9 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 	}
 }
 
-func printWindowsUserWarning() {
+func printWindowsUserWarning(op string) {
 	fmt.Printf("\n")
-	color.Yellow("The check command runs in a different user context than the running service\n")
-	color.Yellow("This could affect the results of a check, if the check relies on specific permissions and/or user context\n")
+	color.Yellow("The %s command runs in a different user context than the running service\n", op)
+	color.Yellow("This could affect the results of, if the command relies on specific permissions and/or user context\n")
 	fmt.Printf("\n")
 }

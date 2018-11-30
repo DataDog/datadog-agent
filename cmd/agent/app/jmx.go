@@ -9,6 +9,7 @@ package app
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
@@ -172,6 +173,9 @@ func runJmxCommand(command string) error {
 	}
 
 	fmt.Println("JMXFetch exited successfully. If nothing was displayed please check your configuration, flags and the JMXFetch log file.")
+	if runtime.GOOS == "windows" {
+		printWindowsUserWarning("jmx")
+	}
 	return nil
 }
 
