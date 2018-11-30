@@ -7,7 +7,6 @@ package listener
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"strings"
 	"testing"
@@ -19,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
-// use a randomly assigned port between 10000 and 65535.
-var tcpTestPort = 10000 + rand.Intn(55535)
+// use a randomly assigned port
+var tcpTestPort = 0
 
 func TestTCPShouldReceivesMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
@@ -28,7 +27,7 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
 	listener.Start()
 
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s", listener.listener.Addr()))
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -47,7 +46,7 @@ func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing
 	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 100)
 	listener.Start()
 
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s", listener.listener.Addr()))
 	assert.Nil(t, err)
 
 	var msg *message.Message
