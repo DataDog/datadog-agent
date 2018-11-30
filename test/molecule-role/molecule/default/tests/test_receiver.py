@@ -75,6 +75,9 @@ def test_host_metrics(host, Ansible):
         # These values are based on an ec2 micro instance
         # (as created by molecule.yml)
 
+        # Same metrics we check in the backend e2e tests
+        # https://stackvista.githost.io/StackVista/StackState/blob/master/stackstate-pm-test/src/test/scala/com/stackstate/it/e2e/ProcessAgentIntegrationE2E.scala#L17
+
         # No swap in these tests, we still wanna know whether it is reported
         assert metrics["system.swap.total"] == 0.0
         assert metrics["system.swap.pct_free"] == 1.0
@@ -113,8 +116,11 @@ def test_process_metrics(host, Ansible):
                        if message["message"]["MultiMetric"]["name"] ==
                        "processMetrics"
                        )
-
         print metrics
+
+        # Same metrics we check in the backend e2e tests
+        # https://stackvista.githost.io/StackVista/StackState/blob/master/stackstate-pm-test/src/test/scala/com/stackstate/it/e2e/ProcessAgentIntegrationE2E.scala#L17
+
         expected = set(["cpu_nice", "cpu_userPct", "cpu_userTime",
                         "cpu_systemPct", "cpu_numThreads", "io_writeRate",
                         "io_writeBytesRate", "cpu_totalPct",
