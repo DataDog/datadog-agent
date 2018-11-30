@@ -51,7 +51,7 @@ var (
 	megaByte            = 1024 * 1024
 	maxPayloadSize      = 2*megaByte + megaByte/2
 	maxUncompressedSize = 45 * megaByte
-	maxRepacks          = 40
+	maxRepacks          = 40 // CPU time vs tighter payload tradeoff
 )
 
 var (
@@ -62,6 +62,9 @@ var (
 var jsonSeparator = []byte(",")
 
 // inputBufferPool is an object pool of inputBuffers
+// buffer is pre-allocated at creation to avoid heap trash.
+// As hasRoomForItem is conservative, input buffer should not
+// grow bigger thant the compressed payload size.
 var inputBufferPool = sync.Pool{
 	New: func() interface{} {
 		return bytes.NewBuffer(make([]byte, 0, maxPayloadSize))
@@ -241,7 +244,7 @@ func Payloads(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
 		default:
 			// Unexpected error, drop the item
 			i++
-			log.Warnf("Dropping an item: %s", err)
+			log.Warnf("Dropping an item, %s: %s", m.DescribeItem(i), err)
 			expvarsItemDrops.Add(1)
 			continue
 		}

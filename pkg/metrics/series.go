@@ -249,6 +249,14 @@ func (series Series) JSONFooter() []byte {
 	return []byte(`]}`)
 }
 
+// DescribeItem returns a text description for logs
+func (series Series) DescribeItem(i int) string {
+	if i < 0 || i > len(series)-1 {
+		return "out of range"
+	}
+	return fmt.Sprintf("name %q, %d points", series[i].Name, len(series[i].Points))
+}
+
 // encodePoints is registered to serialize a Point array with
 // limited reflections and heap allocations.
 // Called when using jsoniter

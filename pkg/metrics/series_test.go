@@ -344,6 +344,29 @@ func TestStreamJSONMarshalerWithDevice(t *testing.T) {
 	assert.Equal(t, item.Tags, []string{"tag1", "tag2:yes"})
 }
 
+func TestDescribeItem(t *testing.T) {
+	series := Series{
+		{
+			Points: []Point{
+				{Ts: 12345.0, Value: float64(21.21)},
+				{Ts: 67890.0, Value: float64(12.12)},
+			},
+			MType:    APIGaugeType,
+			Name:     "test.metrics",
+			Interval: 15,
+			Host:     "localHost",
+			Tags:     []string{"tag1", "tag2:yes", "device:/dev/sda1"},
+		},
+	}
+
+	desc1 := series.DescribeItem(0)
+	assert.Equal(t, "name \"test.metrics\", 2 points", desc1)
+
+	// Out of range
+	desc2 := series.DescribeItem(2)
+	assert.Equal(t, "out of range", desc2)
+}
+
 func BenchmarkPopulateDeviceFieldNoDevice(b *testing.B) {
 	tags := []string{"tag1", "tag2:yes", "tag3", "tag4:yes", "tag5", "tag6:yes", "tag7", "tag8:yes"}
 	for n := 0; n < b.N; n++ {

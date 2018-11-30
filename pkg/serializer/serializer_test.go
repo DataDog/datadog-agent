@@ -109,6 +109,7 @@ func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 func (p *testPayload) JSONHeader() []byte             { return jsonHeader }
 func (p *testPayload) Len() int                       { return 1 }
 func (p *testPayload) JSONItem(i int) ([]byte, error) { return jsonItem, nil }
+func (p *testPayload) DescribeItem(i int) string      { return "description" }
 func (p *testPayload) JSONFooter() []byte             { return jsonFooter }
 
 type testErrorPayload struct{}
@@ -121,6 +122,7 @@ func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 func (p *testErrorPayload) JSONHeader() []byte             { return jsonHeader }
 func (p *testErrorPayload) Len() int                       { return 1 }
 func (p *testErrorPayload) JSONItem(i int) ([]byte, error) { return jsonItem, fmt.Errorf("some error") }
+func (p *testErrorPayload) DescribeItem(i int) string      { return "description" }
 func (p *testErrorPayload) JSONFooter() []byte             { return jsonFooter }
 
 func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {

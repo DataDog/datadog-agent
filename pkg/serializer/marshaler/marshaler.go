@@ -18,5 +18,6 @@ type StreamJSONMarshaler interface {
 	JSONHeader() []byte
 	Len() int
 	JSONItem(i int) ([]byte, error)
+	DescribeItem(i int) string
 	JSONFooter() []byte
 }

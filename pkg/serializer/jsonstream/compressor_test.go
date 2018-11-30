@@ -52,6 +52,13 @@ func (d *dummyMarshaller) JSONItem(i int) ([]byte, error) {
 	return []byte(d.items[i]), nil
 }
 
+func (d *dummyMarshaller) DescribeItem(i int) string {
+	if i < 0 || i > d.Len()-1 {
+		return "out of range"
+	}
+	return d.items[i]
+}
+
 func (d *dummyMarshaller) JSONFooter() []byte {
 	return []byte(d.footer)
 }
