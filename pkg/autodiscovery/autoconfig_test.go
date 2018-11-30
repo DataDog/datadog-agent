@@ -168,7 +168,7 @@ func (suite *AutoConfigTestSuite) TestAddListener() {
 func (suite *AutoConfigTestSuite) TestContains() {
 	c1 := integration.Config{Name: "bar"}
 	c2 := integration.Config{Name: "foo"}
-	pd := providerDescriptor{}
+	pd := configPoller{}
 	pd.configs = append(pd.configs, c1)
 	assert.True(suite.T(), pd.contains(&c1))
 	assert.False(suite.T(), pd.contains(&c2))

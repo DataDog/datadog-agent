@@ -53,7 +53,7 @@ func init() {
 // Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
 // meaning that you cannot use it to schedule integrations instances directly.
 type AutoConfig struct {
-	providers          []*providerDescriptor
+	providers          []*configPoller
 	listeners          []listeners.ServiceListener
 	listenerCandidates map[string]listeners.ServiceListenerFactory
 	listenerRetryStop  chan struct{}
@@ -74,7 +74,7 @@ type AutoConfig struct {
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
-		providers:          make([]*providerDescriptor, 0, 8),
+		providers:          make([]*configPoller, 0, 8),
 		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
@@ -167,9 +167,6 @@ func (ac *AutoConfig) Stop() {
 
 	// stop polled config providers
 	for _, pd := range ac.providers {
-		if !pd.isPolling {
-			continue
-		}
 		pd.stop()
 	}
 
@@ -211,16 +208,9 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 		}
 	}
 
-	pd := &providerDescriptor{
-		provider:     provider,
-		configs:      []integration.Config{},
-		canPoll:      shouldPoll,
-		pollInterval: pollInterval,
-	}
+	pd := newConfigPoller(provider, shouldPoll, pollInterval)
 	ac.providers = append(ac.providers, pd)
-	if pd.canPoll {
-		pd.start(ac)
-	}
+	pd.start(ac)
 }
 
 // LoadAndRun loads all of the integration configs it can find
