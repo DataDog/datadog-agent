@@ -127,6 +127,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("hostname_fqdn", false)
 	config.BindEnvAndSetDefault("cluster_name", "")
 
+	// JMXFetch critical settings
+	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)
+	config.BindEnvAndSetDefault("jmx_collection_to", 60)
+	config.BindEnvAndSetDefault("jmx_reconnection_to", 10)
+
 	// secrets backend
 	config.BindEnv("secret_backend_command")
 	config.BindEnv("secret_backend_arguments")
