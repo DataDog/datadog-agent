@@ -14,6 +14,7 @@ dependency 'protobuf-py'
 
 if linux?
   # add nfsiostat script
+  dependency 'unixodbc'
   dependency 'nfsiostat'
 end
 
