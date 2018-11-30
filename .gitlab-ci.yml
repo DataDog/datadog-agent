@@ -357,7 +357,6 @@ agent_rpm-x64:
 
 # build Agent package for rpm-x64
 agent_suse-x64:
-  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
@@ -512,7 +511,6 @@ dogstatsd_rpm-x64:
 
 # build Dogstastd package for rpm-x64
 dogstatsd_suse-x64:
-  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -588,7 +586,6 @@ deploy_rpm_testing:
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing:
   <<: *run_when_testkitchen_triggered
-  allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
@@ -606,7 +603,6 @@ deploy_suse_rpm_testing:
 # deploy windows packages to our testing bucket
 deploy_windows_testing:
   <<: *run_when_testkitchen_triggered
-  allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
@@ -1041,7 +1037,6 @@ deploy_rpm:
 # deploy suse rpm packages to yum staging repo
 deploy_suse_rpm:
   <<: *run_when_triggered
-  allow_failure: true
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
