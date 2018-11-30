@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	binaryPath = "Event.EventData.Binary"
-	dataPath   = "Event.EventData.Data"
-	taskPath   = "Event.System.Task"
+	binaryPath   = "Event.EventData.Binary"
+	dataPath     = "Event.EventData.Data"
+	taskPath     = "Event.System.Task"
+	fabricPrefix = "Microsoft-ServiceFabric/"
 )
 
 // Config is a event log tailer configuration
@@ -76,50 +77,74 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	if err != nil {
 		return &message.Message{}, err
 	}
-	mv = remapDataField(mv)
-	mv = replaceBinaryData(mv)
-	if strings.HasPrefix(t.config.ChannelPath, "Microsoft-ServiceFabric/") {
-		mv = mapTaskIDToTaskName(mv)
+
+	// extract then modify the Event.EventData.Data field to have a key value mapping
+	dataField, err := extractDataField(mv)
+	if err != nil {
+		log.Debugf("Error extracting data field: %s", err)
+	} else {
+		err = mv.SetValueForPath(dataField, dataPath)
+		if err != nil {
+			log.Debugf("Error formatting %s: %s", dataPath, err)
+		}
 	}
+
+	// extract, parse then modify the Event.EventData.Binary data field
+	binaryData, err := extractParsedBinaryData(mv)
+	if err != nil {
+		log.Debugf("Error extracting binary data: %s", err)
+	} else {
+		_, err = mv.UpdateValuesForPath("Binary:"+string(binaryData), binaryPath)
+		if err != nil {
+			log.Debugf("Error formatting %s: %s", binaryPath, err)
+		}
+	}
+
+	// for Azure Fabric, replace task id by task name
+	if strings.HasPrefix(t.config.ChannelPath, fabricPrefix) {
+		taskName, err := extractTaskName(mv)
+		if err != nil {
+			log.Debugf("Error extracting task name: %s", err)
+		} else {
+			_, err = mv.UpdateValuesForPath("Task:"+taskName, taskPath)
+			if err != nil {
+				log.Debugf("An error occurred updating %s: %s", taskPath, err)
+			}
+		}
+	}
+
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
 		return &message.Message{}, err
 	}
+	jsonEvent = replaceTextKeyToValue(jsonEvent)
 	log.Debug("Sending JSON:", string(jsonEvent))
 	return message.NewMessage(jsonEvent, message.NewOrigin(t.source), message.StatusInfo), nil
 }
 
-// mapTaskIDToTaskName looks for the TASK_ID in {"Event": {"System": {"Task": <TASK_ID> }}}
+// extractTaskName looks for the TASK_ID in {"Event": {"System": {"Task": <TASK_ID> }}}
 // and maps it to the name of the task that match in the Microsoft Task Codes
-func mapTaskIDToTaskName(mv mxj.Map) mxj.Map {
+func extractTaskName(mv mxj.Map) (string, error) {
 	values, err := mv.ValuesForPath(taskPath)
 	if err != nil || len(values) == 0 {
-		log.Debug("Could not find path:", taskPath)
-		return mv
+		return "", fmt.Errorf("Could not find path: %s", taskPath)
 	}
 
 	taskName, found := taskIDMapping[values[0]]
 	if !found {
-		log.Debug("Could not resolve task id:", values[0])
-		return mv
+		return "", fmt.Errorf("Could not resolve task id: %s", values[0])
 	}
-
-	_, err = mv.UpdateValuesForPath("Task:"+taskName, taskPath)
-	if err != nil {
-		log.Debugf("An error occurred updating %s: %s", taskPath, err)
-	}
-	return mv
+	return taskName, nil
 }
 
-// remapDataField transforms the fields parsed from <Data Name='NAME1'>VALUE1</Data><Data Name='NAME2'>VALUE2</Data> to
-// fields that will be JSON serialized to {"NAME1": "VALUE1", "NAME2": "VALUE2"}
+// extractDataField transforms the fields parsed from <Data Name='NAME1'>VALUE1</Data><Data Name='NAME2'>VALUE2</Data> to
+// a map that will be JSON serialized to {"NAME1": "VALUE1", "NAME2": "VALUE2"}
 // Data fields always have this schema:
 // https://docs.microsoft.com/en-us/windows/desktop/WES/eventschema-complexdatatype-complextype
-func remapDataField(mv mxj.Map) mxj.Map {
+func extractDataField(mv mxj.Map) (map[string]interface{}, error) {
 	values, err := mv.ValuesForPath(dataPath)
 	if err != nil || len(values) == 0 {
-		log.Debug("Could not find path:", dataPath)
-		return mv
+		return nil, fmt.Errorf("could not find path: %s", dataPath)
 	}
 	nameTextMap := make(map[string]interface{})
 	for _, value := range values {
@@ -139,38 +164,28 @@ func remapDataField(mv mxj.Map) mxj.Map {
 		nameTextMap[nameString] = text
 	}
 	if len(nameTextMap) == 0 {
-		return mv
+		return nil, fmt.Errorf("no field to transform")
 	}
-	err = mv.SetValueForPath(nameTextMap, dataPath)
-	if err != nil {
-		log.Debugf("Error formatting %s: %s", dataPath, err)
-	}
-	return mv
+	return nameTextMap, nil
 }
 
-// replaceBinaryData remaps the field Event.EventData.Binary to its string value
-func replaceBinaryData(mv mxj.Map) mxj.Map {
+// extractParsedBinaryData extract the field Event.EventData.Binary and parse it to its string value
+func extractParsedBinaryData(mv mxj.Map) (string, error) {
 	values, err := mv.ValuesForPath(binaryPath)
 	if err != nil || len(values) == 0 {
-		log.Debug("Could not find path:", binaryPath)
-		return mv
+		return "", fmt.Errorf("could not find path: %s", binaryPath)
 	}
 	valueString, ok := values[0].(string)
 	if !ok {
-		log.Debug("Could not cast binary data to string:", err)
-		return mv
+		return "", fmt.Errorf("could not cast binary data to string: %s", err)
 	}
 
 	decodedString, _ := parseBinaryData(valueString)
 	if err != nil {
-		log.Debugf("could not decode %s: %s", valueString, err)
-		return mv
+		return "", fmt.Errorf("could not decode %s: %s", valueString, err)
 	}
-	_, err = mv.UpdateValuesForPath("Binary:"+string(decodedString), binaryPath)
-	if err != nil {
-		log.Debugf("Error formatting %s: %s", binaryPath, err)
-	}
-	return mv
+
+	return decodedString, nil
 }
 
 // parseBinaryData parses the hex string found in the field Event.EventData.Binary to an UTF-8 valid string
@@ -220,6 +235,13 @@ func decodeUTF16(b []byte) (string, error) {
 	}
 
 	return ret.String(), nil
+}
+
+// replaceTextKeyValue replaces a "#text" key to a "value" key.
+// That happens when a tag has an attribute and a content. E.g. <EventID Qualifiers='16384'>7036</EventID>
+func replaceTextKeyToValue(jsonEvent []byte) []byte {
+	jsonEvent = bytes.Replace(jsonEvent, []byte("\"#text\":"), []byte("\"value\":"), -1)
+	return jsonEvent
 }
 
 // Mapping can be found here
