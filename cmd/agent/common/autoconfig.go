@@ -7,7 +7,6 @@ package common
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -59,7 +58,6 @@ func SetupAutoConfig(confdPath string) {
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders
 	err = config.Datadog.UnmarshalKey("config_providers", &CP)
-	defaultPollingInterval := config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
 	if err == nil {
 		for _, cp := range CP {
 			factory, found := providers.ProviderCatalog[cp.Name]
