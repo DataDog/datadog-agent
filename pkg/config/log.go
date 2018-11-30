@@ -126,10 +126,12 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 
 // ErrorLogWriter is a Writer that logs all written messages with the global seelog logger
 // at an error level
-type ErrorLogWriter struct{}
+type ErrorLogWriter struct {
+	AdditionalDepth int
+}
 
 func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
-	log.ErrorStackDepth(6, fmt.Sprintf("Error from the agent http API server: %s", strings.TrimSpace(string(p))))
+	log.ErrorStackDepth(s.AdditionalDepth, strings.TrimSpace(string(p)))
 	return len(p), nil
 }
 

@@ -212,13 +212,13 @@ func (sw *DatadogLogger) error(s string) error {
 	return err
 }
 
-// error logs at the error level and the given stack depth
+// error logs at the error level and the current stack depth plus the additional given one
 func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
 	sw.l.Lock()
 	defer sw.l.Unlock()
 
 	scrubbed := sw.scrub(s)
-	sw.inner.SetAdditionalStackDepth(depth)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := sw.inner.Error(scrubbed)
 	sw.inner.SetAdditionalStackDepth(defaultStackDepth)
 
@@ -412,7 +412,7 @@ func Error(v ...interface{}) error {
 	return err
 }
 
-// ErrorStackDepth logs at the error level and the given stack depth and returns an error containing the formated log message
+// ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func ErrorStackDepth(depth int, v ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
 		s := buildLogEntry(v...)
