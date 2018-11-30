@@ -217,7 +217,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetStatusNonBlocking()
 	if err != nil {
-		log.Warnf("Agent health unknown: %s", err)
+		log.Warnf("Cluster Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
 		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
