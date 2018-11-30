@@ -80,7 +80,7 @@ hostname when set to `true`
 ## Removed options
 
 This is the list of configuration options that were removed in the new Agent
-because either superseded by new options or related to features that work
+beacause either superseded by new options or related to features that works
 differently from Agent version 5.
 
 | Name | Notes |
