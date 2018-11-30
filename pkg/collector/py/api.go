@@ -228,7 +228,7 @@ func extractTags(tags *C.PyObject, checkID string) (_tags []string, err error) {
 			if int(C._PyString_Check(item)) == 0 {
 				typeName := C.GoString(C._object_type(item))
 				stringRepr := stringRepresentation(item)
-				log.Infof("One of the submitted tag for the check with ID %s is not a string but a %s: %s, ignoring it", checkID, typeName, stringRepr)
+				log.Infof("One of the submitted tags for the check with ID %s is not a string but a %s: %s, ignoring it", checkID, typeName, stringRepr)
 				continue
 			}
 			// at this point we're sure that `item` is a string, no further error checking needed
@@ -248,6 +248,8 @@ func stringRepresentation(o *C.PyObject) string {
 	if repr != nil {
 		return C.GoString(C.PyString_AsString(repr))
 	}
+	// error flag is set, not interesting to us so we can simply clear it
+	C.PyErr_Clear()
 	return ""
 }
 
