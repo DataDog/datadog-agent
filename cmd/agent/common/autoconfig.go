@@ -66,14 +66,7 @@ func SetupAutoConfig(confdPath string) {
 			if found {
 				configProvider, err := factory(cp)
 				if err == nil {
-					pollInterval := defaultPollingInterval
-					if cp.PollInterval != "" {
-						customInterval, err := time.ParseDuration(cp.PollInterval)
-						if err == nil {
-							pollInterval = customInterval
-						}
-					}
-
+					pollInterval := providers.GetPollInterval(cp)
 					if cp.Polling {
 						log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
 					} else {
