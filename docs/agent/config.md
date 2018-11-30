@@ -75,11 +75,12 @@ advanced options in the `instance` section:
 that should run less frequently than the default 15 seconds interval
 * `empty_default_hostname`: submit metrics, events and service checks with no
 hostname when set to `true`
+* `tags`: send custom tags in addition to the tags sent by the check.
 
 ## Removed options
 
 This is the list of configuration options that were removed in the new Agent
-beacause either superseded by new options or related to features that works
+because either superseded by new options or related to features that work
 differently from Agent version 5.
 
 | Name | Notes |
