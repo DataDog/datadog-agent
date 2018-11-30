@@ -64,7 +64,7 @@ var jsonSeparator = []byte(",")
 // inputBufferPool is an object pool of inputBuffers
 // buffer is pre-allocated at creation to avoid heap trash.
 // As hasRoomForItem is conservative, input buffer should not
-// grow bigger thant the compressed payload size.
+// grow bigger than the compressed payload size.
 var inputBufferPool = sync.Pool{
 	New: func() interface{} {
 		return bytes.NewBuffer(make([]byte, 0, maxPayloadSize))
