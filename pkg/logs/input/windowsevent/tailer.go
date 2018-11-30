@@ -81,7 +81,7 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	// extract then modify the Event.EventData.Data field to have a key value mapping
 	dataField, err := extractDataField(mv)
 	if err != nil {
-		log.Debugf("Error extracting data field")
+		log.Debugf("Error extracting data field: %s", err)
 	} else {
 		err = mv.SetValueForPath(dataField, dataPath)
 		if err != nil {
@@ -92,7 +92,7 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	// extract, parse then modify the Event.EventData.Binary data field
 	binaryData, err := extractParsedBinaryData(mv)
 	if err != nil {
-		log.Debugf("Error extracting binary data")
+		log.Debugf("Error extracting binary data: %s", err)
 	} else {
 		_, err = mv.UpdateValuesForPath("Binary:"+string(binaryData), binaryPath)
 		if err != nil {
@@ -104,7 +104,7 @@ func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	if strings.HasPrefix(t.config.ChannelPath, fabricPrefix) {
 		taskName, err := extractTaskName(mv)
 		if err != nil {
-			log.Debugf("Error extracting task name")
+			log.Debugf("Error extracting task name: %s", err)
 		} else {
 			_, err = mv.UpdateValuesForPath("Task:"+taskName, taskPath)
 			if err != nil {
