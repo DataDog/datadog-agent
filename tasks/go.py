@@ -23,6 +23,7 @@ WIN_MODULE_WHITELIST = [
     "pdhhelper.go",
     "shutil.go",
     "tailer_windows.go",
+    "winsec.go"
 ]
 
 # List of paths to ignore in misspell's output

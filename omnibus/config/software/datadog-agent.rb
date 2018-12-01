@@ -34,6 +34,9 @@ build do
   command "invoke agent.build --rebuild --use-embedded-libs --no-development", env: env
   if windows?
     command "invoke systray.build --rebuild --use-embedded-libs --no-development", env: env
+
+    # build the installer custom action library
+    command "invoke customaction.build"
   end
 
   if osx?
