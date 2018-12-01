@@ -17,7 +17,7 @@ else
   dd_agent_installer_basename = "datadog-agent-6.0.0-beta.latest.amd64"
 end
 
-temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli')
+temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 
 dd_agent_installer = "#{dd_agent_installer_basename}.msi"
 temp_file = "#{temp_file_basename}.msi"
@@ -50,6 +50,6 @@ remote_file temp_file do
 end
 
 execute "install-agent" do
-  command "start /wait #{temp_file} #{install_options}"
+  command "start /wait msiexec /q /i #{temp_file} #{install_options}"
   action :run
 end

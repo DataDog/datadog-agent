@@ -14,6 +14,31 @@
   end
 %>
 
+provisioner:
+  name: chef_solo
+  require_chef_omnibus: true
+  product_version: 13.6.4
+  require_chef_omnibus: 13.6.4
+
+<% if ENV['KITCHEN_DRIVER'] && ENV['KITCHEN_DRIVER'] == "hyperv" %>
+driver:
+  name: hyperv
+  vm_switch: <%= ENV['KITCHEN_HYPERV_SWITCH'] %>
+  dynamic_memory: true
+  <% if ENV['KITCHEN_HYPERV_MEM_MIN'] %>
+  dynamic_memory_min_bytes: <%= ENV['KITCHEN_HYPERV_MEM_MIN'] %>
+  memory_startup_bytes: <%= ENV['KITCHEN_HYPERV_MEM_MIN'] %>
+  <% else %>
+  dynamic_memory_min_bytes: 2GB
+  memory_startup_bytes: 2GB
+  <% end %>
+  <% if ENV['KITCHEN_HYPERV_MEM_MAX'] %>
+  dynamic_memory_max_bytes: <%= ENV['KITCHEN_HYPERV_MEM_MAX'] %>
+  <% else %>
+  dynamic_memory_max_bytes: 8GB
+  <% end %>
+<% else %>
+
 driver:
   name: azurerm
 
@@ -25,12 +50,7 @@ driver_config:
   <% else %>
   azure_resource_group_suffix: plnone
   <% end %>
-
-provisioner:
-  name: chef_solo
-  require_chef_omnibus: true
-  product_version: 13.6.4
-  require_chef_omnibus: 13.6.4
+<% end %>
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
@@ -39,6 +59,7 @@ platforms:
 
 <%
     # TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
+    # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
     chef_versions = %w(
@@ -75,7 +96,11 @@ platforms:
     idx += 1
     location = locations[idx % locations.length]
 
-    platform_name = platform[0] + "-azure"
+    host = "azure"
+    if ENV['KITCHEN_DRIVER'] && ENV['KITCHEN_DRIVER'] == "hyperv"
+      host = "hyperv"
+    end
+    platform_name = platform[0] + "-#{host}"
     windows = platform_name.include?("win")
     if windows
       windows_platforms << platform_name
@@ -84,17 +109,26 @@ platforms:
     else
       size = sizes[idx % sizes.length]
     end
+    
+    vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
+    vm_password = ENV['SERVER_PASSWORD']
+    vm_hyperv_switch = ENV['KITCHEN_HYPERV_SWITCH'] ? ENV['KITCHEN_HYPERV_SWITCH'] : "public_eth"
 
 %>
 - name: <%= platform_name %>
+  <% if host == "hyperv" %>
+  driver:
+    name: hyperv
+    parent_vhd_folder: <%= platform[1] %>
+    parent_vhd_name: <%= platform[2] %>
+    vm_switch: <%= vm_hyperv_switch %>
+  <% else %>
   driver_config:
     machine_size: <%= size %>
     image_urn: <%= platform[1] %>
     location: <%= location %>
     <% if windows %>
     vm_name: ddat<%= platform[0] %>
-    username: datadog
-    password: <%= ENV['SERVER_PASSWORD'] %>
     <% else %>
     vm_name: dd-agent-testing-<%= platform[0] %>-azure
     <% end %>
@@ -102,15 +136,20 @@ platforms:
       <% vm_tags.each do |key,value| %>
       <%= key %>: <%= value %>
       <% end %>
+  <% end %>
+    username: <%= vm_username %>
+    password: <%= vm_password %>
+
   transport:
     <% if windows %>
     name: winrm
+    username: <%= vm_username %>
+    password: <%= vm_password %>
     <% else %>
     ssh_key: <%= ENV['AZURE_SSH_KEY_PATH'] %>
     <% end %>
 
 <% end %>
-
 suites:
 
 <%
@@ -118,7 +157,7 @@ suites:
   api_key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   yumrepo = "http://yumtesting.datad0g.com/pipeline-#{ENV['CI_PIPELINE_ID']}/x86_64/"
   yumrepo_suse = "http://yumtesting.datad0g.com/suse/pipeline-#{ENV['CI_PIPELINE_ID']}/x86_64/"
-  windows_agent_url = "https://s3.amazonaws.com/#{ENV['WINDOWS_TESTING_S3_BUCKET']}/"
+  windows_agent_url = ENV['WINDOWS_AGENT_URL'] ? ENV['WINDOWS_AGENT_URL'] : "https://s3.amazonaws.com/#{ENV['WINDOWS_TESTING_S3_BUCKET']}/"
   dd_agent_config = {
     'agent6': true,
     'api_key': api_key,
