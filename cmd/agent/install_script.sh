@@ -261,7 +261,7 @@ if command -v systemctl 2>&1; then
   stop_instructions="$sudo_cmd systemctl stop datadog-agent"
   start_instructions="$sudo_cmd systemctl start datadog-agent"
 elif /sbin/init --version 2>&1 | grep -q upstart; then
-then # Try to detect Upstart, this works most of the times but still a 
+  # Try to detect Upstart, this works most of the times but still a best effort
     restart_cmd="$sudo_cmd start datadog-agent"
     stop_instructions="$sudo_cmd stop datadog-agent"
     start_instructions="$sudo_cmd start datadog-agent"
