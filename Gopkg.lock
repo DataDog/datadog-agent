@@ -2,12 +2,12 @@
 
 
 [[projects]]
-  branch = "default"
   digest = "1:db5c4e7a9516334fb1e9d5951fb9943d0f13e4f415a77c22b97e60f4d10a62a7"
   name = "bitbucket.org/ww/goautoneg"
   packages = ["."]
   pruneopts = ""
-  revision = "75cd24fc2f2c2a2088577d12123ddee5f54e0675"
+  revision = "d788f35a0315672bc90f50a6145d1252a230ee0d"
+  source = "github.com/adjust/goautoneg"
 
 [[projects]]
   digest = "1:b5c465c820ef1df848ddc2da97e7ebfc1e152fcc2bef8262f047522692e9fc6f"
