@@ -174,3 +174,8 @@
 [[override]]
   name = "github.com/docker/distribution"
   revision = "83389a148052d74ac602f5f1d62f86ff2f3c4aa5"
+
+[[override]]
+  name = "bitbucket.org/ww/goautoneg"
+  source = "github.com/adjust/goautoneg"
+  revision = "d788f35a0315672bc90f50a6145d1252a230ee0d"
