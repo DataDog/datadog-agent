@@ -1,0 +1,129 @@
+---
+- name: Prepare Receiver
+  hosts: receiver_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream)
+      become: true
+      changed_when: false
+    - name: Install python-pip
+      become: true
+      apt:
+        name: python-pip
+        state: present
+        update_cache: yes
+      changed_when: false
+    - name: Installing multiple python packages in Ansible
+      pip:
+        name: boto,boto3
+    - name: Add Docker GPG key
+      become: true
+      apt_key: url=https://download.docker.com/linux/ubuntu/gpg
+    - name: Add Docker APT repository
+      become: true
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+    - name: Install list of packages
+      become: true
+      apt:
+        name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce]
+        state: present
+        update_cache: yes
+    - name: Add user to docker group
+      become: true
+      user:
+        name: ubuntu
+        groups: docker
+        append: True
+    - name: Restart sshd to apply group change
+      shell: sleep 1; pkill -u {{ ansible_ssh_user }} sshd
+      async: 3
+      poll: 2
+    - name: Install AWS-CLI
+      apt:
+        name: awscli
+        state: present
+      become: true
+    - name: Ensure .aws config directory exists
+      file:
+        path: /home/ubuntu/.aws/
+        recurse: yes
+        state: directory
+    - name: Configure aws credentials
+      copy:
+        content: |
+          [default]
+          aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
+          aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
+        dest: /home/ubuntu/.aws/credentials
+    - name: Configure aws config
+      copy:
+        content: |
+          [default]
+          region=eu-west-1
+          output=json
+        dest: /home/ubuntu/.aws/config
+    - name: Run Docker login
+      shell: eval $(aws ecr get-login --no-include-email)
+    - name: Install Docker Compose
+      become: true
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-Linux-x86_64"
+        dest: "/usr/local/bin/docker-compose"
+        force: True
+        mode: "0755"
+    - name: Copy Docker Compose file
+      copy:
+        src: ../../docker-compose.yml
+        dest: /home/ubuntu/docker-compose.yml
+    - name: Use Docker Service to run
+      command: docker-compose up -d
+      args:
+        chdir: /home/ubuntu/
+- name: Prepare Agents
+  hosts: agent_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip)
+      become: true
+      changed_when: false
+    - name: Install stackstate-agent
+      shell: "curl -o- {{agent_repo_url}}/install.sh | bash"
+      environment:
+        STS_API_KEY: "API_KEY"
+        STS_URL: "http://{{ hostvars['receiver']['ansible_host'] }}:7077/stsAgent"
+        CODE_NAME: "{{agent_current_branch}}"
+    - name: Run stackstate-agent
+      become: true
+      systemd:
+        name: stackstate-agent
+        state: started
+        daemon_reload: yes
+- name: Prepare Agent 1 listening
+  hosts: agent1
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    # Wait a bit for the process agent to have started
+    - name: Wait a bit for the process agent
+      pause:
+        seconds: 10
+    - name: Open listening port on agent 1
+      shell: "nohup nc -l -p {{ test_connection_port }} > /dev/null &"
+      become: true
+- name: Prepare Agent 2 connecting
+  hosts: agent2
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Connect to agent 2
+      shell: nohup bash -c "yes | nc {{ hostvars['agent1']['ansible_host'] }} {{ test_connection_port }}" &
+      become: true

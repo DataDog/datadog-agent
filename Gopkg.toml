@@ -137,7 +137,7 @@
 [[constraint]]
   name = "gopkg.in/yaml.v2"
   # branch = "v2"
-  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
+  revision = "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b"
 
 [[constraint]]
   name = "gopkg.in/zorkian/go-datadog-api.v2"

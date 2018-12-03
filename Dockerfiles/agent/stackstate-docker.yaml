@@ -1,5 +1,5 @@
 ## Provides autodetected defaults, for vanilla Docker environments,
-## please see datadog.yaml.example for all supported options
+## please see stackstate.yaml.example for all supported options
 
 # Autodiscovery settings for vanilla Docker
 listeners:
@@ -8,7 +8,7 @@ config_providers:
   - name: docker
     polling: true
 
-# Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
+# Enable APM by setting the STS_APM_ENABLED envvar to true, or override this configuration
 apm_config:
   enabled: false
   apm_non_local_traffic: true

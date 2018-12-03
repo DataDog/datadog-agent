@@ -1,24 +1,16 @@
 {{ if .Common }}
-# The Datadog api key to associate your Agent's data with your organization.
-# Can be found here:
-# https://app.datadoghq.com/account/settings
-api_key:
+# The host of the StackState intake server to send Agent data to
+sts_url: http://localhost:7077/stsAgent
 
-# The site of the Datadog intake to send Agent data to.
-# Defaults to 'datadoghq.com', set to 'datadoghq.eu' to send data to the EU site.
-# site: datadoghq.com
-
-# The host of the Datadog intake server to send Agent data to, only set this option
-# if you need the Agent to send data to a custom URL.
-# Overrides the site setting defined in "site".
-# dd_url: https://app.datadoghq.com
+# The StackState api key to associate your Agent's data with your organization.
+api_key: API_KEY
 
 # If you need a proxy to connect to the Internet, provide it here (default:
 # disabled). You can use the 'no_proxy' list to specify hosts that should
 # bypass the proxy. These settings might impact your checks requests, please
 # refer to the specific check documentation for more details. Environment
-# variables DD_PROXY_HTTP, DD_PROXY_HTTPS and DD_PROXY_NO_PROXY (space-separated string)
-# will override the values set here. See https://docs.datadoghq.com/agent/proxy/.
+# variables STS_PROXY_HTTP, STS_PROXY_HTTPS and STS_PROXY_NO_PROXY (space-separated string)
+# will override the values set here. See https://docs.stackstate.com/agent/proxy/.
 #
 # proxy:
 #   http: http://user:password@proxy_for_http:port
@@ -28,12 +20,10 @@ api_key:
 #     - host2
 
 # Setting this option to "true" will tell the agent to skip validation of SSL/TLS certificates.
-# This may be necessary if the agent is running behind a proxy. See this page for details:
-# https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
 # skip_ssl_validation: false
 
 # Setting this option to "true" will force the agent to only use TLS 1.2 when
-# pushing data to the Datadog intake specified in "site" or "dd_url".
+# pushing data to the url specified in "sts_url".
 # force_tls_12: false
 
 # Force the hostname to whatever you want. (default: auto-detected)
@@ -97,7 +87,7 @@ api_key:
 # forwarder_retry_queue_max_size: 30
 
 # The number of workers used by the forwarder. Please note each worker will
-# open an outbound HTTP connection towards Datadog's metrics intake at every
+# open an outbound HTTP connection towards StackState's metrics intake at every
 # flush.
 # forwarder_num_workers: 1
 
@@ -181,7 +171,7 @@ api_key:
 # secret_backend_command to fetch an already known secret (useful when combine
 # with Autodiscovery). This feature is still in beta.
 #
-# For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+# For more information see: https://github.com/StackVista/stackstate-agent/blob/master/docs/agent/secrets.md
 #
 # Path to the script to execute. The script must belong to the same user used
 # to run the agent. Executable right must be given to the agent and no rights
@@ -268,7 +258,7 @@ api_key:
 #
 # If you want all statsd metrics coming from this host to be namespaced
 # you can configure the namspace below. Each metric received will be prefixed
-# with the namespace before it's sent to Datadog.
+# with the namespace before it's sent to StackState.
 # statsd_metric_namespace:
 {{ end -}}
 {{- if .LogsAgent }}
@@ -286,7 +276,7 @@ api_key:
 # JMX
 #
 # jmx_pipe_path:
-# jmx_pipe_name: dd-auto_discovery
+# jmx_pipe_name: sts-auto_discovery
 #
 # If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
 # set in the check templates. If that is the case, you can force custom jars here.
@@ -305,7 +295,7 @@ api_key:
 # Autoconfig
 #
 # Directory containing configuration templates
-# autoconf_template_dir: /datadog/check_configs
+# autoconf_template_dir: /stackstate/check_configs
 #
 # The providers the Agent should call to collect checks configurations.
 # Please note the File Configuration Provider is enabled by default and cannot
@@ -313,12 +303,12 @@ api_key:
 # config_providers:
 
 ## The kubelet provider handles templates embedded in pod annotations, see
-## https://docs.datadoghq.com/guides/autodiscovery/#template-source-kubernetes-pod-annotations
+## https://docs.stackstate.com/guides/autodiscovery/#template-source-kubernetes-pod-annotations
 #   - name: kubelet
 #     polling: true
 
 ## The docker provider handles templates embedded in container labels, see
-## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
+## https://docs.stackstate.com/guides/autodiscovery/#template-source-docker-label-annotations
 #   - name: docker
 #     polling: true
 
@@ -329,14 +319,14 @@ api_key:
 
 #   - name: etcd
 #     polling: true
-#     template_dir: /datadog/check_configs
+#     template_dir: /stackstate/check_configs
 #     template_url: http://127.0.0.1
 #     username:
 #     password:
 
 #   - name: consul
 #     polling: true
-#     template_dir: datadog/check_configs
+#     template_dir: /stackstate/check_configs
 #     template_url: http://127.0.0.1
 #     ca_file:
 #     ca_path:
@@ -348,7 +338,7 @@ api_key:
 
 #   - name: zookeeper
 #     polling: true
-#     template_dir: /datadog/check_configs
+#     template_dir: /stackstate/check_configs
 #     template_url: 127.0.0.1
 #     username:
 #     password:
@@ -357,7 +347,7 @@ api_key:
 # Logging
 #
 # log_level: info
-# log_file: /var/log/datadog/agent.log
+# log_file: /var/log/stackstate-agent/agent.log
 
 # Set to 'true' to output logs in JSON format
 # log_format_json: false
@@ -400,14 +390,14 @@ api_key:
 #
 # Change the root directory to look at to get cgroup statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set
+# Default if environment variable "DOCKER_STS_AGENT" is set
 # "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
 #
 # container_cgroup_root: /host/sys/fs/cgroup/
 #
 # Change the root directory to look at to get proc statistics. Useful when running inside a
 # container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set
+# Default if environment variable "DOCKER_STS_AGENT" is set
 # "/host/proc" and "/proc" if not.
 #
 # container_proc_root: /host/proc
@@ -578,7 +568,7 @@ api_key:
 # kubernetes_apiserver_use_protobuf: false
 #
 # In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
-# [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
+# [docker readme](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
 # You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
 # ContainerIDs with the following options:
 # kubernetes_collect_metadata_tags: true
@@ -586,11 +576,11 @@ api_key:
 # kubernetes_apiserver_client_timeout: 10
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
-# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection).
+# Only the leader will collect events. More details about events [here](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfiles/agent/README.md#event-collection).
 # collect_kubernetes_events: false
 #
 #
-# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election)
+# Leader Election settings, more details about leader election [here](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfiles/agent/README.md#leader-election)
 # To enable the leader election on this node, set the leader_election variable to true.
 # leader_election: false
 # The leader election lease is an integer in seconds.
@@ -611,26 +601,28 @@ api_key:
 {{- if .ProcessAgent }}
 # Process agent specific settings
 #
-# process_config:
+process_config:
 #   A string indicating the enabled state of the Process Agent.
 #   If "false" (the default) it will only collect containers.
 #   If "true" it will collect containers and processes.
 #   If "disabled" it will be disabled altogether and won't start.
-#   enabled: "true"
+  enabled: "true"
+# Enable/disable network tracing
+  process_sts_url: http://localhost:7077/stsAgent
+  network_tracing_enabled: 'true'
 #   The full path to the file where process-agent logs will be written.
 #   log_file:
 #   The interval, in seconds, at which we will run each check. If you want consistent
 #   behavior between real-time you may set the Container/ProcessRT intervals to 10.
 #   Defaults to 10s for normal checks and 2s for others.
-#   intervals:
-#     container:
-#     container_realtime:
-#     process:
-#     process_realtime:
+  intervals:
+    container: 30
+    process: 30
+    connections: 30
 #   A list of regex patterns that will exclude a process if matched.
 #   blacklist_patterns:
 #   How many check results to buffer in memory when POST fails. The default is usually fine.
-#   queue_size:
+  queue_size: 10
 #   The maximum number of file descriptors to open when collecting net connections.
 #   Only change if you are running out of file descriptors from the Agent.
 #   max_proc_fds:
@@ -638,9 +630,9 @@ api_key:
 #   Only change if the defaults are causing issues.
 #   max_per_message:
 #   Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
-#   dd_agent_bin:
+#   sts_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
-#   dd_agent_env:
+#   sts_agent_env:
 {{ end -}}
 
 {{- if .TraceAgent }}

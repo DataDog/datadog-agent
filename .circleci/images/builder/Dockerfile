@@ -87,3 +87,13 @@ ENV PATH $BUNDLE_BIN:$PATH
 RUN mkdir -p "$GEM_HOME" "$BUNDLE_BIN" \
 	&& chmod 777 "$GEM_HOME" "$BUNDLE_BIN"
 
+RUN git config --global user.email "gitlab@stackstate" && git config --global user.name "Gitlab Stackstate"
+
+# For deb package building
+RUN apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
+
+# For some tests
+RUN apt-get install sudo
+
+
+

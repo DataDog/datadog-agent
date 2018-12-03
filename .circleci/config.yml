@@ -1,5 +1,7 @@
 version: 2
-
+# STS: When merging upstream changes, make sure changes to this config.yml are also put
+# into the gitlab-ci.yml
+#
 # This file uses YAML anchors to deduplicate steps
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
@@ -37,6 +39,13 @@ templates:
       - v2-artifacts-{{ .Revision }}
 
 jobs:
+  build:
+    <<: *job_template
+    steps:
+      - run:
+          name: done
+          command: echo "Done"
+
   checkout_code:
     <<: *job_template
     steps:
@@ -49,212 +58,155 @@ jobs:
   dependencies:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - run:
-        name: setup virtual env
-        command: virtualenv /go/src/github.com/StackVista/stackstate-agent/venv
-    - run: *enter_venv
-    - run:
-        name: setup python deps
-        command: source ./venv/bin/activate && pip install -r requirements.txt
-    - run:
-        name: grab go deps
-        command: source ./venv/bin/activate && inv deps
-    - run:
-        name: pre-compile go deps
-        command: inv -e agent.build --race --precompile-only
-    - save_cache:
-        key: v2-godeps-{{ .Branch }}-{{ .Revision }}
-        paths:
-        - /go/src/github.com/StackVista/stackstate-agent/vendor
-        - /go/src/github.com/StackVista/stackstate-agent/venv
-        - /go/pkg
-        - /go/bin
-        - /usr/local/lib/python2.7/dist-packages
+      - restore_cache: *restore_source
+      - run:
+          name: setup virtual env
+          command: virtualenv /go/src/github.com/StackVista/stackstate-agent/venv
+      - run: *enter_venv
+      - run:
+          name: setup python deps
+          command: source ./venv/bin/activate && pip install -r requirements.txt
+      - run:
+          name: grab go deps
+          command: source ./venv/bin/activate && inv deps
+      - run:
+          name: pre-compile go deps
+          command: inv -e agent.build --race --precompile-only
+      - save_cache:
+          key: v2-godeps-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /go/src/github.com/StackVista/stackstate-agent/vendor
+            - /go/src/github.com/StackVista/stackstate-agent/venv
+            - /go/pkg
+            - /go/bin
+            - /usr/local/lib/python2.7/dist-packages
 
   unit_tests:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - run: *enter_venv
-    - run:
-        name: run unit tests
-        command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run: *enter_venv
+      - run:
+          name: run unit tests
+          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
 
   integration_tests:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - setup_remote_docker
-    - run: *enter_venv
-    - run:
-        name: run integration tests
-        command: inv -e integration-tests --race --remote-docker
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run: *enter_venv
+      - run:
+          name: run integration tests
+          command: inv -e integration-tests --race --remote-docker
 
   release_note:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - setup_remote_docker
-    - run: *enter_venv
-    - run:
-        command: inv -e lint-releasenote
-        name: run PR check for release note
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run: *enter_venv
+      - run:
+          command: inv -e lint-releasenote
+          name: run PR check for release note
 
   team_label:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - setup_remote_docker
-    - run: *enter_venv
-    - run:
-        command: inv -e lint-teamassignment
-        name: run PR check for team assignment labels
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run: *enter_venv
+      - run:
+          command: inv -e lint-teamassignment
+          name: run PR check for team assignment labels
 
   filename_linting:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - setup_remote_docker
-    - run: *enter_venv
-    - run:
-        name: run filename linting
-        command: inv -e lint-filenames
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run: *enter_venv
+      - run:
+          name: run filename linting
+          command: inv -e lint-filenames
 
   docker_integration_tests:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - setup_remote_docker
-    - run: *enter_venv
-    - run:
-        name: run docker image tests
-        command: inv -e docker.test
-    - run:
-        name: run docker image integration tests
-        command: inv -e docker.integration-tests
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run: *enter_venv
+      - run:
+          name: run docker image tests
+          command: inv -e docker.test
+      - run:
+          name: run docker image integration tests
+          command: inv -e docker.integration-tests
 
   build_binaries:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - run: *enter_venv
-    - run:
-        name: build dogstatsd
-        command: inv -e dogstatsd.build --static
-    - run:
-        name: build agent
-        command: inv -e agent.build
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run: *enter_venv
+      - run:
+          name: build dogstatsd
+          command: inv -e dogstatsd.build --static
+      - run:
+          name: build agent
+          command: inv -e agent.build
 
   build_puppy:
     <<: *job_template
     steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - run: *enter_venv
-    - run:
-        name: build puppy
-        command: inv -e agent.build --puppy
-    - run:
-        name: test puppy
-        command: ./bin/agent/agent -c ./bin/agent/dist check cpu
-
-  build_publish_deb:
-    <<: *job_template
-    steps:
-    - restore_cache: *restore_source
-    - restore_cache: *restore_deps
-    - run:
-        name: Git configure email
-        command: git config --global user.email "circleci@stackstate"
-    - run:
-        name: Git configure name
-        command: git config --global user.name "CircleCI Stackstate"
-    - run:
-        name: Ensure libtool
-        command: apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
-    - run:
-        name: Print Environment Variables
-        command: printenv
-    - run:
-        name: Omnibus deb build
-        command: inv -e agent.omnibus-build --base-dir ./omnibus --omnibus-s3-cache --skip-sign
-    - run:
-        name: Publish deb package
-        command: deb-s3 upload --codename ${CIRCLE_BRANCH} --bucket ${STS_AWS_BUCKET} omnibus/pkg/*.deb
-    - save_cache:
-        key: v2-artifacts-{{ .Revision }}
-        paths:
-        - /go/src/github.com/StackVista/stackstate-agent/omnibus/pkg
-        - /go/src/github.com/StackVista/stackstate-agent/Dockerfiles
-
-  build_publish_image:
-    <<: *job_template
-    docker:
-    - image: docker:18.06.0
-    steps:
-    - restore_cache: *restore_artifacts
-    - setup_remote_docker:
-        docker_layer_caching: true
-    - run:
-        name: Copy deb file to docker context
-        command: cp omnibus/pkg/datadog-agent*_amd64.deb Dockerfiles/agent
-    - run:
-        name: Build image
-        command: |
-          TAG=${CIRCLE_SHA1:0:7}
-          docker build -t stackstate/stackstate-agent:$TAG Dockerfiles/agent
-          docker login -u $DOCKER_USER -p $DOCKER_PASS
-          docker push stackstate/stackstate-agent:$TAG
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run: *enter_venv
+      - run:
+          name: build puppy
+          command: inv -e agent.build --puppy
+      - run:
+          name: test puppy
+          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
 
-workflows:
-  version: 2
-  build_test_deploy:
-    jobs:
-    - checkout_code
-    - dependencies:
-        requires:
-        - checkout_code
-    - unit_tests:
-        requires:
-        - dependencies
-    - integration_tests:
-        requires:
-        - dependencies
+# STS: We move away from circleCI and only work with gitlab for now.
+# workflows:
+#  version: 2
+#  build_test_deploy:
+#    jobs:
+#      - checkout_code
+#      - dependencies:
+#         requires:
+#            - checkout_code
+#      - unit_tests:
+#          requires:
+#            - dependencies
+#     - integration_tests:
+#          requires:
+#            - dependencies
     #   - release_note:
     #       requires:
     #         - dependencies
     #   - team_label:
     #       requires:
     #         - dependencies
-    - filename_linting:
-        requires:
-        - dependencies
-    - docker_integration_tests:
-        requires:
-        - dependencies
-    - build_binaries:
-        requires:
-        - unit_tests
-        - integration_tests
-        - docker_integration_tests
-    - build_puppy:
-        requires:
-        - unit_tests
-        - integration_tests
-        - docker_integration_tests
-    - build_publish_deb:
-        requires:
-        - build_binaries
-    - build_publish_image:
-        requires:
-        - build_publish_deb
+#      - filename_linting:
+#          requires:
+#            - dependencies
+#      - docker_integration_tests:
+#          requires:
+#            - dependencies
+#      - build_binaries:
+#          requires:
+#            - dependencies
+#      - build_puppy:
+#          requires:
+#            - dependencies
+

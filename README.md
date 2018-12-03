@@ -48,7 +48,7 @@ care of adjusting paths and run the binary in foreground.
 You need to provide a valid API key. You can either use the config file or
 overwrite it with the environment variable like:
 ```
-DD_API_KEY=12345678990 ./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+STS_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/stackstate.yaml
 ```
 
 ## Contributing code
@@ -58,10 +58,16 @@ You'll find information and help on how to contribute code to this project under
 
 ## Install
 
-To install the debian package you need to configure the (untrusted for now) debian repository:
+To install the debian package:
 
-    $ echo "deb [trusted=yes] https://s3.amazonaws.com/stackstate-agent-test master main" | sudo tee -a /etc/apt/sources.list.d/stackstate-agent.list
-    $ sudo apt-get update --allow-unauthenticated
-    $ sudo apt-get install datadog-agent
+    $ curl -o- https://stackstate-agent-2.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
+     or
+    $ wget -qO- https://stackstate-agent-2.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
     
-You can replace `master` with any published branch. 
+If you wanna install a branch version use the test repository:
+
+    $ curl -o- https://stackstate-agent-2-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
+     or
+    $ wget -qO- https://stackstate-agent-2-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
+
+and replace `PR_NAME` with the branch name (e.g. master, STAC-xxxx). 

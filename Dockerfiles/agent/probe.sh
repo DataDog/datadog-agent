@@ -1,3 +1,3 @@
 #!/bin/sh
 
-/opt/datadog-agent/bin/agent/agent health
+/opt/stackstate-agent/bin/agent/agent health

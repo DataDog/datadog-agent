@@ -6,7 +6,7 @@
 require "./lib/ostools.rb"
 require 'pathname'
 
-name "datadog-trace-agent"
+name "stackstate-trace-agent"
 
 dependency "datadog-agent"
 
@@ -16,8 +16,8 @@ if trace_agent_version.nil? || trace_agent_version.empty?
 end
 default_version trace_agent_version
 
-source git: 'https://github.com/DataDog/datadog-trace-agent.git'
-relative_path 'src/github.com/DataDog/datadog-trace-agent'
+source git: 'https://github.com/StackVista/stackstate-trace-agent.git'
+relative_path 'src/github.com/StackVista/stackstate-trace-agent'
 
 if windows?
   trace_agent_binary = "trace-agent.exe"
@@ -26,12 +26,12 @@ else
 end
 
 build do
-  ship_license "https://raw.githubusercontent.com/DataDog/datadog-trace-agent/#{version}/LICENSE"
+  ship_license "https://raw.githubusercontent.com/StackVista/stackstate-trace-agent/#{version}/LICENSE"
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   if windows?
     env = {
-      # Trace agent uses GNU make to build.  Some of the input to gnu make 
+      # Trace agent uses GNU make to build.  Some of the input to gnu make
       # needs the path with `\` as separators, some needs `/`.  Provide both,
       # and let the makefile sort it out (ugh)
 

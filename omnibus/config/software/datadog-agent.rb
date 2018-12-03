@@ -8,6 +8,15 @@ require 'pathname'
 
 name 'datadog-agent'
 
+# STS: Add some dependencies to make this run late in the build, this will avoid early
+# omnibus cache invalidation
+dependency 'six'
+dependency 'protobuf-py'
+dependency 'nfsiostat'
+dependency 'sysstat'
+dependency 'curl'
+
+# Actual dependencies
 dependency 'python'
 unless windows?
   dependency 'net-snmp-lib'
@@ -22,13 +31,17 @@ relative_path 'src/github.com/StackVista/stackstate-agent'
 build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  etc_dir = "/etc/datadog-agent"
+  etc_dir = "/etc/stackstate-agent"
   env = {
     'GOPATH' => gopath.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
+
+  # STS: apply branding
+
+  command "invoke -e agent.apply-branding", env: env
 
   # we assume the go deps are already installed before running omnibus
   command "invoke -e agent.build --rebuild --use-embedded-libs --no-development", env: env
@@ -39,7 +52,7 @@ build do
   if osx?
     conf_dir = "#{install_dir}/etc"
   else
-    conf_dir = "#{install_dir}/etc/datadog-agent"
+    conf_dir = "#{install_dir}/etc/stackstate-agent"
   end
   mkdir conf_dir
   unless windows?
@@ -58,7 +71,8 @@ build do
   end
 
   # move around bin and config files
-  move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
+  move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/stackstate.yaml.example"
+  move 'bin/agent/dist/trace-agent.conf', "#{conf_dir}/trace-agent.conf.example"
 
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 
@@ -67,15 +81,15 @@ build do
   if linux?
     if debian?
       erb source: "upstart_debian.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.process.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-process.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.trace.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-trace.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.erb",
@@ -94,29 +108,29 @@ build do
       # Ship a different upstart job definition on RHEL to accommodate the old
       # version of upstart (0.6.5) that RHEL 6 provides.
       erb source: "upstart_redhat.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.process.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-process.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.trace.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
+          dest: "#{install_dir}/scripts/stackstate-agent-trace.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
 
     erb source: "systemd.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent.service",
+        dest: "#{install_dir}/scripts/stackstate-agent.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.process.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-process.service",
+        dest: "#{install_dir}/scripts/stackstate-agent-process.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.trace.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-trace.service",
+        dest: "#{install_dir}/scripts/stackstate-agent-trace.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
   end

@@ -84,3 +84,14 @@ def update_changelog(ctx, new_version):
     # commit new CHANGELOG
     ctx.run("git add CHANGELOG.rst \
             && git commit -m \"Update CHANGELOG for {}\"".format(new_version))
+
+@task
+def generate_install(ctx, test_repo=False):
+    """
+    Task to generate Agent install.sh script that will use either the official or test debian repository
+    """
+    debian_official_repo = "stackstate-agent-2.s3.amazonaws.com"
+    debian_test_repo = "stackstate-agent-2-test.s3.amazonaws.com"
+    repo = debian_test_repo if test_repo else debian_official_repo
+    print("Generating install.sh")
+    ctx.run("sed -e 's/$DEBIAN_REPO/https:\/\/{0}/' ./cmd/agent/install_script.sh > ./cmd/agent/install.sh".format(repo))

@@ -50,7 +50,7 @@ build do
   if osx?
     conf_dir = "#{install_dir}/etc/conf.d"
   else
-    conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
+    conf_dir = "#{install_dir}/etc/stackstate-agent/conf.d"
   end
   mkdir conf_dir
 
@@ -59,7 +59,7 @@ build do
 
     # required by TUF for meta
     if windows?
-      tuf_repo = windows_safe_path("#{install_dir}/etc/datadog-agent/repositories/")
+      tuf_repo = windows_safe_path("#{install_dir}/etc/stackstate-agent/repositories/")
       tuf_repo_meta = windows_safe_path("#{tuf_repo}/public-integrations-core/metadata/")
     else
       tuf_repo = "#{install_dir}/repositories/"
@@ -78,7 +78,7 @@ build do
           dest: "#{install_dir}/public-tuf-config.json",
           mode: 0640,
           vars: { tuf_config: tuf_config }
-      copy_file windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{install_dir}/etc/datadog-agent/root.json")
+      copy_file windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{install_dir}/etc/stackstate-agent/root.json")
     else
       copy windows_safe_path("#{project_dir}/.public-tuf-config.json"), windows_safe_path("#{install_dir}/public-tuf-config.json")
       copy windows_safe_path("#{project_dir}/.tuf-root.json"), windows_safe_path("#{tuf_repo_meta}/current/root.json")

@@ -1,117 +1,156 @@
+image: stackstate/stackstate-agent-runner-circle:latest
+
 stages:
-- tests
-- build
-- publish
+- prepare
+- build_and_test
+- pre_release
+- acceptance
+- release
+
+variables:
+  STS_AWS_RELEASE_BUCKET: stackstate-agent-2
+  STS_AWS_TEST_BUCKET: stackstate-agent-2-test
+  STS_DOCKER_RELEASE_REPO: stackstate-agent-2
+  STS_DOCKER_TEST_REPO: stackstate-agent-2-test
+
+before_script:
+ - mkdir -p /go/src/github.com/StackVista
+ - ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
+   # Either we already have a venv, or we still need to make it (as part of get_deps.sh)
+ - source .gitlab-scripts/setup_env.sh
+
+dependencies_clear_cache:
+  stage: prepare
+  cache:
+    policy: push
+    key: "agent-deps"
+    paths:
+      - vendor
+      - venv
+  when: manual
+  script:
+    - rm -rf $CI_PROJECT_DIR/venv
+    - rm -rf $CI_PROJECT_DIR/vendor
+
+deps:
+  stage: prepare
+  cache:
+    key: "agent-deps"
+    paths:
+      - vendor
+      - venv
+  script:
+    - pip install -r requirements.txt
+    - inv deps
+    - inv version -u > version.txt
+  artifacts:
+    paths:
+        - $CI_PROJECT_DIR/vendor
+        - $CI_PROJECT_DIR/venv
+        - $CI_PROJECT_DIR/version.txt
+    expire_in: 1 week
 
 unit_tests:
- stage: tests
- image: stackstate/stackstate-agent-runner-circle:latest
- before_script:
- - mkdir -p /go/src/github.com/StackVista
- - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
- script:
- - cd /go/src/github.com/StackVista/stackstate-agent
- - pip install -r requirements.txt
- - inv deps
- - inv -e agent.build --race --precompile-only
- - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
- tags:
- - sts-aws
+  stage: build_and_test
+  dependencies:
+    - deps
+  script:
+    #We run another inv deps here to get the go dependencies
+    - inv deps
+    - inv -e agent.build --race --precompile-only
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
 
 integration_tests:
- stage: tests
- image: stackstate/stackstate-agent-runner-circle:latest
- before_script:
- - mkdir -p /go/src/github.com/StackVista
- - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
- script:
- - cd /go/src/github.com/StackVista/stackstate-agent
- - pip install -r requirements.txt
- - inv deps
- - inv  -e integration-tests --race --remote-docker
- tags:
- - sts-aws
-
+  stage: build_and_test
+  dependencies:
+    - deps
+  script:
+    - inv -e integration-tests --race --remote-docker
+  tags:
+    - sts-aws
 
 filename_linting:
-  stage: tests
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+  stage: build_and_test
+  dependencies:
+    - deps
   script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - inv -e lint-filenames
+    - inv -e lint-filenames
 
 docker_integration_tests:
-  stage: tests
-  image: stackstate/stackstate-agent-runner-circle:latest
+  stage: build_and_test
+  dependencies:
+    - deps
   variables:
       DOCKER_DRIVER: overlay
   services:
     - docker:dind
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
   script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - inv -e docker.integration-tests
+    - inv -e docker.integration-tests
   tags:
-  - sts-aws
+    - sts-aws
 
 build_binaries:
-  stage: build
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+  stage: build_and_test
+  dependencies:
+    - deps
   script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - inv -e dogstatsd.build --static
-  - inv -e agent.build
-
+    - inv -e dogstatsd.build --static
+    - inv -e agent.build
 
 build_puppy:
-  stage: build
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+  stage: build_and_test
+  dependencies:
+    - deps
   script:
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - inv -e agent.build --puppy
-  - ./bin/agent/agent -c ./bin/agent/dist check cpu
+    - inv -e agent.build --puppy
+    - ./bin/agent/agent -c ./bin/agent/dist check cpu
 
-
-build_publish_deb:
-  stage: build
-  image: stackstate/stackstate-agent-runner-circle:latest
-  before_script:
-  - mkdir -p /go/src/github.com/StackVista
-  - ln -s $CI_PROJECT_DIR  /go/src/github.com/StackVista/stackstate-agent
+build_deb_clear_cache:
+  stage: build_and_test
+  cache:
+    policy: push
+    key: "agent-build_publish_deb"
+    paths:
+      - .omnibus
+      - vendor
+  when: manual
   script:
-  - printenv
-  - echo "======================================================"
-  - cd /go/src/github.com/StackVista/stackstate-agent
-  - pip install -r requirements.txt
-  - inv deps
-  - git config --global user.email "circleci@stackstate"
-  - git config --global user.name "CircleCI Stackstate"
-  - apt-get install -y apt-utils libtool && apt-get install -y --only-upgrade libtool
-  - printenv
-  - inv -e agent.omnibus-build --base-dir ./omnibus --omnibus-s3-cache --skip-sign
+    - mkdir -p .omnibus
+    - rm -rf .omnibus/*
+    - rm -rf vendor
+
+build_deb:
+  stage: build_and_test
+  tags:
+    # We put the deb build on sts-aws because it runs long and we do want to have it run
+    # fast.
+    # It also cuts into our pipeline quotum
+    - sts-aws
+  cache:
+    key: "agent-build_publish_deb"
+    paths:
+      - .omnibus
+      - vendor
+  script:
+    # We move .omnibus out of the CI root because this seems to cause issues with git
+    # cloning in omnibus and operations on datadog-agent
+  - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
+
+  - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=nightly
+
+    # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
-  - cp -r  /go/src/github.com/StackVista/stackstate-agent/omnibus/pkg $CI_PROJECT_DIR/outcomes
-  - cp -r  /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
-  - deb-s3 upload --codename ${CI_COMMIT_REF_NAME:-unrecognized} --bucket ${STS_AWS_BUCKET:-stackstate-agent-test} omnibus/pkg/*.deb
+  - cp -r /omnibus/pkg $CI_PROJECT_DIR/outcomes
+  - cp -r /go/src/github.com/StackVista/stackstate-agent/Dockerfiles $CI_PROJECT_DIR/outcomes
+
+    # Prepare cache
+    # Drop packages for cache
+  - rm -rf /omnibus/pkg
+    # Drop agent for cache (will be resynced anyway)
+  - rm -rf /omnibus/src/datadog-agent
+    # Drop symlink because it will fail the build when coming from a cache
+  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
+  - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
         - $CI_PROJECT_DIR/outcomes/pkg/*.deb
@@ -122,20 +161,85 @@ build_publish_deb:
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
     expire_in: 1 week
 
-build_publish_image:
-  stage: publish
+test_deb_renaming:
+  stage: pre_release
+  dependencies:
+    - build_deb
+  before_script: []
+  script:
+    ./test/renaming/test.sh $CI_PROJECT_DIR/outcomes/pkg/*.deb
+
+pre_release_deb:
+  stage: pre_release
+  dependencies:
+    - deps
+    - build_deb
+  script:
+    - source .gitlab-scripts/setup_env.sh
+    - apt-get install -y apt-utils libtool debsigs
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
+    - cd $CI_PROJECT_DIR && inv release.generate-install -t
+    - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
+
+pre_release_image:
+  stage: pre_release
   image: docker:18.06.0
+  dependencies:
+    - build_deb
+    - deps
   variables:
     DOCKER_DRIVER: overlay
   services:
-  - docker:dind
+    - docker:dind
   script:
-  - cp $CI_PROJECT_DIR/outcomes/pkg/*.deb Dockerfiles/agent
-  - TAG=${CI_COMMIT_SHA:0:7}
-  - docker build -t stackstate/stackstate-agent:$TAG -t stackstate/stackstate-agent:latest Dockerfiles/agent
-  - docker login -u $DOCKER_USER -p $DOCKER_PASS
-  - docker push stackstate/stackstate-agent:$TAG
-  - docker push stackstate/stackstate-agent:latest
+    - cd $CI_PROJECT_DIR
+    - export VERSION=`cat version.txt`
+    - ./.gitlab-scripts/publish_image.sh $VERSION $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/outcomes/pkg
+
+molecule_tests:
+  stage: acceptance
+  before_script: []
+  script:
+   - export MOLECULE_RUN_ID=${CI_JOB_ID}
+   - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
+   - cd $CI_PROJECT_DIR/test && ./molecule.sh test
+
+release_deb:
+  stage: release
+  dependencies:
+    - deps
+    - build_deb
+  script:
+    - source .gitlab-scripts/setup_env.sh
+    - apt-get install -y apt-utils libtool debsigs
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_RELEASE_BUCKET stable
+    - cd $CI_PROJECT_DIR && inv release.generate-install
+    - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_RELEASE_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
+  when: manual
+  only:
+    - tags
+    - triggers
+
+release_image:
+  stage: release
+  image: docker:18.06.0
+  dependencies:
+    - build_deb
+    - deps
+  variables:
+    DOCKER_DRIVER: overlay
+  services:
+    - docker:dind
+  script:
+    - cd $CI_PROJECT_DIR
+    - export VERSION=`cat version.txt`
+    - ./.gitlab-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/outcomes/pkg
+  when: manual
+  only:
+    - tags
+    - triggers
 
 #docker_test:
 #  stage: docker_test

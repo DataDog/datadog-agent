@@ -3,14 +3,12 @@ Dockerfiles/dogstatsd/alpine/dogstatsd
 
 # folders
 vendor/
+outcomes/
 bin/
 /dev/
 __pycache__
 .pytest_cache
-<<<<<<< HEAD
-=======
 venv/
->>>>>>> 6f2d901aeb19f0c0a4e09f149c7cc5a084d2f708
 
 **/*.tmp
 **/debug.test
@@ -73,7 +71,6 @@ cmd/agent/android/app/build
 
 # local copy of device signing cert
 platform.pk8
-<<<<<<< HEAD
 
 p-env/
 
@@ -88,5 +85,5 @@ kubeconfig
 */**/*.tfstate
 */**/*.tfstate.backup
 
-=======
->>>>>>> 6f2d901aeb19f0c0a4e09f149c7cc5a084d2f708
+# vagrant
+.vagrant
