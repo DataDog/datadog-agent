@@ -2,6 +2,177 @@
 Release Notes
 =============
 
+.. _Release Notes_6.6.0:
+
+6.6.0
+=====
+
+.. _Release Notes_6.6.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-10-25
+
+- Please refer to the `6.6.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-660>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.6.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.6.0>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.6.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.6.0>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.6.0_New Features:
+
+New Features
+------------
+
+- Disk check support for the puppy agent on unix-like systems
+
+- Support for the upcoming cluster-agent cluster-level checks feature,
+  via the ``clusterchecks`` config provider
+
+- Add a new CRI core check that will send metrics about resource usage of your
+  containers via the Container Runtime Interface.
+
+- Support SysVinit on Debian
+  note: some warnings can appear if you enable/disable the agent manually on a systemd system. They can be safely ignored
+
+- The ``datadog-agent integration install`` command will now check for compatibility with ``datadog-checks-base``
+  shipped with the agent. In case of mismatch, it will try to rollback to the previously installed integration
+  version and exit with a failure.
+
+- Add ``--in-toto`` flag to ``datadog-agent integration`` command to enable in-toto
+
+- Add ``--verbose`` flag to ``datadog-agent integration`` command to enable verbose logging on pip and TUF
+
+- Docker image: running with a read-only root filesystem is now supported
+
+
+.. _Release Notes_6.6.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a setting to configure the interval at which configs should be polled
+  for autodiscovery.
+
+- Support a new config option, ``site``, that allows setting the Datadog site
+  to which the Agent should send data. ``dd_url`` is still supported and, when set,
+  overrides ``site``.
+
+- Display a warning in the agent status when too many logs are being tailed
+  and the agent is not tailing them all. This happens with wildcards in path
+  of the tailed files
+
+- Dogstatsd supports removing the hostname on events and services checks as it did with metrics, by adding an empty ``host:`` tag
+
+- Added new dogstatsd_tags variable which can be used to specify
+  additional tags to append to all metrics received by dogstatsd.
+
+- dogstatsd cleans up stale UNIX socket on startup.
+
+- The ecs-agent's docker container name can now be set via the ``ecs_agent_container_name``
+  option or the ``DD_ECS_AGENT_CONTAINER_NAME`` envvar for autodetection.
+
+- EKS pause containers are ignored by default
+
+- All python and go checks support the new ``empty_default_hostname`` option
+  to send metrics with no hostname. This is used for cluster-level checks
+
+- All go checks now support the ``min_collection_interval`` option, as python
+  check already do
+
+- Added a ``kubelet_wait_on_missing_container`` option to handle hosts where
+  the kubelet's podlist is slow to update, leading to missing tags
+  or failing Autodiscovery. Set it to 1 for a 1 second maximum wait
+
+- Add an option to enable protobuf communication with the Kubernetes apiserver
+
+- ``datadog-agent integration`` command will not pull any of the integration's dependencies
+
+- More accurate tag extraction logic for Docker Swarm
+
+- Added new command line properties to the Windows installer which allow for setting site specific configuration.
+
+
+.. _Release Notes_6.6.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue preventing the exit logs of the agent from displaying the correct filename.
+
+- Fix bug that occurs when checks labels/annotation are misconfigured and would
+  prevent the logs of the container to be tailed
+
+- Fix an issue causing the agent to stop when systemd-journald service is stopped or fails
+
+- Fix deadlock when an config item under ``logs`` is invalid
+
+- Fix system.mem.pct_usable implementation on Linux 3.14+ to match Datadog Agent 5
+
+- Fix a potential race in the autodiscovery where a service would be removed before
+  its config could be resolved (causing the agent to crash)
+
+- Fixes crash on Windows when the agent encounters a malformed performance counter database
+
+- Fixes config.Digest that was not stable depending on the oder of tags in the instance.
+  It also did not take into account LogsConfig, this is fixed as well.
+
+- Fix an issue where the log agent would prevent files from being log rotated on Windows
+
+- Correctly pass the agent's proxy settings to pip when using the ``datadog-agent integration`` command with TUF enabled.
+
+- Recover from errors when connection to the docker socket is lost to continue tailing containers.
+
+- When installing / updating wheels using the ``datadog-agent integration``
+  command, we replace the PyPI index with our own by default, in order to
+  prevent accidental installation of Datadog or even third-party packages
+  from PyPI.
+
+- Remove some undocumented power user options to the ``datadog-agent
+  integration`` command to prevent accidental misconfiguration that may
+  reduce security guarantees.
+
+
+.. _Release Notes_6.6.0_Other Notes:
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to 0.21.0; Adds support for rmi registry connection over
+  SSL and client authentication.
+
+- Use autodiscovery in log-agent kubernetes integration
+
+
+.. _Release Notes_6.5.2:
+
+6.5.2
+=====
+
+.. _Release Notes_6.5.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-09-20
+
+- Please refer to the `6.5.2 tag on integrations-core <https://github.com/DataDog/integrations-core/releases/tag/6.5.2>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.5.2 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.5.2>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.5.2 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.5.2>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.5.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a crash in the logs package that could occur when a docker tailer initialization failed.
+
+
 .. _Release Notes_6.5.1:
 
 6.5.1
@@ -328,7 +499,7 @@ Enhancement Notes
 
 - Adding DD_EXPVAR_PORT to the configuration environment variables.
 
-- On Windows, Specifically log to both the log file and the event viewer 
+- On Windows, Specifically log to both the log file and the event viewer
   what initiated an agent shutdown.  Also logs specific startup errors
   to both the log file and event viewer.
 
@@ -345,7 +516,7 @@ Enhancement Notes
   options. The standard ``HTTP_PROXY``, ``HTTPS_PROXY`` and ``NO_PROXY`` are still honored but have
   known side effects on integrations, for simplicity we recommended using the new environment variables.
   For more information, please refer to our `proxy docs`_
-  
+
   .. _proxy docs: https://docs.datadoghq.com/agent/proxy/
 
 - Update to distribution metrics algorithm with improved accuracy
@@ -358,7 +529,7 @@ Enhancement Notes
 
 - The Agent will log failed healthchecks on query and during exit
 
-- On Windows, provides installation parameter to set the `cmd_port`, 
+- On Windows, provides installation parameter to set the `cmd_port`,
   the port on which the agent command interface runs.  To be used if
   the default (5001) is already used by another program.
 
@@ -422,7 +593,7 @@ Bug Fixes
 
 - Fixes installation, packaging scripts for OpenSUSE LEAP and greater.
 
-- In the event of being unable to lock the `dd-agent` user (eg. `dd-agent` 
+- In the event of being unable to lock the `dd-agent` user (eg. `dd-agent`
   is an LDAP user) during installation, do not fail; print relevant warning.
 
 - The leader election process is now restarted if the leader stops leading.
@@ -544,12 +715,12 @@ Upgrade Notes
 Bug Fixes
 ---------
 
-- Fixes panic when the agent receives an unsupported pattern in a log processing rule 
+- Fixes panic when the agent receives an unsupported pattern in a log processing rule
 
 - Fixes problem in 6.3.0 in which agent wouldn't start on Windows
   Server 2008r2.
 
-- Provide the actual JMX check name as `check_name` in configurations 
+- Provide the actual JMX check name as `check_name` in configurations
   provided to JMXFetch via the agent API. This addresses a regression
   in 6.3.0 that broke the `instance:` tag.
   Due to the nature of the regression, and the fix, this will cause
