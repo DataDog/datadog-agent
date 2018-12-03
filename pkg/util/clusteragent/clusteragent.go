@@ -54,12 +54,6 @@ func resetGlobalClusterAgentClient() {
 	globalClusterAgentClient = nil
 }
 
-// resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
-// It is ONLY to be used for tests
-func resetGlobalClusterAgentClient() {
-	globalClusterAgentClient = nil
-}
-
 // GetClusterAgentClient returns or init the DCAClient
 func GetClusterAgentClient() (*DCAClient, error) {
 	if globalClusterAgentClient == nil {

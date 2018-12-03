@@ -13,23 +13,6 @@ import (
 const (
 	// Consul represents the name of the Consul config provider
 	Consul = "Consul"
-	// Docker represents the name of the docker config provider
-	Docker = "Docker"
-	// ECS represents the name of the ecs config provider
-	ECS = "ECS"
-	// Etcd represents the name of the etcd config provider
-	Etcd = "etcd"
-	// File represents the name of the file config provider
-	File = "File"
-	// Kubernetes represents the name of the kubernetes config provider
-	Kubernetes = "Kubernetes"
-	// Zookeeper represents the name of the zookeeper config provider
-	Zookeeper = "Zookeeper"
-)
-
-const (
-	// Consul represents the name of the Consul config provider
-	Consul = "Consul"
 	// ClusterChecks represents the name of the Cluster checks config provider
 	ClusterChecks = "Cluster checks"
 	// Docker represents the name of the docker config provider
