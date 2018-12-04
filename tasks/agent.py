@@ -204,6 +204,10 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         # copy the dd-agent placeholder to the bin folder
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
+
+    # Network tracer not supported on windows
+    if sys.platform.startswith('linux'):
+        shutil.copy("./cmd/agent/dist/network-tracer.yaml", os.path.join(dist_folder, "network-tracer.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
     for check in AGENT_CORECHECKS if not puppy else PUPPY_CORECHECKS:
@@ -216,10 +220,6 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
     if development:
         copy_tree("./dev/dist/", dist_folder)
-    # copy the dd-agent placeholder to the bin folder
-    bin_ddagent = os.path.join(BIN_PATH, "sts-agent")
-    shutil.copy(os.path.join(BIN_PATH, "dd-agent"), bin_ddagent)
-
 
 @task
 def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
