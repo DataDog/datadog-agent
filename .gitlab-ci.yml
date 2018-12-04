@@ -1,4 +1,4 @@
-image: stackstate/stackstate-agent-runner-circle:latest
+image: stackstate/stackstate-agent-runner-gitlab:latest
 
 stages:
 - prepare
