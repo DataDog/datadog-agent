@@ -218,7 +218,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         copy_tree("./dev/dist/", dist_folder)
     # copy the dd-agent placeholder to the bin folder
     bin_ddagent = os.path.join(BIN_PATH, "sts-agent")
-    shutil.move(os.path.join(BIN_PATH, "dd-agent"), bin_ddagent)
+    shutil.copy(os.path.join(BIN_PATH, "dd-agent"), bin_ddagent)
 
 
 @task
