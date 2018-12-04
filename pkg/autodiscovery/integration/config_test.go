@@ -121,13 +121,23 @@ func TestDigest(t *testing.T) {
 	assert.Equal(t, "6253da85b1624771", simpleConfigWithLogs.Digest())
 }
 
-func TestGetExtraIDForInstance(t *testing.T) {
+func TestGetNameForInstance(t *testing.T) {
 	config := &Config{}
 
 	config.Name = "foo"
 	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("name: foobar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
 	config.Instances = []Data{Data("namespace: foobar")}
-	assert.Equal(t, config.Instances[0].GetExtraIDForInstance(), "foobar")
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("foo: bar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "")
 }
 
 // this is here to prevent compiler optimization on the benchmarking code

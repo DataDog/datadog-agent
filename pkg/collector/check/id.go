@@ -18,17 +18,17 @@ type ID string
 
 // Identify returns an unique ID for a check and its configuration
 func Identify(check Check, instance integration.Data, initConfig integration.Data) ID {
-	return BuildID(check.String(), instance, initConfig, instance.GetExtraIDForInstance())
+	return BuildID(check.String(), instance, initConfig, instance.GetNameForInstance())
 }
 
 // BuildID returns an unique ID for a check name and its configuration
-func BuildID(checkName string, instance, initConfig integration.Data, extraID string) ID {
+func BuildID(checkName string, instance, initConfig integration.Data, name string) ID {
 	h := fnv.New64()
 	h.Write([]byte(instance))
 	h.Write([]byte(initConfig))
 
-	if extraID != "" {
-		return ID(fmt.Sprintf("%s:%s:%x", checkName, extraID, h.Sum64()))
+	if name != "" {
+		return ID(fmt.Sprintf("%s:%s:%x", checkName, name, h.Sum64()))
 	}
 
 	return ID(fmt.Sprintf("%s:%x", checkName, h.Sum64()))

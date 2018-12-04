@@ -56,11 +56,8 @@ type Config struct {
 type CommonInstanceConfig struct {
 	MinCollectionInterval int  `yaml:"min_collection_interval"`
 	EmptyDefaultHostname  bool `yaml:"empty_default_hostname"`
-}
-
-// ExtraInstanceConfig holds the reserved fields for the extra instance id
-type ExtraInstanceConfig struct {
-	ExtraID string `yaml:"namespace"`
+	// Optional name field
+	Name string `yaml:"name"`
 }
 
 // Equal determines whether the passed config is the same
@@ -159,14 +156,28 @@ func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
 	return tplVarRegex.FindAll(c.Instances[i], -1)
 }
 
-// GetExtraIDForInstance returns the extra ID from an instance if specified
-func (c *Data) GetExtraIDForInstance() string {
-	extraOptions := ExtraInstanceConfig{}
-	err := yaml.Unmarshal(*c, &extraOptions)
+// GetNameForInstance returns the namespace from an instance if specified, fallback on namespace
+func (c *Data) GetNameForInstance() string {
+	commonOptions := CommonInstanceConfig{}
+	err := yaml.Unmarshal(*c, &commonOptions)
 	if err != nil {
 		log.Errorf("invalid instance section: %s", err)
+		return ""
 	}
-	return extraOptions.ExtraID
+	// Fallback on `name` if we don't find a namespace
+	if commonOptions.Name == "" {
+		type NamespaceInstanceConfig struct {
+			Namespace string `yaml:"namespace"`
+		}
+		namespaceOption := NamespaceInstanceConfig{}
+		err := yaml.Unmarshal(*c, &namespaceOption)
+		if err != nil {
+			log.Errorf("invalid instance section: %s", err)
+			return ""
+		}
+		return namespaceOption.Namespace
+	}
+	return commonOptions.Name
 }
 
 // MergeAdditionalTags merges additional tags to possible existing config tags

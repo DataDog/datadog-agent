@@ -51,8 +51,8 @@ func NewCheckBase(name string) CheckBase {
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
 func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
-	extraID := instance.GetExtraIDForInstance()
-	c.checkID = check.BuildID(c.checkName, instance, initConfig, extraID)
+	name := instance.GetNameForInstance()
+	c.checkID = check.BuildID(c.checkName, instance, initConfig, name)
 }
 
 // Configure is provided for checks that require no config. If overridden,
