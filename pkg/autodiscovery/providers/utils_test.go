@@ -281,16 +281,6 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			},
 			output: nil,
 		},
-		{
-			// Invalid logs json
-			source: map[string]string{
-				"prefix.logs": "{\"service\":\"any_service\",\"source\":\"any_source\"}",
-			},
-			adIdentifier: "id",
-			prefix:       "prefix.",
-			output:       []integration.Config{},
-			err:          errors.New("invalid format, expected an array, got: "),
-		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
