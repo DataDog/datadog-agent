@@ -20,6 +20,8 @@ api_key: API_KEY
 #     - host2
 
 # Setting this option to "true" will tell the agent to skip validation of SSL/TLS certificates.
+# This may be necessary if the agent is running behind a proxy. See this page for details:
+# https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
 # skip_ssl_validation: false
 
 # Setting this option to "true" will force the agent to only use TLS 1.2 when

@@ -388,15 +388,6 @@ func TestEnvNestedConfig(t *testing.T) {
 	os.Unsetenv("DD_FOO_BAR_NESTED")
 }
 
-func TestBindEnvAndSetDefault(t *testing.T) {
-	BindEnvAndSetDefault("app_key", "")
-	assert.NotContains(t, ConfigEnvVars, "DD_APP_KEY")
-	BindEnvAndSetDefault("logset", "")
-	assert.Contains(t, ConfigEnvVars, "DD_LOGSET")
-	BindEnvAndSetDefault("logs_config.run_path", "")
-	assert.Contains(t, ConfigEnvVars, "DD_LOGS_CONFIG.RUN_PATH")
-}
-
 func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
 	config := setupConf()
 
@@ -603,22 +594,4 @@ func TestSanitizeAPIKey(t *testing.T) {
 	config.Set("api_key", " \n  foo   \n")
 	sanitizeAPIKey(config)
 	assert.Equal(t, "foo", config.GetString("api_key"))
-}
-
-func TestSanitizeAPIKey(t *testing.T) {
-	Datadog.Set("api_key", "foo")
-	sanitizeAPIKey()
-	assert.Equal(t, "foo", Datadog.GetString("api_key"))
-
-	Datadog.Set("api_key", "foo\n")
-	sanitizeAPIKey()
-	assert.Equal(t, "foo", Datadog.GetString("api_key"))
-
-	Datadog.Set("api_key", "foo\n\n")
-	sanitizeAPIKey()
-	assert.Equal(t, "foo", Datadog.GetString("api_key"))
-
-	Datadog.Set("api_key", " \n  foo   \n")
-	sanitizeAPIKey()
-	assert.Equal(t, "foo", Datadog.GetString("api_key"))
 }
