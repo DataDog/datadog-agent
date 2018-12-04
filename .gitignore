@@ -87,3 +87,5 @@ kubeconfig
 
 # vagrant
 .vagrant
+
+version.txt
