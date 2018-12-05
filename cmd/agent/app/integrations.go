@@ -276,7 +276,7 @@ func tuf(args []string) error {
 			// Change the working directory to one the Datadog Agent can read, so
 			// that we can switch to temporary working directories, and back, for
 			// in-toto.
-			tufCmd.Dir = executable.Folder()
+			tufCmd.Dir, _ = executable.Folder()
 		}
 	} else {
 		if inToto {
