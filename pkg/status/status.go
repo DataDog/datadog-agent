@@ -184,6 +184,27 @@ func getPartialConfig() map[string]string {
 	return conf
 }
 
+func getEndpointsInfos() (map[string]interface{}, error) {
+	endpoints, err := config.GetMultipleEndpoints()
+	if err != nil {
+		return nil, err
+	}
+
+	rv := make(map[string]interface{})
+
+	// obfuscate the api keys
+	for endpoint, keys := range endpoints {
+		for i, key := range keys {
+			if len(key) > 5 {
+				keys[i] = key[len(key)-5:]
+			}
+		}
+		rv[endpoint] = keys
+	}
+
+	return rv, nil
+}
+
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
@@ -224,6 +245,13 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["pyLoaderStats"] = pyLoaderStats
 	} else {
 		stats["pyLoaderStats"] = nil
+	}
+
+	endpoints, err := getEndpointsInfos()
+	if endpoints != nil && err == nil {
+		stats["endpoints"] = endpoints
+	} else {
+		stats["endpoints"] = nil
 	}
 
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())

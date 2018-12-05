@@ -166,6 +166,23 @@
   </div>
 
   <div class="stat">
+    <span class="stat_title">Endpoints</span>
+    <span class="stat_data">
+    {{- with .endpoints}}
+      {{- range $key, $value := .}}
+        {{$key}}
+        {{- range $idx, $apikey := $value }}
+         - Api key ending with: {{$apikey}}
+        {{- end}}
+        <br>
+      {{- end}}
+    {{- else }}
+      No endpoints information. The agent may be misconfigured.
+    {{- end -}}
+    </span>
+  </div>
+
+  <div class="stat">
     <span class="stat_title">Logs Agent</span>
     <span class="stat_data">
     {{- with .logsStats -}}
