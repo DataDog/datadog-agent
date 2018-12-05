@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    For in-toto, run pip in a directory writable by the Agent, so that we can
-    switch back and forth from temporary working directories.
+    Fix a bug where `datadog-agent integration` users could not test the
+    `--in-toto` flag due to a filesystem permission issue.

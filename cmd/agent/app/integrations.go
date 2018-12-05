@@ -13,7 +13,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -274,14 +273,10 @@ func tuf(args []string) error {
 			tufCmd.Env = append(tufCmd.Env,
 				"TUF_DOWNLOAD_IN_TOTO_METADATA=1",
 			)
-			// Change the working directory to something the Datadog Agent controls,
-			// so that we can switch to temporary working directories, and back for
+			// Change the working directory to one the Datadog Agent can read, so
+			// that we can switch to temporary working directories, and back, for
 			// in-toto.
-			cachePath, err := getTUFPipCachePath()
-			if err != nil {
-				return err
-			}
-			tufCmd.Dir = path.Dir(path.Dir(cachePath))
+			tufCmd.Dir = executable.Folder()
 		}
 	} else {
 		if inToto {
