@@ -122,9 +122,9 @@ func TestInterval(t *testing.T) {
 	assert.Equal(t, time.Duration(1)*time.Second, c.Interval())
 }
 
-func TestExtraID(t *testing.T) {
+func TestName(t *testing.T) {
 	c, _ := getCheckInstance("testcheck", "TestCheck")
-	c.Configure([]byte("namespace: test"), []byte("foo: bar"))
+	c.Configure([]byte("name: test"), []byte("foo: bar"))
 	assert.Equal(t, string(c.ID()), "testcheck:test:d5c9af2b64a6eedd")
 }
 
