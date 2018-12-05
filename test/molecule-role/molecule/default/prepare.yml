@@ -83,6 +83,32 @@
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
+- name: Prepare Agent 1 listening before start
+  hosts: agent1
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Install nmap (for ncat binary)
+      become: true
+      apt:
+        name: nmap
+        state: present
+        update_cache: yes
+      changed_when: false
+    # We use ncat to keep a listening port open and get a direction
+    - name: Open listening port on agent 1
+      shell: "nohup ncat --broker --listen -p {{ test_connection_port_before_start }} &"
+      become: true
+- name: Prepare Agent 2 connecting before start
+  hosts: agent2
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Connect to agent 2
+      shell: nohup bash -c "yes | nc {{ hostvars['agent1']['ansible_host'] }} {{ test_connection_port_before_start }}" &
+      become: true
 - name: Prepare Agents
   hosts: agent_vm
   gather_facts: false
@@ -105,7 +131,7 @@
         name: stackstate-agent
         state: started
         daemon_reload: yes
-- name: Prepare Agent 1 listening
+- name: Prepare Agent 1 listening after start
   hosts: agent1
   gather_facts: false
   vars_files:
@@ -116,14 +142,14 @@
       pause:
         seconds: 10
     - name: Open listening port on agent 1
-      shell: "nohup nc -l -p {{ test_connection_port }} > /dev/null &"
+      shell: "nohup nc -l -p {{ test_connection_port_after_start }} > /dev/null &"
       become: true
-- name: Prepare Agent 2 connecting
+- name: Prepare Agent 2 connecting after start
   hosts: agent2
   gather_facts: false
   vars_files:
     - common_vars.yml
   tasks:
     - name: Connect to agent 2
-      shell: nohup bash -c "yes | nc {{ hostvars['agent1']['ansible_host'] }} {{ test_connection_port }}" &
+      shell: nohup bash -c "yes | nc {{ hostvars['agent1']['ansible_host'] }} {{ test_connection_port_after_start }}" &
       become: true
