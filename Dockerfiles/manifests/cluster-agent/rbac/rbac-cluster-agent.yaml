@@ -46,6 +46,12 @@ rules:
   - "/healthz"
   verbs:
   - get
+- apiGroups: # CVE-2018-1002105 https://github.com/kubernetes/kubernetes/issues/71411
+  - "authorization.k8s.io"
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
