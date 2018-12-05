@@ -153,6 +153,29 @@ def lint_teamassignment(ctx):
         print("PR not yet created, skipping check for team assignment")
 
 @task
+def lint_milestone(ctx):
+    """
+    Make sure PRs are assigned a milestone
+    """
+    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    if pr_url:
+        import requests
+        pr_id = pr_url.rsplit('/')[-1]
+
+        res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
+        pr = res.json()
+        if pr.get("milestone"):
+            print("Milestone: %s" % pr["milestone"].get("title", "NO_TITLE"))
+            return
+
+        print("PR %s requires a milestone" % pr_url)
+        raise Exit(code=1)
+
+    # The PR has not been created yet
+    else:
+        print("PR not yet created, skipping check for milestone")
+
+@task
 def lint_releasenote(ctx):
     """
     Lint release notes with Reno
@@ -218,21 +241,33 @@ def lint_releasenote(ctx):
 @task
 def lint_filenames(ctx):
     """
-    Scan files to ensure there are no filenames containing illegal characters
+    Scan files to ensure there are no filenames too long or containing illegal characters
     """
+    files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
+    failure = False
+
     if sys.platform == 'win32':
         print("Running on windows, no need to check filenames for illegal characters")
     else:
         print("Checking filenames for illegal characters")
         forbidden_chars = '<>:"\\|?*'
-        files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
-        failure = False
         for file in files:
             if any(char in file for char in forbidden_chars):
                 print("Error: Found illegal character in path {}".format(file))
                 failure = True
-        if failure:
-            raise Exit(code=1)
+
+    print("Checking filename length")
+    # Approximated length of the prefix of the repo during the windows release build
+    prefix_length = 160
+    # Maximum length supported by the win32 API
+    max_length = 255
+    for file in files:
+        if prefix_length + len(file) > max_length:
+            print("Error: path {} is too long ({} characters too many)".format(file, prefix_length + len(file) - max_length))
+            failure = True
+
+    if failure:
+        raise Exit(code=1)
 
 
 @task

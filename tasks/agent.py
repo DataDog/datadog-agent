@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, DEBIAN_ONLY_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
 
 # constants
@@ -25,6 +25,7 @@ DEFAULT_BUILD_TAGS = [
     "apm",
     "consul",
     "cpython",
+    "cri",
     "docker",
     "ec2",
     "etcd",
@@ -40,6 +41,32 @@ DEFAULT_BUILD_TAGS = [
     "zlib",
 ]
 
+AGENT_CORECHECKS = [
+    "cpu",
+    "cri",
+    "docker",
+    "file_handle",
+    "go_expvar",
+    "io",
+    "jmx",
+    "kubernetes_apiserver",
+    "load",
+    "memory",
+    "ntp",
+    "uptime",
+    "winproc",
+]
+
+PUPPY_CORECHECKS = [
+    "cpu",
+    "disk",
+    "io",
+    "load",
+    "memory",
+    "network",
+    "ntp",
+    "uptime",
+]
 
 def do_rename(ctx, rename, at):
     ctx.run("gofmt -l -w -r {} {}".format(rename, at))
@@ -96,8 +123,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     # remove all tags that are only available on debian distributions
     distname = platform.linux_distribution()[0].lower()
-    if distname not in ['debian', 'ubuntu']:
-        for ex in DEBIAN_ONLY_TAGS:
+    if distname not in REDHAT_AND_DEBIAN_DIST:
+        for ex in REDHAT_AND_DEBIAN_ONLY_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
@@ -151,11 +178,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     ctx.run(cmd.format(REPO_PATH), env=env)
 
     if not skip_assets:
-        refresh_assets(ctx, development=development)
+        refresh_assets(ctx, build_tags, development=development, puppy=puppy)
 
 
 @task
-def refresh_assets(ctx, development=True):
+def refresh_assets(ctx, build_tags, development=True, puppy=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -166,14 +193,29 @@ def refresh_assets(ctx, development=True):
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    copy_tree("./cmd/agent/dist/", dist_folder)
+    os.mkdir(dist_folder)
+
+    if "cpython" in build_tags:
+        copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
+        copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
+        shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
+    if not puppy:
+        shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
+        # copy the dd-agent placeholder to the bin folder
+        bin_ddagent = os.path.join(BIN_PATH, "sts-agent")
+        shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
+    shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
+
+    for check in AGENT_CORECHECKS if not puppy else PUPPY_CORECHECKS:
+        check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))
+        copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
+    if "apm" in build_tags:
+        shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
+
     copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
     if development:
         copy_tree("./dev/dist/", dist_folder)
-    # copy the dd-agent placeholder to the bin folder
-    bin_ddagent = os.path.join(BIN_PATH, "sts-agent")
-    shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
 
 @task

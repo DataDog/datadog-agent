@@ -42,7 +42,14 @@ def process_deps(ctx, target, version, kind, step, verbose=False):
     if kind == "go":
         if step == "checkout":
             # download tools
-            path = os.path.join(os.environ.get('GOPATH'), 'src', target)
+            gopath = os.environ.get("GOPATH")
+            if not gopath:
+                for line in ctx.run("go env", hide=True).stdout.splitlines():
+                    [name, value] = line.split("=", 1)
+                    if name == "GOPATH":
+                        gopath = value
+                        break
+            path = os.path.join(gopath, 'src', target)
             if not os.path.exists(path):
                 ctx.run("go get{} -d -u {}".format(verbosity, target))
 
