@@ -1,5 +1,5 @@
 ---
 enhancements:
   - |
-    Add an Endpoints in the GUI Status page, listing
+    Add an Endpoints section in the GUI Status page, listing
     all endpoints used by the agent and their api keys.
