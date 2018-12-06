@@ -8,7 +8,7 @@ Endpoints
 
 {{- with .}}
   {{- range $key, $value := .}}
-  {{$key}} - API Key{{ if gt (len $value) 1}}s{{end}} ending with: 
+  {{$key}} - API Key{{ if gt (len $value) 1}}s{{end}} ending with:
     {{- range $idx, $apikey := $value }}
       - {{$apikey}}
     {{- end}}

@@ -149,6 +149,13 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	}
 	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 
+	endpointsInfos, err := getEndpointsInfos()
+	if endpointsInfos != nil && err == nil {
+		stats["endpointsInfos"] = endpointsInfos
+	} else {
+		stats["endpointsInfos"] = nil
+	}
+
 	return stats, nil
 }
 
