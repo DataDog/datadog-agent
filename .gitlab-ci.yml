@@ -136,6 +136,9 @@ build_deb:
     # cloning in omnibus and operations on datadog-agent
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
+  - inv version
+  - cat version.txt || true
+
   - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=nightly
 
     # Prepare outputs
