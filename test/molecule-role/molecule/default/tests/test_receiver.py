@@ -60,7 +60,7 @@ def test_created_connection_with_metrics(host, Ansible):
 
 
 def test_host_metrics(host, Ansible):
-    url = "http://localhost:7070/api/topic/sts_metrics?limit=200"
+    url = "http://localhost:7070/api/topic/sts_metrics?limit=1000"
 
     def wait_for_metrics():
         data = host.check_output("curl %s" % url)
@@ -106,7 +106,7 @@ def test_host_metrics(host, Ansible):
 
 
 def test_process_metrics(host, Ansible):
-    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=200"
+    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
 
     def wait_for_metrics():
         data = host.check_output("curl %s" % url)
