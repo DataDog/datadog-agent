@@ -63,6 +63,13 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
+	endpointsInfos, err := getEndpointsInfos()
+	if endpointsInfos != nil && err == nil {
+		stats["endpointsInfos"] = endpointsInfos
+	} else {
+		stats["endpointsInfos"] = nil
+	}
+
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
@@ -190,7 +197,7 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	rv := make(map[string]interface{})
+	endpointsInfos := make(map[string]interface{})
 
 	// obfuscate the api keys
 	for endpoint, keys := range endpoints {
@@ -199,10 +206,10 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 				keys[i] = key[len(key)-5:]
 			}
 		}
-		rv[endpoint] = keys
+		endpointsInfos[endpoint] = keys
 	}
 
-	return rv, nil
+	return endpointsInfos, nil
 }
 
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
@@ -245,13 +252,6 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["pyLoaderStats"] = pyLoaderStats
 	} else {
 		stats["pyLoaderStats"] = nil
-	}
-
-	endpoints, err := getEndpointsInfos()
-	if endpoints != nil && err == nil {
-		stats["endpoints"] = endpoints
-	} else {
-		stats["endpoints"] = nil
 	}
 
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
