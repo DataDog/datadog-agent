@@ -53,10 +53,10 @@ build do
                 systemd_directory = "/lib/systemd/system"
 
                 # sysvinit support for debian only for now
-#                mkdir "/etc/init.d"
-#                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
-#                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
-#                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
+               mkdir "/etc/init.d"
+               move "#{install_dir}/scripts/stackstate-agent", "/etc/init.d"
+               move "#{install_dir}/scripts/stackstate-agent-trace", "/etc/init.d"
+               move "#{install_dir}/scripts/stackstate-agent-process", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/stackstate-agent.service", systemd_directory

@@ -93,15 +93,15 @@ build do
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.erb",
-          dest: "#{install_dir}/scripts/datadog-agent",
+          dest: "#{install_dir}/scripts/stackstate-agent",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.process.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process",
+          dest: "#{install_dir}/scripts/stackstate-agent-process",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.trace.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace",
+          dest: "#{install_dir}/scripts/stackstate-agent-trace",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat? || suse?

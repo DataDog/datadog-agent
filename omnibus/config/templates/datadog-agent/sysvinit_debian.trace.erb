@@ -1,9 +1,9 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-agent-trace
-# Short-Description: Start and stop datadog trace agent
-# Description: Datadog Trace Agent (APM)
+# Provides: stackstate-agent-trace
+# Short-Description: Start and stop stackstate trace agent
+# Description: StackState Trace Agent (APM)
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
 # Default-Start: 2 3 4 5
@@ -12,14 +12,14 @@
 
 . /lib/lsb/init-functions
 
-ETC_DIR="/etc/datadog-agent"
-INSTALL_DIR="/opt/datadog-agent"
+ETC_DIR="/etc/stackstate-agent"
+INSTALL_DIR="/opt/stackstate-agent"
 AGENTPATH="$INSTALL_DIR/embedded/bin/trace-agent"
 PIDFILE="$INSTALL_DIR/run/trace-agent.pid"
-AGENT_ARGS="--config=$ETC_DIR/datadog.yaml --pid=$PIDFILE"
-AGENT_USER="dd-agent"
-NAME="datadog-agent-trace"
-DESC="Datadog Trace Agent (APM)"
+AGENT_ARGS="--config=$ETC_DIR/stackstate.yaml --pid=$PIDFILE"
+AGENT_USER="stackstate-agent"
+NAME="stackstate-agent-trace"
+DESC="StackState Trace Agent (APM)"
 
 
 
@@ -119,7 +119,7 @@ case "$1" in
 		if init_is_upstart; then
 			exit 1
 		fi
-		if [ "$DATADOG_ENABLED" = "no" ]; then
+		if [ "$STACKSTATE_ENABLED" = "no" ]; then
 			echo "Disabled via /etc/default/$NAME. Exiting."
 			exit 0
 		fi
