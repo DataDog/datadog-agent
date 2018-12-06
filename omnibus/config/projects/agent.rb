@@ -159,10 +159,10 @@ if linux?
   if debian?
     systemd_directory = "/lib/systemd/system"
 
-#    TODO: analyze effect
-#    extra_package_file "/etc/init.d/datadog-agent"
-#    extra_package_file "/etc/init.d/datadog-agent-process"
-#    extra_package_file "/etc/init.d/datadog-agent-trace"
+
+    extra_package_file "/etc/init.d/stackstate-agent"
+    extra_package_file "/etc/init.d/stackstate-agent-process"
+    extra_package_file "/etc/init.d/stackstate-agent-trace"
   end
   extra_package_file "#{systemd_directory}/stackstate-agent.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-process.service"
