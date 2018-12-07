@@ -335,15 +335,9 @@ func TestDebugStats(t *testing.T) {
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
-	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	time.Sleep(50 * time.Millisecond)
-	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1"))
-	time.Sleep(50 * time.Millisecond) // let dogstatsd process it
+	s.debugStats([]string{"sometag1:somevalue1", "sometag2:somevalue2"})
+	time.Sleep(10 * time.Millisecond)
+	s.debugStats([]string{"sometag1:somevalue1"})
 
 	data, err := s.GetJSONDebugStats()
 	require.NoError(t, err, "cannot get debug stats")
@@ -357,8 +351,7 @@ func TestDebugStats(t *testing.T) {
 
 	require.True(t, stats["sometag1:somevalue1"].LastSeen.After(stats["sometag2:somevalue2"].LastSeen), "sometag1 should have appeared again after sometag2")
 
-	conn.Write([]byte("daemon:666|g|#sometag3:somevalue3,sometag1:somevalue1"))
-	time.Sleep(50 * time.Millisecond) // let dogstatsd process it
+	s.debugStats([]string{"sometag3:somevalue3", "sometag1:somevalue1"})
 
 	data, _ = s.GetJSONDebugStats()
 	err = json.Unmarshal(data, &stats)
