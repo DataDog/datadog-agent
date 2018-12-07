@@ -41,6 +41,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
@@ -161,6 +162,40 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonStats)
+}
+
+func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for the Dogstatsd stats.")
+
+	if !config.Datadog.GetBool("use_dogstatsd") {
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{
+			"error":      "Dogstatsd not enabled in the Agent configuration",
+			"error_type": "not enabled",
+		})
+		w.WriteHeader(400)
+		w.Write(body)
+		return
+	}
+
+	// Weird state that should not happen: dogstatsd is enabled
+	// but the server has not been successfully initialized.
+	// Return no data.
+	if common.DSD == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{}`))
+		return
+	}
+
+	jsonStats, err := common.DSD.GetJSONDebugStats()
+	if err != nil {
+		log.Errorf("Error getting marshalled Dogstatsd stats. Error: %v")
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), 500)
 		return

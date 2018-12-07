@@ -7,11 +7,14 @@ package dogstatsd
 
 import (
 	"bytes"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"net"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -56,6 +59,15 @@ type Server struct {
 	histToDist       bool
 	histToDistPrefix string
 	extraTags        []string
+	metricStats      map[string]metricStat
+	statsLock        sync.Mutex
+}
+
+// metricStat holds how many times a metric has been
+// processed and when was the last time.
+type metricStat struct {
+	Count    uint64    `json:"count"`
+	LastSeen time.Time `json:"last_seen"`
 }
 
 // NewServer returns a running Dogstatsd server
@@ -125,6 +137,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		histToDist:       histToDist,
 		histToDistPrefix: histToDistPrefix,
 		extraTags:        extraTags,
+		metricStats:      make(map[string]metricStat),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -250,9 +263,13 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 						dogstatsdMetricParseErrors.Add(1)
 						continue
 					}
+
+					s.debugStats(sample.Tags)
+
 					if len(extraTags) > 0 {
 						sample.Tags = append(sample.Tags, extraTags...)
 					}
+
 					dogstatsdMetricPackets.Add(1)
 					metricOut <- sample
 					if s.histToDist && sample.Mtype == metrics.HistogramType {
@@ -280,4 +297,44 @@ func (s *Server) Stop() {
 	}
 	s.health.Deregister()
 	s.Started = false
+}
+
+func (s *Server) debugStats(tags []string) {
+	now := time.Now()
+	s.statsLock.Lock()
+	for _, tag := range tags {
+		mds := s.metricStats[tag]
+		mds.Count += 1
+		mds.LastSeen = now
+
+		s.metricStats[tag] = mds
+	}
+	s.statsLock.Unlock()
+}
+
+// GetJSONDebugStats returns jsonified debug statistics.
+func (s *Server) GetJSONDebugStats() ([]byte, error) {
+	s.statsLock.Lock()
+	defer s.statsLock.Unlock()
+	return json.Marshal(s.metricStats)
+}
+
+// FormatDebugStats returns a printable version of debug stats.
+func FormatDebugStats(stats []byte) (string, error) {
+	var dogStats map[string]metricStat
+	if err := json.Unmarshal(stats, &dogStats); err != nil {
+		return "", err
+	}
+
+	buf := bytes.NewBuffer(nil)
+
+	header := fmt.Sprintf("%-40s | %-10s | %-20s\n", "Tag", "Count", "Last Seen")
+	buf.Write([]byte(header))
+	buf.Write([]byte(strings.Repeat("-", len(header)) + "\n"))
+
+	for tag, stats := range dogStats {
+		buf.Write([]byte(fmt.Sprintf("%-40s | %-10d | %-20v\n", tag, stats.Count, stats.LastSeen)))
+	}
+
+	return buf.String(), nil
 }

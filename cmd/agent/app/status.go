@@ -45,11 +45,7 @@ var statusCmd = &cobra.Command{
 		if flagNoColor {
 			color.NoColor = true
 		}
-		err = requestStatus()
-		if err != nil {
-			return err
-		}
-		return nil
+		return requestStatus()
 	},
 }
 
