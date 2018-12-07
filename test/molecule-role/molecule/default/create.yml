@@ -21,8 +21,12 @@
         to_port: 7077
         cidr_ip: '0.0.0.0/0'
       - proto: tcp
-        from_port: "{{ test_connection_port }}"
-        to_port: "{{ test_connection_port }}"
+        from_port: "{{ test_connection_port_before_start }}"
+        to_port: "{{ test_connection_port_before_start }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ test_connection_port_after_start }}"
+        to_port: "{{ test_connection_port_after_start }}"
         cidr_ip: '0.0.0.0/0'
       - proto: icmp
         from_port: 8
