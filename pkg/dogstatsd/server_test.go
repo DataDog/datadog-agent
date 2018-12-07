@@ -6,6 +6,7 @@
 package dogstatsd
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -324,4 +325,54 @@ func TestExtraTags(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+}
+
+func TestDebugStats(t *testing.T) {
+	metricOut := make(chan *metrics.MetricSample)
+	eventOut := make(chan metrics.Event)
+	serviceOut := make(chan metrics.ServiceCheck)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	conn, err := net.Dial("udp", url)
+	require.NoError(t, err, "cannot connect to DSD socket")
+	defer conn.Close()
+
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	time.Sleep(50 * time.Millisecond)
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1"))
+	time.Sleep(50 * time.Millisecond) // let dogstatsd process it
+
+	data, err := s.GetJSONDebugStats()
+	require.NoError(t, err, "cannot get debug stats")
+	require.NotNil(t, data)
+	require.NotEmpty(t, data)
+
+	var stats map[string]metricStat
+	err = json.Unmarshal(data, &stats)
+	require.NoError(t, err, "data is not valid")
+	require.Len(t, stats, 2, "two metrics should have been captured")
+
+	require.True(t, stats["sometag1:somevalue1"].LastSeen.After(stats["sometag2:somevalue2"].LastSeen), "sometag1 should have appeared again after sometag2")
+
+	conn.Write([]byte("daemon:666|g|#sometag3:somevalue3,sometag1:somevalue1"))
+	time.Sleep(50 * time.Millisecond) // let dogstatsd process it
+
+	data, _ = s.GetJSONDebugStats()
+	err = json.Unmarshal(data, &stats)
+	require.NoError(t, err, "data is not valid")
+	require.Len(t, stats, 3, "three metrics should have been captured")
+
+	tag1 := stats["sometag1:somevalue1"]
+	tag2 := stats["sometag2:somevalue2"]
+	tag3 := stats["sometag3:somevalue3"]
+	require.True(t, tag1.LastSeen.After(tag2.LastSeen), "sometag1 should have appeared again after sometag2")
+	require.True(t, tag3.LastSeen.After(tag2.LastSeen), "sometag3 should have appeared again after sometag2")
+	require.Equal(t, tag1.LastSeen, tag3.LastSeen, "sometag1 and sometag3 have been sent in the same packet, thus, should have the same last seen")
+
+	require.Equal(t, tag1.Count, uint64(3))
+	require.Equal(t, tag2.Count, uint64(1))
+	require.Equal(t, tag3.Count, uint64(1))
 }

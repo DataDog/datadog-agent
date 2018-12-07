@@ -302,6 +302,7 @@ func (s *Server) Stop() {
 func (s *Server) debugStats(tags []string) {
 	now := time.Now()
 	s.statsLock.Lock()
+	defer s.statsLock.Unlock()
 	for _, tag := range tags {
 		mds := s.metricStats[tag]
 		mds.Count++
@@ -309,7 +310,6 @@ func (s *Server) debugStats(tags []string) {
 
 		s.metricStats[tag] = mds
 	}
-	s.statsLock.Unlock()
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.
