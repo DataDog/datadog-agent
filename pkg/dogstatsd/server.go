@@ -304,7 +304,7 @@ func (s *Server) debugStats(tags []string) {
 	s.statsLock.Lock()
 	for _, tag := range tags {
 		mds := s.metricStats[tag]
-		mds.Count += 1
+		mds.Count++
 		mds.LastSeen = now
 
 		s.metricStats[tag] = mds

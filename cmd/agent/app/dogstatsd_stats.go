@@ -28,7 +28,7 @@ func init() {
 	AgentCmd.AddCommand(dogstatsdStatsCmd)
 	dogstatsdStatsCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
 	dogstatsdStatsCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	dogstatsdStatsCmd.Flags().StringVarP(&dsdStatsFilePath, "file", "o", "", "Output the status command to a file")
+	dogstatsdStatsCmd.Flags().StringVarP(&dsdStatsFilePath, "file", "o", "", "Output the dogstatsd-stats command to a file")
 }
 
 var dogstatsdStatsCmd = &cobra.Command{
@@ -72,9 +72,9 @@ func requestDogstatsdStats() error {
 		if errMap["error_type"] == "not enabled" {
 			fmt.Println(e)
 			return nil
-		} else {
-			fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the dogstatsd stats and contact support if you continue having issues. \n", e)
 		}
+
+		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the dogstatsd stats and contact support if you continue having issues. \n", e)
 
 		return e
 	}
