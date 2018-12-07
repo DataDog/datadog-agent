@@ -139,7 +139,7 @@ build_deb:
   - inv version
   - cat version.txt || true
 
-  - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign --release-version=nightly
+  - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign
 
     # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
