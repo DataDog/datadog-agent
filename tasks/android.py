@@ -14,7 +14,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
@@ -94,7 +94,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         cmd = "./gradlew build"
     ctx.run(cmd)
     os.chdir(pwd)
-    shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", "bin/agent/ddagent-release-unsigned.apk")
+    ver = get_version(ctx, include_git=True, git_sha_length=7)
+    outfile = "bin/agent/ddagent-{}-unsigned.apk".format(ver)
+    shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", outfile)
 
 
 @task
