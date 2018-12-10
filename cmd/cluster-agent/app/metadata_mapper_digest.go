@@ -33,6 +33,8 @@ One can easily identify which pods are running on which nodes,
 as well as which services are serving the pods. Or the deployment name for the pod`,
 	Example: "datadog-cluster-agent metamap ip-10-0-115-123",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// we'll search for a config file named `datadog-cluster.yaml`
+		config.Datadog.SetConfigName("datadog-cluster")
 		err := common.SetupConfig(confPath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)

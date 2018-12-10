@@ -9,21 +9,31 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+
+	"github.com/StackVista/stackstate-agent/pkg/status/health"
+
+	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 )
 
 type ProviderTestSuite struct {
 	suite.Suite
 	p *provider
+	a *auditor.Auditor
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
+	suite.a = auditor.New("", health.Register("fake"))
 	suite.p = &provider{
 		numberOfPipelines: 3,
+		auditor:           suite.a,
 		pipelines:         []*Pipeline{},
+		endpoints:         config.NewEndpoints(config.Endpoint{}, nil),
 	}
 }
 
 func (suite *ProviderTestSuite) TestProvider() {
+	suite.a.Start()
 	suite.p.Start()
 	suite.Equal(int32(0), suite.p.currentPipelineIndex)
 	suite.Equal(3, len(suite.p.pipelines))
@@ -40,6 +50,7 @@ func (suite *ProviderTestSuite) TestProvider() {
 	suite.Equal(int32(1), suite.p.currentPipelineIndex)
 
 	suite.p.Stop()
+	suite.a.Stop()
 	suite.Nil(suite.p.NextPipelineChan())
 }
 

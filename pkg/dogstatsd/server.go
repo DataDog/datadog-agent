@@ -55,6 +55,7 @@ type Server struct {
 	defaultHostname  string
 	histToDist       bool
 	histToDistPrefix string
+	extraTags        []string
 }
 
 // NewServer returns a running Dogstatsd server
@@ -108,6 +109,9 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
+
+	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
+
 	s := &Server{
 		Started:          true,
 		Statistics:       stats,
@@ -120,6 +124,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		defaultHostname:  defaultHostname,
 		histToDist:       histToDist,
 		histToDistPrefix: histToDistPrefix,
+		extraTags:        extraTags,
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -189,14 +194,15 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 			return
 		case <-s.health.C:
 		case packet := <-s.packetIn:
-			var originTags []string
+			extraTags := s.extraTags
 
 			if packet.Origin != listeners.NoOrigin {
-				var err error
 				log.Tracef("Dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
-				originTags, err = tagger.Tag(packet.Origin, tagger.IsFullCardinality())
+				originTags, err := tagger.Tag(packet.Origin, tagger.IsFullCardinality())
 				if err != nil {
 					log.Errorf(err.Error())
+				} else {
+					extraTags = append(extraTags, originTags...)
 				}
 				log.Tracef("Tags for %s: %s", packet.Origin, originTags)
 			} else {
@@ -214,26 +220,26 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 				}
 
 				if bytes.HasPrefix(message, []byte("_sc")) {
-					serviceCheck, err := parseServiceCheckMessage(message)
+					serviceCheck, err := parseServiceCheckMessage(message, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing service check: %s", err)
 						dogstatsdServiceCheckParseErrors.Add(1)
 						continue
 					}
-					if len(originTags) > 0 {
-						serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
+					if len(extraTags) > 0 {
+						serviceCheck.Tags = append(serviceCheck.Tags, extraTags...)
 					}
 					dogstatsdServiceCheckPackets.Add(1)
 					serviceCheckOut <- *serviceCheck
 				} else if bytes.HasPrefix(message, []byte("_e")) {
-					event, err := parseEventMessage(message)
+					event, err := parseEventMessage(message, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing event: %s", err)
 						dogstatsdEventParseErrors.Add(1)
 						continue
 					}
-					if len(originTags) > 0 {
-						event.Tags = append(event.Tags, originTags...)
+					if len(extraTags) > 0 {
+						event.Tags = append(event.Tags, extraTags...)
 					}
 					dogstatsdEventPackets.Add(1)
 					eventOut <- *event
@@ -244,8 +250,8 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 						dogstatsdMetricParseErrors.Add(1)
 						continue
 					}
-					if len(originTags) > 0 {
-						sample.Tags = append(sample.Tags, originTags...)
+					if len(extraTags) > 0 {
+						sample.Tags = append(sample.Tags, extraTags...)
 					}
 					dogstatsdMetricPackets.Add(1)
 					metricOut <- sample

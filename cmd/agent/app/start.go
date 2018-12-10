@@ -41,7 +41,7 @@ import (
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/containers"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/embed"
-	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/network"
+	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/net"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/system"
 
 	// register metadata providers
@@ -186,7 +186,7 @@ func StartAgent() error {
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(s, hostname)
+	agg := aggregator.InitAggregator(s, hostname, "agent")
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
 	// start dogstatsd

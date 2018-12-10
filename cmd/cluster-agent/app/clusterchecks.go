@@ -17,7 +17,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/cmd/agent/common"
 	"github.com/StackVista/stackstate-agent/pkg/api/util"
-	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/flare"
 )
@@ -30,6 +30,8 @@ var clusterChecksCmd = &cobra.Command{
 	Use:   "clusterchecks",
 	Short: "Prints the active cluster check configurations",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// we'll search for a config file named `datadog-cluster.yaml`
+		config.Datadog.SetConfigName("datadog-cluster")
 		err := common.SetupConfig(confPath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
@@ -58,19 +60,19 @@ func getClusterChecks() error {
 		return e
 	}
 
-	configs := []integration.Config{}
-	e = json.Unmarshal(r, &configs)
+	var response types.ConfigResponse
+	e = json.Unmarshal(r, &response)
 	if e != nil {
 		return e
 	}
 
-	if len(configs) == 0 {
+	if len(response.Configs) == 0 {
 		fmt.Printf("No cluster-check configuration\n")
 	} else {
-		fmt.Printf("Retrieved %d cluster-check configurations:\n", len(configs))
+		fmt.Printf("Retrieved %d cluster-check configurations:\n", len(response.Configs))
 
 	}
-	for _, c := range configs {
+	for _, c := range response.Configs {
 		flare.PrintConfig(os.Stdout, c)
 	}
 

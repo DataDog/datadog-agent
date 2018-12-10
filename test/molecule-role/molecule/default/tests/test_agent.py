@@ -7,11 +7,14 @@ testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
     os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent_vm')
 
 
-def test_stackstate_agent_is_installed(host):
+def test_stackstate_agent_is_installed(host, Ansible):
     agent = host.package("stackstate-agent")
-    assert agent.is_installed
     print agent.version
-    assert agent.version.startswith("2")
+    assert agent.is_installed
+
+    agent_current_branch = Ansible("include_vars", "./common_vars.yml")["ansible_facts"]["agent_current_branch"]
+    if agent_current_branch is "master":
+        assert agent.version.startswith("2")
 
 
 def test_stackstate_agent_running_and_enabled(host):

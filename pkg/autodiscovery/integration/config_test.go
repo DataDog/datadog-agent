@@ -25,12 +25,12 @@ func TestConfigEqual(t *testing.T) {
 	config.Name = another.Name
 	assert.True(t, config.Equal(another))
 
-	another.InitConfig = Data("fooBarBaz")
+	another.InitConfig = Data("{fooBarBaz}")
 	assert.False(t, config.Equal(another))
 	config.InitConfig = another.InitConfig
 	assert.True(t, config.Equal(another))
 
-	another.Instances = []Data{Data("justFoo")}
+	another.Instances = []Data{Data("{justFoo}")}
 	assert.False(t, config.Equal(another))
 	config.Instances = another.Instances
 	assert.True(t, config.Equal(another))
@@ -41,6 +41,20 @@ func TestConfigEqual(t *testing.T) {
 	assert.True(t, config.Equal(another))
 	another.ADIdentifiers = []string{"bar", "foo"}
 	assert.False(t, config.Equal(another))
+
+	checkConfigWithOrderedTags := &Config{
+		Name:       "test",
+		InitConfig: Data("{foo}"),
+		Instances:  []Data{Data("tags: [\"bar:foo\", \"foo:bar\"]")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+	checkConfigWithUnorderedTags := &Config{
+		Name:       "test",
+		InitConfig: Data("{foo}"),
+		Instances:  []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+	assert.Equal(t, checkConfigWithOrderedTags.Digest(), checkConfigWithUnorderedTags.Digest())
 }
 
 func TestString(t *testing.T) {
@@ -90,8 +104,21 @@ func TestMergeAdditionalTags(t *testing.T) {
 }
 
 func TestDigest(t *testing.T) {
-	config := &Config{}
-	assert.Equal(t, 16, len(config.Digest()))
+	emptyConfig := &Config{}
+	assert.Equal(t, "cbf29ce484222325", emptyConfig.Digest())
+	simpleConfig := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("{foo:bar}")},
+	}
+	assert.Equal(t, "d8cbc7186ba13533", simpleConfig.Digest())
+	simpleConfigWithLogs := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("{foo:bar}")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+	assert.Equal(t, "6253da85b1624771", simpleConfigWithLogs.Digest())
 }
 
 // this is here to prevent compiler optimization on the benchmarking code
@@ -101,7 +128,11 @@ func BenchmarkID(b *testing.B) {
 	var id string // store return value to avoid the compiler to strip the function call
 	config := &Config{}
 	config.InitConfig = make([]byte, 32000)
+	config.Instances = []Data{make([]byte, 32000)}
+	config.LogsConfig = make([]byte, 32000)
 	rand.Read(config.InitConfig)
+	rand.Read(config.Instances[0])
+	rand.Read(config.LogsConfig)
 	for n := 0; n < b.N; n++ {
 		id = config.Digest()
 	}

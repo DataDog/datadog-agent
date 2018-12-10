@@ -23,7 +23,7 @@ var checkID2 check.ID = "2"
 func TestRegisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil, "")
+	agg := InitAggregator(nil, "", "agent")
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
@@ -40,7 +40,7 @@ func TestRegisterCheckSampler(t *testing.T) {
 func TestDeregisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil, "")
+	agg := InitAggregator(nil, "", "agent")
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
@@ -55,7 +55,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "resolved-hostname")
+	agg := InitAggregator(nil, "resolved-hostname", "agent")
 
 	agg.addServiceCheck(metrics.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -74,7 +74,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	})
 
 	require.Len(t, agg.serviceChecks, 2)
-	assert.Equal(t, "resolved-hostname", agg.serviceChecks[0].Host)
+	assert.Equal(t, "", agg.serviceChecks[0].Host)
 	assert.Equal(t, []string{"bar", "foo"}, agg.serviceChecks[0].Tags)
 	assert.NotZero(t, agg.serviceChecks[0].Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Equal(t, "my-hostname", agg.serviceChecks[1].Host)
@@ -84,7 +84,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 
 func TestAddEventDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "resolved-hostname")
+	agg := InitAggregator(nil, "resolved-hostname", "agent")
 
 	agg.addEvent(metrics.Event{
 		// only populate required fields
@@ -105,10 +105,10 @@ func TestAddEventDefaultValues(t *testing.T) {
 	})
 
 	require.Len(t, agg.events, 2)
-	// Default values are set on Host and Ts only
+	// Default values are set on Ts
 	event1 := agg.events[0]
 	assert.Equal(t, "An event occurred", event1.Title)
-	assert.Equal(t, "resolved-hostname", event1.Host)
+	assert.Equal(t, "", event1.Host)
 	assert.NotZero(t, event1.Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Zero(t, event1.Priority)
 	assert.Zero(t, event1.Tags)
@@ -130,8 +130,15 @@ func TestAddEventDefaultValues(t *testing.T) {
 
 func TestSetHostname(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "hostname")
+	agg := InitAggregator(nil, "hostname", "agent")
 	assert.Equal(t, "hostname", agg.hostname)
+	sender, err := GetSender(checkID1)
+	require.NoError(t, err)
+	checkSender, ok := sender.(*checkSender)
+	require.True(t, ok)
+	assert.Equal(t, "hostname", checkSender.defaultHostname)
+
 	agg.SetHostname("different-hostname")
 	assert.Equal(t, "different-hostname", agg.hostname)
+	assert.Equal(t, "different-hostname", checkSender.defaultHostname)
 }

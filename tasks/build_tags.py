@@ -11,6 +11,7 @@ ALL_TAGS = set([
     "clusterchecks",
     "consul",
     "cpython",
+    "cri",
     "docker",
     "ec2",
     "etcd",
@@ -35,10 +36,18 @@ LINUX_ONLY_TAGS = [
     "docker",
     "kubelet",
     "kubeapiserver",
+    "cri",
 ]
 
-DEBIAN_ONLY_TAGS = [
+REDHAT_AND_DEBIAN_ONLY_TAGS = [
     "systemd",
+]
+
+REDHAT_AND_DEBIAN_DIST = [
+    'debian',
+    'ubuntu',
+    'centos',
+    'redhat'
 ]
 
 
@@ -57,8 +66,8 @@ def get_default_build_tags(puppy=False):
 
     # remove all tags that are only available on debian distributions
     distname = platform.linux_distribution()[0].lower()
-    if distname not in ['debian', 'ubuntu']:
-        exclude = exclude + DEBIAN_ONLY_TAGS
+    if distname not in REDHAT_AND_DEBIAN_DIST:
+        exclude = exclude + REDHAT_AND_DEBIAN_ONLY_TAGS
 
     return get_build_tags(include, exclude)
 

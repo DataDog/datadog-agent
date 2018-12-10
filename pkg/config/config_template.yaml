@@ -20,6 +20,8 @@ api_key: API_KEY
 #     - host2
 
 # Setting this option to "true" will tell the agent to skip validation of SSL/TLS certificates.
+# This may be necessary if the agent is running behind a proxy. See this page for details:
+# https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
 # skip_ssl_validation: false
 
 # Setting this option to "true" will force the agent to only use TLS 1.2 when
@@ -243,6 +245,12 @@ api_key: API_KEY
 # might change depending on the OS.
 # dogstatsd_so_rcvbuf:
 #
+# Additional tags to append to all metrics, events and service checks received by
+# this dogstatsd server. Useful for tagging all dogstatsd metrics reporting from
+# a single host without resorting to host tags.
+# dogstatsd_tags:
+#   - name:value
+#
 # If you want to forward every packet received by the dogstatsd server
 # to another statsd server, uncomment these lines.
 # WARNING: Make sure that forwarded packets are regular statsd packets and not "dogstatsd" packets,
@@ -306,6 +314,11 @@ api_key: API_KEY
 #   - name: docker
 #     polling: true
 
+## The clustercheck provider retrieves cluster-level check configurations
+## from the cluster-agent
+#   - name: clusterchecks
+#      grace_time_seconds: 60
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /stackstate/check_configs
@@ -348,7 +361,9 @@ api_key: API_KEY
 # disable_file_logging: false
 
 # Set to 'true' to enable logging to syslog.
-#
+# Note: Even if this option is set to 'false', the service launcher of your environment
+# may redirect the agent process' stdout/stderr to syslog. In that case, if you wish
+# to disable logging to syslog entirely, please set 'log_to_console' to 'false' as well.
 # log_to_syslog: false
 #
 # If 'syslog_uri' is left undefined/empty, a local domain socket connection will be attempted
@@ -447,6 +462,10 @@ api_key: API_KEY
 # is 5 seconds. It can be configured with this option.
 # docker_query_timeout: 5
 #
+# The default interval in second to check for new autodiscovery configurations
+# On all registered configuration providers
+# ad_config_poll_interval: 10
+#
 {{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction
@@ -485,8 +504,27 @@ api_key: API_KEY
 {{- if .ECS }}
 # ECS integration
 #
-# URL where the ECS agent can be found. Standard cases will be autodetected.
+# The ECS agent container should be autodetected when running with the
+# default (ecs-agent) name. Else, you can change the container name the
+# agent will look for, or force a fixed url:
+# ecs_agent_container_name: ecs-agent
 # ecs_agent_url: http://localhost:51678
+#
+# Fargate clusters use other endpoints and are not affected by these options.
+#
+{{ end -}}
+{{- if .CRI }}
+# CRI integration
+#
+# To activate the CRI check you'll need to indicate the path of the
+# CRI runtime you're using (and mount it in the container if needed)
+# cri_socket_path: /var/run/containerd/containerd.sock
+#
+# You can configure the initial connection timeout (in seconds)
+# cri_connection_timeout: 1
+#
+# You can configure the timeout (in seconds) for querying the CRI
+# cri_query_timeout: 5
 #
 {{ end -}}
 {{- if .Kubelet }}
@@ -510,6 +548,11 @@ api_key: API_KEY
 # kubelet_client_crt: /path/to/key
 # kubelet_client_key: /path/to/key
 #
+# On some kubelet versions, containers can take up to a second to
+# register in the podlist. This option allows to wait for up to a given
+# number of seconds (in 250ms chunks) when a container does not exist in the podlist.
+# kubelet_wait_on_missing_container: 0
+#
 {{ end -}}
 {{- if .KubeApiServer }}
 # Kubernetes apiserver integration
@@ -521,6 +564,11 @@ api_key: API_KEY
 #
 # kubernetes_kubeconfig_path: /path/to/file
 #
+# By default, communication with the apiserver is in json format. Setting the following
+# option to true will allow communication in the binary protobuf format, with a potential
+# performance improvement on both the agent and the apiserver.
+# kubernetes_apiserver_use_protobuf: false
+#
 # In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
 # [docker readme](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
 # You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
@@ -530,11 +578,11 @@ api_key: API_KEY
 # kubernetes_apiserver_client_timeout: 10
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
-# Only the leader will collect events. More details about events [here](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfilesagent/README.md#event-collection).
+# Only the leader will collect events. More details about events [here](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfiles/agent/README.md#event-collection).
 # collect_kubernetes_events: false
 #
 #
-# Leader Election settings, more details about leader election [here](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfilesagent/README.md#leader-election)
+# Leader Election settings, more details about leader election [here](https://github.com/StackVista/stackstate-agent/blob/master/Dockerfiles/agent/README.md#leader-election)
 # To enable the leader election on this node, set the leader_election variable to true.
 # leader_election: false
 # The leader election lease is an integer in seconds.
@@ -563,7 +611,6 @@ process_config:
   enabled: "true"
 # Enable/disable network tracing
   process_sts_url: http://localhost:7077/stsAgent
-  network_tracing_enabled: 'true'
 #   The full path to the file where process-agent logs will be written.
 #   log_file:
 #   The interval, in seconds, at which we will run each check. If you want consistent
@@ -587,6 +634,12 @@ process_config:
 #   sts_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   sts_agent_env:
+#
+# Network tracer specific settings
+#
+network_tracer_config:
+  network_tracing_enabled: "true"
+  initial_connections_from_proc: "true"
 {{ end -}}
 
 {{- if .TraceAgent }}

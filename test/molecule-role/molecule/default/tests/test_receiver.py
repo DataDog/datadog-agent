@@ -95,8 +95,8 @@ def test_created_connection_before_start(host, Ansible):
     util.wait_until(wait_for_connection, 30, 3)
 
 
-def test_host_metrics(host, Ansible):
-    url = "http://localhost:7070/api/topic/sts_metrics?limit=200"
+def test_host_metrics(host):
+    url = "http://localhost:7070/api/topic/sts_metrics?limit=1000"
 
     def wait_for_metrics():
         data = host.check_output("curl %s" % url)
@@ -141,8 +141,8 @@ def test_host_metrics(host, Ansible):
     util.wait_until(wait_for_metrics, 30, 3)
 
 
-def test_process_metrics(host, Ansible):
-    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=200"
+def test_process_metrics(host):
+    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
 
     def wait_for_metrics():
         data = host.check_output("curl %s" % url)
@@ -157,14 +157,10 @@ def test_process_metrics(host, Ansible):
         # Same metrics we check in the backend e2e tests
         # https://stackvista.githost.io/StackVista/StackState/blob/master/stackstate-pm-test/src/test/scala/com/stackstate/it/e2e/ProcessAgentIntegrationE2E.scala#L17
 
-        expected = set(["cpu_nice", "cpu_userPct", "cpu_userTime",
-                        "cpu_systemPct", "cpu_numThreads", "io_writeRate",
-                        "io_writeBytesRate", "cpu_totalPct",
-                        "voluntaryCtxSwitches", "mem_dirty",
-                        "involuntaryCtxSwitches", "io_readRate", "openFdCount",
-                        "mem_shared", "cpu_systemTime", "io_readBytesRate",
-                        "mem_data", "mem_vms", "mem_lib", "mem_text",
-                        "mem_swap", "mem_rss"])
+        expected = {"cpu_nice", "cpu_userPct", "cpu_userTime", "cpu_systemPct", "cpu_numThreads", "io_writeRate",
+                    "io_writeBytesRate", "cpu_totalPct", "voluntaryCtxSwitches", "mem_dirty", "involuntaryCtxSwitches",
+                    "io_readRate", "openFdCount", "mem_shared", "cpu_systemTime", "io_readBytesRate", "mem_data",
+                    "mem_vms", "mem_lib", "mem_text", "mem_swap", "mem_rss"}
 
         assert metrics == expected
 

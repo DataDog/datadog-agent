@@ -51,6 +51,12 @@ build do
             if debian?
                 # debian recommends using a different directory for systemd unit files
                 systemd_directory = "/lib/systemd/system"
+
+                # sysvinit support for debian only for now
+               mkdir "/etc/init.d"
+               move "#{install_dir}/scripts/stackstate-agent", "/etc/init.d"
+               move "#{install_dir}/scripts/stackstate-agent-trace", "/etc/init.d"
+               move "#{install_dir}/scripts/stackstate-agent-process", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/stackstate-agent.service", systemd_directory
@@ -83,8 +89,6 @@ build do
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
-
-            delete "#{install_dir}/etc/trace-agent.conf.example"
 
             # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
         end

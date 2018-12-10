@@ -257,6 +257,47 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
 
 
 @task
+def lint_licenses(ctx):
+    """
+    Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of Gopkg.lock
+    """
+    import csv
+    import toml
+
+    # non-go deps that should be listed in the license file, but not in Gopkg.lock
+    NON_GO_DEPS = set([
+        'github.com/codemirror/CodeMirror',
+        'github.com/FortAwesome/Font-Awesome',
+        'github.com/jquery/jquery',
+    ])
+
+    # Read all dep names from Gopkg.lock
+    go_deps = set()
+    gopkg_lock = toml.load('Gopkg.lock')
+    for project in gopkg_lock['projects']:
+        # FIXME: this conditional is necessary because of the issue introduced by DEPPROJECTROOT
+        # (for some reason `datadog-agent` gets added to Gopkg.lock and vendored), see comment in `deps`
+        # task for details
+        if project['name'] != 'github.com/DataDog/datadog-agent':
+            go_deps.add(project['name'])
+
+    deps = go_deps | NON_GO_DEPS
+
+    # Read all dep names listed in LICENSE-3rdparty
+    licenses = csv.DictReader(open('LICENSE-3rdparty.csv'))
+    license_deps = set()
+    for entry in licenses:
+        if len(entry['License']) == 0:
+            raise Exit(message="LICENSE-3rdparty entry '{}' has an empty license".format(entry['Origin']), code=1)
+        license_deps.add(entry['Origin'])
+
+    if deps != license_deps:
+        raise Exit(message="LICENSE-3rdparty.csv is outdated compared to deps listed in Gopkg.lock:\n" +
+                           "missing from LICENSE-3rdparty.csv: {}\n".format(deps - license_deps) +
+                           "listed in LICENSE-3rdparty.csv but not in Gopkg.lock: {}".format(license_deps - deps),
+                   code=1)
+
+@task
 def reset(ctx):
     """
     Clean everything and remove vendoring

@@ -8,6 +8,7 @@ bin/
 /dev/
 __pycache__
 .pytest_cache
+venv/
 
 **/*.tmp
 **/debug.test
@@ -86,3 +87,5 @@ kubeconfig
 
 # vagrant
 .vagrant
+
+version.txt

@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 
 	// testing this package needs an inited aggregator
 	// to work properly.
-	aggregator.InitAggregatorWithFlushInterval(nil, "", time.Hour)
+	aggregator.InitAggregatorWithFlushInterval(nil, "", "", time.Hour)
 
 	ret := m.Run()
 

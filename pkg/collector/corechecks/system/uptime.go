@@ -6,12 +6,10 @@
 package system
 
 import (
-	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-
-	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 )
 
 const uptimeCheckName = "uptime"
@@ -37,12 +35,6 @@ func (c *UptimeCheck) Run() error {
 	sender.Gauge("system.uptime", float64(t), "", nil)
 	sender.Commit()
 
-	return nil
-}
-
-// Configure the CPU check doesn't need configuration
-func (c *UptimeCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	// do nothing
 	return nil
 }
 

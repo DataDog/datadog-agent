@@ -58,7 +58,6 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			for _, source := range sources {
 				s.sources.AddSource(source)
 			}
-			break
 		case s.newService(config):
 			log.Infof("Received a new service: %v", config.Entity)
 			service, err := s.toService(config)
@@ -69,7 +68,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			s.services.AddService(service)
 		default:
 			// invalid integration config
-			break
+			continue
 		}
 	}
 }
@@ -82,9 +81,19 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		}
 		switch {
 		case s.newSources(config):
-			// new sources to remove
-			// do nothing as we don't need support the feature for now
-			break
+			log.Infof("New source to remove: entity: %v", config.Entity)
+
+			_, identifier, err := s.parseEntity(config.Entity)
+			if err != nil {
+				log.Warnf("Invalid configuration: %v", err)
+				continue
+			}
+
+			for _, source := range s.sources.GetSources() {
+				if identifier == source.Config.Identifier {
+					s.sources.RemoveSource(source)
+				}
+			}
 		case s.newService(config):
 			// new service to remove
 			log.Infof("New service to remove: entity: %v", config.Entity)
@@ -96,7 +105,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			s.services.RemoveService(service)
 		default:
 			// invalid integration config
-			break
+			continue
 		}
 	}
 }
@@ -196,6 +205,8 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 	}
 	switch provider {
 	case service.Docker:
+		return service.NewService(provider, identifier, s.getCreationTime(config)), nil
+	case service.Containerd:
 		return service.NewService(provider, identifier, s.getCreationTime(config)), nil
 	default:
 		return nil, fmt.Errorf("%v is not supported yet", provider)

@@ -90,18 +90,14 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 		}
 
 		for _, container := range pod.Status.Containers {
-			c, err := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
+			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, container.Name))
-			switch {
-			case err != nil:
-				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
-				continue
-			case len(c) == 0:
-				continue
-			default:
-				configs = append(configs, c...)
 
+			for _, err := range errors {
+				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
 			}
+
+			configs = append(configs, c...)
 		}
 	}
 	return configs, nil

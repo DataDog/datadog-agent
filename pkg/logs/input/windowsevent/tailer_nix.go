@@ -8,7 +8,7 @@
 package windowsevent
 
 import (
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // Start does not do much

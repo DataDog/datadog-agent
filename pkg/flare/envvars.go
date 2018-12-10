@@ -66,7 +66,7 @@ var envvarNameWhitelist = []string{
 }
 
 func getWhitelistedEnvvars() []string {
-	envVarWhiteList := append(envvarNameWhitelist, config.ConfigEnvVars...)
+	envVarWhiteList := append(envvarNameWhitelist, config.Datadog.GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)

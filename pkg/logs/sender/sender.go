@@ -6,31 +6,27 @@
 package sender
 
 import (
-	"net"
+	"context"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/logs/metrics"
 )
 
-// A Sender sends messages from an inputChan to datadog's intake,
-// handling connections and retries.
+// Sender is responsible for sending logs to different destinations.
 type Sender struct {
-	inputChan   chan message.Message
-	outputChan  chan message.Message
-	connManager *ConnectionManager
-	conn        net.Conn
-	delimiter   Delimiter
-	done        chan struct{}
+	inputChan    chan *message.Message
+	outputChan   chan *message.Message
+	destinations *Destinations
+	done         chan struct{}
 }
 
-// New returns an initialized Sender
-func New(inputChan, outputChan chan message.Message, connManager *ConnectionManager, delimiter Delimiter) *Sender {
+// NewSender returns an new sender.
+func NewSender(inputChan, outputChan chan *message.Message, destinations *Destinations) *Sender {
 	return &Sender{
-		inputChan:   inputChan,
-		outputChan:  outputChan,
-		connManager: connManager,
-		delimiter:   delimiter,
-		done:        make(chan struct{}),
+		inputChan:    inputChan,
+		outputChan:   outputChan,
+		destinations: destinations,
+		done:         make(chan struct{}),
 	}
 }
 
@@ -46,34 +42,52 @@ func (s *Sender) Stop() {
 	<-s.done
 }
 
-// run lets the sender wire messages
+// run lets the sender send messages.
 func (s *Sender) run() {
 	defer func() {
 		s.done <- struct{}{}
 	}()
 	for payload := range s.inputChan {
-		s.wireMessage(payload)
+		s.send(payload)
 	}
 }
 
-// wireMessage lets the Sender send a message to datadog's intake
-func (s *Sender) wireMessage(payload message.Message) {
+// send keeps trying to send the message to the main destination until it succeeds
+// and try to send the message to the additional destinations only once.
+func (s *Sender) send(payload *message.Message) {
 	for {
-		if s.conn == nil {
-			s.conn = s.connManager.NewConnection() // blocks until a new conn is ready
-		}
-		frame, err := s.delimiter.delimit(payload.Content())
+		// this call is blocking until payload is sent (or the connection destination context cancelled)
+		err := s.destinations.Main.Send(payload)
 		if err != nil {
-			log.Error("can't send payload: ", payload, err)
-			continue
+			if err == context.Canceled {
+				metrics.DestinationErrors.Add(1)
+				// the context was cancelled, agent is stopping non-gracefully.
+				// drop the message
+				break
+			}
+			switch err.(type) {
+			case *FramingError:
+				metrics.DestinationErrors.Add(1)
+				// the message can not be framed properly,
+				// drop the message
+				break
+			default:
+				metrics.DestinationErrors.Add(1)
+				// retry as the error can be related to network issues
+				continue
+			}
 		}
-		_, err = s.conn.Write(frame)
-		if err != nil {
-			s.connManager.CloseConnection(s.conn)
-			s.conn = nil
-			continue
+		for _, destination := range s.destinations.Additionals {
+			// try and forget strategy for additional endpoints
+			// this call is also blocking when the connection is not established yet
+			// FIXME: run all `Send` in parallel to avoid the effect on a slow
+			// destination on the others. Potentially add a buffer for secondary
+			// destinations.
+			destination.Send(payload)
 		}
-		s.outputChan <- payload
-		return
+
+		metrics.LogsSent.Add(1)
+		break
 	}
+	s.outputChan <- payload
 }

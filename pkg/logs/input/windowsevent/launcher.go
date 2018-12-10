@@ -6,7 +6,7 @@
 package windowsevent
 
 import (
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
@@ -15,7 +15,7 @@ import (
 
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
-	sources          *config.LogSources
+	sources          chan *config.LogSource
 	pipelineProvider pipeline.Provider
 	tailers          map[string]*Tailer
 	stop             chan struct{}
@@ -24,7 +24,7 @@ type Launcher struct {
 // NewLauncher returns a new Launcher.
 func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider) *Launcher {
 	return &Launcher{
-		sources:          sources,
+		sources:          sources.GetAddedForType(config.WindowsEventType),
 		pipelineProvider: pipelineProvider,
 		tailers:          make(map[string]*Tailer),
 		stop:             make(chan struct{}),
@@ -46,7 +46,7 @@ func (l *Launcher) Start() {
 func (l *Launcher) run() {
 	for {
 		select {
-		case source := <-l.sources.GetSourceStreamForType(config.WindowsEventType):
+		case source := <-l.sources:
 			identifier := Identifier(source.Config.ChannelPath, source.Config.Query)
 			if _, exists := l.tailers[identifier]; exists {
 				// tailer already setup

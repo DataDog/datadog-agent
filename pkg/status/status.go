@@ -122,7 +122,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	}
 	stats["config"] = getDCAPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-	stats["version"] = version.DCAVersion
+	stats["version"] = version.AgentVersion
 	stats["pid"] = os.Getpid()
 	hostname, err := util.GetHostname()
 	if err != nil {

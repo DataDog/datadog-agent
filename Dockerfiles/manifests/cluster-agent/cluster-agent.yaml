@@ -19,8 +19,8 @@ spec:
           - name: DD_API_KEY
             value: '<YOUR_API_KEY>'
           # Optionally reference an APP KEY for the External Metrics Provider.
-          #- name: DD_APP_KEY
-          #  value: '<YOUR_APP_KEY>'
+          # - name: DD_APP_KEY
+          #   value: '<YOUR_APP_KEY>'
           - name: DD_COLLECT_KUBERNETES_EVENTS
             value: "true"
           - name: DD_LEADER_ELECTION
@@ -29,9 +29,9 @@ spec:
             value: <THIRTY_2_CHARACTERS_LONG_TOKEN>
           - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
             value: 'true'
-         # If using a secret, you can alternatively use:
-#          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-#            valueFrom:
-#              secretKeyRef:
-#                name: datadog-auth-token
-#                key: token
+          # If using a secret, you can alternatively use:
+          # - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: datadog-auth-token
+          #       key: token

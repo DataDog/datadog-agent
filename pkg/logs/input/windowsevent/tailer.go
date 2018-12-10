@@ -10,7 +10,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/message"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/clbanning/mxj"
 )
 
@@ -29,7 +29,7 @@ type eventContext struct {
 type Tailer struct {
 	source     *config.LogSource
 	config     *Config
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	stop       chan struct{}
 	done       chan struct{}
 
@@ -37,7 +37,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *config.LogSource, config *Config, outputChan chan message.Message) *Tailer {
+func NewTailer(source *config.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		config:     config,
@@ -61,21 +61,17 @@ func (t *Tailer) Identifier() string {
 type Map map[string]interface{}
 
 // toMessage converts an XML message into json
-func (t *Tailer) toMessage(event string) (message.Message, error) {
+func (t *Tailer) toMessage(event string) (*message.Message, error) {
 	log.Debug("Rendered XML: ", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
 	if err != nil {
-		return nil, err
+		return &message.Message{}, err
 	}
 	jsonEvent, err := mv.Json(false)
 	if err != nil {
-		return nil, err
+		return &message.Message{}, err
 	}
 	log.Debug("Sending JSON: ", string(jsonEvent))
-	return message.New(
-		jsonEvent,
-		message.NewOrigin(t.source),
-		message.StatusInfo,
-	), nil
+	return message.NewMessage(jsonEvent, message.NewOrigin(t.source), message.StatusInfo), nil
 }

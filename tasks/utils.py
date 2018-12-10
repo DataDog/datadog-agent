@@ -209,11 +209,8 @@ def get_version_numeric_only(ctx):
     version, _, _, _ = query_version(ctx)
     return version
 
-def load_release_versions(ctx, target_version):
-    with open("release.json", "r") as f:
+def load_release_versions(ctx):
+    deps_file = "stackstate-deps.json"
+    with open(deps_file, "r") as f:
         versions = json.load(f)
-        if target_version in versions:
-            # windows runners don't accepts anything else than strings in the
-            # environment when running a subprocess.
-            return {str(k):str(v) for k, v in versions[target_version].iteritems()}
-    raise Exception("Could not find '{}' version in release.json".format(target_version))
+        return {str(k):str(v) for k, v in versions.iteritems()}

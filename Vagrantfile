@@ -1,5 +1,33 @@
 Vagrant.configure("2") do |config|
 
+  branch = "master" # master or PR_NAME
+
+  #Ubuntu 14
+  config.vm.define "trusty" do |trusty|
+    trusty.vm.box = "ubuntu/trusty64"
+    trusty.vm.hostname = 'trusty'
+    trusty.vm.box_url = "ubuntu/trusty64"
+
+    trusty.vm.network :private_network, ip: "192.168.56.101"
+
+    config.vm.synced_folder ".", "/opt/stackstate-agent-dev"
+
+    config.vm.provision "shell",
+      env: {
+        "STS_API_KEY" => "API_KEY",
+        "STS_URL" => "http://192.168.56.1:7077/stsAgent",
+        "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
+        "CODE_NAME" => branch
+      },
+      path: "./cmd/agent/install_script.sh"
+
+    trusty.vm.provider :virtualbox do |v|
+      v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      v.customize ["modifyvm", :id, "--memory", 1028]
+      v.customize ["modifyvm", :id, "--name", "trusty"]
+    end
+  end
+
   #Ubuntu 16.04
   config.vm.define "xenial" do |xenial|
     xenial.vm.box = "ubuntu/xenial64"
@@ -15,7 +43,7 @@ Vagrant.configure("2") do |config|
         "STS_API_KEY" => "API_KEY",
         "STS_URL" => "http://192.168.56.1:7077/stsAgent",
         "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
-        "CODE_NAME" => "master" # or PR_NAME
+        "CODE_NAME" => branch
       },
       path: "./cmd/agent/install_script.sh"
 
@@ -41,7 +69,7 @@ Vagrant.configure("2") do |config|
         "STS_API_KEY" => "API_KEY",
         "STS_URL" => "http://192.168.56.1:7077/stsAgent",
         "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
-        "CODE_NAME" => "master" # or PR_NAME
+        "CODE_NAME" => branch
       },
       path: "./cmd/agent/install_script.sh"
 
@@ -49,6 +77,32 @@ Vagrant.configure("2") do |config|
       v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
       v.customize ["modifyvm", :id, "--memory", 1028]
       v.customize ["modifyvm", :id, "--name", "bionic"]
+    end
+  end
+
+  #Debian 7
+  config.vm.define "wheezy" do |wheezy|
+    wheezy.vm.box = "debian/wheezy64"
+    wheezy.vm.hostname = 'wheezy'
+    wheezy.vm.box_url = "debian/wheezy64"
+
+    wheezy.vm.network :private_network, ip: "192.168.56.103"
+
+    config.vm.synced_folder ".", "/opt/stackstate-agent-dev"
+
+    config.vm.provision "shell",
+      env: {
+        "STS_API_KEY" => "API_KEY",
+        "STS_URL" => "http://192.168.56.1:7077/stsAgent",
+        "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
+        "CODE_NAME" => branch
+      },
+      path: "./cmd/agent/install_script.sh"
+
+    wheezy.vm.provider :virtualbox do |v|
+      v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      v.customize ["modifyvm", :id, "--memory", 1028]
+      v.customize ["modifyvm", :id, "--name", "wheezy"]
     end
   end
 
@@ -67,7 +121,7 @@ Vagrant.configure("2") do |config|
         "STS_API_KEY" => "API_KEY",
         "STS_URL" => "http://192.168.56.1:7077/stsAgent",
         "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
-        "CODE_NAME" => "master" # or PR_NAME
+        "CODE_NAME" => branch
       },
       path: "./cmd/agent/install_script.sh"
 
@@ -93,7 +147,7 @@ Vagrant.configure("2") do |config|
         "STS_API_KEY" => "API_KEY",
         "STS_URL" => "http://192.168.56.1:7077/stsAgent",
         "DEBIAN_REPO" => "https://stackstate-agent-2-test.s3.amazonaws.com",
-        "CODE_NAME" => "master" # or PR_NAME
+        "CODE_NAME" => branch
       },
       path: "./cmd/agent/install_script.sh"
 

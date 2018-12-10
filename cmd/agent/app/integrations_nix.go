@@ -21,7 +21,6 @@ const (
 
 var (
 	relPyPath            = filepath.Join("..", "..", "embedded", "bin", pythonBin)
-	relConstraintsPath   = filepath.Join("..", "..", constraintsFile)
 	relTufConfigFilePath = filepath.Join("..", "..", tufConfigFile)
 	relTufPipCache       = filepath.Join("..", "..", "repositories", "cache")
 )

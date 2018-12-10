@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
@@ -34,7 +35,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 
 func (t *Tailer) readAvailable() (err error) {
 	err = nil
-	f, err := os.Open(t.fullpath)
+	f, err := openFile(t.fullpath)
 	if err != nil {
 		return err
 	}
@@ -94,4 +95,29 @@ func (t *Tailer) readForever() {
 			}
 		}
 	}
+}
+
+// openFile reimplement the os.Open function for Windows because the default
+// implementation opens files without the FILE_SHARE_DELETE flag.
+// cf: https://github.com/golang/go/blob/release-branch.go1.11/src/syscall/syscall_windows.go#L271
+// This prevents users from moving/removing files when the tailer is reading the file.
+// FIXME(achntrl): Should we stop opening/closing the file on every call to readAvailable ?
+func openFile(path string) (*os.File, error) {
+	pathp, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+
+	access := uint32(syscall.GENERIC_READ)
+	// add FILE_SHARE_DELETE that is missing from os.Open implementation
+	sharemode := uint32(syscall.FILE_SHARE_READ | syscall.FILE_SHARE_WRITE | syscall.FILE_SHARE_DELETE)
+	createmode := uint32(syscall.OPEN_EXISTING)
+	var sa *syscall.SecurityAttributes
+
+	r, err := syscall.CreateFile(pathp, access, sharemode, sa, createmode, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return os.NewFile(uintptr(r), path), nil
 }

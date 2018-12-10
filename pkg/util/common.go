@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -198,8 +199,26 @@ func CreateHTTPTransport() *http.Transport {
 		tlsConfig.MinVersion = tls.VersionTLS12
 	}
 
+	// Most of the following timeouts are a copy of Golang http.DefaultTransport
+	// They are mostly used to act as safeguards in case we forget to add a general
+	// timeout to our http clients.
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
+		DialContext: (&net.Dialer{
+			Timeout: 30 * time.Second,
+			// Enables TCP keepalives to detect broken connections
+			KeepAlive: 30 * time.Second,
+			// Disable happy eyeballs. This option will be deprecated in go 1.12.
+			// At this point we will need to disable it by setting a new attribute to false.
+			// See https://github.com/DataDog/datadog-agent/pull/2464
+			DualStack: false,
+		}).DialContext,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 5,
+		// This parameter is set to avoid connections sitting idle in the pool indefinitely
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	if proxies := config.GetProxies(); proxies != nil {

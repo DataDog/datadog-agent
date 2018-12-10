@@ -27,6 +27,8 @@ when submitting your PR:
     changes, cross-referencing any related bugs/PRs.
   * use [Reno](#reno) to create a releasenote.
   * open your PR against the `master` branch.
+  * set the `team/agent-core` label
+  * add a milestone to your PR (use the highest available, ex: `6.8.0`)
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]

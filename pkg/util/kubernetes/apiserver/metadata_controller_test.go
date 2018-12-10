@@ -25,8 +25,6 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 )
 
-func alwaysReady() bool { return true }
-
 func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
@@ -292,9 +290,6 @@ func TestMetadataController(t *testing.T) {
 
 	metaController, informerFactory := newFakeMetadataController(client)
 
-	metaController.endpoints = make(chan struct{}, 1)
-	metaController.nodes = make(chan struct{}, 1)
-
 	stop := make(chan struct{})
 	defer close(stop)
 	informerFactory.Start(stop)
@@ -468,24 +463,24 @@ func TestMetadataController(t *testing.T) {
 }
 
 func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {
-	informerFactory := informers.NewSharedInformerFactory(client, 0)
+	informerFactory := informers.NewSharedInformerFactory(client, 1*time.Second)
 
 	metaController := NewMetadataController(
 		informerFactory.Core().V1().Nodes(),
 		informerFactory.Core().V1().Endpoints(),
 	)
-	metaController.nodeListerSynced = alwaysReady
-	metaController.endpointsListerSynced = alwaysReady
+	metaController.nodeListerSynced = func() bool { return true }
+	metaController.endpointsListerSynced = func() bool { return true }
+	metaController.endpoints = make(chan struct{}, 1)
+	metaController.nodes = make(chan struct{}, 1)
 
 	return metaController, informerFactory
 }
 
 func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
-	timeout := time.NewTimer(2 * time.Second)
-
 	select {
 	case <-ch:
-	case <-timeout.C:
+	case <-time.After(5 * time.Second):
 		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
 	}
 }

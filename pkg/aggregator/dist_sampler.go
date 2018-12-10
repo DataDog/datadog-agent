@@ -16,23 +16,21 @@ import (
 )
 
 type distSampler struct {
-	interval        int64
-	defaultHostname string
+	interval int64
 
 	m           sketchMap
 	ctxResolver *ContextResolver
 }
 
-func newDistSampler(interval int64, defaultHostname string) distSampler {
+func newDistSampler(interval int64) distSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
 
 	return distSampler{
-		interval:        interval,
-		defaultHostname: defaultHostname,
-		m:               make(sketchMap),
-		ctxResolver:     newContextResolver(),
+		interval:    interval,
+		m:           make(sketchMap),
+		ctxResolver: newContextResolver(),
 	}
 }
 
@@ -73,10 +71,6 @@ func (d *distSampler) newSeries(ck ckey.ContextKey, points []metrics.SketchPoint
 		Interval:   d.interval,
 		Points:     points,
 		ContextKey: ck,
-	}
-
-	if ss.Host == "" {
-		ss.Host = d.defaultHostname
 	}
 
 	return ss

@@ -31,42 +31,80 @@ func init() {
 	datadogStats.Set("Queries", datadogQueries)
 }
 
+type Point struct {
+	value     int64
+	timestamp int64
+	valid     bool
+}
+
+const (
+	value     = 1
+	timestamp = 0
+)
+
 // queryDatadogExternal converts the metric name and labels from the HPA format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (p *Processor) queryDatadogExternal(metricName string, tags map[string]string) (int64, error) {
-	if metricName == "" || len(tags) == 0 {
-		return 0, errors.New("invalid metric to query")
+func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point, error) {
+	if metricNames == nil {
+		log.Tracef("No processed external metrics to query")
+		return nil, nil
 	}
 	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
-	datadogTags := []string{}
 
-	for key, val := range tags {
-		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
+	aggregator := config.Datadog.GetString("external_metrics.aggregator")
+	var toQuery []string
+	for _, metric := range metricNames {
+		toQuery = append(toQuery, fmt.Sprintf("%s:%s", aggregator, metric))
 	}
-	tagString := strings.Join(datadogTags, ",")
 
-	// TODO: offer other aggregations than avg.
-	query := fmt.Sprintf("avg:%s{%s}", metricName, tagString)
+	query := strings.Join(toQuery, ",")
 
 	datadogQueries.Add(1)
 
 	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
-
 	if err != nil {
 		datadogErrors.Add(1)
-		return 0, log.Errorf("Error while executing metric query %s: %s", query, err)
+		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
 
+	processedMetrics := make(map[string]Point)
+	for _, name := range metricNames {
+		// If the returned Series is empty for one or more processedMetrics, add it as invalid now
+		// so it can be retried later.
+		processedMetrics[name] = Point{
+			timestamp: time.Now().Unix(),
+		}
+	}
+
+	// Go through processedMetrics output, extract last value and timestamp - If no series found return invalid metrics.
 	if len(seriesSlice) == 0 {
-		return 0, log.Errorf("Returned series slice empty")
+		return processedMetrics, log.Errorf("Returned series slice empty")
 	}
-	points := seriesSlice[0].Points
 
-	if len(points) == 0 {
-		return 0, log.Errorf("No points in series")
+	for _, serie := range seriesSlice {
+		if serie.Metric == nil {
+			log.Infof("Could not collect values for all processedMetrics in the query %s", query)
+			continue
+		}
+		var point Point
+		// Find the most recent value.
+		for i := len(serie.Points) - 1; i >= 0; i-- {
+			if serie.Points[i][value] == nil {
+				// We need this as if multiple metrics are queried, their points' timestamps align this can result in empty values.
+				continue
+			}
+			point.value = int64(*serie.Points[i][value])                // store the original value
+			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in ms
+			point.valid = true
+
+			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
+			processedMetrics[m] = point
+
+			log.Debugf("Validated %#v after %d/%d values", point, i, len(serie.Points)-1)
+			break
+		}
 	}
-	lastValue := int64(points[len(points)-1][1])
-	return lastValue, nil
+	return processedMetrics, nil
 }
 
 // NewDatadogClient generates a new client to query metrics from Datadog

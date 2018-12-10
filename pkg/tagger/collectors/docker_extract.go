@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/docker/docker/api/types"
@@ -17,17 +18,15 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
+// Allows to pass the dockerutil resolving method to
+// dockerExtractImage while using a mock for tests
+type resolveHook func(image string) (string, error)
+
 // extractFromInspect extract tags for a container inspect JSON
 func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, error) {
 	tags := utils.NewTagList()
 
-	//TODO: remove when Inspect returns resolved image names
-	dockerImage, err := c.dockerUtil.ResolveImageName(co.Image)
-	if err != nil {
-		log.Debugf("Error resolving image %s: %s", co.Image, err)
-	} else {
-		dockerExtractImage(tags, dockerImage)
-	}
+	dockerExtractImage(tags, co, c.dockerUtil.ResolveImageName)
 	dockerExtractLabels(tags, co.Config.Labels, c.labelsAsTags)
 	dockerExtractEnvironmentVariables(tags, co.Config.Env, c.envAsTags)
 
@@ -38,7 +37,27 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 	return low, high, nil
 }
 
-func dockerExtractImage(tags *utils.TagList, dockerImage string) {
+func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve resolveHook) {
+	// Swarm / Compose will store the full image with tag and sha in co.Config.Image
+	// while co.Image will miss the tag. Handle this case first before using the sha
+	// and inspecting the image.
+	if co.Config != nil && strings.Contains(co.Config.Image, "@sha256") {
+		imageName, shortImage, imageTag, err := containers.SplitImageName(co.Config.Image)
+		if err == nil && imageName != "" && imageTag != "" {
+			tags.AddLow("docker_image", fmt.Sprintf("%s:%s", imageName, imageTag))
+			tags.AddLow("image_name", imageName)
+			tags.AddLow("short_image", shortImage)
+			tags.AddLow("image_tag", imageTag)
+			return
+		}
+	}
+
+	// Resolve sha to image repotag for orchestrators that pin the image by sha
+	dockerImage, err := resolve(co.Image)
+	if err != nil {
+		log.Debugf("Error resolving image %s: %s", co.Image, err)
+		return
+	}
 	tags.AddLow("docker_image", dockerImage)
 	imageName, shortImage, imageTag, err := containers.SplitImageName(dockerImage)
 	if err != nil {
@@ -53,7 +72,6 @@ func dockerExtractImage(tags *utils.TagList, dockerImage string) {
 // dockerExtractLabels contain hard-coded labels from:
 // - Docker swarm
 func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string, labelsAsTags map[string]string) {
-
 	for labelName, labelValue := range containerLabels {
 		switch labelName {
 		// Docker swarm

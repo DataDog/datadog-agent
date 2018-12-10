@@ -121,7 +121,8 @@ func mkHTTPClient() *http.Client {
 }
 
 func mkURL(caseID string) string {
-	var url = config.Datadog.GetString("dd_url") + datadogSupportURL
+	baseURL, _ := config.AddAgentVersionToDomain(config.GetMainInfraEndpoint(), "flare")
+	var url = baseURL + datadogSupportURL
 	if caseID != "" {
 		url += "/" + caseID
 	}

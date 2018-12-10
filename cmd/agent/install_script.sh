@@ -204,7 +204,13 @@ if /sbin/init --version 2>&1 | grep -q upstart; then
     restart_cmd="$sudo_cmd start $PKG_NAME"
     stop_instructions="$sudo_cmd stop $PKG_NAME"
     start_instructions="$sudo_cmd start $PKG_NAME"
+elif [[ -d /etc/rc.d/ || -d /etc/init.d/ ]]; then
+    # Use sysv-init
+    restart_cmd="$sudo_cmd service $PKG_NAME restart"
+    stop_instructions="$sudo_cmd service $PKG_NAME stop"
+    start_instructions="$sudo_cmd service $PKG_NAME start"
 fi
+
 
 if [ $no_start ]; then
     printf "\033[34m

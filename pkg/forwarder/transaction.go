@@ -8,10 +8,13 @@ package forwarder
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptrace"
+	"strconv"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
@@ -20,17 +23,62 @@ import (
 )
 
 var (
-	transactionsRetryQueueSize = expvar.Int{}
-	transactionsSuccessful     = expvar.Int{}
-	transactionsDroppedOnInput = expvar.Int{}
-	transactionsErrors         = expvar.Int{}
+	transactionsRetryQueueSize     = expvar.Int{}
+	transactionsSuccessful         = expvar.Int{}
+	transactionsDroppedOnInput     = expvar.Int{}
+	transactionsErrors             = expvar.Int{}
+	transactionsErrorsByType       = expvar.Map{}
+	transactionsDNSErrors          = expvar.Int{}
+	transactionsTLSErrors          = expvar.Int{}
+	transactionsConnectionErrors   = expvar.Int{}
+	transactionsWroteRequestErrors = expvar.Int{}
+	transactionsSentRequestErrors  = expvar.Int{}
+	transactionsHTTPErrors         = expvar.Int{}
+	transactionsHTTPErrorsByCode   = expvar.Map{}
 )
 
+var trace = &httptrace.ClientTrace{
+	DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
+		if dnsInfo.Err != nil {
+			transactionsDNSErrors.Add(1)
+			log.Debugf("DNS Lookup failure: %s", dnsInfo.Err)
+		}
+	},
+	WroteRequest: func(wroteInfo httptrace.WroteRequestInfo) {
+		if wroteInfo.Err != nil {
+			transactionsWroteRequestErrors.Add(1)
+			log.Debugf("Request writing failure: %s", wroteInfo.Err)
+		}
+	},
+	ConnectDone: func(network, addr string, err error) {
+		if err != nil {
+			transactionsConnectionErrors.Add(1)
+			log.Debugf("Connection failure: %s", err)
+		}
+	},
+	TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
+		if err != nil {
+			transactionsTLSErrors.Add(1)
+			log.Errorf("TLS Handshake failure: %s", err)
+		}
+	},
+}
+
 func initTransactionExpvars() {
+	transactionsErrorsByType.Init()
+	transactionsHTTPErrorsByCode.Init()
 	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 	transactionsExpvars.Set("Success", &transactionsSuccessful)
 	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
+	transactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
+	transactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 	transactionsExpvars.Set("Errors", &transactionsErrors)
+	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
+	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
+	transactionsErrorsByType.Set("TLSErrors", &transactionsTLSErrors)
+	transactionsErrorsByType.Set("ConnectionErrors", &transactionsConnectionErrors)
+	transactionsErrorsByType.Set("WroteRequestErrors", &transactionsWroteRequestErrors)
+	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -86,6 +134,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
+		transactionsSentRequestErrors.Add(1)
 		return nil
 	}
 	req = req.WithContext(ctx)
@@ -107,6 +156,19 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
 		return err
+	}
+
+	if resp.StatusCode >= 400 {
+		statusCode := strconv.Itoa(resp.StatusCode)
+		var codeCount *expvar.Int
+		if count := transactionsHTTPErrorsByCode.Get(statusCode); count == nil {
+			codeCount = &expvar.Int{}
+			transactionsHTTPErrorsByCode.Set(statusCode, codeCount)
+		} else {
+			codeCount = count.(*expvar.Int)
+		}
+		codeCount.Add(1)
+		transactionsHTTPErrors.Add(1)
 	}
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {

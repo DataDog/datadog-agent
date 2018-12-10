@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"hash/fnv"
 	"regexp"
+	"sort"
 	"strconv"
 
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
-
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 var tplVarRegex = regexp.MustCompile(`%%.+?%%`)
@@ -49,6 +50,12 @@ type Config struct {
 	Entity        string       `json:"-"`              // the id of the entity (optional)
 	ClusterCheck  bool         `json:"-"`              // cluster-check configuration flag, don't expose in JSON
 	CreationTime  CreationTime `json:"-"`              // creation time of service
+}
+
+// CommonInstanceConfig holds the reserved fields for the yaml instance data
+type CommonInstanceConfig struct {
+	MinCollectionInterval int  `yaml:"min_collection_interval"`
+	EmptyDefaultHostname  bool `yaml:"empty_default_hostname"`
 }
 
 // Equal determines whether the passed config is the same
@@ -191,12 +198,25 @@ func (c *Config) Digest() string {
 	h := fnv.New64()
 	h.Write([]byte(c.Name))
 	for _, i := range c.Instances {
-		h.Write([]byte(i))
+		inst := RawMap{}
+		err := yaml.Unmarshal(i, &inst)
+		if err != nil {
+			continue
+		}
+		tagList, _ := inst["tags"].([]string)
+		sort.Strings(tagList)
+		inst["tags"] = tagList
+		out, err := yaml.Marshal(&inst)
+		if err != nil {
+			continue
+		}
+		h.Write(out)
 	}
 	h.Write([]byte(c.InitConfig))
 	for _, i := range c.ADIdentifiers {
 		h.Write([]byte(i))
 	}
+	h.Write([]byte(c.LogsConfig))
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

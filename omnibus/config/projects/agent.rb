@@ -158,6 +158,11 @@ if linux?
   systemd_directory = "/usr/lib/systemd/system"
   if debian?
     systemd_directory = "/lib/systemd/system"
+
+
+    extra_package_file "/etc/init.d/stackstate-agent"
+    extra_package_file "/etc/init.d/stackstate-agent-process"
+    extra_package_file "/etc/init.d/stackstate-agent-trace"
   end
   extra_package_file "#{systemd_directory}/stackstate-agent.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-process.service"

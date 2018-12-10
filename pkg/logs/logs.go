@@ -26,8 +26,11 @@ var (
 
 // Start starts logs-agent
 func Start() error {
+	if IsAgentRunning() {
+		return nil
+	}
 	// setup the server config
-	serverConfig, err := config.BuildServerConfig()
+	endpoints, err := config.BuildEndpoints()
 	if err != nil {
 		return err
 	}
@@ -43,10 +46,11 @@ func Start() error {
 	status.Initialize(sources)
 
 	// setup and start the agent
-	agent = NewAgent(sources, services, serverConfig)
-	log.Info("Starting logs-agent")
+	agent = NewAgent(sources, services, endpoints)
+	log.Info("Starting logs-agent...")
 	agent.Start()
 	isRunning = true
+	log.Info("logs-agent started")
 
 	// add the default sources
 	for _, source := range config.DefaultSources() {
@@ -59,10 +63,20 @@ func Start() error {
 // Stop stops properly the logs-agent to prevent data loss,
 // it only returns when the whole pipeline is flushed.
 func Stop() {
+	log.Info("Stopping logs-agent")
 	if isRunning {
-		log.Info("Stopping logs-agent")
-		agent.Stop()
+		if agent != nil {
+			agent.Stop()
+			agent = nil
+		}
+		if adScheduler != nil {
+			adScheduler.Stop()
+			adScheduler = nil
+		}
+		status.Clear()
+		isRunning = false
 	}
+	log.Info("logs-agent stopped")
 }
 
 // IsAgentRunning returns true if the logs-agent is running.
@@ -72,7 +86,7 @@ func IsAgentRunning() bool {
 
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
-	if !isRunning {
+	if !IsAgentRunning() {
 		return status.Status{IsRunning: false}
 	}
 	return status.Get()
