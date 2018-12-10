@@ -611,7 +611,6 @@ process_config:
   enabled: "true"
 # Enable/disable network tracing
   process_sts_url: http://localhost:7077/stsAgent
-  network_tracing_enabled: 'true'
 #   The full path to the file where process-agent logs will be written.
 #   log_file:
 #   The interval, in seconds, at which we will run each check. If you want consistent
@@ -635,6 +634,10 @@ process_config:
 #   sts_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   sts_agent_env:
+
+network_tracer_config:
+  network_tracing_enabled: "true"
+  initial_connections_from_proc: "true"
 {{ end -}}
 
 {{- if .TraceAgent }}
