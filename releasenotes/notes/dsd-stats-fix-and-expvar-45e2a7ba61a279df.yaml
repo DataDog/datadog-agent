@@ -2,7 +2,7 @@
 enhancements:
   - |
     Introduces an expvar reporting the number of dogstatsd
-    packtes per second processed if `dogstatsd_stats_enable`
+    packets per second processed if `dogstatsd_stats_enable`
     is enabled.
 fixes:
   - |

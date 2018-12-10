@@ -54,12 +54,14 @@ func (s *Stats) StatEvent(v int64) {
 
 // Process call to start processing statistics
 func (s *Stats) Process() {
-	tickChan := time.NewTicker(time.Second).C
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+
 	for {
 		select {
 		case v := <-s.incoming:
 			s.valExpvar.Add(v)
-		case <-tickChan:
+		case <-t.C:
 			select {
 			case s.Aggregated <- Stat{
 				Val: s.valExpvar.Value(),
@@ -79,10 +81,12 @@ func (s *Stats) Process() {
 
 // Update update the expvar parameter with the last aggregated value
 func (s *Stats) Update(expStat *expvar.Int) {
-	tickChan := time.NewTicker(time.Second).C
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+
 	for {
 		select {
-		case <-tickChan:
+		case <-t.C:
 			last := <-s.Aggregated
 			expStat.Set(last.Val)
 		case <-s.stopped:
@@ -91,7 +95,7 @@ func (s *Stats) Update(expStat *expvar.Int) {
 	}
 }
 
-// Stop call to stop processing statistics
+// Stop call to stop processing statistics. Once stopped, Stats cannot be restarted.
 func (s *Stats) Stop() {
 	close(s.stopped)
 }
