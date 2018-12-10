@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -151,6 +152,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	err = zipDiagnose(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip diagnose: %s", err)
+	}
+
+	err = zipSecrets(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip secrets: %s", err)
 	}
 
 	err = zipEnvvars(tempDir, hostname)
@@ -356,6 +362,29 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		}
 	}
 
+	return err
+}
+
+func zipSecrets(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	secrets.GetDebugInfo(writer)
+	writer.Flush()
+
+	f := filepath.Join(tempDir, hostname, "secrets.log")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := NewRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = w.Write(b.Bytes())
 	return err
 }
 
