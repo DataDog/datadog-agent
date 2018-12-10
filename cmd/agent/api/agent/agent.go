@@ -177,6 +177,17 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(map[string]string{
 			"error":      "Dogstatsd not enabled in the Agent configuration",
+			"error_type": "no server",
+		})
+		w.WriteHeader(400)
+		w.Write(body)
+		return
+	}
+
+	if !config.Datadog.GetBool("dogstatsd_metrics_stats_enable") {
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{
+			"error":      "Dogstatsd metrics stats not enabled in the Agent configuration",
 			"error_type": "not enabled",
 		})
 		w.WriteHeader(400)

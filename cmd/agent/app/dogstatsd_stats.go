@@ -69,7 +69,7 @@ func requestDogstatsdStats() error {
 			e = fmt.Errorf(err)
 		}
 
-		if errMap["error_type"] == "not enabled" {
+		if len(errMap["error_type"]) > 0 {
 			fmt.Println(e)
 			return nil
 		}
