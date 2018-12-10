@@ -634,7 +634,9 @@ process_config:
 #   sts_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   sts_agent_env:
-
+#
+# Network tracer specific settings
+#
 network_tracer_config:
   network_tracing_enabled: "true"
   initial_connections_from_proc: "true"

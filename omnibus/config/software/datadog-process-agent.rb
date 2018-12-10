@@ -11,6 +11,10 @@ process_agent_version = ENV['PROCESS_AGENT_VERSION']
 if process_agent_version.nil? || process_agent_version.empty?
   process_agent_version = 'master'
 end
+process_agent_branch = ENV['PROCESS_AGENT_BRANCH']
+if process_agent_branch.nil? || process_agent_branch.empty?
+  process_agent_branch = 'master'
+end
 default_version process_agent_version
 
 build do
@@ -24,7 +28,7 @@ build do
   else
     binary = "process-agent-amd64-#{process_agent_version}"
     target_binary = "process-agent"
-    url = "https://s3.amazonaws.com/stackstate-process-agent-test/binaries/master/#{binary}"
+    url = "https://s3.amazonaws.com/stackstate-process-agent-test/binaries/#{process_agent_branch}/#{binary}"
     curl_cmd = "curl -f #{url} -o #{binary}"
     command curl_cmd
     command "chmod +x #{binary}"

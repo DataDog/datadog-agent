@@ -22,11 +22,11 @@ def test_receiver_ok(host):
     assert host.check_output(c) == "200"
 
 
-def test_created_connection_with_metrics(host, Ansible):
+def test_created_connection_after_start_with_metrics(host, Ansible):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
     # FIXME: Maybe there is a more direct way to get this variable
     conn_port = int(Ansible("include_vars", "./common_vars.yml")
-                    ["ansible_facts"]["test_connection_port"])
+                    ["ansible_facts"]["test_connection_port_after_start"])
 
     def wait_for_connection():
         data = host.check_output("curl %s" % url)
@@ -55,6 +55,42 @@ def test_created_connection_with_metrics(host, Ansible):
         assert incoming_conn["connectionType"] == "TCP"
         assert incoming_conn["bytesSentPerSecond"] == 0.0
         assert incoming_conn["bytesReceivedPerSecond"] > 10.0
+
+    util.wait_until(wait_for_connection, 30, 3)
+
+
+def test_created_connection_before_start(host, Ansible):
+    url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
+    # FIXME: Maybe there is a more direct way to get this variable
+    conn_port = int(Ansible("include_vars", "./common_vars.yml")
+                    ["ansible_facts"]["test_connection_port_before_start"])
+
+    def wait_for_connection():
+        data = host.check_output("curl %s" % url)
+        json_data = json.loads(data)
+        print(json.dumps(json_data))
+        outgoing_conn = next(connection for message in json_data["messages"]
+                             for connection
+                             in message["message"]
+                             ["Connections"]["connections"]
+                             if connection["remoteEndpoint"]
+                             ["endpoint"]["port"] == conn_port
+                             )
+        print outgoing_conn
+        # Outgoing gets no direction from /proc scanning
+        assert outgoing_conn["direction"] == "NONE"
+        assert outgoing_conn["connectionType"] == "TCP"
+
+        incoming_conn = next(connection for message in json_data["messages"]
+                             for connection
+                             in message["message"]
+                             ["Connections"]["connections"]
+                             if connection["localEndpoint"]
+                             ["endpoint"]["port"] == conn_port
+                             )
+        print incoming_conn
+        assert incoming_conn["direction"] == "INCOMING"
+        assert incoming_conn["connectionType"] == "TCP"
 
     util.wait_until(wait_for_connection, 30, 3)
 
