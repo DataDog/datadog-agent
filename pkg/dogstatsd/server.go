@@ -59,7 +59,7 @@ type Server struct {
 	histToDist       bool
 	histToDistPrefix string
 	extraTags        []string
-	metricStats      map[string]metricStat
+	metricsStats     map[string]metricStat
 	statsLock        sync.Mutex
 }
 
@@ -137,7 +137,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		histToDist:       histToDist,
 		histToDistPrefix: histToDistPrefix,
 		extraTags:        extraTags,
-		metricStats:      make(map[string]metricStat),
+		metricsStats:     make(map[string]metricStat),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -264,7 +264,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 						continue
 					}
 
-					s.debugStats(sample.Tags)
+					s.storeMetricsStats(sample.Tags)
 
 					if len(extraTags) > 0 {
 						sample.Tags = append(sample.Tags, extraTags...)
@@ -299,16 +299,15 @@ func (s *Server) Stop() {
 	s.Started = false
 }
 
-func (s *Server) debugStats(tags []string) {
+func (s *Server) storeMetricsStats(tags []string) {
 	now := time.Now()
 	s.statsLock.Lock()
 	defer s.statsLock.Unlock()
 	for _, tag := range tags {
-		mds := s.metricStats[tag]
-		mds.Count++
-		mds.LastSeen = now
-
-		s.metricStats[tag] = mds
+		ms := s.metricsStats[tag]
+		ms.Count++
+		ms.LastSeen = now
+		s.metricsStats[tag] = ms
 	}
 }
 
@@ -316,7 +315,7 @@ func (s *Server) debugStats(tags []string) {
 func (s *Server) GetJSONDebugStats() ([]byte, error) {
 	s.statsLock.Lock()
 	defer s.statsLock.Unlock()
-	return json.Marshal(s.metricStats)
+	return json.Marshal(s.metricsStats)
 }
 
 // FormatDebugStats returns a printable version of debug stats.
