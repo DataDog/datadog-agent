@@ -9,7 +9,9 @@ package secrets
 
 import (
 	"fmt"
+	"io"
 	"os/user"
+	"strconv"
 	"syscall"
 )
 
@@ -43,4 +45,38 @@ func checkRights(path string) error {
 	}
 
 	return nil
+}
+
+func listRights(path string, w io.Writer) {
+	fmt.Fprintf(w, "=== Checking executable rights ===\n")
+	fmt.Fprintf(w, "executable path: %s\n", path)
+
+	err := checkRights(path)
+	if err != nil {
+		fmt.Fprintf(w, "Check Rights: KO, %s\n", err)
+	} else {
+		fmt.Fprintf(w, "Check Rights: OK, the executable has the correct rights\n")
+	}
+
+	fmt.Fprintf(w, "\nRights Detail:\n")
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		fmt.Fprintf(w, "Could not stat %s: %s\n", path, err)
+		return
+	}
+	fmt.Fprintf(w, "file mode: %o\n", stat.Mode)
+
+	owner, err := user.LookupId(strconv.Itoa(int(stat.Uid)))
+	if err != nil {
+		fmt.Fprintf(w, "Owner username: could not fetch name for UID %d: %s\n", stat.Uid, err)
+	} else {
+		fmt.Fprintf(w, "Owner username: %s\n", owner.Username)
+	}
+
+	group, err := user.LookupGroupId(strconv.Itoa(int(stat.Gid)))
+	if err != nil {
+		fmt.Fprintf(w, "Group name: could not fetch name for GID %d: %s\n", stat.Uid, err)
+	} else {
+		fmt.Fprintf(w, "Group name: %s\n", group.Name)
+	}
 }
