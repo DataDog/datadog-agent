@@ -29,7 +29,7 @@ instances:
   #   key_store_password: password
   #   rmi_registry_ssl: false # Optional, should be set to true if "com.sun.management.jmxremote.registry.ssl" is set to true on the target JVM.
   #
-  #   # Use better metric names for garbage collection metrics. The default value is false to ensure backward compatibility.
+  #   # Set to true to use better metric names for garbage collection metrics. The default value is false to ensure backward compatibility.
   #   # jvm.gc.cms.count   => jvm.gc.minor_collection_count
   #   #                       jvm.gc.major_collection_count
   #   # jvm.gc.parnew.time => jvm.gc.minor_collection_time
