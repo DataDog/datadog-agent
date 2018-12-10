@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -223,8 +224,7 @@ func (d *DockerCheck) Run() error {
 		}
 
 		if c.IO != nil {
-			sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
-			sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
+			d.reportIOMetrics(c.IO, tags, sender)
 		} else {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
@@ -339,6 +339,27 @@ func (d *DockerCheck) Run() error {
 
 	sender.Commit()
 	return nil
+}
+
+func (d *DockerCheck) reportIOMetrics(io *cmetrics.CgroupIOStat, tags []string, sender aggregator.Sender) {
+	if io == nil {
+		return
+	}
+	// Read values, per device or fallback to sum
+	for dev, value := range io.DeviceReadBytes {
+		sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev))
+	}
+	if len(io.DeviceReadBytes) == 0 {
+		sender.Rate("docker.io.read_bytes", float64(io.ReadBytes), "", tags)
+	}
+
+	// Write values, per device or fallback to sum
+	for dev, value := range io.DeviceWriteBytes {
+		sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev))
+	}
+	if len(io.DeviceWriteBytes) == 0 {
+		sender.Rate("docker.io.write_bytes", float64(io.WriteBytes), "", tags)
+	}
 }
 
 // Configure parses the check configuration and init the check
