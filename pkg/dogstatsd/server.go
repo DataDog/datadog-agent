@@ -335,5 +335,9 @@ func FormatDebugStats(stats []byte) (string, error) {
 		buf.Write([]byte(fmt.Sprintf("%-40s | %-10d | %-20v\n", tag, stats.Count, stats.LastSeen)))
 	}
 
+	if len(dogStats) == 0 {
+		buf.Write([]byte("No metrics processed yet."))
+	}
+
 	return buf.String(), nil
 }
