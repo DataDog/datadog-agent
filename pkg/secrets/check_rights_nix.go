@@ -47,17 +47,7 @@ func checkRights(path string) error {
 	return nil
 }
 
-func listRights(path string, w io.Writer) {
-	fmt.Fprintf(w, "=== Checking executable rights ===\n")
-	fmt.Fprintf(w, "executable path: %s\n", path)
-
-	err := checkRights(path)
-	if err != nil {
-		fmt.Fprintf(w, "Check Rights: KO, %s\n", err)
-	} else {
-		fmt.Fprintf(w, "Check Rights: OK, the executable has the correct rights\n")
-	}
-
+func listRightsDetails(path string, w io.Writer) {
 	fmt.Fprintf(w, "\nRights Detail:\n")
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
