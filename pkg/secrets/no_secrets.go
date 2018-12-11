@@ -9,6 +9,11 @@
 
 package secrets
 
+import (
+	"fmt"
+	"io"
+)
+
 // Init placeholder when compiled without the 'secrets' build tag
 func Init(command string, arguments []string, timeout int, maxSize int) {}
 
@@ -19,5 +24,5 @@ func Decrypt(data []byte) ([]byte, error) {
 
 // GetDebugInfo expose debug informations about secrets to be included in a flare
 func GetDebugInfo(w io.Writer) {
-	fmt.Fprintln(w, "Secret feature is not yet available on windows")
+	fmt.Fprintln(w, "Secret feature is disabled")
 }

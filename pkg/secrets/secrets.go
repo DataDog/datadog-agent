@@ -192,7 +192,17 @@ func GetDebugInfo(w io.Writer) {
 		return
 	}
 
-	listRights(secretBackendCommand, w)
+	fmt.Fprintf(w, "=== Checking executable rights ===\n")
+	fmt.Fprintf(w, "executable path: %s\n", secretBackendCommand)
+
+	err := checkRights(secretBackendCommand)
+	if err != nil {
+		fmt.Fprintf(w, "Check Rights: the executable does not have the correct rights: %s\n", err)
+	} else {
+		fmt.Fprintf(w, "Check Rights: the executable has the correct rights\n")
+	}
+
+	listRightsDetails(secretBackendCommand, w)
 
 	fmt.Fprintf(w, "=== Secrets stats ===\n")
 	fmt.Fprintf(w, "Number of secrets decrypted: %d\n", len(secretCache))

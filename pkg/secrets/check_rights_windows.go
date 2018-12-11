@@ -8,8 +8,11 @@
 package secrets
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"syscall"
 	"unsafe"
 
@@ -154,4 +157,30 @@ func checkRights(filename string) error {
 		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", username, filename)
 	}
 	return nil
+}
+
+func listRightsDetails(path string, w io.Writer) {
+	ps, err := exec.LookPath("powershell.exe")
+	if err != nil {
+		fmt.Fprintf(w, "Could not find executable powershell.exe: %s\n", err)
+		return
+	}
+
+	cmd := exec.Command(ps, "get-acl", "-Path", path, "|", "format-list")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		fmt.Fprintf(w, "Error calling 'get-acl': %s\n", err)
+	} else {
+		fmt.Fprintf(w, "Acl list:\n")
+	}
+	fmt.Fprintf(w, "stdout:\n %s\n", stdout.String())
+	if stderr.Len() != 0 {
+		fmt.Fprintf(w, "stderr:\n %s\n", stderr.String())
+	}
 }
