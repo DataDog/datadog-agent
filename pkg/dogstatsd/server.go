@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -335,13 +336,27 @@ func FormatDebugStats(stats []byte) (string, error) {
 		return "", err
 	}
 
+	// put tags in order: first is the more frequent
+	order := make([]string, len(dogStats))
+	i := 0
+	for tag := range dogStats {
+		order[i] = tag
+		i++
+	}
+
+	sort.Slice(order, func(i, j int) bool {
+		return dogStats[order[i]].Count > dogStats[order[j]].Count
+	})
+
+	// write the response
 	buf := bytes.NewBuffer(nil)
 
 	header := fmt.Sprintf("%-40s | %-10s | %-20s\n", "Tag", "Count", "Last Seen")
 	buf.Write([]byte(header))
 	buf.Write([]byte(strings.Repeat("-", len(header)) + "\n"))
 
-	for tag, stats := range dogStats {
+	for _, tag := range order {
+		stats := dogStats[tag]
 		buf.Write([]byte(fmt.Sprintf("%-40s | %-10d | %-20v\n", tag, stats.Count, stats.LastSeen)))
 	}
 
