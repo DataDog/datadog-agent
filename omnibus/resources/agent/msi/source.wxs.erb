@@ -211,7 +211,7 @@
                           Start="install"
                           Stop="both"
                           Remove="uninstall"
-                          Wait="no" />
+                          Wait="yes" />
           <RemoveFolder Id="APPLICATIONROOTDIRECTORY" On="uninstall" />
           <!-- The "Name" field must match the argument to eventlog.Open() -->
           <util:EventSource Log="Application" Name="DatadogAgent"
@@ -256,7 +256,7 @@
                             Start="install"
                             Stop="both"
                             Remove="uninstall"
-                            Wait="no" />
+                            Wait="yes" />
             <!-- The "Name" field must match the argument to eventlog.Open() -->
             <util:EventSource Log="Application" Name="datadog-trace-agent"
                     EventMessageFile="[AGENT]trace-agent.exe"
@@ -297,7 +297,7 @@
                             Start="install"
                             Stop="both"
                             Remove="uninstall"
-                            Wait="no" />
+                            Wait="yes" />
             <!-- The "Name" field must match the argument to eventlog.Open() -->
             <util:EventSource Log="Application" Name="datadog-process-agent"
                     EventMessageFile="[AGENT]process-agent.exe"
