@@ -446,7 +446,7 @@ agent_android_apk:
     # task
     - inv -e android.build
     - mkdir -p $CI_PROJECT_DIR/apk
-    - cp ./bin/agent/ddagent-release-*-unsigned.apk $CI_PROJECT_DIR/apk
+    - cp ./bin/agent/ddagent-*-unsigned.apk $CI_PROJECT_DIR/apk
   artifacts:
     expire_in: 2 weeks
     paths:
