@@ -13,7 +13,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
@@ -307,6 +307,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             args['populate_s3_cache'] = " --populate-s3-cache "
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
+        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, git_sha_length=7, match=None)
         ctx.run(cmd.format(**args), env=env)
 
 

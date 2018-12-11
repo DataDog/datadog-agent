@@ -22,10 +22,7 @@ else
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
-build_version do
-  source :git
-  output_format :dd_agent_format
-end
+build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 
