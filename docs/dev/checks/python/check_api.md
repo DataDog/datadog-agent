@@ -33,7 +33,7 @@ The `AgentCheck` base class provides some useful attributes and methods:
 - `self.name`: the name of the check
 - `self.init_config`: the `init_config` section from the check configuration.
 - `self.log`: a [logger](https://docs.python.org/2/library/logging.html).
-- `get_instance_proxy()`: a function returning a dictionary containing informations on the Proxy being used
+- `get_instance_proxy()`: a function returning a dictionary containing information on the Proxy being used
 
 **Warning**: when loading a Python check, the Agent will inspect the available
 modules and packages searching for a subclass of `AgentCheck`. If such a class
