@@ -194,14 +194,14 @@ func detectAgentURL() (string, error) {
 		// List all interfaces for the ecs-agent container
 		agentURLS, err := getAgentContainerURLS()
 		if err != nil {
-			log.Debugf("could inspect ecs-agent container: ", err)
+			log.Debugf("could inspect ecs-agent container: %s", err)
 		} else {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
 		gw, err := docker.DefaultGateway()
 		if err != nil {
-			log.Debugf("could not get docker default gateway: ", err)
+			log.Debugf("could not get docker default gateway: %s", err)
 		}
 		if gw != nil {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", gw.String(), DefaultAgentPort))
