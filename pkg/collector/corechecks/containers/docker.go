@@ -232,7 +232,7 @@ func (d *DockerCheck) Run() error {
 		if c.Network != nil {
 			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {
-					log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+					log.Debugf("Ignore network stat with empty name for container %s", c.ID[:12])
 					continue
 				}
 				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
@@ -307,7 +307,7 @@ func (d *DockerCheck) Run() error {
 		} else {
 			for _, stat := range stats {
 				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
-					log.Debugf("Ignoring unknown disk stats: %s", stat)
+					log.Debugf("Ignoring unknown disk stats: %s", stat.Name)
 					continue
 				}
 				if stat.Free != nil {

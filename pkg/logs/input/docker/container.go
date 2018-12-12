@@ -77,7 +77,7 @@ func (c *Container) getShortImageName() (string, error) {
 	imageName := c.container.Image
 	imageName, err = du.ResolveImageName(imageName)
 	if err != nil {
-		log.Debugf("Could not resolve image name %d: %d", imageName, err)
+		log.Debugf("Could not resolve image name %s: %s", imageName, err)
 		return shortName, err
 	}
 	_, shortName, _, err = containers.SplitImageName(imageName)

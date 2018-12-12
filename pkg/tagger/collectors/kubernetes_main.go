@@ -69,7 +69,7 @@ func (c *KubeMetadataCollector) Pull() error {
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
-		log.Tracef("skipping, next effective Pull will be in %s seconds", timeDelta)
+		log.Tracef("skipping, next effective Pull will be in %d seconds", timeDelta)
 		return nil
 	}
 
