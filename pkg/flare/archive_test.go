@@ -27,7 +27,7 @@ import (
 
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()

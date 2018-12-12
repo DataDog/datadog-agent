@@ -142,7 +142,7 @@ func TestSendV1Events(t *testing.T) {
 }
 
 func TestSendEvents(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitEvents", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
@@ -178,7 +178,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 }
 
 func TestSendServiceChecks(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitServiceChecks", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
@@ -214,7 +214,7 @@ func TestSendV1Series(t *testing.T) {
 }
 
 func TestSendSeries(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
@@ -295,7 +295,7 @@ func TestSendJSONToV1Intake(t *testing.T) {
 }
 
 func TestSendWithDisabledKind(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	mockConfig.Set("enable_payloads.events", false)
 	mockConfig.Set("enable_payloads.series", false)

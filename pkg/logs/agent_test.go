@@ -34,7 +34,7 @@ type AgentTestSuite struct {
 }
 
 func (suite *AgentTestSuite) SetupTest() {
-	mockConfig := coreConfig.NewMock()
+	mockConfig := coreconfig.Mock()
 
 	var err error
 

@@ -36,7 +36,7 @@ func (suite *SecureTestSuite) SetupTest() {
 // - tls_verify
 // - cacert
 func (suite *SecureTestSuite) TestWithTLSCA() {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
@@ -75,7 +75,7 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 // - tls_verify
 // - WITHOUT cacert (expecting failure)
 func (suite *SecureTestSuite) TestTLSWithoutCA() {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
@@ -98,7 +98,7 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 // - cacert
 // - certificate
 func (suite *SecureTestSuite) TestTLSWithCACertificate() {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)

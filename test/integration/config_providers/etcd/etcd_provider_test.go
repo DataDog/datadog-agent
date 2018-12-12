@@ -81,7 +81,7 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *EtcdTestSuite) SetupTest() {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("autoconf_template_dir", "/foo/")
 
 	suite.populateEtcd()

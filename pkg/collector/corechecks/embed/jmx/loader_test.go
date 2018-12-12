@@ -38,7 +38,7 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	defer os.RemoveAll(tmp) // clean up
 
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("jmx_pipe_path", tmp)
 
 	jl, err := NewJMXCheckLoader()

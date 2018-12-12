@@ -37,7 +37,7 @@ type testSuite struct {
 }
 
 func TestSuiteKube(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	s := &testSuite{}
 
 	// Start compose stack
@@ -87,7 +87,7 @@ func (suite *testSuite) SetupTest() {
 }
 
 func (suite *testSuite) TestKubeEvents() {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	// Init own client to write the events
 	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
@@ -166,7 +166,7 @@ func (suite *testSuite) TestKubeEvents() {
 }
 
 func (suite *testSuite) TestHostnameProvider() {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	// Init own client to write the events
 	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)

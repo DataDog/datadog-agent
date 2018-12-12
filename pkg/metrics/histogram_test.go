@@ -40,7 +40,7 @@ func TestConfigureDefault(t *testing.T) {
 }
 
 func TestConfigure(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	aggregatesBk := config.Datadog.Get("histogram_aggregates")
 	percentilesBk := config.Datadog.Get("histogram_percentiles")

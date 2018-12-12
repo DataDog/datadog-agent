@@ -124,7 +124,7 @@ func TestConsulGetTemplates(t *testing.T) {
 	kv := &consulKVMock{}
 	provider := &consulMock{kv: kv}
 
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default
@@ -189,7 +189,7 @@ func TestConsulCollect(t *testing.T) {
 	kv := &consulKVMock{}
 	provider := &consulMock{kv: kv}
 
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default

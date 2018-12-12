@@ -36,6 +36,6 @@ func InitLogging(level string) error {
 
 // SetHostname sets the hostname
 func SetHostname(hostname string) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("hostname", hostname)
 }

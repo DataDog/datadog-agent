@@ -49,7 +49,7 @@ func getClass(moduleName, className string) (checkClass *python.PyObject) {
 }
 
 func getCheckInstance(moduleName, className string) (*PythonCheck, error) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("foo_agent", "bar_agent")
 	defer mockConfig.Set("foo_agent", nil)
 

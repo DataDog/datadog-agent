@@ -19,7 +19,7 @@ import (
 
 func TestMkURL(t *testing.T) {
 	common.SetupConfig("./test")
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("dd_url", "https://example.com")
 	mockConfig.Set("api_key", "123456")
 	expectedURLBase, _ := config.AddAgentVersionToDomain("https://example.com/", "flare")
@@ -48,7 +48,7 @@ func TestFlareHasRightForm(t *testing.T) {
 
 	ddURL := ts.URL
 
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("dd_url", ddURL)
 
 	archivePath := "./test/blank.zip"

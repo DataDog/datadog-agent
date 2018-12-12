@@ -29,7 +29,7 @@ func TestFetchAuthTokenValidGen(t *testing.T) {
 	require.Nil(t, err, fmt.Errorf("%v", err))
 	defer os.Remove(f.Name())
 
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.SetConfigFile(f.Name())
 	expectTokenPath := filepath.Join(testDir, "auth_token")
 	defer os.Remove(expectTokenPath)

@@ -136,7 +136,7 @@ func TestJSONConverter(t *testing.T) {
 }
 
 func TestCreateHTTPTransport(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	skipSSL := config.Datadog.GetBool("skip_ssl_validation")
 	forceTLS := config.Datadog.GetBool("force_tls_12")

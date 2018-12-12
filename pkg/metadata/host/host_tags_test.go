@@ -8,7 +8,7 @@ import (
 )
 
 func TestGetHostTags(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
 	defer mockConfig.Set("tags", nil)
 
@@ -25,7 +25,7 @@ func TestGetEmptyHostTags(t *testing.T) {
 }
 
 func TestGetHostTagsWithSplits(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ","})
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 	defer mockConfig.Set("tags", nil)
@@ -36,7 +36,7 @@ func TestGetHostTagsWithSplits(t *testing.T) {
 }
 
 func TestGetHostTagsWithoutSplits(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 	defer mockConfig.Set("tags", nil)

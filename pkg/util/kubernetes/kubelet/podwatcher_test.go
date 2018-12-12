@@ -196,7 +196,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 }
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)

@@ -21,7 +21,7 @@ import (
 )
 
 func TestGetKubeletConnectionInfoNotFound(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("kubernetes_http_kubelet_port", 0)
 	mockConfig.Set("kubernetes_https_kubelet_port", 0)
 	kubelet.ResetGlobalKubeUtil()

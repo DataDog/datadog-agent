@@ -18,7 +18,7 @@ import (
 )
 
 func TestValidateTokenMiddleware(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("cluster_agent.auth_token", "abc123")
 	util.SetDCAAuthToken()
 

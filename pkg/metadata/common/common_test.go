@@ -23,7 +23,7 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestGetAPIKey(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("api_key", "bar,baz")
 	assert.Equal(t, "bar", getAPIKey())
 	assert.Equal(t, "bar", apiKey)

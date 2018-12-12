@@ -107,7 +107,7 @@ var expectedHostTags = map[string]string{
 }
 
 func TestConvertKubernetes(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	dir, err := ioutil.TempDir("", "agent_test_legacy")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)

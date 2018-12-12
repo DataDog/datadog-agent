@@ -212,7 +212,7 @@ func TestProcessBundledEvents(t *testing.T) {
 
 	// Test the hostname change when a cluster name is set
 	var testClusterName = "Laika"
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 	// defer a reset of the state so that future hostname fetches are not impacted

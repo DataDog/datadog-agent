@@ -40,7 +40,7 @@ func TestRandomBetween(t *testing.T) {
 }
 
 func TestMinBackoffFactorValid(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	e := newBlockedEndpoints()
 
 	// Verify default
@@ -62,7 +62,7 @@ func TestMinBackoffFactorValid(t *testing.T) {
 }
 
 func TestBaseBackoffTimeValid(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	e := newBlockedEndpoints()
 
 	// Verify default
@@ -84,7 +84,7 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 }
 
 func TestMaxBackoffTimeValid(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	e := newBlockedEndpoints()
 
 	// Verify default
@@ -106,7 +106,7 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 }
 
 func TestRecoveryIntervalValid(t *testing.T) {
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	e := newBlockedEndpoints()
 
 	// Verify default

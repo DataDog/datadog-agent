@@ -179,7 +179,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusOK)
 	}))
-	mockConfig := config.NewMock()
+	mockConfig := config.Mock()
 	ddURL := mockConfig.Get("dd_url")
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
