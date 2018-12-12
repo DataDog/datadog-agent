@@ -161,7 +161,7 @@ following:
 - `name`: the name of the check.
 - `_init_config`: the init_config section of the configuration.
 - `instances`: a one-element list containing the instance options from the
-  configuration file (to be backwards compatible we agent5 checks we have to
+  configuration file (to be backwards compatible with agent5 checks we have to
   pass a list here).
 
 ## Running subprocesses
