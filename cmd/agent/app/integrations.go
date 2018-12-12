@@ -273,6 +273,10 @@ func tuf(args []string) error {
 			tufCmd.Env = append(tufCmd.Env,
 				"TUF_DOWNLOAD_IN_TOTO_METADATA=1",
 			)
+			// Change the working directory to one the Datadog Agent can read, so
+			// that we can switch to temporary working directories, and back, for
+			// in-toto.
+			tufCmd.Dir, _ = executable.Folder()
 		}
 	} else {
 		if inToto {

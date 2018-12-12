@@ -170,7 +170,7 @@ func pdhGetFormattedCounterValueLarge(hCounter PDH_HCOUNTER) (val int64, err err
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
 	if ERROR_SUCCESS != ret {
-		return 0, fmt.Errorf("Error retrieving large value %v", ret)
+		return 0, fmt.Errorf("Error retrieving large value 0x%x 0x%x", ret, pValue.CStatus)
 	}
 
 	return pValue.LargeValue, nil
@@ -186,7 +186,7 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
 	if ERROR_SUCCESS != ret {
-		return 0, fmt.Errorf("Error retrieving large value %v", ret)
+		return 0, fmt.Errorf("Error retrieving float value 0x%x 0x%x", ret, pValue.CStatus)
 	}
 
 	return pValue.DoubleValue, nil

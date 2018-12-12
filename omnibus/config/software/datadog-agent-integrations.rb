@@ -14,6 +14,7 @@ dependency 'protobuf-py'
 
 if linux?
   # add nfsiostat script
+  dependency 'unixodbc'
   dependency 'nfsiostat'
 end
 
@@ -44,7 +45,8 @@ blacklist = [
   'agent_metrics',
   'docker_daemon',
   'kubernetes',
-  'ntp',  # provided as a go check by the core agent
+  'ntp',                           # provided as a go check by the core agent
+  'openstack_controller',          # Check currently under active development and in beta
 ]
 
 core_constraints_file = 'core_constraints.txt'
@@ -98,10 +100,10 @@ build do
     all_reqs_file.close
 
     nix_build_env = {
-      "CFLAGS" => "-I#{install_dir}/embedded/include",
-      "CXXFLAGS" => "-I#{install_dir}/embedded/include",
-      "LDFLAGS" => "-L#{install_dir}/embedded/lib",
-      "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
+      "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+      "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+      "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
+      "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
 

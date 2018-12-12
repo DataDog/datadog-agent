@@ -222,7 +222,7 @@ func ImportRegistryConfig() error {
 					case "apm_config.enabled":
 						config.Datadog.Set(cfg, false)
 					case "process_config.enabled":
-						config.Datadog.Set(cfg, "false")
+						config.Datadog.Set(cfg, "disabled")
 					}
 					log.Debugf("Setting %s to false", cfg)
 				}

@@ -16,23 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
+// ContainerCollectAll is the name of the docker integration that collect logs from all containers
+const ContainerCollectAll = "container_collect_all"
+
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
 func DefaultSources() []*LogSource {
 	var sources []*LogSource
 
-	tcpForwardPort := coreConfig.Datadog.GetInt("logs_config.tcp_forward_port")
-	if tcpForwardPort > 0 {
-		// append source to collect all logs forwarded by TCP on a given port.
-		source := NewLogSource("tcp_forward", &LogsConfig{
-			Type: TCPType,
-			Port: tcpForwardPort,
-		})
-		sources = append(sources, source)
-	}
-
 	if coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
 		// append a new source to collect all logs from all containers
-		source := NewLogSource("container_collect_all", &LogsConfig{
+		source := NewLogSource(ContainerCollectAll, &LogsConfig{
 			Type:    DockerType,
 			Service: "docker",
 			Source:  "docker",

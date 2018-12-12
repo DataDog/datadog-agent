@@ -47,6 +47,7 @@ type MetadataProviders struct {
 type ConfigurationProviders struct {
 	Name             string `mapstructure:"name"`
 	Polling          bool   `mapstructure:"polling"`
+	PollInterval     string `mapstructure:"poll_interval"`
 	TemplateURL      string `mapstructure:"template_url"`
 	TemplateDir      string `mapstructure:"template_dir"`
 	Username         string `mapstructure:"username"`
@@ -114,6 +115,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnvAndSetDefault("bind_host", "localhost")
+	config.BindEnvAndSetDefault("health_port", int64(0))
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -284,8 +286,6 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	// collect all logs from all containers:
 	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
-	// collect all logs forwarded by TCP on a specific port:
-	config.BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
 	// add a socks5 proxy:
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// send the logs to a proxy:
@@ -472,17 +472,17 @@ func sanitizeAPIKey(config Config) {
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
 func GetMainInfraEndpoint() string {
-	return getMainInfraEndpoint(Datadog)
+	return getMainInfraEndpointWithConfig(Datadog)
 }
 
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
 func GetMainEndpoint(prefix string, ddURLKey string) string {
-	return getMainEndpoint(Datadog, prefix, ddURLKey)
+	return GetMainEndpointWithConfig(Datadog, prefix, ddURLKey)
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {
-	return getMultipleEndpoints(Datadog)
+	return getMultipleEndpointsWithConfig(Datadog)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
@@ -510,12 +510,12 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 	return u.String(), nil
 }
 
-func getMainInfraEndpoint(config Config) string {
-	return getMainEndpoint(config, infraURLPrefix, "dd_url")
+func getMainInfraEndpointWithConfig(config Config) string {
+	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
 }
 
-// getMainEndpoint implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
-func getMainEndpoint(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
+// GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
+func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
 		resolvedDDURL = config.GetString(ddURLKey)
@@ -530,10 +530,10 @@ func getMainEndpoint(config Config, prefix string, ddURLKey string) (resolvedDDU
 	return
 }
 
-// getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
-func getMultipleEndpoints(config Config) (map[string][]string, error) {
+// getMultipleEndpointsWithConfig implements the logic to extract the api keys per domain from an agent config
+func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) {
 	// Validating domain
-	ddURL := getMainInfraEndpoint(config)
+	ddURL := getMainInfraEndpointWithConfig(config)
 	_, err := url.Parse(ddURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse main endpoint: %s", err)

@@ -60,9 +60,11 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			"pod/node2/bar/pod-00005": {"kube_service:svc3"},
 			"pod/node2/bar/pod-00006": {},
 		},
-		rawResponses: map[string]string{},
-		token:        config.Datadog.GetString("cluster_agent.auth_token"),
-		requests:     make(chan *http.Request, 6),
+		rawResponses: map[string]string{
+			"/version": `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
+		},
+		token:    config.Datadog.GetString("cluster_agent.auth_token"),
+		requests: make(chan *http.Request, 100),
 	}
 	return dca, nil
 }
@@ -87,7 +89,7 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	d.RLock()
 	redirectURL := d.redirectURL
 	d.RUnlock()
-	if redirectURL != "" {
+	if redirectURL != "" && strings.Contains(r.URL.Path, "/api/v1/clusterchecks/") {
 		url, _ := url.Parse(redirectURL)
 		url.Path = r.URL.Path
 		http.Redirect(w, r, url.String(), http.StatusFound)

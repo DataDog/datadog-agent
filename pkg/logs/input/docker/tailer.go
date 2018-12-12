@@ -13,6 +13,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -49,6 +50,8 @@ type Tailer struct {
 	done               chan struct{}
 	erroredContainerID chan string
 	cancelFunc         context.CancelFunc
+	lastSince          string
+	mutex              sync.Mutex
 }
 
 // NewTailer returns a new Tailer
@@ -93,25 +96,40 @@ func (t *Tailer) Start(since time.Time) error {
 	return t.tail(since.Format(config.DateFormat))
 }
 
+func (t *Tailer) getLastSince() string {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return t.lastSince
+}
+
+func (t *Tailer) setLastSince(since string) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.lastSince = since
+}
+
 // setupReader sets up the reader that reads the container's logs
 // with the proper configuration
-func (t *Tailer) setupReader(since string) (io.ReadCloser, context.CancelFunc, error) {
+func (t *Tailer) setupReader() error {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
 		Timestamps: true,
 		Details:    false,
-		Since:      since,
+		Since:      t.getLastSince(),
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
-	return reader, cancelFunc, err
+	t.reader = reader
+	t.cancelFunc = cancelFunc
+	return err
 }
 
 // tail sets up and starts the tailer
 func (t *Tailer) tail(since string) error {
-	reader, cancelFunc, err := t.setupReader(since)
+	t.setLastSince(since)
+	err := t.setupReader()
 	if err != nil {
 		// could not start the tailer
 		t.source.Status.Error(err)
@@ -119,9 +137,6 @@ func (t *Tailer) tail(since string) error {
 	}
 	t.source.Status.Success()
 	t.source.AddInput(t.ContainerID)
-
-	t.reader = reader
-	t.cancelFunc = cancelFunc
 
 	go t.keepDockerTagsUpdated()
 	go t.forwardMessages()
@@ -145,6 +160,15 @@ func (t *Tailer) readForever() {
 			n, err := t.read(inBuf, readTimeout)
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
+				case isContextCanceled(err):
+					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.ContainerID))
+					err := t.setupReader()
+					if err != nil {
+						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
+						t.erroredContainerID <- t.ContainerID
+						return
+					}
+					continue
 				case isClosedConnError(err):
 					// This error is raised when the agent is stopping
 					return
@@ -186,10 +210,6 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 		// Cancel the docker socket reader context
 		t.cancelFunc()
 		<-doneReading
-		if isContextCanceled(err) {
-			// override the error with a more explicit message
-			err = fmt.Errorf("timeout reading from the docker socket")
-		}
 	}
 
 	return n, err
@@ -211,6 +231,7 @@ func (t *Tailer) forwardMessages() {
 		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.source)
 			origin.Offset = output.Timestamp
+			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.containerTags)
 			output.Origin = origin

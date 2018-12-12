@@ -10,15 +10,37 @@ might mean:
 
 ## Environment variables
 
-All options supported by the Infrastructure Agent in the configuration file can also be set through environment variables;
- * Option names should be put in uppercase with the `DD_` prefix. (example: `hostname` -> `DD_HOSTNAME`)
- * Nested variables should be specified with an underscore. (example: `DD_CLUSTER_AGENT_CMD_PORT` -> `cluster_agent.cmd_port`)
- * List of values should be separated by spaces. (example: `DD_AC_INCLUDE="image:cp-kafka image:k8szk"`)
- * Any map structure but the proxy settings should be json-formatted. (example: `DD_DOCKER_ENV_AS_TAGS='{ "ENVVAR_NAME": "tag_name" }'`)
+All the options supported by the Agent in the main configuration file (`datadog.yaml`) can also be set through environment variables, using the following rules:
 
-Notes:
- * Specifying nested variables with an environment variable overrides all the others nested variables of the parameter specified in the corresponding configuration file.
- * The above note doesn't apply for the proxy setting. [Refer to the dedicated Agent proxy documentation](https://docs.datadoghq.com/agent/proxy/#agent-v6) to learn more.
+1. Option names should be put in uppercase with the `DD_` prefix. Example: `hostname` -> `DD_HOSTNAME`
+
+2. The nesting of config options should be indicated with an underscore separator. Example:
+   ```yaml
+   cluster_agent:
+     cmd_port: <some_value>
+   ```
+   -> `DD_CLUSTER_AGENT_CMD_PORT=<some_value>`
+
+   Exception: at the moment, only some of the options nested under `apm_config` and `process_config` can be set through environment variables.
+
+3. List of values should be separated by spaces. Example:
+   ```yaml
+   ac_include:
+     - "image:cp-kafka"
+     - "image:k8szk"
+   ```
+   -> `DD_AC_INCLUDE="image:cp-kafka image:k8szk"`
+
+4. Options that expect a map structure with _arbitrary_, _user-defined_ keys should be json-formatted. Example:
+   ```yaml
+   docker_env_as_tags:
+     ENVVAR_NAME: tag_name
+   ```
+   -> `DD_DOCKER_ENV_AS_TAGS='{ "ENVVAR_NAME": "tag_name" }'`
+
+   Note: this rule does not apply to options that expect a map structure with _predefined_ keys. For these options, refer to rule `2.` above.
+
+Note: for a given config option, specifying a nested option with an environment variable overrides _all_ the nested options that are specified under that config option in the configuration file. There is one exception to this: the `proxy` config option, please refer to [the dedicated Agent proxy documentation](https://docs.datadoghq.com/agent/proxy/#agent-v6) for more on the proxy configuration.
 
 ## Orchestration + Agent Management
 
@@ -79,8 +101,9 @@ hostname when set to `true`
 ## Removed options
 
 This is the list of configuration options that were removed in the new Agent
-beacause either superseded by new options or related to features that works
-differently from Agent version 5.
+because they're either:
+* superseded by new options, or
+* related to features that work differently from Agent version 5
 
 | Name | Notes |
 | --- | --- |
@@ -108,7 +131,7 @@ differently from Agent version 5.
 | `dogstream_log` | |
 | `use_curl_http_client` | |
 | `gce_updated_hostname` | v6 behaves like v5 with `gce_updated_hostname` set to true. May affect reported hostname, see [doc][gce-hostname] |
-| `collect_security_groups` | feature still available with the aws integration  |
+| `collect_security_groups` | v6 doesn't collect security group host tags, feature is still available with the aws integration  |
 
 [datadog-yaml]: https://raw.githubusercontent.com/DataDog/datadog-agent/master/pkg/config/config_template.yaml
 [gce-hostname]: changes.md#gce-hostname

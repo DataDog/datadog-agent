@@ -99,6 +99,10 @@ int _is_none(PyObject *o) {
   return o == Py_None;
 }
 
+const char* _object_type(PyObject *o) {
+  return Py_TYPE(o)->tp_name;
+}
+
 void initaggregator()
 {
   PyGILState_STATE gstate;
@@ -124,6 +128,11 @@ int _PyInt_Check(PyObject *o) {
 
 int _PyString_Check(PyObject *o) {
   return PyString_Check(o);
+}
+
+PyObject* _PyObject_Repr(PyObject *o)
+{
+  return PyObject_Repr(o);
 }
 
 PyObject* PySequence_Fast_Get_Item(PyObject *o, Py_ssize_t i)
