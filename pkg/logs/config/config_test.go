@@ -34,7 +34,7 @@ func TestDefaultDatadogConfig(t *testing.T) {
 }
 
 func TestDefaultSources(t *testing.T) {
-	mockConfig := coreconfig.Mock()
+	mockConfig := coreConfig.Mock()
 
 	var sources []*LogSource
 	var source *LogSource
@@ -52,7 +52,7 @@ func TestDefaultSources(t *testing.T) {
 }
 
 func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
-	mockConfig := coreconfig.Mock()
+	mockConfig := coreConfig.Mock()
 
 	var endpoints *client.Endpoints
 
@@ -114,7 +114,7 @@ func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
 }
 
 func TestBuildEndpointsShouldFailWithInvalidOverride(t *testing.T) {
-	mockConfig := coreconfig.Mock()
+	mockConfig := coreConfig.Mock()
 
 	invalidURLs := []string{
 		"host:foo",
