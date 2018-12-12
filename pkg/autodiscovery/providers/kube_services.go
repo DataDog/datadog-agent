@@ -29,8 +29,8 @@ const (
 	kubeServiceAnnotationPrefix = "ad.datadoghq.com/service."
 	kubeServiceIDPrefix         = "kube_service://"
 	// AD on the individual service endpoints (TODO)
-	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
-	kubeEndpointIDPrefix         = "kube_endpoint://"
+	// kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
+	// kubeEndpointIDPrefix         = "kube_endpoint://"
 )
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.

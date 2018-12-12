@@ -332,6 +332,12 @@ api_key:
 #   - name: clusterchecks
 #      grace_time_seconds: 60
 
+{{- if .ClusterChecks }}
+## The kube_services provider watches Kubernetes services for cluster-checks
+#   - name: kube_services
+#     polling: true
+{{ end -}}
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs
