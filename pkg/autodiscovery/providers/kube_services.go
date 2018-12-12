@@ -26,7 +26,6 @@ import (
 const (
 	// AD on the load-balanced service IPs
 	kubeServiceAnnotationPrefix = "ad.datadoghq.com/service."
-	kubeServiceIDPrefix         = "kube_service://"
 	// AD on the individual service endpoints (TODO)
 	// kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	// kubeEndpointIDPrefix         = "kube_endpoint://"
@@ -151,7 +150,7 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 			log.Debug("Ignoring a nil service")
 			continue
 		}
-		service_id := fmt.Sprintf("%s%s", kubeServiceIDPrefix, svc.ObjectMeta.UID)
+		service_id := apiserver.EntityForService(svc)
 		c, errors := extractTemplatesFromMap(service_id, svc.Annotations, kubeServiceAnnotationPrefix)
 		for _, err := range errors {
 			log.Errorf("Cannot parse template for service %s/%s: %s", svc.Namespace, svc.Name, err)
