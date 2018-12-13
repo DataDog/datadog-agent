@@ -25,6 +25,8 @@ candle -arch x64 %wix_extension_switches% -dProjectSourceDir="c:\opt\datadog-age
 if not "%ERRORLEVEL%" == "0" goto :done
 light -ext WixUIExtension -ext WixBalExtension %wix_extension_switches% -cultures:en-us -loc localization-en-us.wxl project-files.wixobj source.wixobj %WIXOBJ_LIST% -out ddagent.msi
 
+@echo light returned code %ERRORLEVEL%
+
 
 :done
 cd %WD%
