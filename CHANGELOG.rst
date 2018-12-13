@@ -30,14 +30,14 @@ New Features
 
 - Adds eBPF-based network collection component called network-tracer.
 
-- Add diagnosis to the agent for connectvity to the cluster agent
+- Add diagnosis to the agent for connectivity to the cluster agent
 
-- ``datadog-agent integration install`` command prevents a user to downgrade an integration
+- ``datadog-agent integration install`` command prevents prevents a user from downgrading an integration
   to a version older than the one shipped by default in the agent.
 
 - Adding kerberos support with libkrb5.
 
-- ``datadog-agent integration install`` command moves configuration file present in
+- ``datadog-agent integration install`` command moves configuration files present in
   the ``data`` directory of the wheel upon successful installation
 
 
@@ -73,8 +73,6 @@ Enhancement Notes
 
 - It's possible now to have different poll intervals for
   each autodiscovery configuration providers
-
-- Consistent build environment for unix builds in omnibus.
 
 - Improve Windows Event parsing. Event.EventData.Data fields are parsed as one JSON object. Event.EventData.Binary field
   is parsed to its string value
@@ -123,8 +121,8 @@ Bug Fixes
 
 - Display the correct timezone name in the status page.
 
-- Now properly computes the location of ProgramData for configuration files
-  rather than have hardcoded values
+- On Windows, the agent now properly computes the location of ProgramData for
+  configuration files instead of using hardcoded values
 
 
 Other Notes
@@ -132,8 +130,9 @@ Other Notes
 
 - JMXFetch upgraded to 0.23.0. See https://github.com/DataDog/jmxfetch/releases/tag/0.23.0
 
-- Use the cgo dns resolver instead of the golang one. The will make the agent
-  use glibc to resolve hostnames and should give more predictable results.
+- On linux, use the cgo dns resolver instead of the golang one. The will make
+  the agent use glibc to resolve hostnames and should give more predictable
+  results.
 
 
 .. _Release Notes_6.7.0:
