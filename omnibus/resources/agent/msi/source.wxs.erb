@@ -38,6 +38,13 @@
                         Minimum='1.0.0' IncludeMinimum='yes'
                         Maximum="99.99.99.99" IncludeMaximum='no'/>
     </Upgrade>
+    
+    <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
+    same version gets installed "side by side" -->
+    <MajorUpgrade
+      AllowDowngrades="yes"
+      Schedule="afterInstallInitialize" />
+
 
     <!-- Close application when uninstalling -->
     <util:CloseApplication Id="CloseTrayApp"
@@ -52,12 +59,6 @@
     <!-- No need to restart Windows after the installation -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
-        <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
-      same version gets installed "side by side" -->
-
-    <MajorUpgrade
-      AllowDowngrades="yes"
-     />
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
@@ -230,7 +231,7 @@
                 Vital="yes"
                 KeyPath="yes"
                 DiskId="1"
-                Source="$(var.InstallDir)/bin/agent/trace-agent.exe"/>
+                Source="$(var.BinFiles)/trace-agent.exe"/>
             <ServiceInstall Id="DatadogAPMServiceInstaller"
                             DisplayName="!(loc.ServiceApmDisplayName)"
                             Description="!(loc.ServiceApmDescription)"
@@ -271,7 +272,7 @@
                 Vital="yes"
                 KeyPath="yes"
                 DiskId="1"
-                Source="$(var.InstallDir)/bin/agent/process-agent.exe"/>
+                Source="$(var.BinFiles)/process-agent.exe"/>
             <ServiceInstall Id="DatadogProcessServiceInstaller"
                             DisplayName="!(loc.ServiceProcessDisplayName)"
                             Description="!(loc.ServiceProcessDescription)"
@@ -466,7 +467,8 @@
     <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
     <Property Id="ARPHELPLINK" Value="https://datadoghq.com/" />
-    <Property Id="WIXUI_INSTALLDIR" Value="<%= wix_install_dir %>" />
+    <!--
+    <Property Id="WIXUI_INSTALLDIR" Value="<%= wix_install_dir %>" /> -->
 
     <UIRef Id="ProjectUI_InstallDir"/>
     <UI Id="ProjectUI_InstallDir">
@@ -568,6 +570,7 @@
 
    <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />
     <Binary Id="BackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
+    <Binary Id="PrepBackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
 
     <Property Id="ShortCompanyName" Value="!(loc.CompanyNameShort)" />
 

@@ -60,7 +60,8 @@ build do
 
     # copy binary
     if windows?
-      copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/bin/agent"
+      #copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/bin/agent"
+      copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     else
       copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/embedded/bin"
     end
