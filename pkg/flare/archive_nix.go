@@ -52,12 +52,9 @@ func (p permissionsInfos) statFiles() error {
 			return fmt.Errorf("while getting info of %s: %s", filePath, err)
 		}
 
-		sys, ok := fi.Sys().(*syscall.Stat_t)
-		if !ok {
-			// not enough information to append for this file
-			// might rarely happen on system not supporting this feature, but as
-			// we're building with !windows tag, shouldn't happen except for plan9
-			return fmt.Errorf("can't retrieve file uid/gid infos")
+		var sys syscall.Stat_t
+		if err := syscall.Stat(filePath, &sys); err != nil {
+			return fmt.Errorf("can't retrieve file %s uid/gid infos: %s", filePath, err)
 		}
 
 		u, err := user.LookupId(strconv.Itoa(int(sys.Uid)))
