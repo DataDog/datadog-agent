@@ -31,9 +31,25 @@ exec 1>&-
 exec 1>$npipe 2>&1
 trap "rm -f $npipe" EXIT
 
+# Colours
+readonly C_NOC="\\033[0m"    # No colour
+readonly C_RED="\\033[0;31m" # Red
+readonly C_GRN="\\033[0;32m" # Green
+readonly C_BLU="\\033[0;34m" # Blue
+readonly C_PUR="\\033[0;35m" # Purple
+readonly C_CYA="\\033[0;36m" # Cyan
+readonly C_WHI="\\033[0;37m" # White
+
+### Helper functions
+print_red () { local i; for i in "$@"; do echo -e "${C_RED}${i}${C_NOC}"; done }
+print_grn () { local i; for i in "$@"; do echo -e "${C_GRN}${i}${C_NOC}"; done }
+print_blu () { local i; for i in "$@"; do echo -e "${C_BLU}${i}${C_NOC}"; done }
+print_pur () { local i; for i in "$@"; do echo -e "${C_PUR}${i}${C_NOC}"; done }
+print_cya () { local i; for i in "$@"; do echo -e "${C_CYA}${i}${C_NOC}"; done }
+print_whi () { local i; for i in "$@"; do echo -e "${C_WHI}${i}${C_NOC}"; done }
 
 function on_error() {
-    printf "\033[31m$ERROR_MESSAGE
+    print_red "$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the StackState Agent v2.
 
 Troubleshooting and basic usage information for the Agent are available at:
@@ -42,7 +58,7 @@ Troubleshooting and basic usage information for the Agent are available at:
 
 If you're still having problems, please send an email to info@stackstate.com
 with the contents of $logfile and we'll do our very best to help you
-solve your problem.\n\033[0m\n"
+solve your problem.\n"
 }
 trap on_error ERR
 
@@ -75,12 +91,12 @@ else
 fi
 
 if [ ! $api_key ]; then
-    printf "\033[31mAPI key not available in STS_API_KEY environment variable.\033[0m\n"
+    print_red "API key not available in STS_API_KEY environment variable.\n"
     exit 1;
 fi
 
 if [ ! $sts_url ]; then
-    printf "\033[31mStackState url not available in STS_URL environment variable.\033[0m\n"
+    print_red "StackState url not available in STS_URL environment variable.\n"
     exit 1;
 fi
 
@@ -90,9 +106,9 @@ KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 if [ $DISTRIBUTION = "Darwin" ]; then
-    printf "\033[31mThis script does not support installing on the Mac.
+    print_red "This script does not support installing on the Mac.
 
-Please use the 1-step script available at https://app.datadoghq.com/account/settings#agent/mac.\033[0m\n"
+Please use the 1-step script available at https://app.datadoghq.com/account/settings#agent/mac."
     exit 1;
 
 elif [ -f /etc/debian_version -o "$DISTRIBUTION" == "Debian" -o "$DISTRIBUTION" == "Ubuntu" ]; then
@@ -118,9 +134,16 @@ else
 fi
 
 # Install the necessary package sources
-if [ $OS = "Debian" ]; then
-    printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
-    $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
+if [ $OS = "RedHat" ]; then
+    print_blu "* Installing YUM sources for StackState\n"
+    $sudo_cmd sh -c "echo -e '[stackstate]\nname = StackState\nbaseurl = $YUM_REPO/$code_name/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=$YUM_REPO/public.key' > /etc/yum.repos.d/stackstate.repo"
+
+    print_blu "* Installing the StackState Agent v2 package\n"
+    $sudo_cmd yum -y clean metadata
+    $sudo_cmd yum -y --disablerepo='*' --enablerepo='stackstate' install $PKG_NAME || $sudo_cmd yum -y install $PKG_NAME
+elif [ $OS = "Debian" ]; then
+    print_blu "* Installing apt-transport-https\n"
+    $sudo_cmd apt-get update || print_red "'apt-get update' failed, the script will not install the latest version of apt-transport-https."
     $sudo_cmd apt-get install -y apt-transport-https
     # Only install dirmngr if it's available in the cache
     # it may not be available on Ubuntu <= 14.04 but it's not required there
@@ -128,11 +151,12 @@ if [ $OS = "Debian" ]; then
     if [ ! -z "$cache_output" ]; then
       $sudo_cmd apt-get install -y dirmngr
     fi
-    printf "\033[34m\n* Configuring APT package sources for StackState\n\033[0m\n"
+
+    print_blu "* Configuring APT package sources for StackState\n"
     $sudo_cmd sh -c "echo 'deb $DEBIAN_REPO $code_name main' > /etc/apt/sources.list.d/stackstate.list"
     $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 B3CC4376
 
-    printf "\033[34m\n* Installing the StackState Agent v2 package\n\033[0m\n"
+    print_blu "* Installing the StackState Agent v2 package\n"
     ERROR_MESSAGE="ERROR
 Failed to update the sources after adding the StackState repository.
 This may be due to any of the configured APT sources failing -
@@ -151,7 +175,7 @@ If the cause is unclear, please contact StackState support.
     $sudo_cmd apt-get install -y --force-yes $PKG_NAME
     ERROR_MESSAGE=""
 else
-    printf "\033[31mYour OS or distribution is not supported yet.\033[0m\n"
+    print_red "Your OS or distribution is not supported yet.\n"
     exit 1;
 fi
 
@@ -160,20 +184,20 @@ if [ ! -e $CONF ]; then
     $sudo_cmd cp $CONF.example $CONF
 fi
 if [ $api_key ]; then
-    printf "\033[34m\n* Adding your API key to the Agent configuration: $CONF\n\033[0m\n"
+    print_blu "* Adding your API key to the Agent configuration: $CONF\n"
     $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $api_key/' $CONF"
 fi
 if [ $sts_url ]; then
     sts_url_esc=$(sed 's/[/.&]/\\&/g' <<<"$sts_url")
-    printf "\033[34m\n* Adding StackState url to the Agent configuration: $CONF\n\033[0m\n"
+    print_blu "* Adding StackState url to the Agent configuration: $CONF\n"
     $sudo_cmd sh -c "sed -i 's/sts_url:.*/sts_url: $sts_url_esc/' $CONF"
 fi
 if [ $sts_hostname ]; then
-    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: $CONF\n\033[0m\n"
+    print_blu "* Adding your HOSTNAME to the Agent configuration: $CONF\n"
     $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $sts_hostname/' $CONF"
 fi
 if [ $host_tags ]; then
-    printf "\033[34m\n* Adding your HOST TAGS to the Agent configuration: $CONF\n\033[0m\n"
+    print_blu "* Adding your HOST TAGS to the Agent configuration: $CONF\n"
     formatted_host_tags="['"$( echo "$host_tags" | sed "s/,/','/g" )"']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
     $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: "$formatted_host_tags"/\" $CONF"
 fi
@@ -186,7 +210,7 @@ function version_gt() {
 min_required_kernel="4.3.0"
 current_kernel=`uname -r`
 if version_gt $min_required_kernel $current_kernel; then
-    printf "\033[32m\n* The network tracer does not support your kernel version (min required $min_required_kernel), disabling it\n\033[0m\n"
+    print_cya "* The network tracer does not support your kernel version (min required $min_required_kernel), disabling it\n"
     $sudo_cmd sh -c "sed -i \"s/network_tracing_enabled:.*/network_tracing_enabled: 'false'/\" $CONF"
 fi
 
@@ -213,23 +237,22 @@ fi
 
 
 if [ $no_start ]; then
-    printf "\033[34m
+    print_blu "
 * STS_INSTALL_ONLY environment variable set: the newly installed version of the agent
 will not be started. You will have to do it manually using the following
 command:
 
     $restart_cmd
-
-\033[0m\n"
+\n"
     exit
 fi
 
-printf "\033[34m* Starting the Agent...\n\033[0m\n"
+print_blu "* Starting the Agent...\n"
 eval $restart_cmd
 
 
 # Metrics are submitted, echo some instructions and exit
-printf "\033[32m
+print_grn "
 Your Agent is running and functioning properly. It will continue to run in the
 background and submit metrics to StackState.
 
@@ -240,5 +263,4 @@ If you ever want to stop the Agent, run:
 And to run it again run:
 
     $start_instructions
-
-\033[0m"
+\n"
