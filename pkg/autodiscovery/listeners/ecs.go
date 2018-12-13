@@ -180,7 +180,7 @@ func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService,
 	svc.hosts = ips
 
 	// Tags
-	tags, err := tagger.Tag(svc.GetEntity(), tagger.IsFullCardinality())
+	tags, err := tagger.Tag(svc.GetEntity(), tagger.IsChecksFullCardinality())
 	if err != nil {
 		log.Errorf("Failed to extract tags for container %s - %s", c.DockerID[:12], err)
 	}

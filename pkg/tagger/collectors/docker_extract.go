@@ -23,7 +23,7 @@ import (
 type resolveHook func(image string) (string, error)
 
 // extractFromInspect extract tags for a container inspect JSON
-func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, error) {
+func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, []string, error) {
 	tags := utils.NewTagList()
 
 	dockerExtractImage(tags, co, c.dockerUtil.ResolveImageName)
@@ -33,8 +33,8 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 	tags.AddHigh("container_name", strings.TrimPrefix(co.Name, "/"))
 	tags.AddHigh("container_id", co.ID)
 
-	low, high := tags.Compute()
-	return low, high, nil
+	low, orchestrator, high := tags.Compute()
+	return low, orchestrator, high, nil
 }
 
 func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve resolveHook) {
@@ -76,17 +76,17 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 		switch labelName {
 		// Docker swarm
 		case "com.docker.swarm.service.name":
-			tags.AddLow("swarm_service", labelValue)
+			tags.AddOrchestrator("swarm_service", labelValue)
 		case "com.docker.stack.namespace":
-			tags.AddLow("swarm_namespace", labelValue)
+			tags.AddOrchestrator("swarm_namespace", labelValue)
 
 		// Rancher 1.x
 		case "io.rancher.container.name":
 			tags.AddHigh("rancher_container", labelValue)
 		case "io.rancher.stack.name":
-			tags.AddLow("rancher_stack", labelValue)
+			tags.AddOrchestrator("rancher_stack", labelValue)
 		case "io.rancher.stack_service.name":
-			tags.AddLow("rancher_service", labelValue)
+			tags.AddOrchestrator("rancher_service", labelValue)
 
 		default:
 			if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {
@@ -112,21 +112,21 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 		switch envName {
 		// Mesos/DCOS tags (mesos, marathon, chronos)
 		case "MARATHON_APP_ID":
-			tags.AddLow("marathon_app", envValue)
+			tags.AddOrchestrator("marathon_app", envValue)
 		case "CHRONOS_JOB_NAME":
-			tags.AddLow("chronos_job", envValue)
+			tags.AddOrchestrator("chronos_job", envValue)
 		case "CHRONOS_JOB_OWNER":
-			tags.AddLow("chronos_job_owner", envValue)
+			tags.AddOrchestrator("chronos_job_owner", envValue)
 		case "MESOS_TASK_ID":
-			tags.AddHigh("mesos_task", envValue)
+			tags.AddOrchestrator("mesos_task", envValue)
 
 		// Nomad
 		case "NOMAD_TASK_NAME":
-			tags.AddLow("nomad_task", envValue)
+			tags.AddOrchestrator("nomad_task", envValue)
 		case "NOMAD_JOB_NAME":
-			tags.AddLow("nomad_job", envValue)
+			tags.AddOrchestrator("nomad_job", envValue)
 		case "NOMAD_GROUP_NAME":
-			tags.AddLow("nomad_group", envValue)
+			tags.AddOrchestrator("nomad_group", envValue)
 
 		default:
 			if tagName, found := envAsTags[strings.ToLower(envSplit[0])]; found {

@@ -97,26 +97,26 @@ func (c *KubeletCollector) Pull() error {
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist
 // TODO: optimize if called too often on production
-func (c *KubeletCollector) Fetch(entity string) ([]string, []string, error) {
+func (c *KubeletCollector) Fetch(entity string) ([]string, []string, []string, error) {
 	pod, err := c.watcher.GetPodForEntityID(entity)
 	if err != nil {
-		return []string{}, []string{}, err
+		return []string{}, []string{}, []string{}, err
 	}
 
 	pods := []*kubelet.Pod{pod}
 	updates, err := c.parsePods(pods)
 	if err != nil {
-		return []string{}, []string{}, err
+		return []string{}, []string{}, []string{}, err
 	}
 	c.infoOut <- updates
 
 	for _, info := range updates {
 		if info.Entity == entity {
-			return info.LowCardTags, info.HighCardTags, nil
+			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
 	// entity not found in updates
-	return []string{}, []string{}, errors.NewNotFound(entity)
+	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

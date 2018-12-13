@@ -244,7 +244,8 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
-	response := tagger.List(tagger.IsFullCardinality())
+	// query full cardinality if either checks or dogstatsd are configured for full cardinality
+	response := tagger.List(tagger.IsChecksFullCardinality() || tagger.IsDogstatsdFullCardinality())
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {

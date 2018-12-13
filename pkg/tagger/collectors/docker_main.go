@@ -87,10 +87,10 @@ func (c *DockerCollector) Stop() error {
 }
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
-func (c *DockerCollector) Fetch(entity string) ([]string, []string, error) {
+func (c *DockerCollector) Fetch(entity string) ([]string, []string, []string, error) {
 	runtime, cID := containers.SplitEntityName(entity)
 	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	return c.fetchForDockerID(cID)
 }
@@ -102,20 +102,26 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 	case "die":
 		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
 	case "start":
-		low, high, _ := c.fetchForDockerID(e.ContainerID)
-		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, LowCardTags: low, HighCardTags: high}
+		low, orchestrator, high, _ := c.fetchForDockerID(e.ContainerID)
+		info = &TagInfo{
+			Entity:               e.ContainerEntityName(),
+			Source:               dockerCollectorName,
+			LowCardTags:          low,
+			OrchestratorCardTags: orchestrator,
+			HighCardTags:         high,
+		}
 	default:
 		return // Nothing to see here
 	}
 	c.infoOut <- []*TagInfo{info}
 }
 
-func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, error) {
+func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, []string, error) {
 	co, err := c.dockerUtil.Inspect(cID, false)
 	if err != nil {
 		// TODO separate "not found" and inspect error
 		log.Debugf("Failed to inspect container %s - %s", cID, err)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	return c.extractFromInspect(co)
 }

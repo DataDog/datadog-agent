@@ -266,7 +266,7 @@ func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubeContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.entity), tagger.IsFullCardinality())
+	return tagger.Tag(string(s.entity), tagger.IsChecksFullCardinality())
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

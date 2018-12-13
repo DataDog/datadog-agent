@@ -73,6 +73,6 @@ func extractTags(nodeLabels, labelsToTags map[string]string) []string {
 		}
 	}
 
-	tags, _ := tagList.Compute()
+	tags, _, _ := tagList.Compute()
 	return tags
 }

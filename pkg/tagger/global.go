@@ -17,22 +17,34 @@ import (
 var defaultTagger *Tagger
 var initOnce sync.Once
 
-// fullCardinality caches the value of the full_cardinality_taggin option
-var fullCardinality bool
+// checksFullCardinality holds the config that says whether we should send high cardinality tags for checks metrics
+// this can still be overriden when calling get_tags in python checks.
+var checksFullCardinality bool
+
+// dogstatsdFullCardinality holds the config that says whether we should send high cardinality tags for metrics from
+// dogstatsd.
+var dogstatsdFullCardinality bool
 
 // Init must be called once config is available, call it in your cmd
 // defaultTagger.Init cannot fail for now, keeping the `error` for API stability
 func Init() error {
 	initOnce.Do(func() {
-		fullCardinality = config.Datadog.GetBool("full_cardinality_tagging")
+		checksFullCardinality = config.Datadog.GetBool("send_container_tags_for_checks")
+		dogstatsdFullCardinality = config.Datadog.GetBool("send_container_tags_for_dogstatsd")
 		defaultTagger.Init(collectors.DefaultCatalog)
 	})
 	return nil
 }
 
-// Tag queries the defaultTagger to get entity tags from cache or sources
+// Tag queries the defaultTagger to get entity tags from cache or sources.
+// It can return tags at high cardinality (with tags about individual containers),
+// or at orchestrator cardinality (pod/task level)
 func Tag(entity string, highCard bool) ([]string, error) {
-	return defaultTagger.Tag(entity, highCard)
+	if highCard == true {
+		return defaultTagger.Tag(entity, collectors.HighCardinality)
+	} else {
+		return defaultTagger.Tag(entity, collectors.OrchestratorCardinality)
+	}
 }
 
 // Stop queues a stop signal to the defaultTagger
@@ -40,15 +52,25 @@ func Stop() error {
 	return defaultTagger.Stop()
 }
 
-// IsFullCardinality returns the full_cardinality_tagging option
+// IsChecksFullCardinality returns the full_cardinality_tagging option
 // this caches the call to viper, that would lookup and parse envvars
-func IsFullCardinality() bool {
-	return fullCardinality
+func IsChecksFullCardinality() bool {
+	return checksFullCardinality
+}
+
+// IsDogstatsdFullCardinality returns the full_cardinality_tagging option
+// this caches the call to viper, that would lookup and parse envvars
+func IsDogstatsdFullCardinality() bool {
+	return dogstatsdFullCardinality
 }
 
 // List the content of the defaulTagger
 func List(highCard bool) response.TaggerListResponse {
-	return defaultTagger.List(highCard)
+	if highCard == true {
+		return defaultTagger.List(collectors.HighCardinality)
+	} else {
+		return defaultTagger.List(collectors.OrchestratorCardinality)
+	}
 }
 
 // GetEntityHash returns the hash for the tags associated with the given entity

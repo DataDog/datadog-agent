@@ -52,6 +52,14 @@ cache. Cache invalidation is triggered by the collectors (or source) by either:
 The deletions are batched so that if two sources send coliding add and delete
 messages, the delete eventually wins.
 
+## TagCardinality
+
+**TagInfo** accepts and store tags that have different cardinality. **TagCardinality** can be:
+
+* ***LowCardinality**: in the host count order of magnitude
+* ***OrchestratorCardinality**:tags that change value for each pod or task
+* ***HighCardinality**: typically tags that change value for each web request, user agent, container, etc.
+
 ## Tagger
 
 The Tagger handles the glue between **Collectors** and **TagStore** and the

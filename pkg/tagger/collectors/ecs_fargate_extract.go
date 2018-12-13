@@ -45,10 +45,10 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 			// task
 			tags.AddLow("task_family", meta.Family)
 			tags.AddLow("task_version", meta.Version)
-			tags.AddHigh("task_arn", meta.TaskARN)
+			tags.AddOrchestrator("task_arn", meta.TaskARN)
 
 			// container
-			tags.AddLow("ecs_container_name", ctr.Name)
+			tags.AddOrchestrator("ecs_container_name", ctr.Name)
 			tags.AddHigh("container_id", ctr.DockerID)
 			tags.AddHigh("container_name", ctr.DockerName)
 
@@ -72,12 +72,13 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 				}
 			}
 
-			low, high := tags.Compute()
+			low, orch, high := tags.Compute()
 			info := &TagInfo{
-				Source:       ecsFargateCollectorName,
-				Entity:       docker.ContainerIDToEntityName(string(ctr.DockerID)),
-				HighCardTags: high,
-				LowCardTags:  low,
+				Source:               ecsFargateCollectorName,
+				Entity:               docker.ContainerIDToEntityName(string(ctr.DockerID)),
+				HighCardTags:         high,
+				OrchestratorCardTags: orch,
+				LowCardTags:          low,
 			}
 			output = append(output, info)
 		}

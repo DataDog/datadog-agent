@@ -310,9 +310,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 
-	// Tagger full cardinality mode
-	// Undocumented opt-in feature for now
-	config.BindEnvAndSetDefault("full_cardinality_tagging", false)
+	// Whether to send container-level tags for checks and dogstatsd respectively
+	// WARNING: sending container tags for dogstatsd metrics may create more metrics
+	// (one per container instead of one per host). Changing this setting may have billing implications.
+	config.BindEnvAndSetDefault("send_container_tags_for_checks", false)
+	config.BindEnvAndSetDefault("send_container_tags_for_dogstatsd", false)
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")

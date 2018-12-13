@@ -198,7 +198,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 
 			if packet.Origin != listeners.NoOrigin {
 				log.Tracef("Dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
-				originTags, err := tagger.Tag(packet.Origin, tagger.IsFullCardinality())
+				originTags, err := tagger.Tag(packet.Origin, tagger.IsDogstatsdFullCardinality())
 				if err != nil {
 					log.Errorf(err.Error())
 				} else {
