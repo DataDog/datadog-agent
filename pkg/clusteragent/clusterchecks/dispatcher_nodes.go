@@ -76,6 +76,8 @@ func (d *dispatcher) expireNodes() {
 	d.store.Lock()
 	defer d.store.Unlock()
 
+	initialNodeCount := len(d.store.nodes)
+
 	for name, node := range d.store.nodes {
 		node.RLock()
 		if node.heartbeat < cutoffTimestamp {
@@ -85,9 +87,18 @@ func (d *dispatcher) expireNodes() {
 			}
 			for digest, config := range node.digestToConfig {
 				d.store.danglingConfigs[digest] = config
+				danglingConfigs.Inc()
 			}
 			delete(d.store.nodes, name)
+
+			// Remove metrics linked to this node
+			nodeAgents.Dec()
+			dispatchedConfigs.DeleteLabelValues(name)
 		}
 		node.RUnlock()
+	}
+
+	if initialNodeCount != 0 && len(d.store.nodes) == 0 {
+		log.Warn("No nodes reporting, cluster checks will not run")
 	}
 }

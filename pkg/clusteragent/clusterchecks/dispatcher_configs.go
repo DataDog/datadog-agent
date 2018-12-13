@@ -29,6 +29,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 
 	// No target node specified: store in danglingConfigs
 	if targetNodeName == "" {
+		danglingConfigs.Inc()
 		d.store.danglingConfigs[digest] = config
 		return
 	}
@@ -87,5 +88,6 @@ func (d *dispatcher) retrieveAndClearDangling() []integration.Config {
 	defer d.store.Unlock()
 	configs := makeConfigArray(d.store.danglingConfigs)
 	d.store.clearDangling()
+	danglingConfigs.Set(0)
 	return configs
 }
