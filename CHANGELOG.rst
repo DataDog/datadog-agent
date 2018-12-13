@@ -32,7 +32,7 @@ New Features
 
 - Add diagnosis to the agent for connectivity to the cluster agent
 
-- ``datadog-agent integration install`` command prevents prevents a user from downgrading an integration
+- ``datadog-agent integration install`` command prevents a user from downgrading an integration
   to a version older than the one shipped by default in the agent.
 
 - Adding kerberos support with libkrb5.
