@@ -164,6 +164,11 @@ Other Notes
   the agent use glibc to resolve hostnames and should give more predictable
   results.
 
+- Starting with this Agent release, all the Datadog integrations that are installed
+  with the ``datadog-agent integration install`` command are reset to their
+  default versions when the Agent is upgraded.
+  This guarantees the integrity of the embedded python environment after the upgrade.
+
 
 .. _Release Notes_6.7.0:
 
