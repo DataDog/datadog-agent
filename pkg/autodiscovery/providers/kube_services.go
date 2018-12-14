@@ -156,13 +156,13 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 		for _, err := range errors {
 			log.Errorf("Cannot parse template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
+		// All configurations are cluster checks
+		for i := range c {
+			c[i].ClusterCheck = true
+		}
 		configs = append(configs, c...)
 	}
 
-	// All configurations are cluster checks
-	for i := range configs {
-		configs[i].ClusterCheck = true
-	}
 	return configs, nil
 }
 
