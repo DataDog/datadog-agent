@@ -8,6 +8,11 @@ Release Notes
 Prelude
 -------
 
+Please note that a critical bug has been identified in this release that would prevent the kubernetes integration from collecting kubelet metrics.
+The severity of the issue has led us to remove the packages for the
+affected platform (**Docker**) and to make the `latest` tag point to the ``6.7.0`` release. 
+If you have upgraded to this version of the containerized agent we recommend you downgrade to ``6.7.0``.
+
 Release on: 2018-12-13
 
 - Please refer to the `6.8.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-680>`_ for the list of changes on the Core Checks.
