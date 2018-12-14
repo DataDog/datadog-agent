@@ -8,9 +8,9 @@ Release Notes
 Prelude
 -------
 
-Please note that a critical bug has been identified in this release affecting the kubernetes integration.
+Please note that a critical bug has been identified in this release that would prevent the kubernetes integration from collecting kublet metrics.
 The severity of the issue has led us to remove the packages for the
-affected platform (**Docker**). If you have upgraded to this version,
+affected platform (**Docker**) and to make the `latest` tag point to the `6.7.0` release. If you have upgraded to this version,
 on **Docker** we recommend you downgrade to ``6.7.0``.
 
 Release on: 2018-12-13
