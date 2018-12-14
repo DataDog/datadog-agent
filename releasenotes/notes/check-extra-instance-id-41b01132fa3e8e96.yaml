@@ -9,4 +9,4 @@
 features:
   - |
     You can now see an extra instance id when displaying the Agent status depending on the check.
-    For example, the namespace will be displayed for each instance of your prometheus check.
+    If the instance contains an attribute `name` or `namespace`, it will be displayed in the next to the instance id.

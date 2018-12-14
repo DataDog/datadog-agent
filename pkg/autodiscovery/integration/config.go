@@ -54,10 +54,10 @@ type Config struct {
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
 type CommonInstanceConfig struct {
-	MinCollectionInterval int  `yaml:"min_collection_interval"`
-	EmptyDefaultHostname  bool `yaml:"empty_default_hostname"`
-	// Optional name field
-	Name string `yaml:"name"`
+	MinCollectionInterval int    `yaml:"min_collection_interval"`
+	EmptyDefaultHostname  bool   `yaml:"empty_default_hostname"`
+	Name                  string `yaml:"name"`
+	Namespace             string `yaml:"namespace"`
 }
 
 // Equal determines whether the passed config is the same
@@ -156,7 +156,7 @@ func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
 	return tplVarRegex.FindAll(c.Instances[i], -1)
 }
 
-// GetNameForInstance returns the namespace from an instance if specified, fallback on namespace
+// GetNameForInstance returns the name from an instance if specified, fallback on namespace
 func (c *Data) GetNameForInstance() string {
 	commonOptions := CommonInstanceConfig{}
 	err := yaml.Unmarshal(*c, &commonOptions)
@@ -164,20 +164,13 @@ func (c *Data) GetNameForInstance() string {
 		log.Errorf("invalid instance section: %s", err)
 		return ""
 	}
-	// Fallback on `name` if we don't find a namespace
-	if commonOptions.Name == "" {
-		type NamespaceInstanceConfig struct {
-			Namespace string `yaml:"namespace"`
-		}
-		namespaceOption := NamespaceInstanceConfig{}
-		err := yaml.Unmarshal(*c, &namespaceOption)
-		if err != nil {
-			log.Errorf("invalid instance section: %s", err)
-			return ""
-		}
-		return namespaceOption.Namespace
+
+	if commonOptions.Name != "" {
+		return commonOptions.Name
 	}
-	return commonOptions.Name
+
+	// Fallback on `namespace` if we don't find `name`, can be empty
+	return commonOptions.Namespace
 }
 
 // MergeAdditionalTags merges additional tags to possible existing config tags

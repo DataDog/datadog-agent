@@ -131,6 +131,11 @@ func TestGetNameForInstance(t *testing.T) {
 
 	config.Name = "foo"
 	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("namespace: foobar\nname: bar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "bar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
 	config.Instances = []Data{Data("namespace: foobar")}
 	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
 
