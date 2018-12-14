@@ -19,7 +19,7 @@ const (
 	Etcd          = "etcd"
 	File          = "file"
 	Kubernetes    = "kubernetes"
-	KubeServices  = "kubernetes services"
+	KubeServices  = "kubernetes-services"
 	Zookeeper     = "zookeeper"
 )
 
