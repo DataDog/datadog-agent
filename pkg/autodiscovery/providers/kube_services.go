@@ -40,7 +40,7 @@ type KubeServiceConfigProvider struct {
 	upToDate bool
 }
 
-// KubeServiceConfigProvider returns a new ConfigProvider connected to kubelet.
+// NewKubeServiceConfigProvider returns a new ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	ac, err := apiserver.GetAPIClient()
