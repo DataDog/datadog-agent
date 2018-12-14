@@ -11,7 +11,6 @@ package providers
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -35,7 +34,6 @@ const (
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeServiceConfigProvider struct {
-	sync.RWMutex
 	lister   listersv1.ServiceLister
 	upToDate bool
 }
@@ -76,28 +74,20 @@ func (k *KubeServiceConfigProvider) Collect() ([]integration.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	k.setUpToDate(true)
+	k.upToDate = true
 
 	return parseServiceAnnotations(services)
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
 func (k *KubeServiceConfigProvider) IsUpToDate() (bool, error) {
-	k.RLock()
-	defer k.RUnlock()
 	return k.upToDate, nil
-}
-
-func (k *KubeServiceConfigProvider) setUpToDate(value bool) {
-	k.Lock()
-	defer k.Unlock()
-	k.upToDate = value
 }
 
 func (k *KubeServiceConfigProvider) invalidate(obj interface{}) {
 	if obj != nil {
 		log.Trace("Invalidating configs on new/deleted service")
-		k.setUpToDate(false)
+		k.upToDate = false
 	}
 }
 
@@ -113,7 +103,7 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a Service type, got: %v", old)
-		k.setUpToDate(false)
+		k.upToDate = false
 		return
 	}
 	// Quick exit if resversion did not change
@@ -123,7 +113,7 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	// Compare annotations
 	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeServiceAnnotationPrefix) {
 		log.Trace("Invalidating configs on service change")
-		k.setUpToDate(false)
+		k.upToDate = false
 		return
 	}
 }
