@@ -357,6 +357,13 @@ api_key:
 #     template_url: 127.0.0.1
 #     username:
 #     password:
+
+## You can also add additional config providers by name using their default settings,
+## and pooling enabled. This is list is available as an environment variable binding.
+#
+# extra_config_providers:
+#   - clusterchecks
+
 {{ end -}}
 {{- if .Logging }}
 # Logging
@@ -423,6 +430,12 @@ api_key:
 # listeners:
 #   - name: auto
 #   - name: docker
+#
+## You can also add additional listeners by name using their default settings.
+## This is list is available as an environment variable binding.
+#
+# extra_listeners:
+#   - kubelet
 #
 # Exclude containers from metrics and AD based on their name or image:
 # An excluded container will not get any individual container metric reported for it.
