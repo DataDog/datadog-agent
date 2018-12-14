@@ -359,7 +359,7 @@ api_key:
 #     password:
 
 ## You can also add additional config providers by name using their default settings,
-## and pooling enabled. This is list is available as an environment variable binding.
+## and pooling enabled. This list is available as an environment variable binding.
 #
 # extra_config_providers:
 #   - clusterchecks
@@ -432,7 +432,7 @@ api_key:
 #   - name: docker
 #
 ## You can also add additional listeners by name using their default settings.
-## This is list is available as an environment variable binding.
+## This list is available as an environment variable binding.
 #
 # extra_listeners:
 #   - kubelet
