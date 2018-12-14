@@ -192,7 +192,7 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
         }
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
-        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, git_sha_length=7, match=None)        
+        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, git_sha_length=7)
         ctx.run(cmd.format(**args), env=env)
 
 

@@ -307,7 +307,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             args['populate_s3_cache'] = " --populate-s3-cache "
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
-        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, git_sha_length=7, match=None)
+        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True)
         ctx.run(cmd.format(**args), env=env)
 
 
@@ -323,3 +323,15 @@ def clean(ctx):
     # remove the bin/agent folder
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/agent")
+
+
+@task
+def version(ctx, url_safe=False, git_sha_length=7):
+    """
+    Get the agent version.
+    url_safe: get the version that is able to be addressed as a url
+    git_sha_length: different versions of git have a different short sha length,
+                    use this to explicitly set the version
+                    (the windows builder and the default ubuntu version have such an incompatibility)
+    """
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))

@@ -11,7 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
-from .utils import get_build_flags, bin_name
+from .utils import get_build_flags, bin_name, get_version
 from .utils import REPO_PATH
 from .go import deps
 
@@ -153,3 +153,16 @@ def image_build(ctx, tag=AGENT_TAG, push=False):
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
     if push:
         ctx.run("docker push {}".format(tag))
+
+
+
+@task
+def version(ctx, url_safe=False, git_sha_length=7):
+    """
+    Get the agent version.
+    url_safe: get the version that is able to be addressed as a url
+    git_sha_length: different versions of git have a different short sha length,
+                    use this to explicitly set the version
+                    (the windows builder and the default ubuntu version have such an incompatibility)
+    """
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, dca=True))

@@ -94,7 +94,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         cmd = "./gradlew build"
     ctx.run(cmd)
     os.chdir(pwd)
-    ver = get_version(ctx, include_git=True, git_sha_length=7)
+    ver = get_version(ctx, include_git=True)
     outfile = "bin/agent/ddagent-{}-unsigned.apk".format(ver)
     shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", outfile)
 
