@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -162,11 +163,16 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 		log.Warnf("Could not refresh leadership status: %s", err)
 	}
 
+	healthProbe := health.Register("clusterchecks-leadership")
+	defer health.Deregister(healthProbe)
+
 	watchTicker := time.NewTicker(h.leaderStatusFreq)
 	defer watchTicker.Stop()
 
 	for {
 		select {
+		case <-healthProbe.C:
+			// This goroutine might hang if the leader election engine blocks
 		case <-watchTicker.C:
 			err := h.updateLeaderIP(false)
 			if err != nil {
