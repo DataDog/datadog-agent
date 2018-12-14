@@ -27,6 +27,7 @@ import (
 var (
 	checkRate  bool
 	checkTimes int
+	checkPause int
 	checkName  string
 	checkDelay int
 	logLevel   string
@@ -38,8 +39,9 @@ const checkCmdFlushInterval = time.Hour
 func init() {
 	AgentCmd.AddCommand(checkCmd)
 
-	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice")
+	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice with a 1sec-pause between the 2 runs")
 	checkCmd.Flags().IntVarP(&checkTimes, "check-times", "t", 1, "number of times to run the check")
+	checkCmd.Flags().IntVar(&checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	checkCmd.SetArgs([]string{"checkName"})
@@ -149,11 +151,16 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	s := check.NewStats(c)
 	i := 0
 	times := checkTimes
+	pause := checkPause
 	if checkRate {
 		if checkTimes > 2 {
 			color.Yellow("The check-rate option is overriding check-times to 2")
 		}
+		if pause > 0 {
+			color.Yellow("The check-rate option is overriding pause to 1000ms")
+		}
 		times = 2
+		pause = 1000
 	}
 	for i < times {
 		t0 := time.Now()
@@ -161,6 +168,9 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 		warnings := c.GetWarnings()
 		mStats, _ := c.GetMetricStats()
 		s.Add(time.Since(t0), err, warnings, mStats)
+		if pause > 0 {
+			time.Sleep(time.Duration(pause) * time.Millisecond)
+		}
 		i++
 	}
 
