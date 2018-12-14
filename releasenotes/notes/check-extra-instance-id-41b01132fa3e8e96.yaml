@@ -9,4 +9,4 @@
 features:
   - |
     You can now see an extra instance id when displaying the Agent status depending on the check.
-    If the instance contains an attribute `name` or `namespace`, it will be displayed in next to the instance id.
+    If the instance contains an attribute `name` or `namespace`, it will be displayed next to the instance id.
