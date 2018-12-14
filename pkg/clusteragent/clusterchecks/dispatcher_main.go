@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -79,6 +80,9 @@ func (d *dispatcher) remove(config integration.Config) {
 // cleanupLoop is the cleanup goroutine for the dispatcher.
 // It has to be called in a goroutine with a cancellable context.
 func (d *dispatcher) cleanupLoop(ctx context.Context) {
+	healthProbe := health.Register("clusterchecks-dispatch")
+	defer health.Deregister(healthProbe)
+
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
@@ -86,6 +90,8 @@ func (d *dispatcher) cleanupLoop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-healthProbe.C:
+			// This goroutine might hang if the store is deadlocked during a cleanup
 		case <-cleanupTicker.C:
 			// Expire old nodes, orphaned configs are moved to dangling
 			d.expireNodes()
