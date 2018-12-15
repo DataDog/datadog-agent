@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
+// +build secrets
 
 package secrets
 
@@ -120,7 +120,6 @@ var secretFetcher = fetchSecret
 // "secret_backend_command" once if all secrets aren't present in the cache.
 func Decrypt(data []byte) ([]byte, error) {
 	if data == nil || secretBackendCommand == "" {
-		log.Debugf("No data to decrypt or no secretBackendCommand set: skipping")
 		return data, nil
 	}
 
@@ -186,14 +185,32 @@ func Decrypt(data []byte) ([]byte, error) {
 	return finalConfig, nil
 }
 
+<<<<<<< HEAD
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
+=======
+// GetDebugInfo expose debug informations about secrets to be included in a flare
+>>>>>>> db/ddau-pre-68
 func GetDebugInfo(w io.Writer) {
 	if secretBackendCommand == "" {
 		fmt.Fprintln(w, "No secret_backend_command set: secrets feature is not enabled")
 		return
 	}
 
+<<<<<<< HEAD
 	listRights(secretBackendCommand, w)
+=======
+	fmt.Fprintf(w, "=== Checking executable rights ===\n")
+	fmt.Fprintf(w, "executable path: %s\n", secretBackendCommand)
+
+	err := checkRights(secretBackendCommand)
+	if err != nil {
+		fmt.Fprintf(w, "Check Rights: the executable does not have the correct rights: %s\n", err)
+	} else {
+		fmt.Fprintf(w, "Check Rights: the executable has the correct rights\n")
+	}
+
+	listRightsDetails(secretBackendCommand, w)
+>>>>>>> db/ddau-pre-68
 
 	fmt.Fprintf(w, "=== Secrets stats ===\n")
 	fmt.Fprintf(w, "Number of secrets decrypted: %d\n", len(secretCache))

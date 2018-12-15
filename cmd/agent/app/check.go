@@ -8,6 +8,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/fatih/color"
@@ -140,6 +141,9 @@ var checkCmd = &cobra.Command{
 		if checkRate == false && checkTimes < 2 {
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 		}
+		if runtime.GOOS == "windows" {
+			printWindowsUserWarning("check")
+		}
 
 		return nil
 	},
@@ -195,4 +199,11 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
 	}
+}
+
+func printWindowsUserWarning(op string) {
+	fmt.Printf("\n")
+	color.Yellow("The %s command runs in a different user context than the running service\n", op)
+	color.Yellow("This could affect the results of, if the command relies on specific permissions and/or user context\n")
+	fmt.Printf("\n")
 }

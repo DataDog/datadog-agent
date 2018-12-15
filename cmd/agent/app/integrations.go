@@ -318,6 +318,9 @@ func tuf(args []string) error {
 }
 
 func installTuf(cmd *cobra.Command, args []string) error {
+	if !isIntegrationUser() {
+		return fmt.Errorf("Installation requires an elevated/root user")
+	}
 	if err := validateTufArgs(args); err != nil {
 		return err
 	}
@@ -571,6 +574,10 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func removeTuf(cmd *cobra.Command, args []string) error {
+	if !isIntegrationUser() {
+		return fmt.Errorf("Removal requires an elevated/root user")
+	}
+
 	if err := validateTufArgs(args); err != nil {
 		return err
 	}
