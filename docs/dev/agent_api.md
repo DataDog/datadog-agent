@@ -6,7 +6,7 @@ and through HTTPS only. It listens on port `5001` by default but can be configur
 
 ## Security and Authentication
 
-To avoid unprivileged users to access the API, authentication is required and based on a token.
+To prevent unprivileged users from accessing the API, token-based authentication is required.
 The token is written to a file that's only readable by the user that the Agent runs as.
 
 ## Endpoints
