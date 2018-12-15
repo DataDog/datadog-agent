@@ -192,6 +192,9 @@ suites:
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
         windows_agent_url: <%= windows_agent_url %>
+        <% if ENV['WINDOWS_AGENT_FILE'] %>
+        windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+        <% end %>
         agent_install_options: >
           TAGS=k1:v1,k2:v2 
           HOSTNAME=dd-agent-installopts 
@@ -223,6 +226,9 @@ suites:
         windows_version: "<%= ENV['AGENT_VERSION'] %>"
         <% end %>
         windows_agent_url: <%= windows_agent_url %>
+        <% if ENV['WINDOWS_AGENT_FILE'] %>
+        windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+        <% end %>
         agent_install_options: >
           APIKEY=<%= api_key %>
           LOGS_ENABLED=true
@@ -251,4 +257,30 @@ suites:
           LOGS_ENABLED=false
           PROCESS_ENABLED=false
           APM_ENABLED=false
+
+  - name: dd-agent-user-win
+    run_list:
+      - "recipe[dd-agent-install::_install_windows_base]"
+    attributes:
+      apt:
+        unattended_upgrades:
+          enable: false
+      datadog:
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+      dd-agent-install:
+        agent6: true
+        <% if ENV['AGENT_VERSION'] %>
+        windows_version: "<%= ENV['AGENT_VERSION'] %>"
+        <% end %>
+        windows_agent_url: <%= windows_agent_url %>
+        <% if ENV['WINDOWS_AGENT_FILE'] %>
+        windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+        <% end %>
+        agent_install_options: >
+          APIKEY=<%= api_key %>
+          LOGS_ENABLED=false
+          PROCESS_ENABLED=true
+          APM_ENABLED=true
 
