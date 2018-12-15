@@ -185,20 +185,13 @@ func Decrypt(data []byte) ([]byte, error) {
 	return finalConfig, nil
 }
 
-<<<<<<< HEAD
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
-=======
-// GetDebugInfo expose debug informations about secrets to be included in a flare
->>>>>>> db/ddau-pre-68
 func GetDebugInfo(w io.Writer) {
 	if secretBackendCommand == "" {
 		fmt.Fprintln(w, "No secret_backend_command set: secrets feature is not enabled")
 		return
 	}
 
-<<<<<<< HEAD
-	listRights(secretBackendCommand, w)
-=======
 	fmt.Fprintf(w, "=== Checking executable rights ===\n")
 	fmt.Fprintf(w, "executable path: %s\n", secretBackendCommand)
 
@@ -210,7 +203,6 @@ func GetDebugInfo(w io.Writer) {
 	}
 
 	listRightsDetails(secretBackendCommand, w)
->>>>>>> db/ddau-pre-68
 
 	fmt.Fprintf(w, "=== Secrets stats ===\n")
 	fmt.Fprintf(w, "Number of secrets decrypted: %d\n", len(secretCache))

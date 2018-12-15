@@ -47,21 +47,7 @@ func checkRights(path string) error {
 	return nil
 }
 
-<<<<<<< HEAD:pkg/secrets/check_right.go
-func listRights(path string, w io.Writer) {
-	fmt.Fprintf(w, "=== Checking executable rights ===\n")
-	fmt.Fprintf(w, "executable path: %s\n", path)
-
-	err := checkRights(path)
-	if err != nil {
-		fmt.Fprintf(w, "Check Rights: KO, %s\n", err)
-	} else {
-		fmt.Fprintf(w, "Check Rights: OK, the executable has the correct rights\n")
-	}
-
-=======
 func listRightsDetails(path string, w io.Writer) {
->>>>>>> db/ddau-pre-68:pkg/secrets/check_rights_nix.go
 	fmt.Fprintf(w, "\nRights Detail:\n")
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
@@ -79,11 +65,7 @@ func listRightsDetails(path string, w io.Writer) {
 
 	group, err := user.LookupGroupId(strconv.Itoa(int(stat.Gid)))
 	if err != nil {
-<<<<<<< HEAD:pkg/secrets/check_right.go
 		fmt.Fprintf(w, "Group name: could not fetch name for GID %d: %s\n", stat.Gid, err)
-=======
-		fmt.Fprintf(w, "Group name: could not fetch name for GID %d: %s\n", stat.Uid, err)
->>>>>>> db/ddau-pre-68:pkg/secrets/check_rights_nix.go
 	} else {
 		fmt.Fprintf(w, "Group name: %s\n", group.Name)
 	}
