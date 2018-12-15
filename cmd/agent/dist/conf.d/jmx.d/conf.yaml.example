@@ -4,6 +4,13 @@ init_config:
   # custom_jar_paths:
   #   - /path/to/custom/jarfile.jar
   #   - /path/to/another/custom/jarfile2.jar
+  #
+  # Set to true to use better metric names for garbage collection metrics. The default value is false to ensure backward compatibility.
+  # jvm.gc.cms.count   => jvm.gc.minor_collection_count
+  #                       jvm.gc.major_collection_count
+  # jvm.gc.parnew.time => jvm.gc.minor_collection_time
+  #                       jvm.gc.major_collection_time
+  # new_gc_metrics: false
 
 instances:
   # - host: localhost
@@ -29,12 +36,6 @@ instances:
   #   key_store_password: password
   #   rmi_registry_ssl: false # Optional, should be set to true if "com.sun.management.jmxremote.registry.ssl" is set to true on the target JVM.
   #
-  #   # Set to true to use better metric names for garbage collection metrics. The default value is false to ensure backward compatibility.
-  #   # jvm.gc.cms.count   => jvm.gc.minor_collection_count
-  #   #                       jvm.gc.major_collection_count
-  #   # jvm.gc.parnew.time => jvm.gc.minor_collection_time
-  #   #                       jvm.gc.major_collection_time
-  #   new_gc_metrics: false
   #
   #   # Optional (in seconds), default is 600 seconds. Sets refresh period for refreshing matching MBeans list.
   #   # Decreasing this value may result in increased CPU usage.
