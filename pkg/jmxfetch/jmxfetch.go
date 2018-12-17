@@ -22,6 +22,7 @@ import (
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -72,6 +73,9 @@ type JMXFetch struct {
 	defaultJmxCommand  string
 	cmd                *exec.Cmd
 	exitFilePath       string
+	managed            bool
+	shutdown           chan struct{}
+	stopped            chan struct{}
 }
 
 func (j *JMXFetch) setDefaults() {
@@ -93,7 +97,7 @@ func (j *JMXFetch) setDefaults() {
 }
 
 // Start starts the JMXFetch process
-func (j *JMXFetch) Start() error {
+func (j *JMXFetch) Start(manage bool) error {
 	j.setDefaults()
 
 	here, _ := executable.Folder()
@@ -224,24 +228,42 @@ func (j *JMXFetch) Start() error {
 
 	log.Debugf("Args: %v", subprocessArgs)
 
-	return j.cmd.Start()
+	err = j.cmd.Start()
+
+	// start syncrhonization channels
+	if err == nil && manage {
+		j.managed = manage
+		j.shutdown = make(chan struct{})
+		j.stopped = make(chan struct{})
+
+		go j.Monitor()
+	}
+
+	return err
 }
 
 // Stop stops the JMXFetch process
 func (j *JMXFetch) Stop() error {
-	if j.JmxExitFile == "" {
-		stopped := make(chan struct{})
+	var stopChan chan struct{}
 
+	if j.JmxExitFile == "" {
 		// Unix
 		err := j.cmd.Process.Signal(syscall.SIGTERM)
 		if err != nil {
 			return err
 		}
 
-		go func() {
-			j.Wait()
-			close(stopped)
-		}()
+		if j.managed {
+			stopChan = j.stopped
+			close(j.shutdown)
+		} else {
+			stopChan = make(chan struct{})
+
+			go func() {
+				j.Wait()
+				close(stopChan)
+			}()
+		}
 
 		select {
 		case <-time.After(time.Millisecond * 500):
@@ -250,7 +272,7 @@ func (j *JMXFetch) Stop() error {
 			if err != nil {
 				log.Warnf("Could not kill jmxfetch: %v", err)
 			}
-		case <-stopped:
+		case <-stopChan:
 		}
 
 	} else {
@@ -265,4 +287,31 @@ func (j *JMXFetch) Stop() error {
 // Wait waits for the end of the JMXFetch process and returns the error code
 func (j *JMXFetch) Wait() error {
 	return j.cmd.Wait()
+}
+
+func (j *JMXFetch) heartbeat(beat *time.Ticker) {
+	health := health.Register("jmxfetch")
+
+	for range beat.C {
+		select {
+		case <-health.C:
+		case <-j.shutdown:
+			health.Deregister()
+			return
+		}
+	}
+}
+
+// Up returns if JMXFetch is up - used by healthcheck
+func (j *JMXFetch) Up() (bool, error) {
+	// TODO: write windows implementation
+	process, err := os.FindProcess(j.cmd.Process.Pid)
+	if err != nil {
+		return false, fmt.Errorf("Failed to find process: %s\n", err)
+	}
+
+	// from man kill(2):
+	// if sig is 0, then no signal is sent, but error checking is still performed
+	err = process.Signal(syscall.Signal(0))
+	return err == nil, err
 }

@@ -38,6 +38,10 @@
   name = "github.com/gogo/protobuf"
   version = "~v1.0.0"
 
+[[constraint]]
+  name = "github.com/ramr/go-reaper"
+  branch = "master"
+
 [[override]]
   name = "github.com/kubernetes/apimachinery"
   branch = "release-1.11"

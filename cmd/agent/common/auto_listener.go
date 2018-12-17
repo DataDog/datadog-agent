@@ -32,7 +32,7 @@ func AutoAddListeners(listeners []config.Listeners) []config.Listeners {
 	// Remove the auto listener element from the listeners slice
 	listeners = remove(listeners, autoIdx)
 
-	if isDockerRunning() == false {
+	if IsDockerRunning() == false {
 		return listeners
 	}
 

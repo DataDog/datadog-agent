@@ -3,16 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build docker
+// +build jmx
 
-package common
+package jmxfetch
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
-)
-
-// IsDockerRunning check if docker is running
-func IsDockerRunning() bool {
-	_, err := docker.GetDockerUtil()
-	return err == nil
-}
+func (j *JMXFetch) Monitor() {}

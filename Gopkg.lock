@@ -909,6 +909,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:3b5435ace50a6acfa3fd9c32b08b886e7a3ad81833eac37c5126492e472423e8"
+  name = "github.com/ramr/go-reaper"
+  packages = ["."]
+  pruneopts = ""
+  revision = "35f6a64e44ff062abfcec2d27cef674212d445c0"
+
+[[projects]]
+  branch = "master"
   digest = "1:7fc2f428767a2521abc63f1a663d981f61610524275d6c0ea645defadd4e916f"
   name = "github.com/samuel/go-zookeeper"
   packages = ["zk"]
@@ -1765,6 +1773,7 @@
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
+    "github.com/ramr/go-reaper",
     "github.com/samuel/go-zookeeper/zk",
     "github.com/sbinet/go-python",
     "github.com/shirou/gopsutil/cpu",
