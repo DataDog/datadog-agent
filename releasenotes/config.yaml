@@ -12,6 +12,11 @@ template: |
           #
           # Each section note must be formatted as reStructuredText.
           ---
+          upgrade:
+            - |
+              List upgrade notes here, or remove this section.
+              Only list known/potential breaking changes, or behavior changes
+              that users should absolutely know about before upgrading.
           features:
             - |
               List new features here, or remove this section.
@@ -22,11 +27,6 @@ template: |
           issues:
             - |
               List known issues here, or remove this section.
-          upgrade:
-            - |
-              List upgrade notes here, or remove this section.
-              Only list known/potential breaking changes, or behavior changes
-              that users should absolutely know about before upgrading.
           deprecations:
             - |
               List deprecations notes here, or remove this section.
