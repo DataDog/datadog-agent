@@ -1,7 +1,7 @@
 name "setuptools"
 default_version "28.8.0"
 
-dependency "python"
+dependency "python3"
 
 relative_path "setuptools-#{version}"
 
