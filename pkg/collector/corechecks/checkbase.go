@@ -84,7 +84,6 @@ func (c *CheckBase) CommonConfigure(instance integration.Data) error {
 		}
 		s.DisableDefaultHostname(true)
 	}
-
 	return nil
 }
 
