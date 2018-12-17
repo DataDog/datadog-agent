@@ -84,10 +84,6 @@ func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Servic
 	for _, s := range services {
 		l.createService(s, true)
 	}
-
-	///// HACK
-	//dummy := make(chan struct{})
-	//l.informer.Informer().Run(dummy)
 }
 
 // Stop is a stub
