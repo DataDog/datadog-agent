@@ -24,6 +24,13 @@ The Datadog Agent now automatically look for the container short image name to s
 The source is especially important as it triggers the **automatic configuration of your platform with integration pipeline and facets**.
 The Datadog Agent autodiscovery can still be used to override the default source and service with pod annotations or container labels.
 
+Upgrade Notes
+-------------
+
+- The agent now requires a cluster agent version 1.0+ to establish
+  a valid connection
+- JMX garbage collection metrics ``jvm.gc.cms.count`` and ``jvm.gc.parnew.time`` were renamed to ``jvm.gc.minor_collection_count``, ``jvm.gc.major_collection_count``, ``jvm.gc.minor_collection_time``, ``jvm.gc.major_collection_time`` in 6.6 to be more meaningful. To ensure backward compatibility the change was reverted in this release and the new names put behind a config option. If you started relying on these new names please enable the ``new_gc_metrics`` option in your jmx configurations. An example can be found `here <https://github.com/DataDog/datadog-agent/blob/1aee233a18dedbb8af86da0ce1f2e305206aacf8/cmd/agent/dist/conf.d/jmx.d/conf.yaml.example#L8-L13>`_. This flag will be enabled by default in a future major release.
+
 New Features
 ------------
 
@@ -90,14 +97,6 @@ Enhancement Notes
 - Added support for wildcards to `DD_KUBERNETES_POD_LABELS_AS_TAGS`. For example,
   `DD_KUBERNETES_POD_LABELS_AS_TAGS='{"*":"kube_%%label%%"}'` will all pod labels as
   tags to your metrics with tags names prefixed by `kube_`.
-
-
-Upgrade Notes
--------------
-
-- The agent now requires a cluster agent version 1.0+ to establish
-  a valid connection
-
 
 Deprecation Notes
 -----------------
