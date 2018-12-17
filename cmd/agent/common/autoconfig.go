@@ -58,7 +58,12 @@ func SetupAutoConfig(confdPath string) {
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders
 	err = config.Datadog.UnmarshalKey("config_providers", &CP)
+
 	if err == nil {
+		// Add extra config providers
+		for _, name := range config.Datadog.GetStringSlice("extra_config_providers") {
+			CP = append(CP, config.ConfigurationProviders{Name: name, Polling: true})
+		}
 		for _, cp := range CP {
 			factory, found := providers.ProviderCatalog[cp.Name]
 			if found {
@@ -88,6 +93,10 @@ func SetupAutoConfig(confdPath string) {
 	var listeners []config.Listeners
 	err = config.Datadog.UnmarshalKey("listeners", &listeners)
 	if err == nil {
+		// Add extra listeners
+		for _, name := range config.Datadog.GetStringSlice("extra_listeners") {
+			listeners = append(listeners, config.Listeners{Name: name})
+		}
 		listeners = AutoAddListeners(listeners)
 		AC.AddListeners(listeners)
 	} else {

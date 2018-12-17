@@ -109,6 +109,10 @@ DD_AC_INCLUDE = "image:cp-kafka image:k8szk"
 
 Please note that the `docker.containers.running`, `.stopped`, `.running.total` and `.stopped.total` metrics are not affected by these settings and always count all containers. This does not affect your per-container billing.
 
+### Additional Autodiscovery sources
+
+You can add extra listeners and config providers via the `DD_EXTRA_LISTENERS` and `DD_EXTRA_CONFIG_PROVIDERS` enviroment variables. They will be added on top of the ones defined in the `listeners` and `config_providers` section of the datadog.yaml configuration file.
+
 ### Datadog Cluster Agent
 
 The DCA is a **beta** feature, if you are facing any issues please reach out to our [support team](http://docs.datadoghq.com/help)
@@ -317,7 +321,7 @@ The source and service values can be overriden thanks to Autodiscovery as descri
 
 The second step is to use Autodiscovery to customize the `source` and `service` value. This allows Datadog to identify the log source for each container.
 
-Since version 6.2 of the Datadog Agent, you can [configure log collection directly in the container labels](https://docs.datadoghq.com/logs/log_collection/docker/?tab=dockerfile#activate-log-integrations). 
+Since version 6.2 of the Datadog Agent, you can [configure log collection directly in the container labels](https://docs.datadoghq.com/logs/log_collection/docker/?tab=dockerfile#activate-log-integrations).
 Pod annotations are also supported for Kubernetes environment, see the [Kubernetes Autodiscovery documentation][https://docs.datadoghq.com/agent/autodiscovery/#template-source-kubernetes-pod-annotations].
 
 ## How to build this image

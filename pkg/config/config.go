@@ -206,6 +206,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
+	config.BindEnvAndSetDefault("extra_listeners", []string{})
+	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
