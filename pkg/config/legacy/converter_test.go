@@ -213,8 +213,8 @@ func TestTraceIgnoreResources(t *testing.T) {
 		expected []string
 	}{
 		{"r1", []string{"r1"}},
-		{"\"r1\",\"r2,\"", []string{"r1", "r2,"}},
-		{"\"r1\"", []string{"r1"}},
+		{`"r1","r2,"`, []string{"r1", "r2,"}},
+		{`"r1"`, []string{"r1"}},
 		{"r1,r2", []string{"r1", "r2"}},
 	}
 
