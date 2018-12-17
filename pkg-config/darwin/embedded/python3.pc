@@ -2,11 +2,12 @@ prefix=/opt/datadog-agent/embedded
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
+osx_include=/System/Library/Frameworks/Python.framework/Headers
 
 Name: Python
 Description: Python library
 Requires:
 Version: 3.7
-Libs.private: -lpthread -ldl  -lutil -lrt
-Libs: -L${libdir} -lpython3.7m
-Cflags: -I${includedir}/python3.7m
+Libs.private: -ldl
+Libs: -L${libdir} -lpython3.7
+Cflags: -I${includedir}/python3.7
