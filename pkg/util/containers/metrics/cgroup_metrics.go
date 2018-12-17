@@ -307,6 +307,7 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 	mapping, err := getDiskDeviceMapping()
 	if err != nil {
 		log.Debugf("Cannot get per-device stats: %s", err)
+		// devices will stay nil, lookups are safe in nil maps
 	} else {
 		devices = mapping.idToName
 	}
