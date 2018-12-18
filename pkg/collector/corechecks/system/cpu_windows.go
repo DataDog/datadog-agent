@@ -54,7 +54,7 @@ type CPUCheck struct {
 	nbCPU       float64
 	lastNbCycle float64
 	lastTimes   TimesStat
-	counter     *pdhutil.PdhCounterSet
+	counter     *pdhutil.PdhMultiInstanceCounterSet
 }
 
 // Total returns the total number of seconds in a CPUTimesStat
@@ -101,10 +101,11 @@ func (c *CPUCheck) Run() error {
 		sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
 		sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
 	}
-	val, err := c.counter.GetSingleValue()
+	vals, err := c.counter.GetAllValues()
 	if err != nil {
 		log.Warnf("Error getting handle value %v", err)
 	} else {
+		val := vals["_Total"]
 		sender.Gauge("system.cpu.interrupt", float64(val), "", nil)
 	}
 	sender.Commit()
@@ -124,7 +125,7 @@ func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data)
 	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
 	c.nbCPU = cpucount
 
-	c.counter, err = pdhutil.GetCounterSet("Processor", "% Interrupt Time", "_Total", nil)
+	c.counter, err = pdhutil.GetMultiInstanceCounter("Processor", "% Interrupt Time", &[]string{"_Total"}, nil)
 	if err != nil {
 		return fmt.Errorf("system.CPUCheck could not establish interrupt time counter %v", err)
 	}

@@ -18,8 +18,8 @@ const winprocCheckName = "winproc"
 
 type processChk struct {
 	core.CheckBase
-	numprocs *pdhutil.PdhCounterSet
-	pql      *pdhutil.PdhCounterSet
+	numprocs *pdhutil.PdhSingleInstanceCounterSet
+	pql      *pdhutil.PdhSingleInstanceCounterSet
 }
 
 // Run executes the check
@@ -29,8 +29,8 @@ func (c *processChk) Run() error {
 		return err
 	}
 
-	procQueueLength, _ := c.pql.GetSingleValue()
-	procCount, _ := c.numprocs.GetSingleValue()
+	procQueueLength, _ := c.pql.GetValue()
+	procCount, _ := c.numprocs.GetValue()
 
 	sender.Gauge("system.proc.queue_length", procQueueLength, "", nil)
 	sender.Gauge("system.proc.count", procCount, "", nil)
@@ -45,11 +45,11 @@ func (c *processChk) Configure(data integration.Data, initConfig integration.Dat
 		return err
 	}
 
-	c.numprocs, err = pdhutil.GetCounterSet("System", "Processes", "", nil)
+	c.numprocs, err = pdhutil.GetSingleInstanceCounter("System", "Processes")
 	if err != nil {
 		return err
 	}
-	c.pql, err = pdhutil.GetCounterSet("System", "Processor Queue Length", "", nil)
+	c.pql, err = pdhutil.GetSingleInstanceCounter("System", "Processor Queue Length")
 
 	return err
 }

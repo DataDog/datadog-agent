@@ -40,7 +40,7 @@ const (
 type IOCheck struct {
 	core.CheckBase
 	blacklist    *regexp.Regexp
-	counters     map[string]*pdhutil.PdhCounterSet
+	counters     map[string]*pdhutil.PdhMultiInstanceCounterSet
 	counternames map[string]string
 }
 
@@ -73,10 +73,10 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data) 
 		"Disk Reads/sec":            "system.io.r_s",
 		"Current Disk Queue Length": "system.io.avg_q_sz"}
 
-	c.counters = make(map[string]*pdhutil.PdhCounterSet)
+	c.counters = make(map[string]*pdhutil.PdhMultiInstanceCounterSet)
 
 	for name := range c.counternames {
-		c.counters[name], err = pdhutil.GetCounterSet("LogicalDisk", name, "", isDrive)
+		c.counters[name], err = pdhutil.GetMultiInstanceCounter("LogicalDisk", name, nil, isDrive)
 		if err != nil {
 			return err
 		}
