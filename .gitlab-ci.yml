@@ -57,9 +57,11 @@ before_script:
   - echo running default before_script
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
+  - cp Gopkg.lock Gopkg.lock.old
   - pip install --upgrade --ignore-installed pip setuptools
   - pip install -r requirements.txt
   - inv -e deps
+  - cp Gopkg.lock.old Gopkg.lock
 
 #
 # Trigger conditions
