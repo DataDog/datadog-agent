@@ -441,12 +441,5 @@ func splitString(s string, sep rune) ([]string, error) {
 	r.TrimLeadingSpace = true
 	r.LazyQuotes = true
 	r.Comma = sep
-
-	record, err := r.Read()
-
-	if err != nil {
-		return []string{}, err
-	}
-
-	return record, nil
+	return r.Read()
 }

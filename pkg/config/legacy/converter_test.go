@@ -212,10 +212,10 @@ func TestTraceIgnoreResources(t *testing.T) {
 		config   string
 		expected []string
 	}{
-		{"r1", []string{"r1"}},
+		{`r1`, []string{"r1"}},
 		{`"r1","r2,"`, []string{"r1", "r2,"}},
 		{`"r1"`, []string{"r1"}},
-		{"r1,r2", []string{"r1", "r2"}},
+		{`r1,r2`, []string{"r1", "r2"}},
 	}
 
 	for _, c := range cases {
