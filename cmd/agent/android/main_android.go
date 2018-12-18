@@ -38,7 +38,7 @@ func AndroidMain(apikey string, hostname string, tags string) {
 
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
-	config.Datadog.AddConfigPath("datadog.yaml")
+	config.Datadog.SetConfigFile("datadog.yaml")
 	config.SetOverrides(overrides)
 
 	ddapp.StartAgent()

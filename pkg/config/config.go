@@ -49,6 +49,7 @@ type MetadataProviders struct {
 type ConfigurationProviders struct {
 	Name             string `mapstructure:"name"`
 	Polling          bool   `mapstructure:"polling"`
+	PollInterval     string `mapstructure:"poll_interval"`
 	TemplateURL      string `mapstructure:"template_url"`
 	TemplateDir      string `mapstructure:"template_dir"`
 	Username         string `mapstructure:"username"`
@@ -116,6 +117,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnvAndSetDefault("bind_host", "localhost")
+	config.BindEnvAndSetDefault("health_port", int64(0))
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -206,6 +208,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
+	config.BindEnvAndSetDefault("extra_listeners", []string{})
+	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -286,8 +290,6 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	// collect all logs from all containers:
 	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
-	// collect all logs forwarded by TCP on a specific port:
-	config.BindEnvAndSetDefault("logs_config.tcp_forward_port", -1)
 	// add a socks5 proxy:
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// send the logs to a proxy:
@@ -321,17 +323,20 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("external_metrics_provider.enabled", false)
+	config.BindEnvAndSetDefault("external_metrics_provider.port", 443)
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
-	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)
-	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)            // value in seconds. Frequency of batch calls to the configmap persistent store (GlobalStore)
-	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 90)                 // value in seconds. 3 cycles from the HPA controller is enough to consider a metric stale
+	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)          // value in seconds. Frequency of batch calls to the ConfigMap persistent store (GlobalStore) by the Leader.
+	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)            // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
+	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                // value in seconds. 4 cycles from the HPA controller (up to Kubernetes 1.11) is enough to consider a metric stale
 	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                    // aggregator used for the external metrics. Choose from [avg,sum,max,min]
-	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window of the metric from Datadog
+	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window to query to get the metric from Datadog.
+	config.BindEnvAndSetDefault("external_metrics_provider.rollup", 30)                  // Bucket size to circumvent time aggregation side effects.
 	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
 	config.BindEnvAndSetDefault("kubernetes_informers_restclient_timeout", 60)           // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
+	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
 
 	setAssetFs(config)
 }
@@ -473,17 +478,17 @@ func sanitizeAPIKey(config Config) {
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
 func GetMainInfraEndpoint() string {
-	return getMainInfraEndpoint(Datadog)
+	return getMainInfraEndpointWithConfig(Datadog)
 }
 
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
 func GetMainEndpoint(prefix string, ddURLKey string) string {
-	return getMainEndpoint(Datadog, prefix, ddURLKey)
+	return GetMainEndpointWithConfig(Datadog, prefix, ddURLKey)
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {
-	return getMultipleEndpoints(Datadog)
+	return getMultipleEndpointsWithConfig(Datadog)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
@@ -511,12 +516,12 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 	return u.String(), nil
 }
 
-func getMainInfraEndpoint(config Config) string {
-	return getMainEndpoint(config, infraURLPrefix, "dd_url")
+func getMainInfraEndpointWithConfig(config Config) string {
+	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
 }
 
-// getMainEndpoint implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
-func getMainEndpoint(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
+// GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
+func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
 	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over 'site'
 		resolvedDDURL = config.GetString(ddURLKey)
@@ -531,10 +536,10 @@ func getMainEndpoint(config Config, prefix string, ddURLKey string) (resolvedDDU
 	return
 }
 
-// getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
-func getMultipleEndpoints(config Config) (map[string][]string, error) {
+// getMultipleEndpointsWithConfig implements the logic to extract the api keys per domain from an agent config
+func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) {
 	// Validating domain
-	ddURL := getMainInfraEndpoint(config)
+	ddURL := getMainInfraEndpointWithConfig(config)
 	_, err := url.Parse(ddURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
@@ -618,8 +623,8 @@ func IsKubernetes() bool {
 }
 
 // SetOverrides provides an externally accessible method for
-// overriding config variables. Used by Android to set
-// the various config options from intent extras
+// overriding config variables.
+// This method must be called before Load() to be effective.
 func SetOverrides(vars map[string]interface{}) {
 	overrideVars = vars
 }

@@ -6,12 +6,15 @@
 package flare
 
 import (
+	"archive/zip"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -37,6 +40,58 @@ func TestCreateArchive(t *testing.T) {
 	} else {
 		os.Remove(zipFilePath)
 	}
+}
+
+func TestCreateArchiveAndGoRoutines(t *testing.T) {
+
+	contents := "No Goroutines for you, my friend!"
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s", contents)
+	}))
+	defer ts.Close()
+
+	pprofURL = ts.URL
+
+	zipFilePath := getArchivePath()
+	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
+
+	assert.Nil(t, err)
+	assert.Equal(t, zipFilePath, filePath)
+
+	// Open a zip archive for reading.
+	z, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		assert.Fail(t, "Unable to open the flare archive")
+	}
+	defer z.Close()
+	defer os.Remove(zipFilePath)
+
+	// Iterate through the files in the archive,
+	// printing some of their contents.
+	found := false
+	for _, f := range z.File {
+
+		// find go-routine dump.
+		if path.Base(f.Name) == routineDumpFilename {
+			found = true
+
+			dump, err := f.Open()
+			if err != nil {
+				assert.Fail(t, "Unable to open go-routine dump")
+			}
+			defer dump.Close()
+
+			routines, err := ioutil.ReadAll(dump)
+			if err != nil {
+				assert.Fail(t, "Unable to read go-routine dump")
+			}
+
+			assert.Equal(t, contents, string(routines[:]))
+		}
+	}
+
+	assert.True(t, found, "Go routine dump not found in flare")
 }
 
 // The zipfile should be created even if there is no config file.

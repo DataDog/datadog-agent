@@ -259,6 +259,42 @@ func TestInspect(t *testing.T) {
 			},
 			[]custommetrics.ExternalMetricValue{},
 		},
+		"missing labels, still OK": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "foo",
+							},
+						},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "foo",
+					Labels:     nil,
+					Timestamp:  0,
+					Value:      0,
+					Valid:      false,
+				},
+			},
+		},
+		"incomplete, missing external metrics": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type:     autoscalingv2.ExternalMetricSourceType,
+							External: nil,
+						},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{},
+		},
 	}
 
 	for name, testCase := range testCases {

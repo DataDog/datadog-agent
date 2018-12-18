@@ -68,7 +68,7 @@ core,github.com/jquery/jquery,MIT
 core,github.com/json-iterator/go,MIT
 core,github.com/k-sone/snmpgo,MIT
 core,github.com/kardianos/osext,BSD-3-Clause
-core,github.com/CharlyF/custom-metrics-apiserver,Apache-2.0
+core,github.com/kubernetes-incubator/custom-metrics-apiserver,Apache-2.0
 core,k8s.io/kubernetes,Apache-2.0
 core,github.com/lxn/walk,BSD-3-Clause
 core,github.com/lxn/win,BSD-3-Clause

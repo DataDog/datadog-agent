@@ -34,6 +34,7 @@ DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
     "kubelet",
     "log",
+    "netcgo",
     "systemd",
     "process",
     "snmp",

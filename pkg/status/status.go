@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var timeFormat = "2006-01-02 15:04:05.000000 UTC"
+var timeFormat = "2006-01-02 15:04:05.000000 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
@@ -210,6 +210,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
 	stats["aggregatorStats"] = aggregatorStats
+
+	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+	dogstatsdStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	stats["dogstatsdStats"] = dogstatsdStats
 
 	pyLoaderData := expvar.Get("pyLoader")
 	if pyLoaderData != nil {

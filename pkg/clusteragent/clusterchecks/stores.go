@@ -20,16 +20,18 @@ import (
 // operations involving several calls.
 type clusterStore struct {
 	sync.RWMutex
-	digestToConfig map[string]integration.Config // All configurations to dispatch
-	digestToNode   map[string]string             // Node running a config
-	nodes          map[string]*nodeStore         // All nodes known to the cluster-agent
+	digestToConfig  map[string]integration.Config // All configurations to dispatch
+	digestToNode    map[string]string             // Node running a config
+	nodes           map[string]*nodeStore         // All nodes known to the cluster-agent
+	danglingConfigs map[string]integration.Config // Configs we could not dispatch to any node
 }
 
 func newClusterStore() *clusterStore {
 	return &clusterStore{
-		digestToConfig: make(map[string]integration.Config),
-		digestToNode:   make(map[string]string),
-		nodes:          make(map[string]*nodeStore),
+		digestToConfig:  make(map[string]integration.Config),
+		digestToNode:    make(map[string]string),
+		nodes:           make(map[string]*nodeStore),
+		danglingConfigs: make(map[string]integration.Config),
 	}
 }
 
@@ -46,18 +48,21 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName string) *nodeStore {
 	if ok {
 		return node
 	}
-
-	log.Debugf("unknown node %s, registering", nodeName)
 	node = newNodeStore()
 	s.nodes[nodeName] = node
 	return node
+}
+
+// clearDangling resets the danglingConfigs map to a new empty one
+func (s *clusterStore) clearDangling() {
+	s.danglingConfigs = make(map[string]integration.Config)
 }
 
 // nodeStore holds the state store for one node.
 // Lock is to be held by the user (dispatcher)
 type nodeStore struct {
 	sync.RWMutex
-	lastPing         int64
+	heartbeat        int64
 	lastStatus       types.NodeStatus
 	lastConfigChange int64
 	digestToConfig   map[string]integration.Config

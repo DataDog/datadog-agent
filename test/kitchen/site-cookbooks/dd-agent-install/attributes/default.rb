@@ -79,3 +79,5 @@ default['dd-agent-install']['statsd_forward_port'] = 8125
 default['dd-agent-install']['statsd_metric_namespace'] = nil
 default['dd-agent-install']['log_level'] = 'INFO'
 default['dd-agent-install']['enable_logs_agent'] = false
+
+default['dd-agent-install']['agent_install_options'] = ''

@@ -78,19 +78,19 @@ func (c *catalog) run() {
 
 	for {
 		<-pingTicker.C
-		c.Lock()
-		if len(c.components) == 0 {
+		empty := c.pingComponents()
+		if empty {
 			break
 		}
-		c.pingComponents()
-		c.Unlock()
 	}
 	pingTicker.Stop()
 }
 
-// pingComponents is the actual pinging logic, separated for unit tests
-// lock is handled by the parent run method
-func (c *catalog) pingComponents() {
+// pingComponents is the actual pinging logic, separated for unit tests.
+// Returns true if the component list is empty, to make the pooling logic stop.
+func (c *catalog) pingComponents() bool {
+	c.Lock()
+	defer c.Unlock()
 	for _, component := range c.components {
 		select {
 		case component.healthChan <- struct{}{}:
@@ -100,6 +100,7 @@ func (c *catalog) pingComponents() {
 		}
 	}
 	c.latestRun = time.Now()
+	return len(c.components) == 0
 }
 
 // deregister a component from the healthcheck

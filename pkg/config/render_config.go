@@ -35,6 +35,7 @@ type context struct {
 	NetworkTracer     bool
 	KubeApiServer     bool
 	TraceAgent        bool
+	ClusterChecks     bool
 }
 
 func mkContext(buildType string) context {
@@ -81,6 +82,7 @@ func mkContext(buildType string) context {
 			Common:        true,
 			Logging:       true,
 			KubeApiServer: true,
+			ClusterChecks: true,
 		}
 	}
 

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -170,4 +171,15 @@ func extractLogsTemplatesFromMap(key string, input map[string]string, prefix str
 	default:
 		return []integration.Config{}, fmt.Errorf("invalid format, expected an array, got: '%v'", data)
 	}
+}
+
+// GetPollInterval computes the poll interval from the config
+func GetPollInterval(cp config.ConfigurationProviders) time.Duration {
+	if cp.PollInterval != "" {
+		customInterval, err := time.ParseDuration(cp.PollInterval)
+		if err == nil {
+			return customInterval
+		}
+	}
+	return config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
 }

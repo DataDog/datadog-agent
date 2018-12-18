@@ -106,15 +106,18 @@ func GenerateRootCert(hosts []string, bits int) (
 	return
 }
 
+// GetAuthTokenFilepath returns the path to the auth_token file.
+func GetAuthTokenFilepath() string {
+	if config.Datadog.GetString("auth_token_file_path") != "" {
+		return config.Datadog.GetString("auth_token_file_path")
+	}
+	return filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
+}
+
 // FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
 func FetchAuthToken() (string, error) {
-	var authTokenFile string
-	if config.Datadog.GetString("auth_token_file_path") != "" {
-		authTokenFile = config.Datadog.GetString("auth_token_file_path")
-	} else {
-		authTokenFile = filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
-	}
+	authTokenFile := GetAuthTokenFilepath()
 
 	// Create a new token if it doesn't exist
 	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) {

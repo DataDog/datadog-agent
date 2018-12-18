@@ -14,6 +14,7 @@ import (
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -24,11 +25,12 @@ const (
 // ECSCollector listen to the ECS agent to get ECS metadata.
 // Relies on the DockerCollector to trigger deletions, it's not intended to run standalone
 type ECSCollector struct {
-	infoOut    chan<- []*TagInfo
-	expire     *taggerutil.Expire
-	lastExpire time.Time
-	expireFreq time.Duration
-	ecsUtil    *ecs.Util
+	infoOut     chan<- []*TagInfo
+	expire      *taggerutil.Expire
+	lastExpire  time.Time
+	expireFreq  time.Duration
+	ecsUtil     *ecs.Util
+	clusterName string
 }
 
 // Detect tries to connect to the ECS agent
@@ -43,9 +45,13 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	c.expireFreq = ecsExpireFreq
 
 	c.expire, err = taggerutil.NewExpire(ecsExpireFreq)
-
 	if err != nil {
 		return NoCollection, err
+	}
+
+	c.clusterName, err = ecsUtil.GetClusterName()
+	if err != nil {
+		log.Warnf("Cannot determine ECS cluster name: %s", err)
 	}
 	return FetchOnlyCollection, nil
 }

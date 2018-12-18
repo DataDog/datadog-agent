@@ -42,6 +42,12 @@ type (
 		Tasks []TaskV1 `json:"tasks"`
 	}
 
+	// MetadataV1Response is the format of a response from the ECS metadata API.
+	// See http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-agent-introspection.html
+	MetadataV1Response struct {
+		Cluster string `json:"Cluster"`
+	}
+
 	// TaskV1 is the format of a Task in the ECS tasks API.
 	TaskV1 struct {
 		Arn           string        `json:"Arn"`
@@ -160,6 +166,21 @@ func (u *Util) GetTasks() (TasksV1Response, error) {
 	return resp, nil
 }
 
+// GetClusterName returns the cluster name provided by the local ECS agent
+func (u *Util) GetClusterName() (string, error) {
+	var resp MetadataV1Response
+	r, err := http.Get(fmt.Sprintf("%sv1/metadata", u.agentURL))
+	if err != nil {
+		return "", err
+	}
+	defer r.Body.Close()
+
+	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
+		return "", err
+	}
+	return resp.Cluster, nil
+}
+
 // detectAgentURL finds a hostname for the ECS-agent either via Docker, if
 // running inside of a container, or just defaulting to localhost.
 func detectAgentURL() (string, error) {
@@ -173,14 +194,14 @@ func detectAgentURL() (string, error) {
 		// List all interfaces for the ecs-agent container
 		agentURLS, err := getAgentContainerURLS()
 		if err != nil {
-			log.Debugf("could inspect ecs-agent container: ", err)
+			log.Debugf("could inspect ecs-agent container: %s", err)
 		} else {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
 		gw, err := docker.DefaultGateway()
 		if err != nil {
-			log.Debugf("could not get docker default gateway: ", err)
+			log.Debugf("could not get docker default gateway: %s", err)
 		}
 		if gw != nil {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", gw.String(), DefaultAgentPort))

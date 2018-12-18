@@ -11,6 +11,9 @@ package app
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -25,6 +28,14 @@ var (
 	tufPipCachePath        = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
 )
 
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		tufPipCachePath = filepath.Join(pd, "Datadog", "repositories", "cache")
+	} else {
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, tufPipCachePath)
+	}
+}
 func authorizedUser() bool {
 	// TODO: implement something useful
 	return true

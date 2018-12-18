@@ -20,6 +20,7 @@ ALL_TAGS = set([
     "kubeapiserver",
     "kubelet",
     "log",
+    "netcgo", # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "process",
     "snmp",
     "systemd",
@@ -37,6 +38,7 @@ LINUX_ONLY_TAGS = [
     "kubelet",
     "kubeapiserver",
     "cri",
+    "netcgo",
 ]
 
 REDHAT_AND_DEBIAN_ONLY_TAGS = [

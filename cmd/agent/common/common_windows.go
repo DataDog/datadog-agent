@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
@@ -36,7 +37,7 @@ var (
 		"process_enabled": "process_config.enabled"}
 )
 
-const (
+var (
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
 	// DefaultLogFile points to the log file that will be used if not configured
@@ -44,6 +45,17 @@ const (
 	// DefaultDCALogFile points to the log file that will be used if not configured
 	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
 )
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultConfPath = filepath.Join(pd, "Datadog")
+		DefaultLogFile = filepath.Join(pd, "Datadog", "logs", "agent.log")
+		DefaultDCALogFile = filepath.Join(pd, "Datadog", "logs", "cluster-agent.log")
+	} else {
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
+	}
+}
 
 // EnableLoggingToFile -- set up logging to file
 func EnableLoggingToFile() {
@@ -212,7 +224,7 @@ func ImportRegistryConfig() error {
 					case "apm_config.enabled":
 						overrides[cfg] = false
 					case "process_config.enabled":
-						overrides[cfg] = "false"
+						overrides[cfg] = "disabled"
 					}
 					log.Debugf("Setting %s to false", cfg)
 				}
