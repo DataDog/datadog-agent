@@ -75,13 +75,18 @@ if node['platform_family'] == 'windows'
   package_retries = node['dd-agent-upgrade']['agent_package_retries']
   package_retry_delay = node['dd-agent-upgrade']['agent_package_retry_delay']
   dd_agent_version = node['dd-agent-upgrade']['windows_version']
+  dd_agent_filename = node['dd-agent-upgrade']['windows_agent_filename']
 
-  if dd_agent_version
-    dd_agent_installer_basename = "datadog-agent-#{dd_agent_version}-1-x86_64"
+  if dd_agent_filename
+    dd_agent_installer_basename = dd_agent_filename
   else
-    dd_agent_installer_basename = "datadog-agent-latest-x86_64"
+    if dd_agent_version
+      dd_agent_installer_basename = "datadog-agent-#{dd_agent_version}-1-x86_64"
+    else
+      dd_agent_installer_basename = "datadog-agent-6.0.0-beta.latest.amd64"
+    end
   end
-
+  
   temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli')
 
   dd_agent_installer = "#{dd_agent_installer_basename}.msi"
@@ -106,7 +111,7 @@ if node['platform_family'] == 'windows'
   end
 
   execute "install-agent" do
-    command "start /wait #{temp_file} #{install_options}"
+    command "start /wait msiexec /q /i #{temp_file} #{install_options}"
     action :run
     notifies :restart, 'service[datadog-agent]'
   end
