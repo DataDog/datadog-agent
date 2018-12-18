@@ -25,6 +25,7 @@ import (
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/types"
 	"gopkg.in/yaml.v2"
+	"time"
 )
 
 const (
@@ -35,6 +36,7 @@ const (
 type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
+	sub      *Subscriber
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -51,6 +53,7 @@ func ContainerdFactory() check.Check {
 	return &ContainerdCheck{
 		CheckBase: corechecks.NewCheckBase(containerdCheckName),
 		instance:  &ContainerdConfig{},
+		sub :  &Subscriber{},
 	}
 }
 
@@ -90,6 +93,12 @@ func (c *ContainerdCheck) Run() error {
 	if err != nil {
 		return err
 	}
+	if c.sub == nil {
+		c.sub = createEventSubscriber("ContainerdCheck")
+		c.sub.Run() // Use the ns gotten from above
+	}
+	events := c.sub.Flush(time.Now().Unix())
+	// Process events
 
 	for _, n := range nsList {
 		nk := namespaces.WithNamespace(context.Background(), n)
