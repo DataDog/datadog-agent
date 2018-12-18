@@ -169,6 +169,7 @@ Other Notes
   default versions when the Agent is upgraded.
   This guarantees the integrity of the embedded python environment after the upgrade.
 
+- The ``datadog-agent integration`` command is now in Beta.
 
 .. _Release Notes_6.7.0:
 
