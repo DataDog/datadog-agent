@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -201,22 +202,129 @@ func TestBuildHistogramPercentiles(t *testing.T) {
 func TestDefaultValues(t *testing.T) {
 	agentConfig := make(Config)
 	FromAgentConfig(agentConfig)
-
 	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
 }
 
+func TestConverter(t *testing.T) {
+	require := require.New(t)
+	cfg, err := GetAgentConfig("./tests/datadog.conf")
+	require.NoError(err)
+	err = FromAgentConfig(cfg)
+	require.NoError(err)
+	c := config.Datadog
+
+	require.Equal([]string{
+		"GET|POST /healthcheck",
+		"GET /V1",
+	}, c.GetStringSlice("apm_config.ignore_resources"))
+
+	// string values
+	for k, v := range map[string]string{
+		"api_key":                      "",
+		"apm_config.api_key":           "1234",          // trace.api.api_key
+		"apm_config.apm_dd_url":        "http://ip.url", // trace.api.endpoint
+		"apm_config.env":               "staging",       // trace.config.env
+		"apm_config.log_level":         "warn",          // trace.config.log_level
+		"apm_config.log_file":          "/path/to/file", // trace.config.log_file
+		"apm_config.extra_aggregators": "a,b,c",         // trace.concentrator.extra_aggregators
+		"proxy.http":                   "http://user:password@my-proxy.com:3128",
+		"proxy.https":                  "http://user:password@my-proxy.com:3128",
+		"hostname":                     "mymachine.mydomain",
+		"bind_host":                    "localhost",
+		"log_level":                    "INFO",
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetString(k), k)
+	}
+
+	// bool values
+	for k, v := range map[string]bool{
+		"hostname_fqdn":                    true,
+		"apm_config.enabled":               false,
+		"apm_config.apm_non_local_traffic": false,
+		"skip_ssl_validation":              false,
+		"apm_config.log_throttling":        true, // trace.config.log_throttling
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetBool(k), k)
+	}
+
+	// int values
+	for k, v := range map[string]int{
+		"apm_config.bucket_size_seconds":                                   5,    // trace.concentrator.bucket_size_seconds
+		"apm_config.receiver_port":                                         8126, // trace.receiver.receiver_port
+		"apm_config.connection_limit":                                      2000, // trace.receiver.connection_limit
+		"apm_config.receiver_timeout":                                      4,    // trace.receiver.timeout
+		"apm_config.max_connections":                                       40,   // trace.watchdog.max_connections
+		"apm_config.watchdog_check_delay":                                  5,    // trace.watchdog.check_delay_seconds
+		"apm_config.extra_sample_rate":                                     1,
+		"dogstatsd_port":                                                   8125,
+		"apm_config.service_writer.flush_period_seconds":                   1,
+		"apm_config.service_writer.update_info_period_seconds":             1,
+		"apm_config.service_writer.queue.max_age_seconds":                  1,
+		"apm_config.service_writer.queue.max_bytes":                        456,
+		"apm_config.service_writer.queue.max_payloads":                     4,
+		"apm_config.service_writer.queue.exp_backoff_max_duration_seconds": 4,
+		"apm_config.service_writer.queue.exp_backoff_base_milliseconds":    1,
+		"apm_config.service_writer.queue.exp_backoff_growth_base":          2,
+		"apm_config.stats_writer.max_entries_per_payload":                  10,
+		"apm_config.stats_writer.update_info_period_seconds":               2,
+		"apm_config.stats_writer.queue.max_age_seconds":                    1,
+		"apm_config.stats_writer.queue.max_bytes":                          456,
+		"apm_config.stats_writer.queue.max_payloads":                       4,
+		"apm_config.stats_writer.queue.exp_backoff_max_duration_seconds":   4,
+		"apm_config.stats_writer.queue.exp_backoff_base_milliseconds":      1,
+		"apm_config.stats_writer.queue.exp_backoff_growth_base":            2,
+		"apm_config.trace_writer.max_spans_per_payload":                    100,
+		"apm_config.trace_writer.flush_period_seconds":                     3,
+		"apm_config.trace_writer.update_info_period_seconds":               2,
+		"apm_config.trace_writer.queue.max_age_seconds":                    1,
+		"apm_config.trace_writer.queue.max_bytes":                          456,
+		"apm_config.trace_writer.queue.max_payloads":                       4,
+		"apm_config.trace_writer.queue.exp_backoff_max_duration_seconds":   4,
+		"apm_config.trace_writer.queue.exp_backoff_base_milliseconds":      1,
+		"apm_config.trace_writer.queue.exp_backoff_growth_base":            2,
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetInt(k), k)
+	}
+
+	// float64 values
+	for k, v := range map[string]float64{
+		"apm_config.extra_sample_rate":     1.,     // trace.sampler.extra_sample_rate
+		"apm_config.max_traces_per_second": 10.,    // trace.sampler.max_traces_per_second
+		"apm_config.max_events_per_second": 10.4,   // trace.sampler.max_events_per_second
+		"apm_config.max_memory":            1234.5, // trace.watchdog.max_memory
+		"apm_config.max_cpu_percent":       85.4,   // trace.watchdog.max_cpu_percent
+	} {
+		require.True(c.IsSet(k), k)
+		require.Equal(v, c.GetFloat64(k), k)
+	}
+
+	require.Equal(map[string]string{
+		"service1": "1.1",
+		"service2": "1.2",
+	}, c.GetStringMapString("apm_config.analyzed_rate_by_service"))
+
+	require.Equal(map[string]string{
+		"service3|op3": "1.3",
+		"service4|op4": "1.4",
+	}, c.GetStringMapString("apm_config.analyzed_spans"))
+}
+
 func TestExtractURLAPIKeys(t *testing.T) {
-	defer func() {
-		config.Datadog.Set("dd_url", "")
-		config.Datadog.Set("api_key", "")
-		config.Datadog.Set("additional_endpoints", nil)
-	}()
+	configConverter := config.NewConfigConverter()
+	defer func(*config.LegacyConfigConverter) {
+		configConverter.Set("dd_url", "")
+		configConverter.Set("api_key", "")
+		configConverter.Set("additional_endpoints", nil)
+	}(configConverter)
 	agentConfig := make(Config)
 
 	// empty
 	agentConfig["dd_url"] = ""
 	agentConfig["api_key"] = ""
-	err := extractURLAPIKeys(agentConfig)
+	err := extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "", config.Datadog.Get("api_key"))
@@ -225,7 +333,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// one url and one key
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
@@ -234,7 +342,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// multiple dd_url and api_key
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.Nil(t, err)
 	assert.Equal(t, "https://datadoghq.com", config.Datadog.Get("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.Get("api_key"))
@@ -247,6 +355,6 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	// config error
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,hhttps://datadoghq.com,ttps://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key"
-	err = extractURLAPIKeys(agentConfig)
+	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.NotNil(t, err)
 }

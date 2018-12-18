@@ -23,9 +23,9 @@ import (
 // When a docker launcher can not be initialized properly and when the log collection is enabled for all containers,
 // the launcher will attempt to initialize a kubernetes launcher which will detect and tail all the logs files localized
 // in '/var/log/pods' of all the containers running on the kubernetes cluster.
-func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
+func NewLauncher(collectAll bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
 	switch {
-	case config.LogsAgent.GetBool("logs_config.container_collect_all"):
+	case collectAll:
 		// attempt to initialize a docker launcher
 		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
 		if err == nil {

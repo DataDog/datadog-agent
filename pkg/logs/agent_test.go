@@ -15,8 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -52,9 +54,9 @@ func (suite *AgentTestSuite) SetupTest() {
 	}
 	suite.source = config.NewLogSource("", &logConfig)
 
-	config.LogsAgent.Set("logs_config.run_path", suite.testDir)
+	coreConfig.Datadog.Set("logs_config.run_path", suite.testDir)
 	// Shorter grace period for tests.
-	config.LogsAgent.Set("logs_config.stop_grace_period", 1)
+	coreConfig.Datadog.Set("logs_config.stop_grace_period", 1)
 }
 
 func (suite *AgentTestSuite) TearDownTest() {

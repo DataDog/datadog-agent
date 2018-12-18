@@ -271,6 +271,7 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 }
 
 // IO returns the disk read and write bytes stats for this cgroup.
+// tested in DiskMappingTestSuite.TestContainerCgroupIO
 // Format:
 //
 // 8:0 Read 49225728
@@ -285,7 +286,12 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 // 252:0 Total 58945536
 //
 func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
-	ret := &CgroupIOStat{ContainerID: c.ContainerID}
+	ret := &CgroupIOStat{
+		ContainerID:      c.ContainerID,
+		DeviceReadBytes:  make(map[string]uint64),
+		DeviceWriteBytes: make(map[string]uint64),
+	}
+
 	statfile := c.cgroupFilePath("blkio", "blkio.throttle.io_service_bytes")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
@@ -296,18 +302,38 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 	}
 	defer f.Close()
 
+	// Get device id->name mapping
+	var devices map[string]string
+	mapping, err := getDiskDeviceMapping()
+	if err != nil {
+		log.Debugf("Cannot get per-device stats: %s", err)
+		// devices will stay nil, lookups are safe in nil maps
+	} else {
+		devices = mapping.idToName
+	}
+
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), " ")
+		if len(fields) < 3 {
+			continue
+		}
+		deviceName := devices[fields[0]]
 		if fields[1] == "Read" {
 			read, err := strconv.ParseUint(fields[2], 10, 64)
 			if err == nil {
-				ret.ReadBytes = read
+				ret.ReadBytes += read
+				if deviceName != "" {
+					ret.DeviceReadBytes[deviceName] = read
+				}
 			}
 		} else if fields[1] == "Write" {
 			write, err := strconv.ParseUint(fields[2], 10, 64)
 			if err == nil {
-				ret.WriteBytes = write
+				ret.WriteBytes += write
+				if deviceName != "" {
+					ret.DeviceWriteBytes[deviceName] = write
+				}
 			}
 		}
 	}

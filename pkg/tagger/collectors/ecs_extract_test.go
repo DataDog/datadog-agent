@@ -22,7 +22,8 @@ func TestECSParseTasks(t *testing.T) {
 	ecsExpireFreq := 5 * time.Minute
 	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)
 	ecsCollector := &ECSCollector{
-		expire: expiretest,
+		expire:      expiretest,
+		clusterName: "test-cluster",
 	}
 
 	for nb, tc := range []struct {
@@ -63,14 +64,14 @@ func TestECSParseTasks(t *testing.T) {
 				{
 					Source:       "ecs",
 					Entity:       "docker://9581a69a761a557fbfce1d0f6745e4af5b9dbfb86b6b2c5c4df156f1a5932ff1",
-					HighCardTags: []string{},
-					LowCardTags:  []string{"task_version:8", "task_name:hello_world"},
+					HighCardTags: []string{"task_arn:arn:aws:ecs:us-east-1:<aws_account_id>:task/example5-58ff-46c9-ae05-543f8example"},
+					LowCardTags:  []string{"ecs_container_name:mysql", "cluster_name:test-cluster", "task_version:8", "task_name:hello_world", "task_family:hello_world"},
 				},
 				{
 					Source:       "ecs",
 					Entity:       "docker://bf25c5c5b2d4dba68846c7236e75b6915e1e778d31611e3c6a06831e39814a15",
-					HighCardTags: []string{},
-					LowCardTags:  []string{"task_version:8", "task_name:hello_world"},
+					HighCardTags: []string{"task_arn:arn:aws:ecs:us-east-1:<aws_account_id>:task/example5-58ff-46c9-ae05-543f8example"},
+					LowCardTags:  []string{"ecs_container_name:wordpress", "cluster_name:test-cluster", "task_version:8", "task_name:hello_world", "task_family:hello_world"},
 				},
 			},
 			err: nil,

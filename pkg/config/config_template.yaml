@@ -127,6 +127,11 @@ api_key:
 # Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
 
+# The agent can expose its health check on a dedicated http port.
+# This is useful for orchestrators that support http probes.
+# Default is 0 (disabled), set a valid port number (eg. 5555) to enable.
+# health_port: 0
+
 # The `check_runners` refers to the number of concurrent check runners available
 # for check instance execution. The scheduler will attempt to spread the
 # instances over the collection interval and will _at most_ be running the
@@ -327,6 +332,12 @@ api_key:
 #   - name: clusterchecks
 #      grace_time_seconds: 60
 
+{{- if .ClusterChecks }}
+## The kube_services provider watches Kubernetes services for cluster-checks
+#   - name: kube_services
+#     polling: true
+{{ end -}}
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs
@@ -352,6 +363,13 @@ api_key:
 #     template_url: 127.0.0.1
 #     username:
 #     password:
+
+## You can also add additional config providers by name using their default settings,
+## and pooling enabled. This list is available as an environment variable binding.
+#
+# extra_config_providers:
+#   - clusterchecks
+
 {{ end -}}
 {{- if .Logging }}
 # Logging
@@ -419,6 +437,12 @@ api_key:
 #   - name: auto
 #   - name: docker
 #
+## You can also add additional listeners by name using their default settings.
+## This list is available as an environment variable binding.
+#
+# extra_listeners:
+#   - kubelet
+#
 # Exclude containers from metrics and AD based on their name or image:
 # An excluded container will not get any individual container metric reported for it.
 # Please note that the `docker.containers.running`, `.stopped`, `.running.total` and
@@ -473,6 +497,20 @@ api_key:
 # The default interval in second to check for new autodiscovery configurations
 # On all registered configuration providers
 # ad_config_poll_interval: 10
+#
+{{ end -}}
+{{- if .ClusterChecks }}
+# Cluster check dispatching
+#
+# The cluster-agent is able to autodiscover cluster resources and dispatch checks on
+# the node-agents (provided the clustercheck config provider is enabled on them).
+#
+# cluster_checks:
+#   Set to true to enable the dispatching logic on the leader cluster-agent.
+#   enabled: "true"
+#   Node-agents that have not queried the cluster-agent for 30 seconds will be deleted,
+#   and their checks re-dispatched to other nodes. This delay is configurable here.
+#   node_expiration_timeout: 30
 #
 {{ end -}}
 {{- if .DockerTagging }}
@@ -641,7 +679,7 @@ api_key:
 #   dd_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   dd_agent_env:
-{{ end -}} 
+{{ end -}}
 
 {{- if .NetworkTracer }}
 # Network tracer specific settings

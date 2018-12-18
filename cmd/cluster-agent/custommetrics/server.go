@@ -11,15 +11,16 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/CharlyF/custom-metrics-apiserver/pkg/apiserver"
-	basecmd "github.com/CharlyF/custom-metrics-apiserver/pkg/cmd"
-	"github.com/CharlyF/custom-metrics-apiserver/pkg/provider"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver"
+	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/wait"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -90,6 +91,9 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie() (provider.ExternalMetricsPro
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService
 func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
+	o.SecureServing.ServerCert.CertDirectory = "/etc/datadog-agent/certificates"
+	o.SecureServing.BindPort = config.Datadog.GetInt("external_metrics_provider.port")
+
 	if err := o.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)

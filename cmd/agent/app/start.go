@@ -6,6 +6,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -71,6 +73,8 @@ func start(cmd *cobra.Command, args []string) error {
 
 // StartAgent Initializes the agent process
 func StartAgent() error {
+	// Main context passed to components
+	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Global Agent configuration
 	err := common.SetupConfig(confFilePath)
@@ -119,6 +123,16 @@ func StartAgent() error {
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+
+	// Setup healthcheck port
+	var healthPort = config.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(common.MainCtx, healthPort)
+		if err != nil {
+			return log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
+	}
 
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)
@@ -275,6 +289,8 @@ func StopAgent() {
 	}
 
 	// gracefully shut down any component
+	common.MainCtxCancel()
+
 	if common.DSD != nil {
 		common.DSD.Stop()
 	}

@@ -7,7 +7,9 @@ package legacy
 
 // `aws-sdk-go` imports go-ini like this instead of `gopkg.in/ini.v1`, let's do
 // the same to avoid checking in the dependency twice with different names.
-import "github.com/go-ini/ini"
+import (
+	"github.com/go-ini/ini"
+)
 
 // Config is a simple key/value representation of the legacy agentConfig
 // dictionary
@@ -62,20 +64,14 @@ var (
 		"process_agent_enabled",
 		"disable_file_logging",
 		"enable_gohai",
-		// trace-agent specific
 		"apm_enabled",
-		"env",
-		"receiver_port",
-		"extra_sample_rate",
-		"max_traces_per_second",
-		"resource",
 	}
 )
 
 // GetAgentConfig reads `datadog.conf` and returns a map that contains the same
 // values as the agentConfig dictionary returned by `get_config()` in config.py
 func GetAgentConfig(datadogConfPath string) (Config, error) {
-	config := make(map[string]string)
+	config := make(Config)
 	iniFile, err := ini.Load(datadogConfPath)
 	if err != nil {
 		return config, err
@@ -87,24 +83,9 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 		return config, err
 	}
 
-	// get the Trace sections
-	// some of these aren't likely to exist
-	traceConfig := iniFile.Section("trace.config")
-	traceReceiver := iniFile.Section("trace.receiver")
-	traceSampler := iniFile.Section("trace.sampler")
-	traceIgnore := iniFile.Section("trace.ignore")
-
 	// Grab the values needed to do a comparison of the Go vs Python algorithm.
 	for _, supportedValue := range supportedValues {
 		if value, err := main.GetKey(supportedValue); err == nil {
-			config[supportedValue] = value.String()
-		} else if value, err := traceConfig.GetKey(supportedValue); err == nil {
-			config[supportedValue] = value.String()
-		} else if value, err := traceReceiver.GetKey(supportedValue); err == nil {
-			config[supportedValue] = value.String()
-		} else if value, err := traceSampler.GetKey(supportedValue); err == nil {
-			config[supportedValue] = value.String()
-		} else if value, err := traceIgnore.GetKey(supportedValue); err == nil {
 			config[supportedValue] = value.String()
 		} else {
 			// provide an empty default value so we don't need to check for
@@ -127,6 +108,30 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 	config["version"] = "5.18.0"
 	config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"
 	config["service_discovery"] = "True"
+
+	// add trace agent sections as <section>.<key>
+	for _, section := range []string{
+		"trace.api",
+		"trace.config",
+		"trace.ignore",
+		"trace.analyzed_rate_by_service",
+		"trace.analyzed_spans",
+		"trace.concentrator",
+		"trace.sampler",
+		"trace.receiver",
+		"trace.watchdog",
+		"trace.writer.services",
+		"trace.writer.stats",
+		"trace.writer.traces",
+	} {
+		s, err := iniFile.GetSection(section)
+		if err != nil {
+			continue
+		}
+		for k, v := range s.KeysHash() {
+			config[section+"."+k] = v
+		}
+	}
 
 	return config, nil
 }

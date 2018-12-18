@@ -114,7 +114,7 @@ func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, erro
 	co, err := c.dockerUtil.Inspect(cID, false)
 	if err != nil {
 		// TODO separate "not found" and inspect error
-		log.Errorf("Failed to inspect container %s - %s", cID, err)
+		log.Debugf("Failed to inspect container %s - %s", cID, err)
 		return nil, nil, err
 	}
 	return c.extractFromInspect(co)

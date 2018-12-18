@@ -18,5 +18,5 @@ type osVersion [3]string
 const osName = runtime.GOOS
 
 func fillOsVersion(stats *systemStats, info *host.InfoStat) {
-	stats.Nixver = osVersion{info.PlatformFamily, info.PlatformVersion, ""}
+	stats.Nixver = osVersion{info.Platform, info.PlatformVersion, ""}
 }

@@ -10,7 +10,7 @@ package custommetrics
 import (
 	"fmt"
 
-	"github.com/CharlyF/custom-metrics-apiserver/pkg/provider"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,7 +133,7 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector lab
 			MetricLabels: metric.value.MetricLabels,
 			Value:        metric.value.Value,
 		}
-		if metric.info.Metric == metric.info.Metric &&
+		if info.Metric == metric.info.Metric &&
 			metricSelector.Matches(labels.Set(metric.value.MetricLabels)) {
 			metricValue := metricFromDatadog
 			metricValue.Timestamp = metav1.Now()

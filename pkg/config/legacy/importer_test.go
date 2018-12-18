@@ -63,4 +63,7 @@ func TestGetAgentConfig(t *testing.T) {
 		assert.True(t, found)
 		assert.Equal(t, valueStr, goValue)
 	}
+	require.True(t, pos > 0)
+	require.Equal(t, "1234", agentConfigGo["trace.api.api_key"])
+	require.Equal(t, "http://ip.url", agentConfigGo["trace.api.endpoint"])
 }

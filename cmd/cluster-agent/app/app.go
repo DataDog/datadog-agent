@@ -8,6 +8,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,11 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -108,6 +111,9 @@ func start(cmd *cobra.Command, args []string) error {
 		logFile = ""
 	}
 
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel() // Calling cancel twice is safe
+
 	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
 		logFile,
@@ -124,6 +130,16 @@ func start(cmd *cobra.Command, args []string) error {
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
+	}
+
+	// Setup healthcheck port
+	var healthPort = config.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(mainCtx, healthPort)
+		if err != nil {
+			return log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
 	// get hostname
@@ -176,7 +192,7 @@ func start(cmd *cobra.Command, args []string) error {
 	common.StartAutoConfig()
 
 	// Start the cluster-check discovery if configured
-	clusterCheckHandler := setupClusterCheck()
+	clusterCheckHandler := setupClusterCheck(mainCtx)
 	// start the cmd HTTPS server
 	sc := clusteragent.ServerContext{
 		ClusterCheckHandler: clusterCheckHandler,
@@ -196,9 +212,19 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Block here until we receive the interrupt signal
 	<-signalCh
-	if clusterCheckHandler != nil {
-		clusterCheckHandler.StopDiscovery()
+
+	// retrieve the agent health before stopping the components
+	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetStatusNonBlocking()
+	if err != nil {
+		log.Warnf("Cluster Agent health unknown: %s", err)
+	} else if len(health.Unhealthy) > 0 {
+		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
+
+	// Cancel the main context to stop components
+	mainCtxCancel()
+
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		custommetrics.StopServer()
 	}
@@ -210,23 +236,19 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func setupClusterCheck() *clusterchecks.Handler {
+func setupClusterCheck(ctx context.Context) *clusterchecks.Handler {
 	if !config.Datadog.GetBool("cluster_checks.enabled") {
 		log.Debug("Cluster check Autodiscovery disabled")
 		return nil
 	}
 
-	clusterCheckHandler, err := clusterchecks.SetupHandler(common.AC)
+	handler, err := clusterchecks.NewHandler(common.AC)
 	if err != nil {
 		log.Errorf("Could not setup the cluster-checks Autodiscovery: %s", err.Error())
 		return nil
 	}
-	err = clusterCheckHandler.StartDiscovery()
-	if err != nil {
-		log.Errorf("Could not start the cluster-checks Autodiscovery: %s", err.Error())
-		return nil
-	}
+	go handler.Run(ctx)
 
 	log.Info("Started cluster check Autodiscovery")
-	return clusterCheckHandler
+	return handler
 }
