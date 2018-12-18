@@ -22,7 +22,7 @@ build do
     target_binary = "process-agent.exe"
     curl_cmd = "powershell -Command wget -OutFile #{binary} #{url}#{binary}"
     command curl_cmd
-    command "mv #{binary} #{install_dir}/bin/agent/#{target_binary}"
+    command "mv #{binary}  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/#{target_binary}"
   else
     binary = "process-agent-amd64-#{version}"
     target_binary = "process-agent"
