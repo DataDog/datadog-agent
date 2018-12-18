@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-This is a container only release that fixes a bug that only affected the docker image.
+This is a container only release that fixes a bug introduced in ``6.8.0`` that was impacting the kubernetes integration.
 
 Release on: 2018-12-17
 
@@ -23,7 +23,7 @@ Release on: 2018-12-17
 Bug Fixes
 ---------
 
-- Fixes the default ``kubelet`` check configuration that was preventing the kubernetes integrations from working properly
+- Fixes the default ``kubelet`` check configuration that was preventing the kubernetes integration from working properly
 
 .. _Release Notes_6.8.0:
 
