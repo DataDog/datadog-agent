@@ -254,15 +254,15 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
 
         if core_dir:
             checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
-            ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
-            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+            ctx.run('pip3 install -{} -e {}'.format(verbosity, checks_base))
+            ctx.run('pip3 install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
         else:
             core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
             checks_base = os.path.join(core_dir, 'datadog_checks_base')
             if not os.path.isdir(core_dir):
                 ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
-            ctx.run('pip install -{} {}'.format(verbosity, checks_base))
-            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+            ctx.run('pip3 install -{} {}'.format(verbosity, checks_base))
+            ctx.run('pip3 install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
     checks_done = datetime.datetime.now()
 
     print("dep ensure, elapsed:    {}".format(dep_done - start))
