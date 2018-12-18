@@ -6,9 +6,11 @@
 package status
 
 import (
+	"expvar"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 var (
@@ -21,6 +23,7 @@ type Source struct {
 	Configuration map[string]interface{} `json:"configuration"`
 	Status        string                 `json:"status"`
 	Inputs        []string               `json:"inputs"`
+	Messages      []string               `json:"messages"`
 }
 
 // Integration provides some information about a logs integration.
@@ -33,6 +36,7 @@ type Integration struct {
 type Status struct {
 	IsRunning    bool          `json:"is_running"`
 	Integrations []Integration `json:"integrations"`
+	Messages     []string      `json:"messages"`
 }
 
 // Builder is used to build the status.
@@ -47,8 +51,18 @@ func Initialize(sources *config.LogSources) {
 	}
 }
 
+// Clear clears the status (which means it needs to be initialized again to be used).
+func Clear() {
+	builder = nil
+}
+
 // Get returns the status of the logs-agent computed on the fly.
 func Get() Status {
+	if builder == nil {
+		return Status{
+			IsRunning: false,
+		}
+	}
 	// Sort sources by name (ie. by integration name ~= file name)
 	sources := make(map[string][]*config.LogSource)
 	for _, source := range builder.sources.GetSources() {
@@ -59,6 +73,7 @@ func Get() Status {
 	}
 	// Convert to json
 	var integrations []Integration
+	warningsDeduplicator := make(map[string]struct{})
 	for name, sourceList := range sources {
 		var sources []Source
 		for _, source := range sourceList {
@@ -70,18 +85,31 @@ func Get() Status {
 			} else if source.Status.IsError() {
 				status = source.Status.GetError()
 			}
+
 			sources = append(sources, Source{
 				Type:          source.Config.Type,
 				Configuration: toDictionary(source.Config),
 				Status:        status,
 				Inputs:        source.GetInputs(),
+				Messages:      source.Messages.GetMessages(),
 			})
+
+			for _, warning := range source.Messages.GetWarnings() {
+				warningsDeduplicator[warning] = struct{}{}
+			}
 		}
 		integrations = append(integrations, Integration{Name: name, Sources: sources})
 	}
+
+	var warnings []string
+	for warning := range warningsDeduplicator {
+		warnings = append(warnings, warning)
+	}
+
 	return Status{
 		IsRunning:    true,
 		Integrations: integrations,
+		Messages:     warnings,
 	}
 }
 
@@ -110,4 +138,13 @@ func toDictionary(c *config.LogsConfig) map[string]interface{} {
 		}
 	}
 	return dictionary
+}
+
+func init() {
+	metrics.LogsExpvars.Set("Warnings", expvar.Func(func() interface{} {
+		return strings.Join(Get().Messages, ", ")
+	}))
+	metrics.LogsExpvars.Set("IsRunning", expvar.Func(func() interface{} {
+		return Get().IsRunning
+	}))
 }

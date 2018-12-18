@@ -40,33 +40,47 @@
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
-  # branch = "release-1.11"
-  #        + pinning to commit in branch above
-  version = "kubernetes-1.10.3"
+  branch = "release-1.11"
+
+[[override]]
+  name = "k8s.io/apimachinery"
+  branch = "release-1.11"
 
 [[override]]
   name = "github.com/kubernetes/client-go"
-  version = "~v7.0.0"
+  branch = "release-8.0"
+
+[[override]]
+    name = "k8s.io/client-go"
+    branch = "release-8.0"
 
 [[override]]
   name = "github.com/kubernetes/api"
-  # branch = "release-1.11"
-  #        + pinning to commit in branch above
-  version = "kubernetes-1.10.3"
+  branch = "release-1.11"
+
+[[override]]
+  name = "k8s.io/api"
+  branch = "release-1.11"
+
+[[override]]
+  name = "github.com/kubernetes/apiserver"
+  branch = "release-1.11"
 
 [[override]]
   name = "k8s.io/apiserver"
-  # branch = "release-1.11"
-  version = "kubernetes-1.10.3"
+  branch = "release-1.11"
+
+[[override]]
+  name = "github.com/kubernetes/metrics"
+  branch = "release-1.11"
 
 [[override]]
   name = "k8s.io/metrics"
-  version = "kubernetes-1.10.3"
-  # branch = "release-1.11"
+  branch = "release-1.11"
 
 [[override]]
   name = "github.com/kubernetes-incubator/custom-metrics-apiserver"
-  revision = "e61f72fec56ab519d74ebd396cd3fcf31b084558"
+  revision = "85ebc283a57287a8fcb3ad4b488d633cd63ef7d8"
 
 [[constraint]]
   name = "github.com/gorilla/mux"
@@ -127,7 +141,7 @@
 
 [[constraint]]
   name = "gopkg.in/zorkian/go-datadog-api.v2"
-  version = "~v2.8"
+  version = "~v2.12"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
@@ -152,3 +166,16 @@
 [[constraint]]
   name = "github.com/clbanning/mxj"
   version = "1.8.0"
+
+[[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "1.11.2"
+
+[[override]]
+  name = "github.com/docker/distribution"
+  revision = "83389a148052d74ac602f5f1d62f86ff2f3c4aa5"
+
+[[override]]
+  name = "bitbucket.org/ww/goautoneg"
+  source = "github.com/adjust/goautoneg"
+  revision = "d788f35a0315672bc90f50a6145d1252a230ee0d"

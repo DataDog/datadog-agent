@@ -14,7 +14,13 @@ dependency 'protobuf-py'
 
 if linux?
   # add nfsiostat script
+  dependency 'unixodbc'
   dependency 'nfsiostat'
+end
+
+unless windows?
+  # need kerberos for hdfs
+  dependency 'libkrb5'
 end
 
 relative_path 'integrations-core'
@@ -39,7 +45,8 @@ blacklist = [
   'agent_metrics',
   'docker_daemon',
   'kubernetes',
-  'ntp',  # provided as a go check by the core agent
+  'ntp',                           # provided as a go check by the core agent
+  'openstack_controller',          # Check currently under active development and in beta
 ]
 
 core_constraints_file = 'core_constraints.txt'
@@ -92,18 +99,22 @@ build do
 
     all_reqs_file.close
 
+    nix_build_env = {
+      "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+      "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+      "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
+      "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
+      "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
+    }
+
     # Install all the requirements
     # Install all the build requirements
-     if windows?
-       pip_args = "install --require-hashes -r #{project_dir}/check_requirements.txt"
-       command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
-     else
-       build_env = {
-         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-       }
-       pip "install --require-hashes -r #{project_dir}/check_requirements.txt", :env => build_env
-     end
+    if windows?
+      pip_args = "install --require-hashes -r #{project_dir}/check_requirements.txt"
+      command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
+    else
+      pip "install --require-hashes -r #{project_dir}/check_requirements.txt", :env => nix_build_env
+    end
 
     # Set frozen requirements (save to var, and to file)
     # HACK: we need to do this like this due to the well known issues with omnibus
@@ -122,11 +133,7 @@ build do
       pip_args = "install pip-tools==#{PIPTOOLS_VERSION}"
       command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
     else
-      build_env = {
-        "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-        "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-      }
-      pip "install pip-tools==#{PIPTOOLS_VERSION}", :env => build_env
+      pip "install pip-tools==#{PIPTOOLS_VERSION}", :env => nix_build_env
     end
 
     # Windows pip workaround to support globs
@@ -138,14 +145,10 @@ build do
     # Install the static environment requirements that the Agent and all checks will use
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
-      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\data\\agent_requirements.in")
+      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\agent_requirements.in")
     else
-      build_env = {
-        "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-        "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-      }
-      pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{project_dir}/datadog_checks_base/datadog_checks/data/agent_requirements.in")
+      pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{project_dir}/datadog_checks_base/datadog_checks/base/data/agent_requirements.in")
     end
 
     # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
@@ -164,8 +167,13 @@ build do
     if windows?
       command("#{python_bin} -m #{python_pip_req} #{windows_safe_path(install_dir)}\\#{agent_requirements_file}")
     else
-      pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}"
+      pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
+
+    # Ship requirements-agent-release.txt file containing the versions of every check shipped with the agent
+    # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
+    # older than the one shipped in the agent
+    copy "#{project_dir}/requirements-agent-release.txt", "#{install_dir}/"
 
     # install integrations
     Dir.glob("#{project_dir}/*").each do |check_dir|
@@ -223,11 +231,7 @@ build do
       if windows?
         command("#{python_bin} -m #{python_pip_no_deps}\\#{check}")
       else
-        build_env = {
-          "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-          "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
-        }
-        pip "install --no-deps .", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        pip "install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
   end

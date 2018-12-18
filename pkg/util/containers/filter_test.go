@@ -136,8 +136,6 @@ func TestFilter(t *testing.T) {
 	}
 }
 
-// NewFilterFromConfig creates a new container filter, sourcing patterns
-// from the pkg/config options
 func TestNewFilterFromConfig(t *testing.T) {
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
@@ -156,6 +154,25 @@ func TestNewFilterFromConfig(t *testing.T) {
 	f, err = NewFilterFromConfig()
 	require.NoError(t, err)
 	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1"))
+
+	config.Datadog.SetDefault("exclude_pause_container", true)
+	config.Datadog.SetDefault("ac_include", []string{})
+	config.Datadog.SetDefault("ac_exclude", []string{})
+}
+
+func TestNewFilterFromConfigIncludePause(t *testing.T) {
+	config.Datadog.SetDefault("exclude_pause_container", true)
+	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
+	config.Datadog.SetDefault("ac_exclude", []string{"name:dd-.*"})
+
+	f, err := NewFilterFromConfigIncludePause()
+	require.NoError(t, err)
+
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest"))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest"))
+	assert.False(t, f.IsExcluded("dummy", "dummy"))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1"))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1"))
 
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{})

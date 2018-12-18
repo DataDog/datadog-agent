@@ -9,6 +9,8 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // contentLenLimit represents the length limit above which we want to truncate the output content
@@ -24,58 +26,35 @@ func NewInput(content []byte) *Input {
 	return &Input{content}
 }
 
-// Output represents a list of bytes produced by the Decoder
-type Output struct {
-	Content    []byte
-	RawDataLen int
-}
-
-// NewOutput returns a new decoder output
-func NewOutput(content []byte, rawDataLen int) *Output {
-	return &Output{
-		Content:    content,
-		RawDataLen: rawDataLen,
-	}
-}
-
 // Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
 type Decoder struct {
 	InputChan  chan *Input
-	OutputChan chan *Output
+	OutputChan chan *message.Message
 
 	lineBuffer  *bytes.Buffer
 	lineHandler LineHandler
 }
 
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *config.LogSource) *Decoder {
+func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
 	inputChan := make(chan *Input)
-	outputChan := make(chan *Output)
+	outputChan := make(chan *message.Message)
 
 	var lineHandler LineHandler
 	for _, rule := range source.Config.ProcessingRules {
-		switch rule.Type {
-		case config.MultiLine:
-			var lineUnwrapper LineUnwrapper
-			switch source.Config.Type {
-			case config.DockerType:
-				lineUnwrapper = NewDockerUnwrapper()
-			default:
-				lineUnwrapper = NewUnwrapper()
-			}
-			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, lineUnwrapper)
-			break
+		if rule.Type == config.MultiLine {
+			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, parser)
 		}
 	}
 	if lineHandler == nil {
-		lineHandler = NewSingleLineHandler(outputChan)
+		lineHandler = NewSingleLineHandler(outputChan, parser)
 	}
 
 	return New(inputChan, outputChan, lineHandler)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *message.Message, lineHandler LineHandler) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
 		InputChan:   InputChan,

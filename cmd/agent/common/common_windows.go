@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
@@ -36,7 +37,7 @@ var (
 		"process_enabled": "process_config.enabled"}
 )
 
-const (
+var (
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
 	// DefaultLogFile points to the log file that will be used if not configured
@@ -44,6 +45,17 @@ const (
 	// DefaultDCALogFile points to the log file that will be used if not configured
 	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
 )
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultConfPath = filepath.Join(pd, "Datadog")
+		DefaultLogFile = filepath.Join(pd, "Datadog", "logs", "agent.log")
+		DefaultDCALogFile = filepath.Join(pd, "Datadog", "logs", "cluster-agent.log")
+	} else {
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
+	}
+}
 
 // EnableLoggingToFile -- set up logging to file
 func EnableLoggingToFile() {
@@ -210,7 +222,7 @@ func ImportRegistryConfig() error {
 					case "apm_config.enabled":
 						config.Datadog.Set(cfg, false)
 					case "process_config.enabled":
-						config.Datadog.Set(cfg, "false")
+						config.Datadog.Set(cfg, "disabled")
 					}
 					log.Debugf("Setting %s to false", cfg)
 				}
@@ -246,6 +258,27 @@ func ImportRegistryConfig() error {
 	} else {
 		log.Debug("proxy key not found, not setting proxy config")
 	}
+	if val, _, err = k.GetStringValue("site"); err == nil && val != "" {
+		config.Datadog.Set("site", val)
+		log.Debugf("Setting site to %s", val)
+	}
+	if val, _, err = k.GetStringValue("dd_url"); err == nil && val != "" {
+		config.Datadog.Set("dd_url", val)
+		log.Debugf("Setting dd_url to %s", val)
+	}
+	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
+		config.Datadog.Set("logs_config.dd_url", val)
+		log.Debugf("Setting logs_config.dd_url to %s", val)
+	}
+	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
+		config.Datadog.Set("process_config.process_dd_url", val)
+		log.Debugf("Setting process_config.process_dd_url to %s", val)
+	}
+	if val, _, err = k.GetStringValue("trace_dd_url"); err == nil && val != "" {
+		config.Datadog.Set("apm_config.apm_dd_url", val)
+		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
+	}
+
 	// dump the current configuration to datadog.yaml
 	b, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {

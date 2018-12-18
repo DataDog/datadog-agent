@@ -8,6 +8,7 @@
 package common
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -34,6 +35,12 @@ var (
 
 	// Forwarder is the global forwarder instance
 	Forwarder forwarder.Forwarder
+
+	// MainCtx is the main agent context passed to components
+	MainCtx context.Context
+
+	// MainCtxCancel cancels the main agent context
+	MainCtxCancel context.CancelFunc
 
 	// utility variables
 	_here, _ = executable.Folder()

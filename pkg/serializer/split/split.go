@@ -92,9 +92,9 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			// This is the same function used in dd-agent
 			compressionRatio := float64(payloadSize) / float64(compressedSize)
 			numChunks := compressedSize/maxPayloadSize + 1 + int(compressionRatio/2)
-			log.Debugf("split the payload into into %f chunks", numChunks)
+			log.Debugf("split the payload into into %d chunks", numChunks)
 			chunks, err := toSplit.SplitPayload(numChunks)
-			log.Debugf("payload was split into %f chunks", len(chunks))
+			log.Debugf("payload was split into %d chunks", len(chunks))
 			if err != nil {
 				log.Warnf("Some payloads could not be split, dropping them")
 				splitterPayloadDrops.Add(1)

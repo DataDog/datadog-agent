@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptrace"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -101,7 +102,7 @@ func (w *Worker) Start() {
 // worker.
 func (w *Worker) callProcess(t Transaction) error {
 	ctx, cancel := context.WithCancel(context.Background())
-
+	ctx = httptrace.WithClientTrace(ctx, trace)
 	done := make(chan interface{})
 	go func() {
 		w.process(ctx, t)

@@ -29,8 +29,8 @@ execute 'update Agent install script repository' do
   command <<-EOF
     sed -i 's/apt\\.datadoghq\\.com/#{node['dd-agent-install-script']['candidate_repo_domain_apt']}/' install-script
     sed -i 's/yum\\.datadoghq\\.com/#{node['dd-agent-install-script']['candidate_repo_domain_yum']}/' install-script
-    sed -i 's/apt.${dd_url}/#{node['dd-agent-install-script']['candidate_repo_domain_apt']}/' install-script
-    sed -i 's/yum.${dd_url}/#{node['dd-agent-install-script']['candidate_repo_domain_yum']}/' install-script
+    sed -i 's/apt.${repo_url}/#{node['dd-agent-install-script']['candidate_repo_domain_apt']}/' install-script
+    sed -i 's/yum.${repo_url}/#{node['dd-agent-install-script']['candidate_repo_domain_yum']}/' install-script
     sed -i 's~stable/x86_64~#{node['dd-agent-install-script']['candidate_repo_branch']}/x86_64~' install-script
     sed -i 's~rpm/x86_64~#{node['dd-agent-install-script']['candidate_repo_branch']}/x86_64~' install-script
     sed -i 's~beta/x86_64~#{node['dd-agent-install-script']['candidate_repo_branch']}/x86_64~' install-script
@@ -49,8 +49,9 @@ end
 execute 'run agent install script' do
   cwd wrk_dir
   command <<-EOF
-    sed -i '1iDD_API_KEY=#{node['dd-agent-install-script']['api_key']}' install-script
-    sed -i '1iDD_URL="datad0g.com"' install-script
+    sed -i '1aDD_API_KEY=#{node['dd-agent-install-script']['api_key']}' install-script
+    sed -i '1aREPO_URL="datad0g.com"' install-script
+    sed -i '1aDD_URL="datad0g.com"' install-script
     bash install-script
     sleep 10
   EOF

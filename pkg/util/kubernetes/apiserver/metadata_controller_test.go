@@ -25,8 +25,6 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 )
 
-func alwaysReady() bool { return true }
-
 func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
@@ -288,17 +286,9 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 }
 
 func TestMetadataController(t *testing.T) {
+	// FIXME: Updating to k8s.io/client-go v0.9+ should allow revert this PR https://github.com/DataDog/datadog-agent/pull/2524
+	// that allows a more fine-grain testing on the controller lifecycle (affected by bug https://github.com/kubernetes/kubernetes/pull/66078)
 	client := fake.NewSimpleClientset()
-
-	metaController, informerFactory := newFakeMetadataController(client)
-
-	metaController.endpoints = make(chan struct{}, 1)
-	metaController.nodes = make(chan struct{}, 1)
-
-	stop := make(chan struct{})
-	defer close(stop)
-	informerFactory.Start(stop)
-	go metaController.Run(stop)
 
 	c := client.CoreV1()
 	require.NotNil(t, c)
@@ -338,8 +328,6 @@ func TestMetadataController(t *testing.T) {
 	node.Name = "ip-172-31-119-125"
 	_, err := c.Nodes().Create(node)
 	require.NoError(t, err)
-
-	requireReceive(t, metaController.nodes, "nodes")
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -424,12 +412,6 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(ep)
 	require.NoError(t, err)
 
-	requireReceive(t, metaController.endpoints, "endpoints")
-	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
-	require.NoError(t, err)
-	assert.Len(t, metadataNames, 1)
-	assert.Contains(t, metadataNames, "kube_service:nginx-1")
-
 	// Add a new service/endpoint on the nginx Pod
 	svc.Name = "nginx-2"
 	_, err = c.Services("default").Create(svc)
@@ -439,9 +421,18 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(ep)
 	require.NoError(t, err)
 
-	requireReceive(t, metaController.endpoints, "endpoints")
+	metaController, informerFactory := newFakeMetadataController(client)
 
-	metadataNames, err = GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
+	stop := make(chan struct{})
+	defer close(stop)
+	informerFactory.Start(stop)
+	go metaController.Run(stop)
+
+	for !metaController.endpointsListerSynced() && !metaController.nodeListerSynced() {
+		time.Sleep(150 * time.Millisecond)
+	}
+
+	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 	require.NoError(t, err)
 	assert.Len(t, metadataNames, 2)
 	assert.Contains(t, metadataNames, "kube_service:nginx-1")
@@ -457,35 +448,15 @@ func TestMetadataController(t *testing.T) {
 	services, found := fullMap["ip-172-31-119-125"].ServicesForPod(metav1.NamespaceDefault, "nginx")
 	assert.True(t, found)
 	assert.Contains(t, services, "nginx-1")
-
-	err = c.Nodes().Delete(node.Name, &metav1.DeleteOptions{})
-	require.NoError(t, err)
-
-	requireReceive(t, metaController.nodes, "nodes")
-
-	_, err = GetMetadataMapBundleOnNode(node.Name)
-	require.Error(t, err)
 }
 
 func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {
-	informerFactory := informers.NewSharedInformerFactory(client, 0)
+	informerFactory := informers.NewSharedInformerFactory(client, 1*time.Second)
 
 	metaController := NewMetadataController(
 		informerFactory.Core().V1().Nodes(),
 		informerFactory.Core().V1().Endpoints(),
 	)
-	metaController.nodeListerSynced = alwaysReady
-	metaController.endpointsListerSynced = alwaysReady
 
 	return metaController, informerFactory
-}
-
-func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
-	timeout := time.NewTimer(2 * time.Second)
-
-	select {
-	case <-ch:
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
-	}
 }

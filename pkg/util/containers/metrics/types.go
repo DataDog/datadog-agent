@@ -66,10 +66,13 @@ type CgroupTimesStat struct {
 }
 
 // CgroupIOStat store I/O statistics about a cgroup.
+// Sums are stored in ReadBytes and WriteBytes
 type CgroupIOStat struct {
-	ContainerID string
-	ReadBytes   uint64
-	WriteBytes  uint64
+	ContainerID      string
+	ReadBytes        uint64
+	WriteBytes       uint64
+	DeviceReadBytes  map[string]uint64
+	DeviceWriteBytes map[string]uint64
 }
 
 // ContainerCgroup is a structure that stores paths and mounts for a cgroup.

@@ -9,6 +9,7 @@ package secrets
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -183,4 +184,21 @@ func Decrypt(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("could not Marshal config after replacing encrypted secrets: %s", err)
 	}
 	return finalConfig, nil
+}
+
+// GetDebugInfo exposes debug informations about secrets to be included in a flare
+func GetDebugInfo(w io.Writer) {
+	if secretBackendCommand == "" {
+		fmt.Fprintln(w, "No secret_backend_command set: secrets feature is not enabled")
+		return
+	}
+
+	listRights(secretBackendCommand, w)
+
+	fmt.Fprintf(w, "=== Secrets stats ===\n")
+	fmt.Fprintf(w, "Number of secrets decrypted: %d\n", len(secretCache))
+	fmt.Fprintln(w, "secrets Handle decrypted:")
+	for handle := range secretCache {
+		fmt.Fprintf(w, "- %s\n", handle)
+	}
 }

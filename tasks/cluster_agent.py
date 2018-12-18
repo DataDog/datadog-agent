@@ -5,6 +5,7 @@ Cluster Agent tasks
 import os
 import glob
 import shutil
+from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -19,12 +20,13 @@ BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
+    # "clusterchecks",
 ]
 
 
 @task
 def build(ctx, rebuild=False, build_include=None, build_exclude=None,
-          race=False, use_embedded_libs=False):
+          race=False, use_embedded_libs=False, development=True, skip_assets=False):
     """
     Build Cluster Agent
 
@@ -63,6 +65,24 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
     cmd = "go generate -tags '{build_tags}' {repo_path}/cmd/cluster-agent"
     ctx.run(cmd.format(build_tags=" ".join(build_tags), repo_path=REPO_PATH), env=env)
 
+    if not skip_assets:
+        refresh_assets(ctx, development=development)
+
+@task
+def refresh_assets(ctx, development=True):
+    """
+    Clean up and refresh cluster agent's assets and config files
+    """
+    # ensure BIN_PATH exists
+    if not os.path.exists(BIN_PATH):
+        os.mkdir(BIN_PATH)
+
+    dist_folder = os.path.join(BIN_PATH, "dist")
+    if os.path.exists(dist_folder):
+        shutil.rmtree(dist_folder)
+    copy_tree("./Dockerfiles/cluster-agent/dist/", dist_folder)
+    if development:
+        copy_tree("./dev/dist/", dist_folder)
 
 @task
 def clean(ctx):
@@ -110,7 +130,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def image_build(ctx):
+def image_build(ctx, tag=AGENT_TAG, push=False):
     """
     Build the docker image
     """
@@ -125,5 +145,7 @@ def image_build(ctx):
     ctx.run("chmod +x {}".format(latest_file))
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
-    ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
+    ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(tag))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
+    if push:
+        ctx.run("docker push {}".format(tag))

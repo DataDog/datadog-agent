@@ -35,12 +35,12 @@ func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats
 
 	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "dev")
 	if !pathExists(procNetFile) {
-		log.Debugf("Unable to read %s for pid %s", procNetFile, pid)
+		log.Debugf("Unable to read %s for pid %d", procNetFile, pid)
 		return netStats, nil
 	}
 	lines, err := readLines(procNetFile)
 	if err != nil {
-		log.Debugf("Unable to read %s for pid %s", procNetFile, pid)
+		log.Debugf("Unable to read %s for pid %d", procNetFile, pid)
 		return netStats, nil
 	}
 	if len(lines) < 2 {

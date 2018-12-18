@@ -13,6 +13,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/windows"
@@ -71,7 +72,7 @@ func StartService(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
+	s, err := m.OpenService(config.ServiceName)
 	if err != nil {
 		return fmt.Errorf("could not access service: %v", err)
 	}
@@ -84,12 +85,12 @@ func StartService(cmd *cobra.Command, args []string) error {
 }
 
 func stopService(cmd *cobra.Command, args []string) error {
-	return StopService(ServiceName, true)
+	return StopService(config.ServiceName, true)
 }
 
 func restartService(cmd *cobra.Command, args []string) error {
 	var err error
-	if err = StopService(ServiceName, true); err == nil {
+	if err = StopService(config.ServiceName, true); err == nil {
 		err = StartService(cmd, args)
 	}
 	return err

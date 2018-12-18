@@ -59,6 +59,8 @@ func (l *TCPListener) Start() {
 // Stop stops the listener from accepting new connections and all the activer tailers.
 func (l *TCPListener) Stop() {
 	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.stop <- struct{}{}
 	l.listener.Close()
 	stopper := restart.NewParallelStopper()

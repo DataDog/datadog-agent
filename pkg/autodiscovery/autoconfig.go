@@ -26,7 +26,6 @@ import (
 )
 
 var (
-	configsPollIntl       = 10 * time.Second
 	listenerCandidateIntl = 30 * time.Second
 	acErrors              *expvar.Map
 	errorStats            = newAcErrorStats()
@@ -42,14 +41,6 @@ func init() {
 	}))
 }
 
-// providerDescriptor keeps track of the configurations loaded by a certain
-// `providers.ConfigProvider` and whether it should be polled or not.
-type providerDescriptor struct {
-	provider providers.ConfigProvider
-	configs  []integration.Config
-	poll     bool
-}
-
 // AutoConfig is responsible to collect integrations configurations from
 // different sources and then schedule or unschedule them.
 // It owns and orchestrates several key modules:
@@ -62,17 +53,18 @@ type providerDescriptor struct {
 // Notice the `AutoConfig` public API speaks in terms of `integration.Config`,
 // meaning that you cannot use it to schedule integrations instances directly.
 type AutoConfig struct {
-	providers          []*providerDescriptor
+	providers          []*configPoller
 	listeners          []listeners.ServiceListener
 	listenerCandidates map[string]listeners.ServiceListenerFactory
 	listenerRetryStop  chan struct{}
-	configsPollTicker  *time.Ticker
 	scheduler          *scheduler.MetaScheduler
-	pollerStop         chan struct{}
-	pollerActive       bool
 	healthPolling      *health.Handle
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
+	tagFreshnessTicker *time.Ticker
+	tagFreshnessStop   chan struct{}
+	tagFreshnessActive bool
+	healthTagFreshness *health.Handle
 	newService         chan listeners.Service
 	delService         chan listeners.Service
 	store              *store
@@ -82,13 +74,13 @@ type AutoConfig struct {
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	ac := &AutoConfig{
-		providers:          make([]*providerDescriptor, 0, 5),
+		providers:          make([]*configPoller, 0, 8),
 		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
 		listenerRetryStop:  nil, // We'll open it if needed
-		pollerStop:         make(chan struct{}),
-		healthPolling:      health.Register("ad-configpolling"),
 		listenerStop:       make(chan struct{}),
 		healthListening:    health.Register("ad-servicelistening"),
+		tagFreshnessStop:   make(chan struct{}),
+		healthTagFreshness: health.Register("ad-tagfreshnesschecker"),
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
@@ -99,14 +91,43 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 	return ac
 }
 
-// StartConfigPolling starts the goroutine responsible for polling the providers
-func (ac *AutoConfig) StartConfigPolling() {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	ac.configsPollTicker = time.NewTicker(configsPollIntl)
-	ac.pollConfigs()
-	ac.pollerActive = true
+// StartTagFreshnessChecker checks periodically if tags associated to a service
+// are up-to-date, act as the service was restarted to reschedule potential checks
+func (ac *AutoConfig) StartTagFreshnessChecker() {
+	ac.tagFreshnessTicker = time.NewTicker(15 * time.Second) // we can miss tags for one run
+	ac.tagFreshnessActive = true
+	go func() {
+		for {
+			select {
+			case <-ac.healthTagFreshness.C:
+			case <-ac.tagFreshnessStop:
+				if ac.tagFreshnessTicker != nil {
+					ac.tagFreshnessTicker.Stop()
+				}
+				ac.healthTagFreshness.Deregister()
+				return
+			case <-ac.tagFreshnessTicker.C:
+				// check if services tags are up to date
+				var servicesToRefresh []listeners.Service
+				for _, service := range ac.store.getServices() {
+					previousHash := ac.store.getTagsHashForService(service.GetEntity())
+					currentHash := tagger.GetEntityHash(service.GetEntity())
+					if currentHash != previousHash {
+						ac.store.setTagsHashForService(service.GetEntity(), currentHash)
+						if previousHash != "" {
+							// only refresh service if we already had a hash to avoid resetting it
+							servicesToRefresh = append(servicesToRefresh, service)
+						}
+					}
+				}
+				for _, service := range servicesToRefresh {
+					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
+					ac.processDelService(service)
+					ac.processNewService(service)
+				}
+			}
+		}
+	}()
 }
 
 // startServiceListening waits on services and templates and process them as they come.
@@ -138,10 +159,15 @@ func (ac *AutoConfig) Stop() {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
-	// stop the config poller if running
-	if ac.pollerActive {
-		ac.pollerStop <- struct{}{}
-		ac.pollerActive = false
+	// stop the tag freshness ticker if running
+	if ac.tagFreshnessActive {
+		ac.tagFreshnessStop <- struct{}{}
+		ac.tagFreshnessActive = false
+	}
+
+	// stop polled config providers
+	for _, pd := range ac.providers {
+		pd.stop()
 	}
 
 	// stop the service listener
@@ -161,11 +187,12 @@ func (ac *AutoConfig) Stop() {
 	}
 }
 
-// AddProvider adds a new configuration provider to AutoConfig.
+// AddConfigProvider adds a new configuration provider to AutoConfig.
 // Callers must pass a flag to indicate whether the configuration provider
-// expects to be polled or it's fine for it to be invoked only once in the
+// expects to be polled and at which interval or it's fine for it to be invoked only once in the
 // Agent lifetime.
-func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll bool) {
+// If the config provider is polled, the routine is scheduled right away
+func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
@@ -181,12 +208,9 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 		}
 	}
 
-	pd := &providerDescriptor{
-		provider: provider,
-		configs:  []integration.Config{},
-		poll:     shouldPoll,
-	}
+	pd := newConfigPoller(provider, shouldPoll, pollInterval)
 	ac.providers = append(ac.providers, pd)
+	pd.start(ac)
 }
 
 // LoadAndRun loads all of the integration configs it can find
@@ -450,73 +474,6 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	return conf, nil
 }
 
-// pollConfigs periodically calls Collect() on all the configuration
-// providers that have been requested to be polled
-func (ac *AutoConfig) pollConfigs() {
-	go func() {
-		for {
-			select {
-			case <-ac.pollerStop:
-				if ac.configsPollTicker != nil {
-					ac.configsPollTicker.Stop()
-				}
-				ac.healthPolling.Deregister()
-				return
-			case <-ac.healthPolling.C:
-			case <-ac.configsPollTicker.C:
-				// check if services tags are up to date
-				var servicesToRefresh []listeners.Service
-				for _, service := range ac.store.getServices() {
-					previousHash := ac.store.getTagsHashForService(service.GetEntity())
-					currentHash := tagger.GetEntityHash(service.GetEntity())
-					if currentHash != previousHash {
-						ac.store.setTagsHashForService(service.GetEntity(), currentHash)
-						if previousHash != "" {
-							// only refresh service if we already had a hash to avoid resetting it
-							servicesToRefresh = append(servicesToRefresh, service)
-						}
-					}
-				}
-				for _, service := range servicesToRefresh {
-					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
-					ac.processDelService(service)
-					ac.processNewService(service)
-				}
-				// invoke Collect on the known providers
-				for _, pd := range ac.providers {
-					// skip providers that don't want to be polled
-					if !pd.poll {
-						continue
-					}
-
-					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outdated.
-					upToDate, err := pd.provider.IsUpToDate()
-					if err != nil {
-						log.Errorf("cache processing of %v configuration provider failed: %v", pd.provider, err)
-					}
-					if upToDate == true {
-						log.Debugf("No modifications in the templates stored in %v configuration provider", pd.provider)
-						continue
-					}
-
-					// retrieve the list of newly added configurations as well
-					// as removed configurations
-					newConfigs, removedConfigs := ac.collect(pd)
-					// Process removed configs first to handle the case where a
-					// container churn would result in the same configuration hash.
-					ac.processRemovedConfigs(removedConfigs)
-
-					for _, config := range newConfigs {
-						config.Provider = pd.provider.String()
-						resolvedConfigs := ac.processNewConfig(config)
-						ac.schedule(resolvedConfigs)
-					}
-				}
-			}
-		}
-	}()
-}
-
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.unschedule(configs)
 	for _, c := range configs {
@@ -541,7 +498,6 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 // resolver at this moment.
 func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Config {
 	// use a map to dedupe configurations
-	// FIXME: the config digest as the key is currently not reliable
 	resolvedSet := map[string]integration.Config{}
 
 	// go through the AD identifiers provided by the template
@@ -556,7 +512,12 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 		}
 
 		for serviceID := range serviceIds {
-			resolvedConfig, err := ac.resolveTemplateForService(tpl, ac.store.getServiceForEntity(serviceID))
+			svc := ac.store.getServiceForEntity(serviceID)
+			if svc == nil {
+				log.Warnf("Service %s was removed before we could resolve its config", serviceID)
+				continue
+			}
+			resolvedConfig, err := ac.resolveTemplateForService(tpl, svc)
 			if err != nil {
 				continue
 			}
@@ -592,39 +553,6 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	return resolvedConfig, nil
 }
 
-// collect is just a convenient wrapper to fetch configurations from a provider and
-// see what changed from the last time we called Collect().
-func (ac *AutoConfig) collect(pd *providerDescriptor) ([]integration.Config, []integration.Config) {
-	var newConf []integration.Config
-	var removedConf []integration.Config
-	old := pd.configs
-
-	fetched, err := pd.provider.Collect()
-	if err != nil {
-		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
-		return nil, nil
-	}
-
-	for _, c := range fetched {
-		if !pd.contains(&c) {
-			newConf = append(newConf, c)
-		}
-	}
-
-	pd.configs = fetched
-	for _, c := range old {
-		if !pd.contains(&c) {
-			removedConf = append(removedConf, c)
-		}
-	}
-	if len(newConf) > 0 || len(removedConf) > 0 {
-		log.Infof("%v provider: collected %d new configurations, removed %d", pd.provider, len(newConf), len(removedConf))
-	} else {
-		log.Debugf("%v provider: no configuration change", pd.provider)
-	}
-	return newConf, removedConf
-}
-
 // GetLoadedConfigs returns configs loaded
 func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 	return ac.store.getLoadedConfigs()
@@ -633,16 +561,6 @@ func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
 func (ac *AutoConfig) GetUnresolvedTemplates() map[string]integration.Config {
 	return ac.store.templateCache.GetUnresolvedTemplates()
-}
-
-// check if the descriptor contains the Config passed
-func (pd *providerDescriptor) contains(c *integration.Config) bool {
-	for _, config := range pd.configs {
-		if config.Equal(c) {
-			return true
-		}
-	}
-	return false
 }
 
 // GetConfigErrors gets the config errors

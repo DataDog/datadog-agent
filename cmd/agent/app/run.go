@@ -16,7 +16,7 @@ import (
 	"os/signal"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
 )
 
@@ -78,6 +78,17 @@ func run(cmd *cobra.Command, args []string) error {
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
 			stopCh <- nil
+		}
+	}()
+
+	// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+	// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
+	// We never want the agent to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
+	sigpipeCh := make(chan os.Signal, 1)
+	signal.Notify(sigpipeCh, syscall.SIGPIPE)
+	go func() {
+		for range sigpipeCh {
+			// do nothing
 		}
 	}()
 

@@ -2,6 +2,7 @@
 
 [![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/master.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/master)
 [![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/master?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/master)
+[![Coverage status](https://codecov.io/github/DataDog/datadog-agent/coverage.svg?branch=master)](https://codecov.io/github/DataDog/datadog-agent?branch=master)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
 [![Go Report Card](https://goreportcard.com/badge/github.com/DataDog/datadog-agent)](https://goreportcard.com/report/github.com/DataDog/datadog-agent)
 
@@ -28,7 +29,7 @@ To build the Agent you need:
 
 **Note:** You may have previously installed `invoke` via brew on MacOS, or `pip` in
       any other platform. We recommend you use the version pinned in the requirements
-      file for a smooth development/build experience. 
+      file for a smooth development/build experience.
 
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
 to see the available tasks.
@@ -51,7 +52,7 @@ care of adjusting paths and run the binary in foreground.
 You need to provide a valid API key. You can either use the config file or
 overwrite it with the environment variable like:
 ```
-DD_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/datadog.yaml
+DD_API_KEY=12345678990 ./bin/agent/agent run -c bin/agent/dist/datadog.yaml
 ```
 
 ## Contributing code

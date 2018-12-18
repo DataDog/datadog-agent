@@ -9,21 +9,21 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDistSampler(t *testing.T) {
 	const (
-		defaultHost       = "default_host"
 		defaultBucketSize = 10
 	)
 
 	var (
-		d = newDistSampler(0, defaultHost)
+		d = newDistSampler(0)
 
 		insert = func(t *testing.T, ts float64, ctx Context, values ...float64) {
 			t.Helper()
@@ -85,7 +85,7 @@ func TestDistSampler(t *testing.T) {
 
 func TestDistSamplerBucketSampling(t *testing.T) {
 
-	distSampler := newDistSampler(10, "")
+	distSampler := newDistSampler(10)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -128,7 +128,7 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 }
 
 func TestDistSamplerContextSampling(t *testing.T) {
-	distSampler := newDistSampler(10, "")
+	distSampler := newDistSampler(10)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",

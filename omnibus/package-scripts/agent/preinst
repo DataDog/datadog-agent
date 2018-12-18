@@ -11,7 +11,9 @@ SERVICE_NAME=datadog-agent
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
-
+if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
+    DISTRIBUTION_FAMILY="Debian"
+fi
 # Linux installation
 if [ "$DISTRIBUTION" != "Darwin" ]; then
     set -e
@@ -21,15 +23,32 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Only supports systemd and upstart
         if command -v systemctl >/dev/null 2>&1; then
             systemctl stop $SERVICE_NAME-process || true
+            systemctl stop $SERVICE_NAME-network || true
             systemctl stop $SERVICE_NAME-trace || true
             systemctl stop $SERVICE_NAME || true
         elif command -v initctl >/dev/null 2>&1; then
             initctl stop $SERVICE_NAME-process || true
+            initctl stop $SERVICE_NAME-network || true
             initctl stop $SERVICE_NAME-trace || true
             initctl stop $SERVICE_NAME || true
+        elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
+            if command -v service >/dev/null 2>&1; then
+                service $SERVICE_NAME-process stop || true
+                service $SERVICE_NAME-network stop || true
+                service $SERVICE_NAME-trace stop || true
+                service $SERVICE_NAME stop || true
+            else
+                echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
+            fi
         else
             echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
         fi
+    fi
+
+    PIP_PATH=$INSTALL_DIR/embedded/bin/pip
+    if [ -x $PIP_PATH ]; then
+        echo "Resetting integrations..."
+        $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
     fi
 
     if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then

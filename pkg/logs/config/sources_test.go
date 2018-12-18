@@ -13,43 +13,73 @@ import (
 
 func TestAddSource(t *testing.T) {
 	sources := NewLogSources()
-	registerConsumer(sources, "boo")
 	assert.Equal(t, 0, len(sources.GetSources()))
+
 	sources.AddSource(NewLogSource("foo", &LogsConfig{Type: "boo"}))
 	assert.Equal(t, 1, len(sources.GetSources()))
+
 	sources.AddSource(NewLogSource("bar", &LogsConfig{Type: "boo"}))
 	assert.Equal(t, 2, len(sources.GetSources()))
+
+	sources.AddSource(NewLogSource("baz", &LogsConfig{})) // invalid config
+	assert.Equal(t, 3, len(sources.GetSources()))
 }
 
 func TestRemoveSource(t *testing.T) {
 	sources := NewLogSources()
-	registerConsumer(sources, "boo")
 	source1 := NewLogSource("foo", &LogsConfig{Type: "boo"})
-	sources.AddSource(source1)
 	source2 := NewLogSource("bar", &LogsConfig{Type: "boo"})
+
+	sources.AddSource(source1)
 	sources.AddSource(source2)
 	assert.Equal(t, 2, len(sources.GetSources()))
+
 	sources.RemoveSource(source1)
 	assert.Equal(t, 1, len(sources.GetSources()))
 	assert.Equal(t, source2, sources.GetSources()[0])
+
 	sources.RemoveSource(source2)
 	assert.Equal(t, 0, len(sources.GetSources()))
 }
 
 func TestGetSources(t *testing.T) {
 	sources := NewLogSources()
-	registerConsumer(sources, "boo")
 	assert.Equal(t, 0, len(sources.GetSources()))
+
 	sources.AddSource(NewLogSource("", &LogsConfig{Type: "boo"}))
 	assert.Equal(t, 1, len(sources.GetSources()))
 }
 
-func registerConsumer(sources *LogSources, sourceType string) {
-	go func() {
-		sources := sources.GetSourceStreamForType(sourceType)
-		for range sources {
-			// ensure that another component is consuming the channel to prevent
-			// the producer to get stuck.
-		}
-	}()
+func TestGetAddedForType(t *testing.T) {
+	sources := NewLogSources()
+	source := NewLogSource("foo", &LogsConfig{Type: "foo"})
+
+	sources.AddSource(source)
+
+	stream := sources.GetAddedForType("foo")
+	assert.NotNil(t, stream)
+	assert.Equal(t, 0, len(stream))
+
+	go func() { sources.AddSource(source) }()
+	s := <-stream
+	assert.Equal(t, s, source)
+}
+
+func TestGetRemovedForType(t *testing.T) {
+	sources := NewLogSources()
+	source := NewLogSource("foo", &LogsConfig{Type: "foo"})
+
+	sources.RemoveSource(source)
+
+	stream := sources.GetRemovedForType("foo")
+	assert.NotNil(t, stream)
+	assert.Equal(t, 0, len(stream))
+
+	sources.RemoveSource(source)
+	assert.Equal(t, 0, len(stream))
+
+	sources.AddSource(source)
+	go func() { sources.RemoveSource(source) }()
+	s := <-stream
+	assert.Equal(t, s, source)
 }

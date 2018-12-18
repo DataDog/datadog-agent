@@ -1,11 +1,17 @@
 {{ if .Common }}
-# The host of the Datadog intake server to send Agent data to
-dd_url: https://app.datadoghq.com
-
 # The Datadog api key to associate your Agent's data with your organization.
 # Can be found here:
 # https://app.datadoghq.com/account/settings
 api_key:
+
+# The site of the Datadog intake to send Agent data to.
+# Defaults to 'datadoghq.com', set to 'datadoghq.eu' to send data to the EU site.
+# site: datadoghq.com
+
+# The host of the Datadog intake server to send Agent data to, only set this option
+# if you need the Agent to send data to a custom URL.
+# Overrides the site setting defined in "site".
+# dd_url: https://app.datadoghq.com
 
 # If you need a proxy to connect to the Internet, provide it here (default:
 # disabled). You can use the 'no_proxy' list to specify hosts that should
@@ -27,7 +33,7 @@ api_key:
 # skip_ssl_validation: false
 
 # Setting this option to "true" will force the agent to only use TLS 1.2 when
-# pushing data to the url specified in "dd_url".
+# pushing data to the Datadog intake specified in "site" or "dd_url".
 # force_tls_12: false
 
 # Force the hostname to whatever you want. (default: auto-detected)
@@ -120,6 +126,11 @@ api_key:
 # Setting 'GUI_port: -1' turns off the GUI completely
 # Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
+
+# The agent can expose its health check on a dedicated http port.
+# This is useful for orchestrators that support http probes.
+# Default is 0 (disabled), set a valid port number (eg. 5555) to enable.
+# health_port: 0
 
 # The `check_runners` refers to the number of concurrent check runners available
 # for check instance execution. The scheduler will attempt to spread the
@@ -247,6 +258,12 @@ api_key:
 # might change depending on the OS.
 # dogstatsd_so_rcvbuf:
 #
+# Additional tags to append to all metrics, events and service checks received by
+# this dogstatsd server. Useful for tagging all dogstatsd metrics reporting from
+# a single host without resorting to host tags.
+# dogstatsd_tags:
+#   - name:value
+#
 # If you want to forward every packet received by the dogstatsd server
 # to another statsd server, uncomment these lines.
 # WARNING: Make sure that forwarded packets are regular statsd packets and not "dogstatsd" packets,
@@ -310,6 +327,17 @@ api_key:
 #   - name: docker
 #     polling: true
 
+## The clustercheck provider retrieves cluster-level check configurations
+## from the cluster-agent
+#   - name: clusterchecks
+#      grace_time_seconds: 60
+
+{{- if .ClusterChecks }}
+## The kube_services provider watches Kubernetes services for cluster-checks
+#   - name: kube_services
+#     polling: true
+{{ end -}}
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs
@@ -335,6 +363,13 @@ api_key:
 #     template_url: 127.0.0.1
 #     username:
 #     password:
+
+## You can also add additional config providers by name using their default settings,
+## and pooling enabled. This list is available as an environment variable binding.
+#
+# extra_config_providers:
+#   - clusterchecks
+
 {{ end -}}
 {{- if .Logging }}
 # Logging
@@ -352,7 +387,9 @@ api_key:
 # disable_file_logging: false
 
 # Set to 'true' to enable logging to syslog.
-#
+# Note: Even if this option is set to 'false', the service launcher of your environment
+# may redirect the agent process' stdout/stderr to syslog. In that case, if you wish
+# to disable logging to syslog entirely, please set 'log_to_console' to 'false' as well.
 # log_to_syslog: false
 #
 # If 'syslog_uri' is left undefined/empty, a local domain socket connection will be attempted
@@ -399,6 +436,12 @@ api_key:
 # listeners:
 #   - name: auto
 #   - name: docker
+#
+## You can also add additional listeners by name using their default settings.
+## This list is available as an environment variable binding.
+#
+# extra_listeners:
+#   - kubelet
 #
 # Exclude containers from metrics and AD based on their name or image:
 # An excluded container will not get any individual container metric reported for it.
@@ -451,6 +494,24 @@ api_key:
 # is 5 seconds. It can be configured with this option.
 # docker_query_timeout: 5
 #
+# The default interval in second to check for new autodiscovery configurations
+# On all registered configuration providers
+# ad_config_poll_interval: 10
+#
+{{ end -}}
+{{- if .ClusterChecks }}
+# Cluster check dispatching
+#
+# The cluster-agent is able to autodiscover cluster resources and dispatch checks on
+# the node-agents (provided the clustercheck config provider is enabled on them).
+#
+# cluster_checks:
+#   Set to true to enable the dispatching logic on the leader cluster-agent.
+#   enabled: "true"
+#   Node-agents that have not queried the cluster-agent for 30 seconds will be deleted,
+#   and their checks re-dispatched to other nodes. This delay is configurable here.
+#   node_expiration_timeout: 30
+#
 {{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction
@@ -489,8 +550,27 @@ api_key:
 {{- if .ECS }}
 # ECS integration
 #
-# URL where the ECS agent can be found. Standard cases will be autodetected.
+# The ECS agent container should be autodetected when running with the
+# default (ecs-agent) name. Else, you can change the container name the
+# agent will look for, or force a fixed url:
+# ecs_agent_container_name: ecs-agent
 # ecs_agent_url: http://localhost:51678
+#
+# Fargate clusters use other endpoints and are not affected by these options.
+#
+{{ end -}}
+{{- if .CRI }}
+# CRI integration
+#
+# To activate the CRI check you'll need to indicate the path of the
+# CRI runtime you're using (and mount it in the container if needed)
+# cri_socket_path: /var/run/containerd/containerd.sock
+#
+# You can configure the initial connection timeout (in seconds)
+# cri_connection_timeout: 1
+#
+# You can configure the timeout (in seconds) for querying the CRI
+# cri_query_timeout: 5
 #
 {{ end -}}
 {{- if .Kubelet }}
@@ -514,6 +594,11 @@ api_key:
 # kubelet_client_crt: /path/to/key
 # kubelet_client_key: /path/to/key
 #
+# On some kubelet versions, containers can take up to a second to
+# register in the podlist. This option allows to wait for up to a given
+# number of seconds (in 250ms chunks) when a container does not exist in the podlist.
+# kubelet_wait_on_missing_container: 0
+#
 {{ end -}}
 {{- if .KubeApiServer }}
 # Kubernetes apiserver integration
@@ -525,6 +610,11 @@ api_key:
 #
 # kubernetes_kubeconfig_path: /path/to/file
 #
+# By default, communication with the apiserver is in json format. Setting the following
+# option to true will allow communication in the binary protobuf format, with a potential
+# performance improvement on both the agent and the apiserver.
+# kubernetes_apiserver_use_protobuf: false
+#
 # In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
 # [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
 # You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
@@ -534,11 +624,11 @@ api_key:
 # kubernetes_apiserver_client_timeout: 10
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
-# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#event-collection).
+# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection).
 # collect_kubernetes_events: false
 #
 #
-# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#leader-election)
+# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election)
 # To enable the leader election on this node, set the leader_election variable to true.
 # leader_election: false
 # The leader election lease is an integer in seconds.
@@ -589,6 +679,18 @@ api_key:
 #   dd_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   dd_agent_env:
+{{ end -}}
+
+{{- if .NetworkTracer }}
+# Network tracer specific settings
+#
+# network_tracer_config:
+#   A boolean indicating the enabled state of the network tracer.
+#   enabled: true
+#   The full path to the location of the unix socket where network traces will be accessed
+#   nettracer_socket: /opt/datadog-agent/run/nettracer.sock
+#   The full path to the file where network-tracer logs will be written.
+#   log_file: /var/log/datadog/network-tracer.log
 {{ end -}}
 
 {{- if .TraceAgent }}

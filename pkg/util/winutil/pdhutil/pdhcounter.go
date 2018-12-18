@@ -64,7 +64,7 @@ func makeCounterSetIndexes() error {
 		break
 	}
 	clist := winutil.ConvertWindowsStringList(counterlist)
-	for i := 0; i < len(clist); i += 2 {
+	for i := 0; (i + 1) < len(clist); i += 2 {
 		ndx, _ := strconv.Atoi(clist[i])
 		counterToIndex[clist[i+1]] = append(counterToIndex[clist[i+1]], ndx)
 	}

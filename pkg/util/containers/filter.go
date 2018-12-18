@@ -22,6 +22,7 @@ const (
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
+	pauseContainerEKS        = "image:eks/pause-amd64"
 	// pauseContainerAzure regex matches:
 	// - k8s-gcrio.azureedge.net/pause-amd64
 	// - gcrio.azureedge.net/google_containers/pause-amd64
@@ -118,9 +119,19 @@ func NewFilterFromConfig() (*Filter, error) {
 			pauseContainerKubernetes,
 			pauseContainerAzure,
 			pauseContainerECS,
+			pauseContainerEKS,
 			pauseContainerRancher,
 		)
 	}
+	return NewFilter(whitelist, blacklist)
+}
+
+// NewFilterFromConfigIncludePause creates a new container filter, sourcing patterns
+// from the pkg/config options, but ignoring the exclude_pause_container option, for
+// use in autodiscovery
+func NewFilterFromConfigIncludePause() (*Filter, error) {
+	whitelist := config.Datadog.GetStringSlice("ac_include")
+	blacklist := config.Datadog.GetStringSlice("ac_exclude")
 	return NewFilter(whitelist, blacklist)
 }
 

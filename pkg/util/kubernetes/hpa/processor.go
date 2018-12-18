@@ -8,14 +8,19 @@
 package hpa
 
 import (
+	"fmt"
+	"math"
+	"sort"
+	"strings"
 	"time"
+
+	datadog "gopkg.in/zorkian/go-datadog-api.v2"
+	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	datadog "gopkg.in/zorkian/go-datadog-api.v2"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type DatadogClient interface {
@@ -30,7 +35,7 @@ type Processor struct {
 
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
-	externalMaxAge := config.Datadog.GetInt("external_metrics_provider.max_age")
+	externalMaxAge := math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog.GetFloat64("external_metrics_provider.rollup"))
 	return &Processor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		datadogClient:  datadogCl,
@@ -38,22 +43,39 @@ func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
 }
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
+// TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
 func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricValue) (updated []custommetrics.ExternalMetricValue) {
 	maxAge := int64(p.externalMaxAge.Seconds())
 	var err error
 
+	metrics, err := p.validateExternalMetric(emList)
+	if len(metrics) == 0 && err != nil {
+		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
+		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them
+		// To avoid undesirable autoscaling behaviors
+		return invalidate(emList)
+	}
+
 	for _, em := range emList {
-		if metav1.Now().Unix()-em.Timestamp <= maxAge && em.Valid {
+		// use query (metricName{scope}) as a key to avoid conflict if multiple hpas are using the same metric with different scopes.
+		metricIdentifier := getKey(em.MetricName, em.Labels)
+		metric := metrics[metricIdentifier]
+
+		if time.Now().Unix()-metric.timestamp > maxAge || !metric.valid {
+			// invalidating sparse metrics that are outdated
+			em.Valid = false
+			em.Value = metric.value
+			em.Timestamp = time.Now().Unix()
+			updated = append(updated, em)
 			continue
 		}
-		em.Valid = false
-		em.Timestamp = metav1.Now().Unix()
-		em.Value, em.Valid, err = p.validateExternalMetric(em.MetricName, em.Labels)
-		if err != nil {
-			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
-		}
+
+		em.Valid = true
+		em.Value = metric.value
+		em.Timestamp = metric.timestamp
 		log.Debugf("Updated the external metric %#v", em)
 		updated = append(updated, em)
+
 	}
 	return updated
 }
@@ -62,25 +84,61 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) []custommetrics.ExternalMetricValue {
 	var externalMetrics []custommetrics.ExternalMetricValue
 	var err error
-
 	emList := Inspect(hpa)
-
+	metrics, err := p.validateExternalMetric(emList)
+	if err != nil && len(metrics) == 0 {
+		log.Errorf("Could not validate external metrics: %v", err)
+		return invalidate(emList)
+	}
 	for _, em := range emList {
-		em.Timestamp = metav1.Now().Unix()
-		em.Value, em.Valid, err = p.validateExternalMetric(em.MetricName, em.Labels)
-		if err != nil {
-			log.Debugf("Could not fetch the external metric %s from Datadog, metric is no longer valid: %s", em.MetricName, err)
+		maxAge := int64(p.externalMaxAge.Seconds())
+		metricIdentifier := getKey(em.MetricName, em.Labels)
+		metric := metrics[metricIdentifier]
+		em.Value = metric.value
+		em.Timestamp = metric.timestamp
+		em.Valid = metric.valid
+		if metav1.Now().Unix()-metric.timestamp > maxAge {
+			// If the maxAge is lower than the freshness of the metric, the metric is invalidated in the global store
+			em.Valid = false
+			em.Timestamp = metav1.Now().Unix() // The Timestamp is not the one of the metric, because we only rely on it to refresh.
 		}
+		log.Debugf("Added external metrics %#v", em)
 		externalMetrics = append(externalMetrics, em)
 	}
 	return externalMetrics
 }
 
-// validateExternalMetric queries Datadog to validate the availability and value of an external metric
-func (p *Processor) validateExternalMetric(metricName string, labels map[string]string) (value int64, valid bool, err error) {
-	val, err := p.queryDatadogExternal(metricName, labels)
-	if err != nil {
-		return val, false, err
+// validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
+func (p *Processor) validateExternalMetric(emList []custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
+	var batch []string
+	for _, e := range emList {
+		q := getKey(e.MetricName, e.Labels)
+		batch = append(batch, q)
 	}
-	return val, true, nil
+	return p.queryDatadogExternal(batch)
+}
+
+func invalidate(emList []custommetrics.ExternalMetricValue) (invList []custommetrics.ExternalMetricValue) {
+	for _, e := range emList {
+		e.Valid = false
+		e.Timestamp = metav1.Now().Unix()
+		invList = append(invList, e)
+	}
+	return invList
+}
+
+func getKey(name string, labels map[string]string) string {
+	// Support queries with no tags
+	if len(labels) == 0 {
+		return fmt.Sprintf("%s{*}", name)
+	}
+
+	datadogTags := []string{}
+	for key, val := range labels {
+		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
+	}
+	sort.Strings(datadogTags)
+	tags := strings.Join(datadogTags, ",")
+
+	return fmt.Sprintf("%s{%s}", name, tags)
 }

@@ -13,10 +13,6 @@ if [[ -z "$DD_API_KEY" ]]; then
     exit 1
 fi
 
-if [[ -z "$DD_DD_URL" ]]; then
-    export DD_DD_URL="https://app.datadoghq.com"
-fi
-
 ##### Starting up #####
 export PATH="/opt/datadog-agent/bin/datadog-cluster-agent/:/opt/datadog-agent/embedded/bin/":$PATH
 

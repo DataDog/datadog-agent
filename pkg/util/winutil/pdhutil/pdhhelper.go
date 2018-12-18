@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -44,6 +45,8 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 		uintptr(unsafe.Pointer(&len)))
 
 	if r != PDH_MORE_DATA {
+		log.Errorf("Failed to look up Windows performance counter (looking for index %d)", ndx)
+		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		return name, fmt.Errorf("Failed to get buffer size %v", r)
 	}
 	buf := make([]uint16, len)
@@ -73,6 +76,8 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
+		log.Errorf("Failed to enumerage windows performance counters (class %s)", className)
+		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
 	}
 	counterbuf := make([]uint16, counterlen)
@@ -135,6 +140,8 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 		uintptr(unsafe.Pointer(&len)),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
+		log.Errorf("Failed to make Windows performance counter (%s %s %s %s)", machine, object, instance, counter)
+		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		err = fmt.Errorf("Failed to get buffer size %v", r)
 		return
 	}
@@ -163,7 +170,7 @@ func pdhGetFormattedCounterValueLarge(hCounter PDH_HCOUNTER) (val int64, err err
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
 	if ERROR_SUCCESS != ret {
-		return 0, fmt.Errorf("Error retrieving large value %v", ret)
+		return 0, fmt.Errorf("Error retrieving large value 0x%x 0x%x", ret, pValue.CStatus)
 	}
 
 	return pValue.LargeValue, nil
@@ -179,7 +186,7 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
 	if ERROR_SUCCESS != ret {
-		return 0, fmt.Errorf("Error retrieving large value %v", ret)
+		return 0, fmt.Errorf("Error retrieving float value 0x%x 0x%x", ret, pValue.CStatus)
 	}
 
 	return pValue.DoubleValue, nil

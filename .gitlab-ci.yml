@@ -21,6 +21,8 @@ variables:
   # make sure the types of RPM packages are kept separate
   OMNIBUS_BASE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/
   OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg/
+  OMNIBUS_BASE_DIR_WIN: c:\omni-base\$CI_RUNNER_ID
+  OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omni-base/$CI_RUNNER_ID
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
@@ -29,11 +31,13 @@ variables:
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
   WIN_S3_BUCKET: dd-agent-mstesting
+  ANDROID_S3_BUCKET: dd-agent-androidtesting
   DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET: $WIN_S3_BUCKET/pipelines/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
+  ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
@@ -53,7 +57,8 @@ before_script:
   - echo running default before_script
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
-  - pip install -U pip
+  - pip install --upgrade --ignore-installed pip setuptools
+  - pip install -r requirements.txt
   - inv -e deps
 
 #
@@ -65,6 +70,23 @@ before_script:
 .run_when_triggered: &run_when_triggered
   only:
     - triggers
+
+
+# anchor to trigger test kitchen setup, run, and cleanup (so all stages
+# are run if one stage is run).  Triggers as defined:
+# - master
+# - tags (a tagged build)
+# - triggers (as above, when triggered by an external tool like jenkins)
+# - web (when the build is triggered by a specific build request through the
+#        web interface.  This way, if a kitchen run is desired on a specific branch,
+#        it can be triggered by requesting a specific build)
+#
+.run_when_testkitchen_triggered: &run_when_testkitchen_triggered
+  only:
+    - master
+    - tags
+    - triggers
+    - web
 
 # run job only when triggered by an external tool (ex: Jenkins) and when
 # RELEASE_VERSION is NOT "nightly". In this setting we are building either a
@@ -121,7 +143,7 @@ before_script:
 run_tests_deb-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   script:
     - inv -e test --race --profile --cpus 4
 
@@ -129,9 +151,12 @@ run_tests_deb-x64:
 run_test_rpm-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   script:
-    - inv -e test --race --profile --cpus 4
+    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
+    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
+    # This is OK because the test on systemd still runs on the debian image above
+    - inv -e test --race --profile --cpus 4 --build-exclude=systemd
 
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
@@ -251,7 +276,7 @@ run_dogstatsd_size_test:
 agent_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
@@ -274,11 +299,38 @@ agent_deb-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+# build Agent package for deb-x64
+puppy_deb-x64:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:2xlarge" ]
+  variables:
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR
+    - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-puppy*_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-puppy*_amd64.deb $S3_ARTEFACTS_URI/datadog-puppy_amd64.deb
+  # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
+  # cache:
+  #   # cache per branch
+  #   key: $CI_COMMIT_REF_NAME
+  #   paths:
+  #     - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
 # build Agent package for rpm-x64
 agent_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
@@ -307,10 +359,9 @@ agent_rpm-x64:
 
 # build Agent package for rpm-x64
 agent_suse-x64:
-  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
@@ -341,9 +392,14 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
+  ## this is a weird workaround. Can't use the built-in CI_PROJECT_DIR because the path separators
+  ## are wrong.  Record the PROJECT dir with the correct path separators to be used later
   before_script:
+    - set WIN_CI_PROJECT_DIR=%CD%
     - if exist .omnibus rd /s/q .omnibus
+    - mkdir .omnibus\pkg
     - if exist \omnibus-ruby rd /s/q \omnibus-ruby
+    - if exist %OMNIBUS_BASE_DIR_WIN% rd /s/q %OMNIBUS_BASE_DIR_WIN%
     - if exist \opt\datadog-agent rd /s/q \opt\datadog-agent
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
     - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
@@ -357,20 +413,19 @@ build_windows_msi_x64:
   tags: ["runner:windows-agent6"]
   script:
     # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf .omnibus/pkg/
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache
+    - inv agent.omnibus-build --release-version %RELEASE_VERSION% --omnibus-s3-cache --base-dir %OMNIBUS_BASE_DIR_WIN_OMNIBUS%
+    # copy the results from the build dir to here, because artifacts must be relative to the project directory
+    - copy %OMNIBUS_BASE_DIR_WIN%\pkg\* %WIN_CI_PROJECT_DIR%\.omnibus\pkg
   artifacts:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
 
-
 # build Agent package for android
 agent_android_apk:
-  allow_failure: true
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:v538460-2b07be3
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:latest
   tags: [ "runner:main", "size:large" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -382,6 +437,7 @@ agent_android_apk:
     - rsync -azr --delete ./ $SRC_PATH
     - cd $SRC_PATH
     - pip install -U pip
+    - pip install -r requirements.txt
     - inv -e deps --android
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -389,12 +445,12 @@ agent_android_apk:
     # for now do the steps manually.  Should eventually move this to an invoke
     # task
     - inv -e android.build
-    - mkdir -p $CI_PROJECT_DIR/apk
-    - cp ./bin/agent/ddagent-release-unsigned.apk $CI_PROJECT_DIR/apk
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - cp ./bin/agent/ddagent-*-unsigned.apk $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/apk
+      - $OMNIBUS_PACKAGE_DIR
 
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
@@ -409,7 +465,7 @@ dogstatsd_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus
     # from the GOPATH (see above). We then call `invoke` passing --base-dir,
     # pointing to a gitlab-friendly location.
-    - inv -e dogstatsd.omnibus-build --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
     - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_amd64.deb
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_amd64.deb $S3_ARTEFACTS_URI/datadog-dogstatsd_amd64.deb
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
@@ -441,7 +497,7 @@ dogstatsd_rpm-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    - inv -e dogstatsd.omnibus-build --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
     - rpm -i $OMNIBUS_PACKAGE_DIR/*.rpm
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
@@ -457,7 +513,6 @@ dogstatsd_rpm-x64:
 
 # build Dogstastd package for rpm-x64
 dogstatsd_suse-x64:
-  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -474,7 +529,7 @@ dogstatsd_suse-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    - inv -e dogstatsd.omnibus-build --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache
     - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
@@ -493,7 +548,7 @@ deploy_deb_testing:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered
+  <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -515,7 +570,7 @@ deploy_deb_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_rpm_testing:
-  <<: *run_when_triggered
+  <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
@@ -532,8 +587,7 @@ deploy_rpm_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing:
-  <<: *run_when_triggered
-  allow_failure: true
+  <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
@@ -550,25 +604,21 @@ deploy_suse_rpm_testing:
 
 # deploy windows packages to our testing bucket
 deploy_windows_testing:
-  <<: *run_when_triggered
-  allow_failure: true
+  <<: *run_when_testkitchen_triggered
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR_SUSE
+    - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # run dd-agent-testing on windows
 kitchen_windows:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -577,10 +627,32 @@ kitchen_windows:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20171115"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20171115"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20171116"
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20181122"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20181125"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20181122"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20181122"
     - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+kitchen_windows_installer:
+  stage: testkitchen_testing
+  allow_failure: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  <<: *run_when_testkitchen_triggered
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20181122"
+    - bash -l tasks/run-test-kitchen.sh windows-install-test
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -590,12 +662,9 @@ kitchen_windows:
 # run dd-agent-testing on centos
 kitchen_centos:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -617,10 +686,7 @@ kitchen_ubuntu:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -641,12 +707,9 @@ kitchen_ubuntu:
 # run dd-agent-testing on suse
 kitchen_suse:
   stage: testkitchen_testing
-  allow_failure: true
+  allow_failure: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -655,7 +718,7 @@ kitchen_suse:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
-    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP3:2017.12.11"
+    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP3:2018.09.04"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
@@ -668,10 +731,7 @@ kitchen_debian:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
   tags: [ "runner:main", "size:large" ]
@@ -692,10 +752,7 @@ kitchen_debian:
 testkitchen_cleanup_s3:
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
   before_script:
     - ls
@@ -714,10 +771,7 @@ testkitchen_cleanup_s3:
 testkitchen_cleanup_azure:
   stage: testkitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
-  only:
-    - master
-    - tags
-    - triggers
+  <<: *run_when_testkitchen_triggered
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
@@ -734,10 +788,8 @@ testkitchen_cleanup_azure:
 
 .docker_build_job_definition: &docker_build_job_definition
   stage: image_build
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
-  services:
-    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/remote-docker:latest
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artifacts
   script:
@@ -782,12 +834,31 @@ build_dogstatsd:
 # Docker dev image deployments
 #
 
+twistlock_scan:
+  stage: image_deploy
+  tags: [ "runner:docker", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
+  dependencies: [] # Don't download Gitlab artefacts
+  allow_failure: true # Don't block the pipeline
+  variables:
+    SRC_AGENT: *agent_ecr
+    SRC_DSD: *dogstatsd_ecr
+    SRC_DCA: *cluster-agent_ecr
+  before_script:
+    - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
+    - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
+    - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
+    - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
+  script:
+    - scan ${SRC_AGENT}:${SRC_TAG}
+    - scan ${SRC_AGENT}:${SRC_TAG}-jmx
+    - scan ${SRC_DSD}:${SRC_TAG}
+    - scan ${SRC_DCA}:${SRC_TAG}
+
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
-  services:
-    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/remote-docker:latest
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - apt-get update && apt-get install -y python-pip && pip install awscli
@@ -845,7 +916,8 @@ dca_dev_branch_docker_hub:
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_nightly
+  only:
+    - master
   variables:
     <<: *docker_hub_variables
   script:
@@ -894,6 +966,12 @@ deploy_deb:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
+    # We first check that the current version hasn't already been deployed
+    # (same as the check_already_deployed_version). We do this twice to mitigate
+    # races and issues with retries while failing early if there is an issue.
+    - pushd $OMNIBUS_PACKAGE_DIR
+    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh
+    - popd
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
 
@@ -938,6 +1016,17 @@ deploy_windows_tags:
     # (when building a custom beta for example).
     - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
+# deploy android packages to a public s3 bucket when tagged
+deploy_android_tags:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  <<: *run_when_triggered_on_tag
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "*.apk" $OMNIBUS_PACKAGE_DIR s3://$ANDROID_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
 # deploy rpm packages to yum staging repo
 deploy_rpm:
   <<: *run_when_triggered
@@ -962,7 +1051,6 @@ deploy_rpm:
 # deploy suse rpm packages to yum staging repo
 deploy_suse_rpm:
   <<: *run_when_triggered
-  allow_failure: true
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:

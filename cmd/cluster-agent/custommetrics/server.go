@@ -9,87 +9,120 @@ package custommetrics
 
 import (
 	"fmt"
-	"os"
-	"time"
+	"net"
 
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper"
-	"github.com/spf13/pflag"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver"
+	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/wait"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var options *server.CustomMetricsAdapterServerOptions
+var cmd *DatadogMetricsAdapter
+
 var stopCh chan struct{}
 
-func init() {
-	// FIXME: log to seelog
-	options = server.NewCustomMetricsAdapterServerOptions(os.Stdout, os.Stdout)
-}
-
-// AddFlags ensures the required flags exist
-func AddFlags(fs *pflag.FlagSet) {
-	options.SecureServing.AddFlags(fs)
-	options.Authentication.AddFlags(fs)
-	options.Authorization.AddFlags(fs)
-	options.Features.AddFlags(fs)
-}
-
-// ValidateArgs validates the custom metrics arguments passed
-func ValidateArgs(args []string) error {
-	return options.Validate(args)
+type DatadogMetricsAdapter struct {
+	basecmd.AdapterBase
 }
 
 // StartServer creates and start a k8s custom metrics API server
 func StartServer() error {
-	config, err := options.Config()
+	cmd = &DatadogMetricsAdapter{}
+	cmd.Flags()
+
+	provider, err := cmd.makeProviderOrDie()
 	if err != nil {
 		return err
 	}
-	var clientConfig *rest.Config
-	clientConfig, err = rest.InClusterConfig()
+
+	// TODO when implementing the custom metrics provider, add cmd.WithCustomMetrics(provider) here
+	cmd.WithExternalMetrics(provider)
+	cmd.Name = "datadog-custom-metrics-adapter"
+
+	conf, err := cmd.Config()
 	if err != nil {
 		return err
 	}
 
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(clientConfig)
-	if err != nil {
-		return fmt.Errorf("unable to construct discovery client for dynamic client: %v", err)
-	}
-
-	dynamicMapper, err := dynamicmapper.NewRESTMapper(discoveryClient, apimeta.InterfacesForUnstructured, time.Second*5)
-	if err != nil {
-		return fmt.Errorf("unable to construct dynamic discovery mapper: %v", err)
-	}
-
-	clientPool := dynamic.NewClientPool(clientConfig, dynamicMapper, dynamic.LegacyAPIPathResolverFunc)
-	if err != nil {
-		return fmt.Errorf("unable to construct lister client to initialize provider: %v", err)
-	}
-
-	client, err := as.GetAPIClient()
+	server, err := conf.Complete(nil).New(cmd.Name, nil, provider)
 	if err != nil {
 		return err
 	}
+
+	return server.GenericAPIServer.PrepareRun().Run(wait.NeverStop)
+}
+
+func (a *DatadogMetricsAdapter) makeProviderOrDie() (provider.ExternalMetricsProvider, error) {
+	client, err := a.DynamicClient()
+	if err != nil {
+		log.Infof("Unable to construct dynamic client: %v", err)
+		return nil, err
+	}
+	apiCl, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("Could not build API Client: %v", err)
+		return nil, err
+	}
+
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
-	store, err := custommetrics.NewConfigMapStore(client.Cl, common.GetResourcesNamespace(), datadogHPAConfigMap)
+	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, common.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
-		return err
+		log.Errorf("Unable to create ConfigMap Store: %v", err)
+		return nil, err
 	}
-	emProvider := custommetrics.NewDatadogProvider(clientPool, dynamicMapper, store)
-	// As the Custom Metrics Provider is introduced, change the first emProvider to a cmProvider.
-	server, err := config.Complete().New("datadog-custom-metrics-adapter", emProvider, emProvider)
+
+	mapper, err := a.RESTMapper()
 	if err != nil {
-		return err
+		log.Errorf("Unable to construct discovery REST mapper: %v", err)
+		return nil, err
 	}
-	stopCh = make(chan struct{})
-	return server.GenericAPIServer.PrepareRun().Run(stopCh)
+
+	return custommetrics.NewDatadogProvider(client, mapper, store), nil
+}
+
+// Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService
+func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
+	o.SecureServing.ServerCert.CertDirectory = "/etc/datadog-agent/certificates"
+	o.SecureServing.BindPort = config.Datadog.GetInt("external_metrics_provider.port")
+
+	if err := o.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
+		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
+		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
+	}
+
+	scheme := runtime.NewScheme()
+	codecs := serializer.NewCodecFactory(scheme)
+	serverConfig := genericapiserver.NewConfig(codecs)
+
+	err := o.SecureServing.ApplyTo(serverConfig)
+	if err != nil {
+		log.Errorf("Error while converting SecureServing type %v", err)
+		return nil, err
+	}
+
+	// Get the certificates from the extension-apiserver-authentication ConfigMap
+	if err := o.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing, nil); err != nil {
+		log.Errorf("Could not create Authentication configuration: %v", err)
+		return nil, err
+	}
+
+	if err := o.Authorization.ApplyTo(&serverConfig.Authorization); err != nil {
+		log.Infof("Could not create Authorization configuration: %v", err)
+		return nil, err
+	}
+
+	return &apiserver.Config{
+		GenericConfig: serverConfig,
+	}, nil
 }
 
 // StopServer closes the connection and the server

@@ -22,6 +22,7 @@ func TestCollectNetworkStats(t *testing.T) {
 	assert.Nil(t, err)
 	defer dummyProcDir.removeAll() // clean up
 	config.Datadog.SetDefault("container_proc_root", dummyProcDir.RootPath)
+	defer config.Datadog.SetDefault("container_proc_root", "/proc")
 
 	for _, tc := range []struct {
 		pid        int

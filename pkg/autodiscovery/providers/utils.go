@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -100,22 +101,23 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []in
 
 // extractTemplatesFromMap looks for autodiscovery configurations in a given map
 // (either docker labels or kubernetes annotations) and returns them if found.
-func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
-	configs := make([]integration.Config, 0)
+func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, []error) {
+	var configs []integration.Config
+	var errors []error
 
 	checksConfigs, err := extractCheckTemplatesFromMap(key, input, prefix)
 	if err != nil {
-		return configs, err
+		errors = append(errors, fmt.Errorf("could not extract checks config: %v", err))
 	}
 	configs = append(configs, checksConfigs...)
 
 	logsConfigs, err := extractLogsTemplatesFromMap(key, input, prefix)
 	if err != nil {
-		return configs, err
+		errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
 	}
 	configs = append(configs, logsConfigs...)
 
-	return configs, nil
+	return configs, errors
 }
 
 // extractCheckTemplatesFromMap returns all the check configurations from a given map.
@@ -169,4 +171,15 @@ func extractLogsTemplatesFromMap(key string, input map[string]string, prefix str
 	default:
 		return []integration.Config{}, fmt.Errorf("invalid format, expected an array, got: '%v'", data)
 	}
+}
+
+// GetPollInterval computes the poll interval from the config
+func GetPollInterval(cp config.ConfigurationProviders) time.Duration {
+	if cp.PollInterval != "" {
+		customInterval, err := time.ParseDuration(cp.PollInterval)
+		if err == nil {
+			return customInterval
+		}
+	}
+	return config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
 }

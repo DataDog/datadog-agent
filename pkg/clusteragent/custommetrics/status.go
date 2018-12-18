@@ -10,13 +10,19 @@ package custommetrics
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 // GetStatus returns status info for the Custom Metrics Server.
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
+	if !config.Datadog.GetBool("external_metrics_provider.enabled") {
+		status["Disabled"] = "The external metrics provider is not enabled on the cluster-agent"
+		return status
+	}
 	configMapName := GetConfigmapName()
 	configMapNamespace := common.GetResourcesNamespace()
 	status["Cmname"] = fmt.Sprintf("%s/%s", configMapNamespace, configMapName)

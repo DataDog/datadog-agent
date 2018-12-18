@@ -9,14 +9,14 @@ jmxfetch_version = ENV['JMXFETCH_VERSION']
 jmxfetch_hash = ENV['JMXFETCH_HASH']
 
 if jmxfetch_version.nil? || jmxfetch_version.empty?
-  jmxfetch_version = '0.20.2'
-  jmxfetch_hash = "3551b0c38a5d78f1d78f7ebe83b7b7482a12943e61a1d1178d7b0bd6ac56c6cf"
+  jmxfetch_version = '0.23.0'
+  jmxfetch_hash = "b11f914388128791821380603a06ade9c95b3bbe02be40ebaa8e4edae53d7695"
 end
 
 default_version jmxfetch_version
 source sha256: jmxfetch_hash
 
-source :url => "https://dd-jmxfetch.s3.amazonaws.com/jmxfetch-#{version}-jar-with-dependencies.jar"
+source :url => "https://dl.bintray.com/datadog/datadog-maven/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar"
 
 jar_dir = "#{install_dir}/bin/agent/dist/jmx"
 

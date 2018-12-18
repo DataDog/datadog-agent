@@ -8,6 +8,7 @@
 package main
 
 import (
+	"context"
 	_ "expvar"
 	"fmt"
 	"net/http"
@@ -17,17 +18,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -80,6 +83,10 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
+	// Main context passed to components
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel() // Calling cancel twice is safe
+
 	configFound := false
 
 	// a path to the folder containing the config file was passed
@@ -129,6 +136,16 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Setup healthcheck port
+	var healthPort = config.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(mainCtx, healthPort)
+		if err != nil {
+			return log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
+	}
+
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -169,7 +186,7 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname)
+	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
@@ -182,6 +199,18 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Block here until we receive the interrupt signal
 	<-signalCh
+
+	// retrieve the agent health before stopping the components
+	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetStatusNonBlocking()
+	if err != nil {
+		log.Warnf("Dogstatsd health unknown: %s", err)
+	} else if len(health.Unhealthy) > 0 {
+		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
+	}
+
+	// gracefully shut down any component
+	mainCtxCancel()
 
 	if metaScheduler != nil {
 		metaScheduler.Stop()
