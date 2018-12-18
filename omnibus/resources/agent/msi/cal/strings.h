@@ -6,15 +6,22 @@ extern std::wstring installStepsKey;
 extern std::wstring datadog_service_name;
 
 extern std::wstring ddAgentUserName;
-extern std::wstring ddAgentUserPasswordProperty;
+extern std::wstring ddAgentUserNameUnqualified;
+extern std::wstring ddAgentUserDomain;
+extern const wchar_t *ddAgentUserDomainPtr;
+
 extern std::wstring ddAgentUserDescription;
 
 extern std::wstring traceService;
 extern std::wstring processService;
 extern std::wstring agentService;
 
+extern std::wstring propertyDDAgentUserName;
+extern std::wstring propertyDDAgentUserPassword;
 extern std::wstring propertyDDUserCreated;
+extern std::wstring propertyEnableServicesDeferredKey;
 extern std::wstring propertyRollbackState;
+extern std::wstring propertyCustomActionData;
 
 extern std::wstring programdataroot;
 extern std::wstring logfilename;
@@ -32,5 +39,9 @@ extern std::wstring strChangedRegistryPermissions;
 
 
 void toMbcs(std::string& target, LPCWSTR src);
+bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName = NULL);
+bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dst);
+bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len);
+bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **dst, DWORD *len);
 
 #define MAX_CUSTOM_PROPERTY_SIZE        128

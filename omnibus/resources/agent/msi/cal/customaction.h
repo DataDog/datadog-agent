@@ -18,7 +18,7 @@ DWORD changeRegistryAcls(const wchar_t* name);
 VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring svcName);
 
 UINT doRemoveDDUser();
-
+bool isDomainController(MSIHANDLE hInstall);
 
 void MarkInstallStepComplete(std::wstring &step);
 bool WasInstallStepCompleted(std::wstring &step);

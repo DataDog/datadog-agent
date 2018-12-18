@@ -216,8 +216,9 @@ doneRemove:
     return ;
 }
 
-int doCreateUser(std::wstring& name, std::wstring& comment, const wchar_t* passbuf)
+int doCreateUser(std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf)
 {
+    
     USER_INFO_1 ui;
     memset(&ui, 0, sizeof(USER_INFO_1));
     WcaLog(LOGMSG_STANDARD, "entered createuser");
@@ -227,9 +228,10 @@ int doCreateUser(std::wstring& name, std::wstring& comment, const wchar_t* passb
     ui.usri1_comment = (LPWSTR)comment.c_str();
     ui.usri1_flags = UF_DONT_EXPIRE_PASSWD;
     DWORD ret = 0;
+    
 
     WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
-    ret = NetUserAdd(NULL, // LOCAL_MACHINE
+    ret = NetUserAdd(domain, // LOCAL_MACHINE
         1, // indicates we're using a USER_INFO_1
         (LPBYTE)&ui,
         NULL);
@@ -240,12 +242,39 @@ int doCreateUser(std::wstring& name, std::wstring& comment, const wchar_t* passb
 
 int CreateDDUser(MSIHANDLE hInstall)
 {
-    wchar_t passbuf[MAX_PASS_LEN + 2];
-    if (!generatePassword(passbuf, MAX_PASS_LEN + 2)) {
-        WcaLog(LOGMSG_STANDARD, "Failed to generate password");
-        return -1;
+    int ret = 0;
+    bool ddAgentPropertySet = false;
+    bool ddAgentPasswordSet = false;
+    wchar_t *passbuf = NULL;
+    DWORD passbuflen = 0;
+    if(false == (ddAgentPropertySet = loadDdAgentUserName(hInstall))){
+        WcaLog(LOGMSG_STANDARD, "DDAGENT username not supplied, using default");
     }
-    int ret = doCreateUser(ddAgentUserName, ddAgentUserDescription, passbuf);
+    if(false == (ddAgentPasswordSet = loadDdAgentPassword(hInstall, &passbuf, &passbuflen))) {
+        WcaLog(LOGMSG_STANDARD, "Password not provided, will generate password");
+    }
+   
+    if(isDomainController(hInstall)) {
+        if(!ddAgentPropertySet || !ddAgentPasswordSet) {
+            WcaLog(LOGMSG_STANDARD, "Detected domain server, but username/password not provided.  Can't install");
+            ret = -1; 
+            goto ddUserReturn;
+        } 
+    }
+    
+
+    if (!ddAgentPasswordSet) {
+        passbuflen = MAX_PASS_LEN + 2;
+        passbuf = new wchar_t[passbuflen];
+        
+        if (!generatePassword(passbuf, passbuflen)) {
+
+            WcaLog(LOGMSG_STANDARD, "Failed to generate password");
+            ret = -1; 
+            goto ddUserReturn;
+        }
+    }
+    ret = doCreateUser(ddAgentUserNameUnqualified, ddAgentUserDomainPtr, ddAgentUserDescription, passbuf);
     if (ret == NERR_UserExists) {
         WcaLog(LOGMSG_STANDARD, "Attempting to reset password of existing user");
         // if the user exists, update the password with the newly generated
@@ -262,6 +291,8 @@ int CreateDDUser(MSIHANDLE hInstall)
             NULL);
         if (0 == ret) {
             MarkInstallStepComplete(strDdUserPasswordChanged);
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Failed to reset password for user %d", ret);
         }
     } else if (ret != 0) {
         // failed with some unexpected reason
@@ -273,11 +304,22 @@ int CreateDDUser(MSIHANDLE hInstall)
         WcaLog(LOGMSG_STANDARD, "Created DD agent user");
         MarkInstallStepComplete(strDdUserCreated);
     }
-    // now store the password in the property so the installer can use it
-    MsiSetProperty(hInstall, (LPCWSTR)ddAgentUserPasswordProperty.c_str(), (LPCWSTR)passbuf);
-
+    if(!ddAgentPropertySet){
+        MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserName.c_str(), (LPCWSTR)ddAgentUserName.c_str());
+    }
+    if(!ddAgentPasswordSet){
+        // now store the password in the property so the installer can use it
+        MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserPassword.c_str(), (LPCWSTR)passbuf);
+    }
+    // write the user naem we used to the `enableservices` key, so that it can be retrieved during the 
+    // deferred custom action
+    MsiSetProperty(hInstall, (LPCWSTR) propertyEnableServicesDeferredKey.c_str(), (LPCWSTR)ddAgentUserName.c_str());
+    
 ddUserReturn:
-    memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));
+    if(passbuf) {
+        memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));
+        delete [] passbuf;
+    }
     return ret;
 }
 
@@ -353,4 +395,37 @@ LExit:
         LsaClose(hLsa);
     }
     return er;
+}
+
+
+bool isDomainController(MSIHANDLE hInstall)
+{
+    bool ret = false;
+    DWORD status = 0;
+    SERVER_INFO_101 *si = NULL;
+    DWORD le = 0;
+    status = NetServerGetInfo(NULL, 101, (LPBYTE *)&si);
+    if (NERR_Success != status) {
+        le = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Failed to get server info");
+        return false;
+    }
+    if (SV_TYPE_WORKSTATION & si->sv101_type) {
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_WORKSTATION");
+    }
+    if (SV_TYPE_SERVER & si->sv101_type) {
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_SERVER\n");
+    }
+    if (SV_TYPE_DOMAIN_CTRL & si->sv101_type) {
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_CTRL\n");
+        ret = true;
+    }
+    if (SV_TYPE_DOMAIN_BAKCTRL & si->sv101_type) {
+        WcaLog(LOGMSG_STANDARD, "machine is type SV_TYPE_DOMAIN_BAKCTRL\n");
+        ret = true;
+    }
+    if (si) {
+        NetApiBufferFree((LPVOID)si);
+    }
+    return ret;
 }

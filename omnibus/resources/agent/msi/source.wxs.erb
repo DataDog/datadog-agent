@@ -53,7 +53,8 @@
     <!-- No need to restart Windows after the installation -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
-    <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
+    <Property Id="DDAGENTUSER_NAME" />
+    <Property Id="DDAGENTUSER_PASSWORD"  />
 
         <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
       same version gets installed "side by side" -->
@@ -65,8 +66,6 @@
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
-
-    <Property Id="DDUSER" Value="ddagentuser"/>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
@@ -80,7 +79,7 @@
             <CreateFolder>
                 <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
-                <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
             </CreateFolder>
           </Component>
@@ -215,7 +214,7 @@
                           Type="ownProcess"
                           Vital="yes"
                           Interactive="no"
-                          Account=".\ddagentuser"
+                          Account="[DDAGENTUSER_NAME]"
                           Password="[DDAGENTUSER_PASSWORD]">
             <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
             <util:ServiceConfig
@@ -263,7 +262,7 @@
                             Type="ownProcess"
                             Vital="yes"
                             Interactive="no"
-                          Account=".\ddagentuser"
+                          Account="[DDAGENTUSER_NAME]"
                           Password="[DDAGENTUSER_PASSWORD]"
                             Arguments="--config=c:\programdata\datadog\datadog.yaml" >
               <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
@@ -402,7 +401,7 @@
               <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
               <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
               <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
-              <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+              <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
           </CreateFolder>
         </Component>
       </Directory>
@@ -417,7 +416,7 @@
                 <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
-                <Permission User="[DDUSER]" GenericAll="yes"  ChangePermission="yes"/>
+                <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
             </CreateFolder>
      
         </Component>
@@ -473,6 +472,7 @@
 
     <InstallExecuteSequence>
       <Custom Action='adddduser' Before='CreateFolders'> NOT (REMOVE = "ALL") </Custom>
+      <Custom Action='adjustrights' After='adddduser'> NOT (REMOVE = "ALL") </Custom>
       <Custom Action='deldduser' After='DeleteServices'> (NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
       <Custom Action='verifyregperms' After='adddduser'> NOT (REMOVE = "ALL") </Custom>
       <Custom Action='enableservices' Before='InstallFinalize'> NOT (REMOVE = "ALL") </Custom>
@@ -610,6 +610,7 @@
 
     <CustomAction Id='enableservices' BinaryKey='wixcadll' DllEntry='EnableServicesForDDUser' Execute='deferred' Return='check'/>
     <CustomAction Id='adddduser' BinaryKey='wixcadll' DllEntry='CreateOrUpdateDDUser' Execute='immediate' Return='check'/>
+    <CustomAction Id='adjustrights' BinaryKey='wixcadll' DllEntry='AdjustDDRights' Execute='immediate' Return='check'/>
     <CustomAction Id='deldduser' BinaryKey='wixcadll' DllEntry='RemoveDDUser' Execute='immediate' Return='check'/>
     <CustomAction Id='verifyregperms' BinaryKey='wixcadll' DllEntry='VerifyDatadogRegistryPerms' Execute='immediate' Return='check'/>
     <CustomAction Id='InstallationRollback' BinaryKey='wixcadll' DllEntry='RollbackInstallation' Execute='rollback' />
