@@ -141,6 +141,19 @@ func ImportRegistryConfig() error {
 	}
 	defer k.Close()
 
+	err = SetupConfig("")
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+
+	// store the current datadog.yaml path
+	datadogYamlPath := config.Datadog.ConfigFileUsed()
+
+	if config.Datadog.GetString("api_key") != "" {
+		return fmt.Errorf("%s seems to contain a valid configuration, not overwriting config",
+			datadogYamlPath)
+	}
+
 	overrides := make(map[string]interface{})
 
 	var val string
@@ -263,14 +276,6 @@ func ImportRegistryConfig() error {
 	err = SetupConfig("")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-
-	// store the current datadog.yaml path
-	datadogYamlPath := config.Datadog.ConfigFileUsed()
-
-	if config.Datadog.GetString("api_key") != "" {
-		return fmt.Errorf("%s seems to contain a valid configuration, not overwriting config",
-			datadogYamlPath)
 	}
 
 	// dump the current configuration to datadog.yaml
