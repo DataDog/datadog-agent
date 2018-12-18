@@ -205,6 +205,29 @@ func TestDefaultValues(t *testing.T) {
 	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
 }
 
+func TestTraceIgnoreResources(t *testing.T) {
+	require := require.New(t)
+
+	cases := []struct {
+		config   string
+		expected []string
+	}{
+		{`r1`, []string{"r1"}},
+		{`"r1","r2,"`, []string{"r1", "r2,"}},
+		{`"r1"`, []string{"r1"}},
+		{`r1,r2`, []string{"r1", "r2"}},
+	}
+
+	for _, c := range cases {
+		cfg := make(Config)
+		cfg["trace.ignore.resource"] = c.config
+		err := FromAgentConfig(cfg)
+		require.NoError(err)
+		require.Equal(c.expected, config.Datadog.GetStringSlice("apm_config.ignore_resources"))
+
+	}
+}
+
 func TestConverter(t *testing.T) {
 	require := require.New(t)
 	cfg, err := GetAgentConfig("./tests/datadog.conf")
