@@ -228,7 +228,9 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 func (l *Launcher) stopTailer(containerID string) {
 	if tailer, isTailed := l.tailers[containerID]; isTailed {
 		// No-op if the tailer source came from AD
-		l.collectAllSource.RemoveInput(containerID)
+		if l.collectAllSource != nil {
+			l.collectAllSource.RemoveInput(containerID)
+		}
 		go tailer.Stop()
 		l.removeTailer(containerID)
 	}
@@ -242,7 +244,9 @@ func (l *Launcher) restartTailer(containerID string) {
 	oldTailer, exists := l.tailers[containerID]
 	if exists {
 		source = oldTailer.source
-		l.collectAllSource.RemoveInput(containerID)
+		if l.collectAllSource != nil {
+			l.collectAllSource.RemoveInput(containerID)
+		}
 		oldTailer.Stop()
 		l.removeTailer(containerID)
 	}
