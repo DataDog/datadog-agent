@@ -7,7 +7,7 @@
 
 package py
 
-// #cgo pkg-config: python-2.7
+// #cgo pkg-config: python-3.7
 // #cgo linux CFLAGS: -std=gnu99
 // #include "tagger.h"
 import "C"
@@ -40,7 +40,7 @@ func GetTags(id *C.char, highCard int) *C.PyObject {
 
 	for _, t := range tags {
 		cTag := C.CString(t)
-		pyTag := C.PyString_FromString(cTag)
+		pyTag := C.PyUnicode_FromString(cTag)
 		defer C.Py_DecRef(pyTag)
 		C.free(unsafe.Pointer(cTag))
 		C.PyList_Append(output, pyTag)
@@ -50,5 +50,5 @@ func GetTags(id *C.char, highCard int) *C.PyObject {
 }
 
 func initTagger() {
-	C.inittagger()
+	C.register_tagger_module()
 }

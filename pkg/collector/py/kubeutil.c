@@ -12,15 +12,23 @@ PyObject* GetKubeletConnectionInfo();
 
 static PyMethodDef kubeutilMethods[] = {
   {"get_connection_info", GetKubeletConnectionInfo, METH_NOARGS, "Get kubelet connection information."},
-  {NULL, NULL}
+  {NULL, NULL, 0, NULL}  // guards
 };
 
-void initkubeutil()
+static struct PyModuleDef kubeutilDef = {
+  PyModuleDef_HEAD_INIT,
+  "kubeutil",        /* m_name */
+  "kubeutil module", /* m_doc */
+  -1,                /* m_size */
+  kubeutilMethods,   /* m_methods */
+};
+
+PyMODINIT_FUNC PyInit_kubeutil()
 {
-  PyGILState_STATE gstate;
-  gstate = PyGILState_Ensure();
+  return PyModule_Create(&kubeutilDef);
+}
 
-  PyObject *ku = Py_InitModule("kubeutil", kubeutilMethods);
-
-  PyGILState_Release(gstate);
+void register_kubeutil_module()
+{
+  PyImport_AppendInittab("kubeutil", PyInit_kubeutil);
 }

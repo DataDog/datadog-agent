@@ -22,7 +22,7 @@ PyObject* GetHostname(PyObject *self, PyObject *args);
 PyObject* GetClusterName(PyObject *self, PyObject *args);
 PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
-PyObject* GetSubprocessOutput(char **args, int argc, int raise);
+PyObject* GetSubprocessOutput(const char **args, int argc, int raise);
 PyObject* SetExternalTags(const char *hostname, const char *source_type, char **tags, int tags_s);
 
 // Exceptions
@@ -64,7 +64,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     PyObject *cmd_args, *cmd_raise_on_empty;
     int raise = 1, i=0;
     int subprocess_args_sz;
-    char ** subprocess_args, * subprocess_arg;
+    const char ** subprocess_args, * subprocess_arg;
     PyObject *py_result;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
@@ -92,14 +92,14 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     }
 
     subprocess_args_sz = PyList_Size(cmd_args);
-    if(!(subprocess_args = (char **)malloc(sizeof(char *)*subprocess_args_sz))) {
+    if(!(subprocess_args = (const char **)malloc(sizeof(const char *)*subprocess_args_sz))) {
         PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
         PyGILState_Release(gstate);
         return NULL;
     }
 
     for (i = 0; i < subprocess_args_sz; i++) {
-        subprocess_arg = PyString_AsString(PyList_GetItem(cmd_args, i));
+        subprocess_arg = PyUnicode_AsUTF8(PyList_GetItem(cmd_args, i));
         if (subprocess_arg == NULL) {
             PyErr_SetString(PyExc_Exception, "unable to parse arguments to cgo/go-land");
             free(subprocess_args);
@@ -152,7 +152,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
         }
 
         // first elem is the hostname
-        const char *hostname = PyString_AsString(PyTuple_GetItem(tuple, 0));
+        const char *hostname = PyUnicode_AsUTF8(PyTuple_GetItem(tuple, 0));
         // second is a dictionary
         PyObject *dict = PyTuple_GetItem(tuple, 1);
         if (!PyDict_Check(dict)) {
@@ -169,7 +169,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
         }
 
         // key is the source type (e.g. 'vsphere') value is the list of tags
-        const char *source_type = PyString_AsString(key);
+        const char *source_type = PyUnicode_AsUTF8(key);
         if (!PyList_Check(value)) {
             PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags ");
             PyGILState_Release(gstate);
@@ -193,13 +193,13 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
                 continue;
             }
 
-            char *tag = PyString_AsString(s);
+            Py_ssize_t len = 0;
+            const char *tag = PyUnicode_AsUTF8AndSize(s, &len);
             if (tag == NULL) {
                 continue;
             }
 
-            int len = PyString_Size(s) + 1;
-            tags[actual_size] = (char*)malloc(sizeof(char)*len);
+            tags[actual_size] = (char*)malloc(sizeof(char)*len+1);
             if (!tags[actual_size]) {
                 // cleanup
                 int k;
@@ -238,7 +238,15 @@ static PyMethodDef datadogAgentMethods[] = {
   {"get_clustername", GetClusterName, METH_VARARGS, "Get the agent cluster name."},
   {"log", log_message, METH_VARARGS, "Log a message through the agent logger."},
   {"set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags."},
-  {NULL, NULL}
+  {NULL, NULL, 0, NULL}  // guards
+};
+
+static struct PyModuleDef datadogAgentDef = {
+  PyModuleDef_HEAD_INIT,
+  "datadog_agent",        /* m_name */
+  "datadog_agent module", /* m_doc */
+  -1,                     /* m_size */
+  datadogAgentMethods,    /* m_methods */
 };
 
 /*
@@ -247,7 +255,15 @@ static PyMethodDef datadogAgentMethods[] = {
  */
 static PyMethodDef utilMethods[] = {
   {"headers", (PyCFunction)Headers, METH_VARARGS | METH_KEYWORDS, "Get basic HTTP headers with the right UserAgent."},
-  {NULL, NULL}
+  {NULL, NULL, 0, NULL}  // guards
+};
+
+static struct PyModuleDef utilDef = {
+  PyModuleDef_HEAD_INIT,
+  "util",        /* m_name */
+  "util module", /* m_doc */
+  -1,            /* m_size */
+  utilMethods,   /* m_methods */
 };
 
 /*
@@ -258,21 +274,41 @@ static PyMethodDef _utilMethods[] = {
       METH_VARARGS, "Run subprocess and return its output. "
                     "This is a private method and should not be called directly. "
                     "Please use the datadog_checks.utils.subprocess_output.get_subprocess_output wrapper."},
-  {NULL, NULL}
+  {NULL, NULL, 0, NULL}  // guards
 };
 
-void initdatadogagent()
-{
-  PyGILState_STATE gstate;
-  gstate = PyGILState_Ensure();
+static struct PyModuleDef _utilDef = {
+  PyModuleDef_HEAD_INIT,
+  "_util",        /* m_name */
+  "_util module", /* m_doc */
+  -1,             /* m_size */
+  _utilMethods,   /* m_methods */
+};
 
-  PyObject *da = Py_InitModule("datadog_agent", datadogAgentMethods);
-  PyObject *util = Py_InitModule("util", utilMethods);
-  PyObject *_util = Py_InitModule("_util", _utilMethods);
+PyMODINIT_FUNC PyInit_datadogagent()
+{
+  return PyModule_Create(&datadogAgentDef);
+}
+
+PyMODINIT_FUNC PyInit_util()
+{
+  return PyModule_Create(&utilDef);
+}
+
+PyMODINIT_FUNC PyInit__util()
+{
+  PyObject *_util = PyModule_Create(&_utilDef);
 
   SubprocessOutputEmptyError = PyErr_NewException("_util.SubprocessOutputEmptyError", NULL, NULL);
   Py_INCREF(SubprocessOutputEmptyError);
   PyModule_AddObject(_util, "SubprocessOutputEmptyError", SubprocessOutputEmptyError);
+  return _util;
+}
 
-  PyGILState_Release(gstate);
+
+void register_datadogagent_module()
+{
+  PyImport_AppendInittab("datadog_agent", PyInit_datadogagent);
+  PyImport_AppendInittab("util", PyInit_util);
+  PyImport_AppendInittab("_util", PyInit__util);
 }

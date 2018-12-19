@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// #cgo pkg-config: python-2.7
+// #cgo pkg-config: python-3.7
 // #cgo linux CFLAGS: -std=gnu99
 // #include "api.h"
 // #include "datadog_agent.h"
@@ -39,7 +39,7 @@ func GetVersion(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	av, _ := version.New(version.AgentVersion, version.Commit)
 
 	cStr := C.CString(av.GetNumber())
-	pyStr := C.PyString_FromString(cStr)
+	pyStr := C.PyUnicode_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
 }
@@ -56,7 +56,7 @@ func GetHostname(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	}
 
 	cStr := C.CString(hostname)
-	pyStr := C.PyString_FromString(cStr)
+	pyStr := C.PyUnicode_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
 }
@@ -69,7 +69,7 @@ func GetClusterName(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	clusterName := clustername.GetClusterName()
 
 	cStr := C.CString(clusterName)
-	pyStr := C.PyString_FromString(cStr)
+	pyStr := C.PyUnicode_FromString(cStr)
 	C.free(unsafe.Pointer(cStr))
 	return pyStr
 }
@@ -84,12 +84,12 @@ func Headers(self *C.PyObject, args, kwargs *C.PyObject) *C.PyObject {
 	dict := C.PyDict_New()
 	for k, v := range h {
 		cKey := C.CString(k)
-		pyKey := C.PyString_FromString(cKey)
+		pyKey := C.PyUnicode_FromString(cKey)
 		defer C.Py_DecRef(pyKey)
 		C.free(unsafe.Pointer(cKey))
 
 		cVal := C.CString(v)
-		pyVal := C.PyString_FromString(cVal)
+		pyVal := C.PyUnicode_FromString(cVal)
 		defer C.Py_DecRef(pyVal)
 		C.free(unsafe.Pointer(cVal))
 
@@ -130,7 +130,7 @@ func GetConfig(key *C.char) *C.PyObject {
 		return C._none()
 	}
 	// converting type *python.C.struct__object to *C.struct__object
-	return (*C.PyObject)(unsafe.Pointer(pyValue.GetCPointer()))
+	return (*C.PyObject)(unsafe.Pointer(pyValue))
 }
 
 // LogMessage logs a message from python through the agent logger (see
@@ -269,12 +269,12 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	}
 
 	cOutput := C.CString(string(output[:]))
-	pyOutput := C.PyString_FromString(cOutput)
+	pyOutput := C.PyUnicode_FromString(cOutput)
 	C.free(unsafe.Pointer(cOutput))
 	cOutputErr := C.CString(string(outputErr[:]))
-	pyOutputErr := C.PyString_FromString(cOutputErr)
+	pyOutputErr := C.PyUnicode_FromString(cOutputErr)
 	C.free(unsafe.Pointer(cOutputErr))
-	pyRetCode := C.PyInt_FromLong(C.long(retCode))
+	pyRetCode := C.PyLong_FromLong(C.long(retCode))
 
 	pyResult := C.PyTuple_New(3)
 	C.PyTuple_SetItem(pyResult, 0, pyOutput)
@@ -309,5 +309,5 @@ func SetExternalTags(hostname, sourceType *C.char, tags **C.char, tagsLen C.int)
 }
 
 func initDatadogAgent() {
-	C.initdatadogagent()
+	C.register_datadogagent_module()
 }

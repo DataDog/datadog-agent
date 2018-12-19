@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// #cgo pkg-config: python-2.7
+// #cgo pkg-config: python-3.7
 // #cgo windows LDFLAGS: -Wl,--allow-multiple-definition
 // #include "api.h"
 // #include "stdlib.h"
@@ -152,9 +152,9 @@ func extractEventFromDict(event *C.PyObject, checkID string) (metrics.Event, err
 		pyValue := C.PyDict_GetItemString(event, pyKey) // borrowed ref
 		// key not in dict => nil ; value for key is None => None ; we need to check for both
 		if pyValue != nil && !isNone(pyValue) {
-			if int(C._PyString_Check(pyValue)) != 0 {
+			if int(C._PyUnicode_Check(pyValue)) != 0 {
 				// at this point we're sure that `pyValue` is a string, no further error checking needed
-				eventStringValues[key] = C.GoString(C.PyString_AsString(pyValue))
+				eventStringValues[key] = C.GoString(C.PyUnicode_AsUTF8(pyValue))
 			} else {
 				log.Errorf("Can't parse value for key '%s' in event submitted from python check", key)
 			}
@@ -177,9 +177,9 @@ func extractEventFromDict(event *C.PyObject, checkID string) (metrics.Event, err
 
 	timestamp := C.PyDict_GetItemString(event, pyKey) // borrowed ref
 	if timestamp != nil && !isNone(timestamp) {
-		if int(C._PyInt_Check(timestamp)) != 0 {
-			// at this point we're sure that `timestamp` is an `int` so `PyInt_AsLong` won't raise an exception
-			_event.Ts = int64(C.PyInt_AsLong(timestamp))
+		if int(C._PyLong_Check(timestamp)) != 0 {
+			// at this point we're sure that `timestamp` is an `int` so `PyLong_AsLong` won't raise an exception
+			_event.Ts = int64(C.PyLong_AsLong(timestamp))
 		} else {
 			log.Errorf("Can't cast timestamp to integer in event submitted from python check")
 		}
@@ -225,14 +225,14 @@ func extractTags(tags *C.PyObject, checkID string) (_tags []string, err error) {
 		var i C.Py_ssize_t
 		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
 			item := C.PySequence_Fast_Get_Item(seq, i) // `item` is borrowed, no need to decref
-			if int(C._PyString_Check(item)) == 0 {
+			if int(C._PyUnicode_Check(item)) == 0 {
 				typeName := C.GoString(C._object_type(item))
 				stringRepr := stringRepresentation(item)
 				log.Infof("One of the submitted tags for the check with ID %s is not a string but a %s: %s, ignoring it", checkID, typeName, stringRepr)
 				continue
 			}
 			// at this point we're sure that `item` is a string, no further error checking needed
-			_tags = append(_tags, C.GoString(C.PyString_AsString(item)))
+			_tags = append(_tags, C.GoString(C.PyUnicode_AsUTF8(item)))
 		}
 	}
 
@@ -247,13 +247,13 @@ func stringRepresentation(o *C.PyObject) string {
 	repr := C._PyObject_Repr(o)
 	if repr != nil {
 		defer C.Py_DecRef(repr)
-		return C.GoString(C.PyString_AsString(repr))
+		return C.GoString(C.PyUnicode_AsUTF8(repr))
 	}
 	// error flag is set, not interesting to us so we can simply clear it
 	C.PyErr_Clear()
 	return ""
 }
 
-func initAPI() {
-	C.initaggregator()
+func initAggregator() {
+	C.register_aggregator_module()
 }

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// #cgo pkg-config: python-2.7
+// #cgo pkg-config: python-3.7
 // #cgo linux CFLAGS: -std=gnu99
 // #include "api.h"
 // #include "kubeutil.h"
@@ -57,12 +57,12 @@ func GetKubeletConnectionInfo() *C.PyObject {
 
 	for k, v := range creds {
 		cKey := C.CString(k)
-		pyKey := C.PyString_FromString(cKey)
+		pyKey := C.PyUnicode_FromString(cKey)
 		defer C.Py_DecRef(pyKey)
 		C.free(unsafe.Pointer(cKey))
 
 		cVal := C.CString(v)
-		pyVal := C.PyString_FromString(cVal)
+		pyVal := C.PyUnicode_FromString(cVal)
 		defer C.Py_DecRef(pyVal)
 		C.free(unsafe.Pointer(cVal))
 
@@ -72,5 +72,5 @@ func GetKubeletConnectionInfo() *C.PyObject {
 }
 
 func initKubeutil() {
-	C.initkubeutil()
+	C.register_kubeutil_module()
 }

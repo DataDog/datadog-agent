@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-// #cgo pkg-config: python-2.7
+// #cgo pkg-config: python-3.7
 // #cgo linux CFLAGS: -std=gnu99
 // #include "api.h"
 // #include "containers.h"
@@ -42,11 +42,6 @@ func IsContainerExcluded(name, image *C.char) int {
 	}
 }
 
-func initContainers() {
-	C.initcontainers()
-	initContainerFilter()
-}
-
 // Separated to unit testing
 func initContainerFilter() {
 	var err error
@@ -54,4 +49,9 @@ func initContainerFilter() {
 	if err != nil {
 		log.Errorf("Error initializing container filtering: %s", err)
 	}
+}
+
+func initContainers() {
+	C.register_containers_module()
+	initContainerFilter()
 }

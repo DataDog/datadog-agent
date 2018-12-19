@@ -10,6 +10,6 @@
 
 #include <Python.h>
 
-void initkubeutil();
+void register_kubeutil_module();
 
 #endif /* KUBEUTIL_HEADER */
