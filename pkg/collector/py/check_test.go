@@ -122,6 +122,16 @@ func TestInterval(t *testing.T) {
 	assert.Equal(t, time.Duration(1)*time.Second, c.Interval())
 }
 
+func TestName(t *testing.T) {
+	c, _ := getCheckInstance("testcheck", "TestCheck")
+	c.Configure([]byte("name: test"), []byte("foo: bar"))
+	assert.Equal(t, string(c.ID()), "testcheck:test:bb22958a762de21b")
+
+	c, _ = getCheckInstance("testcheck", "TestCheck")
+	c.Configure([]byte("foo: bar"), []byte("foo: bar"))
+	assert.Equal(t, string(c.ID()), "testcheck:2144e63501a5cc65")
+}
+
 func TestInitKwargsCheck(t *testing.T) {
 	_, err := getCheckInstance("kwargs_init_signature", "TestCheck")
 	assert.Nil(t, err)
