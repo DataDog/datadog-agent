@@ -55,7 +55,7 @@ __main__.test_func ... FAIL
 FAIL: __main__.test_func
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/usr/lib/python2.7/dist-packages/nose/case.py", line 197, in runTest
+  File "/usr/lib/python3.7/dist-packages/nose/case.py", line 197, in runTest
     self.test(*self.arg)
   File "/tmp/test.py", line 7, in test_func
     assert_equals(1, 2)

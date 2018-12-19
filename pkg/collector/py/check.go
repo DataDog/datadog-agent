@@ -13,7 +13,7 @@ import (
 	"runtime"
 	"time"
 
-	python "github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -59,11 +59,9 @@ func (c *PythonCheck) Run() error {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
-	// call run function, it takes no args so we pass an empty tuple
 	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
-	emptyTuple := python.PyTuple_New(0)
-	defer emptyTuple.DecRef()
-	result := c.instance.CallMethod("run", emptyTuple)
+
+	result := c.instance.CallMethodArgs("run")
 	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
@@ -84,7 +82,7 @@ func (c *PythonCheck) Run() error {
 	// grab the warnings and add them to the struct
 	c.lastWarnings = c.getPythonWarnings(gstate)
 
-	var resultStr = python.PyString_AsString(result)
+	var resultStr = python.PyUnicode_AsUTF8(result)
 	if resultStr == "" {
 		return nil
 	}
@@ -98,10 +96,8 @@ func (c *PythonCheck) RunSimple() error {
 	defer gstate.unlock()
 
 	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
-	emptyTuple := python.PyTuple_New(0)
-	defer emptyTuple.DecRef()
 
-	result := c.instance.CallMethod("run", emptyTuple)
+	result := c.instance.CallMethodArgs("run")
 	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
@@ -113,7 +109,7 @@ func (c *PythonCheck) RunSimple() error {
 	defer result.DecRef()
 
 	c.lastWarnings = c.getPythonWarnings(gstate)
-	var resultStr = python.PyString_AsString(result)
+	var resultStr = python.PyUnicode_AsUTF8(result)
 	if resultStr == "" {
 		return nil
 	}
@@ -146,9 +142,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	This function must be run before the GIL is unlocked, otherwise it will return nothing.
 	**/
 	warnings := []error{}
-	emptyTuple := python.PyTuple_New(0)
-	defer emptyTuple.DecRef()
-	ws := c.instance.CallMethod("get_warnings", emptyTuple)
+	ws := c.instance.CallMethodArgs("get_warnings")
 	if ws == nil {
 		pyErr, err := gstate.getPythonError()
 		if err != nil {
@@ -162,7 +156,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	idx := 0
 	for idx < numWarnings {
 		w := python.PyList_GetItem(ws, idx) // borrowed ref
-		warnings = append(warnings, fmt.Errorf("%v", python.PyString_AsString(w)))
+		warnings = append(warnings, fmt.Errorf("%v", python.PyUnicode_AsUTF8(w)))
 		idx++
 	}
 	return warnings
@@ -175,7 +169,6 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 // this code, please ensure the Python thread unlock is always at the bottom
 // of  the defer calls stack.
 func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObject, error) {
-	// Lock the GIL and release it at the end
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
@@ -273,7 +266,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 
 		// Add new 'agentConfig' key to the dict...
 		gstate := newStickyLock()
-		key := python.PyString_FromString("agentConfig")
+		key := python.PyUnicode_FromString("agentConfig")
 		defer key.DecRef()
 		python.PyDict_SetItem(kwargs, key, agentConfig)
 		gstate.unlock()
@@ -290,7 +283,9 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 
 	// The Check ID is set in Python so that the python check
 	// can use it afterwards to submit to the proper sender in the aggregator
-	pyID := python.PyString_FromString(string(c.ID()))
+	gstate := newStickyLock()
+	defer gstate.unlock()
+	pyID := python.PyUnicode_FromString(string(c.ID()))
 	defer pyID.DecRef()
 	instance.SetAttrString("check_id", pyID)
 

@@ -10,7 +10,7 @@ package collector
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	python "github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 )
 
 var pyState *python.PyThreadState

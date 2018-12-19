@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
-	python "github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -161,7 +161,7 @@ func TestInitException(t *testing.T) {
 
 func TestInitNoTracebackException(t *testing.T) {
 	_, err := getCheckInstance("init_no_traceback_exception", "TestCheck")
-	assert.EqualError(t, err, "could not invoke python check constructor: __init__() takes exactly 8 arguments (5 given)")
+	assert.EqualError(t, err, "could not invoke python check constructor: __init__() missing 3 required positional arguments: 'one', 'two', and 'three'")
 }
 
 // TestAggregatorLink checks to see if a simple check that sends metrics to the aggregator has no errors

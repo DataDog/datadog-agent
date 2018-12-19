@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
-	python "github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 )
 
 // Testing configuration is set at run-time by various flags - see the README for details

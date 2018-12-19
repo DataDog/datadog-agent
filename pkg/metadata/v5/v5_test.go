@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
-	python "github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	ret := m.Run()
 
 	python.PyEval_RestoreThread(state)
-	python.Finalize()
+	python.Py_Finalize()
 
 	os.Exit(ret)
 }

@@ -212,7 +212,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
                 PyGILState_Release(gstate);
                 return NULL;
             }
-            strncpy(tags[actual_size], tag, len);
+            strncpy(tags[actual_size], tag, len+1);
             actual_size++;
         }
 

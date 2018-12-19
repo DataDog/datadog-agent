@@ -4,8 +4,8 @@
 # Copyright 2016-2019 Datadog, Inc.
 
 # stdlib
-import ConfigParser
-from cStringIO import StringIO
+import configparser
+from io import StringIO
 import glob
 import imp
 import inspect
@@ -18,10 +18,9 @@ import os
 import platform
 import re
 from socket import gaierror, gethostbyname
-import string
 import sys
 import traceback
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 # 3p
 import json
@@ -94,7 +93,7 @@ def get_version():
 
 def skip_leading_wsp(f):
     "Works on a file, returns a file-like object"
-    return StringIO("\n".join(map(string.strip, f.readlines())))
+    return StringIO("\n".join(map(str.strip, f.readlines())))
 
 
 def _windows_commondata_path():
@@ -240,7 +239,7 @@ def clean_dd_url(url):
 
 
 def remove_empty(string_array):
-    return filter(lambda x: x, string_array)
+    return list(filter(lambda x: x, string_array))
 
 
 def get_config(cfg_path=None, options=None, can_query_registry=True):
@@ -274,7 +273,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
         path = os.path.dirname(path)
 
         config_path = get_config_path(path)
-        config = ConfigParser.ConfigParser()
+        config = configparser.ConfigParser()
         config.readfp(skip_leading_wsp(open(config_path)))
 
         # bulk import
@@ -300,8 +299,8 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
             sys.exit(2)
 
         # Endpoints
-        dd_urls = map(clean_dd_url, config.get('Main', 'dd_url').split(','))
-        api_keys = map(lambda el: el.strip(), config.get('Main', 'api_key').split(','))
+        dd_urls = list(map(clean_dd_url, config.get('Main', 'dd_url').split(',')))
+        api_keys = list(map(lambda el: el.strip(), config.get('Main', 'api_key').split(',')))
 
         # For collector and dogstatsd
         agentConfig['dd_url'] = dd_urls[0]
@@ -409,7 +408,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
             'dogstatsd_port': 8125,
             'dogstatsd_target': 'http://' + agentConfig['bind_host'] + ':17123',
         }
-        for key, value in dogstatsd_defaults.iteritems():
+        for key, value in dogstatsd_defaults.items():
             if config.has_option('Main', key):
                 agentConfig[key] = config.get('Main', key)
             else:
@@ -444,7 +443,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
         try:
             filter_device_re = config.get('Main', 'device_blacklist_re')
             agentConfig['device_blacklist_re'] = re.compile(filter_device_re)
-        except ConfigParser.NoOptionError:
+        except configparser.NoOptionError:
             pass
 
         # Dogstream config
@@ -500,15 +499,15 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
         if config.has_option("Main", "gce_updated_hostname"):
             agentConfig["gce_updated_hostname"] = _is_affirmative(config.get("Main", "gce_updated_hostname"))
 
-    except ConfigParser.NoSectionError as e:
+    except configparser.NoSectionError as e:
         sys.stderr.write('Config file not found or incorrectly formatted.\n')
         sys.exit(2)
 
-    except ConfigParser.ParsingError as e:
+    except configparser.ParsingError as e:
         sys.stderr.write('Config file not found or incorrectly formatted.\n')
         sys.exit(2)
 
-    except ConfigParser.NoOptionError as e:
+    except configparser.NoOptionError as e:
         sys.stderr.write('There are some items missing from your config file, but nothing fatal [%s]' % e)
 
     # Storing proxy settings in the agentConfig

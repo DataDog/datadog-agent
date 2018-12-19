@@ -40,7 +40,7 @@ def fmt(ctx, targets, fail_on_fmt=False):
     Example invokation:
         inv fmt --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -64,7 +64,7 @@ def lint(ctx, targets):
     Example invokation:
         inv lint --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -101,7 +101,7 @@ def vet(ctx, targets, use_embedded_libs=False):
     Example invokation:
         inv vet --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -128,7 +128,7 @@ def cyclo(ctx, targets, limit=15):
     Example invokation:
         inv cyclo --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -147,7 +147,7 @@ def ineffassign(ctx, targets):
     Example invokation:
         inv ineffassign --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -166,7 +166,7 @@ def misspell(ctx, targets):
     Example invokation:
         inv misspell --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')

@@ -106,7 +106,7 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 	// these values are postprocessed in config.py, manually overwrite them
 	config["endpoints"] = "{}"
 	config["version"] = "5.18.0"
-	config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"
+	config["proxy_settings"] = "{'host': 'my-proxy.com', 'port': 3128, 'user': 'user', 'password': 'password'}"
 	config["service_discovery"] = "True"
 
 	// add trace agent sections as <section>.<key>

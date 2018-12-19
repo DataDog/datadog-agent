@@ -44,7 +44,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         tool_targets = test_targets = targets.split(',')
