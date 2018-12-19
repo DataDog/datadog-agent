@@ -111,7 +111,6 @@ core,github.com/prometheus/client_model,Apache-2.0
 core,github.com/prometheus/common,Apache-2.0
 core,github.com/prometheus/procfs,Apache-2.0
 core,github.com/samuel/go-zookeeper,BSD-3-Clause
-core,github.com/sbinet/go-python,Python-2.0
 core,github.com/shirou/gopsutil,BSD-3-Clause
 core,github.com/shirou/w32,BSD-3-Clause
 core,github.com/sirupsen/logrus,MIT
@@ -155,3 +154,4 @@ core,github.com/opencontainers/go-digest,Apache-2.0
 core,github.com/philhofer/fwd,MIT
 core,github.com/DataDog/datadog-go,MIT
 core,github.com/tinylib/msgp,MIT
+core,github.com/DataDog/go-python3,MIT

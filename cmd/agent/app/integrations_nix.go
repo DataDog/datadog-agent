@@ -22,7 +22,7 @@ const (
 var (
 	relPyPath              = filepath.Join("..", "..", "embedded", "bin", pythonBin)
 	relTufConfigFilePath   = filepath.Join("..", "..", tufConfigFile)
-	relChecksPath          = filepath.Join("..", "..", "embedded", "lib", "python2.7", "site-packages", "datadog_checks")
+	relChecksPath          = filepath.Join("..", "..", "embedded", "lib", "python3.7", "site-packages", "datadog_checks")
 	relReqAgentReleasePath = filepath.Join("..", "..", reqAgentReleaseFile)
 	relTufPipCache         = filepath.Join("..", "..", "repositories", "cache")
 )

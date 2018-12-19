@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	python "github.com/DataDog/go-python3"
 	"github.com/mitchellh/reflectwalk"
-	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,7 +51,7 @@ func TestToPython(t *testing.T) {
 		t.Fatalf("Result is not a Python dict")
 	}
 
-	m := python.PyImport_ImportModuleNoBlock("tests.complex")
+	m := python.PyImport_ImportModule("tests.complex")
 	if m == nil {
 		t.Fatalf("Unable to import module complex.py")
 	}
@@ -64,8 +64,8 @@ func TestToPython(t *testing.T) {
 	same := res.RichCompareBool(d, python.Py_EQ)
 	if same < 1 {
 		t.Fatalf("Result and template dict must be the same:\n Result: %s\n Template: %s",
-			python.PyString_AsString(res.Str()),
-			python.PyString_AsString(d.Str()))
+			python.PyUnicode_AsUTF8(res.Str()),
+			python.PyUnicode_AsUTF8(d.Str()))
 	}
 }
 
@@ -82,11 +82,11 @@ func TestToPythonInt(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
-	assert.True(t, python.PyInt_Check(res), "Result is not a Python dict")
+	assert.True(t, python.PyLong_Check(res), "Result is not a Python dict")
 
 	res, err = ToPython(&b)
 	require.Nil(t, err, "Expected empty error message")
-	assert.True(t, python.PyInt_Check(res), "Result is not a Python dict")
+	assert.True(t, python.PyLong_Check(res), "Result is not a Python dict")
 }
 
 func TestToPythonfloat(t *testing.T) {
@@ -134,7 +134,7 @@ func TestToPythonString(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
-	assert.True(t, python.PyString_Check(res), "Result is not a Python string")
+	assert.True(t, python.PyUnicode_Check(res), "Result is not a Python string")
 }
 
 func TestToPythonDuration(t *testing.T) {
@@ -148,7 +148,7 @@ func TestToPythonDuration(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
-	assert.True(t, python.PyInt_Check(res), "Result is not a Python string")
+	assert.True(t, python.PyLong_Check(res), "Result is not a Python string")
 }
 
 func TestWalkerPush(t *testing.T) {
@@ -279,13 +279,13 @@ func TestIfToPy(t *testing.T) {
 
 	i = 42
 	val := ifToPy(reflect.ValueOf(i))
-	if !python.PyInt_Check(val) {
+	if !python.PyLong_Check(val) {
 		t.Fatalf("Return value is not int")
 	}
 
 	i = "Snafu"
 	val = ifToPy(reflect.ValueOf(i))
-	if !python.PyString_Check(val) {
+	if !python.PyUnicode_Check(val) {
 		t.Fatalf("Return value is not a string")
 	}
 
@@ -307,9 +307,9 @@ func TestMapElem(t *testing.T) {
 		t.Fatalf("Expected key value foo, found %s", w.lastKey)
 	}
 
-	pkey := python.PyString_FromString(w.lastKey)
-	ok, _ := python.PyDict_Contains(w.currentContainer, pkey)
-	if !ok {
+	pkey := python.PyUnicode_FromString(w.lastKey)
+	found := python.PyDict_Contains(w.currentContainer, pkey)
+	if found != 1 {
 		t.Fatalf("Key not found in dictionary")
 	}
 }

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	python "github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 )
 
 // #include <Python.h>
@@ -31,10 +31,6 @@ var (
 	// The pythonHome variable typically comes from -ldflags
 	// it's needed in case the agent was built using embedded libs
 	pythonHome = ""
-	// see https://docs.python.org/2/c-api/init.html#c.Py_SetPythonHome
-	// we should keep around the char* string we use to set the Python
-	// Home through cgo until the program exits.
-	pPythonHome *C.char
 	// PythonHome contains the computed value of the Python Home path once the
 	// intepreter is created. It might be empty in case the interpreter wasn't
 	// initialized, or the Agent was built using system libs and the env var
@@ -54,7 +50,7 @@ func Initialize(paths ...string) *python.PyThreadState {
 	setPythonHome()
 
 	// store the final value of Python Home in the cache
-	PythonHome = C.GoString(C.Py_GetPythonHome())
+	PythonHome, _ = python.Py_GetPythonHome()
 
 	// Start the interpreter
 	if C.Py_IsInitialized() == 0 {
@@ -83,7 +79,7 @@ func Initialize(paths ...string) *python.PyThreadState {
 	if len(paths) > 0 {
 		path := python.PySys_GetObject("path") // borrowed ref
 		for _, p := range paths {
-			newPath := python.PyString_FromString(p)
+			newPath := python.PyUnicode_FromString(p)
 			defer newPath.DecRef()
 			python.PyList_Append(path, newPath)
 		}
@@ -100,7 +96,7 @@ func Initialize(paths ...string) *python.PyThreadState {
 
 	// store the Python path
 	if pyList := python.PySys_GetObject("path"); pyList != nil {
-		PythonPath = python.PyString_AS_STRING(pyList.Str())
+		PythonPath = python.PyUnicode_AsUTF8(pyList.Str())
 	}
 
 	// We acquired the GIL as a side effect of threading initialization (see above)
@@ -133,14 +129,12 @@ func setPythonHome() {
 
 	if runtime.GOOS == "windows" {
 		// on windows, override the hardcoded path set during compile time, but only if that path points to nowhere
-		if _, err := os.Stat(filepath.Join(pythonHome, "lib", "python2.7")); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(pythonHome, "lib", "python3.7")); os.IsNotExist(err) {
 			pythonHome = _here
 		}
 	}
 
-	// set the python path
-	pPythonHome := C.CString(pythonHome)
-	C.Py_SetPythonHome(pPythonHome)
+	python.Py_SetPythonHome(PythonHome)
 }
 
 // SaveThreadState is a wrapper around the Python C-API PyEval_SaveThread

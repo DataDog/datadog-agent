@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -152,8 +152,8 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		wheelVersionPy := checkModule.GetAttrString("__version__")
 		if wheelVersionPy != nil {
 			defer wheelVersionPy.DecRef()
-			if python.PyString_Check(wheelVersionPy) {
-				wheelVersion = python.PyString_AS_STRING(wheelVersionPy.Str())
+			if python.PyUnicode_Check(wheelVersionPy) {
+				wheelVersion = python.PyUnicode_AsUTF8(wheelVersionPy.Str())
 			} else {
 				// This should never happen. If the check is a custom one
 				// (a simple .py file dropped in the check.d folder) it does
@@ -173,7 +173,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 					pyTypeStr := pyType.Str()
 					if pyTypeStr != nil {
 						defer pyTypeStr.DecRef()
-						typeName = python.PyString_AS_STRING(pyTypeStr)
+						typeName = python.PyUnicode_AsUTF8(pyTypeStr)
 					}
 				}
 
@@ -205,8 +205,8 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 
 			if checkFilePath != nil {
 				defer checkFilePath.DecRef()
-				if python.PyString_Check(checkFilePath) {
-					filePath := python.PyString_AsString(checkFilePath)
+				if python.PyUnicode_Check(checkFilePath) {
+					filePath := python.PyUnicode_AsUTF8(checkFilePath)
 
 					// __file__ return the .pyc file path
 					if strings.HasSuffix(moduleName, ".pyc") {

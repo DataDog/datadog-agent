@@ -27,7 +27,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:db1b73d955d10cdd26831baf9f3575bec36b817da2fbdcc7cf9bba908fa31b8c"
+  digest = "1:049715cb57c98e4a13d9b4e56739230cc8f83ad3a822053e7b74a3f1a3ba9bab"
+  name = "github.com/DataDog/go-python3"
+  packages = ["."]
+  pruneopts = ""
+  revision = "55b7b607adf594960e9fcf7511ce2c3710a57cfe"
+
+[[projects]]
+  branch = "master"
+  digest = "1:e629518d413e890d23a9cb7e1e4f3e559eb926f2442b3dfdc1c07915ce309162"
   name = "github.com/DataDog/gohai"
   packages = [
     "cpu",
@@ -1100,14 +1108,6 @@
   revision = "c4fab1ac1bec58281ad0667dc3f0907a9476ac47"
 
 [[projects]]
-  branch = "master"
-  digest = "1:9a959ce59514dea9b669f103abdea50ccc150824ed76876fc5a93a1fbf246c70"
-  name = "github.com/sbinet/go-python"
-  packages = ["."]
-  pruneopts = ""
-  revision = "f976f61134dc6f5b4920941eb1b0e7cec7e4ef4c"
-
-[[projects]]
   digest = "1:5e9a035ad95373cc44be4e0682e30923d02cdc238e280b8937073092dba8e68e"
   name = "github.com/shirou/gopsutil"
   packages = [
@@ -1932,6 +1932,7 @@
   input-imports = [
     "github.com/DataDog/agent-payload/gogen",
     "github.com/DataDog/datadog-go/statsd",
+    "github.com/DataDog/go-python3",
     "github.com/DataDog/gohai/cpu",
     "github.com/DataDog/gohai/filesystem",
     "github.com/DataDog/gohai/memory",
@@ -1996,7 +1997,6 @@
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/samuel/go-zookeeper/zk",
-    "github.com/sbinet/go-python",
     "github.com/shirou/gopsutil/cpu",
     "github.com/shirou/gopsutil/disk",
     "github.com/shirou/gopsutil/host",

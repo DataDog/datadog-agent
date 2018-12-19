@@ -70,9 +70,9 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use
         ldflags += "-s -w -linkmode=external '-extldflags=-static' "
         #env["CGO_ENABLED"] = "0"
     elif use_embedded_libs:
-        embedded_lib_path = ctx.run("pkg-config --variable=libdir python-2.7",
+        embedded_lib_path = ctx.run("pkg-config --variable=libdir python-3.7",
                                     env=env, hide=True).stdout.strip()
-        embedded_prefix = ctx.run("pkg-config --variable=prefix python-2.7",
+        embedded_prefix = ctx.run("pkg-config --variable=prefix python-3.7",
                                   env=env, hide=True).stdout.strip()
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, embedded_prefix)
         ldflags += "-r {} ".format(embedded_lib_path)
@@ -141,14 +141,14 @@ def get_root():
     """
     Get the root of the Go project
     """
-    return check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+    return check_output(['git', 'rev-parse', '--show-toplevel']).decode("utf-8").strip()
 
 
 def get_git_branch_name():
     """
     Return the name of the current git branch
     """
-    return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
+    return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode("utf-8").strip()
 
 
 def query_version(ctx, git_sha_length=7, prefix=None):

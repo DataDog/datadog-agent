@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -108,21 +108,21 @@ func (sl *stickyLock) getPythonError() (string, error) {
 	// Make sure exception values are normalized, as per python C API docs. No error to handle here
 	python.PyErr_NormalizeException(ptype, pvalue, ptraceback)
 
-	if ptraceback != nil && ptraceback.GetCPointer() != nil {
+	if ptraceback != nil {
 		// There's a traceback, try to format it nicely
 		traceback := python.PyImport_ImportModule("traceback")
 		defer traceback.DecRef()
 		formatExcFn := traceback.GetAttrString("format_exception")
 		if formatExcFn != nil {
 			defer formatExcFn.DecRef()
-			pyFormattedExc := formatExcFn.CallFunction(ptype, pvalue, ptraceback)
+			pyFormattedExc := formatExcFn.CallFunctionObjArgs(ptype, pvalue, ptraceback)
 			if pyFormattedExc != nil {
 				defer pyFormattedExc.DecRef()
 
 				tracebackString := ""
 				// "format_exception" return a list of strings (one per line)
 				for i := 0; i < python.PyList_Size(pyFormattedExc); i++ {
-					tracebackString = tracebackString + python.PyString_AsString(python.PyList_GetItem(pyFormattedExc, i))
+					tracebackString = tracebackString + python.PyUnicode_AsUTF8(python.PyList_GetItem(pyFormattedExc, i))
 				}
 				return tracebackString, nil
 			}
@@ -133,11 +133,11 @@ func (sl *stickyLock) getPythonError() (string, error) {
 	}
 
 	// we sometimes do not get a traceback but an error in pvalue
-	if pvalue != nil && pvalue.GetCPointer() != nil {
+	if pvalue != nil {
 		strPvalue := pvalue.Str()
 		if strPvalue != nil {
 			defer strPvalue.DecRef()
-			return python.PyString_AsString(strPvalue), nil
+			return python.PyUnicode_AsUTF8(strPvalue), nil
 		}
 	}
 
@@ -145,7 +145,7 @@ func (sl *stickyLock) getPythonError() (string, error) {
 		strPtype := ptype.Str()
 		if strPtype != nil {
 			defer strPtype.DecRef()
-			return python.PyString_AsString(strPtype), nil
+			return python.PyUnicode_AsUTF8(strPtype), nil
 		}
 	}
 
@@ -163,19 +163,19 @@ func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.
 
 	// baseClass is not a Class type
 	if !python.PyType_Check(base) {
-		return nil, fmt.Errorf("%s is not of Class type", python.PyString_AS_STRING(base.Str()))
+		return nil, fmt.Errorf("%s is not of Class type", python.PyUnicode_AsUTF8(base.Str()))
 	}
 
 	// module is not a Module object
 	if !python.PyModule_Check(module) {
-		return nil, fmt.Errorf("%s is not a Module object", python.PyString_AS_STRING(module.Str()))
+		return nil, fmt.Errorf("%s is not a Module object", python.PyUnicode_AsUTF8(module.Str()))
 	}
 
-	dir := module.PyObject_Dir()
+	dir := module.Dir()
 	defer dir.DecRef()
 	var class *python.PyObject
-	for i := 0; i < python.PyList_GET_SIZE(dir); i++ {
-		symbolName := python.PyString_AsString(python.PyList_GetItem(dir, i))
+	for i := 0; i < python.PyList_Size(dir); i++ {
+		symbolName := python.PyUnicode_AsUTF8(python.PyList_GetItem(dir, i))
 		class = module.GetAttrString(symbolName) // new ref, don't DecRef because we return it (caller is owner)
 
 		if class == nil {
@@ -206,7 +206,7 @@ func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.
 		}
 
 		// does `class` have subclasses?
-		subclasses := class.CallMethod("__subclasses__")
+		subclasses := class.CallMethodArgs("__subclasses__")
 		if subclasses == nil {
 			pyErr, err := gstate.getPythonError()
 
@@ -216,7 +216,7 @@ func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.
 			return nil, errors.New(pyErr)
 		}
 
-		subclassesCount := python.PyList_GET_SIZE(subclasses)
+		subclassesCount := python.PyList_Size(subclasses)
 		subclasses.DecRef()
 
 		// `class` has subclasses but checks are supposed to have none, ignore
@@ -230,7 +230,7 @@ func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.
 	}
 
 	return nil, fmt.Errorf("cannot find a subclass of %s in module %s",
-		python.PyString_AS_STRING(base.Str()), python.PyString_AS_STRING(module.Str()))
+		python.PyUnicode_AsUTF8(base.Str()), python.PyUnicode_AsUTF8(module.Str()))
 }
 
 // Get the rightmost component of a module path like foo.bar.baz
@@ -297,8 +297,8 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 
 	myPythonStats := []*PythonStats{}
 	var entry *python.PyObject
-	for i := 0; i < python.PyList_GET_SIZE(keys); i++ {
-		entryName := python.PyString_AsString(python.PyList_GetItem(keys, i))
+	for i := 0; i < python.PyList_Size(keys); i++ {
+		entryName := python.PyUnicode_AsUTF8(python.PyList_GetItem(keys, i))
 		entry = python.PyDict_GetItemString(stats, entryName)
 		if entry == nil {
 			pyErr, err := glock.getPythonError()
@@ -340,8 +340,8 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 
 		pyStat := &PythonStats{
 			Type:     entryName,
-			NObjects: python.PyInt_AsLong(n),
-			Size:     python.PyInt_AsLong(sz),
+			NObjects: python.PyLong_AsLong(n),
+			Size:     python.PyLong_AsLong(sz),
 			Entries:  []*PythonStatsEntry{},
 		}
 
@@ -350,7 +350,7 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 			continue
 		}
 
-		for i := 0; i < python.PyList_GET_SIZE(entries); i++ {
+		for i := 0; i < python.PyList_Size(entries); i++ {
 			ref := python.PyList_GetItem(entries, i)
 			if ref == nil {
 				pyErr, err := glock.getPythonError()
@@ -404,9 +404,9 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 			}
 
 			pyEntry := &PythonStatsEntry{
-				Reference: python.PyString_AsString(obj),
-				NObjects:  python.PyInt_AsLong(nEntry),
-				Size:      python.PyInt_AsLong(szEntry),
+				Reference: python.PyUnicode_AsUTF8(obj),
+				NObjects:  python.PyLong_AsLong(nEntry),
+				Size:      python.PyLong_AsLong(szEntry),
 			}
 			pyStat.Entries = append(pyStat.Entries, pyEntry)
 		}
@@ -457,7 +457,7 @@ func GetPythonIntegrationList() ([]string, error) {
 
 	ddPythonPackages := []string{}
 	for i := 0; i < python.PyList_Size(packages); i++ {
-		pkgName := python.PyString_AsString(python.PyList_GetItem(packages, i))
+		pkgName := python.PyUnicode_AsUTF8(python.PyList_GetItem(packages, i))
 		if _, ok := nonIntegrationsWheelSet[pkgName]; ok {
 			continue
 		}
@@ -485,7 +485,7 @@ func SetPythonPsutilProcPath(procPath string) error {
 	}
 	defer psutilModule.DecRef()
 
-	pyProcPath := python.PyString_FromString(procPath)
+	pyProcPath := python.PyUnicode_FromString(procPath)
 	defer pyProcPath.DecRef()
 
 	ret := psutilModule.SetAttrString(ns[1], pyProcPath)

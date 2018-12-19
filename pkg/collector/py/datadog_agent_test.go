@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	python "github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 )
 
 func TestAddExternalTagsBindings(t *testing.T) {

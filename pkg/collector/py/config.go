@@ -11,8 +11,8 @@ import (
 	"reflect"
 	"time"
 
+	python "github.com/DataDog/go-python3"
 	"github.com/mitchellh/reflectwalk"
-	"github.com/sbinet/go-python"
 )
 
 // we use this struct to walk through YAML results and convert them to Python stuff
@@ -62,7 +62,7 @@ func (w *walker) push(newc *python.PyObject) {
 	// add new container to the current one before pushing it to the stack
 	// we can safely assume it's either a `list` or a `dict`
 	if python.PyDict_Check(w.currentContainer) {
-		k := python.PyString_FromString(w.lastKey)
+		k := python.PyUnicode_FromString(w.lastKey)
 		defer k.DecRef()
 		python.PyDict_SetItem(w.currentContainer, k, newc) // steal the ref, no IncRef
 	} else {
@@ -140,17 +140,17 @@ func ifToPy(v reflect.Value) *python.PyObject {
 
 	switch s := vi.(type) {
 	case string:
-		pyval = python.PyString_FromString(s)
+		pyval = python.PyUnicode_FromString(s)
 	case int:
-		pyval = python.PyInt_FromLong(int(s))
+		pyval = python.PyLong_FromLong(int(s))
 	case int32:
-		pyval = python.PyInt_FromLong(int(s))
+		pyval = python.PyLong_FromLong(int(s))
 	case int64:
 		// This will only works on 64bit host. Since we don't offer 32bit build it's fine
-		pyval = python.PyInt_FromLong(int(s))
+		pyval = python.PyLong_FromLong(int(s))
 	case time.Duration:
 		// This will only works on 64bit host. Since we don't offer 32bit build it's fine
-		pyval = python.PyInt_FromLong(int(s))
+		pyval = python.PyLong_FromLong(int(s))
 	case float32:
 		pyval = python.PyFloat_FromDouble(float64(s))
 	case float64:
@@ -173,7 +173,7 @@ func (w *walker) MapElem(m, k, v reflect.Value) error {
 	defer gstate.unlock()
 
 	w.lastKey = k.Interface().(string)
-	dictKey := python.PyString_FromString(w.lastKey)
+	dictKey := python.PyUnicode_FromString(w.lastKey)
 	defer dictKey.DecRef()
 
 	// set the converted value in the Python dict

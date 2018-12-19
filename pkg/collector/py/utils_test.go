@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	python "github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,9 +51,9 @@ func TestFindSubclassOf(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
-	fooModule := python.PyImport_ImportModuleNoBlock("foo")
+	fooModule := python.PyImport_ImportModule("foo")
 	fooClass := fooModule.GetAttrString("Foo")
-	barModule := python.PyImport_ImportModuleNoBlock("bar")
+	barModule := python.PyImport_ImportModule("bar")
 	barClass := barModule.GetAttrString("Bar")
 
 	// invalid input
@@ -80,9 +80,9 @@ func TestFindSubclassOf(t *testing.T) {
 	assert.Equal(t, 1, sclass.RichCompareBool(barClass, python.Py_EQ))
 
 	// Multiple inheritance test
-	multiBaseModule := python.PyImport_ImportModuleNoBlock("testcheck_multi_base")
+	multiBaseModule := python.PyImport_ImportModule("testcheck_multi_base")
 	baseCheckClass := multiBaseModule.GetAttrString("BaseClass")
-	multiModule := python.PyImport_ImportModuleNoBlock("testcheck_multi")
+	multiModule := python.PyImport_ImportModule("testcheck_multi")
 	derivedCheckClass := multiModule.GetAttrString("DerivedCheck")
 	sclass, err = findSubclassOf(baseCheckClass, multiModule, gstate)
 	require.Nil(t, err)
@@ -93,7 +93,7 @@ func TestSubprocessBindings(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
-	utilModule := python.PyImport_ImportModuleNoBlock("_util")
+	utilModule := python.PyImport_ImportModule("_util")
 	assert.NotNil(t, utilModule)
 	defer utilModule.DecRef()
 
@@ -109,9 +109,9 @@ func TestSubprocessBindings(t *testing.T) {
 
 	cmdList := python.PyList_New(0)
 	defer cmdList.DecRef()
-	cmd := python.PyString_FromString("ls")
+	cmd := python.PyUnicode_FromString("ls")
 	defer cmd.DecRef()
-	arg := python.PyString_FromString("-l")
+	arg := python.PyUnicode_FromString("-l")
 	defer arg.DecRef()
 
 	err := python.PyList_Insert(cmdList, 0, cmd)
@@ -139,14 +139,14 @@ func TestSubprocessBindings(t *testing.T) {
 		assert.True(t, python.PyTuple_Check(res))
 		pyOutput := python.PyTuple_GetItem(res, 0)
 		assert.NotNil(t, pyOutput)
-		output := python.PyString_AsString(pyOutput)
+		output := python.PyUnicode_AsUTF8(pyOutput)
 		assert.NotZero(t, len(output))
 		t.Logf("command output was: %v", output)
 
 		// Return Code
 		retcode := python.PyTuple_GetItem(res, 2)
 		assert.NotNil(t, retcode)
-		assert.Zero(t, python.PyInt_AsLong(retcode))
+		assert.Zero(t, python.PyLong_AsLong(retcode))
 	}
 }
 

@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/sbinet/go-python"
+	python "github.com/DataDog/go-python3"
 )
 
 func main() {
@@ -47,9 +47,11 @@ func main() {
 	gstate := python.PyGILState_Ensure()
 
 	python.PySys_SetArgv(append([]string{*pythonScript}, flag.Args()...))
-	err := python.PyRun_SimpleFile(*pythonScript)
+	retCode, err := python.PyRun_AnyFile(*pythonScript)
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Printf("error: %s\n", err)
+	} else if retCode != 0 {
+		fmt.Printf("error %d executing script %s\n", int(retCode), *pythonScript)
 	}
 
 	python.PyGILState_Release(gstate)

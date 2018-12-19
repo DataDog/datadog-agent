@@ -111,7 +111,7 @@
   version = "~v2.1.0"
 
 [[constraint]]
-  name = "github.com/sbinet/go-python"
+  name = "github.com/DataDog/go-python3"
   branch = "master"
 
 [[constraint]]
