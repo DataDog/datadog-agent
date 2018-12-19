@@ -10,6 +10,6 @@
 
 #include <Python.h>
 
-void initcontainers();
+void register_containers_module();
 
 #endif /* CONTAINERS_HEADER */

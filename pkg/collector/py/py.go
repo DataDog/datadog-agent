@@ -42,6 +42,17 @@ var (
 	PythonPath = ""
 )
 
+// init register all C extension in the python interpreter. This has to be done
+// before Py_Initialize() is called.
+func init() {
+	// inject synthetic modules into the global namespace of the embedded interpreter
+	initAggregator()   // `aggregator` module
+	initDatadogAgent() // `datadog_agent`, `util` and `_util` modules
+	initKubeutil()     // `kubeutil` module if compiled in
+	initTagger()       // `tagger` module
+	initContainers()   // `containers` module
+}
+
 // Initialize wraps all the operations needed to start the Python interpreter and
 // configure the environment. This function should be called at most once in the
 // Agent lifetime.
@@ -106,14 +117,6 @@ func Initialize(paths ...string) *python.PyThreadState {
 	// The previous thread state is returned to the caller so it can be stored and
 	// reused when needed (e.g. to finalize the interpreter on exit).
 	state := python.PyEval_SaveThread()
-
-	// inject synthetic modules into the global namespace of the embedded interpreter
-	// (all these calls will take care of the GIL)
-	initAPI()          // `aggregator` module
-	initDatadogAgent() // `datadog_agent` module
-	initKubeutil()     // `kubeutil` module if compiled in
-	initTagger()       // `tagger` module
-	initContainers()   // `containers` module
 
 	// return the state so the caller can resume
 	return state

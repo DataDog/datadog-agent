@@ -10,6 +10,6 @@
 
 #include <Python.h>
 
-void inittagger();
+void register_tagger_module();
 
 #endif /* TAGGER_HEADER */

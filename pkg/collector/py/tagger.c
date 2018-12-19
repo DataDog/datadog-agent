@@ -28,15 +28,22 @@ static PyObject *get_tags(PyObject *self, PyObject *args) {
 
 static PyMethodDef taggerMethods[] = {
   {"get_tags", get_tags, METH_VARARGS, "Get tags for an entity."},
-  {NULL, NULL}
+  {NULL, NULL, 0, NULL}  // guards
 };
 
-void inittagger()
+static struct PyModuleDef taggerDef = {
+  PyModuleDef_HEAD_INIT,
+  "tagger",        /* m_name */
+  "tagger module", /* m_doc */
+  -1,              /* m_size */
+  taggerMethods,   /* m_methods */
+};
+
+PyMODINIT_FUNC PyInit_tagger()
 {
-  PyGILState_STATE gstate;
-  gstate = PyGILState_Ensure();
+  return PyModule_Create(&taggerDef);
+}
 
-  PyObject *tagger = Py_InitModule("tagger", taggerMethods);
-
-  PyGILState_Release(gstate);
+void register_tagger_module() {
+  PyImport_AppendInittab("tagger", PyInit_tagger);
 }

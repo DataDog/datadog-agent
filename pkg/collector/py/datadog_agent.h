@@ -11,6 +11,6 @@
 #include <Python.h>
 
 
-void initdatadogagent();
+void register_datadogagent_module();
 
 #endif /* DATADOG_HEADER */

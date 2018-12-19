@@ -35,14 +35,23 @@ static PyObject *is_excluded(PyObject *self, PyObject *args) {
 
 static PyMethodDef containersMethods[] = {
   {"is_excluded", is_excluded, METH_VARARGS, "Filter a container per name and image"},
-  {NULL, NULL}  // guards
+  {NULL, NULL, 0, NULL}  // guards
 };
 
-void initcontainers() {
-  PyGILState_STATE gstate;
-  gstate = PyGILState_Ensure();
+static struct PyModuleDef containersDef = {
+  PyModuleDef_HEAD_INIT,
+  "containers",        /* m_name */
+  "containers module", /* m_doc */
+  -1,                  /* m_size */
+  containersMethods,   /* m_methods */
+};
 
-  PyObject *ku = Py_InitModule("containers", containersMethods);
+PyMODINIT_FUNC PyInit_containers()
+{
+  return PyModule_Create(&containersDef);
+}
 
-  PyGILState_Release(gstate);
+void register_containers_module()
+{
+  PyImport_AppendInittab("containers", PyInit_containers);
 }

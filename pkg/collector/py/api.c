@@ -88,7 +88,15 @@ static PyMethodDef AggMethods[] = {
   {"submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics to the aggregator."},
   {"submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS, "Submit service checks to the aggregator."},
   {"submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events to the aggregator."},
-  {NULL, NULL}  // guards
+  {NULL, NULL, 0, NULL}  // guards
+};
+
+static struct PyModuleDef aggregatorDef = {
+  PyModuleDef_HEAD_INIT,
+  "aggregator",        /* m_name */
+  "aggregator module", /* m_doc */
+  -1,                  /* m_size */
+  AggMethods           /* m_methods */
 };
 
 PyObject* _none() {
@@ -103,31 +111,27 @@ const char* _object_type(PyObject *o) {
   return Py_TYPE(o)->tp_name;
 }
 
-void initaggregator()
+PyMODINIT_FUNC PyInit_aggregator()
 {
-  PyGILState_STATE gstate;
-  gstate = PyGILState_Ensure();
-
-  PyObject *m = Py_InitModule("aggregator", AggMethods);
+  PyObject *m = PyModule_Create(&aggregatorDef);
 
   int i;
   for (i=MT_FIRST; i<=MT_LAST; i++) {
     PyModule_AddIntConstant(m, MetricTypeNames[i], i);
   }
-
-  PyGILState_Release(gstate);
+  return m;
 }
 
 int _PyDict_Check(PyObject *o) {
   return PyDict_Check(o);
 }
 
-int _PyInt_Check(PyObject *o) {
-  return PyInt_Check(o);
+int _PyLong_Check(PyObject *o) {
+  return PyLong_Check(o);
 }
 
-int _PyString_Check(PyObject *o) {
-  return PyString_Check(o);
+int _PyUnicode_Check(PyObject *o) {
+  return PyUnicode_Check(o);
 }
 
 PyObject* _PyObject_Repr(PyObject *o)
@@ -143,4 +147,9 @@ PyObject* PySequence_Fast_Get_Item(PyObject *o, Py_ssize_t i)
 Py_ssize_t PySequence_Fast_Get_Size(PyObject *o)
 {
   return PySequence_Fast_GET_SIZE(o);
+}
+
+void register_aggregator_module()
+{
+  PyImport_AppendInittab("aggregator", PyInit_aggregator);
 }
