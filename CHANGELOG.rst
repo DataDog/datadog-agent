@@ -2,6 +2,25 @@
 Release Notes
 =============
 
+.. _Release Notes_6.8.2:
+
+6.8.2
+=====
+
+.. _Release Notes_6.8.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-12-19
+
+.. _Release Notes_6.8.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a panic that could occur when a container stopped while the agent was reading logs from it.
+
 .. _Release Notes_6.8.1:
 
 6.8.1
