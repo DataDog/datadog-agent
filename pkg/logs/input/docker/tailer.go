@@ -103,6 +103,8 @@ func (t *Tailer) getLastSince() string {
 	if err != nil {
 		since = time.Now().UTC()
 	} else {
+		// To avoid sending the last recorded log we add a nanosecond
+		// to the offset
 		since = since.Add(time.Nanosecond)
 	}
 	return since.Format(config.DateFormat)
