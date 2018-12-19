@@ -52,7 +52,7 @@ func EnableTestingMode() {
 }
 
 // HostnameProvider docker implementation for the hostname provider
-func HostnameProvider(hostName string) (string, error) {
+func HostnameProvider() (string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
 		return "", err

@@ -97,6 +97,6 @@ func getResponse(url string) (string, error) {
 }
 
 // HostnameProvider GCE implementation of the HostnameProvider
-func HostnameProvider(hostName string) (string, error) {
+func HostnameProvider() (string, error) {
 	return GetHostname()
 }

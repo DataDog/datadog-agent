@@ -82,12 +82,12 @@ func IsDefaultHostname(hostname string) bool {
 }
 
 // HostnameProvider gets the hostname
-func HostnameProvider(hostName string) (string, error) {
+func HostnameProvider() (string, error) {
 	_, err := ecs.GetUtil()
-	if err == nil || IsDefaultHostname(hostName) {
+	if err == nil {
 		log.Debug("GetHostname trying EC2 metadata...")
 		return GetInstanceID()
 	}
 
-	return "", fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
+	return "", err
 }

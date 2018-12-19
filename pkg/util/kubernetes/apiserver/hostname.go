@@ -20,7 +20,7 @@ import (
 // is the pod name. It connects to the apiserver, and returns the node name where
 // our pod is scheduled.
 // Tested in the TestHostnameProvider integration test
-func HostnameProvider(_ string) (string, error) {
+func HostnameProvider() (string, error) {
 	c, err := GetAPIClient()
 	if err != nil {
 		return "", fmt.Errorf("could not connect to the apiserver: %s", err)

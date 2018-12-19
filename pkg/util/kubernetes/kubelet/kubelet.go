@@ -101,7 +101,7 @@ func GetKubeUtil() (*KubeUtil, error) {
 }
 
 // HostnameProvider kubelet implementation for the hostname provider
-func HostnameProvider(hostName string) (string, error) {
+func HostnameProvider() (string, error) {
 	ku, err := GetKubeUtil()
 	if err != nil {
 		return "", err
