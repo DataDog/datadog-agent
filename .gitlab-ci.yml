@@ -445,12 +445,12 @@ agent_android_apk:
     # for now do the steps manually.  Should eventually move this to an invoke
     # task
     - inv -e android.build
-    - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - cp ./bin/agent/ddagent-*-unsigned.apk $OMNIBUS_PACKAGE_DIR
+    - mkdir -p $CI_PROJECT_DIR/apk
+    - cp ./bin/agent/ddagent-*-unsigned.apk $CI_PROJECT_DIR/apk
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - $CI_PROJECT_DIR/apk
 
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
