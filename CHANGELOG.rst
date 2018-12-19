@@ -19,7 +19,7 @@ Release on: 2018-12-19
 Bug Fixes
 ---------
 
-- Fix a null pointer exception that would happen when the agent stopped tailing a container
+- Fix a panic that could occur when a container stopped while the agent was reading logs from it.
 
 .. _Release Notes_6.8.1:
 
