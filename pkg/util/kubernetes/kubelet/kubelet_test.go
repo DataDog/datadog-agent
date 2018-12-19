@@ -338,7 +338,7 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 	config.Datadog.Set("kubelet_tls_verify", false)
 	config.Datadog.Set("kubelet_auth_token_path", "")
 
-	hostname, err := HostnameProvider("")
+	hostname, err := HostnameProvider()
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "my-node-name", hostname)
 }
