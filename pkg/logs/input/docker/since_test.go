@@ -36,7 +36,13 @@ func TestSince(t *testing.T) {
 	registry.SetOffset("2008-01-12T01:01:01.000000001Z")
 	since, err = Since(registry, "", service.Before)
 	assert.Nil(t, err)
-	assert.Equal(t, "2008-01-12T01:01:01.000000002Z", since.Format(config.DateFormat))
+	assert.Equal(t, "2008-01-12T01:01:01.000000001Z", since.Format(config.DateFormat))
+
+	// Not properly formated
+	registry.SetOffset("2008-01-12T01:01.000000001Z")
+	since, err = Since(registry, "", service.Before)
+	assert.NotNil(t, err)
+	assert.True(t, since.After(now))
 
 	registry.SetOffset("foo")
 	since, err = Since(registry, "", service.Before)

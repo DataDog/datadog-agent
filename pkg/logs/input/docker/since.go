@@ -26,8 +26,6 @@ func Since(registry auditor.Registry, identifier string, creationTime service.Cr
 		since, err = time.Parse(config.DateFormat, offset)
 		if err != nil {
 			since = time.Now().UTC()
-		} else {
-			since = since.Add(time.Nanosecond)
 		}
 	case creationTime == service.After:
 		// a new service has been discovered and was launched after the agent start, tail from the beginning
