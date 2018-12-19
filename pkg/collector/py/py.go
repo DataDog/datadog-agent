@@ -137,7 +137,7 @@ func setPythonHome() {
 		}
 	}
 
-	python.Py_SetPythonHome(PythonHome)
+	python.Py_SetPythonHome(pythonHome)
 }
 
 // SaveThreadState is a wrapper around the Python C-API PyEval_SaveThread
