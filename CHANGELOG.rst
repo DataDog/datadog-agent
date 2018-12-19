@@ -2,6 +2,25 @@
 Release Notes
 =============
 
+.. _Release Notes_6.8.2:
+
+6.8.2
+=====
+
+.. _Release Notes_6.8.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-12-19
+
+.. _Release Notes_6.8.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a null pointer exception that would happen when the agent stopped tailing a container
+
 .. _Release Notes_6.8.1:
 
 6.8.1
