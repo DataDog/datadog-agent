@@ -48,7 +48,8 @@ func (s *clusterStore) getOrCreateNodeStore(nodeName string) *nodeStore {
 	if ok {
 		return node
 	}
-	node = newNodeStore()
+	node = newNodeStore(nodeName)
+	nodeAgents.Inc()
 	s.nodes[nodeName] = node
 	return node
 }
@@ -62,14 +63,16 @@ func (s *clusterStore) clearDangling() {
 // Lock is to be held by the user (dispatcher)
 type nodeStore struct {
 	sync.RWMutex
+	name             string
 	heartbeat        int64
 	lastStatus       types.NodeStatus
 	lastConfigChange int64
 	digestToConfig   map[string]integration.Config
 }
 
-func newNodeStore() *nodeStore {
+func newNodeStore(name string) *nodeStore {
 	return &nodeStore{
+		name:           name,
 		digestToConfig: make(map[string]integration.Config),
 	}
 }
@@ -77,6 +80,7 @@ func newNodeStore() *nodeStore {
 func (s *nodeStore) addConfig(config integration.Config) {
 	s.lastConfigChange = timestampNow()
 	s.digestToConfig[config.Digest()] = config
+	dispatchedConfigs.WithLabelValues(s.name).Inc()
 }
 
 func (s *nodeStore) removeConfig(digest string) {
@@ -87,4 +91,5 @@ func (s *nodeStore) removeConfig(digest string) {
 	}
 	s.lastConfigChange = timestampNow()
 	delete(s.digestToConfig, digest)
+	dispatchedConfigs.WithLabelValues(s.name).Dec()
 }
