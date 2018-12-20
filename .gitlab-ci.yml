@@ -953,6 +953,17 @@ check_already_deployed_version:
   script:
     - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh
 
+# If we trigger a build only pipeline we stop here.
+check_if_build_only:
+  <<: *run_when_triggered
+  stage: check_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - if [ "$DEB_RPM_BUCKET_BRANCH" == "none" ]; then echo "Stopping pipeline"; exit 1; fi
+
 #
 # deploy
 #
