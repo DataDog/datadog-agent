@@ -12,6 +12,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// For testing
+var pfnMakeCounterSetInstances = makeCounterSetIndexes
+var pfnPdhOpenQuery = PdhOpenQuery
+var pfnPdhAddCounter = PdhAddCounter
+var pfnPdhCollectQueryData = PdhCollectQueryData
+var pfnPdhEnumObjectItems = pdhEnumObjectItems
+var pfnPdhRemoveCounter = PdhRemoveCounter
+var pfnPdhLookupPerfNameByIndex = pdhLookupPerfNameByIndex
+var pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
+var pfnPdhCloseQuery = PdhCloseQuery
+var pfnPdhMakeCounterPath = pdhMakeCounterPath
+
 // CounterInstanceVerify is a callback function called by GetCounterSet for each
 // instance of the counter.  Implementation should return true if that instance
 // should be included, false otherwise
@@ -25,11 +37,13 @@ type PdhCounterSet struct {
 	counterName string
 }
 
+// PdhSingleInstanceCounterSet is a specialization for single instance counters
 type PdhSingleInstanceCounterSet struct {
 	PdhCounterSet
 	singleCounter PDH_HCOUNTER
 }
 
+// PdhMultiInstanceCounterSet is a specialization for a multiple instance counter
 type PdhMultiInstanceCounterSet struct {
 	PdhCounterSet
 	requestedCounterName string
@@ -38,6 +52,7 @@ type PdhMultiInstanceCounterSet struct {
 	verifyfn             CounterInstanceVerify
 }
 
+// Initialize initializes a counter set object
 func (p *PdhCounterSet) Initialize(className string) (err error) {
 
 	// the counter index list may be > 1, but for class name, only take the first
@@ -54,27 +69,29 @@ func (p *PdhCounterSet) Initialize(className string) (err error) {
 			log.Warnf("Class %s had multiple (%d) indices, using first", className, len(ndxlist))
 		}
 		ndx := ndxlist[0]
-		p.className, err = pdhLookupPerfNameByIndex(ndx)
+		p.className, err = pfnPdhLookupPerfNameByIndex(ndx)
 		if err != nil {
 			return fmt.Errorf("Class name not found: %s", className)
 		}
 		log.Debugf("Found class name for %s %s", className, p.className)
 	}
 
-	winerror := PdhOpenQuery(uintptr(0), uintptr(0), &p.query)
+	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
 	if ERROR_SUCCESS != winerror {
 		err = fmt.Errorf("Failed to open PDH query handle %d", winerror)
 		return err
 	}
 	return nil
 }
+
+// GetSingleInstanceCounter returns a single instance counter object for the given counter class
 func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstanceCounterSet, error) {
 	var p PdhSingleInstanceCounterSet
 	if err := p.Initialize(className); err != nil {
 		return nil, err
 	}
 	// check to make sure this is really a single instance counter
-	allcounters, instances, err := pdhEnumObjectItems(p.className)
+	allcounters, instances, _ := pfnPdhEnumObjectItems(p.className)
 	if len(instances) > 0 {
 		return nil, fmt.Errorf("Requested counter is not single-instance: %s", p.className)
 	}
@@ -82,16 +99,17 @@ func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstance
 	if err != nil {
 		return nil, err
 	}
-	winerror := PdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)
+	winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)
 	if ERROR_SUCCESS != winerror {
 		return nil, fmt.Errorf("Failed to add single counter %d", winerror)
 	}
 
 	// do the initial collect now
-	PdhCollectQueryData(p.query)
+	pfnPdhCollectQueryData(p.query)
 	return &p, nil
 }
 
+// GetMultiInstanceCounter returns a multi-instance counter object for the given counter class
 func GetMultiInstanceCounter(className, counterName string, requestedInstances *[]string, verifyfn CounterInstanceVerify) (*PdhMultiInstanceCounterSet, error) {
 	var p PdhMultiInstanceCounterSet
 	if err := p.Initialize(className); err != nil {
@@ -102,7 +120,7 @@ func GetMultiInstanceCounter(className, counterName string, requestedInstances *
 	p.requestedCounterName = counterName
 
 	// check to make sure this is really a single instance counter
-	_, instances, err := pdhEnumObjectItems(p.className)
+	_, instances, _ := pfnPdhEnumObjectItems(p.className)
 	if len(instances) <= 0 {
 		return nil, fmt.Errorf("Requested counter is a single-instance: %s", p.className)
 	}
@@ -113,15 +131,17 @@ func GetMultiInstanceCounter(className, counterName string, requestedInstances *
 			p.requestedInstances[inst] = true
 		}
 	}
-	if err = p.MakeInstanceList(); err != nil {
+	if err := p.MakeInstanceList(); err != nil {
 		return nil, err
 	}
 	return &p, nil
 
 }
 
+// MakeInstanceList walks the list of available instances, and adds new
+// instances that have appeared since the last check run
 func (p *PdhMultiInstanceCounterSet) MakeInstanceList() error {
-	allcounters, instances, err := pdhEnumObjectItems(p.className)
+	allcounters, instances, err := pfnPdhEnumObjectItems(p.className)
 	if err != nil {
 		return err
 	}
@@ -136,7 +156,7 @@ func (p *PdhMultiInstanceCounterSet) MakeInstanceList() error {
 			}
 			// ok.  it was requested.  If it's not in our map
 			// of counters, we have to add it
-			if p.countermap[actualInstance] != PDH_HCOUNTER(0) {
+			if p.countermap[actualInstance] == PDH_HCOUNTER(0) {
 				log.Debugf("Adding requested instance %s", actualInstance)
 				instToMake = append(instToMake, actualInstance)
 			}
@@ -162,7 +182,7 @@ func (p *PdhMultiInstanceCounterSet) MakeInstanceList() error {
 			continue
 		}
 		var hc PDH_HCOUNTER
-		winerror := PdhAddCounter(p.query, path, uintptr(0), &hc)
+		winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &hc)
 		if ERROR_SUCCESS != winerror {
 			log.Debugf("Failed to add counter path%s", path)
 			continue
@@ -173,11 +193,12 @@ func (p *PdhMultiInstanceCounterSet) MakeInstanceList() error {
 	}
 	if added {
 		// do the initial collect now
-		PdhCollectQueryData(p.query)
+		pfnPdhCollectQueryData(p.query)
 	}
 	return nil
 }
 
+//RemoveInvalidInstance removes an instance from the counter that is no longer valid
 func (p *PdhMultiInstanceCounterSet) RemoveInvalidInstance(badInstance string) {
 	hc := p.countermap[badInstance]
 	if hc != PDH_HCOUNTER(0) {
@@ -208,7 +229,7 @@ func (p *PdhCounterSet) MakeCounterPath(machine, counterName, instanceName strin
 		return "", err
 	}
 	for _, ndx := range idxList {
-		counter, e := pdhLookupPerfNameByIndex(ndx)
+		counter, e := pfnPdhLookupPerfNameByIndex(ndx)
 		if e != nil {
 			log.Debugf("Counter index %d not found, skipping", ndx)
 			continue
@@ -219,7 +240,7 @@ func (p *PdhCounterSet) MakeCounterPath(machine, counterName, instanceName strin
 			continue
 		}
 		// check to see if we can create the counter
-		path, err := pdhMakeCounterPath(machine, p.className, instanceName, counter)
+		path, err := pfnPdhMakeCounterPath(machine, p.className, instanceName, counter)
 		if err == nil {
 			log.Debugf("Successfully created counter path %s", path)
 			p.counterName = counter
@@ -239,9 +260,9 @@ func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, 
 	values = make(map[string]float64)
 	err = nil
 	var removeList []string
-	PdhCollectQueryData(p.query)
+	pfnPdhCollectQueryData(p.query)
 	for inst, hcounter := range p.countermap {
-		values[inst], err = pdhGetFormattedCounterValueFloat(hcounter)
+		values[inst], err = pfnPdhGetFormattedCounterValueFloat(hcounter)
 		if err != nil {
 			switch err.(type) {
 			case *ErrPdhInvalidInstance:
@@ -263,12 +284,12 @@ func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, 
 	return
 }
 
-// GetSingleValue returns the data associated with a single-value counter
+// GetValue returns the data associated with a single-value counter
 func (p *PdhSingleInstanceCounterSet) GetValue() (val float64, err error) {
 	if p.singleCounter == PDH_HCOUNTER(0) {
 		return 0, fmt.Errorf("Not a single-value counter")
 	}
-	PdhCollectQueryData(p.query)
+	pfnPdhCollectQueryData(p.query)
 	return pdhGetFormattedCounterValueFloat(p.singleCounter)
 
 }
@@ -280,7 +301,7 @@ func (p *PdhCounterSet) Close() {
 
 func getCounterIndexList(cname string) ([]int, error) {
 	if counterToIndex == nil || len(counterToIndex) == 0 {
-		if err := makeCounterSetIndexes(); err != nil {
+		if err := pfnMakeCounterSetInstances(); err != nil {
 			return []int{}, err
 		}
 	}
