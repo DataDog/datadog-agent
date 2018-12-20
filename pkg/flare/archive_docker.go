@@ -23,7 +23,7 @@ import (
 	"github.com/docker/docker/api/types"
 )
 
-const DOCKER_PS_COMMAND_MAX_LENGTH = 18
+const DOCKER_PS_COMMAND_MAX_LENGTH = 29
 
 func zipDockerSelfInspect(tempDir, hostname string) error {
 	du, err := docker.GetDockerUtil()

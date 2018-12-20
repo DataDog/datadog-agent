@@ -20,7 +20,8 @@ func TestTrimCommand(t *testing.T) {
 		"nginx -g 'daemon off;'":                     "nginx …",
 		"/entrypoint.sh datadog-cluster-agent start": "/entrypoint.sh …",
 		"/coredns -conf /etc/coredns/Corefile":       "/coredns …",
-		"/my/very/long/command":                      "/my/very/long/comm…",
+		"/my/very/long/command":                      "/my/very/long/command",
+		"/my/very/very/very/very/very/long/command":  "/my/very/very/very/very/very/…",
 	} {
 		t.Run(fmt.Sprintf(in), func(t *testing.T) {
 			assert.Equal(t, out, trimCommand(in))
