@@ -16,8 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	util "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	util "github.com/DataDog/datadog-agent/pkg/util"
+	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/cgroups"
 	"github.com/containerd/containerd"
@@ -25,23 +27,28 @@ import (
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/types"
 	"gopkg.in/yaml.v2"
+	"strings"
 	"time"
 )
 
 const (
 	containerdCheckName = "containerd"
+	// We only support containerd in Kubernetes - By default using the k8s.io ns, configurable in the containerd.yaml
+	defaultNamespace = "k8s.io"
 )
 
 // ContainerCheck grabs containerd metrics and events
 type ContainerdCheck struct {
 	core.CheckBase
+	hostname string
 	instance *ContainerdConfig
 	sub      *Subscriber
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	Tags []string
+	Tags      []string
+	Namespace string
 }
 
 func init() {
@@ -53,7 +60,7 @@ func ContainerdFactory() check.Check {
 	return &ContainerdCheck{
 		CheckBase: corechecks.NewCheckBase(containerdCheckName),
 		instance:  &ContainerdConfig{},
-		sub :  &Subscriber{},
+		sub:       &Subscriber{},
 	}
 }
 
@@ -68,6 +75,7 @@ func (co *ContainerdConfig) Parse(data []byte) error {
 // Configure parses the check configuration and init the check
 func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 	err := c.CommonConfigure(config)
+	c.hostname, err = util.GetHostname()
 	if err != nil {
 		return err
 	}
@@ -76,38 +84,70 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 
 // Run executes the check
 func (c *ContainerdCheck) Run() error {
-	// As we do not rely on a singleton, we ensure connectivity every check run.
-	cu, errHealth := util.GetContainerdUtil()
-	if errHealth != nil {
-		log.Infof("Error ensuring connectivity with containerd daemon %v", errHealth)
-		return errHealth
-	}
-
 	sender, err := aggregator.GetSender(c.ID())
 	defer sender.Commit()
 	if err != nil {
 		return err
 	}
-
-	nsList, err := cu.GetNamespaces(context.Background())
-	if err != nil {
-		return err
+	// As we do not rely on a singleton, we ensure connectivity every check run.
+	cu, errHealth := cutil.GetContainerdUtil()
+	if errHealth != nil {
+		log.Infof("Error ensuring connectivity with containerd daemon %v", errHealth)
+		return errHealth
 	}
+	var ns string
+	if ns = c.instance.Namespace; ns == "" {
+		ns = defaultNamespace
+	}
+
 	if c.sub == nil {
-		c.sub = createEventSubscriber("ContainerdCheck")
-		c.sub.Run() // Use the ns gotten from above
+		c.sub = CreateEventSubscriber("ContainerdCheck", ns)
+	}
+	if !c.sub.IsRunning {
+		c.sub.CheckEvents(cu) // Use the ns gotten from above
 	}
 	events := c.sub.Flush(time.Now().Unix())
 	// Process events
+	computeEvents(c.hostname, events, sender)
 
-	for _, n := range nsList {
-		nk := namespaces.WithNamespace(context.Background(), n)
-		computeMetrics(sender, nk, cu, c.instance.Tags)
-	}
+	nk := namespaces.WithNamespace(context.Background(), ns)
+	computeMetrics(sender, nk, cu, c.instance.Tags)
+
 	return nil
 }
 
-func computeMetrics(sender aggregator.Sender, nk context.Context, cu util.ContainerdItf, userTags []string) {
+func computeEvents(hostname string, events []ContainerdEvent, sender aggregator.Sender) {
+	for _, e := range events {
+		output := metrics.Event{
+			Priority:       metrics.EventPriorityNormal,
+			Host:           hostname,
+			SourceTypeName: containerdCheckName,
+			EventType:      containerdCheckName,
+			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
+		}
+		output.Text = e.Message
+		if e.Extra != nil {
+			for k, v := range e.Extra {
+				output.Tags = append(output.Tags, fmt.Sprintf("%s:%s", k, v))
+			}
+		}
+		output.Ts = e.Timestamp.Unix()
+		split := strings.Split(e.Topic, "/")
+		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
+		if split[1] == "containers" || split[1] == "tasks" {
+			tags, err := tagger.Tag(e.ID, true)
+			if err != nil {
+				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
+				log.Errorf("Could not retrieve tags for the container %s", e.ID)
+			}
+			output.Tags = append(output.Tags, tags...)
+		}
+		sender.Event(output)
+	}
+	return
+}
+
+func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.ContainerdItf, userTags []string) {
 	containers, err := cu.Containers(nk)
 	if err != nil {
 		log.Errorf(err.Error())

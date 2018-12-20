@@ -8,81 +8,284 @@
 package containers
 
 import (
-	"time"
-	"github.com/containerd/containerd/namespaces"
+	"context"
 	"fmt"
 	containerd2 "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"context"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/gogo/protobuf/proto"
+	"sync"
+	"time"
 )
 
-//ContainerType contains the timestamp to make sure we flush all events that happened between two checks
-type ContainerEvent struct {
-	ContainerID   string
-	Timestamp     time.Time
-	Topic         string
-	Namespace     string
+//ContainerdEvent contains the timestamp to make sure we flush all events that happened between two checks
+type ContainerdEvent struct {
+	ID        string
+	Timestamp time.Time
+	Topic     string
+	Namespace string
+	Message   string
+	Extra     map[string]string
 }
 
 type Subscriber struct {
-	Name        string
-	Filters     []string
-	Events      []ContainerEvent
-	Namespaces   []string
+	sync.Mutex
+	Name      string
+	Filters   []string
+	Events    []ContainerdEvent
+	Namespace string
+	IsRunning bool
 }
 
-func createEventSubscriber(name string) *Subscriber {
+func CreateEventSubscriber(name string, ns string) *Subscriber {
 	return &Subscriber{
-		Name:name,
+		Name:      name,
+		Namespace: ns,
 	}
+}
+
+func (s *Subscriber) CheckEvents(ctrItf containerd2.ContainerdItf) {
+	ctx := context.Background()
+	ev := ctrItf.GetEvents()
+	ctxNamespace := namespaces.WithNamespace(ctx, s.Namespace)
+	go s.run(ev, ctxNamespace, s.Filters)
 }
 
 // Run should only be called once, at start time.
-func (s *Subscriber) Run() error {
-	ctrItf, err := containerd2.GetContainerdUtil()
-	if err != nil {
-		return err
-	}
+func (s *Subscriber) run(ev containerd.EventService, ctx context.Context, filters []string) error {
 
-	ctx := context.Background()
-	ctx = namespaces.WithNamespace(ctx,"k8s.io")
-	ev := ctrItf.GetEvents()
-
-	//filters := []string{
-	//	`topic=="/tasks/exit"`,
-	//	`topic=="/containers/delete"`,
-	//}
-
-	stream, _ := ev.Subscribe(ctx, s.Filters...)
+	stream, errC := ev.Subscribe(ctx, filters...)
+	s.IsRunning = true
 	for {
-		message := <- stream
-		//val := 	string(message.Event.Value)
+		select {
+		case message := <-stream:
+			switch message.Topic {
+			case "/containers/create":
+				create := &events.ContainerCreate{}
+				err := proto.Unmarshal(message.Event.Value, create)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        create.ID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Container %s started, running the image %s", create.ID, create.Image),
+				}
+				s.Events = append(s.Events, event)
 
-		fmt.Printf("ns %s, ts %#v, topic is %s, typeurl %s \n",
-			message.Namespace,
-			message.Timestamp,
-			message.Topic,
-			message.Event.TypeUrl)
+			case "/containers/delete":
+				delete := &events.ContainerDelete{}
+				err := proto.Unmarshal(message.Event.Value, delete)
+				if err != nil {
+					log.Errorf("Could not process delete event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        delete.ID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Container %s deleted", delete.ID),
+				}
+				s.Events = append(s.Events, event)
 
-		s.Events = append(s.Events, ContainerEvent{
-			ContainerID: "foo",
-		})
+			case "/containers/update":
+				updated := &events.ContainerUpdate{}
+				err := proto.Unmarshal(message.Event.Value, updated)
+				if err != nil {
+					log.Errorf("Could not process update event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        updated.ID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Container %s updated, running image %s. Snapshot key: %s", updated.ID, updated.Image, updated.SnapshotKey),
+					Extra:     updated.Labels,
+				}
+				s.Events = append(s.Events, event)
 
-		fmt.Printf("val is %s \n", string(message.Event.GetValue()))
+			case "/images/update":
+				updated := &events.ImageUpdate{}
+				err := proto.Unmarshal(message.Event.Value, updated)
+				if err != nil {
+					log.Errorf("Could not process update event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        updated.Name,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Image %s updated", updated.Name),
+					Extra:     updated.Labels,
+				}
+				s.Events = append(s.Events, event)
+			case "/images/create":
+				created := &events.ImageCreate{}
+				err := proto.Unmarshal(message.Event.Value, created)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        created.Name,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Image %s created", created.Name),
+					Extra:     created.Labels,
+				}
+				s.Events = append(s.Events, event)
+			case "/images/delete":
+				deleted := &events.ImageDelete{}
+				err := proto.Unmarshal(message.Event.Value, deleted)
+				if err != nil {
+					log.Errorf("Could not process delete event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        deleted.Name,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Image %s created", deleted.Name),
+				}
+				s.Events = append(s.Events, event)
+			case "/tasks/create":
+				created := &events.TaskStart{}
+				err := proto.Unmarshal(message.Event.Value, created)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        created.ContainerID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Task %s created with PID %d", created.ContainerID, created.Pid),
+				}
+				s.Events = append(s.Events, event)
+			case "/tasks/delete":
+				deleted := &events.TaskDelete{}
+				err := proto.Unmarshal(message.Event.Value, deleted)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        deleted.ContainerID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Task %s deleted with exit code %d", deleted.ContainerID, deleted.ExitStatus),
+				}
+				s.Events = append(s.Events, event)
+			case "/tasks/exit":
+				exited := &events.TaskExit{}
+				err := proto.Unmarshal(message.Event.Value, exited)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        exited.ContainerID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Task %s exited with exit code %d", exited.ContainerID, exited.ExitStatus),
+				}
+				s.Events = append(s.Events, event)
+			case "/tasks/oom":
+				oomed := &events.TaskOOM{}
+				err := proto.Unmarshal(message.Event.Value, oomed)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        oomed.ContainerID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Task %s ran out of memory", oomed.ContainerID),
+				}
+				s.Events = append(s.Events, event)
+			case "/tasks/paused":
+				paused := &events.TaskPaused{}
+				err := proto.Unmarshal(message.Event.Value, paused)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        paused.ContainerID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Task %s was paused", paused.ContainerID),
+				}
+				s.Events = append(s.Events, event)
+			case "/tasks/resumed":
+				resumed := &events.TaskResumed{}
+				err := proto.Unmarshal(message.Event.Value, resumed)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        resumed.ContainerID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Task %s was resumed", resumed.ContainerID),
+				}
+				s.Events = append(s.Events, event)
+			case "":
+				exited := &events.TaskExit{}
+				err := proto.Unmarshal(message.Event.Value, exited)
+				if err != nil {
+					log.Errorf("Could not process create event from Containerd: %v", err)
+					continue
+				}
+				event := ContainerdEvent{
+					ID:        exited.ContainerID,
+					Timestamp: message.Timestamp,
+					Topic:     message.Topic,
+					Namespace: message.Namespace,
+					Message:   fmt.Sprintf("Task %s was exited with exit code %d", exited.ContainerID, exited.ExitStatus),
+				}
+				s.Events = append(s.Events, event)
+			default:
+				log.Tracef("Unsupported event type from Containerd: %s ", message.Topic)
+			}
+		case e := <-errC:
+			// Log error
+			log.Errorf("Error while streaming logs from containerd: %s", e.Error())
+			s.IsRunning = false
+			break
+		}
 	}
 	return nil
 }
 
 // flush should be called every time you want to
-func (s *Subscriber) Flush(timestamp int64) []ContainerEvent {
+func (s *Subscriber) Flush(timestamp int64) []ContainerdEvent {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+
 	if timestamp > s.Events[0].Timestamp.Unix() {
+
 		return s.Events
 	}
+	// Empty queue of events.
+	s.Events = []ContainerdEvent{}
 	return nil
-}
-
-// convertevents
-func convertEvents(ev []ContainerEvent)  {
-	// process ev into Datadog ev and returns them to be submitted.
-	return
-
 }

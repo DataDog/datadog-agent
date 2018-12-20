@@ -181,8 +181,8 @@ func TestConvertTaskToMetrics(t *testing.T) {
 					return metric, nil
 				},
 			}
-			taskFacked := containerd.Task(te)
-			m, e := convertTasktoMetrics(taskFacked, context.Background())
+			taskFaked := containerd.Task(te)
+			m, e := convertTasktoMetrics(taskFaked, context.Background())
 			require.Equal(t, test.expected, m)
 			if e != nil {
 				require.Equal(t, e.Error(), test.error)
