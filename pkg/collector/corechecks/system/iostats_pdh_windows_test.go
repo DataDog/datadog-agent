@@ -13,6 +13,9 @@ import (
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
+func testGetDriveType(drive string) uintptr {
+	return DRIVE_FIXED
+}
 func addDefaultQueryReturnValues() {
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(_Total)\\Disk Write Bytes/sec", 1.111)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(C:)\\Disk Write Bytes/sec", 1.222)
@@ -37,24 +40,25 @@ func addDefaultQueryReturnValues() {
 }
 
 func addDriveDReturnValues() {
-	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(D:)\\Disk Write Bytes/sec", 1.444)
+	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(Y:)\\Disk Write Bytes/sec", 1.444)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(HarddiskVolume2)\\Disk Write Bytes/sec", 1.555)
 
-	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(D:)\\Disk Writes/sec", 2.444)
+	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(Y:)\\Disk Writes/sec", 2.444)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(HarddiskVolume2)\\Disk Writes/sec", 2.555)
 
-	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(D:)\\Disk Read Bytes/sec", 3.444)
+	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(Y:)\\Disk Read Bytes/sec", 3.444)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(HarddiskVolume2)\\Disk Read Bytes/sec", 3.555)
 
-	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(D:)\\Disk Reads/sec", 4.444)
+	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(Y:)\\Disk Reads/sec", 4.444)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(HarddiskVolume2)\\Disk Reads/sec", 4.555)
 
-	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(D:)\\Current Disk Queue Length", 5.444)
+	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(Y:)\\Current Disk Queue Length", 5.444)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(HarddiskVolume2)\\Current Disk Queue Length", 5.555)
 
 }
 func TestIoCheckWindows(t *testing.T) {
 
+	pfnGetDriveType = testGetDriveType
 	pdhtest.SetupTesting("testfiles\\counter_indexes_en-us.txt", "testfiles\\allcounters_en-us.txt")
 
 	addDefaultQueryReturnValues()
@@ -89,6 +93,7 @@ func TestIoCheckWindows(t *testing.T) {
 }
 
 func TestIoCheckInstanceAdded(t *testing.T) {
+	pfnGetDriveType = testGetDriveType
 	pdhtest.SetupTesting("testfiles\\counter_indexes_en-us.txt", "testfiles\\allcounters_en-us.txt")
 
 	addDefaultQueryReturnValues()
@@ -100,7 +105,7 @@ func TestIoCheckInstanceAdded(t *testing.T) {
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
 
-	pdhtest.AddCounterInstance("LogicalDisk", "D:")
+	pdhtest.AddCounterInstance("LogicalDisk", "Y:")
 	pdhtest.AddCounterInstance("LogicalDisk", "HarddiskVolume2")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
@@ -121,19 +126,19 @@ func TestIoCheckInstanceAdded(t *testing.T) {
 	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1"}).Return().Times(2)
 
 	// and the checks for the added instance
-	mock.On("Gauge", "system.io.wkb_s", 1.444/1024, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.wkb_s", 1.444/1024, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.wkb_s", 1.555/1024, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 
-	mock.On("Gauge", "system.io.w_s", 2.444, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.w_s", 2.444, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.w_s", 2.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 
-	mock.On("Gauge", "system.io.rkb_s", 3.444/1024, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.rkb_s", 3.444/1024, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.rkb_s", 3.555/1024, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 
-	mock.On("Gauge", "system.io.r_s", 4.444, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.r_s", 4.444, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.r_s", 4.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 
-	mock.On("Gauge", "system.io.avg_q_sz", 5.444, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.444, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.avg_q_sz", 5.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 	mock.On("Commit").Return().Times(2)
 	ioCheck.Run()
@@ -146,8 +151,9 @@ func TestIoCheckInstanceAdded(t *testing.T) {
 }
 
 func TestIoCheckInstanceRemoved(t *testing.T) {
+	pfnGetDriveType = testGetDriveType
 	pdhtest.SetupTesting("testfiles\\counter_indexes_en-us.txt", "testfiles\\allcounters_en-us.txt")
-	pdhtest.AddCounterInstance("LogicalDisk", "D:")
+	pdhtest.AddCounterInstance("LogicalDisk", "Y:")
 	pdhtest.AddCounterInstance("LogicalDisk", "HarddiskVolume2")
 
 	addDefaultQueryReturnValues()
@@ -179,23 +185,23 @@ func TestIoCheckInstanceRemoved(t *testing.T) {
 	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1"}).Return().Times(3)
 
 	// and the checks for the added instance
-	mock.On("Gauge", "system.io.wkb_s", 1.444/1024, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.wkb_s", 1.444/1024, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.wkb_s", 1.555/1024, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 
-	mock.On("Gauge", "system.io.w_s", 2.444, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.w_s", 2.444, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.w_s", 2.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 
-	mock.On("Gauge", "system.io.rkb_s", 3.444/1024, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.rkb_s", 3.444/1024, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.rkb_s", 3.555/1024, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 
-	mock.On("Gauge", "system.io.r_s", 4.444, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.r_s", 4.444, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.r_s", 4.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 
-	mock.On("Gauge", "system.io.avg_q_sz", 5.444, "", []string{"device:D:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.444, "", []string{"device:Y:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.avg_q_sz", 5.555, "", []string{"device:HarddiskVolume2"}).Return().Times(1)
 	mock.On("Commit").Return().Times(3)
 	ioCheck.Run()
-	pdhtest.RemoveCounterInstance("LogicalDisk", "D:")
+	pdhtest.RemoveCounterInstance("LogicalDisk", "Y:")
 	pdhtest.RemoveCounterInstance("LogicalDisk", "HarddiskVolume2")
 
 	ioCheck.Run()

@@ -44,6 +44,12 @@ type IOCheck struct {
 	counternames map[string]string
 }
 
+var pfnGetDriveType = getDriveType
+
+func getDriveType(drive string) uintptr {
+	r, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive))))
+	return r
+}
 func isDrive(instance string) bool {
 	if unmountedDrivePattern.MatchString(instance) {
 		return true
@@ -52,7 +58,8 @@ func isDrive(instance string) bool {
 		return false
 	}
 	instance += "\\"
-	r, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(instance))))
+
+	r := pfnGetDriveType(instance)
 	if r != DRIVE_FIXED {
 		return false
 	}
