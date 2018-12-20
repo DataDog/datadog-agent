@@ -79,7 +79,11 @@ func (t *Tailer) Identifier() string {
 func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
-	t.reader.Close()
+
+	// t.reader can be nil when the t.setupReader() failed
+	if t.reader != nil {
+		t.reader.Close()
+	}
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
 	t.source.RemoveInput(t.ContainerID)
