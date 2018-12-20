@@ -142,19 +142,19 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
 
-	apiCl, err := apiserver.GetAPIClient()
-	if err != nil {
-		stats["custommetrics"] = map[string]string{"Error": err.Error()}
-		return stats, nil
-	}
-	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
-
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
 		stats["endpointsInfos"] = endpointsInfos
 	} else {
 		stats["endpointsInfos"] = nil
 	}
+
+	apiCl, err := apiserver.GetAPIClient()
+	if err != nil {
+		stats["custommetrics"] = map[string]string{"Error": err.Error()}
+		return stats, nil
+	}
+	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 
 	return stats, nil
 }
