@@ -203,7 +203,7 @@ func (p *PdhMultiInstanceCounterSet) RemoveInvalidInstance(badInstance string) {
 	hc := p.countermap[badInstance]
 	if hc != PDH_HCOUNTER(0) {
 		log.Debugf("Removing non-existent counter instance %s", badInstance)
-		PdhRemoveCounter(hc)
+		pfnPdhRemoveCounter(hc)
 		delete(p.countermap, badInstance)
 	} else {
 		log.Debugf("Instance handle not found")
@@ -262,7 +262,8 @@ func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, 
 	var removeList []string
 	pfnPdhCollectQueryData(p.query)
 	for inst, hcounter := range p.countermap {
-		values[inst], err = pfnPdhGetFormattedCounterValueFloat(hcounter)
+		var retval float64
+		retval, err = pfnPdhGetFormattedCounterValueFloat(hcounter)
 		if err != nil {
 			switch err.(type) {
 			case *ErrPdhInvalidInstance:
@@ -275,6 +276,7 @@ func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, 
 				return
 			}
 		}
+		values[inst] = retval
 	}
 	for _, inst := range removeList {
 		p.RemoveInvalidInstance(inst)
@@ -290,7 +292,7 @@ func (p *PdhSingleInstanceCounterSet) GetValue() (val float64, err error) {
 		return 0, fmt.Errorf("Not a single-value counter")
 	}
 	pfnPdhCollectQueryData(p.query)
-	return pdhGetFormattedCounterValueFloat(p.singleCounter)
+	return pfnPdhGetFormattedCounterValueFloat(p.singleCounter)
 
 }
 

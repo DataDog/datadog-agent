@@ -4,6 +4,7 @@ package pdhutil
 
 import (
 	"fmt"
+	"strings"
 )
 
 var activeCounterStrings CounterStrings
@@ -109,8 +110,10 @@ func mockpdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, e
 		return 0, fmt.Errorf("Invalid handle")
 	}
 	if _, ok = countervalues[ctr.name]; ok {
-		val, countervalues[ctr.name] = countervalues[ctr.name][0], countervalues[ctr.name][1:]
-		return val, nil
+		if len(countervalues[ctr.name]) > 0 {
+			val, countervalues[ctr.name] = countervalues[ctr.name][0], countervalues[ctr.name][1:]
+			return val, nil
+		}
 	}
 	return 0, NewErrPdhInvalidInstance("Invalid counter instance")
 }
@@ -155,4 +158,23 @@ func SetupTesting(counterstringsfile, countersfile string) {
 func SetQueryReturnValue(counter string, val float64) {
 	countervalues[counter] = append(countervalues[counter], val)
 
+}
+
+// RemoveCounterInstance removes a specific instance from the table of available instances
+func RemoveCounterInstance(clss, inst string) {
+	for idx, val := range activeAvailableCounters.instancesByClass[clss] {
+		if strings.EqualFold(inst, val) {
+			activeAvailableCounters.instancesByClass[clss] =
+				append(activeAvailableCounters.instancesByClass[clss][:idx],
+					activeAvailableCounters.instancesByClass[clss][idx+1:]...)
+			return
+		}
+	}
+}
+
+// AddCounterInstance adds a specific instance to the table of available instances
+func AddCounterInstance(clss, inst string) {
+	activeAvailableCounters.instancesByClass[clss] =
+		append(activeAvailableCounters.instancesByClass[clss], inst)
+	return
 }
