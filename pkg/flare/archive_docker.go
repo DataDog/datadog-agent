@@ -23,7 +23,7 @@ import (
 	"github.com/docker/docker/api/types"
 )
 
-const DOCKER_PS_COMMAND_MAX_LENGTH = 29
+const dockerCommandMaxLength = 29
 
 func zipDockerSelfInspect(tempDir, hostname string) error {
 	du, err := docker.GetDockerUtil()
@@ -118,7 +118,7 @@ func zipDockerPs(tempDir, hostname string) error {
 }
 
 // trimCommand removes arguments from command string
-// and trims it to 18 character max.
+// and trims it to 29 characters max.
 func trimCommand(command string) string {
 	cutoff := strings.Index(command, " ")
 	if cutoff > 0 {
@@ -128,8 +128,8 @@ func trimCommand(command string) string {
 	} else {
 		cutoff = len(command)
 	}
-	if cutoff > DOCKER_PS_COMMAND_MAX_LENGTH {
-		cutoff = DOCKER_PS_COMMAND_MAX_LENGTH
+	if cutoff > dockerCommandMaxLength {
+		cutoff = dockerCommandMaxLength
 	}
 
 	if cutoff == len(command) {
