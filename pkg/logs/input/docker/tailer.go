@@ -99,7 +99,15 @@ func (t *Tailer) Start(since time.Time) error {
 func (t *Tailer) getLastSince() string {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	return t.lastSince
+	since, err := time.Parse(config.DateFormat, t.lastSince)
+	if err != nil {
+		since = time.Now().UTC()
+	} else {
+		// To avoid sending the last recorded log we add a nanosecond
+		// to the offset
+		since = since.Add(time.Nanosecond)
+	}
+	return since.Format(config.DateFormat)
 }
 
 func (t *Tailer) setLastSince(since string) {
