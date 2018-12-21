@@ -16,7 +16,7 @@ script
   #
   # setuid is not available in versions of upstart before 1.4. CentOS/RHEL6 use an earlier version of upstart.
   # This is the best way to set the user in the absence of setuid.
-  exec su -s /bin/sh -c 'STS_LOG_TO_CONSOLE=false exec "$0" "$@"' stackstate-agent -- <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/stackstate.yaml --pid=<%= install_dir %>/run/process-agent.pid &>> /var/log/stackstate-agent/process-errors.log
+  exec su -s /bin/sh -c 'STS_LOG_TO_CONSOLE=false exec "$0" "$@"' root -- <%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/stackstate.yaml --pid=<%= install_dir %>/run/process-agent.pid &>> /var/log/stackstate-agent/process-errors.log
 end script
 
 pre-start script

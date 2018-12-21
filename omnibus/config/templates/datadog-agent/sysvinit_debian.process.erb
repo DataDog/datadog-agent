@@ -17,7 +17,7 @@ INSTALL_DIR="/opt/stackstate-agent"
 AGENTPATH="$INSTALL_DIR/embedded/bin/process-agent"
 PIDFILE="$INSTALL_DIR/run/process-agent.pid"
 AGENT_ARGS="--config=$ETC_DIR/stackstate.yaml --pid=$PIDFILE"
-AGENT_USER="stackstate-agent"
+AGENT_USER="root"
 NAME="stackstate-agent-process"
 DESC="StackState Process Agent"
 

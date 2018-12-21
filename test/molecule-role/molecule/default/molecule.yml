@@ -9,26 +9,29 @@ lint:
     config-file: .yamllint
 platforms:
   - name: agent1
-    image: ami-0da760e590e7de0e8  # Ubuntu 18.04
+    image: ami-0da760e590e7de0e8    # Ubuntu 18.04 (EBS-Backed x86_64)
     instance_type: t2.micro
     vpc_subnet_id: subnet-41c8f224  # eu-west-1a
     region: eu-west-1
     groups:
       - agent_vm
+    ssh_user: ubuntu
   - name: agent2
-    image: ami-0da760e590e7de0e8  # Ubuntu 18.04
+    image: ami-420d213b             # Fedora-Cloud-Base-28-1.1.x86_64-hvm-eu-west-1-standard-0
     instance_type: t2.micro
     vpc_subnet_id: subnet-41c8f224  # eu-west-1a
     region: eu-west-1
     groups:
       - agent_vm
+    ssh_user: fedora
   - name: receiver
-    image: ami-0da760e590e7de0e8  # Ubuntu 18.04
+    image: ami-0da760e590e7de0e8    # Ubuntu 18.04 (EBS-Backed x86_64)
     instance_type: t2.small
     vpc_subnet_id: subnet-41c8f224  # eu-west-1a
     region: eu-west-1
     groups:
       - receiver_vm
+    ssh_user: ubuntu
 provisioner:
   name: ansible
   playbooks:

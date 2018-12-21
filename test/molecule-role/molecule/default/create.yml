@@ -6,7 +6,6 @@
   vars_files:
     - common_vars.yml
   vars:
-    ssh_user: ubuntu
     ssh_port: 22
 
     security_group_name: molecule
@@ -110,7 +109,7 @@
         instance_conf_dict: {
           'instance': "{{ item.tagged_instances[0].tags.instance }}",
           'address': "{{ item.tagged_instances[0].public_ip }}",
-          'user': "{{ ssh_user }}",
+          'user': "{{ item.item.item.ssh_user }}",
           'port': "{{ ssh_port }}",
           'identity_file': "{{ keypair_path }}",
           'instance_ids': "{{ item.instance_ids }}", }
@@ -140,4 +139,4 @@
 
     - name: Wait for boot process to finish
       pause:
-        minutes: 2
+        minutes: 1

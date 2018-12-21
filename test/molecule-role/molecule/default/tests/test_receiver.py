@@ -32,11 +32,8 @@ def test_created_connection_after_start_with_metrics(host, Ansible):
         data = host.check_output("curl %s" % url)
         json_data = json.loads(data)
         outgoing_conn = next(connection for message in json_data["messages"]
-                             for connection
-                             in message["message"]
-                             ["Connections"]["connections"]
-                             if connection["remoteEndpoint"]
-                             ["endpoint"]["port"] == conn_port
+                             for connection in message["message"]["Connections"]["connections"]
+                             if connection["remoteEndpoint"]["endpoint"]["port"] == conn_port
                              )
         print outgoing_conn
         assert outgoing_conn["direction"] == "OUTGOING"
@@ -44,11 +41,8 @@ def test_created_connection_after_start_with_metrics(host, Ansible):
         assert outgoing_conn["bytesSentPerSecond"] > 10.0
         assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
         incoming_conn = next(connection for message in json_data["messages"]
-                             for connection
-                             in message["message"]
-                             ["Connections"]["connections"]
-                             if connection["localEndpoint"]
-                             ["endpoint"]["port"] == conn_port
+                             for connection in message["message"]["Connections"]["connections"]
+                             if connection["localEndpoint"]["endpoint"]["port"] == conn_port
                              )
         print incoming_conn
         assert incoming_conn["direction"] == "INCOMING"
@@ -70,11 +64,8 @@ def test_created_connection_before_start(host, Ansible):
         json_data = json.loads(data)
         print(json.dumps(json_data))
         outgoing_conn = next(connection for message in json_data["messages"]
-                             for connection
-                             in message["message"]
-                             ["Connections"]["connections"]
-                             if connection["remoteEndpoint"]
-                             ["endpoint"]["port"] == conn_port
+                             for connection in message["message"]["Connections"]["connections"]
+                             if connection["remoteEndpoint"]["endpoint"]["port"] == conn_port
                              )
         print outgoing_conn
         # Outgoing gets no direction from /proc scanning
@@ -82,11 +73,8 @@ def test_created_connection_before_start(host, Ansible):
         assert outgoing_conn["connectionType"] == "TCP"
 
         incoming_conn = next(connection for message in json_data["messages"]
-                             for connection
-                             in message["message"]
-                             ["Connections"]["connections"]
-                             if connection["localEndpoint"]
-                             ["endpoint"]["port"] == conn_port
+                             for connection in message["message"]["Connections"]["connections"]
+                             if connection["localEndpoint"]["endpoint"]["port"] == conn_port
                              )
         print incoming_conn
         assert incoming_conn["direction"] == "INCOMING"
@@ -149,8 +137,7 @@ def test_process_metrics(host):
         json_data = json.loads(data)
         metrics = next(set(message["message"]["MultiMetric"]["values"].keys())
                        for message in json_data["messages"]
-                       if message["message"]["MultiMetric"]["name"] ==
-                       "processMetrics"
+                       if message["message"]["MultiMetric"]["name"] == "processMetrics"
                        )
         print metrics
 

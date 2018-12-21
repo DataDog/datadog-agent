@@ -1,6 +1,6 @@
 Vagrant.configure("2") do |config|
 
-  branch = "rpm-builder" # master or PR_NAME
+  branch = "master" # master or PR_NAME
 
   #Ubuntu 14
   config.vm.define "trusty" do |trusty|
