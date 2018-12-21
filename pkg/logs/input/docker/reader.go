@@ -8,11 +8,11 @@
 package docker
 
 import (
-	"fmt"
+	"errors"
 	"io"
 )
 
-const readerNotInitialized = "reader not initialized"
+var readerNotInitializedError = errors.New("reader not initialized")
 
 type safeReader struct {
 	reader io.ReadCloser
@@ -28,7 +28,7 @@ func (s *safeReader) setUnsafeReader(reader io.ReadCloser) {
 
 func (s *safeReader) Read(p []byte) (int, error) {
 	if s.reader == nil {
-		err := fmt.Errorf(readerNotInitialized)
+		err := readerNotInitializedError
 		return 0, err
 	}
 
@@ -37,7 +37,7 @@ func (s *safeReader) Read(p []byte) (int, error) {
 
 func (s *safeReader) Close() error {
 	if s.reader == nil {
-		return fmt.Errorf(readerNotInitialized)
+		return readerNotInitializedError
 	}
 
 	return s.reader.Close()

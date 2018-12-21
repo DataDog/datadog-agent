@@ -9,15 +9,15 @@ package docker
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-const fooError = "foo error"
-const barError = "bar error"
+var fooError = errors.New("foo error")
+var barError = errors.New("bar error")
 
 type ReadCloserMock struct {
 	io.Reader
@@ -40,7 +40,7 @@ type ReadErrorMock struct {
 }
 
 func (r *ReadErrorMock) Read(p []byte) (int, error) {
-	return 0, fmt.Errorf(fooError)
+	return 0, fooError
 }
 
 func TestSafeReaderRead(t *testing.T) {
@@ -55,7 +55,7 @@ func TestSafeReaderRead(t *testing.T) {
 
 	n, err := reader.Read(bytesArray)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, fmt.Errorf(readerNotInitialized), err)
+	assert.Equal(t, readerNotInitializedError, err)
 
 	reader.setUnsafeReader(mockReadCloserNoError)
 	n, err = reader.Read(bytesArray)
@@ -65,12 +65,12 @@ func TestSafeReaderRead(t *testing.T) {
 	reader.setUnsafeReader(mockReadCloserReadError)
 	n, err = reader.Read(bytesArray)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, fmt.Errorf(fooError), err)
+	assert.Equal(t, fooError, err)
 
 	reader.setUnsafeReader(nil)
 	n, err = reader.Read(bytesArray)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, fmt.Errorf(readerNotInitialized), err)
+	assert.Equal(t, readerNotInitializedError, err)
 }
 
 func TestSafeReaderClose(t *testing.T) {
@@ -79,11 +79,11 @@ func TestSafeReaderClose(t *testing.T) {
 		return nil
 	})
 	mockReadCloserCloseError := NewReadCloserMock(&ReadErrorMock{}, func() error {
-		return fmt.Errorf(barError)
+		return barError
 	})
 
 	err := reader.Close()
-	assert.Equal(t, fmt.Errorf(readerNotInitialized), err)
+	assert.Equal(t, readerNotInitializedError, err)
 
 	reader.setUnsafeReader(mockReadCloserNoError)
 	err = reader.Close()
@@ -91,9 +91,9 @@ func TestSafeReaderClose(t *testing.T) {
 
 	reader.setUnsafeReader(mockReadCloserCloseError)
 	err = reader.Close()
-	assert.Equal(t, fmt.Errorf(barError), err)
+	assert.Equal(t, barError, err)
 
 	reader.setUnsafeReader(nil)
 	err = reader.Close()
-	assert.Equal(t, fmt.Errorf(readerNotInitialized), err)
+	assert.Equal(t, readerNotInitializedError, err)
 }
