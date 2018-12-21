@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
 )
@@ -62,18 +63,21 @@ func (m *mockReaderSleep) Close() error {
 }
 
 func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
-	return &Tailer{
+	tailer := &Tailer{
 		ContainerID:   "1234567890abcdef",
 		outputChan:    make(chan *message.Message, 100),
 		decoder:       nil,
-		source:        nil,
+		source:        config.NewLogSource("foo", nil),
 		cli:           nil,
 		sleepDuration: defaultSleepDuration,
 		stop:          make(chan struct{}, 1),
 		done:          make(chan struct{}, 1),
-		reader:        reader,
+		reader:        newSafeReader(),
 		cancelFunc:    cancelFunc,
 	}
+	tailer.reader.setUnsafeReader(reader)
+
+	return tailer
 }
 
 func TestTailerIdentifier(t *testing.T) {
@@ -105,4 +109,17 @@ func TestReadTimeout(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.Equal(t, 0, n)
+}
+
+func TestTailerCanStopWithNilReader(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	tailer := NewTestTailer(&mockReaderSleep{ctx: ctx}, cancelFunc)
+
+	// Simulate error in tailer.setupReader()
+	tailer.reader = newSafeReader()
+	tailer.done <- struct{}{}
+
+	tailer.Stop()
+
+	assert.True(t, true)
 }
