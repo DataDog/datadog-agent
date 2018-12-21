@@ -146,6 +146,7 @@ run_tests_deb-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
+  allow_failure: true
   script:
     - inv -e test --race --profile --cpus 4
 
@@ -154,6 +155,7 @@ run_test_rpm-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:2xlarge" ]
+  allow_failure: true
   script:
     # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
     # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
