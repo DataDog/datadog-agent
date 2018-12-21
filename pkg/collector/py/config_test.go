@@ -51,7 +51,7 @@ func TestToPython(t *testing.T) {
 		t.Fatalf("Result is not a Python dict")
 	}
 
-	m := python.PyImport_ImportModule("tests.complex")
+	m := python.PyImport_ImportModule("complex")
 	if m == nil {
 		t.Fatalf("Unable to import module complex.py")
 	}

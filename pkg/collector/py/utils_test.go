@@ -115,9 +115,9 @@ func TestSubprocessBindings(t *testing.T) {
 	defer arg.DecRef()
 
 	err := python.PyList_Insert(cmdList, 0, cmd)
-	assert.Nil(t, err)
+	assert.Zero(t, err)
 	err = python.PyList_Insert(cmdList, 1, arg)
-	assert.Nil(t, err)
+	assert.Zero(t, err)
 
 	raise := python.PyBool_FromLong(1)
 	assert.NotNil(t, raise)
