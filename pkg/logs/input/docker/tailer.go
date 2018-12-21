@@ -212,6 +212,10 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	var err error
 	doneReading := make(chan struct{})
 	go func() {
+		if t.reader == nil {
+			err = fmt.Errorf("reader not initialized")
+			return
+		}
 		n, err = t.reader.Read(buffer)
 		close(doneReading)
 	}()
