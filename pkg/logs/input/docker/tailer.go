@@ -39,7 +39,7 @@ type Tailer struct {
 	ContainerID   string
 	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
-	reader        io.ReadCloser
+	reader        *safeReader
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
@@ -54,6 +54,35 @@ type Tailer struct {
 	mutex              sync.Mutex
 }
 
+type safeReader struct {
+	reader io.ReadCloser
+}
+
+func newSafeReader() *safeReader {
+	return &safeReader{}
+}
+
+func (s *safeReader) setReader(reader io.ReadCloser) {
+	s.reader = reader
+}
+
+func (s *safeReader) Read(p []byte) (int, error) {
+	if s.reader == nil {
+		err := fmt.Errorf("reader not initialized")
+		return 0, err
+	}
+
+	return s.reader.Read(p)
+}
+
+func (s *safeReader) Close() error {
+	if s.reader == nil {
+		return fmt.Errorf("reader not initialized")
+	}
+
+	return s.reader.Close()
+}
+
 // NewTailer returns a new Tailer
 func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
@@ -66,6 +95,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
+		reader:             newSafeReader(),
 	}
 }
 
@@ -80,10 +110,7 @@ func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 
-	// t.reader can be nil when the t.setupReader() failed
-	if t.reader != nil {
-		t.reader.Close()
-	}
+	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
 	t.source.RemoveInput(t.ContainerID)
@@ -133,7 +160,7 @@ func (t *Tailer) setupReader() error {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
-	t.reader = reader
+	t.reader.setReader(reader)
 	t.cancelFunc = cancelFunc
 	return err
 }
@@ -212,10 +239,6 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	var err error
 	doneReading := make(chan struct{})
 	go func() {
-		if t.reader == nil {
-			err = fmt.Errorf("reader not initialized")
-			return
-		}
 		n, err = t.reader.Read(buffer)
 		close(doneReading)
 	}()

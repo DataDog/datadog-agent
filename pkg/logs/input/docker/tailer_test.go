@@ -63,7 +63,7 @@ func (m *mockReaderSleep) Close() error {
 }
 
 func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
-	return &Tailer{
+	tailer := &Tailer{
 		ContainerID:   "1234567890abcdef",
 		outputChan:    make(chan *message.Message, 100),
 		decoder:       nil,
@@ -72,9 +72,12 @@ func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer 
 		sleepDuration: defaultSleepDuration,
 		stop:          make(chan struct{}, 1),
 		done:          make(chan struct{}, 1),
-		reader:        reader,
+		reader:        newSafeReader(),
 		cancelFunc:    cancelFunc,
 	}
+	tailer.reader.setReader(reader)
+
+	return tailer
 }
 
 func TestTailerIdentifier(t *testing.T) {
@@ -113,7 +116,7 @@ func TestTailerCanStopWithNilReader(t *testing.T) {
 	tailer := NewTestTailer(&mockReaderSleep{ctx: ctx}, cancelFunc)
 
 	// Simulate error in tailer.setupReader()
-	tailer.reader = nil
+	tailer.reader = newSafeReader()
 	tailer.done <- struct{}{}
 
 	tailer.Stop()
