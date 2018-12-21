@@ -278,14 +278,13 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context, filter
 
 // flush should be called every time you want to
 func (s *Subscriber) Flush(timestamp int64) []ContainerdEvent {
+	if len(s.Events) == 0 {
+		return nil
+	}
+
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
-
-	if timestamp > s.Events[0].Timestamp.Unix() {
-
-		return s.Events
-	}
-	// Empty queue of events.
+	ev := s.Events
 	s.Events = []ContainerdEvent{}
-	return nil
+	return ev
 }

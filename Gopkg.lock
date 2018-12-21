@@ -183,6 +183,7 @@
   name = "github.com/containerd/containerd"
   packages = [
     ".",
+    "api/events",
     "api/services/containers/v1",
     "api/services/content/v1",
     "api/services/diff/v1",
@@ -1903,6 +1904,7 @@
     "github.com/clbanning/mxj",
     "github.com/containerd/cgroups",
     "github.com/containerd/containerd",
+    "github.com/containerd/containerd/api/events",
     "github.com/containerd/containerd/api/types",
     "github.com/containerd/containerd/cio",
     "github.com/containerd/containerd/containers",
