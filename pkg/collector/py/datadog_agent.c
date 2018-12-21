@@ -6,6 +6,7 @@
 // +build cpython
 
 #include "datadog_agent.h"
+#include <stdio.h>
 
 /*
     NOTE: some primitives like `PyArg_ParseTuple` are not available through the
@@ -213,6 +214,8 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args) {
                 return NULL;
             }
             strncpy(tags[actual_size], tag, len);
+            // strncpy doesn't append an null char at the end
+            tags[actual_size][len] = '\0';
             actual_size++;
         }
 
