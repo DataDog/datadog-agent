@@ -44,12 +44,14 @@ func FormatStatus(data []byte) (string, error) {
 	jmxStats := stats["JMXStatus"]
 	logsStats := stats["logsStats"]
 	dcaStats := stats["clusterAgentStatus"]
+	endpointsInfos := stats["endpointsInfos"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
 	renderChecksStats(b, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats, "")
 	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
+	renderEndpointsInfos(b, endpointsInfos)
 	renderLogsStatus(b, logsStats)
 	renderAggregatorStatus(b, aggregatorStats)
 	renderDogstatsdStatus(b, dogstatsdStats)
@@ -70,11 +72,13 @@ func FormatDCAStatus(data []byte) (string, error) {
 	runnerStats := stats["runnerStats"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
+	endpointsInfos := stats["endpointsInfos"]
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
 	renderChecksStats(b, runnerStats, nil, autoConfigStats, checkSchedulerStats, "")
 	renderForwarderStatus(b, forwarderStats)
+	renderEndpointsInfos(b, endpointsInfos)
 
 	return b.String(), nil
 }
@@ -129,6 +133,15 @@ func renderDogstatsdStatus(w io.Writer, dogstatsdStats interface{}) {
 func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
 	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "forwarder.tmpl")))
 	err := t.Execute(w, forwarderStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderEndpointsInfos(w io.Writer, endpointsInfos interface{}) {
+	t := template.Must(template.New("endpoints.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "endpoints.tmpl")))
+
+	err := t.Execute(w, endpointsInfos)
 	if err != nil {
 		fmt.Println(err)
 	}

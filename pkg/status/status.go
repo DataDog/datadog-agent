@@ -63,6 +63,13 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["logsStats"] = logs.GetStatus()
 
+	endpointsInfos, err := getEndpointsInfos()
+	if endpointsInfos != nil && err == nil {
+		stats["endpointsInfos"] = endpointsInfos
+	} else {
+		stats["endpointsInfos"] = nil
+	}
+
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
@@ -135,6 +142,13 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
 
+	endpointsInfos, err := getEndpointsInfos()
+	if endpointsInfos != nil && err == nil {
+		stats["endpointsInfos"] = endpointsInfos
+	} else {
+		stats["endpointsInfos"] = nil
+	}
+
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
@@ -182,6 +196,27 @@ func getPartialConfig() map[string]string {
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	conf["additional_checksd"] = config.Datadog.GetString("additional_checksd")
 	return conf
+}
+
+func getEndpointsInfos() (map[string]interface{}, error) {
+	endpoints, err := config.GetMultipleEndpoints()
+	if err != nil {
+		return nil, err
+	}
+
+	endpointsInfos := make(map[string]interface{})
+
+	// obfuscate the api keys
+	for endpoint, keys := range endpoints {
+		for i, key := range keys {
+			if len(key) > 5 {
+				keys[i] = key[len(key)-5:]
+			}
+		}
+		endpointsInfos[endpoint] = keys
+	}
+
+	return endpointsInfos, nil
 }
 
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
