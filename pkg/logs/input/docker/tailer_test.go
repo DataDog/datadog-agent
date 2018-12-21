@@ -75,7 +75,7 @@ func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer 
 		reader:        newSafeReader(),
 		cancelFunc:    cancelFunc,
 	}
-	tailer.reader.setReader(reader)
+	tailer.reader.setUnsafeReader(reader)
 
 	return tailer
 }

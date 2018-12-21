@@ -54,35 +54,6 @@ type Tailer struct {
 	mutex              sync.Mutex
 }
 
-type safeReader struct {
-	reader io.ReadCloser
-}
-
-func newSafeReader() *safeReader {
-	return &safeReader{}
-}
-
-func (s *safeReader) setReader(reader io.ReadCloser) {
-	s.reader = reader
-}
-
-func (s *safeReader) Read(p []byte) (int, error) {
-	if s.reader == nil {
-		err := fmt.Errorf("reader not initialized")
-		return 0, err
-	}
-
-	return s.reader.Read(p)
-}
-
-func (s *safeReader) Close() error {
-	if s.reader == nil {
-		return fmt.Errorf("reader not initialized")
-	}
-
-	return s.reader.Close()
-}
-
 // NewTailer returns a new Tailer
 func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
@@ -160,7 +131,7 @@ func (t *Tailer) setupReader() error {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
-	t.reader.setReader(reader)
+	t.reader.setUnsafeReader(reader)
 	t.cancelFunc = cancelFunc
 	return err
 }
