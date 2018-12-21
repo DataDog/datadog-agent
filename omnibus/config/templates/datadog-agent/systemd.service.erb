@@ -2,7 +2,7 @@
 Description="Datadog Agent"
 After=network.target
 Wants=datadog-agent-trace.service datadog-agent-process.service
-StartLimitIntervalSec=10
+StartLimitInterval=10
 StartLimitBurst=5
 
 [Service]
