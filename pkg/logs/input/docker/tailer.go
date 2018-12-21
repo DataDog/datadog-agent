@@ -39,7 +39,7 @@ type Tailer struct {
 	ContainerID   string
 	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
-	reader        io.ReadCloser
+	reader        *safeReader
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
@@ -66,6 +66,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
+		reader:             newSafeReader(),
 	}
 }
 
@@ -79,6 +80,7 @@ func (t *Tailer) Identifier() string {
 func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
+
 	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
@@ -129,7 +131,7 @@ func (t *Tailer) setupReader() error {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
-	t.reader = reader
+	t.reader.setUnsafeReader(reader)
 	t.cancelFunc = cancelFunc
 	return err
 }
