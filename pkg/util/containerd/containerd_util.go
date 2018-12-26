@@ -9,40 +9,53 @@ package containerd
 
 import (
 	"context"
-	"time"
 	"sync"
+	"time"
+
+	"github.com/containerd/containerd"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/containerd/containerd"
+)
+
+const (
+	// The check config is used if the containerd socket is detected.
+	// However we want to cover cases with custom config files.
+	containerdDefaultSocketPath = "/var/run/containerd/containerd.sock"
 )
 
 var (
 	globalContainerdUtil *ContainerdUtil
-	once          sync.Once
+	once                 sync.Once
 )
 
-// ContainerdItf is the interface implementing a subset of methods that leverage the containerd api.
+// ContainerdItf is the interface implementing a subset of methods that leverage the Containerd api.
 type ContainerdItf interface {
 	GetEvents() containerd.EventService
-	EnsureServing(ctx context.Context) error
-	GetNamespaces(ctx context.Context) ([]string, error)
-	Containers(ctx context.Context) ([]containerd.Container, error)
-	Metadata(ctx context.Context) (containerd.Version, error)
+	Containers() ([]containerd.Container, error)
+	Metadata() (containerd.Version, error)
 }
 
-// ContainerdUtil is the util used to interact with the containerd api.
+// ContainerdUtil is the util used to interact with the Containerd api.
 type ContainerdUtil struct {
-	cl        *containerd.Client
-	initRetry retry.Retrier
+	cl                *containerd.Client
+	socketPath        string
+	initRetry         retry.Retrier
+	queryTimeout      time.Duration
+	connectionTimeout time.Duration
 }
 
-// GetContainerdUtil creates the containerd util containing the containerd client and implementing the ContainerdItf
+// GetContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.
 func GetContainerdUtil() (ContainerdItf, error) {
 	once.Do(func() {
-		globalContainerdUtil = &ContainerdUtil{}
+		globalContainerdUtil = &ContainerdUtil{
+			queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
+			connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
+			socketPath:        config.Datadog.GetString("cri_socket_path"),
+		}
 		// Initialize the client in the connect method
 		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
 			Name:          "containerdutil",
@@ -60,7 +73,9 @@ func GetContainerdUtil() (ContainerdItf, error) {
 }
 
 // Metadata is used to collect the version and revision of the Containerd API
-func (c *ContainerdUtil) Metadata(ctx context.Context) (containerd.Version, error) {
+func (c *ContainerdUtil) Metadata() (containerd.Version, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
 	return c.cl.Version(ctx)
 }
 
@@ -72,8 +87,13 @@ func (c *ContainerdUtil) Close() error {
 	return c.cl.Close()
 }
 
-// connect is our retry strategy, it can be retriggered when the check is running if we lose connectivity.
+// connect is our retry strategy, it can be re-triggered when the check is running if we lose connectivity.
 func (c *ContainerdUtil) connect() error {
+	if c.socketPath == "" {
+		log.Warn("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
+		c.socketPath = containerdDefaultSocketPath
+	}
+
 	var err error
 	if c.cl != nil {
 		err = c.cl.Reconnect()
@@ -83,42 +103,23 @@ func (c *ContainerdUtil) connect() error {
 		}
 		return nil
 	}
+	opts := []grpc.DialOption{
+		grpc.WithTimeout(c.connectionTimeout),
+	}
+	clientOpts := containerd.WithDialOpts(opts)
 	// If we lose the connection, let's reset the state including the Dial options
-	socketAddress := config.Datadog.GetString("cri_socket_path")
-	c.cl, err = containerd.New(socketAddress) // TODO 	ClientOpt to use grpc timeout
+	c.cl, err = containerd.New(c.socketPath, clientOpts)
 	return err
-}
-
-// EnsureServing checks if the containerd daemon is healthy and tries to reconnect if need be.
-func (c *ContainerdUtil) EnsureServing(ctx context.Context) error {
-	if c.cl != nil {
-		//  Check if the current client is healthy
-		s, err := c.cl.IsServing(ctx)
-		if s {
-			return nil
-		}
-		log.Errorf("Current client is not responding: %v", err)
-	}
-	err := c.initRetry.TriggerRetry()
-	if err != nil {
-		log.Errorf("Can't connect to containerd, will retry later: %v", err)
-		return err
-	}
-	return nil
 }
 
 // GetEvents interfaces with the containerd api to get the event service.
 func (c *ContainerdUtil) GetEvents() containerd.EventService {
-	// Boilderplate to retrieve events from the client
 	return c.cl.EventService()
 }
 
-// GetNamespaces interfaces with the containerd api to get the list of available namespaces.
-func (c *ContainerdUtil) GetNamespaces(ctx context.Context) ([]string, error) {
-	return c.cl.NamespaceService().List(ctx)
-}
-
 // Containers interfaces with the containerd api to get the list of Containers.
-func (c *ContainerdUtil) Containers(ctx context.Context) ([]containerd.Container, error) {
+func (c *ContainerdUtil) Containers() ([]containerd.Container, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
 	return c.cl.Containers(ctx)
 }
