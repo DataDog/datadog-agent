@@ -9,13 +9,20 @@ import (
 	"sort"
 	"testing"
 
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/containerd/cgroups"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
+	"github.com/docker/docker/pkg/testutil/assert"
 	types2 "github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,7 +69,7 @@ type mockImage struct {
 	containerd.Image
 }
 
-// Name is from the Image insterface
+// Name is from the Image interface
 func (i *mockImage) Name() string {
 	return i.imageName
 }
@@ -126,6 +133,90 @@ func TestCollectTags(t *testing.T) {
 			require.Equal(t, len(test.expected), len(list))
 			require.True(t, reflect.DeepEqual(test.expected, list))
 		})
+	}
+}
+
+// TestComputeEvents checks the conversion of Containerd events to Datadog events
+func TestComputeEvents(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance: &ContainerdConfig{
+			Tags: []string{"test"},
+		},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+
+	tests := []struct {
+		name          string
+		hostname      string
+		events        []ContainerdEvent
+		expectedTitle string
+		expectedTags  []string
+		numberEvents  int
+	}{
+		{
+			name:          "No events",
+			hostname:      "bar",
+			events:        []ContainerdEvent{},
+			expectedTitle: "",
+			numberEvents:  0,
+		},
+		{
+			name:     "Events on wrong type",
+			hostname: "baz",
+			events: []ContainerdEvent{{
+				Topic: "/containers/delete/extra",
+			}, {
+				Topic: "containers/delete",
+			},
+			},
+			expectedTitle: "",
+			numberEvents:  0,
+		},
+		{
+			name:     "High cardinality Events with one invalid",
+			hostname: "baz",
+			events: []ContainerdEvent{{
+				Topic:     "/containers/delete",
+				Timestamp: time.Now(),
+				Extra:     map[string]string{"foo": "bar"},
+				Message:   "Container xxx  deleted",
+				ID:        "xxx",
+			}, {
+				Topic: "containers/delete",
+			},
+			},
+			expectedTitle: "Event on containers from Containerd",
+			expectedTags:  []string{"foo:bar", "test"},
+			numberEvents:  1,
+		},
+		{
+			name:     "Low cardinality Event",
+			hostname: "baz",
+			events: []ContainerdEvent{{
+				Topic:     "/images/update",
+				Timestamp: time.Now(),
+				Extra:     map[string]string{"foo": "baz"},
+				Message:   "Image yyy  updated",
+				ID:        "xxx",
+			},
+			},
+			expectedTitle: "Event on images from Containerd",
+			expectedTags:  []string{"foo:baz", "test"},
+			numberEvents:  1,
+		},
+	}
+	for _, test := range tests {
+		computeEvents(test.hostname, test.events, mocked, containerdCheck.instance.Tags)
+		mocked.On("Event", mock.AnythingOfType("metrics.Event"))
+		//fmt.Printf("Currently evaluating %v \n", test)
+		if len(mocked.Calls) > 0 {
+			res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
+			assert.Contains(t, res.Title, test.expectedTitle)
+			assert.EqualStringSlice(t, res.Tags, test.expectedTags)
+		}
+		mocked.AssertNumberOfCalls(t, "Event", test.numberEvents)
+		mocked.ResetCalls()
 	}
 }
 

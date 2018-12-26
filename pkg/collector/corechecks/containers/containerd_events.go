@@ -10,14 +10,15 @@ package containers
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/gogo/protobuf/proto"
-	"sync"
-	"time"
 )
 
 //ContainerdEvent contains the timestamp to make sure we flush all events that happened between two checks
@@ -32,26 +33,27 @@ type ContainerdEvent struct {
 
 type Subscriber struct {
 	sync.Mutex
-	Name      string
-	Filters   []string
-	Events    []ContainerdEvent
-	Namespace string
+	Name                string
+	Filters             []string
+	Events              []ContainerdEvent
+	Namespace           string
 	CollectionTimestamp int64
-	IsRunning bool
+	IsRunning           bool
 }
 
 func CreateEventSubscriber(name string, ns string, f []string) *Subscriber {
 	return &Subscriber{
-		Name:      name,
-		Namespace: ns,
+		Name:                name,
+		Namespace:           ns,
 		CollectionTimestamp: time.Now().Unix(),
-		Filters: f,
+		Filters:             f,
 	}
 }
 
 func (s *Subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 	ctx := context.Background()
 	ev := ctrItf.GetEvents()
+	log.Info("Starting routine to collect Containerd events")
 	ctxNamespace := namespaces.WithNamespace(ctx, s.Namespace)
 	go s.run(ev, ctxNamespace)
 }
@@ -264,7 +266,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 	return nil
 }
 
-// flush should be called every time you want to
+// Flush should be called every time you want to
 func (s *Subscriber) Flush(timestamp int64) []ContainerdEvent {
 	delta := s.CollectionTimestamp - timestamp
 	if len(s.Events) == 0 {

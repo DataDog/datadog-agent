@@ -117,7 +117,7 @@ func (c *ContainerdCheck) Run() error {
 	}
 	events := c.sub.Flush(time.Now().Unix())
 	// Process events
-	computeEvents(c.hostname, events, sender)
+	computeEvents(c.hostname, events, sender, c.instance.Tags)
 
 	nk := namespaces.WithNamespace(context.Background(), ns)
 	computeMetrics(sender, nk, cu, c.instance.Tags)
@@ -125,8 +125,16 @@ func (c *ContainerdCheck) Run() error {
 	return nil
 }
 
-func computeEvents(hostname string, events []ContainerdEvent, sender aggregator.Sender) {
+// compute events converts Containerd events into Datadog events
+func computeEvents(hostname string, events []ContainerdEvent, sender aggregator.Sender, userTags []string) {
 	for _, e := range events {
+		split := strings.Split(e.Topic, "/")
+		if len(split) != 3 {
+			// sanity checking the event, to avoid submitting
+			log.Tracef("Event topic %s does not have the expected format", e.Topic)
+			continue
+		}
+
 		output := metrics.Event{
 			Priority:       metrics.EventPriorityNormal,
 			Host:           hostname,
@@ -135,26 +143,20 @@ func computeEvents(hostname string, events []ContainerdEvent, sender aggregator.
 			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
 		}
 		output.Text = e.Message
-		if e.Extra != nil {
+		if len(e.Extra) > 0 {
 			for k, v := range e.Extra {
 				output.Tags = append(output.Tags, fmt.Sprintf("%s:%s", k, v))
 			}
 		}
+		output.Tags = append(output.Tags, userTags...)
 		output.Ts = e.Timestamp.Unix()
-		split := strings.Split(e.Topic, "/")
-		if len(split) < 3 {
-			// sanity checking the event, to avoid submitting
-			log.Tracef("Event topic %s does not have the expected format", e.Topic)
-			continue
-		}
-
 		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
 			tags, err := tagger.Tag(e.ID, true)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
-				log.Errorf("Could not retrieve tags for the container %s", e.ID)
+				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)
 			}
 			output.Tags = append(output.Tags, tags...)
 		}
