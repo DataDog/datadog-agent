@@ -41,6 +41,7 @@ var (
 	verbose      bool
 	useSysPython bool
 	tufConfig    string
+	quietVersion bool
 )
 
 type integrationVersion struct {
@@ -107,6 +108,7 @@ func init() {
 	tufCmd.AddCommand(removeCmd)
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.AddCommand(freezeCmd)
+	tufCmd.AddCommand(integrationVersionCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
 	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
 	tufCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
@@ -116,6 +118,8 @@ func init() {
 
 	// Power user flags - mark as hidden
 	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
+
+	integrationVersionCmd.Flags().BoolVarP(&quietVersion, "quiet", "q", false, "only display version")
 }
 
 var tufCmd = &cobra.Command{
@@ -154,6 +158,14 @@ var freezeCmd = &cobra.Command{
 	Short: "Freeze list of installed python packages",
 	Long:  ``,
 	RunE:  freeze,
+}
+
+var integrationVersionCmd = &cobra.Command{
+	Use:   "version [package]",
+	Short: "Print out the currently installed version of [package]",
+	Args:  cobra.ExactArgs(1),
+	Long:  ``,
+	RunE:  integrationVersionCmdRun,
 }
 
 func getTufConfigPath() string {
@@ -607,4 +619,34 @@ func freeze(cmd *cobra.Command, args []string) error {
 	}
 
 	return tuf(tufArgs)
+}
+
+func integrationVersionCmdRun(cmd *cobra.Command, args []string) error {
+
+	cachePath, err := getTUFPipCachePath()
+	if err != nil {
+		return err
+	}
+
+	packageName := strings.Replace(args[0], "_", "-", -1)
+
+	version, err := installedVersion(packageName, cachePath)
+	if err != nil {
+		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
+	}
+
+	if version == nil {
+		// Package not installed, return 0 and print nothing
+		return nil
+	}
+
+	if quietVersion {
+		// Print only the version for easier parsing
+		fmt.Println(version)
+	} else {
+		fmt.Printf("Installed version of %s: %s", packageName, version)
+		fmt.Println()
+	}
+
+	return nil
 }
