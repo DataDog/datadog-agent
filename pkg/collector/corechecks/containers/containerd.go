@@ -33,7 +33,9 @@ import (
 
 const (
 	containerdCheckName = "containerd"
-	// We only support containerd in Kubernetes - By default using the k8s.io ns, configurable in the containerd.yaml
+	// We only support containerd in Kubernetes.
+	// By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
+	// Configurable in the containerd.yaml
 	defaultNamespace = "k8s.io"
 )
 
