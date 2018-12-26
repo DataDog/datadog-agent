@@ -8,7 +8,6 @@
 package containerd
 
 import (
-	"context"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,12 +18,11 @@ func init() {
 
 // diagnose the Containerd socket connectivity
 func diagnose() error {
-	ctx := context.Background()
 	cu, err := GetContainerdUtil()
 	if err != nil {
 		return err
 	}
-	ver, err := cu.Metadata(ctx)
+	ver, err := cu.Metadata()
 	if err == nil {
 		log.Infof("Connected to containerd - Version %s/%s", ver.Version, ver.Revision)
 	}
