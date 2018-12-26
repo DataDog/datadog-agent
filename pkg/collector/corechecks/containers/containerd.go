@@ -10,6 +10,15 @@ package containers
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
+	"github.com/containerd/cgroups"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/typeurl"
+	"github.com/gogo/protobuf/types"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -18,17 +27,9 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	util "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/containerd/cgroups"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/typeurl"
-	"github.com/gogo/protobuf/types"
-	"gopkg.in/yaml.v2"
-	"strings"
-	"time"
 )
 
 const (
@@ -49,9 +50,9 @@ type ContainerdCheck struct {
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	Tags      []string
-	Namespace string
-	Filters   []string
+	Tags      []string `yaml:"tags"`
+	Namespace string   `yaml:"namespace"`
+	Filters   []string `yaml:"filters"`
 }
 
 func init() {
@@ -99,7 +100,7 @@ func (c *ContainerdCheck) Run() error {
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	cu, errHealth := cutil.GetContainerdUtil()
 	if errHealth != nil {
-		log.Infof("Error ensuring connectivity with containerd daemon %v", errHealth)
+		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
 	var ns string
@@ -111,7 +112,8 @@ func (c *ContainerdCheck) Run() error {
 		c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.Filters)
 	}
 	if !c.sub.IsRunning {
-		c.sub.CheckEvents(cu) // Use the ns gotten from above
+		// Keep track of the health of the Containerd socket
+		c.sub.CheckEvents(cu)
 	}
 	events := c.sub.Flush(time.Now().Unix())
 	// Process events
@@ -140,8 +142,15 @@ func computeEvents(hostname string, events []ContainerdEvent, sender aggregator.
 		}
 		output.Ts = e.Timestamp.Unix()
 		split := strings.Split(e.Topic, "/")
+		if len(split) < 3 {
+			// sanity checking the event, to avoid submitting
+			log.Tracef("Event topic %s does not have the expected format", e.Topic)
+			continue
+		}
+
 		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
 		if split[1] == "containers" || split[1] == "tasks" {
+			// For task events, we use the container ID in order to query the Tagger's API
 			tags, err := tagger.Tag(e.ID, true)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
@@ -151,11 +160,10 @@ func computeEvents(hostname string, events []ContainerdEvent, sender aggregator.
 		}
 		sender.Event(output)
 	}
-	return
 }
 
 func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.ContainerdItf, userTags []string) {
-	containers, err := cu.Containers(nk)
+	containers, err := cu.Containers()
 	if err != nil {
 		log.Errorf(err.Error())
 		return
