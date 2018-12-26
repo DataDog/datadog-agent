@@ -121,6 +121,7 @@ dependency 'datadog-agent'
 # Additional software
 dependency 'datadog-pip'
 dependency 'datadog-agent-integrations'
+dependency 'datadog-agent-env-check'
 dependency 'jmxfetch'
 
 # External agents
