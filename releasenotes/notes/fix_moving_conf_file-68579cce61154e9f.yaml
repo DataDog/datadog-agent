@@ -9,7 +9,7 @@
 fixes:
   - |
     Fix bug of the ``datadog-agent integration install`` command that prevented
-    moving configuration files when the `conf.d` folder is a mounted directory.
+    moving configuration files when the ``conf.d`` folder is a mounted directory.
   - |
     The ``datadog-agent integration install`` command creates the configuration folder
-    for a integration with the correct permissions so that the configuration files can be copied.
+    for an integration with the correct permissions so that the configuration files can be copied.
