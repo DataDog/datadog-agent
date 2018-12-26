@@ -19,7 +19,7 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, false, coreConfig.Datadog.GetBool("log_enabled"))
 	assert.Equal(t, false, coreConfig.Datadog.GetBool("logs_enabled"))
 	assert.Equal(t, "", coreConfig.Datadog.GetString("logset"))
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", coreConfig.Datadog.GetString("logs_config.dd_url"))
+	assert.Equal(t, "", coreConfig.Datadog.GetString("logs_config.dd_url"))
 	assert.Equal(t, 10516, coreConfig.Datadog.GetInt("logs_config.dd_port"))
 	assert.Equal(t, false, coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl"))
 	assert.Equal(t, "agent-443-intake.logs.datadoghq.com", coreConfig.Datadog.GetString("logs_config.dd_url_443"))
@@ -31,6 +31,20 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, "", coreConfig.Datadog.GetString("logs_config.logs_dd_url"))
 	assert.Equal(t, false, coreConfig.Datadog.GetBool("logs_config.logs_no_ssl"))
 	assert.Equal(t, 30, coreConfig.Datadog.GetInt("logs_config.stop_grace_period"))
+}
+
+func TestDatadogConfig(t *testing.T) {
+	assert.Equal(t, "agent-intake.logs.datadoghq.com", coreConfig.GetMainEndpoint(logAgentPrefix, "logs_config.dd_url"))
+
+	coreConfig.Datadog.Set("site", "datadoghq.eu")
+	assert.Equal(t, "agent-intake.logs.datadoghq.eu", coreConfig.GetMainEndpoint(logAgentPrefix, "logs_config.dd_url"))
+
+	coreConfig.Datadog.Set("logs_config.dd_url", "lambda.logs.datadoghq.co.jp")
+	assert.Equal(t, "lambda.logs.datadoghq.co.jp", coreConfig.GetMainEndpoint(logAgentPrefix, "logs_config.dd_url"))
+
+	// Cleanup: reset Datadog config
+	coreConfig.Datadog.Set("logs_config.dd_url", "")
+	coreConfig.Datadog.Set("site", "")
 }
 
 func TestDefaultSources(t *testing.T) {
