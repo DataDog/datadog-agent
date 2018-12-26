@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add ``datadog-agent integration version [package]`` command to show the currently installed version of an integration.
+    Add ``datadog-agent integration show [package]`` command to show information about an installed integration.
