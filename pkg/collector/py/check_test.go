@@ -90,12 +90,20 @@ func TestSubprocessRunConcurrent(t *testing.T) {
 		instances[i] = check
 	}
 
+	done := make(chan bool)
+
 	for _, check := range instances {
 		go func(c *PythonCheck) {
 			err := c.Run()
 			assert.Nil(t, err)
+			done <- true
 		}(check)
 	}
+
+	for _ = range instances {
+		<-done
+	}
+	close(done)
 }
 
 func TestWarning(t *testing.T) {
