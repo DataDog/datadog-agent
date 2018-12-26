@@ -49,6 +49,7 @@ type ContainerdCheck struct {
 type ContainerdConfig struct {
 	Tags      []string
 	Namespace string
+	Filters   []string
 }
 
 func init() {
@@ -79,7 +80,11 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 	if err != nil {
 		return err
 	}
-	return c.instance.Parse(config)
+	if err = c.instance.Parse(config); err != nil {
+		return err
+	}
+	c.sub.Filters = c.instance.Filters
+	return nil
 }
 
 // Run executes the check
@@ -101,7 +106,7 @@ func (c *ContainerdCheck) Run() error {
 	}
 
 	if c.sub == nil {
-		c.sub = CreateEventSubscriber("ContainerdCheck", ns)
+		c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.Filters)
 	}
 	if !c.sub.IsRunning {
 		c.sub.CheckEvents(cu) // Use the ns gotten from above

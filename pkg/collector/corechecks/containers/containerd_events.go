@@ -10,7 +10,7 @@ package containers
 import (
 	"context"
 	"fmt"
-	containerd2 "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
@@ -36,27 +36,30 @@ type Subscriber struct {
 	Filters   []string
 	Events    []ContainerdEvent
 	Namespace string
+	CollectionTimestamp int64
 	IsRunning bool
 }
 
-func CreateEventSubscriber(name string, ns string) *Subscriber {
+func CreateEventSubscriber(name string, ns string, f []string) *Subscriber {
 	return &Subscriber{
 		Name:      name,
 		Namespace: ns,
+		CollectionTimestamp: time.Now().Unix(),
+		Filters: f,
 	}
 }
 
-func (s *Subscriber) CheckEvents(ctrItf containerd2.ContainerdItf) {
+func (s *Subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 	ctx := context.Background()
 	ev := ctrItf.GetEvents()
 	ctxNamespace := namespaces.WithNamespace(ctx, s.Namespace)
-	go s.run(ev, ctxNamespace, s.Filters)
+	go s.run(ev, ctxNamespace)
 }
 
 // Run should only be called once, at start time.
-func (s *Subscriber) run(ev containerd.EventService, ctx context.Context, filters []string) error {
+func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error {
 
-	stream, errC := ev.Subscribe(ctx, filters...)
+	stream, errC := ev.Subscribe(ctx, s.Filters...)
 	s.IsRunning = true
 	for {
 		select {
@@ -159,7 +162,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context, filter
 				}
 				s.Events = append(s.Events, event)
 			case "/tasks/create":
-				created := &events.TaskStart{}
+				created := &events.TaskCreate{}
 				err := proto.Unmarshal(message.Event.Value, created)
 				if err != nil {
 					log.Errorf("Could not process create event from Containerd: %v", err)
@@ -177,7 +180,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context, filter
 				deleted := &events.TaskDelete{}
 				err := proto.Unmarshal(message.Event.Value, deleted)
 				if err != nil {
-					log.Errorf("Could not process create event from Containerd: %v", err)
+					log.Errorf("Could not process delete event from Containerd: %v", err)
 					continue
 				}
 				event := ContainerdEvent{
@@ -192,7 +195,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context, filter
 				exited := &events.TaskExit{}
 				err := proto.Unmarshal(message.Event.Value, exited)
 				if err != nil {
-					log.Errorf("Could not process create event from Containerd: %v", err)
+					log.Errorf("Could not process exit event from Containerd: %v", err)
 					continue
 				}
 				event := ContainerdEvent{
@@ -248,27 +251,12 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context, filter
 					Message:   fmt.Sprintf("Task %s was resumed", resumed.ContainerID),
 				}
 				s.Events = append(s.Events, event)
-			case "":
-				exited := &events.TaskExit{}
-				err := proto.Unmarshal(message.Event.Value, exited)
-				if err != nil {
-					log.Errorf("Could not process create event from Containerd: %v", err)
-					continue
-				}
-				event := ContainerdEvent{
-					ID:        exited.ContainerID,
-					Timestamp: message.Timestamp,
-					Topic:     message.Topic,
-					Namespace: message.Namespace,
-					Message:   fmt.Sprintf("Task %s was exited with exit code %d", exited.ContainerID, exited.ExitStatus),
-				}
-				s.Events = append(s.Events, event)
 			default:
 				log.Tracef("Unsupported event type from Containerd: %s ", message.Topic)
 			}
 		case e := <-errC:
-			// Log error
 			log.Errorf("Error while streaming logs from containerd: %s", e.Error())
+			// As we only collect events from one containerd namespace, using this bool is sufficient.
 			s.IsRunning = false
 			break
 		}
@@ -278,13 +266,16 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context, filter
 
 // flush should be called every time you want to
 func (s *Subscriber) Flush(timestamp int64) []ContainerdEvent {
+	delta := s.CollectionTimestamp - timestamp
 	if len(s.Events) == 0 {
+		log.Tracef("No events collected in the last %d seconds", delta)
 		return nil
 	}
-
+	s.CollectionTimestamp = timestamp
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 	ev := s.Events
+	log.Debugf("Collecting %d events from Containerd", len(ev))
 	s.Events = []ContainerdEvent{}
 	return ev
 }
