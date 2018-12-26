@@ -644,8 +644,7 @@ func integrationVersionCmdRun(cmd *cobra.Command, args []string) error {
 		// Print only the version for easier parsing
 		fmt.Println(version)
 	} else {
-		fmt.Printf("Installed version of %s: %s", packageName, version)
-		fmt.Println()
+		fmt.Printf("Installed version of %s: %s\n", packageName, version)
 	}
 
 	return nil
