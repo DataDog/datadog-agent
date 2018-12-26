@@ -41,7 +41,7 @@ var (
 	verbose      bool
 	useSysPython bool
 	tufConfig    string
-	quietVersion bool
+	versionOnly  bool
 )
 
 type integrationVersion struct {
@@ -108,7 +108,7 @@ func init() {
 	tufCmd.AddCommand(removeCmd)
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.AddCommand(freezeCmd)
-	tufCmd.AddCommand(integrationVersionCmd)
+	tufCmd.AddCommand(showCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
 	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
 	tufCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
@@ -119,7 +119,7 @@ func init() {
 	// Power user flags - mark as hidden
 	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
 
-	integrationVersionCmd.Flags().BoolVarP(&quietVersion, "quiet", "q", false, "only display version")
+	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 }
 
 var tufCmd = &cobra.Command{
@@ -160,12 +160,12 @@ var freezeCmd = &cobra.Command{
 	RunE:  freeze,
 }
 
-var integrationVersionCmd = &cobra.Command{
-	Use:   "version [package]",
-	Short: "Print out the currently installed version of [package]",
+var showCmd = &cobra.Command{
+	Use:   "show [package]",
+	Short: "Print out information about [package]",
 	Args:  cobra.ExactArgs(1),
 	Long:  ``,
-	RunE:  integrationVersionCmdRun,
+	RunE:  show,
 }
 
 func getTufConfigPath() string {
@@ -621,7 +621,7 @@ func freeze(cmd *cobra.Command, args []string) error {
 	return tuf(tufArgs)
 }
 
-func integrationVersionCmdRun(cmd *cobra.Command, args []string) error {
+func show(cmd *cobra.Command, args []string) error {
 
 	cachePath, err := getTUFPipCachePath()
 	if err != nil {
@@ -640,11 +640,15 @@ func integrationVersionCmdRun(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if quietVersion {
+	if versionOnly {
 		// Print only the version for easier parsing
 		fmt.Println(version)
 	} else {
-		fmt.Printf("Installed version of %s: %s\n", packageName, version)
+		msg := `
+Package %s:
+Installed version: %s
+`
+		fmt.Printf(msg, packageName, version)
 	}
 
 	return nil
