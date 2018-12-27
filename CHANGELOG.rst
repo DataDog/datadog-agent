@@ -7,6 +7,13 @@ Release Notes
 6.8.3
 =====
 
+.. _Release Notes_6.8.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-12-27
+
 .. _Release Notes_6.8.3_Bug Fixes:
 
 Bug Fixes
