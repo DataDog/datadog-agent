@@ -107,7 +107,6 @@ func (c *ContainerdUtil) connect() error {
 		grpc.WithTimeout(c.connectionTimeout),
 	}
 	clientOpts := containerd.WithDialOpts(opts)
-	// If we lose the connection, let's reset the state including the Dial options
 	c.cl, err = containerd.New(c.socketPath, clientOpts)
 	return err
 }

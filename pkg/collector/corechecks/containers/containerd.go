@@ -111,7 +111,8 @@ func (c *ContainerdCheck) Run() error {
 	if c.sub == nil {
 		c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.Filters)
 	}
-	if !c.sub.IsRunning {
+
+	if !c.sub.IsRunning() {
 		// Keep track of the health of the Containerd socket
 		c.sub.CheckEvents(cu)
 	}

@@ -38,7 +38,7 @@ type Subscriber struct {
 	Events              []ContainerdEvent
 	Namespace           string
 	CollectionTimestamp int64
-	IsRunning           bool
+	isRunning           bool
 }
 
 func CreateEventSubscriber(name string, ns string, f []string) *Subscriber {
@@ -60,9 +60,10 @@ func (s *Subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 
 // Run should only be called once, at start time.
 func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error {
-
 	stream, errC := ev.Subscribe(ctx, s.Filters...)
-	s.IsRunning = true
+	s.Lock()
+	s.isRunning = true
+	s.Unlock()
 	for {
 		select {
 		case message := <-stream:
@@ -81,8 +82,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Container %s started, running the image %s", create.ID, create.Image),
 				}
-				s.Events = append(s.Events, event)
-
+				s.addEvents(event)
 			case "/containers/delete":
 				delete := &events.ContainerDelete{}
 				err := proto.Unmarshal(message.Event.Value, delete)
@@ -97,8 +97,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Container %s deleted", delete.ID),
 				}
-				s.Events = append(s.Events, event)
-
+				s.addEvents(event)
 			case "/containers/update":
 				updated := &events.ContainerUpdate{}
 				err := proto.Unmarshal(message.Event.Value, updated)
@@ -114,8 +113,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Message:   fmt.Sprintf("Container %s updated, running image %s. Snapshot key: %s", updated.ID, updated.Image, updated.SnapshotKey),
 					Extra:     updated.Labels,
 				}
-				s.Events = append(s.Events, event)
-
+				s.addEvents(event)
 			case "/images/update":
 				updated := &events.ImageUpdate{}
 				err := proto.Unmarshal(message.Event.Value, updated)
@@ -131,7 +129,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Message:   fmt.Sprintf("Image %s updated", updated.Name),
 					Extra:     updated.Labels,
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			case "/images/create":
 				created := &events.ImageCreate{}
 				err := proto.Unmarshal(message.Event.Value, created)
@@ -147,7 +145,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Message:   fmt.Sprintf("Image %s created", created.Name),
 					Extra:     created.Labels,
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			case "/images/delete":
 				deleted := &events.ImageDelete{}
 				err := proto.Unmarshal(message.Event.Value, deleted)
@@ -162,7 +160,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Image %s created", deleted.Name),
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			case "/tasks/create":
 				created := &events.TaskCreate{}
 				err := proto.Unmarshal(message.Event.Value, created)
@@ -177,7 +175,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Task %s created with PID %d", created.ContainerID, created.Pid),
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			case "/tasks/delete":
 				deleted := &events.TaskDelete{}
 				err := proto.Unmarshal(message.Event.Value, deleted)
@@ -192,7 +190,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Task %s deleted with exit code %d", deleted.ContainerID, deleted.ExitStatus),
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			case "/tasks/exit":
 				exited := &events.TaskExit{}
 				err := proto.Unmarshal(message.Event.Value, exited)
@@ -207,7 +205,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Task %s exited with exit code %d", exited.ContainerID, exited.ExitStatus),
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			case "/tasks/oom":
 				oomed := &events.TaskOOM{}
 				err := proto.Unmarshal(message.Event.Value, oomed)
@@ -222,7 +220,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Task %s ran out of memory", oomed.ContainerID),
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			case "/tasks/paused":
 				paused := &events.TaskPaused{}
 				err := proto.Unmarshal(message.Event.Value, paused)
@@ -237,7 +235,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Task %s was paused", paused.ContainerID),
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			case "/tasks/resumed":
 				resumed := &events.TaskResumed{}
 				err := proto.Unmarshal(message.Event.Value, resumed)
@@ -252,30 +250,45 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 					Namespace: message.Namespace,
 					Message:   fmt.Sprintf("Task %s was resumed", resumed.ContainerID),
 				}
-				s.Events = append(s.Events, event)
+				s.addEvents(event)
 			default:
 				log.Tracef("Unsupported event type from Containerd: %s ", message.Topic)
 			}
 		case e := <-errC:
 			log.Errorf("Error while streaming logs from containerd: %s", e.Error())
 			// As we only collect events from one containerd namespace, using this bool is sufficient.
-			s.IsRunning = false
+			s.Lock()
+			s.isRunning = false
+			s.Unlock()
 			break
 		}
 	}
 	return nil
 }
 
+func (s *Subscriber) addEvents(event ContainerdEvent) {
+	s.Lock()
+	s.Events = append(s.Events, event)
+	s.Unlock()
+}
+
+func (s *Subscriber) IsRunning() bool {
+	s.Lock()
+	defer s.Unlock()
+	fmt.Printf("Called \n \n")
+	return s.isRunning
+}
+
 // Flush should be called every time you want to
 func (s *Subscriber) Flush(timestamp int64) []ContainerdEvent {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
 	delta := s.CollectionTimestamp - timestamp
 	if len(s.Events) == 0 {
 		log.Tracef("No events collected in the last %d seconds", delta)
 		return nil
 	}
 	s.CollectionTimestamp = timestamp
-	s.Mutex.Lock()
-	defer s.Mutex.Unlock()
 	ev := s.Events
 	log.Debugf("Collecting %d events from Containerd", len(ev))
 	s.Events = []ContainerdEvent{}

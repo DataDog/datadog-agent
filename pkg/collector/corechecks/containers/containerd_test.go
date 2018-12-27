@@ -104,9 +104,6 @@ func TestCollectTags(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cs := &mockContainer{
-				//mockTask: func() (containerd.Task, error) {
-				//	return nil, nil
-				//},
 				mockImage: func() (containerd.Image, error) {
 					img.imageName = test.imageName
 					return containerd.Image(img), nil
@@ -207,9 +204,9 @@ func TestComputeEvents(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 		computeEvents(test.hostname, test.events, mocked, containerdCheck.instance.Tags)
 		mocked.On("Event", mock.AnythingOfType("metrics.Event"))
-		//fmt.Printf("Currently evaluating %v \n", test)
 		if len(mocked.Calls) > 0 {
 			res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
 			assert.Contains(t, res.Title, test.expectedTitle)
@@ -217,6 +214,7 @@ func TestComputeEvents(t *testing.T) {
 		}
 		mocked.AssertNumberOfCalls(t, "Event", test.numberEvents)
 		mocked.ResetCalls()
+	})
 	}
 }
 
@@ -281,3 +279,4 @@ func TestConvertTaskToMetrics(t *testing.T) {
 		})
 	}
 }
+
