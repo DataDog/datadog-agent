@@ -205,16 +205,16 @@ func TestComputeEvents(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-		computeEvents(test.hostname, test.events, mocked, containerdCheck.instance.Tags)
-		mocked.On("Event", mock.AnythingOfType("metrics.Event"))
-		if len(mocked.Calls) > 0 {
-			res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
-			assert.Contains(t, res.Title, test.expectedTitle)
-			assert.EqualStringSlice(t, res.Tags, test.expectedTags)
-		}
-		mocked.AssertNumberOfCalls(t, "Event", test.numberEvents)
-		mocked.ResetCalls()
-	})
+			computeEvents(test.hostname, test.events, mocked, containerdCheck.instance.Tags)
+			mocked.On("Event", mock.AnythingOfType("metrics.Event"))
+			if len(mocked.Calls) > 0 {
+				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
+				assert.Contains(t, res.Title, test.expectedTitle)
+				assert.EqualStringSlice(t, res.Tags, test.expectedTags)
+			}
+			mocked.AssertNumberOfCalls(t, "Event", test.numberEvents)
+			mocked.ResetCalls()
+		})
 	}
 }
 
@@ -279,4 +279,3 @@ func TestConvertTaskToMetrics(t *testing.T) {
 		})
 	}
 }
-
