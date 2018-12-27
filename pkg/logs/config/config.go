@@ -19,7 +19,12 @@ import (
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
 
-const logAgentPrefix = "agent-intake.logs."
+const logsAgentPrefix = "agent-intake.logs."
+
+var logsEuEndpoints = map[string]int{
+	"agent-intake.logs.datadoghq.eu": 443,
+	"agent-intake.logs.datad0g.eu":   443,
+}
 
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
 func DefaultSources() []*LogSource {
@@ -76,8 +81,12 @@ func BuildEndpoints() (*client.Endpoints, error) {
 		useSSL = true
 	default:
 		// datadog settings
-		main.Host = coreConfig.GetMainEndpoint(logAgentPrefix, "logs_config.dd_url")
-		main.Port = coreConfig.Datadog.GetInt("logs_config.dd_port")
+		main.Host = coreConfig.GetMainEndpoint(logsAgentPrefix, "logs_config.dd_url")
+		if port, found := logsEuEndpoints[main.Host]; found {
+			main.Port = port
+		} else {
+			main.Port = coreConfig.Datadog.GetInt("logs_config.dd_port")
+		}
 		useSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 	main.UseSSL = useSSL

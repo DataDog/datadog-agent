@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Support the ``site``config option in the log agent.
+    Support the ``site`` config option in the log agent.
