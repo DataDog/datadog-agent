@@ -27,10 +27,15 @@ type mockItf struct {
 	mockEvents    func() containerd.EventService
 	mockContainer func() ([]containerd.Container, error)
 	mockMetadata  func() (containerd.Version, error)
+	mockNamespace func() string
 }
 
 func (m *mockItf) Metadata() (containerd.Version, error) {
 	return m.mockMetadata()
+}
+
+func (m *mockItf) Namespace() string {
+	return m.mockNamespace()
 }
 
 func (m *mockItf) Containers() ([]containerd.Container, error) {

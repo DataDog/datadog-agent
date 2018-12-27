@@ -12,12 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/containerd/containerd"
-	"google.golang.org/grpc"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/namespaces"
 )
 
 const (
@@ -36,6 +35,7 @@ type ContainerdItf interface {
 	GetEvents() containerd.EventService
 	Containers() ([]containerd.Container, error)
 	Metadata() (containerd.Version, error)
+	Namespace() string
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -45,6 +45,7 @@ type ContainerdUtil struct {
 	initRetry         retry.Retrier
 	queryTimeout      time.Duration
 	connectionTimeout time.Duration
+	namespace         string
 }
 
 // GetContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
@@ -55,6 +56,7 @@ func GetContainerdUtil() (ContainerdItf, error) {
 			queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
 			connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
 			socketPath:        config.Datadog.GetString("cri_socket_path"),
+			namespace:         config.Datadog.GetString("containerd_namespace"),
 		}
 		// Initialize the client in the connect method
 		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
@@ -72,11 +74,16 @@ func GetContainerdUtil() (ContainerdItf, error) {
 	return globalContainerdUtil, nil
 }
 
+func (c *ContainerdUtil) Namespace() string {
+	return c.namespace
+}
+
 // Metadata is used to collect the version and revision of the Containerd API
 func (c *ContainerdUtil) Metadata() (containerd.Version, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
-	return c.cl.Version(ctx)
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+	return c.cl.Version(ctxNamespace)
 }
 
 // Close is used when done with a ContainerdUtil
@@ -103,11 +110,11 @@ func (c *ContainerdUtil) connect() error {
 		}
 		return nil
 	}
-	opts := []grpc.DialOption{
-		grpc.WithTimeout(c.connectionTimeout),
-	}
-	clientOpts := containerd.WithDialOpts(opts)
-	c.cl, err = containerd.New(c.socketPath, clientOpts)
+	//opts := []grpc.DialOption{
+	//	grpc.WithTimeout(c.connectionTimeout),
+	//}
+	//clientOpts := containerd.WithDialOpts(opts)
+	c.cl, err = containerd.New(c.socketPath)
 	return err
 }
 
@@ -120,5 +127,6 @@ func (c *ContainerdUtil) GetEvents() containerd.EventService {
 func (c *ContainerdUtil) Containers() ([]containerd.Container, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
-	return c.cl.Containers(ctx)
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+	return c.cl.Containers(ctxNamespace)
 }

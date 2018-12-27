@@ -222,6 +222,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 
+	// Containerd
+	// We only support containerd in Kubernetes. By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
+	config.BindEnvAndSetDefault("containerd_namespace", "k8s.io")
+
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)

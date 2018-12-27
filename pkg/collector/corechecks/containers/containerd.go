@@ -34,10 +34,6 @@ import (
 
 const (
 	containerdCheckName = "containerd"
-	// We only support containerd in Kubernetes.
-	// By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
-	// Configurable in the containerd.yaml
-	defaultNamespace = "k8s.io"
 )
 
 // ContainerCheck grabs containerd metrics and events
@@ -50,9 +46,8 @@ type ContainerdCheck struct {
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	Tags      []string `yaml:"tags"`
-	Namespace string   `yaml:"namespace"`
-	Filters   []string `yaml:"filters"`
+	Tags    []string `yaml:"tags"`
+	Filters []string `yaml:"filters"`
 }
 
 func init() {
@@ -108,10 +103,7 @@ func (c *ContainerdCheck) Run() error {
 		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
-	var ns string
-	if ns = c.instance.Namespace; ns == "" {
-		ns = defaultNamespace
-	}
+	ns := cu.Namespace()
 
 	if c.sub == nil {
 		c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.Filters)
