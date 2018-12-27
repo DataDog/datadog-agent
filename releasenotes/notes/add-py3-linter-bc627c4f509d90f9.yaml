@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    In preparation to Python2 being EOL we now ship a Python3 linter to warn
+    user if they are using custom checks not compatible wiht both version 2 and
+    3 of Python.

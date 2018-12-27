@@ -53,7 +53,21 @@ Collector
       {{- end }}
     {{- end}}
   {{- end }}
-{{- end }}
+
+  {{- if .Py3Warnings }}
+  Agent 7.0 incompatible checks
+  =============================
+    {{- range $CheckName, $warnings :=  .Py3Warnings }}
+
+      {{ $CheckName }}
+      {{printDashes $CheckName "-"}}
+
+      {{- range $warn := $warnings}}
+        - {{$warn}}
+      {{- end }}
+    {{- end}}
+  {{- end }}
+{{ end }}
 
 {{- with .AutoConfigStats }}
   {{- if .ConfigErrors}}

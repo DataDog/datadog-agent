@@ -11,11 +11,13 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/sbinet/go-python"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,6 +26,7 @@ import (
 var (
 	pyLoaderStats   *expvar.Map
 	configureErrors map[string][]string
+	py3Warnings     map[string][]string
 	statsLock       sync.RWMutex
 )
 
@@ -34,8 +37,10 @@ func init() {
 	loaders.RegisterLoader(10, factory)
 
 	configureErrors = map[string][]string{}
+	py3Warnings = map[string][]string{}
 	pyLoaderStats = expvar.NewMap("pyLoader")
 	pyLoaderStats.Set("ConfigureErrors", expvar.Func(expvarConfigureErrors))
+	pyLoaderStats.Set("Py3Warnings", expvar.Func(expvarPy3Warnings))
 }
 
 // const things
@@ -93,7 +98,8 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 
 	var pyErr string
 	var checkModule *python.PyObject
-	for _, name := range modules {
+	var name string
+	for _, name = range modules {
 		// import python module containing the check
 		checkModule = python.PyImport_ImportModule(name)
 		if checkModule != nil {
@@ -160,7 +166,34 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 			} else {
 				log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, errors.New(pyErr))
 			}
-			log.Infof("python check '%s' doesn't have a '__version__' attribute", config.Name)
+			log.Debugf("python check '%s' doesn't have a '__version__' attribute", config.Name)
+
+			if !agentConfig.Datadog.GetBool("disable_py3_validation") {
+				// A check without a __version__ is most likely a
+				// custom check: let's check for py3 compatibility
+				checkFilePath := checkModule.GetAttrString("__file__")
+				if checkFilePath != nil {
+					defer checkFilePath.DecRef()
+					if python.PyString_Check(checkFilePath) {
+						filePath := python.PyString_AsString(checkFilePath)
+
+						// __file__ return the .pyc file path
+						if strings.HasSuffix(moduleName, ".pyc") {
+							filePath = filePath[:len(filePath)-1]
+						}
+						if warnings, err := validatePython3(name, filePath); err == nil {
+							addExpvarPy3Warnings(name, warnings)
+						} else {
+							log.Errorf("could not lint check %s for Python3 compatibility: %s", name, err)
+						}
+					} else {
+						log.Debugf("error: %s check attribute '__file__' is not a type string", name)
+					}
+				} else {
+					log.Debugf("Could not query the __file__ attribute for check %s", name)
+					python.PyErr_Clear()
+				}
+			}
 		}
 	}
 
@@ -213,5 +246,23 @@ func addExpvarConfigureError(check string, errMsg string) {
 		configureErrors[check] = append(errors, errMsg)
 	} else {
 		configureErrors[check] = []string{errMsg}
+	}
+}
+
+func expvarPy3Warnings() interface{} {
+	statsLock.RLock()
+	defer statsLock.RUnlock()
+
+	return py3Warnings
+}
+
+func addExpvarPy3Warnings(check string, warnings []string) {
+	statsLock.Lock()
+	defer statsLock.Unlock()
+
+	if len(warnings) > 0 {
+		py3Warnings[check] = warnings
+	} else {
+		log.Debugf("check '%s' seems to be compatible with Python3", check)
 	}
 }

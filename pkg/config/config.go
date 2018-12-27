@@ -116,6 +116,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnvAndSetDefault("bind_host", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
+	config.BindEnvAndSetDefault("disable_py3_validation", false)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward

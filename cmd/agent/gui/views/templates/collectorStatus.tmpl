@@ -52,6 +52,24 @@
       </span>
     </div>
     {{- end }}
+
+    {{- if .Py3Warnings }}
+    <div class="stat">
+      <span class="stat_title">Agent 7.0 incompatible checks</span>
+      <span class="stat_data">
+      {{ range $checkname, $warnings :=  .Py3Warnings }}
+          <span class="stat_subtitle">{{$checkname}}</span>
+          <span class="stat_subdata">
+            <ul>
+            {{- range $warn := $warnings}}
+              <li>{{ $warn -}}</li>
+            {{- end }}
+            </ul>
+          </span>
+      {{- end}}
+      </span>
+    </div>
+    {{- end }}
   {{- end }}
 
   {{- with .autoConfigStats -}}
