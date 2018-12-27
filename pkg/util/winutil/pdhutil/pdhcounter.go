@@ -13,16 +13,18 @@ import (
 )
 
 // For testing
-var pfnMakeCounterSetInstances = makeCounterSetIndexes
-var pfnPdhOpenQuery = PdhOpenQuery
-var pfnPdhAddCounter = PdhAddCounter
-var pfnPdhCollectQueryData = PdhCollectQueryData
-var pfnPdhEnumObjectItems = pdhEnumObjectItems
-var pfnPdhRemoveCounter = PdhRemoveCounter
-var pfnPdhLookupPerfNameByIndex = pdhLookupPerfNameByIndex
-var pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
-var pfnPdhCloseQuery = PdhCloseQuery
-var pfnPdhMakeCounterPath = pdhMakeCounterPath
+var (
+	pfnMakeCounterSetInstances          = makeCounterSetIndexes
+	pfnPdhOpenQuery                     = PdhOpenQuery
+	pfnPdhAddCounter                    = PdhAddCounter
+	pfnPdhCollectQueryData              = PdhCollectQueryData
+	pfnPdhEnumObjectItems               = pdhEnumObjectItems
+	pfnPdhRemoveCounter                 = PdhRemoveCounter
+	pfnPdhLookupPerfNameByIndex         = pdhLookupPerfNameByIndex
+	pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
+	pfnPdhCloseQuery                    = PdhCloseQuery
+	pfnPdhMakeCounterPath               = pdhMakeCounterPath
+)
 
 // CounterInstanceVerify is a callback function called by GetCounterSet for each
 // instance of the counter.  Implementation should return true if that instance
@@ -53,13 +55,13 @@ type PdhMultiInstanceCounterSet struct {
 }
 
 // Initialize initializes a counter set object
-func (p *PdhCounterSet) Initialize(className string) (err error) {
+func (p *PdhCounterSet) Initialize(className string) error {
 
 	// the counter index list may be > 1, but for class name, only take the first
 	// one.  If not present at all, try the english counter name
 	ndxlist, err := getCounterIndexList(className)
 	if err != nil {
-		return
+		return err
 	}
 	if ndxlist == nil || len(ndxlist) == 0 {
 		log.Warnf("Didn't find counter index for class %s, attempting english counter", className)
@@ -184,7 +186,7 @@ func (p *PdhMultiInstanceCounterSet) MakeInstanceList() error {
 		var hc PDH_HCOUNTER
 		winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &hc)
 		if ERROR_SUCCESS != winerror {
-			log.Debugf("Failed to add counter path%s", path)
+			log.Debugf("Failed to add counter path %s", path)
 			continue
 		}
 		log.Debugf("Adding missing counter instance %s", inst)
