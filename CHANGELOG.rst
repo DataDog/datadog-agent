@@ -7,7 +7,7 @@ Release Notes
 6.8.3
 =====
 
-.. _Release Notes_6.8.2_Prelude:
+.. _Release Notes_6.8.3_Prelude:
 
 Prelude
 -------
