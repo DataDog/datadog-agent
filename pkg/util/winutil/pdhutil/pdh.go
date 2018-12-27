@@ -215,3 +215,9 @@ func PdhCloseQuery(hQuery PDH_HQUERY) uint32 {
 
 	return uint32(ret)
 }
+
+// PdhRemoveCounter removes a counter from a query
+func PdhRemoveCounter(hCounter PDH_HCOUNTER) uint32 {
+	ret, _, _ := procPdhRemoveCounter.Call(uintptr(hCounter))
+	return uint32(ret)
+}
