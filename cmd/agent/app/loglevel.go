@@ -56,7 +56,7 @@ func changeLogLevel() error {
 	}
 
 	if len(logLevel) == 0 {
-		return fmt.Errorf("Invalid log level value.")
+		return fmt.Errorf("invalid log level value")
 	}
 
 	body := fmt.Sprintf("loglevel=%s", html.EscapeString(logLevel))
