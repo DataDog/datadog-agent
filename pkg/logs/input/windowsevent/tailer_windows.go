@@ -77,12 +77,12 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 
 	xml, err := EvtRender(handle)
 	if err != nil {
-		log.Warn("Error rendering xml: %v", err)
+		log.Warnf("Error rendering xml: %v", err)
 		return
 	}
 	t, exists := tailerForIndex(goctx.id)
 	if !exists {
-		log.Warnf("Got invalid eventContext id %s when map is %s", goctx.id, eventContextToTailerMap)
+		log.Warnf("Got invalid eventContext id %d when map is %v", goctx.id, eventContextToTailerMap)
 		return
 	}
 	msg, err := t.toMessage(xml)
@@ -118,7 +118,7 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 		uintptr(unsafe.Pointer(&bufUsed)), // filled in with necessary buffer size
 		uintptr(0))                        // not used but must be provided
 	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
-		log.Warnf("Couldn't render xml event: ", err)
+		log.Warnf("Couldn't render xml event: %s", err)
 		return
 	}
 	bufSize = bufUsed
