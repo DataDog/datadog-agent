@@ -25,10 +25,9 @@ func init() {
 }
 
 var logLevelCmd = &cobra.Command{
-	Use:    "loglevel",
-	Short:  "Change the log level",
-	Long:   ``,
-	Hidden: true,
+	Use:   "loglevel",
+	Short: "Change the Agent log level",
+	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
@@ -45,7 +44,7 @@ var logLevelCmd = &cobra.Command{
 }
 
 func changeLogLevel() error {
-	fmt.Printf("Changing the agent log level.\n\n")
+	fmt.Printf("Changing the Agent log level.\n\n")
 	var err error
 	client := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/loglevel", config.Datadog.GetInt("cmd_port"))
