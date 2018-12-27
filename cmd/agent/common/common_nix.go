@@ -37,3 +37,9 @@ func GetDistPath() string {
 func GetViewsPath() string {
 	return filepath.Join(distPath, "views")
 }
+
+// SetupLoggerFromConfig setups the logger configuration using the given log level
+// and the datadog configuration.
+func SetupLoggerFromConfig(logLevel string) error {
+	return setupLoggerFromConfig(logLevel)
+}

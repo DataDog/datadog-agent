@@ -11,6 +11,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"sort"
 
@@ -50,6 +51,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
+	r.HandleFunc("/loglevel", setLogLevel).Methods("POST")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -254,4 +256,16 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonTags)
+}
+
+func setLogLevel(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	ll := html.UnescapeString(r.Form.Get("loglevel"))
+	if err := common.SetupLoggerFromConfig(ll); err != nil {
+		log.Errorf("Unable to change log level: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write([]byte(ll))
 }

@@ -102,37 +102,8 @@ func StartAgent() error {
 	}
 
 	// Setup logger
-	if runtime.GOOS != "android" {
-		syslogURI := config.GetSyslogURI()
-		logFile := config.Datadog.GetString("log_file")
-		if logFile == "" {
-			logFile = common.DefaultLogFile
-		}
-
-		if config.Datadog.GetBool("disable_file_logging") {
-			// this will prevent any logging on file
-			logFile = ""
-		}
-
-		err = config.SetupLogger(
-			config.Datadog.GetString("log_level"),
-			logFile,
-			syslogURI,
-			config.Datadog.GetBool("syslog_rfc"),
-			config.Datadog.GetBool("log_to_console"),
-			config.Datadog.GetBool("log_format_json"),
-		)
-	} else {
-		err = config.SetupLogger(
-			config.Datadog.GetString("log_level"),
-			"", // no log file on android
-			"", // no syslog on android,
-			false,
-			true,  // always log to console
-			false, // not in json
-		)
-	}
-	if err != nil {
+	logLevel := config.Datadog.GetString("log_level")
+	if err = common.SetupLoggerFromConfig(logLevel); err != nil {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", err)
 	}
 

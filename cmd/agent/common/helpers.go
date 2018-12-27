@@ -34,3 +34,27 @@ func SetupConfig(confFilePath string) error {
 	}
 	return nil
 }
+
+// setupLogger setups the logger using datadog configuration.
+// Shared implementation for many platforms (except android).
+func setupLoggerFromConfig(logLevel string) error {
+	syslogURI := config.GetSyslogURI()
+	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = DefaultLogFile
+	}
+
+	if config.Datadog.GetBool("disable_file_logging") {
+		// this will prevent any logging on file
+		logFile = ""
+	}
+
+	return config.SetupLogger(
+		logLevel,
+		logFile,
+		syslogURI,
+		config.Datadog.GetBool("syslog_rfc"),
+		config.Datadog.GetBool("log_to_console"),
+		config.Datadog.GetBool("log_format_json"),
+	)
+}

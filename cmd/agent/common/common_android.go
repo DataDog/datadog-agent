@@ -7,6 +7,8 @@ package common
 
 import (
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
@@ -33,4 +35,16 @@ func GetDistPath() string {
 // GetViewsPath returns the fully qualified path to the 'gui/views' directory
 func GetViewsPath() string {
 	return filepath.Join(distPath, "views")
+}
+
+// SetupLoggerFromConfig setups the logger configuration using the given log level.
+func SetupLoggerFromConfig(logLevel string) error {
+	return config.SetupLogger(
+		logLevel,
+		"", // no log file on android
+		"", // no syslog on android,
+		false,
+		true,  // always log to console
+		false, // not in json
+	)
 }
