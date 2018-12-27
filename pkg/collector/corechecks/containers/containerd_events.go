@@ -263,7 +263,6 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 			return fmt.Errorf("stopping Containerd event listener routine...")
 		}
 	}
-	return nil
 }
 
 func (s *Subscriber) addEvents(event ContainerdEvent) {

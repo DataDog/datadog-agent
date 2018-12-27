@@ -78,11 +78,16 @@ func (co *ContainerdConfig) Parse(data []byte) error {
 
 // Configure parses the check configuration and init the check
 func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
-	err := c.CommonConfigure(config)
+	var err error
+	if err = c.CommonConfigure(config); err != nil {
+		return err
+	}
+
 	c.hostname, err = util.GetHostname()
 	if err != nil {
 		return err
 	}
+
 	if err = c.instance.Parse(config); err != nil {
 		return err
 	}

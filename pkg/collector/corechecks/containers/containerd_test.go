@@ -91,7 +91,7 @@ func TestCollectTags(t *testing.T) {
 		err       error
 	}{
 		{
-			"all functionning",
+			"all functioning",
 			map[string]string{"foo": "bar"},
 			"redis",
 			"containerd",
@@ -249,7 +249,7 @@ func TestConvertTaskToMetrics(t *testing.T) {
 			&cgroups.Metrics{},
 		},
 		{
-			"fully functionnal",
+			"fully functional",
 			"io.containerd.cgroups.v1.Metrics",
 			cgroups.Metrics{Memory: &cgroups.MemoryStat{Cache: 100}},
 			"",

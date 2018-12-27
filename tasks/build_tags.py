@@ -12,6 +12,7 @@ ALL_TAGS = set([
     "consul",
     "cpython",
     "cri",
+    "containerd",
     "docker",
     "ec2",
     "etcd",
@@ -38,6 +39,7 @@ LINUX_ONLY_TAGS = [
     "kubelet",
     "kubeapiserver",
     "cri",
+    "containerd",
     "netcgo",
 ]
 
