@@ -644,8 +644,7 @@ func show(cmd *cobra.Command, args []string) error {
 		// Print only the version for easier parsing
 		fmt.Println(version)
 	} else {
-		msg := `
-Package %s:
+		msg := `Package %s:
 Installed version: %s
 `
 		fmt.Printf(msg, packageName, version)
