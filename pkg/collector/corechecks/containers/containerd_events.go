@@ -53,7 +53,7 @@ func CreateEventSubscriber(name string, ns string, f []string) *Subscriber {
 func (s *Subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 	ctx := context.Background()
 	ev := ctrItf.GetEvents()
-	log.Info("Starting routine to collect Containerd events")
+	log.Info("Starting routine to collect Containerd events ...")
 	ctxNamespace := namespaces.WithNamespace(ctx, s.Namespace)
 	go s.run(ev, ctxNamespace)
 }
@@ -260,7 +260,7 @@ func (s *Subscriber) run(ev containerd.EventService, ctx context.Context) error 
 			s.Lock()
 			s.isRunning = false
 			s.Unlock()
-			break
+			return fmt.Errorf("stopping Containerd event listener routine...")
 		}
 	}
 	return nil
@@ -275,7 +275,6 @@ func (s *Subscriber) addEvents(event ContainerdEvent) {
 func (s *Subscriber) IsRunning() bool {
 	s.Lock()
 	defer s.Unlock()
-	fmt.Printf("Called \n \n")
 	return s.isRunning
 }
 
