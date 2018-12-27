@@ -539,7 +539,7 @@ func moveConfigurationFilesOf(integration string) error {
 		check = strings.Replace(check, "-", "_", -1)
 	}
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
-	if err := os.MkdirAll(confFileDest, os.ModeDir); err != nil {
+	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {
 		return err
 	}
 
@@ -567,13 +567,18 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		}
 		src := filepath.Join(srcFolder, filename)
 		dst := filepath.Join(dstFolder, filename)
-		err = os.Rename(src, dst)
+		srcContent, err := ioutil.ReadFile(src)
 		if err != nil {
-			errorMsg = fmt.Sprintf("%s\nError moving configuration file %s: %v", errorMsg, filename, err)
+			errorMsg = fmt.Sprintf("%s\nError reading configuration file %s: %v", errorMsg, src, err)
+			continue
+		}
+		err = ioutil.WriteFile(dst, srcContent, 0644)
+		if err != nil {
+			errorMsg = fmt.Sprintf("%s\nError writing configuration file %s: %v", errorMsg, dst, err)
 			continue
 		}
 		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully moved configuration file %s", filename,
+			"Successfully copied configuration file %s", filename,
 		)))
 	}
 	if errorMsg != "" {
