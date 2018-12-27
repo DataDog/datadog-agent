@@ -151,6 +151,8 @@ func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 		log.Info(goMsg)
 	case 10: // DEBUG
 		log.Debug(goMsg)
+	case 7: // TRACE
+		log.Trace(goMsg)
 	default: // unknown log level
 		log.Info(goMsg)
 	}
