@@ -65,7 +65,7 @@ func changeLogLevel() error {
 	if err != nil {
 		var errMap = make(map[string]string)
 		if jsonErr := json.Unmarshal(resp, &errMap); jsonErr != nil {
-			fmt.Printf("Could not read agent response: %v \nMake sure the agent is running before trying to change the loglevel and contact support if you continue having issues. \n", err)
+			fmt.Printf("Could not read agent response: %v \nMake sure the agent is running before trying to change the loglevel and contact support if you continue having issues. \n", jsonErr)
 		}
 
 		// If the error has been marshalled into a json object, check it and return it properly
