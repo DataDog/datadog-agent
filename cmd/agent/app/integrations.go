@@ -41,6 +41,7 @@ var (
 	verbose      bool
 	useSysPython bool
 	tufConfig    string
+	versionOnly  bool
 )
 
 type integrationVersion struct {
@@ -107,6 +108,7 @@ func init() {
 	tufCmd.AddCommand(removeCmd)
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.AddCommand(freezeCmd)
+	tufCmd.AddCommand(showCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
 	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
 	tufCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
@@ -116,6 +118,8 @@ func init() {
 
 	// Power user flags - mark as hidden
 	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
+
+	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 }
 
 var tufCmd = &cobra.Command{
@@ -154,6 +158,14 @@ var freezeCmd = &cobra.Command{
 	Short: "Freeze list of installed python packages",
 	Long:  ``,
 	RunE:  freeze,
+}
+
+var showCmd = &cobra.Command{
+	Use:   "show [package]",
+	Short: "Print out information about [package]",
+	Args:  cobra.ExactArgs(1),
+	Long:  ``,
+	RunE:  show,
 }
 
 func getTufConfigPath() string {
@@ -607,4 +619,36 @@ func freeze(cmd *cobra.Command, args []string) error {
 	}
 
 	return tuf(tufArgs)
+}
+
+func show(cmd *cobra.Command, args []string) error {
+
+	cachePath, err := getTUFPipCachePath()
+	if err != nil {
+		return err
+	}
+
+	packageName := strings.Replace(args[0], "_", "-", -1)
+
+	version, err := installedVersion(packageName, cachePath)
+	if err != nil {
+		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
+	}
+
+	if version == nil {
+		// Package not installed, return 0 and print nothing
+		return nil
+	}
+
+	if versionOnly {
+		// Print only the version for easier parsing
+		fmt.Println(version)
+	} else {
+		msg := `Package %s:
+Installed version: %s
+`
+		fmt.Printf(msg, packageName, version)
+	}
+
+	return nil
 }
