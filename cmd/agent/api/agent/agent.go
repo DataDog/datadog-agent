@@ -259,6 +259,7 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 }
 
 func setLogLevel(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request to change the log level.")
 	r.ParseForm()
 	ll := html.UnescapeString(r.Form.Get("loglevel"))
 	if err := common.SetupLoggerFromConfig(ll); err != nil {
@@ -267,5 +268,6 @@ func setLogLevel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
+	log.Infof("Log level changed to: %s", ll)
 	w.Write([]byte(ll))
 }
