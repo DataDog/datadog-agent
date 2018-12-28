@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    expose number of packets received for each dogstatsd listeners through expvar
+    Expose number of packets received for each dogstatsd listeners through expvar
