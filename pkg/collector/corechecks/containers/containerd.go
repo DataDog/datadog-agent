@@ -170,9 +170,13 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 	}
 
 	for _, ctn := range containers {
-		t, err := ctn.Task(nk, nil)
-		if err != nil {
-			log.Errorf(err.Error())
+		t, errTask := ctn.Task(nk, nil)
+		if errTask != nil {
+			s, err := t.Status(nk)
+			if err != nil {
+				log.Errorf("Could not retrieve the status of the task %s: %v", t.ID()[:12], err.Error())
+			}
+			log.Tracef("Could not retrieve metrics from task %s as it is %s: %s", t.ID()[:12], s.Status, errTask.Error())
 			continue
 		}
 
@@ -200,24 +204,20 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 			log.Errorf("Could not process metadata related metrics for %s: %v", ctn.ID()[:12], err.Error())
 		}
 
-		err = computeMem(sender, metrics.Memory, tags)
-		if err != nil {
-			log.Errorf("Could not process memory related metrics for %s: %v", ctn.ID()[:12], err.Error())
+		if metrics.Memory.Size() > 0 {
+			computeMem(sender, metrics.Memory, tags)
 		}
 
-		err = computeCPU(sender, metrics.CPU, tags)
-		if err != nil {
-			log.Errorf("Could not process cpu related metrics for %s: %v", ctn.ID()[:12], err.Error())
+		if metrics.CPU.Throttling != nil && metrics.CPU.Usage != nil {
+			computeCPU(sender, metrics.CPU, tags)
 		}
 
-		err = computeBlkio(sender, metrics.Blkio, tags)
-		if err != nil {
-			log.Errorf("Could not process blkio related metrics for %s: %v", ctn.ID()[:12], err.Error())
+		if metrics.Blkio.Size() > 0 {
+			computeBlkio(sender, metrics.Blkio, tags)
 		}
 
-		err = computeHugetlb(sender, metrics.Hugetlb, tags)
-		if err != nil {
-			log.Errorf("Could not process hugetlb related metrics for %s: %v", ctn.ID()[:12], err.Error())
+		if len(metrics.Hugetlb) > 0 {
+			computeHugetlb(sender, metrics.Hugetlb, tags)
 		}
 	}
 }
@@ -278,29 +278,22 @@ func collectTags(ctn containerd.Container, nsCtx context.Context) ([]string, err
 	if err != nil {
 		return tags, err
 	}
+
 	runt := fmt.Sprintf("runtime:%s", i.Runtime.Name)
 	tags = append(tags, runt)
 
 	return tags, nil
 }
 
-func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags []string) error {
-	if huge == nil {
-		return fmt.Errorf("no hugetbl metrics available")
-	}
+func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags []string) {
 	for _, h := range huge {
 		sender.Gauge("containerd.hugetlb.max", float64(h.Max), "", tags)
 		sender.Gauge("containerd.hugetlb.failcount", float64(h.Failcnt), "", tags)
 		sender.Gauge("containerd.hugetlb.usage", float64(h.Usage), "", tags)
 	}
-	return nil
 }
 
-func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string) error {
-	if mem == nil {
-		return fmt.Errorf("no mem metrics available")
-	}
-
+func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string) {
 	memList := map[string]*cgroups.MemoryEntry{
 		"containerd.mem.current":    mem.Usage,
 		"containerd.mem.kernel_tcp": mem.KernelTCP,
@@ -316,8 +309,6 @@ func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string
 	sender.Rate("containerd.mem.usage", float64(mem.Usage.Usage), "", tags)
 	sender.Rate("containerd.mem.kernel.usage", float64(mem.Kernel.Usage), "", tags)
 	sender.Rate("containerd.mem.dirty", float64(mem.Dirty), "", tags)
-
-	return nil
 }
 
 func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroups.MemoryEntry, tags []string) {
@@ -331,22 +322,14 @@ func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroup
 
 }
 
-func computeCPU(sender aggregator.Sender, cpu *cgroups.CPUStat, tags []string) error {
-	if cpu.Throttling == nil || cpu.Usage == nil {
-		return fmt.Errorf("no cpu metrics available")
-	}
+func computeCPU(sender aggregator.Sender, cpu *cgroups.CPUStat, tags []string) {
 	sender.Rate("containerd.cpu.system", float64(cpu.Usage.Kernel), "", tags)
 	sender.Rate("containerd.cpu.total", float64(cpu.Usage.Total), "", tags)
 	sender.Rate("containerd.cpu.user", float64(cpu.Usage.User), "", tags)
 	sender.Rate("containerd.cpu.throttle.periods", float64(cpu.Throttling.Periods), "", tags)
-
-	return nil
 }
 
-func computeBlkio(sender aggregator.Sender, blkio *cgroups.BlkIOStat, tags []string) error {
-	if blkio.Size() == 0 {
-		return fmt.Errorf("no blkio metrics available")
-	}
+func computeBlkio(sender aggregator.Sender, blkio *cgroups.BlkIOStat, tags []string) {
 	blkioList := map[string][]*cgroups.BlkIOEntry{
 		"containerd.blkio.merged_recursive":        blkio.IoMergedRecursive,
 		"containerd.blkio.queued_recursive":        blkio.IoQueuedRecursive,
@@ -360,7 +343,6 @@ func computeBlkio(sender aggregator.Sender, blkio *cgroups.BlkIOStat, tags []str
 	for metricName, ioStats := range blkioList {
 		parseAndSubmitBlkio(metricName, sender, ioStats, tags)
 	}
-	return nil
 }
 
 func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*cgroups.BlkIOEntry, tags []string) {
