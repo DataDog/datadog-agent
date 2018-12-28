@@ -1723,7 +1723,7 @@
     "github.com/DataDog/gohai/processes",
     "github.com/DataDog/mmh3",
     "github.com/DataDog/zstd",
-    "github.com/Datadog/viper",
+    "github.com/DataDog/viper",
     "github.com/Microsoft/go-winio",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/credentials",
