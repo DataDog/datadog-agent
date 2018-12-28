@@ -172,11 +172,7 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 	for _, ctn := range containers {
 		t, errTask := ctn.Task(nk, nil)
 		if errTask != nil {
-			s, err := t.Status(nk)
-			if err != nil {
-				log.Errorf("Could not retrieve the status of the task %s: %v", t.ID()[:12], err.Error())
-			}
-			log.Tracef("Could not retrieve metrics from task %s as it is %s: %s", t.ID()[:12], s.Status, errTask.Error())
+			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
 			continue
 		}
 
@@ -303,12 +299,12 @@ func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string
 	for metricName, memStat := range memList {
 		parseAndSubmitMem(metricName, sender, memStat, tags)
 	}
-	sender.Rate("containerd.mem.cache", float64(mem.Cache), "", tags)
-	sender.Rate("containerd.mem.rss", float64(mem.RSS), "", tags)
-	sender.Rate("containerd.mem.rsshuge", float64(mem.RSSHuge), "", tags)
-	sender.Rate("containerd.mem.usage", float64(mem.Usage.Usage), "", tags)
-	sender.Rate("containerd.mem.kernel.usage", float64(mem.Kernel.Usage), "", tags)
-	sender.Rate("containerd.mem.dirty", float64(mem.Dirty), "", tags)
+	sender.Gauge("containerd.mem.cache", float64(mem.Cache), "", tags)
+	sender.Gauge("containerd.mem.rss", float64(mem.RSS), "", tags)
+	sender.Gauge("containerd.mem.rsshuge", float64(mem.RSSHuge), "", tags)
+	sender.Gauge("containerd.mem.usage", float64(mem.Usage.Usage), "", tags)
+	sender.Gauge("containerd.mem.kernel.usage", float64(mem.Kernel.Usage), "", tags)
+	sender.Gauge("containerd.mem.dirty", float64(mem.Dirty), "", tags)
 }
 
 func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroups.MemoryEntry, tags []string) {
@@ -323,10 +319,10 @@ func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroup
 }
 
 func computeCPU(sender aggregator.Sender, cpu *cgroups.CPUStat, tags []string) {
-	sender.Rate("containerd.cpu.system", float64(cpu.Usage.Kernel), "", tags)
-	sender.Rate("containerd.cpu.total", float64(cpu.Usage.Total), "", tags)
-	sender.Rate("containerd.cpu.user", float64(cpu.Usage.User), "", tags)
-	sender.Rate("containerd.cpu.throttle.periods", float64(cpu.Throttling.Periods), "", tags)
+	sender.Gauge("containerd.cpu.system", float64(cpu.Usage.Kernel), "", tags)
+	sender.Gauge("containerd.cpu.total", float64(cpu.Usage.Total), "", tags)
+	sender.Gauge("containerd.cpu.user", float64(cpu.Usage.User), "", tags)
+	sender.Gauge("containerd.cpu.throttle.periods", float64(cpu.Throttling.Periods), "", tags)
 }
 
 func computeBlkio(sender aggregator.Sender, blkio *cgroups.BlkIOStat, tags []string) {
