@@ -88,7 +88,7 @@ func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Servic
 
 // Stop is a stub
 func (l *KubeServiceListener) Stop() {
-	// We cannot de-register from the informer
+ 	// We cannot deregister from the informer
 }
 
 func (l *KubeServiceListener) added(obj interface{}) {
