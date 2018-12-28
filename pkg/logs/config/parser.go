@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/viper"
+	"github.com/spf13/viper"
 )
 
 // ParseJSON parses the data formatted in JSON
