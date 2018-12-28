@@ -167,7 +167,17 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 		return
 	}
 
-	svc := KubeServiceService{
+	svc := processService(ksvc, firstRun)
+
+	l.m.Lock()
+	l.services[ksvc.UID] = svc
+	l.m.Unlock()
+
+	l.newService <- svc
+}
+
+func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
+	svc := &KubeServiceService{
 		entity:       apiserver.EntityForService(ksvc),
 		creationTime: integration.After,
 	}
@@ -198,11 +208,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 		log.Debugf("No ports found for service %s", ksvc.Name)
 	}
 
-	l.m.Lock()
-	l.services[ksvc.UID] = &svc
-	l.m.Unlock()
-
-	l.newService <- &svc
+	return svc
 }
 
 func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
