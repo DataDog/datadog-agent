@@ -247,8 +247,20 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	stats["aggregatorStats"] = aggregatorStats
 
 	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
+	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
 	dogstatsdStats := make(map[string]interface{})
 	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	dogstatsdUdsStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats)
+	for name, value := range dogstatsdUdsStats {
+		dogstatsdStats["Uds"+name] = value
+	}
+	dogstatsdUDPStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats)
+	for name, value := range dogstatsdUDPStats {
+		dogstatsdStats["Udp"+name] = value
+	}
 	stats["dogstatsdStats"] = dogstatsdStats
 
 	pyLoaderData := expvar.Get("pyLoader")
