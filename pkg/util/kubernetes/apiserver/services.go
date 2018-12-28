@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const kubeServiceIDPrefix = "kube_service://"
+
 // ServicesMapper maps pod names to the names of the services targeting the pod
 // keyed by the namespace a pod belongs to. This data structure allows for O(1)
 // lookups of services given a namespace and pod name.
@@ -186,4 +188,11 @@ func (metaBundle *MetadataMapperBundle) ServicesForPod(ns, podName string) ([]st
 	defer metaBundle.m.RUnlock()
 
 	return metaBundle.Services.Get(ns, podName)
+}
+
+func EntityForService(svc *v1.Service) string {
+	if svc == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s%s", kubeServiceIDPrefix, svc.ObjectMeta.UID)
 }
