@@ -29,6 +29,7 @@ datadog.yaml
 network-tracer.yaml
 dogstatsd.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
+Dockerfiles/cluster-agent/dist
 
 # jetbrains IDE directory
 /.idea/
