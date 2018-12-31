@@ -21,9 +21,11 @@ const ContainerCollectAll = "container_collect_all"
 
 const logsAgentPrefix = "agent-intake.logs."
 
-var logsEuEndpoints = map[string]int{
-	"agent-intake.logs.datadoghq.eu": 443,
-	"agent-intake.logs.datad0g.eu":   443,
+var logsEndpoints = map[string]int{
+	"agent-intake.logs.datadoghq.com": 10516,
+	"agent-intake.logs.datadoghq.eu":  443,
+	"agent-intake.logs.datad0g.com":   10516,
+	"agent-intake.logs.datad0g.eu":    443,
 }
 
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
@@ -80,9 +82,10 @@ func BuildEndpoints() (*client.Endpoints, error) {
 		main.Port = 443
 		useSSL = true
 	default:
-		// datadog settings
+		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
+		// if none of them is set, we default to the US agent endpoint.
 		main.Host = coreConfig.GetMainEndpoint(logsAgentPrefix, "logs_config.dd_url")
-		if port, found := logsEuEndpoints[main.Host]; found {
+		if port, found := logsEndpoints[main.Host]; found {
 			main.Port = port
 		} else {
 			main.Port = coreConfig.Datadog.GetInt("logs_config.dd_port")
