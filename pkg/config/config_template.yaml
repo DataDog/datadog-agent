@@ -514,6 +514,14 @@ api_key:
 #
 {{ end -}}
 {{- if .DockerTagging }}
+# Container detection
+#
+# On hosts with mixed workloads, non-containernized processes can
+# mistakenly be detected as containerized. This option can be used to
+# tune the detection logic to your system and avoid false-positives.
+#
+# container_cgroup_prefix: "/docker/"
+#
 # Docker tag extraction
 #
 # We can extract container label or environment variables
