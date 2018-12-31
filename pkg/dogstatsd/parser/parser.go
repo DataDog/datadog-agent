@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package dogstatsd
+package parser
 
 import (
 	"bufio"
@@ -32,7 +32,7 @@ var tagSeparator = []byte(",")
 var fieldSeparator = []byte("|")
 var valueSeparator = []byte(":")
 
-func nextMessage(packet *[]byte) (message []byte) {
+func NextMessage(packet *[]byte) (message []byte) {
 	if len(*packet) == 0 {
 		return nil
 	}
@@ -84,7 +84,7 @@ func parseTags(rawTags []byte, extractHost bool, defaultHostname string) ([]stri
 	return tagsList, host
 }
 
-func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
+func ParseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
 	// _sc|name|status|[metadata|...]
 
 	separatorCount := bytes.Count(message, fieldSeparator)
@@ -149,7 +149,7 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 	return &service, nil
 }
 
-func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
+func ParseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
 	// _e{title.length,text.length}:title|text
 	//  [
 	//   |d:date_happened
@@ -254,7 +254,7 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 	return &event, nil
 }
 
-func parseMetricMessage(message []byte, namespace string, defaultHostname string) (*metrics.MetricSample, error) {
+func ParseMetricMessage(message []byte, namespace string, defaultHostname string) (*metrics.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
