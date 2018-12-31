@@ -8,6 +8,8 @@
 package docker
 
 import (
+	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 const (
 	backoffInitialDuration = 1 * time.Second
 	backoffMaxDuration     = 60 * time.Second
+	dockerSocketPath       = "/var/run/docker.sock"
 )
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
@@ -47,6 +50,10 @@ type Launcher struct {
 
 // NewLauncher returns a new launcher
 func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
+	if !isAvailable() {
+		return nil, fmt.Errorf("%s not found", dockerSocketPath)
+	}
+
 	launcher := &Launcher{
 		pipelineProvider:   pipelineProvider,
 		tailers:            make(map[string]*Tailer),
@@ -69,6 +76,14 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	launcher.addedServices = services.GetAddedServices(service.Docker)
 	launcher.removedServices = services.GetRemovedServices(service.Docker)
 	return launcher, nil
+}
+
+func isAvailable() bool {
+	if _, err := os.Stat(dockerSocketPath); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
 }
 
 // setup initializes the docker client and the tagger,

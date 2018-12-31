@@ -9,6 +9,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -36,6 +37,10 @@ type Launcher struct {
 
 // NewLauncher returns a new launcher.
 func NewLauncher(sources *config.LogSources, services *service.Services) (*Launcher, error) {
+	if !isAvailable() {
+		return nil, fmt.Errorf("%s not found", podsDirectoryPath)
+	}
+
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -59,6 +64,14 @@ func NewLauncher(sources *config.LogSources, services *service.Services) (*Launc
 	launcher.containerdAddedServices = services.GetAddedServices(service.Containerd)
 	launcher.containerdRemovedServices = services.GetRemovedServices(service.Containerd)
 	return launcher, nil
+}
+
+func isAvailable() bool {
+	if _, err := os.Stat(podsDirectoryPath); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
 }
 
 // setup initializes the pod watcher and the tagger.

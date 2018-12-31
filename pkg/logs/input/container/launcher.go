@@ -24,26 +24,18 @@ import (
 // the launcher will attempt to initialize a kubernetes launcher which will detect and tail all the logs files localized
 // in '/var/log/pods' of all the containers running on the kubernetes cluster.
 func NewLauncher(collectAll bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
-	switch {
-	case collectAll:
-		// attempt to initialize a docker launcher
-		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
-		if err == nil {
-			return launcher
-		}
-		// attempt to initialize a kubernetes launcher
-		log.Warnf("Could not setup the docker launcher, falling back to the kubernetes one: %v", err)
-		kubernetesLauncher, err := kubernetes.NewLauncher(sources, services)
-		if err == nil {
-			return kubernetesLauncher
-		}
-		log.Warnf("Could not setup the kubernetes launcher: %v", err)
-	default:
-		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
-		if err == nil {
-			return launcher
-		}
-		log.Warnf("Could not setup the docker launcher: %v", err)
+	// attempt to initialize a docker launcher
+	launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
+	if err == nil {
+		return launcher
 	}
+	// attempt to initialize a kubernetes launcher
+	log.Warnf("Could not setup the docker launcher: %v", err)
+
+	kubernetesLauncher, err := kubernetes.NewLauncher(sources, services)
+	if err == nil {
+		return kubernetesLauncher
+	}
+	log.Warnf("Could not setup the kubernetes launcher: %v", err)
 	return NewNoopLauncher()
 }
