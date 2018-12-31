@@ -1,18 +1,23 @@
 init_configs:
 instances:
   -
-    # list filters of events you which to collect
-    # https://github.com/containerd/containerd/blob/master/runtime/events.go#L19-L42
-    # The check only supports tasks, images and containers, see pkg/collector/corechecks/containers/containerd_events.go.
+    ## @param filters - list of containerd filters - optional
+    ## See the official grammar for the filters here https://github.com/containerd/containerd/blob/6daf8b77829b2d2d1ad9e2ef9f1e9fc6cebb3e13/filters/parser.go#L27-L50
+    ## The check supports Tasks, Containers and Images. See pkg/collector/corechecks/containers/containerd_events.go
+
     filters:
-      - "/containers/create"
-      - "/containers/delete"
-      - "/containers/update"
-      - "/images/update"
-      - "/images/create"
-      - "/images/delete"
-      - "/tasks/oom"
-      - "/tasks/delete"
-    # Default to k8s.io per https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
-    # Since this check is only supported in Kubernetes
-    namespace: "k8s.io"
+      - topic=="/containers/create"
+      - topic=="/containers/delete"
+      - topic=="/containers/update"
+      - topic=="/images/update"
+      - topic=="/images/create"
+      - topic=="/images/delete"
+      - topic=="/tasks/oom"
+      - topic=="/tasks/delete"
+
+    ## @param tags - list of key:value elements - optional
+    ## List of tyags to attach to every metrics, events and service checks emitted by this integration.
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #  - <KEY_1>:<VALUE_1>,<KEY_2>:<VALUE_2>

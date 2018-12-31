@@ -44,7 +44,6 @@ type ContainerdUtil struct {
 	socketPath        string
 	initRetry         retry.Retrier
 	queryTimeout      time.Duration
-	connectionTimeout time.Duration
 	namespace         string
 }
 
@@ -54,7 +53,6 @@ func GetContainerdUtil() (ContainerdItf, error) {
 	once.Do(func() {
 		globalContainerdUtil = &ContainerdUtil{
 			queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
-			connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
 			socketPath:        config.Datadog.GetString("cri_socket_path"),
 			namespace:         config.Datadog.GetString("containerd_namespace"),
 		}
@@ -97,7 +95,7 @@ func (c *ContainerdUtil) Close() error {
 // connect is our retry strategy, it can be re-triggered when the check is running if we lose connectivity.
 func (c *ContainerdUtil) connect() error {
 	if c.socketPath == "" {
-		log.Warn("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
+		log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
 		c.socketPath = containerdDefaultSocketPath
 	}
 
@@ -110,10 +108,7 @@ func (c *ContainerdUtil) connect() error {
 		}
 		return nil
 	}
-	//opts := []grpc.DialOption{
-	//	grpc.WithTimeout(c.connectionTimeout),
-	//}
-	//clientOpts := containerd.WithDialOpts(opts)
+
 	c.cl, err = containerd.New(c.socketPath)
 	return err
 }
