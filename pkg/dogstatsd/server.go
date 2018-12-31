@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/parser"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -210,7 +211,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 			}
 
 			for {
-				message := nextMessage(&packet.Contents)
+				message := parser.NextMessage(&packet.Contents)
 				if message == nil {
 					break
 				}
@@ -220,7 +221,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 				}
 
 				if bytes.HasPrefix(message, []byte("_sc")) {
-					serviceCheck, err := parseServiceCheckMessage(message, s.defaultHostname)
+					serviceCheck, err := parser.ParseServiceCheckMessage(message, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing service check: %s", err)
 						dogstatsdServiceCheckParseErrors.Add(1)
@@ -232,7 +233,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					dogstatsdServiceCheckPackets.Add(1)
 					serviceCheckOut <- *serviceCheck
 				} else if bytes.HasPrefix(message, []byte("_e")) {
-					event, err := parseEventMessage(message, s.defaultHostname)
+					event, err := parser.ParseEventMessage(message, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing event: %s", err)
 						dogstatsdEventParseErrors.Add(1)
@@ -244,7 +245,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					dogstatsdEventPackets.Add(1)
 					eventOut <- *event
 				} else {
-					sample, err := parseMetricMessage(message, s.metricPrefix, s.defaultHostname)
+					sample, err := parser.ParseMetricMessage(message, s.metricPrefix, s.defaultHostname)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 						dogstatsdMetricParseErrors.Add(1)
