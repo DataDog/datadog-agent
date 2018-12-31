@@ -284,6 +284,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_max_restarts", int64(3))
 	config.BindEnvAndSetDefault("jmx_restart_interval", int64(5))
 	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)
+	config.BindEnvAndSetDefault("jmx_reconnection_thread_pool_size", 3)
 	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
 

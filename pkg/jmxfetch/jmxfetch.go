@@ -179,6 +179,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		"--thread_pool_size", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_thread_pool_size")), // Size for the JMXFetch thread pool
 		"--collection_timeout", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_collection_timeout")), // Timeout for metric collection in seconds
 		"--reconnection_timeout", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_reconnection_timeout")), // Timeout for instance reconnection in seconds
+		"--reconnection_thread_pool_size", fmt.Sprintf("%v", config.Datadog.GetInt("jmx_reconnection_thread_pool_size")), // Size for the JMXFetch reconnection thread pool
 		"--log_level", jmxLogLevel,
 		"--reporter", reporter, // Reporter to use
 	)
