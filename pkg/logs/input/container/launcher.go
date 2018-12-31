@@ -29,9 +29,9 @@ func NewLauncher(collectAll bool, sources *config.LogSources, services *service.
 	if err == nil {
 		return launcher
 	}
-	// attempt to initialize a kubernetes launcher
 	log.Warnf("Could not setup the docker launcher: %v", err)
 
+	// attempt to initialize a kubernetes launcher
 	kubernetesLauncher, err := kubernetes.NewLauncher(sources, services, collectAll)
 	if err == nil {
 		return kubernetesLauncher
