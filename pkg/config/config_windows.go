@@ -6,6 +6,7 @@
 package config
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -22,7 +23,7 @@ var (
 // ServiceName is the name that'll be used to register the Agent
 const ServiceName = "DatadogAgent"
 
-func init() {
+func osinit() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfdPath = filepath.Join(pd, "Datadog", "conf.d")
@@ -31,6 +32,7 @@ func init() {
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
+	fmt.Printf("defaultRunPath is %s\n", defaultRunPath)
 }
 
 // NewAssetFs  Should never be called on non-android

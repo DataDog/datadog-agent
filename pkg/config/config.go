@@ -73,6 +73,7 @@ type Proxy struct {
 }
 
 func init() {
+	osinit()
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults

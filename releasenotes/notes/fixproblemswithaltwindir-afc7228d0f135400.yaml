@@ -1,0 +1,14 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    On Windows, further fixes when installation drive isn't c:.  Fixes
+    problem where `logs` was effectively hardcoded to use `c:` for programdata
+    Fixes installation problem where process & trace service were using
+    `c:\programdata\...` to find datadog.yaml regardless of installation dir
