@@ -297,8 +297,6 @@ func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string
 	sender.Gauge("containerd.mem.cache", float64(mem.Cache), "", tags)
 	sender.Gauge("containerd.mem.rss", float64(mem.RSS), "", tags)
 	sender.Gauge("containerd.mem.rsshuge", float64(mem.RSSHuge), "", tags)
-	sender.Gauge("containerd.mem.usage", float64(mem.Usage.Usage), "", tags)
-	sender.Gauge("containerd.mem.kernel.usage", float64(mem.Kernel.Usage), "", tags)
 	sender.Gauge("containerd.mem.dirty", float64(mem.Dirty), "", tags)
 }
 
@@ -314,10 +312,11 @@ func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroup
 }
 
 func computeCPU(sender aggregator.Sender, cpu *cgroups.CPUStat, tags []string) {
-	sender.Gauge("containerd.cpu.system", float64(cpu.Usage.Kernel), "", tags)
-	sender.Gauge("containerd.cpu.total", float64(cpu.Usage.Total), "", tags)
-	sender.Gauge("containerd.cpu.user", float64(cpu.Usage.User), "", tags)
-	sender.Gauge("containerd.cpu.throttle.periods", float64(cpu.Throttling.Periods), "", tags)
+	sender.Rate("containerd.cpu.system", float64(cpu.Usage.Kernel), "", tags)
+	sender.Rate("containerd.cpu.total", float64(cpu.Usage.Total), "", tags)
+	sender.Rate("containerd.cpu.user", float64(cpu.Usage.User), "", tags)
+	sender.Rate("containerd.cpu.throttled.periods", float64(cpu.Throttling.ThrottledPeriods), "", tags)
+
 }
 
 func computeBlkio(sender aggregator.Sender, blkio *cgroups.BlkIOStat, tags []string) {
@@ -342,11 +341,11 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*cg
 			continue
 		}
 
-		tags = append(tags, fmt.Sprintf("dev:%s", m.Device))
+		tags = append(tags, fmt.Sprintf("device:%s", m.Device))
 		if m.Op != "" {
 			tags = append(tags, fmt.Sprintf("operation:%s", m.Op))
 		}
 
-		sender.Gauge(metricName, float64(m.Value), "", tags)
+		sender.Rate(metricName, float64(m.Value), "", tags)
 	}
 }
