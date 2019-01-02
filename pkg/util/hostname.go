@@ -217,7 +217,11 @@ func GetHostname() (string, error) {
 				log.Debug("Unable to determine hostname from EC2: ", err)
 			}
 		} else {
-			log.Debug("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
+			err := fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
+			log.Debug(err.Error())
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("aws", expErr)
 		}
 	}
 

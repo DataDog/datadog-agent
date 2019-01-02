@@ -8,7 +8,7 @@
 ---
 upgrade:
   - |
-    On EC2 hosts that were upgraded from Agent 5.x using the install script or that have the ``hostname_fqdn`` option enabled if your hostname currently begins by ``ip-`` or ``domU-`` (default EC2 hostnames) your hostname will change to the EC2 instance ID.
+    On EC2 hosts that were upgraded from Agent 5.x using the install script or that have the ``hostname_fqdn`` option enabled if your hostname currently begins with ``ip-`` or ``domU-`` (default EC2 hostnames) your hostname will change to the EC2 instance ID.
     Example: ``ip-10-1-1-1.ec2.internal`` => ``i-1234567890abcdef0``.
     This is an effort to fix a bug in the hostname resolution that was introduced in the version 6.3 of the Agent.
 
