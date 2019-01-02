@@ -22,6 +22,8 @@ import (
 
 const logFileMaxSize = 10 * 1024 * 1024         // 10MB
 const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
+// LoggingAgent is the name of the agent logging, will be prepended to all logs
+const LoggingAgent = "core"
 
 var syslogTLSConfig *tls.Config
 
@@ -107,12 +109,12 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 
 	configTemplate += fmt.Sprintf(`</outputs>
 	<formats>
-		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%File&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n"/>
+		<format id="json" format="{&quot;agent&quot;:&quot;%s&quot;,&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%Level&quot;,&quot;file&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="common" format="[%s] %%Date(%s) | %%LEVEL | (%%RelFile:%%Line in %%FuncShort) | %%Msg%%n"/>
 		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
 		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n" />
 	</formats>
-</seelog>`, logDateFormat, logDateFormat)
+</seelog>`, LoggingAgent, logDateFormat, LoggingAgent, logDateFormat)
 
 	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
 	if err != nil {
