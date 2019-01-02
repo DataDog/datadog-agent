@@ -129,7 +129,7 @@ var tufCmd = &cobra.Command{
 }
 
 var installCmd = &cobra.Command{
-	Use:   "install [package]",
+	Use:   "install [package==version]",
 	Short: "Install Datadog integration core/extra packages",
 	Long: `Install Datadog integration core/extra packages
 You must specify a version of the package to install using the syntax: <package>==<version>, with
@@ -155,7 +155,7 @@ var searchCmd = &cobra.Command{
 
 var freezeCmd = &cobra.Command{
 	Use:   "freeze",
-	Short: "Freeze list of installed python packages",
+	Short: "Print the list of installed packages in the agent's python environment",
 	Long:  ``,
 	RunE:  freeze,
 }
