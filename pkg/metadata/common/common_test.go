@@ -23,7 +23,8 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestGetAPIKey(t *testing.T) {
-	config.Datadog.Set("api_key", "bar,baz")
+	mockConfig := config.Mock()
+	mockConfig.Set("api_key", "bar,baz")
 	assert.Equal(t, "bar", getAPIKey())
 	assert.Equal(t, "bar", apiKey)
 	apiKey = "foo"

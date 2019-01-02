@@ -34,10 +34,12 @@ func TestDefaultDatadogConfig(t *testing.T) {
 }
 
 func TestDefaultSources(t *testing.T) {
+	mockConfig := coreConfig.Mock()
+
 	var sources []*LogSource
 	var source *LogSource
 
-	coreConfig.Datadog.Set("logs_config.container_collect_all", true)
+	mockConfig.Set("logs_config.container_collect_all", true)
 
 	sources = DefaultSources()
 	assert.Equal(t, 1, len(sources))
@@ -50,14 +52,16 @@ func TestDefaultSources(t *testing.T) {
 }
 
 func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
+	mockConfig := coreConfig.Mock()
+
 	var endpoints *client.Endpoints
 
 	var err error
 	var endpoint client.Endpoint
 
-	coreConfig.Datadog.Set("api_key", "azerty")
-	coreConfig.Datadog.Set("logset", "baz")
-	coreConfig.Datadog.Set("logs_config.socks5_proxy_address", "boz:1234")
+	mockConfig.Set("api_key", "azerty")
+	mockConfig.Set("logset", "baz")
+	mockConfig.Set("logs_config.socks5_proxy_address", "boz:1234")
 
 	endpoints, err = BuildEndpoints()
 	assert.Nil(t, err)
@@ -70,7 +74,7 @@ func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
 	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
 	assert.Equal(t, 0, len(endpoints.Additionals))
 
-	coreConfig.Datadog.Set("logs_config.use_port_443", true)
+	mockConfig.Set("logs_config.use_port_443", true)
 	endpoints, err = BuildEndpoints()
 	assert.Nil(t, err)
 	endpoint = endpoints.Main
@@ -82,8 +86,8 @@ func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
 	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
 	assert.Equal(t, 0, len(endpoints.Additionals))
 
-	coreConfig.Datadog.Set("logs_config.logs_dd_url", "host:1234")
-	coreConfig.Datadog.Set("logs_config.logs_no_ssl", true)
+	mockConfig.Set("logs_config.logs_dd_url", "host:1234")
+	mockConfig.Set("logs_config.logs_no_ssl", true)
 	endpoints, err = BuildEndpoints()
 	assert.Nil(t, err)
 	endpoint = endpoints.Main
@@ -95,8 +99,8 @@ func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
 	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
 	assert.Equal(t, 0, len(endpoints.Additionals))
 
-	coreConfig.Datadog.Set("logs_config.logs_dd_url", ":1234")
-	coreConfig.Datadog.Set("logs_config.logs_no_ssl", false)
+	mockConfig.Set("logs_config.logs_dd_url", ":1234")
+	mockConfig.Set("logs_config.logs_no_ssl", false)
 	endpoints, err = BuildEndpoints()
 	assert.Nil(t, err)
 	endpoint = endpoints.Main
@@ -110,13 +114,15 @@ func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
 }
 
 func TestBuildEndpointsShouldFailWithInvalidOverride(t *testing.T) {
+	mockConfig := coreConfig.Mock()
+
 	invalidURLs := []string{
 		"host:foo",
 		"host",
 	}
 
 	for _, url := range invalidURLs {
-		coreConfig.Datadog.Set("logs_config.logs_dd_url", url)
+		mockConfig.Set("logs_config.logs_dd_url", url)
 		_, err := BuildEndpoints()
 		assert.NotNil(t, err)
 	}

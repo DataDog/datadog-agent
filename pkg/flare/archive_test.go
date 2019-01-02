@@ -27,8 +27,9 @@ import (
 
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
-	config.Datadog.Set("confd_path", "./test/confd")
-	config.Datadog.Set("log_file", "./test/logs/agent.log")
+	mockConfig := config.Mock()
+	mockConfig.Set("confd_path", "./test/confd")
+	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
 

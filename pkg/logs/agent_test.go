@@ -34,6 +34,8 @@ type AgentTestSuite struct {
 }
 
 func (suite *AgentTestSuite) SetupTest() {
+	mockConfig := coreConfig.Mock()
+
 	var err error
 
 	suite.testDir, err = ioutil.TempDir("", "tests")
@@ -54,9 +56,9 @@ func (suite *AgentTestSuite) SetupTest() {
 	}
 	suite.source = config.NewLogSource("", &logConfig)
 
-	coreConfig.Datadog.Set("logs_config.run_path", suite.testDir)
+	mockConfig.Set("logs_config.run_path", suite.testDir)
 	// Shorter grace period for tests.
-	coreConfig.Datadog.Set("logs_config.stop_grace_period", 1)
+	mockConfig.Set("logs_config.stop_grace_period", 1)
 }
 
 func (suite *AgentTestSuite) TearDownTest() {
