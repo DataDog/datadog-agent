@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The logs now contains the relative file path (including the package) instead of only the filename
