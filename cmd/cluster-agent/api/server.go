@@ -81,8 +81,10 @@ func StartServer(sc clusteragent.ServerContext) error {
 	}
 
 	srv := &http.Server{
-		Handler:   r,
-		ErrorLog:  stdLog.New(&config.ErrorLogWriter{}, "", 0), // log errors to seelog
+		Handler: r,
+		ErrorLog: stdLog.New(&config.ErrorLogWriter{
+			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+		}, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig: &tlsConfig,
 	}
 
