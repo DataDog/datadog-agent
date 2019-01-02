@@ -34,7 +34,7 @@ Start-Sleep -s 1
 $process.StandardInput.WriteLine($payload)
 $process.StandardInput.Close()
 
-"Waiting a seconds so the process can fetch the secrets"
+"Waiting a second so the process can fetch the secrets"
 Start-Sleep -s 1
 
 "stdout:"
