@@ -88,6 +88,7 @@ func GetUtil() (*Util, error) {
 	return globalUtil, nil
 }
 
+// IsECSInstance returns whether the agent is running in ECS.
 func IsECSInstance() bool {
 	_, err := GetUtil()
 	return err == nil
