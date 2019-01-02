@@ -197,7 +197,7 @@ func GetHostname() (string, error) {
 	// and the hostname is one of the default ones
 	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
 		log.Debug("GetHostname trying EC2 metadata...")
-		if ec2.IsDefaultHostname(hostName) {
+		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
 			instanceID, err := getEC2Hostname()
 			if err == nil {
 				err = ValidHostname(instanceID)

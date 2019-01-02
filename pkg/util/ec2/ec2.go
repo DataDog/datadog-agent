@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -83,11 +82,6 @@ func IsDefaultHostname(hostname string) bool {
 
 // HostnameProvider gets the hostname
 func HostnameProvider() (string, error) {
-	_, err := ecs.GetUtil()
-	if err == nil {
-		log.Debug("GetHostname trying EC2 metadata...")
-		return GetInstanceID()
-	}
-
-	return "", err
+	log.Debug("GetHostname trying EC2 metadata...")
+	return GetInstanceID()
 }
