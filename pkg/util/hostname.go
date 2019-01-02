@@ -8,7 +8,6 @@ package util
 import (
 	"expvar"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"net"
 	"os"
 	"regexp"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
