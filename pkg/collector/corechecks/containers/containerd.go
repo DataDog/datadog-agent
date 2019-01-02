@@ -27,7 +27,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,15 +38,15 @@ const (
 // ContainerCheck grabs containerd metrics and events
 type ContainerdCheck struct {
 	core.CheckBase
-	hostname string
 	instance *ContainerdConfig
-	sub      *Subscriber
+	sub      *subscriber
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	Tags    []string `yaml:"tags"`
-	Filters []string `yaml:"filters"`
+	Tags          []string `yaml:"tags"`
+	Filters       []string `yaml:"filters"`
+	CollectEvents bool     `yaml:"collect_events"`
 }
 
 func init() {
@@ -59,7 +58,7 @@ func ContainerdFactory() check.Check {
 	return &ContainerdCheck{
 		CheckBase: corechecks.NewCheckBase(containerdCheckName),
 		instance:  &ContainerdConfig{},
-		sub:       &Subscriber{},
+		sub:       &subscriber{},
 	}
 }
 
@@ -78,11 +77,6 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 		return err
 	}
 
-	c.hostname, err = util.GetHostname()
-	if err != nil {
-		return err
-	}
-
 	if err = c.instance.Parse(config); err != nil {
 		return err
 	}
@@ -93,10 +87,10 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 // Run executes the check
 func (c *ContainerdCheck) Run() error {
 	sender, err := aggregator.GetSender(c.ID())
-	defer sender.Commit()
 	if err != nil {
 		return err
 	}
+	defer sender.Commit()
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	cu, errHealth := cutil.GetContainerdUtil()
 	if errHealth != nil {
@@ -105,17 +99,19 @@ func (c *ContainerdCheck) Run() error {
 	}
 	ns := cu.Namespace()
 
-	if c.sub == nil {
-		c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.Filters)
-	}
+	if c.instance.CollectEvents {
+		if c.sub == nil {
+			c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.Filters)
+		}
 
-	if !c.sub.IsRunning() {
-		// Keep track of the health of the Containerd socket
-		c.sub.CheckEvents(cu)
+		if !c.sub.IsRunning() {
+			// Keep track of the health of the Containerd socket
+			c.sub.CheckEvents(cu)
+		}
+		events := c.sub.Flush(time.Now().Unix())
+		// Process events
+		computeEvents(events, sender, c.instance.Tags)
 	}
-	events := c.sub.Flush(time.Now().Unix())
-	// Process events
-	computeEvents(c.hostname, events, sender, c.instance.Tags)
 
 	nk := namespaces.WithNamespace(context.Background(), ns)
 	computeMetrics(sender, nk, cu, c.instance.Tags)
@@ -124,18 +120,17 @@ func (c *ContainerdCheck) Run() error {
 }
 
 // compute events converts Containerd events into Datadog events
-func computeEvents(hostname string, events []containerdEvent, sender aggregator.Sender, userTags []string) {
+func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags []string) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
 			// sanity checking the event, to avoid submitting
-			log.Tracef("Event topic %s does not have the expected format", e.Topic)
+			log.Debugf("Event topic %s does not have the expected format", e.Topic)
 			continue
 		}
 
 		output := metrics.Event{
 			Priority:       metrics.EventPriorityNormal,
-			Host:           hostname,
 			SourceTypeName: containerdCheckName,
 			EventType:      containerdCheckName,
 			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
@@ -346,14 +341,12 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*cg
 		if m.Size() == 0 {
 			continue
 		}
-		blkiotags := []string{
-			fmt.Sprintf("dev:%s", m.Device),
-		}
+
+		tags = append(tags, fmt.Sprintf("dev:%s", m.Device))
 		if m.Op != "" {
-			blkiotags = append(blkiotags, fmt.Sprintf("operation:%s", m.Op))
+			tags = append(tags, fmt.Sprintf("operation:%s", m.Op))
 		}
 
-		tags = append(tags, blkiotags...)
 		sender.Gauge(metricName, float64(m.Value), "", tags)
 	}
 }

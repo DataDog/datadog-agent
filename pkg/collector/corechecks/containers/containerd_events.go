@@ -32,7 +32,7 @@ type containerdEvent struct {
 	Extra     map[string]string
 }
 
-type Subscriber struct {
+type subscriber struct {
 	sync.Mutex
 	Name                string
 	Filters             []string
@@ -42,8 +42,8 @@ type Subscriber struct {
 	isRunning           bool
 }
 
-func CreateEventSubscriber(name string, ns string, f []string) *Subscriber {
-	return &Subscriber{
+func CreateEventSubscriber(name string, ns string, f []string) *subscriber {
+	return &subscriber{
 		Name:                name,
 		Namespace:           ns,
 		CollectionTimestamp: time.Now().Unix(),
@@ -51,7 +51,7 @@ func CreateEventSubscriber(name string, ns string, f []string) *Subscriber {
 	}
 }
 
-func (s *Subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
+func (s *subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 	ctx := context.Background()
 	ev := ctrItf.GetEvents()
 	log.Info("Starting routine to collect Containerd events ...")
@@ -69,9 +69,9 @@ func processMessage(id string, message *containerdevents.Envelope) containerdEve
 }
 
 // Run should only be called once, at start time
-func (s *Subscriber) run(ctx context.Context, ev containerd.EventService) error {
+func (s *subscriber) run(ctx context.Context, ev containerd.EventService) error {
 	if s.IsRunning() {
-		return fmt.Errorf("Subscriber is already running the event listener routine")
+		return fmt.Errorf("subscriber is already running the event listener routine")
 	}
 	stream, errC := ev.Subscribe(ctx, s.Filters...)
 	s.Lock()
@@ -225,20 +225,20 @@ func (s *Subscriber) run(ctx context.Context, ev containerd.EventService) error 
 	}
 }
 
-func (s *Subscriber) addEvents(event containerdEvent) {
+func (s *subscriber) addEvents(event containerdEvent) {
 	s.Lock()
 	s.Events = append(s.Events, event)
 	s.Unlock()
 }
 
-func (s *Subscriber) IsRunning() bool {
+func (s *subscriber) IsRunning() bool {
 	s.Lock()
 	defer s.Unlock()
 	return s.isRunning
 }
 
 // Flush should be called every time you want to get the list of events that have been received since the last Flush
-func (s *Subscriber) Flush(timestamp int64) []containerdEvent {
+func (s *subscriber) Flush(timestamp int64) []containerdEvent {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 	delta := s.CollectionTimestamp - timestamp

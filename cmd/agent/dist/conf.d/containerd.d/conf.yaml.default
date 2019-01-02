@@ -21,3 +21,8 @@ instances:
     #
     # tags:
     #  - <KEY_1>:<VALUE_1>,<KEY_2>:<VALUE_2>
+
+    ## @param collect_events - bool to configure the event collection
+    ## Set to False if you want to deactivate the event collection for the containerd check
+    #
+    collect_events: True

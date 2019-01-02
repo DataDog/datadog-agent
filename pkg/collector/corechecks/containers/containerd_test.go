@@ -10,7 +10,6 @@ package containers
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 	"sort"
 	"testing"
 
@@ -132,8 +131,7 @@ func TestCollectTags(t *testing.T) {
 			}
 			sort.Strings(list)
 			sort.Strings(test.expected)
-			require.Equal(t, len(test.expected), len(list))
-			require.True(t, reflect.DeepEqual(test.expected, list))
+			require.EqualValues(t, test.expected, list)
 		})
 	}
 }
@@ -150,7 +148,6 @@ func TestComputeEvents(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		hostname      string
 		events        []containerdEvent
 		expectedTitle string
 		expectedTags  []string
@@ -158,14 +155,12 @@ func TestComputeEvents(t *testing.T) {
 	}{
 		{
 			name:          "No events",
-			hostname:      "bar",
 			events:        []containerdEvent{},
 			expectedTitle: "",
 			numberEvents:  0,
 		},
 		{
-			name:     "Events on wrong type",
-			hostname: "baz",
+			name: "Events on wrong type",
 			events: []containerdEvent{{
 				Topic: "/containers/delete/extra",
 			}, {
@@ -176,8 +171,7 @@ func TestComputeEvents(t *testing.T) {
 			numberEvents:  0,
 		},
 		{
-			name:     "High cardinality Events with one invalid",
-			hostname: "baz",
+			name: "High cardinality Events with one invalid",
 			events: []containerdEvent{{
 				Topic:     "/containers/delete",
 				Timestamp: time.Now(),
@@ -193,8 +187,7 @@ func TestComputeEvents(t *testing.T) {
 			numberEvents:  1,
 		},
 		{
-			name:     "Low cardinality Event",
-			hostname: "baz",
+			name: "Low cardinality Event",
 			events: []containerdEvent{{
 				Topic:     "/images/update",
 				Timestamp: time.Now(),
@@ -210,7 +203,7 @@ func TestComputeEvents(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			computeEvents(test.hostname, test.events, mocked, containerdCheck.instance.Tags)
+			computeEvents(test.events, mocked, containerdCheck.instance.Tags)
 			mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)

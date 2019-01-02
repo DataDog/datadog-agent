@@ -51,10 +51,15 @@ type ContainerdUtil struct {
 // Errors are handled in the retrier.
 func GetContainerdUtil() (ContainerdItf, error) {
 	once.Do(func() {
+
 		globalContainerdUtil = &ContainerdUtil{
 			queryTimeout: config.Datadog.GetDuration("cri_query_timeout") * time.Second,
 			socketPath:   config.Datadog.GetString("cri_socket_path"),
 			namespace:    config.Datadog.GetString("containerd_namespace"),
+		}
+		if globalContainerdUtil.socketPath == "" {
+			log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
+			globalContainerdUtil.socketPath = containerdDefaultSocketPath
 		}
 		// Initialize the client in the connect method
 		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
@@ -94,11 +99,6 @@ func (c *ContainerdUtil) Close() error {
 
 // connect is our retry strategy, it can be re-triggered when the check is running if we lose connectivity.
 func (c *ContainerdUtil) connect() error {
-	if c.socketPath == "" {
-		log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
-		c.socketPath = containerdDefaultSocketPath
-	}
-
 	var err error
 	if c.cl != nil {
 		err = c.cl.Reconnect()
