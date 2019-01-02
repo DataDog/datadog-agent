@@ -407,21 +407,44 @@ setup. See Windows intructions [here](#windows).
 Your executable will be executed by the agent when fetching your secrets. The
 Datadog agent run using the `ddagentuser`. This specific user has no specific
 rights but is part of the `Performance Monitor Users` group. The password for
-this user is randomly generated at install time and never saved anywhere. The
-easiest way to test your executable in the same condition is to create a new
-user and add him to the same group.
+this user is randomly generated at install time and never saved anywhere.
 
-Then you can use [this powershell script as an example](secrets_scripts/secrets_tester.ps1)
-to easily test you executable on windows:
+This means that your executable might work with your default user or
+development user but not when it's run by the agent, as `ddagentuser` has more
+restricted rights.
+
+The easiest way to test your executable in the same conditions as the agent is
+to update the password of the `ddagentuser` on your dev box. This way you will
+be able to authenticate as `ddagentuser` and run your executable in the same
+context the agent would.
+
+To do so, follow those steps:
+1. Remove `ddagentuser` from the `Local Policies/User Rights Assignement/Deny
+   Log on locally` list in the `Local Security Policy`.
+2. Set a new password for ddagentuser (since the one generated at install time
+   is never saved anywhere). In Powershell run:
+   ```powershell
+   $user = [ADSI]"WinNT://./ddagentuser";
+   $user.SetPassword("a_new_password")
+   ```
+3. Update the password to be used by `DatadogAgent` service in the Service
+   Control Manager. In powershell run:
+   ```powershell
+   sc.exe config DatadogAgent password= "a_new_password"
+   ```
+
+You can now login as `ddagentuser` to test your executable. We have a
+[powershell script](secrets_scripts/secrets_tester.ps1) to help you test your
+executable as another user. It will switch the user context and mimic how the
+agent runs your executable.
+
+Example on how to use it:
 ```powershell
-PS C:\> .\secrets_tester.ps1 -user <YOU TESTING USER> -executable C:\decrypt.exe -payload '{"version": "1.0", "secrets": ["secret_ID_1", "secret_ID_2"]}
-cmdlet secrets_tester.ps1 at command pipeline position 1
-Supply values for the following parameters:
-password: <ENTER THE USER PASSWORD>
-Creating new Process with C:\decrypt.exe
+.\secrets_tester.ps1 -user ddagentuser -password a_new_password -executable C:\path\to\your\executable.exe -payload '{"version": "1.0", "secrets": ["secret_ID_1", "secret_ID_2"]}'
+Creating new Process with C:\path\to\your\executable.exe
 Waiting a second for the process to be up and running
 Writing the payload to Stdin
-Waiting a seconds so the process can fetch the secrets
+Waiting a second so the process can fetch the secrets
 stdout:
 {"secret_ID_1":{"value":"secret1"},"secret_ID_2":{"value":"secret2"}}
 stderr: None
