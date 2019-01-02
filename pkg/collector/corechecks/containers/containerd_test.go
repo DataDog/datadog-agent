@@ -151,7 +151,7 @@ func TestComputeEvents(t *testing.T) {
 	tests := []struct {
 		name          string
 		hostname      string
-		events        []ContainerdEvent
+		events        []containerdEvent
 		expectedTitle string
 		expectedTags  []string
 		numberEvents  int
@@ -159,14 +159,14 @@ func TestComputeEvents(t *testing.T) {
 		{
 			name:          "No events",
 			hostname:      "bar",
-			events:        []ContainerdEvent{},
+			events:        []containerdEvent{},
 			expectedTitle: "",
 			numberEvents:  0,
 		},
 		{
 			name:     "Events on wrong type",
 			hostname: "baz",
-			events: []ContainerdEvent{{
+			events: []containerdEvent{{
 				Topic: "/containers/delete/extra",
 			}, {
 				Topic: "containers/delete",
@@ -178,7 +178,7 @@ func TestComputeEvents(t *testing.T) {
 		{
 			name:     "High cardinality Events with one invalid",
 			hostname: "baz",
-			events: []ContainerdEvent{{
+			events: []containerdEvent{{
 				Topic:     "/containers/delete",
 				Timestamp: time.Now(),
 				Extra:     map[string]string{"foo": "bar"},
@@ -195,7 +195,7 @@ func TestComputeEvents(t *testing.T) {
 		{
 			name:     "Low cardinality Event",
 			hostname: "baz",
-			events: []ContainerdEvent{{
+			events: []containerdEvent{{
 				Topic:     "/images/update",
 				Timestamp: time.Now(),
 				Extra:     map[string]string{"foo": "baz"},

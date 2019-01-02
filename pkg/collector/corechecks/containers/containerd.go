@@ -124,7 +124,7 @@ func (c *ContainerdCheck) Run() error {
 }
 
 // compute events converts Containerd events into Datadog events
-func computeEvents(hostname string, events []ContainerdEvent, sender aggregator.Sender, userTags []string) {
+func computeEvents(hostname string, events []containerdEvent, sender aggregator.Sender, userTags []string) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {

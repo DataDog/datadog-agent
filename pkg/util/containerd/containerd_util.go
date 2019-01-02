@@ -40,11 +40,11 @@ type ContainerdItf interface {
 
 // ContainerdUtil is the util used to interact with the Containerd api.
 type ContainerdUtil struct {
-	cl                *containerd.Client
-	socketPath        string
-	initRetry         retry.Retrier
-	queryTimeout      time.Duration
-	namespace         string
+	cl           *containerd.Client
+	socketPath   string
+	initRetry    retry.Retrier
+	queryTimeout time.Duration
+	namespace    string
 }
 
 // GetContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
@@ -52,9 +52,9 @@ type ContainerdUtil struct {
 func GetContainerdUtil() (ContainerdItf, error) {
 	once.Do(func() {
 		globalContainerdUtil = &ContainerdUtil{
-			queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
-			socketPath:        config.Datadog.GetString("cri_socket_path"),
-			namespace:         config.Datadog.GetString("containerd_namespace"),
+			queryTimeout: config.Datadog.GetDuration("cri_query_timeout") * time.Second,
+			socketPath:   config.Datadog.GetString("cri_socket_path"),
+			namespace:    config.Datadog.GetString("containerd_namespace"),
 		}
 		// Initialize the client in the connect method
 		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
@@ -110,6 +110,13 @@ func (c *ContainerdUtil) connect() error {
 	}
 
 	c.cl, err = containerd.New(c.socketPath)
+	if err != nil {
+		return err
+	}
+	ver, err := c.Metadata()
+	if err == nil {
+		log.Infof("Connected to containerd - Version %s/%s", ver.Version, ver.Revision)
+	}
 	return err
 }
 

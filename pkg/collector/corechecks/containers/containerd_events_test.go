@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
-	events2 "github.com/containerd/containerd/api/events"
+	containerdevents "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/events"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	containerd2 "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 )
 
 type mockItf struct {
@@ -72,9 +72,9 @@ func TestCheckEvents(t *testing.T) {
 	}
 	// Test the basic listener
 	sub := CreateEventSubscriber("subscriberTest1", "k9s.io", nil)
-	sub.CheckEvents(containerd2.ContainerdItf(itf))
+	sub.CheckEvents(containerdutil.ContainerdItf(itf))
 
-	tp := events2.TaskPaused{
+	tp := containerdevents.TaskPaused{
 		ContainerID: "42",
 	}
 	vp, err := tp.Marshal()
@@ -129,9 +129,9 @@ func TestCheckEvents(t *testing.T) {
 
 	// Test the multiple events one unsupported
 	sub = CreateEventSubscriber("subscriberTest2", "k9s.io", nil)
-	sub.CheckEvents(containerd2.ContainerdItf(itf))
+	sub.CheckEvents(containerdutil.ContainerdItf(itf))
 
-	tk := events2.TaskOOM{
+	tk := containerdevents.TaskOOM{
 		ContainerID: "42",
 	}
 	vk, err := tk.Marshal()
@@ -145,7 +145,7 @@ func TestCheckEvents(t *testing.T) {
 		},
 	}
 
-	nd := events2.NamespaceDelete{
+	nd := containerdevents.NamespaceDelete{
 		Name: "k10s.io",
 	}
 	vnd, err := nd.Marshal()
