@@ -19,7 +19,7 @@ import (
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
 
-const logsAgentPrefix = "agent-intake.logs."
+const endpointPrefix = "agent-intake.logs."
 
 var logsEndpoints = map[string]int{
 	"agent-intake.logs.datadoghq.com": 10516,
@@ -84,7 +84,7 @@ func BuildEndpoints() (*client.Endpoints, error) {
 	default:
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
-		main.Host = coreConfig.GetMainEndpoint(logsAgentPrefix, "logs_config.dd_url")
+		main.Host = coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.dd_url")
 		if port, found := logsEndpoints[main.Host]; found {
 			main.Port = port
 		} else {
