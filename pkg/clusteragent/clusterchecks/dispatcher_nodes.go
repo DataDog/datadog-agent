@@ -30,16 +30,14 @@ func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int6
 	return makeConfigArray(node.digestToConfig), node.lastConfigChange, nil
 }
 
-// processNodeStatus returns configurations dispatched to a given node.
-// returns true if the last configuration change matches the one sent by the node agent.
+// processNodeStatus keeps the node's status in the store, and returns true
+// if the last configuration change matches the one sent by the node agent.
 func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus) (bool, error) {
-	var upToDate bool
+	var warmingUp bool
 
 	d.store.Lock()
 	if !d.store.active {
-		// Keep node-agent caches up during warmup phase,
-		// but continue processing the node status.
-		upToDate = true
+		warmingUp = true
 	}
 	node := d.store.getOrCreateNodeStore(nodeName)
 	d.store.Unlock()
@@ -50,10 +48,19 @@ func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus)
 	node.heartbeat = timestampNow()
 
 	if node.lastConfigChange == status.LastChange {
-		upToDate = true
+		// Node-agent is up to date
+		return true, nil
+	}
+	if warmingUp {
+		// During the initial warmup phase, we are counting active nodes
+		// without dispatching configurations.
+		// We tell node-agents they are up to date to keep their cached
+		// configurations running while we finish the warmup phase.
+		return true, nil
 	}
 
-	return upToDate, nil
+	// Node-agent needs to pull updated configs
+	return false, nil
 }
 
 // getLeastBusyNode returns the name of the node that is assigned

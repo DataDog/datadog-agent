@@ -144,12 +144,12 @@ func (h *Handler) Run(ctx context.Context) {
 	}
 }
 
-// startDispatch hooks to Autodiscovery and manages checks
+// runDispatch hooks in the Autodiscovery and runs the dispatch's run method
 func (h *Handler) runDispatch(ctx context.Context) {
 	// Register our scheduler and ask for a config replay
 	h.autoconfig.AddScheduler(schedulerName, h.dispatcher, true)
 
-	// Run dispatcher cleanup loop - blocking until context is cancelled
+	// Run dispatcher loop - blocking until context is cancelled
 	h.dispatcher.run(ctx)
 
 	// Reset the dispatcher
