@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -24,10 +25,11 @@ import (
 )
 
 var (
-	pyLoaderStats   *expvar.Map
-	configureErrors map[string][]string
-	py3Warnings     map[string][]string
-	statsLock       sync.RWMutex
+	pyLoaderStats        *expvar.Map
+	configureErrors      map[string][]string
+	py3Warnings          map[string][]string
+	statsLock            sync.RWMutex
+	a7IncompatibleMetric = "datadog.agent.a7_incompatible_check"
 )
 
 func init() {
@@ -50,6 +52,7 @@ const agentCheckModuleName = "checks"
 // PythonCheckLoader is a specific loader for checks living in Python modules
 type PythonCheckLoader struct {
 	agentCheckClass *python.PyObject
+	telemetry       aggregator.Sender
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
@@ -72,7 +75,13 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 		return nil, errors.New("unable to initialize AgentCheck class")
 	}
 
-	return &PythonCheckLoader{agentCheckClass}, nil
+	sender, err := aggregator.GetSender("collector_python")
+	if err != nil {
+		log.Errorf("Unable to get a new metrics sender: %s", err)
+		return nil, errors.New("unable to initialize collector telemetry")
+	}
+
+	return &PythonCheckLoader{agentCheckClass: agentCheckClass, telemetry: sender}, nil
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
@@ -182,17 +191,20 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 							filePath = filePath[:len(filePath)-1]
 						}
 						if warnings, err := validatePython3(name, filePath); err == nil {
-							addExpvarPy3Warnings(name, warnings)
+							addExpvarPy3Warnings(name, warnings, cl.telemetry)
 						} else {
+							cl.telemetry.Gauge(a7IncompatibleMetric, 1, "", []string{"check_name:" + name})
 							log.Errorf("could not lint check %s for Python3 compatibility: %s", name, err)
 						}
 					} else {
+						cl.telemetry.Gauge(a7IncompatibleMetric, 1, "", []string{"check_name:" + name})
 						log.Debugf("error: %s check attribute '__file__' is not a type string", name)
 					}
 				} else {
 					log.Debugf("Could not query the __file__ attribute for check %s", name)
 					python.PyErr_Clear()
 				}
+				cl.telemetry.Commit()
 			}
 		}
 	}
@@ -256,13 +268,15 @@ func expvarPy3Warnings() interface{} {
 	return py3Warnings
 }
 
-func addExpvarPy3Warnings(check string, warnings []string) {
+func addExpvarPy3Warnings(checkName string, warnings []string, telemetry aggregator.Sender) {
 	statsLock.Lock()
 	defer statsLock.Unlock()
 
 	if len(warnings) > 0 {
-		py3Warnings[check] = warnings
+		telemetry.Gauge(a7IncompatibleMetric, 1, "", []string{"check_name:" + checkName})
+		py3Warnings[checkName] = warnings
 	} else {
-		log.Debugf("check '%s' seems to be compatible with Python3", check)
+		telemetry.Gauge(a7IncompatibleMetric, 0, "", []string{"check_name:" + checkName})
+		log.Debugf("check '%s' seems to be compatible with Python3", checkName)
 	}
 }

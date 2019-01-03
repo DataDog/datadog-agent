@@ -5,7 +5,10 @@
 
 name 'datadog-pip-agent7'
 
-version="0.0.1"
+dependency 'datadog-pip'
+dependency 'datadog-agent'
+
+version="0.0.3"
 
 build do
   pip "install datadog-a7==#{version}"

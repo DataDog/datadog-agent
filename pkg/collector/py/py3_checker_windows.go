@@ -13,9 +13,9 @@ import (
 
 const (
 	// Waiting for final name
-	py3LinterBin = "ddPy3Linter.exe"
+	py3LinterBin = "a7_validate.exe"
 )
 
 var (
-	py3LinterPath = filepath.Join("bin", py3LinterBin)
+	py3LinterPath = filepath.Join("Scripts", py3LinterBin)
 )

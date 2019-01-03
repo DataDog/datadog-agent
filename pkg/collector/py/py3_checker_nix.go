@@ -13,7 +13,7 @@ import (
 
 const (
 	// Waiting for final name
-	py3LinterBin = "ddPy3Linter"
+	py3LinterBin = "a7_validate"
 )
 
 var (
