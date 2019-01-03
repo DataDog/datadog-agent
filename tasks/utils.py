@@ -218,5 +218,5 @@ def load_release_versions(ctx, target_version):
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.
-            return {str(k):str(v) for k, v in versions[target_version].iteritems()}
+            return {str(k):str(v) for k, v in versions[target_version].items()}
     raise Exception("Could not find '{}' version in release.json".format(target_version))

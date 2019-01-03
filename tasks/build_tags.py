@@ -118,7 +118,7 @@ def audit_tag_impact(ctx, build_exclude=None, use_embedded_libs=False, csv=False
 
     if csv:
         print("\nCSV output in bytes:")
-        for k, v in report.iteritems():
+        for k, v in report.items():
             print("{};{}".format(k, v))
 
 
