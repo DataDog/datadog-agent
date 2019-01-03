@@ -21,19 +21,24 @@ func (j *JMXFetch) Monitor() {
 	ival := float64(config.Datadog.GetInt("jmx_restart_interval"))
 	stopTimes := make([]time.Time, maxRestarts)
 	ticker := time.NewTicker(500 * time.Millisecond)
+
 	defer ticker.Stop()
+	defer close(j.stopped)
 
 	go j.heartbeat(ticker)
 
 	for {
-		// TODO: what should we do with error codes
-		j.Wait()
+		err := j.Wait()
+		if err == nil {
+			log.Infof("JMXFetch stopped and exited sanely.")
+			break
+		}
+
 		stopTimes[idx] = time.Now()
 		oldestIdx := (idx + maxRestarts + 1) % maxRestarts
 
 		if stopTimes[idx].Sub(stopTimes[oldestIdx]).Seconds() <= ival {
 			log.Errorf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up")
-			close(j.stopped)
 			return
 		}
 
@@ -41,7 +46,6 @@ func (j *JMXFetch) Monitor() {
 
 		select {
 		case <-j.shutdown:
-			close(j.stopped)
 			return
 		default:
 			// restart
@@ -49,4 +53,6 @@ func (j *JMXFetch) Monitor() {
 			j.Start(false)
 		}
 	}
+
+	<-j.shutdown
 }
