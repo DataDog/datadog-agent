@@ -21,6 +21,8 @@ else
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
+# build_version is computed by an invoke command/function.
+# We can't call it directly from there, we pass it through the environment instead.
 build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
