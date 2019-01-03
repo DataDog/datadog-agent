@@ -243,6 +243,7 @@ func computeExtra(sender aggregator.Sender, ctn containerd.Container, nsCtx cont
 	return nil
 }
 
+// TODO when creating a dedicated collector for the tagger, unify the local tagging logic and the Tagger.
 func collectTags(ctn containerd.Container, nsCtx context.Context) ([]string, error) {
 	tags := []string{}
 
