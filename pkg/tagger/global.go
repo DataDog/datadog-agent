@@ -42,9 +42,8 @@ func Init() error {
 func Tag(entity string, highCard bool) ([]string, error) {
 	if highCard == true {
 		return defaultTagger.Tag(entity, collectors.HighCardinality)
-	} else {
-		return defaultTagger.Tag(entity, collectors.OrchestratorCardinality)
 	}
+	return defaultTagger.Tag(entity, collectors.OrchestratorCardinality)
 }
 
 // Stop queues a stop signal to the defaultTagger
@@ -68,9 +67,8 @@ func IsDogstatsdFullCardinality() bool {
 func List(highCard bool) response.TaggerListResponse {
 	if highCard == true {
 		return defaultTagger.List(collectors.HighCardinality)
-	} else {
-		return defaultTagger.List(collectors.OrchestratorCardinality)
 	}
+	return defaultTagger.List(collectors.OrchestratorCardinality)
 }
 
 // GetEntityHash returns the hash for the tags associated with the given entity
