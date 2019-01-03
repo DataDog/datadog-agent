@@ -11,6 +11,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +33,7 @@ func (t *Tailer) getContainerID(entry *sdjournal.JournalEntry) string {
 
 // getContainerTags returns all the tags of a given container.
 func (t *Tailer) getContainerTags(containerID string) []string {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(containerID), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(containerID), collectors.HighCardinality)
 	if err != nil {
 		log.Warn(err)
 	}

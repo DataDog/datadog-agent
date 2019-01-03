@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -244,8 +245,9 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
-	// query full cardinality if either checks or dogstatsd are configured for full cardinality
-	response := tagger.List(tagger.IsChecksFullCardinality() || tagger.IsDogstatsdFullCardinality())
+	// query at the highest cardinality between checks and dogstatsd cardinalities
+	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
+	response := tagger.List(cardinality)
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
@@ -255,4 +257,12 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonTags)
+}
+
+// max returns the maximum value between a and b.
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

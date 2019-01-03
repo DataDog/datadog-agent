@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -98,7 +99,7 @@ func (c *CRICheck) Run() error {
 func (c *CRICheck) processContainerStats(sender aggregator.Sender, runtime string, containerStats map[string]*pb.ContainerStats) {
 	for cid, stats := range containerStats {
 		entityID := containers.BuildEntityName(runtime, cid)
-		tags, err := tagger.Tag(entityID, true)
+		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", cid[:12], err)
 		}

@@ -479,7 +479,7 @@ func parseDockerPort(port nat.Port) ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
-	tags, err := tagger.Tag(s.GetEntity(), tagger.IsChecksFullCardinality())
+	tags, err := tagger.Tag(s.GetEntity(), tagger.ChecksCardinality)
 	if err != nil {
 		return []string{}, err
 	}

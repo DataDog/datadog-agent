@@ -48,7 +48,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 			tags.AddOrchestrator("task_arn", meta.TaskARN)
 
 			// container
-			tags.AddOrchestrator("ecs_container_name", ctr.Name)
+			tags.AddLow("ecs_container_name", ctr.Name)
 			tags.AddHigh("container_id", ctr.DockerID)
 			tags.AddHigh("container_name", ctr.DockerName)
 

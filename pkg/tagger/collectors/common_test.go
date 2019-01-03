@@ -43,6 +43,9 @@ func assertTagInfoEqual(t *testing.T, expected *TagInfo, item *TagInfo) bool {
 	sort.Strings(expected.LowCardTags)
 	sort.Strings(item.LowCardTags)
 
+	sort.Strings(expected.OrchestratorCardTags)
+	sort.Strings(item.OrchestratorCardTags)
+
 	sort.Strings(expected.HighCardTags)
 	sort.Strings(item.HighCardTags)
 

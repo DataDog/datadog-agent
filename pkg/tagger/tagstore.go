@@ -167,7 +167,6 @@ func (e *entityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 	}
 
 	for source, tags := range e.orchestratorCardTags {
-		sources = append(sources, source)
 		insertWithPriority(tagPrioMapper, tags, source, collectors.OrchestratorCardinality)
 	}
 

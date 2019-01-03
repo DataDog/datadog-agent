@@ -125,9 +125,11 @@ func TestParsePods(t *testing.T) {
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 				},
+				OrchestratorCardTags: []string{
+					"pod_name:dd-agent-rc-qd876",
+				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"pod_name:dd-agent-rc-qd876",
 					"display_container_name:dd-agent_dd-agent-rc-qd876",
 				},
 			}},
@@ -159,9 +161,10 @@ func TestParsePods(t *testing.T) {
 						"kube_namespace:default",
 						"kube_daemon_set:dd-agent-rc",
 					},
-					HighCardTags: []string{
+					OrchestratorCardTags: []string{
 						"pod_name:dd-agent-rc-qd876",
 					},
+					HighCardTags: []string{},
 				},
 				{
 					Source: "kubelet",
@@ -174,9 +177,11 @@ func TestParsePods(t *testing.T) {
 						"image_name:datadog/docker-dd-agent",
 						"short_image:docker-dd-agent",
 					},
+					OrchestratorCardTags: []string{
+						"pod_name:dd-agent-rc-qd876",
+					},
 					HighCardTags: []string{
 						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-						"pod_name:dd-agent-rc-qd876",
 						"display_container_name:dd-agent_dd-agent-rc-qd876",
 					},
 				},
@@ -191,9 +196,11 @@ func TestParsePods(t *testing.T) {
 						"image_name:datadog/docker-filter",
 						"short_image:docker-filter",
 					},
+					OrchestratorCardTags: []string{
+						"pod_name:dd-agent-rc-qd876",
+					},
 					HighCardTags: []string{
 						"container_id:ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-						"pod_name:dd-agent-rc-qd876",
 						"display_container_name:filter_dd-agent-rc-qd876",
 					},
 				},
@@ -224,6 +231,7 @@ func TestParsePods(t *testing.T) {
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
@@ -254,9 +262,11 @@ func TestParsePods(t *testing.T) {
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 				},
+				OrchestratorCardTags: []string{
+					"kube_replica_set:frontend-2891696001",
+				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"kube_replica_set:frontend-2891696001",
 				},
 			}},
 		},
@@ -285,9 +295,11 @@ func TestParsePods(t *testing.T) {
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 				},
+				OrchestratorCardTags: []string{
+					"kube_replica_set:front-end-768dd754b7",
+				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"kube_replica_set:front-end-768dd754b7",
 				},
 			}},
 		},
@@ -325,6 +337,7 @@ func TestParsePods(t *testing.T) {
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
@@ -370,6 +383,7 @@ func TestParsePods(t *testing.T) {
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
@@ -393,9 +407,11 @@ func TestParsePods(t *testing.T) {
 				Source:      "kubelet",
 				Entity:      dockerEntityID,
 				LowCardTags: []string{"kube_container_name:dd-agent", "oshift_deployment_config:gitlab-ce"},
+				OrchestratorCardTags: []string{
+					"oshift_deployment:gitlab-ce-1",
+				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"oshift_deployment:gitlab-ce-1",
 				},
 			}},
 		},
@@ -425,11 +441,13 @@ func TestParsePods(t *testing.T) {
 					"image_tag:e2e",
 					"short_image:redis",
 				},
-				HighCardTags: []string{
+				OrchestratorCardTags: []string{
+					"kube_replica_set:redis-master-546dc4865f",
 					"pod_name:redis-master-bpnn6",
+				},
+				HighCardTags: []string{
 					"display_container_name:redis-master_redis-master-bpnn6",
 					"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
-					"kube_replica_set:redis-master-546dc4865f",
 				},
 			}},
 		},
@@ -466,7 +484,8 @@ func TestParsePods(t *testing.T) {
 					"kube_container_name:dd-agent",
 					"short_image:docker-dd-agent",
 				},
-				HighCardTags: []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
 			}},
 		},
 	} {
