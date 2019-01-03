@@ -49,7 +49,7 @@ def pkg_config_path(use_embedded_libs):
     return retval
 
 
-def get_build_flags(ctx, static=False, use_embedded_libs=False, dca=False, use_venv=False):
+def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use_venv=False):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -57,7 +57,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, dca=False, use_v
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, dca)
+    ldflags = get_version_ldflags(ctx, prefix)
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
         "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
@@ -124,7 +124,7 @@ def get_payload_version():
 
     return ""
 
-def get_version_ldflags(ctx, dca=False):
+def get_version_ldflags(ctx, prefix=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -133,7 +133,7 @@ def get_version_ldflags(ctx, dca=False):
     commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
 
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
-    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, dca=True))
+    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     return ldflags
 
@@ -151,12 +151,12 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
 
-def query_version(ctx, git_sha_length=7, dca=False):
+def query_version(ctx, git_sha_length=7, prefix=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     cmd = "git describe --tags"
-    if dca:
-        cmd += " --match \"{}\"".format('dca-*')
+    if prefix and type(prefix) == str:
+        cmd += " --match \"{}-*\"".format(prefix)
     if git_sha_length and type(git_sha_length) == int:
         cmd += " --abbrev={}".format(git_sha_length)
     described_version = ctx.run(cmd, hide=True).stdout.strip()
@@ -167,13 +167,18 @@ def query_version(ctx, git_sha_length=7, dca=False):
     if commit_number_match:
         commit_number = int(commit_number_match.group('commit_number'))
 
-    if commit_number == 0:
-        version_match = re.match(
-            r"^(?:dca-)?v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?(?P<git_sha>)",
-            described_version)
+    version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
+    if prefix and type(prefix) == str:
+        version_re = r"^(?:{}-)?".format(prefix) + version_re
     else:
-        version_match = re.match(
-            r"^(?:dca-)?v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?-\d+-g(?P<git_sha>[0-9a-f]+)$",
+        version_re = r"^" + version_re
+    if commit_number == 0:
+        version_re += r"(?P<git_sha>)$"
+    else:
+        version_re += r"-\d+-g(?P<git_sha>[0-9a-f]+)$"
+
+    version_match = re.match(
+            version_re,
             described_version)
 
     if not version_match:
@@ -188,10 +193,10 @@ def query_version(ctx, git_sha_length=7, dca=False):
     return version, pre, commit_number, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, dca=False):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, dca)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
