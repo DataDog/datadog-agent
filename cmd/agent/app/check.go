@@ -149,7 +149,6 @@ var checkCmd = &cobra.Command{
 
 func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	s := check.NewStats(c)
-	i := 0
 	times := checkTimes
 	pause := checkPause
 	if checkRate {
@@ -162,16 +161,15 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 		times = 2
 		pause = 1000
 	}
-	for i < times {
+	for i := 0; i < times; i++ {
 		t0 := time.Now()
 		err := c.Run()
 		warnings := c.GetWarnings()
 		mStats, _ := c.GetMetricStats()
 		s.Add(time.Since(t0), err, warnings, mStats)
-		if pause > 0 {
+		if pause > 0 && i < times-1 {
 			time.Sleep(time.Duration(pause) * time.Millisecond)
 		}
-		i++
 	}
 
 	return s
