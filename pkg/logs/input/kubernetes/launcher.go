@@ -40,7 +40,7 @@ type Launcher struct {
 
 // NewLauncher returns a new launcher.
 func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) (*Launcher, error) {
-	if !isAvailable() {
+	if !isIntegrationAvailable() {
 		return nil, fmt.Errorf("%s not found", podsDirectoryPath)
 	}
 
@@ -70,8 +70,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	return launcher, nil
 }
 
-func isAvailable() bool {
-	if _, err := os.Stat(podsDirectoryPath); os.IsNotExist(err) {
+func isIntegrationAvailable() bool {
+	if _, err := os.Stat(podsDirectoryPath); err != nil {
 		return false
 	}
 
