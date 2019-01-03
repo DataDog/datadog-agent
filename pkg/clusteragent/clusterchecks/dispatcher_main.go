@@ -77,9 +77,19 @@ func (d *dispatcher) remove(config integration.Config) {
 	d.removeConfig(digest)
 }
 
-// cleanupLoop is the cleanup goroutine for the dispatcher.
-// It has to be called in a goroutine with a cancellable context.
-func (d *dispatcher) cleanupLoop(ctx context.Context) {
+// reset empties the store and resets all states
+func (d *dispatcher) reset() {
+	d.store.Lock()
+	defer d.store.Unlock()
+	d.store.reset()
+}
+
+// run is the main management goroutine for the dispatcher
+func (d *dispatcher) run(ctx context.Context) {
+	d.store.Lock()
+	d.store.active = true
+	d.store.Unlock()
+
 	healthProbe := health.Register("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe)
 

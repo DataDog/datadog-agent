@@ -33,6 +33,10 @@ func init() {
 	prometheus.MustRegister(apiRequests)
 }
 
+func incrementRequestMetric(handler string, status int) {
+	apiRequests.WithLabelValues(handler, strconv.Itoa(status)).Inc()
+}
+
 // Install registers v1 API endpoints
 func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", getPodMetadata).Methods("GET")
