@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,13 +41,14 @@ type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
 	sub      *subscriber
+	filters  *containers.Filter
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	Tags          []string `yaml:"tags"`
-	Filters       []string `yaml:"filters"`
-	CollectEvents bool     `yaml:"collect_events"`
+	Tags              []string `yaml:"tags"`
+	containerdFilters []string `yaml:"filters"`
+	CollectEvents     bool     `yaml:"collect_events"`
 }
 
 func init() {
@@ -80,7 +82,14 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 	if err = c.instance.Parse(config); err != nil {
 		return err
 	}
-	c.sub.Filters = c.instance.Filters
+	c.sub.Filters = c.instance.containerdFilters
+	// GetSharedFilter should not return a nil instance of *Filter if there is an error during its setup.
+	fil, err := containers.GetSharedFilter()
+	if err != nil {
+		return err
+	}
+	c.filters = fil
+
 	return nil
 }
 
@@ -101,7 +110,7 @@ func (c *ContainerdCheck) Run() error {
 
 	if c.instance.CollectEvents {
 		if c.sub == nil {
-			c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.Filters)
+			c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.containerdFilters)
 		}
 
 		if !c.sub.IsRunning() {
@@ -110,17 +119,17 @@ func (c *ContainerdCheck) Run() error {
 		}
 		events := c.sub.Flush(time.Now().Unix())
 		// Process events
-		computeEvents(events, sender, c.instance.Tags)
+		computeEvents(events, sender, c.instance.Tags, c.filters)
 	}
 
 	nk := namespaces.WithNamespace(context.Background(), ns)
-	computeMetrics(sender, nk, cu, c.instance.Tags)
+	computeMetrics(sender, nk, cu, c.instance.Tags, c.filters)
 
 	return nil
 }
 
 // compute events converts Containerd events into Datadog events
-func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags []string) {
+func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags []string, fil *containers.Filter) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -128,7 +137,11 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags 
 			log.Debugf("Event topic %s does not have the expected format", e.Topic)
 			continue
 		}
-
+		if split[1] == "images" {
+			if fil.IsExcluded("", e.ID) {
+				continue
+			}
+		}
 		output := metrics.Event{
 			Priority:       metrics.EventPriorityNormal,
 			SourceTypeName: containerdCheckName,
@@ -157,7 +170,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags 
 	}
 }
 
-func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.ContainerdItf, userTags []string) {
+func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.ContainerdItf, userTags []string, fil *containers.Filter) {
 	containers, err := cu.Containers()
 	if err != nil {
 		log.Errorf(err.Error())
@@ -165,6 +178,9 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 	}
 
 	for _, ctn := range containers {
+		if isExcluded(ctn, nk, fil) {
+			continue
+		}
 		t, errTask := ctn.Task(nk, nil)
 		if errTask != nil {
 			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
@@ -211,6 +227,16 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 			computeHugetlb(sender, metrics.Hugetlb, tags)
 		}
 	}
+}
+
+func isExcluded(ctn containerd.Container, nk context.Context, fil *containers.Filter) bool {
+	im, err := ctn.Image(nk)
+	if err != nil {
+		log.Debugf("Could not get image associated with the container, ignoring: %v", err)
+		return true
+	}
+	// The container name is not available in Containerd, we only rely on image name based exclusion
+	return fil.IsExcluded("", im.Name())
 }
 
 func convertTasktoMetrics(task containerd.Task, nsCtx context.Context) (*cgroups.Metrics, error) {
