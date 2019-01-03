@@ -21,7 +21,7 @@ import (
 // By default, it returns a docker launcher that uses the docker socket to collect logs.
 // The docker launcher can be used both on a non kubernetes and kubernetes environment.
 // When a docker launcher cannot be initialized properly. The launcher will attempt to
-// initializea kubernetes launcher which will tail logs files (in '/var/log/pods') of all
+// initialize a kubernetes launcher which will tail logs files (in '/var/log/pods') of all
 // the containers running on the kubernetes cluster and matching the autodiscovery configuration.
 func NewLauncher(collectAll bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
 	// attempt to initialize a docker launcher
