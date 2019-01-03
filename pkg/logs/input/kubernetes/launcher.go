@@ -8,7 +8,6 @@
 package kubernetes
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -24,7 +23,7 @@ import (
 // The path to the pods log directory.
 const podsDirectoryPath = "/var/log/pods"
 
-var collectAllDisabledError = errors.New(fmt.Sprintf("%s disabled", config.ContainerCollectAll))
+var collectAllDisabledError = fmt.Errorf("%s disabled", config.ContainerCollectAll)
 
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
