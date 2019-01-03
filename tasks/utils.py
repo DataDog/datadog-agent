@@ -154,7 +154,7 @@ def get_git_branch_name():
 def query_version(ctx, git_sha_length=7, prefix=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
-    cmd = "git describe --tags"
+    cmd = "git describe --tags --candidates=50"
     if prefix and type(prefix) == str:
         cmd += " --match \"{}-*\"".format(prefix)
     if git_sha_length and type(git_sha_length) == int:
