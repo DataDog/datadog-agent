@@ -17,33 +17,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewLauncher returns a new container launcher,
-// by default returns a docker launcher that uses the docker socket to collect logs.
+// NewLauncher returns a new container launcher.
+// By default, it returns a docker launcher that uses the docker socket to collect logs.
 // The docker launcher can be used both on a non kubernetes and kubernetes environment.
-// When a docker launcher can not be initialized properly and when the log collection is enabled for all containers,
-// the launcher will attempt to initialize a kubernetes launcher which will detect and tail all the logs files localized
-// in '/var/log/pods' of all the containers running on the kubernetes cluster.
+// When a docker launcher cannot be initialized properly, the launcher will attempt to
+// initialize a kubernetes launcher which will tail logs files (in '/var/log/pods') of all
+// the containers running on the kubernetes cluster and matching the autodiscovery configuration.
 func NewLauncher(collectAll bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
-	switch {
-	case collectAll:
-		// attempt to initialize a docker launcher
-		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
-		if err == nil {
-			return launcher
-		}
-		// attempt to initialize a kubernetes launcher
-		log.Warnf("Could not setup the docker launcher, falling back to the kubernetes one: %v", err)
-		kubernetesLauncher, err := kubernetes.NewLauncher(sources, services)
-		if err == nil {
-			return kubernetesLauncher
-		}
-		log.Warnf("Could not setup the kubernetes launcher: %v", err)
-	default:
-		launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
-		if err == nil {
-			return launcher
-		}
-		log.Warnf("Could not setup the docker launcher: %v", err)
+	// attempt to initialize a docker launcher
+	log.Info("Trying to initialize docker launcher")
+	launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
+	if err == nil {
+		log.Info("Docker launcher initialized")
+		return launcher
 	}
+	log.Infof("Could not setup the docker launcher: %v", err)
+
+	// attempt to initialize a kubernetes launcher
+	log.Info("Trying to initialize kubernetes launcher")
+	kubernetesLauncher, err := kubernetes.NewLauncher(sources, services, collectAll)
+	if err == nil {
+		log.Info("Kubernetes launcher initialized")
+		return kubernetesLauncher
+	}
+	log.Infof("Could not setup the kubernetes launcher: %v", err)
+	log.Infof("Container logs won't be collected")
 	return NewNoopLauncher()
 }

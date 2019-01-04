@@ -16,7 +16,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *config.LogSources, services *service.Services) (*Launcher, error) {
+func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) (*Launcher, error) {
 	return &Launcher{}, nil
 }
 

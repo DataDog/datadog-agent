@@ -9,6 +9,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -22,6 +23,8 @@ import (
 // The path to the pods log directory.
 const podsDirectoryPath = "/var/log/pods"
 
+var collectAllDisabledError = fmt.Errorf("%s disabled", config.ContainerCollectAll)
+
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
 	sources                   *config.LogSources
@@ -32,10 +35,15 @@ type Launcher struct {
 	dockerRemovedServices     chan *service.Service
 	containerdAddedServices   chan *service.Service
 	containerdRemovedServices chan *service.Service
+	collectAll                bool
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(sources *config.LogSources, services *service.Services) (*Launcher, error) {
+func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) (*Launcher, error) {
+	if !isIntegrationAvailable() {
+		return nil, fmt.Errorf("%s not found", podsDirectoryPath)
+	}
+
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -45,6 +53,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services) (*Launc
 		sourcesByContainer: make(map[string]*config.LogSource),
 		stopped:            make(chan struct{}),
 		kubeutil:           kubeutil,
+		collectAll:         collectAll,
 	}
 	err = launcher.setup()
 	if err != nil {
@@ -59,6 +68,14 @@ func NewLauncher(sources *config.LogSources, services *service.Services) (*Launc
 	launcher.containerdAddedServices = services.GetAddedServices(service.Containerd)
 	launcher.containerdRemovedServices = services.GetRemovedServices(service.Containerd)
 	return launcher, nil
+}
+
+func isIntegrationAvailable() bool {
+	if _, err := os.Stat(podsDirectoryPath); err != nil {
+		return false
+	}
+
+	return true
 }
 
 // setup initializes the pod watcher and the tagger.
@@ -126,7 +143,9 @@ func (l *Launcher) addSource(svc *service.Service) {
 	}
 	source, err := l.getSource(pod, container)
 	if err != nil {
-		log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
+		if err != collectAllDisabledError {
+			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
+		}
 		return
 	}
 
@@ -167,6 +186,9 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		}
 		cfg = configs[0]
 	} else {
+		if !l.collectAll {
+			return nil, collectAllDisabledError
+		}
 		shortImageName, err := l.getShortImageName(container)
 		if err != nil {
 			cfg = &config.LogsConfig{
