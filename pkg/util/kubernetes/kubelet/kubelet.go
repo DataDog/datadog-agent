@@ -551,4 +551,3 @@ func IsPodReady(pod *Pod) bool {
 	}
 	return false
 }
-
