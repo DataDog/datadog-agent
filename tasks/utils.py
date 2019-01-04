@@ -157,6 +157,8 @@ def query_version(ctx, git_sha_length=7, prefix=None):
     cmd = "git describe --tags --candidates=50"
     if prefix and type(prefix) == str:
         cmd += " --match \"{}-*\"".format(prefix)
+    else:
+        cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
         cmd += " --abbrev={}".format(git_sha_length)
     described_version = ctx.run(cmd, hide=True).stdout.strip()
