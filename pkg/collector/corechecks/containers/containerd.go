@@ -47,7 +47,7 @@ type ContainerdCheck struct {
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
 	Tags              []string `yaml:"tags"`
-	containerdFilters []string `yaml:"filters"`
+	ContainerdFilters []string `yaml:"filters"`
 	CollectEvents     bool     `yaml:"collect_events"`
 }
 
@@ -82,7 +82,7 @@ func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
 	if err = c.instance.Parse(config); err != nil {
 		return err
 	}
-	c.sub.Filters = c.instance.containerdFilters
+	c.sub.Filters = c.instance.ContainerdFilters
 	// GetSharedFilter should not return a nil instance of *Filter if there is an error during its setup.
 	fil, err := containers.GetSharedFilter()
 	if err != nil {
@@ -110,7 +110,7 @@ func (c *ContainerdCheck) Run() error {
 
 	if c.instance.CollectEvents {
 		if c.sub == nil {
-			c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.containerdFilters)
+			c.sub = CreateEventSubscriber("ContainerdCheck", ns, c.instance.ContainerdFilters)
 		}
 
 		if !c.sub.IsRunning() {
