@@ -40,7 +40,7 @@
 
 [[constraint]]
   name = "github.com/ramr/go-reaper"
-  branch = "master"
+  revision = "35f6a64e44ff062abfcec2d27cef674212d445c0"
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
