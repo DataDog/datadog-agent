@@ -23,7 +23,7 @@ For instance, to install version 3.6.0 of the vSphere integration, run:
 
 Linux:
 ```
-sudo -u dd-agent datadog-agent integration install datadog-vsphere==3.6.0
+sudo -u dd-agent -- datadog-agent integration install datadog-vsphere==3.6.0
 ```
 Windows:
 ```
@@ -56,7 +56,7 @@ For instance, to remove the vSphere integration, run:
 
 Linux:
 ```
-sudo -u dd-agent datadog-agent integration remove datadog-vsphere
+sudo -u dd-agent -- datadog-agent integration remove datadog-vsphere
 ```
 Windows:
 ```
@@ -74,7 +74,7 @@ For instance, to show information on the vSphere integration, run:
 
 Linux:
 ```
-sudo -u dd-agent datadog-agent integration show datadog-vsphere
+sudo -u dd-agent -- datadog-agent integration show datadog-vsphere
 ```
 Windows:
 ```
@@ -88,7 +88,7 @@ This will list all the Datadog integrations (packages starting with `datadog-`) 
 
 Linux:
 ```
-sudo -u dd-agent datadog-agent integration freeze
+sudo -u dd-agent -- datadog-agent integration freeze
 ```
 Windows:
 ```
