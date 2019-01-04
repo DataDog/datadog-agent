@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	containersutil "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/containerd/cgroups"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
@@ -25,7 +26,7 @@ import (
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
 	"github.com/docker/docker/pkg/testutil/assert"
-	types2 "github.com/gogo/protobuf/types"
+	prototypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -145,6 +146,9 @@ func TestComputeEvents(t *testing.T) {
 		CheckBase: corechecks.NewCheckBase("containerd"),
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	var err error
+	containerdCheck.filters, err = containersutil.GetSharedFilter()
+	require.NoError(t, err)
 
 	tests := []struct {
 		name          string
@@ -176,7 +180,7 @@ func TestComputeEvents(t *testing.T) {
 				Topic:     "/containers/delete",
 				Timestamp: time.Now(),
 				Extra:     map[string]string{"foo": "bar"},
-				Message:   "Container xxx  deleted",
+				Message:   "Container xxx deleted",
 				ID:        "xxx",
 			}, {
 				Topic: "containers/delete",
@@ -192,18 +196,32 @@ func TestComputeEvents(t *testing.T) {
 				Topic:     "/images/update",
 				Timestamp: time.Now(),
 				Extra:     map[string]string{"foo": "baz"},
-				Message:   "Image yyy  updated",
-				ID:        "xxx",
+				Message:   "Image yyy updated",
+				ID:        "yyy",
 			},
 			},
 			expectedTitle: "Event on images from Containerd",
 			expectedTags:  []string{"foo:baz", "test"},
 			numberEvents:  1,
 		},
+		{
+			name: "Filtered event",
+			events: []containerdEvent{{
+				Topic:     "/images/create",
+				Timestamp: time.Now(),
+				Extra:     map[string]string{},
+				Message:   "Image kubernetes/pause created",
+				ID:        "kubernetes/pause",
+			},
+			},
+			expectedTitle: "Event on images from Containerd",
+			expectedTags:  []string{},
+			numberEvents:  0,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			computeEvents(test.events, mocked, containerdCheck.instance.Tags)
+			computeEvents(test.events, mocked, containerdCheck.instance.Tags, containerdCheck.filters)
 			mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
@@ -260,7 +278,7 @@ func TestConvertTaskToMetrics(t *testing.T) {
 					typeUrl := test.typeUrl
 					jsonValue, _ := json.Marshal(test.values)
 					metric := &types.Metric{
-						Data: &types2.Any{
+						Data: &prototypes.Any{
 							TypeUrl: typeUrl,
 							Value:   jsonValue,
 						},
@@ -276,4 +294,34 @@ func TestConvertTaskToMetrics(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestisExcluded tests the filtering of containers in the compute metrics method
+func TestIsExcluded(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	var err error
+	// GetShareFilter gives us the OOB exclusion of pause container images from most supported platforms
+	containerdCheck.filters, err = containersutil.GetSharedFilter()
+	require.NoError(t, err)
+	img := &mockImage{}
+	c := &mockContainer{
+		mockImage: func() (containerd.Image, error) {
+			img.imageName = "kubernetes/pause"
+			return containerd.Image(img), nil
+		},
+	}
+	// kubernetes/pause is excluded
+	isEc := isExcluded(c, context.Background(), containerdCheck.filters)
+	require.True(t, isEc)
+
+	c.mockImage = func() (containerd.Image, error) {
+		img.imageName = "kubernetes/pawz"
+		return containerd.Image(img), nil
+	}
+	// kubernetes/pawz although not an available image (yet ?) is not ignored
+	isEc = isExcluded(c, context.Background(), containerdCheck.filters)
+	require.False(t, isEc)
 }
