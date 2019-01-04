@@ -33,6 +33,7 @@ const (
 	kubeletMetricsPath     = "/metrics"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
+	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
 )
 
 var globalKubeUtil *KubeUtil
@@ -540,7 +541,7 @@ func IsPodReady(pod *Pod) bool {
 	if pod.Status.Phase != "Running" {
 		return false
 	}
-	if tolerate, ok := pod.Metadata.Annotations["ad.datadoghq.com/tolerate-unready"]; ok && tolerate == "true" {
+	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
 		return true
 	}
 	for _, status := range pod.Status.Conditions {
@@ -550,3 +551,4 @@ func IsPodReady(pod *Pod) bool {
 	}
 	return false
 }
+
