@@ -1,0 +1,28 @@
+init_configs:
+instances:
+  -
+    ## @param filters - list of containerd filters - optional
+    ## See the official grammar for the filters here https://github.com/containerd/containerd/blob/6daf8b77829b2d2d1ad9e2ef9f1e9fc6cebb3e13/filters/parser.go#L27-L50
+    ## The check supports Tasks, Containers and Images. See pkg/collector/corechecks/containers/containerd_events.go
+
+    filters:
+      - topic=="/containers/create"
+      - topic=="/containers/delete"
+      - topic=="/containers/update"
+      - topic=="/images/update"
+      - topic=="/images/create"
+      - topic=="/images/delete"
+      - topic=="/tasks/oom"
+      - topic=="/tasks/delete"
+
+    ## @param tags - list of key:value elements - optional
+    ## List of tyags to attach to every metrics, events and service checks emitted by this integration.
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #  - <KEY_1>:<VALUE_1>,<KEY_2>:<VALUE_2>
+
+    ## @param collect_events - bool to configure the event collection
+    ## Set to False if you want to deactivate the event collection for the containerd check
+    #
+    collect_events: True

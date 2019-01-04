@@ -586,6 +586,23 @@ api_key:
 # cri_query_timeout: 5
 #
 {{ end -}}
+{{- if .Containerd}}
+# Containerd integration
+#
+# To activate the Containerd check you'll need to indicate the path of the
+# Containerd socket you're using (and mount it in the container if needed)
+# cri_socket_path: /var/run/containerd/containerd.sock
+#
+# You can configure the timeout (in seconds) for querying the Containerd API
+# cri_query_timeout: 5
+#
+# Activating the Containerd check will also activate the CRI check, as it contains an additional subset of useful metrics.
+#
+# You can specify the namespace that Containerd is using on your system.
+# As the Containerd check only supports Kubernetes, the default value is `k8s.io`
+# https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
+# containerd_namespace: k8s.io
+{{ end -}}
 {{- if .Kubelet }}
 # Kubernetes kubelet connectivity
 #
