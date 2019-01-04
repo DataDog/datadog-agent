@@ -731,7 +731,7 @@ kitchen_suse:
 kitchen_debian:
   stage: testkitchen_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:1
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:v944618-2958e16
   <<: *run_when_testkitchen_triggered
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
