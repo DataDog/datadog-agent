@@ -34,7 +34,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		tags := utils.NewTagList()
 
 		// Pod name
-		tags.AddHigh("pod_name", pod.Metadata.Name)
+		tags.AddOrchestrator("pod_name", pod.Metadata.Name)
 		tags.AddLow("kube_namespace", pod.Metadata.Namespace)
 
 		// Pod labels
@@ -58,7 +58,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			tags.AddLow("oshift_deployment_config", dc_name)
 		}
 		if deploy_name, found := pod.Metadata.Annotations["openshift.io/deployment.name"]; found {
-			tags.AddHigh("oshift_deployment", deploy_name)
+			tags.AddOrchestrator("oshift_deployment", deploy_name)
 		}
 
 		// Creator
@@ -75,11 +75,11 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			case "StatefulSet":
 				tags.AddLow("kube_stateful_set", owner.Name)
 			case "Job":
-				tags.AddHigh("kube_job", owner.Name) // TODO detect if no from cronjob, then low card
+				tags.AddOrchestrator("kube_job", owner.Name) // TODO detect if no from cronjob, then low card
 			case "ReplicaSet":
 				deployment := c.parseDeploymentForReplicaset(owner.Name)
 				if len(deployment) > 0 {
-					tags.AddHigh("kube_replica_set", owner.Name)
+					tags.AddOrchestrator("kube_replica_set", owner.Name)
 					tags.AddLow("kube_deployment", deployment)
 				} else {
 					tags.AddLow("kube_replica_set", owner.Name)
@@ -89,13 +89,14 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 		}
 
-		low, high := tags.Compute()
+		low, orch, high := tags.Compute()
 		if pod.Metadata.UID != "" {
 			podInfo := &TagInfo{
-				Source:       kubeletCollectorName,
-				Entity:       kubelet.PodUIDToEntityName(pod.Metadata.UID),
-				HighCardTags: high,
-				LowCardTags:  low,
+				Source:               kubeletCollectorName,
+				Entity:               kubelet.PodUIDToEntityName(pod.Metadata.UID),
+				HighCardTags:         high,
+				OrchestratorCardTags: orch,
+				LowCardTags:          low,
 			}
 			output = append(output, podInfo)
 		}
@@ -128,12 +129,13 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				}
 			}
 
-			cLow, cHigh := cTags.Compute()
+			cLow, cOrch, cHigh := cTags.Compute()
 			info := &TagInfo{
-				Source:       kubeletCollectorName,
-				Entity:       container.ID,
-				HighCardTags: cHigh,
-				LowCardTags:  cLow,
+				Source:               kubeletCollectorName,
+				Entity:               container.ID,
+				HighCardTags:         cHigh,
+				OrchestratorCardTags: cOrch,
+				LowCardTags:          cLow,
 			}
 			output = append(output, info)
 		}

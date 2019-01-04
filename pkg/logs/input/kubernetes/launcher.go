@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -251,7 +252,7 @@ func (l *Launcher) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) 
 
 // getTags returns all the tags of the container
 func (l *Launcher) getTags(container kubelet.ContainerStatus) []string {
-	tags, _ := tagger.Tag(container.ID, true)
+	tags, _ := tagger.Tag(container.ID, collectors.HighCardinality)
 	return tags
 }
 

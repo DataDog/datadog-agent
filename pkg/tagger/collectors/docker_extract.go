@@ -23,7 +23,7 @@ import (
 type resolveHook func(image string) (string, error)
 
 // extractFromInspect extract tags for a container inspect JSON
-func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, error) {
+func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, []string, error) {
 	tags := utils.NewTagList()
 
 	dockerExtractImage(tags, co, c.dockerUtil.ResolveImageName)
@@ -33,8 +33,8 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 	tags.AddHigh("container_name", strings.TrimPrefix(co.Name, "/"))
 	tags.AddHigh("container_id", co.ID)
 
-	low, high := tags.Compute()
-	return low, high, nil
+	low, orchestrator, high := tags.Compute()
+	return low, orchestrator, high, nil
 }
 
 func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve resolveHook) {
@@ -118,7 +118,7 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 		case "CHRONOS_JOB_OWNER":
 			tags.AddLow("chronos_job_owner", envValue)
 		case "MESOS_TASK_ID":
-			tags.AddHigh("mesos_task", envValue)
+			tags.AddOrchestrator("mesos_task", envValue)
 
 		// Nomad
 		case "NOMAD_TASK_NAME":

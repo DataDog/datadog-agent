@@ -22,6 +22,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -95,7 +96,7 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *contai
 			fmt.Sprintf("short_image:%s", short),
 		}
 	} else {
-		containerTags, err = tagger.Tag(c.EntityID, false)
+		containerTags, err = tagger.Tag(c.EntityID, collectors.LowCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 			return
@@ -179,7 +180,7 @@ func (d *DockerCheck) Run() error {
 		if c.State != containers.ContainerRunningState || c.Excluded {
 			continue
 		}
-		tags, err := tagger.Tag(c.EntityID, true)
+		tags, err := tagger.Tag(c.EntityID, collectors.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 		}

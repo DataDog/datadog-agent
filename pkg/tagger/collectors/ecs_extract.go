@@ -36,15 +36,16 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response, targetDock
 					tags.AddLow("cluster_name", c.clusterName)
 				}
 
-				tags.AddHigh("task_arn", task.Arn)
+				tags.AddOrchestrator("task_arn", task.Arn)
 
-				low, high := tags.Compute()
+				low, orch, high := tags.Compute()
 
 				info := &TagInfo{
-					Source:       ecsCollectorName,
-					Entity:       docker.ContainerIDToEntityName(container.DockerID),
-					HighCardTags: high,
-					LowCardTags:  low,
+					Source:               ecsCollectorName,
+					Entity:               docker.ContainerIDToEntityName(container.DockerID),
+					HighCardTags:         high,
+					OrchestratorCardTags: orch,
+					LowCardTags:          low,
 				}
 				output = append(output, info)
 			}

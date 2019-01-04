@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -262,7 +263,7 @@ func (t *Tailer) keepDockerTagsUpdated() {
 }
 
 func (t *Tailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.ContainerID), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.ContainerID), collectors.HighCardinality)
 	if err != nil {
 		log.Warn(err)
 	} else {
