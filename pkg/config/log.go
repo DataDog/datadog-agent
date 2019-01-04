@@ -107,10 +107,10 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 
 	configTemplate += fmt.Sprintf(`</outputs>
 	<formats>
-		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="common" format="%%Date(%s) | %%LEVEL | (%%RelFile:%%Line in %%FuncShort) | %%Msg%%n"/>
-		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%RelFile:%%Line in %%FuncShort) | %%Msg%%n" />
+		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="common" format="%%Date(%s) | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n"/>
+		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(rfc)+`) %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n" />
 	</formats>
 </seelog>`, logDateFormat, logDateFormat)
 
@@ -304,7 +304,19 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
+func parseShortFilePath(params string) seelog.FormatterFunc {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		return extractShortPathFromFullPath(context.FullPath())
+	}
+}
+
+func extractShortPathFromFullPath(fullPath string) string {
+	slices := strings.Split(fullPath, "/datadog-agent/")
+	return slices[len(slices)-1]
+}
+
 func init() {
 	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
+	seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
 	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
 }
