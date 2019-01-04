@@ -232,7 +232,7 @@ func (j *JMXFetch) Start(manage bool) error {
 
 	// start syncrhonization channels
 	if err == nil && manage {
-		j.managed = manage
+		j.managed = true
 		j.shutdown = make(chan struct{})
 		j.stopped = make(chan struct{})
 
@@ -291,12 +291,12 @@ func (j *JMXFetch) Wait() error {
 
 func (j *JMXFetch) heartbeat(beat *time.Ticker) {
 	health := health.Register("jmxfetch")
+	defer health.Deregister()
 
 	for range beat.C {
 		select {
 		case <-health.C:
 		case <-j.shutdown:
-			health.Deregister()
 			return
 		}
 	}
