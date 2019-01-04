@@ -215,7 +215,7 @@ func (e *entityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 	if cardinality == collectors.HighCardinality {
 		return tags, sources, e.tagsHash
 	} else if cardinality == collectors.OrchestratorCardinality {
-		return orchestratorCardTags, sources, e.tagsHash
+		return e.cachedOrchestrator, sources, e.tagsHash
 	}
 	return lowCardTags, sources, e.tagsHash
 }
