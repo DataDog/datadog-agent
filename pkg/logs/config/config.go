@@ -19,6 +19,15 @@ import (
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
 const ContainerCollectAll = "container_collect_all"
 
+const endpointPrefix = "agent-intake.logs."
+
+var logsEndpoints = map[string]int{
+	"agent-intake.logs.datadoghq.com": 10516,
+	"agent-intake.logs.datadoghq.eu":  443,
+	"agent-intake.logs.datad0g.com":   10516,
+	"agent-intake.logs.datad0g.eu":    443,
+}
+
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
 func DefaultSources() []*LogSource {
 	var sources []*LogSource
@@ -53,7 +62,7 @@ func BuildEndpoints() (*client.Endpoints, error) {
 		ProxyAddress: proxyAddress,
 	}
 	switch {
-	case coreConfig.Datadog.GetString("logs_config.logs_dd_url") != "":
+	case coreConfig.Datadog.IsSet("logs_config.logs_dd_url"):
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
 		// and '<PORT>' to be an integer.
 		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
@@ -73,9 +82,14 @@ func BuildEndpoints() (*client.Endpoints, error) {
 		main.Port = 443
 		useSSL = true
 	default:
-		// datadog settings
-		main.Host = coreConfig.Datadog.GetString("logs_config.dd_url")
-		main.Port = coreConfig.Datadog.GetInt("logs_config.dd_port")
+		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
+		// if none of them is set, we default to the US agent endpoint.
+		main.Host = coreConfig.GetMainEndpoint(endpointPrefix, "logs_config.dd_url")
+		if port, found := logsEndpoints[main.Host]; found {
+			main.Port = port
+		} else {
+			main.Port = coreConfig.Datadog.GetInt("logs_config.dd_port")
+		}
 		useSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 	main.UseSSL = useSSL
