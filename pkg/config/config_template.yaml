@@ -68,6 +68,17 @@ api_key:
 #
 #  will result in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
 
+# Configure the level of granularity of tags to send for checks and dogstatsd metrics and events.
+# Choices are:
+# - low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
+# - orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+# - high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+# WARNING: sending container tags for dogstatsd metrics may create more metrics
+# (one per container instead of one per host). This may impact your custom metrics billing.
+#
+# checks_tag_cardinality: orchestrator
+# dogstatsd_tag_cardinality: low
+
 # Histogram and Historate configuration
 #
 # Configure which aggregated value to compute. Possible values are: min, max,

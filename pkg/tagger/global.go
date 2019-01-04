@@ -7,6 +7,7 @@ package tagger
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -76,14 +77,16 @@ func GetEntityHash(entity string) string {
 // stringToTagCardinality extracts a TagCardinality from a string.
 // In case of failure to parse, returns an error and defaults to Low.
 func stringToTagCardinality(c string) (collectors.TagCardinality, error) {
-	if c == "high" {
+	switch strings.ToLower(c) {
+	case "high":
 		return collectors.HighCardinality, nil
-	} else if c == "orchestrator" {
+	case "orchestrator":
 		return collectors.OrchestratorCardinality, nil
-	} else if c == "low" {
+	case "low":
 		return collectors.LowCardinality, nil
+	default:
+		return collectors.LowCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
 	}
-	return collectors.LowCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
 }
 
 func init() {

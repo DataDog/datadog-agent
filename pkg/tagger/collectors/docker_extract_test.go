@@ -99,11 +99,12 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			toRecordEnvAsTags:    map[string]string{},
 			toRecordLabelsAsTags: map[string]string{},
-			expectedLow:          []string{},
-			expectedOrch: []string{
+			expectedLow: []string{
 				"marathon_app:/system/dd-agent",
 				"chronos_job:app1_process-orders",
 				"chronos_job_owner:qa",
+			},
+			expectedOrch: []string{
 				"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
 			},
 			expectedHigh: []string{},
@@ -142,8 +143,8 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			toRecordEnvAsTags:    map[string]string{},
 			toRecordLabelsAsTags: map[string]string{},
-			expectedLow:          []string{},
-			expectedOrch:         []string{"swarm_service:helloworld"},
+			expectedLow:          []string{"swarm_service:helloworld"},
+			expectedOrch:         []string{},
 			expectedHigh:         []string{},
 		},
 		{
@@ -167,8 +168,8 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"com.docker.swarm.node.id":   "custom_add_swarm_node",
 				"com.docker.swarm.task.name": "+custom_add_task_name",
 			},
-			expectedLow:  []string{"custom_add_swarm_node:zdtab51ei97djzrpa1y2tz8li"},
-			expectedOrch: []string{"swarm_service:helloworld"},
+			expectedLow:  []string{"custom_add_swarm_node:zdtab51ei97djzrpa1y2tz8li", "swarm_service:helloworld"},
+			expectedOrch: []string{},
 			expectedHigh: []string{"custom_add_task_name:helloworld.1.knk1rz1szius7pvyznn9zolld"},
 		},
 		{
@@ -196,11 +197,11 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			toRecordEnvAsTags:    map[string]string{},
 			toRecordLabelsAsTags: map[string]string{},
-			expectedLow:          []string{},
-			expectedOrch: []string{
+			expectedLow: []string{
 				"rancher_service:testAD/redis",
 				"rancher_stack:testAD",
 			},
+			expectedOrch: []string{},
 			expectedHigh: []string{
 				"rancher_container:testAD-redis-1",
 			},
@@ -219,12 +220,12 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			toRecordEnvAsTags:    map[string]string{},
 			toRecordLabelsAsTags: map[string]string{},
-			expectedLow:          []string{},
-			expectedOrch: []string{
+			expectedLow: []string{
 				"nomad_task:test-task",
 				"nomad_job:test-job",
 				"nomad_group:test-group",
 			},
+			expectedOrch: []string{},
 			expectedHigh: []string{},
 		},
 	}
