@@ -17,8 +17,8 @@ On linux, the command needs to be executed as the `dd-agent` user, and as `admin
 With the `datadog-agent integration install` command, you can install a specific version of an official Datadog integration (available on the [integrations-core repository][1]), provided that it is compatible with the version of the agent. The command does this verification and exits with a failure in case of incompatibilities.
 
 An integration is compatible and installable if:
- 1. Its version is newer than the one shipped with the agent.
- 1. It is compatible with the version of the [datadog_checks_base][2].
+ 1. Its version is newer than the one [shipped with the agent][2].
+ 1. It is compatible with the version of the [datadog_checks_base][3].
  1. It is not `datadog_checks_base`. The base check can only be upgraded by upgrading the agent.
 
 The syntax for this command is `datadog-agent integration install <integration_package_name>==<version>` where `<integration_package_name>` is the name of the integration prefixed with `datadog-`.
@@ -47,8 +47,6 @@ Upon agent upgrade, every integration that you individually upgraded using the c
 ### Configuration management tools
 
 Configuration management tools can leverage this command to deploy the version of an integration across your entire infrastructure.
-
-The recommended way to use this with a configuration management tool, is to pin the integration to the desired version, and as soon as you upgrade the version of the agent, you remove the pin of the individual integration.
 
 
 ## Remove an integration
@@ -99,7 +97,17 @@ Windows:
 "C:\Program Files\Datadog\Datadog Agent\embedded\agent.exe" integration freeze
 ```
 
+## Recommended usage and workflow
+
+1. Check out the version you have installed in your agent with the `show` command
+1. Look at the changelog of the integration on the [integrations-core][1] repository to identify the version you want and make sure the changes correspond to what you want
+1. Install the integration with the `install` command
+1. Restart your agent
+
+**Note** When using a configuration management tool, it is recommended to pin the integration to the desired version, and when the agent is upgraded, to remove the pin of the individual integration.
+Otherwise, upgrading the agent without removing the pin on the individual integration will likely cause the configuration management tool to fail since the version of the integration will likely not be compatible with the new version of the agent.
 
 
 [1]: https://github.com/DataDog/integrations-core
-[2]: https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base
+[2]: https://github.com/DataDog/integrations-core/blob/master/AGENT_INTEGRATIONS.md
+[3]: https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base
