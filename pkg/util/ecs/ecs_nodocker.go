@@ -14,6 +14,11 @@ func GetUtil() (*Util, error) {
 	return nil, docker.ErrDockerNotCompiled
 }
 
+// IsECSInstance returns whether the agent is running in ECS.
+func IsECSInstance() bool {
+	return false
+}
+
 // IsFargateInstance returns whether the agent is in an ECS fargate task.
 // It detects it by getting and unmarshalling the metadata API response.
 func IsFargateInstance() bool {

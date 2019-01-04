@@ -88,6 +88,12 @@ func GetUtil() (*Util, error) {
 	return globalUtil, nil
 }
 
+// IsECSInstance returns whether the agent is running in ECS.
+func IsECSInstance() bool {
+	_, err := GetUtil()
+	return err == nil
+}
+
 // init makes an empty Util bootstrap itself.
 func (u *Util) init() error {
 	url, err := detectAgentURL()

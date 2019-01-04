@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -112,12 +113,12 @@ func GetHostname() (string, error) {
 	var provider string
 
 	// try the name provided in the configuration file
-	name := config.Datadog.GetString("hostname")
-	err = ValidHostname(name)
+	configName := config.Datadog.GetString("hostname")
+	err = ValidHostname(configName)
 	if err == nil {
-		cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
+		cache.Cache.Set(cacheHostnameKey, configName, cache.NoExpiration)
 		hostnameProvider.Set("configuration")
-		return name, err
+		return configName, err
 	}
 
 	expErr := new(expvar.String)
@@ -136,11 +137,11 @@ func GetHostname() (string, error) {
 	// GCE metadata
 	log.Debug("GetHostname trying GCE metadata...")
 	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
-		name, err = getGCEHostname(name)
+		gceName, err := getGCEHostname()
 		if err == nil {
-			cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
+			cache.Cache.Set(cacheHostnameKey, gceName, cache.NoExpiration)
 			hostnameProvider.Set("gce")
-			return name, err
+			return gceName, err
 		}
 		expErr := new(expvar.String)
 		expErr.Set(err.Error())
@@ -163,10 +164,10 @@ func GetHostname() (string, error) {
 		log.Debug("Unable to get FQDN from system: ", err)
 	}
 
-	isContainerized, name := getContainerHostname()
+	isContainerized, containerName := getContainerHostname()
 	if isContainerized {
-		if name != "" {
-			hostName = name
+		if containerName != "" {
+			hostName = containerName
 			provider = "container"
 		} else {
 			expErr := new(expvar.String)
@@ -178,9 +179,9 @@ func GetHostname() (string, error) {
 	if hostName == "" {
 		// os
 		log.Debug("GetHostname trying os...")
-		name, err = os.Hostname()
+		systemName, err := os.Hostname()
 		if err == nil {
-			hostName = name
+			hostName = systemName
 			provider = "os"
 		} else {
 			expErr := new(expvar.String)
@@ -196,23 +197,31 @@ func GetHostname() (string, error) {
 	// and the hostname is one of the default ones
 	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
 		log.Debug("GetHostname trying EC2 metadata...")
-		instanceID, err := getEC2Hostname(name)
-		if err == nil {
-			err = ValidHostname(instanceID)
+		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
+			instanceID, err := getEC2Hostname()
 			if err == nil {
-				hostName = instanceID
-				provider = "aws"
+				err = ValidHostname(instanceID)
+				if err == nil {
+					hostName = instanceID
+					provider = "aws"
+				} else {
+					expErr := new(expvar.String)
+					expErr.Set(err.Error())
+					hostnameErrors.Set("aws", expErr)
+					log.Debug("EC2 instance ID is not a valid hostname: ", err)
+				}
 			} else {
 				expErr := new(expvar.String)
 				expErr.Set(err.Error())
 				hostnameErrors.Set("aws", expErr)
-				log.Debug("EC2 instance ID is not a valid hostname: ", err)
+				log.Debug("Unable to determine hostname from EC2: ", err)
 			}
 		} else {
+			err := fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
+			log.Debug(err.Error())
 			expErr := new(expvar.String)
 			expErr.Set(err.Error())
 			hostnameErrors.Set("aws", expErr)
-			log.Debug("Unable to determine hostname from EC2: ", err)
 		}
 	}
 

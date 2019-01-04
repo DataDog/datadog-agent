@@ -101,7 +101,7 @@ func GetKubeUtil() (*KubeUtil, error) {
 }
 
 // HostnameProvider kubelet implementation for the hostname provider
-func HostnameProvider(hostName string) (string, error) {
+func HostnameProvider() (string, error) {
 	ku, err := GetKubeUtil()
 	if err != nil {
 		return "", err
@@ -501,7 +501,7 @@ func (ku *KubeUtil) init() error {
 	// setting the kubeletHost
 	ku.kubeletHost = config.Datadog.GetString("kubernetes_kubelet_host")
 	if ku.kubeletHost == "" {
-		ku.kubeletHost, err = docker.HostnameProvider("")
+		ku.kubeletHost, err = docker.HostnameProvider()
 		if err != nil {
 			return fmt.Errorf("unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
 		}

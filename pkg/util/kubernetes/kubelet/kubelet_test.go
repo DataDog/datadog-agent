@@ -350,7 +350,7 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubelet_auth_token_path", "")
 
-	hostname, err := HostnameProvider("")
+	hostname, err := HostnameProvider()
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "my-node-name", hostname)
 }

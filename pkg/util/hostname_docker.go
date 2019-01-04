@@ -21,7 +21,7 @@ func getContainerHostname() (bool, string) {
 	// Cluster-agent logic: Kube apiserver
 	if getKubeHostname, found := hostname.ProviderCatalog["kube_apiserver"]; found {
 		log.Debug("GetHostname trying Kubernetes trough API server...")
-		name, err := getKubeHostname(name)
+		name, err := getKubeHostname()
 		if err == nil && ValidHostname(name) == nil {
 			return true, name
 		}
@@ -36,7 +36,7 @@ func getContainerHostname() (bool, string) {
 	// Docker
 	log.Debug("GetHostname trying Docker API...")
 	if getDockerHostname, found := hostname.ProviderCatalog["docker"]; found {
-		name, err := getDockerHostname(name)
+		name, err := getDockerHostname()
 		if err == nil && ValidHostname(name) == nil {
 			return true, name
 		}
@@ -48,7 +48,7 @@ func getContainerHostname() (bool, string) {
 	// Kubelet
 	if getKubeletHostname, found := hostname.ProviderCatalog["kubelet"]; found {
 		log.Debug("GetHostname trying Kubernetes trough kubelet API...")
-		name, err := getKubeletHostname(name)
+		name, err := getKubeletHostname()
 		if err == nil && ValidHostname(name) == nil {
 			return true, name
 		}
