@@ -7,7 +7,7 @@
 
 package common
 
-// isDockerRunning check if docker is running
-func isDockerRunning() bool {
+// IsDockerRunning check if docker is running
+func IsDockerRunning() bool {
 	return false
 }

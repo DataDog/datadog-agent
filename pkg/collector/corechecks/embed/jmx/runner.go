@@ -50,7 +50,13 @@ func (r *runner) initRunner() {
 }
 
 func (r *runner) startRunner() error {
-	err := r.jmxfetch.Start()
+
+	lifecycleMgmt := true
+	if runtime.GOOS == "windows" {
+		lifecycleMgmt = false
+	}
+
+	err := r.jmxfetch.Start(lifecycleMgmt)
 	if err != nil {
 		return err
 	}

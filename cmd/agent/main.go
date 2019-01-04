@@ -14,9 +14,21 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	reaper "github.com/ramr/go-reaper"
 )
 
 func main() {
+	if common.IsDockerRunning() {
+		// Reap orphaned child processes
+		reaperCfg := reaper.Config{
+			Pid:              0, //wait for child'd process group ID is equal to that of the calling process.
+			Options:          0,
+			DisablePid1Check: true, // we will not be pid 1 with s6
+		}
+		go reaper.Start(reaperCfg)
+	}
+
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
 		os.Exit(-1)
