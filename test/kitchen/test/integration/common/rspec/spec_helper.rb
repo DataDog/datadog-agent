@@ -99,9 +99,7 @@ end
 
 def status
   if os == :windows
-    status_out = `sc interrogate datadogagent 2>&1`
-    puts status_out
-    status_out.include?('RUNNING')
+    `sc interrogate datadogagent 2>&1`.include?('RUNNING')
   else
     if has_systemctl
       system('sudo systemctl status --no-pager datadog-agent.service')
