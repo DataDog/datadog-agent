@@ -342,6 +342,7 @@
     "api/types/versions",
     "api/types/volume",
     "client",
+    "pkg/testutil/assert",
     "pkg/tlsconfig",
   ]
   pruneopts = ""
@@ -1055,7 +1056,6 @@
   revision = "7d6f385de8bea29190f15ba9931442a0eaef9af7"
 
 [[projects]]
-  branch = "master"
   digest = "1:3b5435ace50a6acfa3fd9c32b08b886e7a3ad81833eac37c5126492e472423e8"
   name = "github.com/ramr/go-reaper"
   packages = ["."]
@@ -1916,6 +1916,7 @@
     "github.com/containerd/containerd/api/types",
     "github.com/containerd/containerd/cio",
     "github.com/containerd/containerd/containers",
+    "github.com/containerd/containerd/events",
     "github.com/containerd/containerd/namespaces",
     "github.com/containerd/typeurl",
     "github.com/coreos/etcd/client",
@@ -1929,6 +1930,7 @@
     "github.com/docker/docker/api/types/swarm",
     "github.com/docker/docker/api/types/versions",
     "github.com/docker/docker/client",
+    "github.com/docker/docker/pkg/testutil/assert",
     "github.com/docker/go-connections/nat",
     "github.com/dustin/go-humanize",
     "github.com/fatih/color",

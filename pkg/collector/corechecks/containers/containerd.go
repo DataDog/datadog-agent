@@ -27,6 +27,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -161,7 +162,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags 
 		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
-			tags, err := tagger.Tag(e.ID, true)
+			tags, err := tagger.Tag(e.ID, collectors.HighCardinality)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
 				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)
@@ -195,7 +196,7 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 		}
 		tags = append(tags, userTags...)
 		// Tagger tags
-		taggerTags, err := tagger.Tag(ctn.ID(), false)
+		taggerTags, err := tagger.Tag(ctn.ID(), collectors.HighCardinality)
 		if err != nil {
 			log.Errorf(err.Error())
 			continue

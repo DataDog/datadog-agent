@@ -318,9 +318,10 @@ func initConfig(config Config) {
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
-	// WARNING: sending container tags for dogstatsd metrics may create more metrics
-	// (one per container instead of one per host). Changing this setting may have billing implications.
-	config.BindEnvAndSetDefault("checks_tag_cardinality", "orchestrator")
+	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
+	// (one per container instead of one per host).
+	// Changing this setting may impact your custom metrics billing.
+	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
