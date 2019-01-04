@@ -103,9 +103,11 @@ func (c *ContainerdCheck) Run() error {
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	cu, errHealth := cutil.GetContainerdUtil()
 	if errHealth != nil {
+		sender.ServiceCheck("containerd.health", metrics.ServiceCheckCritical, "", c.instance.Tags, fmt.Sprintf("Connectivity error %v", errHealth))
 		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
+	sender.ServiceCheck("containerd.health", metrics.ServiceCheckOK, "", c.instance.Tags, "")
 	ns := cu.Namespace()
 
 	if c.instance.CollectEvents {
