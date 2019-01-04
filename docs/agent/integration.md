@@ -1,11 +1,15 @@
 # Integrations management
 
-The `datadog-agent integration` command allows you to manage the official datadog integrations that are available for the agent. It has several subcommands:
+The agent comes with a set of bundled official Datadog integrations to allow users to quickly start monitoring their applications.
+These integrations are also available as single python packages that can be individually upgraded.
+The `datadog-agent integration` command allows users to easily and securely manage the official Datadog integrations that are available for the agent.
+It has several subcommands:
  - [install](#install-an-integration)
  - [remove](#remove-an-integration)
  - [show](#show-information-about-an-integration)
  - [freeze](#list-all-python-packages)
 
+The usage and documentation of these commands can be printed with `datadog-agent integration --help`.
 On linux, the command needs to be executed as the `dd-agent` user, and as `administrator` on windows.
 
 ## Install an integration
