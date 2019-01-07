@@ -103,6 +103,30 @@ func TestMergeAdditionalTags(t *testing.T) {
 	assert.Contains(t, rawConfig["tags"], "bar")
 }
 
+func TestSetField(t *testing.T) {
+	instance := Data("onefield: true\ntags: [\"foo\", \"foo:bar\"]")
+
+	// Add new field
+	instance.SetField("otherfield", 50)
+	rawConfig := RawMap{}
+	err := yaml.Unmarshal(instance, &rawConfig)
+	assert.Nil(t, err)
+	assert.Contains(t, rawConfig["tags"], "foo")
+	assert.Contains(t, rawConfig["tags"], "foo:bar")
+	assert.Equal(t, true, rawConfig["onefield"])
+	assert.Equal(t, 50, rawConfig["otherfield"])
+
+	// Override existing field
+	instance.SetField("onefield", "testing")
+	rawConfig = RawMap{}
+	err = yaml.Unmarshal(instance, &rawConfig)
+	assert.Nil(t, err)
+	assert.Contains(t, rawConfig["tags"], "foo")
+	assert.Contains(t, rawConfig["tags"], "foo:bar")
+	assert.Equal(t, "testing", rawConfig["onefield"])
+	assert.Equal(t, 50, rawConfig["otherfield"])
+}
+
 func TestDigest(t *testing.T) {
 	emptyConfig := &Config{}
 	assert.Equal(t, "cbf29ce484222325", emptyConfig.Digest())

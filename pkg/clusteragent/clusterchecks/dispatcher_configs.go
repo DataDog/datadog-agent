@@ -91,3 +91,37 @@ func (d *dispatcher) retrieveAndClearDangling() []integration.Config {
 	danglingConfigs.Set(0)
 	return configs
 }
+
+// patchConfiguration transforms the configuration from AD into a config
+// ready to use by node agents. It does the following changes:
+//   - empty the ADIdentifiers array, to avoid node-agents detecting them as templates
+//   - clear the ClusterCheck boolean
+//   - add the empty_default_hostname option to all instances
+//   - inject the extra tags (including `cluster_name` if set) in all instances
+func (d *dispatcher) patchConfiguration(in integration.Config) (integration.Config, error) {
+	out := in
+	out.ADIdentifiers = nil
+	out.ClusterCheck = false
+
+	// Deep copy the instances to avoid modifying the original
+	out.Instances = make([]integration.Data, len(in.Instances))
+	copy(out.Instances, in.Instances)
+
+	for i := range out.Instances {
+		err := out.Instances[i].SetField("empty_default_hostname", true)
+		if err != nil {
+			return in, err
+		}
+
+		// Inject extra tags if not empty
+		if len(d.extraTags) == 0 {
+			continue
+		}
+		err = out.Instances[i].MergeAdditionalTags(d.extraTags)
+		if err != nil {
+			return in, err
+		}
+	}
+
+	return out, nil
+}

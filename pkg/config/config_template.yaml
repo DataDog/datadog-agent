@@ -535,6 +535,11 @@ api_key:
 #   dispatching configurations. This delay is configurable here.
 #   warmup_duration: 30
 #
+#   If a cluster_name value is set or autodetected, a "cluster_name" tag is added
+#   to all cluster-check configurations sent to the node-agents.
+#   You can use another tag name, or disable it by setting an empty name.
+#   cluster_tag_name: cluster_name
+#
 {{ end -}}
 {{- if .DockerTagging }}
 # Container detection
