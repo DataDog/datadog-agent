@@ -70,7 +70,7 @@ func changeLogLevel() error {
 		var errMap = make(map[string]string)
 		if jsonErr := json.Unmarshal(resp, &errMap); jsonErr != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not read agent response: %v \n", jsonErr)))
-			fmt.Fprintln(color.Output, "Make sure the agent is running before trying to set the log level and contact support if you continue having issues. \n")
+			fmt.Fprintln(color.Output, "Make sure the agent is running before trying to set the log level and contact support if you continue having issues.")
 			return fmt.Errorf("%s", jsonErr)
 		}
 
@@ -80,7 +80,7 @@ func changeLogLevel() error {
 		}
 
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Agent returned an error: %v \n", err)))
-		fmt.Fprintln(color.Output, "Make sure the agent is running before trying to set the log level and contact support if you continue having issues. \n")
+		fmt.Fprintln(color.Output, "Make sure the agent is running before trying to set the log level and contact support if you continue having issues.")
 		return err
 	}
 
