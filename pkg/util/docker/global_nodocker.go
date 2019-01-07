@@ -8,7 +8,7 @@
 package docker
 
 // HostnameProvider docker implementation for the hostname provider
-func HostnameProvider(hostName string) (string, error) {
+func HostnameProvider() (string, error) {
 	return "", ErrDockerNotCompiled
 }
 
