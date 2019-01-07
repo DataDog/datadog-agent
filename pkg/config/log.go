@@ -53,6 +53,10 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 	var syslog bool
 	var useTLS bool
 
+	if _, found := seelog.LogLevelFromString(logLevel); !found {
+		return fmt.Errorf("unknown log level: %s", logLevel)
+	}
+
 	if uri != "" { // non-blank uri enables syslog
 		syslog = true
 
@@ -118,7 +122,10 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 	if err != nil {
 		return err
 	}
-	seelog.ReplaceLogger(logger)
+
+	if err := seelog.ReplaceLogger(logger); err != nil {
+		return err
+	}
 
 	log.SetupDatadogLogger(logger, seelogLogLevel)
 	return nil
@@ -202,7 +209,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 	} else {
 		switch uri.Scheme {
 		case "unix", "unixgram":
-			fmt.Printf("Trying to connecto to: %s", uri.Path)
+			fmt.Printf("Trying to connect to: %s", uri.Path)
 			for _, netName := range localNetNames {
 				conn, err = net.Dial(netName, uri.Path)
 				if err == nil {

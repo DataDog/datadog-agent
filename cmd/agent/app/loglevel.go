@@ -21,13 +21,17 @@ import (
 
 func init() {
 	AgentCmd.AddCommand(logLevelCmd)
-	logLevelCmd.Flags().StringVarP(&logLevel, "loglevel", "l", "", "New value for the log level. Possible values: trace, debug, info, warn, error, critical")
+	logLevelCmd.Flags().StringVarP(&logLevel, "set", "s", "", "Set the log level value. Possible values: trace, debug, info, warn, error, critical")
 }
 
 var logLevelCmd = &cobra.Command{
 	Use:   "loglevel",
-	Short: "Change the Agent log level",
-	Long:  ``,
+	Short: "Set the log level of a running Agent",
+	Long: `Set the log level of a running Agent
+
+The value set using this command will override the value set in the configuration
+while the Agent is running, however, this new value is not saved: it is reset
+to its configuration value when the Agent is restarted.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
@@ -44,10 +48,10 @@ var logLevelCmd = &cobra.Command{
 }
 
 func changeLogLevel() error {
-	fmt.Printf("Changing the Agent log level.\n\n")
+	fmt.Printf("Setting the Agent log level.\n\n")
 	var err error
 	client := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/loglevel", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/log-level", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	if err = util.SetAuthToken(); err != nil {
@@ -65,7 +69,9 @@ func changeLogLevel() error {
 	if err != nil {
 		var errMap = make(map[string]string)
 		if jsonErr := json.Unmarshal(resp, &errMap); jsonErr != nil {
-			fmt.Printf("Could not read agent response: %v \nMake sure the agent is running before trying to change the loglevel and contact support if you continue having issues. \n", jsonErr)
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Could not read agent response: %v \n", jsonErr)))
+			fmt.Fprintln(color.Output, "Make sure the agent is running before trying to set the log level and contact support if you continue having issues. \n")
+			return fmt.Errorf("%s", jsonErr)
 		}
 
 		// If the error has been marshalled into a json object, check it and return it properly
@@ -73,10 +79,11 @@ func changeLogLevel() error {
 			err = fmt.Errorf(v)
 		}
 
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before trying to change the loglevel and contact support if you continue having issues. \n", err)
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Agent returned an error: %v \n", err)))
+		fmt.Fprintln(color.Output, "Make sure the agent is running before trying to set the log level and contact support if you continue having issues. \n")
 		return err
 	}
 
-	fmt.Printf("Log level successfully changed to: %s", string(resp))
+	fmt.Fprintln(color.Output, color.GreenString(fmt.Sprintf("Log level successfully set to: %s", string(resp))))
 	return nil
 }

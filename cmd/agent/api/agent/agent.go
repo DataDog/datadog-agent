@@ -51,7 +51,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
-	r.HandleFunc("/loglevel", setLogLevel).Methods("POST")
+	r.HandleFunc("/log-level", setLogLevel).Methods("POST")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -268,6 +268,6 @@ func setLogLevel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	log.Infof("Log level changed to: %s", ll)
+	log.Infof("Log level set to: %s", ll)
 	w.Write([]byte(ll))
 }
