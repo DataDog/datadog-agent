@@ -271,3 +271,11 @@ func setLogLevel(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Log level set to: %s", ll)
 	w.Write([]byte(ll))
 }
+
+// max returns the maximum value between a and b.
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
