@@ -6,7 +6,6 @@
 package config
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -32,7 +31,6 @@ func osinit() {
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
-	fmt.Printf("defaultRunPath is %s\n", defaultRunPath)
 }
 
 // NewAssetFs  Should never be called on non-android
