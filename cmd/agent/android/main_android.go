@@ -21,7 +21,7 @@ import (
 func AndroidMain(apikey string, hostname string, tags string) {
 	overrides := make(map[string]interface{})
 	if len(apikey) != 0 {
-		overrides["apikey"] = apikey
+		overrides["api_key"] = apikey
 	}
 	if len(hostname) != 0 {
 		overrides["hostname"] = hostname
