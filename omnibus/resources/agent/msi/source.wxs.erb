@@ -242,7 +242,7 @@
                             Vital="yes"
                             Interactive="no"
                             Account="LocalSystem"
-                            Arguments="--config=c:\programdata\datadog\datadog.yaml" >
+                            Arguments="--config=[APPLICATIONDATADIRECTORY]datadog.yaml" >
               <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
               <util:ServiceConfig
                 FirstFailureActionType='restart'
@@ -283,7 +283,7 @@
                             Vital="yes"
                             Interactive="no"
                             Account="LocalSystem"
-                            Arguments="--config=c:\programdata\datadog\datadog.yaml" >
+                            Arguments="--config=[APPLICATIONDATADIRECTORY]datadog.yaml" >
               <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
               <util:ServiceConfig
                 FirstFailureActionType='restart'

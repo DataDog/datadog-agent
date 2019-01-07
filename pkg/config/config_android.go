@@ -15,6 +15,11 @@ import (
 	"golang.org/x/mobile/asset"
 )
 
+// called by init in config.go, to ensure any os-specific config is done
+// in time
+func osinit() {
+}
+
 const (
 	defaultConfdPath            = ""
 	defaultAdditionalChecksPath = ""

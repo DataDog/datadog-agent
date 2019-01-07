@@ -13,5 +13,10 @@ const (
 	defaultGuiPort              = "5002"
 )
 
+// called by init in config.go, to ensure any os-specific config is done
+// in time
+func osinit() {
+}
+
 // NewAssetFs  Should never be called on non-android
 func setAssetFs(config Config) {}
