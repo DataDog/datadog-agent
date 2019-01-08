@@ -15,6 +15,7 @@ import (
 	"sort"
 
 	"github.com/gorilla/mux"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -39,6 +40,7 @@ func SetupHandlers(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
 
 	// Install versioned apis
 	v1.Install(r.PathPrefix("/api/v1").Subrouter(), sc)
@@ -143,4 +145,15 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(jsonConfig)
+}
+
+func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
+	if err != nil {
+		log.Errorf("Unable to marshal runtime config response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(runtimeConfig)
 }
