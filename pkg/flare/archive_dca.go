@@ -88,14 +88,13 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	}
 
 	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
+	if err != nil {
+		return "", err
+	}
 
 	err = zipClusterAgentConfigCheck(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip config check: %s", err)
-	}
-
-	if err != nil {
-		return "", err
 	}
 
 	err = zipExpVar(tempDir, hostname)
