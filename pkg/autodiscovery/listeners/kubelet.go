@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -266,7 +266,7 @@ func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubeContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.entity), tagger.IsFullCardinality())
+	return tagger.Tag(string(s.entity), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

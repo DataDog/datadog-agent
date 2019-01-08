@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package decoder
 
@@ -90,10 +90,9 @@ func (h *SingleLineHandler) process(line []byte) {
 		// add 1 to take into account '\n' that we didn't include in content
 		output, err := h.parser.Parse(content)
 		if err != nil {
-			log.Warn(err)
-			return
+			log.Debug(err)
 		}
-		if len(output.Content) > 0 {
+		if output != nil && len(output.Content) > 0 {
 			output.RawDataLen = lineLen + 1
 			h.outputChan <- output
 		}
@@ -102,10 +101,9 @@ func (h *SingleLineHandler) process(line []byte) {
 		content := append(content, TRUNCATED...)
 		output, err := h.parser.Parse(content)
 		if err != nil {
-			log.Warn(err)
-			return
+			log.Debug(err)
 		}
-		if len(output.Content) > 0 {
+		if output != nil && len(output.Content) > 0 {
 			output.RawDataLen = lineLen
 			h.outputChan <- output
 			h.shouldTruncate = true
@@ -170,7 +168,15 @@ func (h *MultiLineHandler) run() {
 				return
 			}
 			// process the new line and restart the timeout
-			flushTimer.Stop()
+			if !flushTimer.Stop() {
+				// stop doesn't not prevent a tick from the Timer if it happens at the same time
+				// we read from the timer channel to prevent an incorrect read
+				// in <-flushTimer.C in the case below
+				select {
+				case <-flushTimer.C:
+				default:
+				}
+			}
 			h.process(line)
 			flushTimer.Reset(h.flushTimeout)
 		case <-flushTimer.C:
@@ -185,8 +191,7 @@ func (h *MultiLineHandler) run() {
 func (h *MultiLineHandler) process(line []byte) {
 	unwrappedLine, err := h.parser.Unwrap(line)
 	if err != nil {
-		log.Warn(err)
-		return
+		log.Debug(err)
 	}
 	if h.newContentRe.Match(unwrappedLine) {
 		// send content from lineBuffer
@@ -220,10 +225,9 @@ func (h *MultiLineHandler) sendContent() {
 	if len(content) > 0 {
 		output, err := h.parser.Parse(content)
 		if err != nil {
-			log.Warn(err)
-			return
+			log.Debug(err)
 		}
-		if len(output.Content) > 0 {
+		if output != nil && len(output.Content) > 0 {
 			output.RawDataLen = rawDataLen
 			h.outputChan <- output
 		}

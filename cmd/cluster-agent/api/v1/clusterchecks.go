@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -34,7 +34,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if redirectToLeader(w, r, sc.ClusterCheckHandler) {
+		if !shouldHandle(w, r, sc.ClusterCheckHandler, "postCheckStatus") {
 			return
 		}
 
@@ -46,16 +46,18 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 		err := decoder.Decode(&status)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
 			return
 		}
 
 		response, err := sc.ClusterCheckHandler.PostStatus(nodeName, status)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response)
+		writeJSONResponse(w, response, "postCheckStatus")
 	}
 }
 
@@ -68,7 +70,7 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if redirectToLeader(w, r, sc.ClusterCheckHandler) {
+		if !shouldHandle(w, r, sc.ClusterCheckHandler, "getCheckConfigs") {
 			return
 		}
 
@@ -77,10 +79,11 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 		response, err := sc.ClusterCheckHandler.GetConfigs(nodeName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			incrementRequestMetric("getCheckConfigs", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response)
+		writeJSONResponse(w, response, "getCheckConfigs")
 	}
 }
 
@@ -93,44 +96,59 @@ func getAllCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWrite
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if redirectToLeader(w, r, sc.ClusterCheckHandler) {
+		if !shouldHandle(w, r, sc.ClusterCheckHandler, "getAllCheckConfigs") {
 			return
 		}
 
 		response, err := sc.ClusterCheckHandler.GetAllConfigs()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			incrementRequestMetric("getAllCheckConfigs", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response)
+		writeJSONResponse(w, response, "getAllCheckConfigs")
 	}
 }
 
 // writeJSONResponse serialises and writes data to the response
-func writeJSONResponse(w http.ResponseWriter, data interface{}) {
+func writeJSONResponse(w http.ResponseWriter, data interface{}, handler string) {
 	slcB, err := json.Marshal(data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		incrementRequestMetric(handler, http.StatusInternalServerError)
 		return
 	}
 
 	if len(slcB) != 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(slcB)
+		incrementRequestMetric(handler, http.StatusOK)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
+	incrementRequestMetric(handler, http.StatusNotFound)
 }
 
-// redirectToLeader handles the logic for followers to transparently
-// redirect the requests to the leader cluster-agent
-func redirectToLeader(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handler) bool {
-	if leader := h.ShouldRedirect(); leader != "" {
-		url := r.URL
-		url.Host = leader
-		http.Redirect(w, r, url.String(), http.StatusFound)
+// shouldHandle is common code to handle redirection and errors
+// due to the handler state
+func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handler, handler string) bool {
+	code, reason := h.ShouldHandle()
+
+	switch code {
+	case http.StatusOK:
 		return true
+	case http.StatusFound:
+		// Redirection to leader
+		url := r.URL
+		url.Host = reason
+		http.Redirect(w, r, url.String(), http.StatusFound)
+		incrementRequestMetric(handler, http.StatusFound)
+		return false
+	default:
+		// Unexpected error
+		http.Error(w, reason, code)
+		incrementRequestMetric(handler, code)
+		return false
 	}
-	return false
 }

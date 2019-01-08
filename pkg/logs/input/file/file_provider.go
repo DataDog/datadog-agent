@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package file
 
@@ -127,7 +127,7 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 	}
 	if len(paths) == 0 {
 		// no file was found, its parent directories might have wrong permissions or it just does not exist
-		return nil, fmt.Errorf("could not find any file matching pattern %s, check that all its subdirectories are exectutable", pattern)
+		return nil, fmt.Errorf("could not find any file matching pattern %s, check that all its subdirectories are executable", pattern)
 	}
 	var files []*File
 	for _, path := range paths {

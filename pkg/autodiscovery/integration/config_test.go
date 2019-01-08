@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package integration
 
@@ -119,6 +119,30 @@ func TestDigest(t *testing.T) {
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 	assert.Equal(t, "6253da85b1624771", simpleConfigWithLogs.Digest())
+}
+
+func TestGetNameForInstance(t *testing.T) {
+	config := &Config{}
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("name: foobar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("namespace: foobar\nname: bar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "bar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("namespace: foobar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("foo: bar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "")
 }
 
 // this is here to prevent compiler optimization on the benchmarking code

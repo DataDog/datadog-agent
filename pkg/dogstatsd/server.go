@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package dogstatsd
 
@@ -31,6 +31,7 @@ var (
 	dogstatsdEventPackets            = expvar.Int{}
 	dogstatsdMetricParseErrors       = expvar.Int{}
 	dogstatsdMetricPackets           = expvar.Int{}
+	dogstatsdPacketsLastSec          = expvar.Int{}
 )
 
 func init() {
@@ -68,6 +69,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 			log.Errorf("Dogstatsd: unable to start statistics facilities")
 		}
 		stats = s
+		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
 
 	packetChannel := make(chan *listeners.Packet, 100)
@@ -152,6 +154,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
+		go s.Statistics.Update(&dogstatsdPacketsLastSec)
 	}
 
 	for _, l := range s.listeners {
@@ -198,7 +201,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 
 			if packet.Origin != listeners.NoOrigin {
 				log.Tracef("Dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
-				originTags, err := tagger.Tag(packet.Origin, tagger.IsFullCardinality())
+				originTags, err := tagger.Tag(packet.Origin, tagger.DogstatsdCardinality)
 				if err != nil {
 					log.Errorf(err.Error())
 				} else {

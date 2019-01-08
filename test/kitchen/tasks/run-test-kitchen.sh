@@ -78,7 +78,7 @@ set -x
 # on linux it can just download the latest version from the package manager
 if [ -z ${AGENT_VERSION+x} ]; then
   pushd ../..
-    export AGENT_VERSION=`inv version --url-safe --git-sha-length=9`
+    export AGENT_VERSION=`inv version --url-safe --git-sha-length=9 --match=[0-9]*`
   popd
 fi
 
@@ -87,7 +87,7 @@ if [ -z ${SERVER_PASSWORD+x} ]; then
   export SERVER_PASSWORD=$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)
 fi
 
-chef gem install net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen
+chef gem install bundler:1.17.3 net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen
 cp .kitchen-azure.yml .kitchen.yml
 
 ## check to see if we want the windows-installer tester instead

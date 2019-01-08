@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package common
 
@@ -53,19 +53,29 @@ func SetupAutoConfig(confdPath string) {
 		filepath.Join(GetDistPath(), "conf.d"),
 		"",
 	}
-	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
+	AC.AddConfigProvider(providers.NewFileConfigProvider(confSearchPaths), false, 0)
 
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders
 	err = config.Datadog.UnmarshalKey("config_providers", &CP)
+
 	if err == nil {
+		// Add extra config providers
+		for _, name := range config.Datadog.GetStringSlice("extra_config_providers") {
+			CP = append(CP, config.ConfigurationProviders{Name: name, Polling: true})
+		}
 		for _, cp := range CP {
 			factory, found := providers.ProviderCatalog[cp.Name]
 			if found {
 				configProvider, err := factory(cp)
 				if err == nil {
-					AC.AddProvider(configProvider, cp.Polling)
-					log.Infof("Registering %s config provider", cp.Name)
+					pollInterval := providers.GetPollInterval(cp)
+					if cp.Polling {
+						log.Infof("Registering %s config provider polled every %s", cp.Name, pollInterval.String())
+					} else {
+						log.Infof("Registering %s config provider", cp.Name)
+					}
+					AC.AddConfigProvider(configProvider, cp.Polling, pollInterval)
 				} else {
 					log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				}
@@ -83,6 +93,10 @@ func SetupAutoConfig(confdPath string) {
 	var listeners []config.Listeners
 	err = config.Datadog.UnmarshalKey("listeners", &listeners)
 	if err == nil {
+		// Add extra listeners
+		for _, name := range config.Datadog.GetStringSlice("extra_listeners") {
+			listeners = append(listeners, config.Listeners{Name: name})
+		}
 		listeners = AutoAddListeners(listeners)
 		AC.AddListeners(listeners)
 	} else {
@@ -91,11 +105,9 @@ func SetupAutoConfig(confdPath string) {
 }
 
 // StartAutoConfig starts the autoconfig:
-//   1. start polling the providers
-//   2. load all the configurations available at startup
-//   3. run all the Checks for each configuration found
+//   1. load all the configurations available at startup
+//   2. run all the Checks for each configuration found
 func StartAutoConfig() {
-	AC.StartConfigPolling()
 	AC.StartTagFreshnessChecker()
 	AC.LoadAndRun()
 }

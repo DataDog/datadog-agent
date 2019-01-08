@@ -557,7 +557,8 @@
         "annotations": {
           "kubernetes.io/config.seen": "2018-02-01T14:11:54.674242999+01:00",
           "kubernetes.io/config.source": "api",
-          "kubernetes.io/created-by": "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"ReplicaSet\",\"namespace\":\"default\",\"name\":\"nginx-99d8b564\",\"uid\":\"7977f3ec-0751-11e8-a2b8-000c29dea4f6\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"3995\"}}\n"
+          "kubernetes.io/created-by": "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"ReplicaSet\",\"namespace\":\"default\",\"name\":\"nginx-99d8b564\",\"uid\":\"7977f3ec-0751-11e8-a2b8-000c29dea4f6\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"3995\"}}\n",
+          "ad.datadoghq.com/tolerate-unready": "true"
         },
         "ownerReferences": [
           {
@@ -643,7 +644,7 @@
           },
           {
             "type": "Ready",
-            "status": "True",
+            "status": "False",
             "lastProbeTime": null,
             "lastTransitionTime": "2018-02-01T13:12:17Z"
           },

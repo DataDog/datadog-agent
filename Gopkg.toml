@@ -38,6 +38,10 @@
   name = "github.com/gogo/protobuf"
   version = "~v1.0.0"
 
+[[constraint]]
+  name = "github.com/ramr/go-reaper"
+  revision = "35f6a64e44ff062abfcec2d27cef674212d445c0"
+
 [[override]]
   name = "github.com/kubernetes/apimachinery"
   branch = "release-1.11"
@@ -174,3 +178,8 @@
 [[override]]
   name = "github.com/docker/distribution"
   revision = "83389a148052d74ac602f5f1d62f86ff2f3c4aa5"
+
+[[override]]
+  name = "bitbucket.org/ww/goautoneg"
+  source = "github.com/adjust/goautoneg"
+  revision = "d788f35a0315672bc90f50a6145d1252a230ee0d"

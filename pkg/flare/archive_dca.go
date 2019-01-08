@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package flare
 
@@ -78,12 +78,14 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		}
 	}
 
-	err = zipLogFiles(tempDir, hostname, logFilePath)
+	permsInfos := make(permissionsInfos)
+
+	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipConfigFiles(tempDir, hostname, confSearchPaths)
+	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
 
 	if err != nil {
 		return "", err
@@ -109,6 +111,11 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		if err != nil {
 			return "", err
 		}
+	}
+
+	err = permsInfos.commit(tempDir, hostname, os.ModePerm)
+	if err != nil {
+		log.Infof("Error while creating permissions.log infos file: %s", err)
 	}
 
 	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})

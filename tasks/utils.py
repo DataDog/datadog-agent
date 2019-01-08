@@ -49,7 +49,7 @@ def pkg_config_path(use_embedded_libs):
     return retval
 
 
-def get_build_flags(ctx, static=False, use_embedded_libs=False):
+def get_build_flags(ctx, static=False, use_embedded_libs=False, use_venv=False):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -76,6 +76,9 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
                                   env=env, hide=True).stdout.strip()
         ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, embedded_prefix)
         ldflags += "-r {} ".format(embedded_lib_path)
+    elif use_venv and os.getenv('VIRTUAL_ENV'):
+        venv_prefix = os.getenv('VIRTUAL_ENV')
+        ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, venv_prefix)
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
@@ -148,10 +151,13 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
 
-def query_version(ctx, git_sha_length=7):
+def query_version(ctx, git_sha_length=7, match=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
-    described_version = ctx.run("git describe --tags", hide=True).stdout.strip()
+    cmd = "git describe --tags"
+    if match:
+        cmd += " --match \"{}\"".format(match)
+    described_version = ctx.run(cmd, hide=True).stdout.strip()
     # For the tag 6.0.0-beta.0, this will match 6.0.0
     version_match = re.findall(r"^(?:dca-)?v?(\d+\.\d+\.\d+)", described_version)
 
@@ -192,10 +198,10 @@ def query_version(ctx, git_sha_length=7):
     return version, pre, commits_since_version, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, match=None):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, match)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:

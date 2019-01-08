@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package legacy
 
@@ -107,6 +107,7 @@ var expectedHostTags = map[string]string{
 }
 
 func TestConvertKubernetes(t *testing.T) {
+	mockConfig := config.Mock()
 	dir, err := ioutil.TempDir("", "agent_test_legacy")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -145,7 +146,7 @@ func TestConvertKubernetes(t *testing.T) {
 	assert.Equal(t, 1200, config.Datadog.GetInt("leader_lease_duration"))
 	assert.Equal(t, 3000, config.Datadog.GetInt("kubernetes_service_tag_update_freq"))
 
-	config.Datadog.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_tls_verify", true)
 	deprecations, err = importKubernetesConfWithDeprec(srcEmpty, dstEmpty, true)
 	require.NoError(t, err)
 	assert.Equal(t, true, config.Datadog.GetBool("kubelet_tls_verify"))

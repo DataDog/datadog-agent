@@ -104,7 +104,7 @@ func (c *CheckBase) CommonConfigure(instance integration.Data) error {
 
 // Warn sends an integration warning to logs + agent status.
 func (c *CheckBase) Warn(v ...interface{}) error {
-	w := log.Warn(v)
+	w := log.Warn(v...)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -112,7 +112,7 @@ func (c *CheckBase) Warn(v ...interface{}) error {
 
 // Warnf sends an integration warning to logs + agent status.
 func (c *CheckBase) Warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params)
+	w := log.Warnf(format, params...)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w

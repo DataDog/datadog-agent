@@ -2,6 +2,217 @@
 Release Notes
 =============
 
+.. _Release Notes_6.8.3:
+
+6.8.3
+=====
+
+.. _Release Notes_6.8.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-12-27
+
+.. _Release Notes_6.8.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a bug that could send the last log multiple times when a container was not writing
+  new logs
+
+- Fix a panic that could occur if a container doesn't send logs for more than 30 sec and
+  the timestamp of the last received log is corrupted
+
+.. _Release Notes_6.8.2:
+
+6.8.2
+=====
+
+.. _Release Notes_6.8.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-12-19
+
+.. _Release Notes_6.8.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a panic that could occur when a container stopped while the agent was reading logs from it.
+
+.. _Release Notes_6.8.1:
+
+6.8.1
+=====
+
+.. _Release Notes_6.8.1_Prelude:
+
+Prelude
+-------
+
+This is a container only release that fixes a bug introduced in ``6.8.0`` that was impacting the kubernetes integration.
+
+Release on: 2018-12-17
+
+- Please refer to the `6.8.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-681>`_ for the list of changes on the Core Checks.
+
+.. _Release Notes_6.8.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes the default ``kubelet`` check configuration that was preventing the kubernetes integration from working properly
+
+.. _Release Notes_6.8.0:
+
+6.8.0
+=====
+
+.. _Release Notes_6.8.0_Prelude:
+
+Prelude
+-------
+
+Please note that a critical bug has been identified in this release that would prevent the kubernetes integration from collecting kubelet metrics on containerized agents.
+The severity of the issue has led us to remove the ``6.8.0`` images on dockerhub and to make the ``latest`` tag point to the ``6.7.0`` release.
+If you have upgraded to this version of the containerized agent we recommend you downgrade to ``6.7.0``. Linux packages are not affected.
+
+Release on: 2018-12-13
+
+- Please refer to the `6.8.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-680>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.8.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.8.0>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.8.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.8.0>`_ for the list of changes on the Process Agent.
+
+The Datadog Agent now automatically look for the container short image name to set the default value for the log source and service.
+The source is especially important as it triggers the **automatic configuration of your platform with integration pipeline and facets**.
+The Datadog Agent autodiscovery can still be used to override the default source and service with pod annotations or container labels.
+
+Upgrade Notes
+-------------
+
+- The agent now requires a cluster agent version 1.0+ to establish
+  a valid connection
+- JMX garbage collection metrics ``jvm.gc.cms.count`` and ``jvm.gc.parnew.time`` were renamed to ``jvm.gc.minor_collection_count``, ``jvm.gc.major_collection_count``, ``jvm.gc.minor_collection_time``, ``jvm.gc.major_collection_time`` in 6.6 to be more meaningful. To ensure backward compatibility the change was reverted in this release and the new names put behind a config option. If you started relying on these new names please enable the ``new_gc_metrics`` option in your jmx configurations. An example can be found `here <https://github.com/DataDog/datadog-agent/blob/1aee233a18dedbb8af86da0ce1f2e305206aacf8/cmd/agent/dist/conf.d/jmx.d/conf.yaml.example#L8-L13>`_. This flag will be enabled by default in a future major release.
+
+New Features
+------------
+
+- Enable docker config provider if docker.sock exists
+
+- The new command ``datadog-agent config`` prints the runtime config of the
+  agent.
+
+- Adds eBPF-based network collection component called network-tracer.
+
+- Add diagnosis to the agent for connectivity to the cluster agent
+
+- ``datadog-agent integration install`` command prevents a user from downgrading an integration
+  to a version older than the one shipped by default in the agent.
+
+- Adding kerberos support with libkrb5.
+
+- ``datadog-agent integration install`` command moves configuration files present in
+  the ``data`` directory of the wheel upon successful installation
+
+
+Enhancement Notes
+-----------------
+
+- Adding a default location on Windows for the file storing pointers to make sure we never lose nor duplicate any logs
+
+- Add an option to the `agent check` command to run the check n times
+
+- Set service and source to the docker short image name when container_collect_all flag
+  is enabled and no label or annotation is defined
+
+- Docker: the datadog/dogstatsd image now ships a healthcheck
+
+- Improved consistency of the ECS and Fargate tagging
+
+- Improve logging when python checks use invalid types for tags
+
+- Added a ``region`` tag to Fargate containers, indicating the AWS region
+  they run in
+
+- Adds system.cpu.interrupt, and system.mem.committed, system.mem.paged,
+  system.mem.nonpaged, system.mem.cached metrics on Windows
+
+- Add ``permissions.log`` file to the flare archive.
+
+- Add an agent go-routine dump to the flare as reported
+  by the built-in pprof runtime profiling interface.
+
+- The agent can now expose its healthcheck on a dedicated http port.
+  The Kubernetes daemonset uses this by defaut, on port 5555.
+
+- It's possible now to have different poll intervals for
+  each autodiscovery configuration providers
+
+- Improve Windows Event parsing. Event.EventData.Data fields are parsed as one JSON object. Event.EventData.Binary field
+  is parsed to its string value
+
+- Rename the Windows Event "#text" field to "value". This fixes the facet
+  creation of those fields
+
+- Add a ``status.log`` and a ``config-check.log`` with a basic message in the flare
+  if the agent is not running or is unreachable.
+
+- Added support for wildcards to `DD_KUBERNETES_POD_LABELS_AS_TAGS`. For example,
+  `DD_KUBERNETES_POD_LABELS_AS_TAGS='{"*":"kube_%%label%%"}'` will all pod labels as
+  tags to your metrics with tags names prefixed by `kube_`.
+
+Deprecation Notes
+-----------------
+
+- Removed support for logs_config.tcp_forward_port as it's no longer needed for other integrations.
+
+
+Bug Fixes
+---------
+
+- Configure error log when failing to run docker inspect to read as debug instead, as this log is duplicated by the tagger.
+
+- Fix a bug where `datadog-agent integration` users could not test the
+  `--in-toto` flag due to a filesystem permission issue.
+
+- The cluster agent client init now fails as expected if the
+  cluster agent URL is not valid
+
+- Print correct error when the ``datadog-agent integration`` command fails after installing an integration
+
+- Fix build failure on 32bit armv7
+
+- Fix a bug with Docker logging driver where logs would not be tailed after a log
+  rotation when the option `--log-opt max-file=1` was set.
+
+- Display the correct timezone name in the status page.
+
+- On Windows, the agent now properly computes the location of ProgramData for
+  configuration files instead of using hardcoded values
+
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to 0.23.0. See https://github.com/DataDog/jmxfetch/releases/tag/0.23.0
+
+- On linux, use the cgo dns resolver instead of the golang one. The will make
+  the agent use glibc to resolve hostnames and should give more predictable
+  results.
+
+- Starting with this Agent release, all the Datadog integrations that are installed
+  with the ``datadog-agent integration install`` command are reset to their
+  default versions when the Agent is upgraded.
+  This guarantees the integrity of the embedded python environment after the upgrade.
+
+- The ``datadog-agent integration`` command is now in Beta.
+
 .. _Release Notes_6.7.0:
 
 6.7.0

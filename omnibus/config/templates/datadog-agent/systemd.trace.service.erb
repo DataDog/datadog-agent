@@ -2,7 +2,7 @@
 Description="Datadog Trace Agent (APM)"
 After=network.target datadog-agent.service
 BindsTo=datadog-agent.service
-StartLimitIntervalSec=10
+StartLimitInterval=10
 StartLimitBurst=5
 
 [Service]

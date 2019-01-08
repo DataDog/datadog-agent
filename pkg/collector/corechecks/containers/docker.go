@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -22,8 +22,10 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -94,7 +96,7 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *contai
 			fmt.Sprintf("short_image:%s", short),
 		}
 	} else {
-		containerTags, err = tagger.Tag(c.EntityID, false)
+		containerTags, err = tagger.Tag(c.EntityID, collectors.LowCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 			return
@@ -178,7 +180,7 @@ func (d *DockerCheck) Run() error {
 		if c.State != containers.ContainerRunningState || c.Excluded {
 			continue
 		}
-		tags, err := tagger.Tag(c.EntityID, true)
+		tags, err := tagger.Tag(c.EntityID, collectors.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 		}
@@ -222,8 +224,7 @@ func (d *DockerCheck) Run() error {
 		}
 
 		if c.IO != nil {
-			sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
-			sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
+			d.reportIOMetrics(c.IO, tags, sender)
 		} else {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
@@ -231,7 +232,7 @@ func (d *DockerCheck) Run() error {
 		if c.Network != nil {
 			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {
-					log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+					log.Debugf("Ignore network stat with empty name for container %s", c.ID[:12])
 					continue
 				}
 				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
@@ -306,7 +307,7 @@ func (d *DockerCheck) Run() error {
 		} else {
 			for _, stat := range stats {
 				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
-					log.Debugf("Ignoring unknown disk stats: %s", stat)
+					log.Debugf("Ignoring unknown disk stats: %s", stat.Name)
 					continue
 				}
 				if stat.Free != nil {
@@ -338,6 +339,30 @@ func (d *DockerCheck) Run() error {
 
 	sender.Commit()
 	return nil
+}
+
+func (d *DockerCheck) reportIOMetrics(io *cmetrics.CgroupIOStat, tags []string, sender aggregator.Sender) {
+	if io == nil {
+		return
+	}
+
+	// Read values per device, or fallback to sum
+	if len(io.DeviceReadBytes) > 0 {
+		for dev, value := range io.DeviceReadBytes {
+			sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev))
+		}
+	} else {
+		sender.Rate("docker.io.read_bytes", float64(io.ReadBytes), "", tags)
+	}
+
+	// Write values per device, or fallback to sum
+	if len(io.DeviceWriteBytes) > 0 {
+		for dev, value := range io.DeviceWriteBytes {
+			sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev))
+		}
+	} else {
+		sender.Rate("docker.io.write_bytes", float64(io.WriteBytes), "", tags)
+	}
 }
 
 // Configure parses the check configuration and init the check

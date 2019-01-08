@@ -16,11 +16,13 @@ import (
 )
 
 var (
+	initConfig       = `foo: bar`
 	defaultsInstance = `foo_init: bar_init`
 	customInstance   = `
 foo_init: bar_init
 min_collection_interval: 60
 empty_default_hostname: true
+name: foobar
 `
 )
 
@@ -44,6 +46,8 @@ func TestCommonConfigure(t *testing.T) {
 	err = mycheck.CommonConfigure([]byte(customInstance))
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
+	mycheck.BuildID([]byte(customInstance), []byte(initConfig))
+	assert.Equal(t, string(mycheck.ID()), "test:foobar:bd63a7031add5db9")
 	mockSender.AssertExpectations(t)
 }
 
@@ -60,5 +64,7 @@ func TestCommonConfigureCustomID(t *testing.T) {
 	err := mycheck.CommonConfigure([]byte(customInstance))
 	assert.NoError(t, err)
 	assert.Equal(t, 60*time.Second, mycheck.Interval())
+	mycheck.BuildID([]byte(customInstance), []byte(initConfig))
+	assert.Equal(t, string(mycheck.ID()), "test:foobar:bd63a7031add5db9")
 	mockSender.AssertExpectations(t)
 }

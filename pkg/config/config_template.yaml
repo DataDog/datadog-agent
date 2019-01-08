@@ -68,6 +68,17 @@ api_key:
 #
 #  will result in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
 
+# Configure the level of granularity of tags to send for checks and dogstatsd metrics and events.
+# Choices are:
+# - low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
+# - orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+# - high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+# WARNING: sending container tags for dogstatsd metrics may create more metrics
+# (one per container instead of one per host). This may impact your custom metrics billing.
+#
+# checks_tag_cardinality: orchestrator
+# dogstatsd_tag_cardinality: low
+
 # Histogram and Historate configuration
 #
 # Configure which aggregated value to compute. Possible values are: min, max,
@@ -305,6 +316,13 @@ api_key:
 #
 # jmx_use_cgroup_memory_limit: true
 #
+# Number of JMX restarts allowed in the restart-interval before giving up
+# jmx_max_restarts: 3
+#
+# Duration of the restart interval in secons
+# jmx_max_restart_interval: 5
+#
+#
 {{ end -}}
 {{- if .Autoconfig }}
 # Autoconfig
@@ -332,6 +350,12 @@ api_key:
 #   - name: clusterchecks
 #      grace_time_seconds: 60
 
+{{- if .ClusterChecks }}
+## The kube_services provider watches Kubernetes services for cluster-checks
+#   - name: kube_services
+#     polling: true
+{{ end -}}
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs
@@ -357,6 +381,13 @@ api_key:
 #     template_url: 127.0.0.1
 #     username:
 #     password:
+
+## You can also add additional config providers by name using their default settings,
+## and pooling enabled. This list is available as an environment variable binding.
+#
+# extra_config_providers:
+#   - clusterchecks
+
 {{ end -}}
 {{- if .Logging }}
 # Logging
@@ -424,6 +455,12 @@ api_key:
 #   - name: auto
 #   - name: docker
 #
+## You can also add additional listeners by name using their default settings.
+## This list is available as an environment variable binding.
+#
+# extra_listeners:
+#   - kubelet
+#
 # Exclude containers from metrics and AD based on their name or image:
 # An excluded container will not get any individual container metric reported for it.
 # Please note that the `docker.containers.running`, `.stopped`, `.running.total` and
@@ -489,12 +526,25 @@ api_key:
 # cluster_checks:
 #   Set to true to enable the dispatching logic on the leader cluster-agent.
 #   enabled: "true"
+#
 #   Node-agents that have not queried the cluster-agent for 30 seconds will be deleted,
 #   and their checks re-dispatched to other nodes. This delay is configurable here.
 #   node_expiration_timeout: 30
 #
+#   The cluster-agent needs to wait for all node-agents to report to it before
+#   dispatching configurations. This delay is configurable here.
+#   warmup_duration: 30
+#
 {{ end -}}
 {{- if .DockerTagging }}
+# Container detection
+#
+# On hosts with mixed workloads, non-containernized processes can
+# mistakenly be detected as containerized. This option can be used to
+# tune the detection logic to your system and avoid false-positives.
+#
+# container_cgroup_prefix: "/docker/"
+#
 # Docker tag extraction
 #
 # We can extract container label or environment variables
@@ -553,6 +603,23 @@ api_key:
 # You can configure the timeout (in seconds) for querying the CRI
 # cri_query_timeout: 5
 #
+{{ end -}}
+{{- if .Containerd}}
+# Containerd integration
+#
+# To activate the Containerd check you'll need to indicate the path of the
+# Containerd socket you're using (and mount it in the container if needed)
+# cri_socket_path: /var/run/containerd/containerd.sock
+#
+# You can configure the timeout (in seconds) for querying the Containerd API
+# cri_query_timeout: 5
+#
+# Activating the Containerd check will also activate the CRI check, as it contains an additional subset of useful metrics.
+#
+# You can specify the namespace that Containerd is using on your system.
+# As the Containerd check only supports Kubernetes, the default value is `k8s.io`
+# https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
+# containerd_namespace: k8s.io
 {{ end -}}
 {{- if .Kubelet }}
 # Kubernetes kubelet connectivity

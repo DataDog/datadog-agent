@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package autodiscovery
 
@@ -134,19 +134,18 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 	listeners.ServiceListenerFactories = make(map[string]listeners.ServiceListenerFactory)
 }
 
-func (suite *AutoConfigTestSuite) TestAddProvider() {
+func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.StartConfigPolling()
 	assert.Len(suite.T(), ac.providers, 0)
 	mp := &MockProvider{}
-	ac.AddProvider(mp, false)
-	ac.AddProvider(mp, false) // this should be a noop
-	ac.AddProvider(&MockProvider2{}, true)
+	ac.AddConfigProvider(mp, false, 0)
+	ac.AddConfigProvider(mp, false, 0) // this should be a noop
+	ac.AddConfigProvider(&MockProvider2{}, true, 1*time.Second)
 	ac.LoadAndRun()
 	require.Len(suite.T(), ac.providers, 2)
 	assert.Equal(suite.T(), 1, mp.collectCounter)
-	assert.False(suite.T(), ac.providers[0].poll)
-	assert.True(suite.T(), ac.providers[1].poll)
+	assert.False(suite.T(), ac.providers[0].canPoll)
+	assert.True(suite.T(), ac.providers[1].canPoll)
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
@@ -169,7 +168,7 @@ func (suite *AutoConfigTestSuite) TestAddListener() {
 func (suite *AutoConfigTestSuite) TestContains() {
 	c1 := integration.Config{Name: "bar"}
 	c2 := integration.Config{Name: "foo"}
-	pd := providerDescriptor{}
+	pd := configPoller{}
 	pd.configs = append(pd.configs, c1)
 	assert.True(suite.T(), pd.contains(&c1))
 	assert.False(suite.T(), pd.contains(&c2))
@@ -177,7 +176,6 @@ func (suite *AutoConfigTestSuite) TestContains() {
 
 func (suite *AutoConfigTestSuite) TestStop() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.StartConfigPolling() // otherwise Stop would block
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory)

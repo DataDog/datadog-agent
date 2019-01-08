@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package integration
 
@@ -55,6 +55,8 @@ type CommonInstanceConfig struct {
 	MinCollectionInterval int      `yaml:"min_collection_interval"`
 	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
 	Tags                  []string `yaml:"tags"`
+	Name                  string   `yaml:"name"`
+	Namespace             string   `yaml:"namespace"`
 }
 
 // Equal determines whether the passed config is the same
@@ -151,6 +153,23 @@ func (c *Config) GetTemplateVariablesForInstance(i int) []tmplvar.TemplateVar {
 		return nil
 	}
 	return tmplvar.Parse(c.Instances[i])
+}
+
+// GetNameForInstance returns the name from an instance if specified, fallback on namespace
+func (c *Data) GetNameForInstance() string {
+	commonOptions := CommonInstanceConfig{}
+	err := yaml.Unmarshal(*c, &commonOptions)
+	if err != nil {
+		log.Errorf("invalid instance section: %s", err)
+		return ""
+	}
+
+	if commonOptions.Name != "" {
+		return commonOptions.Name
+	}
+
+	// Fallback on `namespace` if we don't find `name`, can be empty
+	return commonOptions.Namespace
 }
 
 // MergeAdditionalTags merges additional tags to possible existing config tags

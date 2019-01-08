@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -76,9 +77,22 @@ func (d *dispatcher) remove(config integration.Config) {
 	d.removeConfig(digest)
 }
 
-// cleanupLoop is the cleanup goroutine for the dispatcher.
-// It has to be called in a goroutine with a cancellable context.
-func (d *dispatcher) cleanupLoop(ctx context.Context) {
+// reset empties the store and resets all states
+func (d *dispatcher) reset() {
+	d.store.Lock()
+	defer d.store.Unlock()
+	d.store.reset()
+}
+
+// run is the main management goroutine for the dispatcher
+func (d *dispatcher) run(ctx context.Context) {
+	d.store.Lock()
+	d.store.active = true
+	d.store.Unlock()
+
+	healthProbe := health.Register("clusterchecks-dispatch")
+	defer health.Deregister(healthProbe)
+
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
@@ -86,6 +100,8 @@ func (d *dispatcher) cleanupLoop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-healthProbe.C:
+			// This goroutine might hang if the store is deadlocked during a cleanup
 		case <-cleanupTicker.C:
 			// Expire old nodes, orphaned configs are moved to dangling
 			d.expireNodes()

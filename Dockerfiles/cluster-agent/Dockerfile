@@ -9,7 +9,7 @@ WORKDIR /output
 COPY datadog-cluster-agent opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
-COPY ./dist opt/datadog-agent/bin/dist
+COPY ./dist/templates opt/datadog-agent/bin/dist/templates
 COPY entrypoint.sh .
 
 RUN chmod 755 entrypoint.sh \
@@ -29,6 +29,8 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH"
 
 RUN apt-get update \
  && apt-get install --no-install-recommends -y ca-certificates curl \
+ # https://security-tracker.debian.org/tracker/CVE-2018-15686
+ && apt-get install -y libudev1 libsystemd0 \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /

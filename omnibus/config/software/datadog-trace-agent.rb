@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 require "./lib/ostools.rb"
 require 'pathname'
@@ -31,7 +31,7 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   if windows?
     env = {
-      # Trace agent uses GNU make to build.  Some of the input to gnu make 
+      # Trace agent uses GNU make to build.  Some of the input to gnu make
       # needs the path with `\` as separators, some needs `/`.  Provide both,
       # and let the makefile sort it out (ugh)
 
@@ -60,7 +60,8 @@ build do
 
     # copy binary
     if windows?
-      copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/bin/agent"
+      #copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/bin/agent"
+      copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     else
       copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/embedded/bin"
     end

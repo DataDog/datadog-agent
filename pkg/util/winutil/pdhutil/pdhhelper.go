@@ -1,18 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build windows
 
 package pdhutil
 
 import (
 	"fmt"
+	"strconv"
 	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"golang.org/x/sys/windows"
 )
 
 var (
@@ -26,6 +28,11 @@ var (
 	procPdhCollectQueryData         = modPdhDll.NewProc("PdhCollectQueryData")
 	procPdhCloseQuery               = modPdhDll.NewProc("PdhCloseQuery")
 	procPdhOpenQuery                = modPdhDll.NewProc("PdhOpenQuery")
+	procPdhRemoveCounter            = modPdhDll.NewProc("PdhRemoveCounter")
+)
+
+var (
+	counterToIndex map[string][]int
 )
 
 const (
@@ -76,7 +83,7 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
-		log.Errorf("Failed to enumerage windows performance counters (class %s)", className)
+		log.Errorf("Failed to enumerate windows performance counters (class %s)", className)
 		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
 	}
@@ -118,6 +125,19 @@ type pdh_counter_path_elements struct {
 	countername       uintptr
 }
 
+type ErrPdhInvalidInstance struct {
+	message string
+}
+
+func NewErrPdhInvalidInstance(message string) *ErrPdhInvalidInstance {
+	return &ErrPdhInvalidInstance{
+		message: message,
+	}
+}
+
+func (e *ErrPdhInvalidInstance) Error() string {
+	return e.message
+}
 func pdhMakeCounterPath(machine string, object string, instance string, counter string) (path string, err error) {
 	var elems pdh_counter_path_elements
 
@@ -170,7 +190,10 @@ func pdhGetFormattedCounterValueLarge(hCounter PDH_HCOUNTER) (val int64, err err
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
 	if ERROR_SUCCESS != ret {
-		return 0, fmt.Errorf("Error retrieving large value %v", ret)
+		if ret == PDH_INVALID_DATA && pValue.CStatus == PDH_CSTATUS_NO_INSTANCE {
+			return 0, NewErrPdhInvalidInstance("Invalid counter instance")
+		}
+		return 0, fmt.Errorf("Error retrieving large value 0x%x 0x%x", ret, pValue.CStatus)
 	}
 
 	return pValue.LargeValue, nil
@@ -186,8 +209,45 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
 	if ERROR_SUCCESS != ret {
-		return 0, fmt.Errorf("Error retrieving large value %v", ret)
+		if ret == PDH_INVALID_DATA && pValue.CStatus == PDH_CSTATUS_NO_INSTANCE {
+			return 0, NewErrPdhInvalidInstance("Invalid counter instance")
+		}
+		return 0, fmt.Errorf("Error retrieving float value 0x%x 0x%x", ret, pValue.CStatus)
 	}
 
 	return pValue.DoubleValue, nil
+}
+
+func makeCounterSetIndexes() error {
+	counterToIndex = make(map[string][]int)
+
+	bufferIncrement := uint32(1024)
+	bufferSize := bufferIncrement
+	var counterlist []uint16
+	for {
+		var regtype uint32
+		counterlist = make([]uint16, bufferSize)
+		var sz uint32
+		sz = bufferSize
+		regerr := windows.RegQueryValueEx(syscall.HKEY_PERFORMANCE_DATA,
+			syscall.StringToUTF16Ptr("Counter 009"),
+			nil, // reserved
+			&regtype,
+			(*byte)(unsafe.Pointer(&counterlist[0])),
+			&sz)
+		if regerr == error(syscall.ERROR_MORE_DATA) {
+			// buffer's not big enough
+			bufferSize += bufferIncrement
+			continue
+		} else if regerr != nil {
+			return regerr
+		}
+		break
+	}
+	clist := winutil.ConvertWindowsStringList(counterlist)
+	for i := 0; (i + 1) < len(clist); i += 2 {
+		ndx, _ := strconv.Atoi(clist[i])
+		counterToIndex[clist[i+1]] = append(counterToIndex[clist[i+1]], ndx)
+	}
+	return nil
 }

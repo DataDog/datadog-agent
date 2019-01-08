@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build kubeapiserver
 
 package cluster
@@ -209,10 +209,11 @@ func TestProcessBundledEvents(t *testing.T) {
 
 	// Test the hostname change when a cluster name is set
 	var testClusterName = "Laika"
-	config.Datadog.Set("cluster_name", testClusterName)
+	mockConfig := config.Mock()
+	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 	// defer a reset of the state so that future hostname fetches are not impacted
-	defer config.Datadog.Set("cluster_name", nil)
+	defer mockConfig.Set("cluster_name", nil)
 	defer clustername.ResetClusterName()
 
 	modifiedNewDatadogEventsWithClusterName := metrics.Event{

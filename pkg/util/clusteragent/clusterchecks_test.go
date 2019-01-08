@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package clusteragent
 
@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var dummyStatusResponse = `{"isuptodate": true}`
@@ -39,7 +38,7 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 	ts, p, err := dca.StartTLS()
 	defer ts.Close()
 	require.NoError(suite.T(), err)
-	config.Datadog.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
@@ -80,7 +79,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	assert.Equal(suite.T(), follower.token, leader.token)
 
 	// Client will start at the follower
-	config.Datadog.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
 

@@ -37,6 +37,7 @@ type testSuite struct {
 }
 
 func TestSuiteKube(t *testing.T) {
+	mockConfig := config.Mock()
 	s := &testSuite{}
 
 	// Start compose stack
@@ -50,7 +51,7 @@ func TestSuiteKube(t *testing.T) {
 	pwd, err := os.Getwd()
 	require.Nil(t, err)
 	s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
-	config.Datadog.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
+	mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
 	_, err = os.Stat(s.kubeConfigPath)
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 
@@ -86,8 +87,10 @@ func (suite *testSuite) SetupTest() {
 }
 
 func (suite *testSuite) TestKubeEvents() {
+	mockConfig := config.Mock()
+
 	// Init own client to write the events
-	config.Datadog.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
+	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
 	c, err := apiserver.GetAPIClient()
 
 	require.NoError(suite.T(), err)
@@ -163,8 +166,10 @@ func (suite *testSuite) TestKubeEvents() {
 }
 
 func (suite *testSuite) TestHostnameProvider() {
+	mockConfig := config.Mock()
+
 	// Init own client to write the events
-	config.Datadog.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
+	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
 	c, err := apiserver.GetAPIClient()
 
 	require.NoError(suite.T(), err)
@@ -183,16 +188,16 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer core.Pods("default").Delete(myHostname, nil)
 
 	// Hostname provider should return the expected value
-	foundHost, err := apiserver.HostnameProvider("")
+	foundHost, err := apiserver.HostnameProvider()
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
 	var testClusterName = "Laika"
-	config.Datadog.Set("cluster_name", testClusterName)
+	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName()
-	defer config.Datadog.Set("cluster_name", "")
+	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	foundHost, err = apiserver.HostnameProvider("")
+	foundHost, err = apiserver.HostnameProvider()
 	assert.Equal(suite.T(), "target.host-Laika", foundHost)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -39,7 +40,7 @@ type Tailer struct {
 	ContainerID   string
 	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
-	reader        io.ReadCloser
+	reader        *safeReader
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
@@ -66,6 +67,7 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
+		reader:             newSafeReader(),
 	}
 }
 
@@ -79,6 +81,7 @@ func (t *Tailer) Identifier() string {
 func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
+
 	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
@@ -99,7 +102,15 @@ func (t *Tailer) Start(since time.Time) error {
 func (t *Tailer) getLastSince() string {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	return t.lastSince
+	since, err := time.Parse(config.DateFormat, t.lastSince)
+	if err != nil {
+		since = time.Now().UTC()
+	} else {
+		// To avoid sending the last recorded log we add a nanosecond
+		// to the offset
+		since = since.Add(time.Nanosecond)
+	}
+	return since.Format(config.DateFormat)
 }
 
 func (t *Tailer) setLastSince(since string) {
@@ -121,7 +132,7 @@ func (t *Tailer) setupReader() error {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
-	t.reader = reader
+	t.reader.setUnsafeReader(reader)
 	t.cancelFunc = cancelFunc
 	return err
 }
@@ -252,7 +263,7 @@ func (t *Tailer) keepDockerTagsUpdated() {
 }
 
 func (t *Tailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.ContainerID), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(t.ContainerID), collectors.HighCardinality)
 	if err != nil {
 		log.Warn(err)
 	} else {
