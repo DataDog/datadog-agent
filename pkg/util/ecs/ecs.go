@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -86,6 +86,12 @@ func GetUtil() (*Util, error) {
 		return nil, err
 	}
 	return globalUtil, nil
+}
+
+// IsECSInstance returns whether the agent is running in ECS.
+func IsECSInstance() bool {
+	_, err := GetUtil()
+	return err == nil
 }
 
 // init makes an empty Util bootstrap itself.

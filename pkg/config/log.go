@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
@@ -133,10 +133,12 @@ func SetupLogger(logLevel, logFile, uri string, rfc, logToConsole, jsonFormat bo
 
 // ErrorLogWriter is a Writer that logs all written messages with the global seelog logger
 // at an error level
-type ErrorLogWriter struct{}
+type ErrorLogWriter struct {
+	AdditionalDepth int
+}
 
 func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
-	seelog.Error(string(p))
+	log.ErrorStackDepth(s.AdditionalDepth, strings.TrimSpace(string(p)))
 	return len(p), nil
 }
 

@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_6.8.3:
+
+6.8.3
+=====
+
+.. _Release Notes_6.8.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2018-12-27
+
+.. _Release Notes_6.8.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a bug that could send the last log multiple times when a container was not writing
+  new logs
+
+- Fix a panic that could occur if a container doesn't send logs for more than 30 sec and
+  the timestamp of the last received log is corrupted
+
 .. _Release Notes_6.8.2:
 
 6.8.2

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -30,10 +30,15 @@ func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int6
 	return makeConfigArray(node.digestToConfig), node.lastConfigChange, nil
 }
 
-// processNodeStatus returns configurations dispatched to a given node.
-// returns true if the last configuration change matches the one sent by the node agent.
+// processNodeStatus keeps the node's status in the store, and returns true
+// if the last configuration change matches the one sent by the node agent.
 func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus) (bool, error) {
+	var warmingUp bool
+
 	d.store.Lock()
+	if !d.store.active {
+		warmingUp = true
+	}
 	node := d.store.getOrCreateNodeStore(nodeName)
 	d.store.Unlock()
 
@@ -42,7 +47,20 @@ func (d *dispatcher) processNodeStatus(nodeName string, status types.NodeStatus)
 	node.lastStatus = status
 	node.heartbeat = timestampNow()
 
-	return (node.lastConfigChange == status.LastChange), nil
+	if node.lastConfigChange == status.LastChange {
+		// Node-agent is up to date
+		return true, nil
+	}
+	if warmingUp {
+		// During the initial warmup phase, we are counting active nodes
+		// without dispatching configurations.
+		// We tell node-agents they are up to date to keep their cached
+		// configurations running while we finish the warmup phase.
+		return true, nil
+	}
+
+	// Node-agent needs to pull updated configs
+	return false, nil
 }
 
 // getLeastBusyNode returns the name of the node that is assigned

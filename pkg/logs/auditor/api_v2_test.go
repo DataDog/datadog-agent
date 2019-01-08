@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package auditor
 
@@ -16,11 +16,11 @@ func TestAuditorUnmarshalRegistryV2(t *testing.T) {
 	    "Registry": {
 	        "path1.log": {
 	            "Offset": "1",
-	            "LastUpdated": "2006-01-12T01:01:01.000000001Z"	            
+	            "LastUpdated": "2006-01-12T01:01:01.000000001Z"
 	        },
 	        "path2.log": {
 	            "Offset": "2006-01-12T01:01:03.000000001Z",
-	            "LastUpdated": "2006-01-12T01:01:02.000000001Z"	            
+	            "LastUpdated": "2006-01-12T01:01:02.000000001Z"
 	        }
 	    },
 	    "Version": 2

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 
@@ -33,6 +33,8 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
+	mockConfig := config.Mock()
+
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
 	var composeFile string
@@ -50,12 +52,12 @@ func testUDSOriginDetection(t *testing.T) {
 		composeFile = "mount_volume.compose"
 	}
 	socketPath := filepath.Join(dir, "dsd.socket")
-	config.Datadog.Set("dogstatsd_socket", socketPath)
-	config.Datadog.Set("dogstatsd_origin_detection", true)
+	mockConfig.Set("dogstatsd_socket", socketPath)
+	mockConfig.Set("dogstatsd_origin_detection", true)
 
 	// Start DSD
 	packetChannel := make(chan *listeners.Packet)
-	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	packetPool := listeners.NewPacketPool(mockConfig.GetInt("dogstatsd_buffer_size"))
 	s, err := listeners.NewUDSListener(packetChannel, packetPool)
 	require.Nil(t, err)
 

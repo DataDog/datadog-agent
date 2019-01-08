@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package flare
 
@@ -27,8 +27,9 @@ import (
 
 func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
-	config.Datadog.Set("confd_path", "./test/confd")
-	config.Datadog.Set("log_file", "./test/logs/agent.log")
+	mockConfig := config.Mock()
+	mockConfig.Set("confd_path", "./test/confd")
+	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
 

@@ -9,7 +9,7 @@ WORKDIR /output
 COPY datadog-cluster-agent opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
-COPY ./dist opt/datadog-agent/bin/dist
+COPY ./dist/templates opt/datadog-agent/bin/dist/templates
 COPY entrypoint.sh .
 
 RUN chmod 755 entrypoint.sh \

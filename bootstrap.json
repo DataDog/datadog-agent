@@ -1,7 +1,6 @@
 {
     "deps": {
         "order": [
-            "mercurial",
             "golang.org/x/lint/golint",
             "github.com/fzipp/gocyclo",
             "github.com/gordonklaus/ineffassign",
@@ -9,10 +8,6 @@
             "github.com/golang/dep/cmd/dep",
             "golang.org/x/mobile/cmd/gomobile"
         ],
-        "mercurial": {
-            "version": "4.6.2",
-            "type": "python"
-        },
         "github.com/golang/dep/cmd/dep": {
             "version": "v0.5.0",
             "type": "go"

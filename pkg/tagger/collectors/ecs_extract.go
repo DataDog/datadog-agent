@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -36,15 +36,16 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response, targetDock
 					tags.AddLow("cluster_name", c.clusterName)
 				}
 
-				tags.AddHigh("task_arn", task.Arn)
+				tags.AddOrchestrator("task_arn", task.Arn)
 
-				low, high := tags.Compute()
+				low, orch, high := tags.Compute()
 
 				info := &TagInfo{
-					Source:       ecsCollectorName,
-					Entity:       docker.ContainerIDToEntityName(container.DockerID),
-					HighCardTags: high,
-					LowCardTags:  low,
+					Source:               ecsCollectorName,
+					Entity:               docker.ContainerIDToEntityName(container.DockerID),
+					HighCardTags:         high,
+					OrchestratorCardTags: orch,
+					LowCardTags:          low,
 				}
 				output = append(output, info)
 			}

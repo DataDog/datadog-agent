@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 /*
 Package api implements the agent IPC api. Using HTTP
@@ -80,8 +80,10 @@ func StartServer() error {
 	}
 
 	srv := &http.Server{
-		Handler:      r,
-		ErrorLog:     stdLog.New(&config.ErrorLogWriter{}, "", 0), // log errors to seelog
+		Handler: r,
+		ErrorLog: stdLog.New(&config.ErrorLogWriter{
+			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
+		}, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}

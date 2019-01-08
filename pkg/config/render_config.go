@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build ignore
 
@@ -30,6 +30,7 @@ type context struct {
 	Kubelet           bool
 	KubernetesTagging bool
 	ECS               bool
+	Containerd        bool
 	CRI               bool
 	ProcessAgent      bool
 	NetworkTracer     bool
@@ -56,6 +57,7 @@ func mkContext(buildType string) context {
 			DockerTagging:     true,
 			KubernetesTagging: true,
 			ECS:               true,
+			Containerd:        true,
 			CRI:               true,
 			ProcessAgent:      true,
 			TraceAgent:        true,

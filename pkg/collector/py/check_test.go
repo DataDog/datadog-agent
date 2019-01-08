@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build cpython
 
@@ -49,8 +49,9 @@ func getClass(moduleName, className string) (checkClass *python.PyObject) {
 }
 
 func getCheckInstance(moduleName, className string) (*PythonCheck, error) {
-	config.Datadog.Set("foo_agent", "bar_agent")
-	defer config.Datadog.Set("foo_agent", nil)
+	mockConfig := config.Mock()
+	mockConfig.Set("foo_agent", "bar_agent")
+	defer mockConfig.Set("foo_agent", nil)
 
 	checkClass := getClass(moduleName, className)
 	check := NewPythonCheck(moduleName, checkClass)

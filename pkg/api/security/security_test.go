@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 
@@ -29,11 +29,12 @@ func TestFetchAuthTokenValidGen(t *testing.T) {
 	require.Nil(t, err, fmt.Errorf("%v", err))
 	defer os.Remove(f.Name())
 
-	config.Datadog.SetConfigFile(f.Name())
+	mockConfig := config.Mock()
+	mockConfig.SetConfigFile(f.Name())
 	expectTokenPath := filepath.Join(testDir, "auth_token")
 	defer os.Remove(expectTokenPath)
 
-	config.Datadog.Set("auth_token", "")
+	mockConfig.Set("auth_token", "")
 	token, err := FetchAuthToken()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	assert.True(t, len(token) > authTokenMinimalLen, fmt.Sprintf("%d", len(token)))

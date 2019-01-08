@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -57,19 +57,19 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 }
 
 // Fetch fetches ECS tags
-func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
+func (c *ECSCollector) Fetch(container string) ([]string, []string, []string, error) {
 	runtime, cID := containers.SplitEntityName(container)
 	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	tasks_list, err := c.ecsUtil.GetTasks()
 	if err != nil {
-		return []string{}, []string{}, err
+		return []string{}, []string{}, []string{}, err
 	}
 	updates, err := c.parseTasks(tasks_list, cID)
 	if err != nil {
-		return []string{}, []string{}, err
+		return []string{}, []string{}, []string{}, err
 	}
 	c.infoOut <- updates
 
@@ -83,11 +83,11 @@ func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
 
 	for _, info := range updates {
 		if info.Entity == container {
-			return info.LowCardTags, info.HighCardTags, nil
+			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, errors.NewNotFound(container)
+	return []string{}, []string{}, []string{}, errors.NewNotFound(container)
 }
 
 func ecsFactory() Collector {

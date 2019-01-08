@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -196,15 +196,17 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 }
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
+	mockConfig := config.Mock()
+
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.StartTLS()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
-	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
-	config.Datadog.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
 
 	watcher, err := NewPodWatcher(5 * time.Minute)
 	require.Nil(suite.T(), err)

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -98,10 +98,9 @@ func TestScheduleReschedule(t *testing.T) {
 
 func TestProcessNodeStatus(t *testing.T) {
 	dispatcher := newDispatcher()
+	status1 := types.NodeStatus{LastChange: 10}
 
-	status1 := types.NodeStatus{LastChange: 0}
-
-	// Initial node register
+	// Warmup phase, upToDate is unconditionally true
 	upToDate, err := dispatcher.processNodeStatus("node1", status1)
 	assert.NoError(t, err)
 	assert.True(t, upToDate)
@@ -110,6 +109,12 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.Equal(t, status1, node1.lastStatus)
 	assert.True(t, timestampNow() >= node1.heartbeat)
 	assert.True(t, timestampNow() <= node1.heartbeat+1)
+
+	// Warmup is finished, timestamps differ
+	dispatcher.store.active = true
+	upToDate, err = dispatcher.processNodeStatus("node1", status1)
+	assert.NoError(t, err)
+	assert.False(t, upToDate)
 
 	// Give changes
 	node1.lastConfigChange = timestampNow()
@@ -247,5 +252,26 @@ func TestDanglingConfig(t *testing.T) {
 	configs := dispatcher.retrieveAndClearDangling()
 	assert.Equal(t, []integration.Config{config}, configs)
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+}
 
+func TestReset(t *testing.T) {
+	dispatcher := newDispatcher()
+	config := generateIntegration("cluster-check")
+
+	// Register to node1
+	dispatcher.addConfig(config, "node1")
+	configs1, _, err := dispatcher.getNodeConfigs("node1")
+	assert.NoError(t, err)
+	assert.Len(t, configs1, 1)
+	assert.Contains(t, configs1, config)
+
+	// Reset
+	dispatcher.reset()
+	stored, err := dispatcher.getAllConfigs()
+	assert.NoError(t, err)
+	assert.Len(t, stored, 0)
+	_, _, err = dispatcher.getNodeConfigs("node1")
+	assert.EqualError(t, err, "node node1 is unknown")
+
+	requireNotLocked(t, dispatcher.store)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package status
 
@@ -182,7 +182,6 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 // getDCAPartialConfig returns config parameters of interest for the status page.
 func getDCAPartialConfig() map[string]string {
 	conf := make(map[string]string)
-	conf["log_file"] = config.Datadog.GetString("log_file")
 	conf["log_level"] = config.Datadog.GetString("log_level")
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	return conf
@@ -247,8 +246,20 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	stats["aggregatorStats"] = aggregatorStats
 
 	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
+	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
 	dogstatsdStats := make(map[string]interface{})
 	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	dogstatsdUdsStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats)
+	for name, value := range dogstatsdUdsStats {
+		dogstatsdStats["Uds"+name] = value
+	}
+	dogstatsdUDPStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats)
+	for name, value := range dogstatsdUDPStats {
+		dogstatsdStats["Udp"+name] = value
+	}
 	stats["dogstatsdStats"] = dogstatsdStats
 
 	pyLoaderData := expvar.Get("pyLoader")

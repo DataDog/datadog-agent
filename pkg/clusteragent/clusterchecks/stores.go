@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -20,6 +20,7 @@ import (
 // operations involving several calls.
 type clusterStore struct {
 	sync.RWMutex
+	active          bool
 	digestToConfig  map[string]integration.Config // All configurations to dispatch
 	digestToNode    map[string]string             // Node running a config
 	nodes           map[string]*nodeStore         // All nodes known to the cluster-agent
@@ -27,12 +28,18 @@ type clusterStore struct {
 }
 
 func newClusterStore() *clusterStore {
-	return &clusterStore{
-		digestToConfig:  make(map[string]integration.Config),
-		digestToNode:    make(map[string]string),
-		nodes:           make(map[string]*nodeStore),
-		danglingConfigs: make(map[string]integration.Config),
-	}
+	s := &clusterStore{}
+	s.reset()
+	return s
+}
+
+// reset empties the store and resets all states
+func (s *clusterStore) reset() {
+	s.active = false
+	s.digestToConfig = make(map[string]integration.Config)
+	s.digestToNode = make(map[string]string)
+	s.nodes = make(map[string]*nodeStore)
+	s.danglingConfigs = make(map[string]integration.Config)
 }
 
 // getNodeStore retrieves the store struct for a given node name, if it exists

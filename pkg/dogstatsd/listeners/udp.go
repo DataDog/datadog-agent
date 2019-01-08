@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listeners
 
@@ -19,10 +19,12 @@ import (
 var (
 	udpExpvars             = expvar.NewMap("dogstatsd-udp")
 	udpPacketReadingErrors = expvar.Int{}
+	udpPackets             = expvar.Int{}
 )
 
 func init() {
 	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
+	udpExpvars.Set("Packets", &udpPackets)
 }
 
 // UDPListener implements the StatsdListener interface for UDP protocol.
@@ -74,6 +76,7 @@ func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
 		packet := l.packetPool.Get()
+		udpPackets.Add(1)
 		n, _, err := l.conn.ReadFrom(packet.buffer)
 		if err != nil {
 			// connection has been closed

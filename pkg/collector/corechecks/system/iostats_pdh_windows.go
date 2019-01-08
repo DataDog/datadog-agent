@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build windows
 
 package system
@@ -40,10 +40,16 @@ const (
 type IOCheck struct {
 	core.CheckBase
 	blacklist    *regexp.Regexp
-	counters     map[string]*pdhutil.PdhCounterSet
+	counters     map[string]*pdhutil.PdhMultiInstanceCounterSet
 	counternames map[string]string
 }
 
+var pfnGetDriveType = getDriveType
+
+func getDriveType(drive string) uintptr {
+	r, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive))))
+	return r
+}
 func isDrive(instance string) bool {
 	if unmountedDrivePattern.MatchString(instance) {
 		return true
@@ -52,7 +58,8 @@ func isDrive(instance string) bool {
 		return false
 	}
 	instance += "\\"
-	r, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(instance))))
+
+	r := pfnGetDriveType(instance)
 	if r != DRIVE_FIXED {
 		return false
 	}
@@ -73,10 +80,10 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data) 
 		"Disk Reads/sec":            "system.io.r_s",
 		"Current Disk Queue Length": "system.io.avg_q_sz"}
 
-	c.counters = make(map[string]*pdhutil.PdhCounterSet)
+	c.counters = make(map[string]*pdhutil.PdhMultiInstanceCounterSet)
 
 	for name := range c.counternames {
-		c.counters[name], err = pdhutil.GetCounterSet("LogicalDisk", name, "", isDrive)
+		c.counters[name], err = pdhutil.GetMultiInstanceCounter("LogicalDisk", name, nil, isDrive)
 		if err != nil {
 			return err
 		}
