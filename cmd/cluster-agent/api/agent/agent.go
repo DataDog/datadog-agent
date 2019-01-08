@@ -12,12 +12,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -34,6 +38,7 @@ func SetupHandlers(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 
 	// Install versioned apis
 	v1.Install(r.PathPrefix("/api/v1").Subrouter(), sc)
@@ -111,4 +116,31 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func getConfigCheck(w http.ResponseWriter, r *http.Request) {
+	var response response.ConfigCheckResponse
+
+	configs := common.AC.GetLoadedConfigs()
+	configSlice := make([]integration.Config, 0)
+	for _, config := range configs {
+		configSlice = append(configSlice, config)
+	}
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
+	})
+	response.Configs = configSlice
+	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
+	response.ConfigErrors = autodiscovery.GetConfigErrors()
+	response.Unresolved = common.AC.GetUnresolvedTemplates()
+
+	jsonConfig, err := json.Marshal(response)
+	if err != nil {
+		log.Errorf("Unable to marshal config check response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonConfig)
 }

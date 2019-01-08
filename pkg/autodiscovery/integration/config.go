@@ -46,7 +46,7 @@ type Config struct {
 	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
 	Provider      string       `json:"provider"`       // the provider that issued the config
 	Entity        string       `json:"-"`              // the id of the entity (optional)
-	ClusterCheck  bool         `json:"-"`              // cluster-check configuration flag, don't expose in JSON
+	ClusterCheck  bool         `json:"cluster_check"`  // cluster-check configuration flag
 	CreationTime  CreationTime `json:"-"`              // creation time of service
 }
 

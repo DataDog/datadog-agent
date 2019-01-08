@@ -39,10 +39,9 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	r, err := util.DoGet(c, ConfigCheckURL)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
-		} else {
-			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
+			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))
 		}
+		return fmt.Errorf("failed to query the agent (running?): %s", err)
 	}
 
 	cr := response.ConfigCheckResponse{}
@@ -85,9 +84,20 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	return nil
 }
 
+// GetClusterAgentConfigCheck proxies GetConfigCheck overidding the URL
+func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
+	ConfigCheckURL = fmt.Sprintf("https://localhost:%v/config-check", config.Datadog.GetInt("cluster_agent.cmd_port"))
+	return GetConfigCheck(w, withDebug)
+}
+
 // PrintConfig prints a human-readable representation of a configuration
 func PrintConfig(w io.Writer, c integration.Config) {
-	fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
+	if !c.ClusterCheck {
+		fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
+	} else {
+		fmt.Fprintln(w, fmt.Sprintf("\n=== %s cluster check ===", color.GreenString(c.Name)))
+	}
+
 	if len(c.Provider) > 0 {
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.CyanString(c.Provider)))
 	} else {

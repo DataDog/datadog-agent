@@ -6,6 +6,8 @@
 package flare
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -86,6 +88,11 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	}
 
 	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
+
+	err = zipClusterAgentConfigCheck(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip config check: %s", err)
+	}
 
 	if err != nil {
 		return "", err
@@ -223,4 +230,14 @@ func zipHPAStatus(tempDir, hostname string) error {
 		return err
 	}
 	return err
+}
+
+func zipClusterAgentConfigCheck(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	GetClusterAgentConfigCheck(writer, true)
+	writer.Flush()
+
+	return writeConfigCheck(tempDir, hostname, b.Bytes())
 }
