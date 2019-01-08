@@ -75,10 +75,15 @@
         dest: "/usr/local/bin/docker-compose"
         force: True
         mode: "0755"
-    - name: Copy Docker Compose file
+    - name: Copy Configuration files
       copy:
-        src: ../../docker-compose.yml
-        dest: /home/ubuntu/docker-compose.yml
+        src: "../../{{ item }}"
+        dest: "/home/ubuntu/{{ item }}"
+      with_items:
+        - docker.nginx
+        - nginx-signed.crt
+        - nginx-signed.key
+        - docker-compose.yml
     - name: Run Docker compose
       command: docker-compose up -d
       args:
@@ -108,6 +113,12 @@
         name: nc
         state: present
       when: ansible_distribution == "Fedora"
+    - name: Install libselinux-python in Fedora
+      become: true
+      yum:
+        name: libselinux-python
+        state: present
+      when: ansible_distribution == "Fedora"
 - name: Prepare Agent 1 listening before start
   hosts: agent1
   gather_facts: false
@@ -133,12 +144,18 @@
   vars_files:
     - common_vars.yml
   tasks:
+    - name: Add test-stackstate-agent.sts to /etc/hosts
+      become: true
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
     - name: Install stackstate-agent
       shell: "curl -o- {{agent_repo_url}}/install.sh | bash"
       environment:
         STS_API_KEY: "API_KEY"
-        STS_URL: "http://{{ hostvars['receiver']['ansible_host'] }}:7077/stsAgent"
+        STS_URL: "https://test-stackstate-agent.sts/stsAgent"
         CODE_NAME: "{{agent_current_branch}}"
+        SKIP_SSL_VALIDATION: "true"
 - name: Prepare Agent 1 listening after start
   hosts: agent1
   gather_facts: false

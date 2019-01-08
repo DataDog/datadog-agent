@@ -48,7 +48,7 @@ def test_stackstate_agent_log(host):
         # once STAC-2500 is fixed
         if re.search(
                 "Error code \"400 Bad Request\" received while sending " +
-                "transaction to \"http://.*:7077/stsAgent/intake/",
+                "transaction to \"https://.*/stsAgent/intake/",
                 line):
             continue
 

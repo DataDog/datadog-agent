@@ -90,6 +90,11 @@ else
     code_name="stable"
 fi
 
+if [ -n "$SKIP_SSL_VALIDATION" ]; then
+    skip_ssl_validation=$SKIP_SSL_VALIDATION
+fi
+
+
 if [ ! $api_key ]; then
     print_red "API key not available in STS_API_KEY environment variable.\n"
     exit 1;
@@ -200,6 +205,10 @@ if [ $host_tags ]; then
     print_blu "* Adding your HOST TAGS to the Agent configuration: $CONF\n"
     formatted_host_tags="['"$( echo "$host_tags" | sed "s/,/','/g" )"']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
     $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: "$formatted_host_tags"/\" $CONF"
+fi
+if [ $skip_ssl_validation ]; then
+    print_blu "* Skipping SSL validation in the Agent configuration: $CONF\n"
+    $sudo_cmd sh -c "sed -i 's/# skip_ssl_validation:.*/skip_ssl_validation: $skip_ssl_validation/' $CONF"
 fi
 
 function version_gt() {

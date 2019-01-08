@@ -28,3 +28,14 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
+  nginx:
+    image: nginx:1.14.2
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - receiver
+    volumes:
+      - ./docker.nginx:/etc/nginx/nginx.conf:ro
+      - ./nginx-signed.crt:/etc/ssl/certs/nginx-signed.crt:ro
+      - ./nginx-signed.key:/etc/ssl/private/nginx-signed.key:ro
