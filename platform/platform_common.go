@@ -30,6 +30,7 @@ func getPlatformInfo() (platformInfo map[string]interface{}, err error) {
 	// that if both the ArchInfo() and the PythonVersion() fail, the error
 	// from the ArchInfo() will be lost
 
+	platformInfo = make(map[string]interface{})
 	// for this, no error check.  The successful results will be added
 	// to the return value, and the error stored.
 	platformInfo, err = GetArchInfo()
