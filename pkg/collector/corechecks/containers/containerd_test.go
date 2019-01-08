@@ -144,7 +144,6 @@ func TestComputeEvents(t *testing.T) {
 		CheckBase: corechecks.NewCheckBase("containerd"),
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
-	mocked.SetCheckCustomTags([]string{"test"})
 	var err error
 	containerdCheck.filters, err = containersutil.GetSharedFilter()
 	require.NoError(t, err)
@@ -186,7 +185,7 @@ func TestComputeEvents(t *testing.T) {
 			},
 			},
 			expectedTitle: "Event on containers from Containerd",
-			expectedTags:  []string{"foo:bar", "test"},
+			expectedTags:  []string{"foo:bar"},
 			numberEvents:  1,
 		},
 		{
@@ -200,7 +199,7 @@ func TestComputeEvents(t *testing.T) {
 			},
 			},
 			expectedTitle: "Event on images from Containerd",
-			expectedTags:  []string{"foo:baz", "test"},
+			expectedTags:  []string{"foo:baz"},
 			numberEvents:  1,
 		},
 		{
@@ -214,7 +213,7 @@ func TestComputeEvents(t *testing.T) {
 			},
 			},
 			expectedTitle: "Event on images from Containerd",
-			expectedTags:  []string{"test"},
+			expectedTags:  nil,
 			numberEvents:  0,
 		},
 	}
