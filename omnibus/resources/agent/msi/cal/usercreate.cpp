@@ -249,6 +249,7 @@ int CreateDDUser(MSIHANDLE hInstall)
     DWORD passbuflen = 0;
     if(false == (ddAgentPropertySet = loadDdAgentUserName(hInstall))){
         WcaLog(LOGMSG_STANDARD, "DDAGENT username not supplied, using default");
+        splitUserIntoDomainAndUser(ddAgentUserName);
     }
     if(false == (ddAgentPasswordSet = loadDdAgentPassword(hInstall, &passbuf, &passbuflen))) {
         WcaLog(LOGMSG_STANDARD, "Password not provided, will generate password");
@@ -285,7 +286,7 @@ int CreateDDUser(MSIHANDLE hInstall)
         USER_INFO_1003 newPassword;
         newPassword.usri1003_password = passbuf;
         ret = NetUserSetInfo(NULL, // always local server
-            ddAgentUserName.c_str(),
+            ddAgentUserNameUnqualified.c_str(),
             1003, // according to the docs there's no constant
             (LPBYTE)&newPassword,
             NULL);
@@ -307,6 +308,8 @@ int CreateDDUser(MSIHANDLE hInstall)
     if(!ddAgentPropertySet){
         MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserName.c_str(), (LPCWSTR)ddAgentUserName.c_str());
     }
+    MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserUnqualifiedName.c_str(), (LPCWSTR)ddAgentUserNameUnqualified.c_str());
+
     if(!ddAgentPasswordSet){
         // now store the password in the property so the installer can use it
         MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserPassword.c_str(), (LPCWSTR)passbuf);

@@ -18,6 +18,7 @@ std::wstring agentService(L"datadogagent");
 
 std::wstring propertyDDUserCreated(L"DDUSERCREATED");
 std::wstring propertyDDAgentUserName(L"DDAGENTUSER_NAME");
+std::wstring propertyDDAgentUserUnqualifiedName(L"DDAGENTUSER_UNQUALIFIED_NAME");
 std::wstring propertyDDAgentUserPassword(L"DDAGENTUSER_PASSWORD");
 std::wstring propertyEnableServicesDeferredKey(L"enableservices");
 std::wstring propertyRollbackState(L"CustomActionData");
@@ -109,17 +110,8 @@ bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName ) {
             ddAgentUserName = tmpName;
         }
         // now create the splits between the domain and user for all to use, too
-        std::wstring domain, user;
-        std::wistringstream asStream(tmpName);
-        // username is going to be of the form <domain>\<username>
-        // if the <domain> is ".", then just do local machine
-        getline(asStream, ddAgentUserDomain, L'\\');
-        getline(asStream, ddAgentUserNameUnqualified, L'\\');
-        if(domain == L"."){
-            ddAgentUserDomainPtr = NULL;
-        } else {
-            ddAgentUserDomainPtr = ddAgentUserDomain.c_str();
-        }
+        
+        splitUserIntoDomainAndUser(tmpName); 
 
         return true;
     }
@@ -128,4 +120,17 @@ bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName ) {
 
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **pass, DWORD *len) {
     return loadPropertyString(hInstall, propertyDDAgentUserPassword.c_str(), pass, len);
+}
+
+void splitUserIntoDomainAndUser(std::wstring &user) {
+    std::wistringstream asStream(user);
+    // username is going to be of the form <domain>\<username>
+    // if the <domain> is ".", then just do local machine
+    getline(asStream, ddAgentUserDomain, L'\\');
+    getline(asStream, ddAgentUserNameUnqualified, L'\\');
+    if(ddAgentUserDomain == L"."){
+        ddAgentUserDomainPtr = NULL;
+    } else {
+        ddAgentUserDomainPtr = ddAgentUserDomain.c_str();
+    }
 }

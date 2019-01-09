@@ -17,6 +17,7 @@ extern std::wstring processService;
 extern std::wstring agentService;
 
 extern std::wstring propertyDDAgentUserName;
+extern std::wstring propertyDDAgentUserUnqualifiedName;
 extern std::wstring propertyDDAgentUserPassword;
 extern std::wstring propertyDDUserCreated;
 extern std::wstring propertyEnableServicesDeferredKey;
@@ -43,5 +44,5 @@ bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName = NULL);
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dst);
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len);
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **dst, DWORD *len);
-
+void splitUserIntoDomainAndUser(std::wstring &user);
 #define MAX_CUSTOM_PROPERTY_SIZE        128

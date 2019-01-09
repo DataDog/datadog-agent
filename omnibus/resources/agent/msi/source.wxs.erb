@@ -54,6 +54,7 @@
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
     <Property Id="DDAGENTUSER_NAME" />
+    <Property Id="DDAGENTUSER_UNQUALIFIED_NAME" />
     <Property Id="DDAGENTUSER_PASSWORD"  />
 
         <!-- This allows downgrades, and same-version reinstalls.  Otherwise,
@@ -79,7 +80,7 @@
             <CreateFolder>
                 <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
-                <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
+                <Permission User="[DDAGENTUSER_UNQUALIFIED_NAME]" GenericAll="yes"  ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
             </CreateFolder>
           </Component>
@@ -401,7 +402,7 @@
               <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
               <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
               <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
-              <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
+              <Permission User="[DDAGENTUSER_UNQUALIFIED_NAME]" GenericAll="yes"  ChangePermission="yes"/>
           </CreateFolder>
         </Component>
       </Directory>
@@ -416,7 +417,7 @@
                 <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
-                <Permission User="[DDAGENTUSER_NAME]" GenericAll="yes"  ChangePermission="yes"/>
+                <Permission User="[DDAGENTUSER_UNQUALIFIED_NAME]" GenericAll="yes"  ChangePermission="yes"/>
             </CreateFolder>
      
         </Component>

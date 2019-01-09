@@ -143,7 +143,7 @@ extern "C" UINT __stdcall AdjustDDRights(MSIHANDLE hInstall)
     MarkInstallStepComplete(strFilePermissionsChanged);
 // change the rights on this user
     hr = -1;
-    sid = GetSidForUser(NULL, (LPCWSTR)ddAgentUserName.c_str());
+    sid = GetSidForUser(ddAgentUserDomainPtr, (LPCWSTR)ddAgentUserNameUnqualified.c_str());
     if (!sid) {
         goto LExit;
     }
@@ -209,19 +209,19 @@ extern "C" UINT __stdcall EnableServicesForDDUser(MSIHANDLE hInstall)
     {
         WcaLog(LOGMSG_STANDARD, "DDAGENT username not supplied, using default");
     }
-    er = EnableServiceForUser(traceService, ddAgentUserName);
+    er = EnableServiceForUser(traceService, ddAgentUserDomainPtr, (LPCWSTR)ddAgentUserNameUnqualified.c_str());
     if (0 != er) {
         hr = -1;
         goto LExit;
     } 
-    er = EnableServiceForUser(processService, ddAgentUserName);
+    er = EnableServiceForUser(processService, ddAgentUserDomainPtr, (LPCWSTR)ddAgentUserNameUnqualified.c_str());
     if (0 != er) {
         hr = -1;
         goto LExit;
     }
     // need to enable user rights for the datadogagent service (main service)
     // so that it can restart itself
-    er = EnableServiceForUser(agentService, ddAgentUserName);
+    er = EnableServiceForUser(agentService, ddAgentUserDomainPtr, (LPCWSTR)ddAgentUserNameUnqualified.c_str());
     if (0 != er) {
         hr = -1;
         goto LExit;
