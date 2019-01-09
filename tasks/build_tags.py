@@ -43,7 +43,9 @@ LINUX_ONLY_TAGS = [
     "netcgo",
 ]
 
+# TODO remove `containerd` when omnibus-software#218 is merged. Temporary workaround for the Suse build failing.
 REDHAT_AND_DEBIAN_ONLY_TAGS = [
+    "containerd",
     "systemd",
 ]
 
