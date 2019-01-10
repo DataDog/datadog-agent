@@ -15,7 +15,6 @@
         name: python-pip
         state: present
         update_cache: yes
-      changed_when: false
     - name: Installing multiple python packages in Ansible
       pip:
         name: boto,boto3
@@ -29,9 +28,12 @@
     - name: Install list of packages
       become: true
       apt:
-        name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce]
+        name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce, awscli]
         state: present
         update_cache: yes
+      register: apt_res
+      retries: 5
+      until: apt_res | success
     - name: Add user to docker group
       become: true
       user:
@@ -42,11 +44,6 @@
       shell: sleep 1; pkill -u {{ ansible_ssh_user }} sshd
       async: 3
       poll: 2
-    - name: Install AWS-CLI
-      apt:
-        name: awscli
-        state: present
-      become: true
     - name: Ensure .aws config directory exists
       file:
         path: /home/ubuntu/.aws/

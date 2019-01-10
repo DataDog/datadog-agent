@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/CharlyF/custom-metrics-apiserver/pkg/apiserver"
-	basecmd "github.com/CharlyF/custom-metrics-apiserver/pkg/cmd"
-	"github.com/CharlyF/custom-metrics-apiserver/pkg/provider"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver"
+	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/wait"
