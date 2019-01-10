@@ -26,7 +26,6 @@ DEFAULT_BUILD_TAGS = [
     "consul",
     "containerd",
     "cpython",
-    "containerd",
     "cri",
     "docker",
     "ec2",
