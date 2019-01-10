@@ -7,14 +7,11 @@
 
 package py
 
-import (
-	"path/filepath"
-)
-
 const (
-	py3LinterBin = "a7_validate.exe"
+	pythonBin = "python.exe"
 )
 
 var (
-	py3LinterPath = filepath.Join("Scripts", py3LinterBin)
+	// Python binary is in the same folder than agent.exe
+	pythonPath = pythonBin
 )

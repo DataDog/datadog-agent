@@ -12,13 +12,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -27,11 +25,7 @@ var (
 
 func init() {
 	here, _ := executable.Folder()
-	py3LinterPath = filepath.Join(here, py3LinterPath)
-	if _, err := os.Stat(py3LinterPath); err != nil {
-		log.Warnf("Could not find python linter '%s': disabling linter", py3LinterPath)
-		py3LinterPath = ""
-	}
+	pythonPath = filepath.Join(here, pythonPath)
 }
 
 type warning struct {
@@ -40,14 +34,10 @@ type warning struct {
 
 // verifyPython3 checks that a check can run on python 3
 func validatePython3(moduleName string, modulePath string) ([]string, error) {
-	if py3LinterPath == "" {
-		return nil, fmt.Errorf("no Python3 linter found")
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), linterTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, py3LinterPath, modulePath)
+	cmd := exec.CommandContext(ctx, pythonPath, "-m", "a7", modulePath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}

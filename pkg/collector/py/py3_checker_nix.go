@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	py3LinterBin = "a7_validate"
+	pythonBin = "python"
 )
 
 var (
-	py3LinterPath = filepath.Join("..", "..", "embedded", "bin", py3LinterBin)
+	pythonPath = filepath.Join("..", "..", "embedded", "bin", pythonBin)
 )
