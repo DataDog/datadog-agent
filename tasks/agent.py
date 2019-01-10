@@ -24,6 +24,7 @@ AGENT_TAG = "datadog/agent:master"
 DEFAULT_BUILD_TAGS = [
     "apm",
     "consul",
+    "containerd",
     "cpython",
     "cri",
     "docker",
