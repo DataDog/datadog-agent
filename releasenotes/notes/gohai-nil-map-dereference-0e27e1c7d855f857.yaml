@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+fixes:
   - |
-    JMXFetch upgraded to 0.24.1. See https://github.com/DataDog/jmxfetch/releases/tag/0.24.0 and
-    https://github.com/DataDog/jmxfetch/releases/tag/0.24.1
+    Fix a rare crash caused by a nil map dereference in the ``gohai`` library

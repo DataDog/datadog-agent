@@ -109,7 +109,6 @@ core,github.com/prometheus/client_golang,Apache-2.0
 core,github.com/prometheus/client_model,Apache-2.0
 core,github.com/prometheus/common,Apache-2.0
 core,github.com/prometheus/procfs,Apache-2.0
-core,github.com/ramr/go-reaper,MIT
 core,github.com/samuel/go-zookeeper,BSD-3-Clause
 core,github.com/sbinet/go-python,Python-2.0
 core,github.com/shirou/gopsutil,BSD-3-Clause
