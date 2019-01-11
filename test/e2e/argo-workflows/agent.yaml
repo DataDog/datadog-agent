@@ -714,6 +714,7 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.redis-deployment}}"
+        - "{{inputs.parameters.redis-deployment-unready}}"
         - "{{inputs.parameters.redis-service}}"
 
     - - name: no-more-redis
