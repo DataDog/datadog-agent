@@ -124,7 +124,7 @@ func init() {
 
 var tufCmd = &cobra.Command{
 	Use:   "integration [command]",
-	Short: "Datadog integration manager (Beta feature)",
+	Short: "Datadog integration manager",
 	Long:  ``,
 }
 
