@@ -27,7 +27,6 @@ def test_stackstate_process_agent_running_and_enabled(host):
 
 
 def test_stackstate_agent_log(host):
-    # Wait some time for stuff to enter the logs
     agent_log_path = "/var/log/stackstate-agent/agent.log"
 
     # Check for presence of success
@@ -44,12 +43,12 @@ def test_stackstate_agent_log(host):
     # Check for errors
     for line in agent_log.splitlines():
         print("Considering: %s" % line)
-        # TODO: Update event endpoint should get rid of this error,
-        # once STAC-2500 is fixed
-        if re.search(
-                "Error code \"400 Bad Request\" received while sending " +
-                "transaction to \"https://.*/stsAgent/intake/",
-                line):
+        # TODO: Collecting processes snap -> Will be addressed with STAC-3531
+        if re.search("Error code \"400 Bad Request\" received while "
+                     "sending transaction to \"https://.*/stsAgent/intake/.*"
+                     "Failed to deserialize JSON on fields: , "
+                     "with message: Object is missing required member \'internalHostname\'",
+                     line):
             continue
 
         # https://stackstate.atlassian.net/browse/STAC-3202 first
@@ -57,7 +56,6 @@ def test_stackstate_agent_log(host):
 
 
 def test_stackstate_process_agent_no_log_errors(host):
-    # Wait some time for stuff to enter the logs
     process_agent_log_path = "/var/log/stackstate-agent/process-agent.log"
 
     # Check for presence of success

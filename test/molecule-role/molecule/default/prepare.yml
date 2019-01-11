@@ -18,14 +18,14 @@
     - name: Installing multiple python packages in Ansible
       pip:
         name: boto,boto3
-    - name: Add Docker GPG key
+    - name: Add Docker GPG APT key
       become: true
       apt_key: url=https://download.docker.com/linux/ubuntu/gpg
     - name: Add Docker APT repository
       become: true
       apt_repository:
         repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
-    - name: Install list of packages
+    - name: Install APT packages
       become: true
       apt:
         name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce, awscli]
@@ -33,7 +33,8 @@
         update_cache: yes
       register: apt_res
       retries: 5
-      until: apt_res | success
+      delay: 5
+      until: apt_res is success
     - name: Add user to docker group
       become: true
       user:
@@ -147,11 +148,12 @@
         path: /etc/hosts
         line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
     - name: Install stackstate-agent
-      shell: "curl -o- {{agent_repo_url}}/install.sh | bash"
+      shell: "curl -o- {{ agent_repo_url }}/install.sh | bash"
       environment:
         STS_API_KEY: "API_KEY"
         STS_URL: "https://test-stackstate-agent.sts/stsAgent"
-        CODE_NAME: "{{agent_current_branch}}"
+        STS_HOSTNAME: "{{ inventory_hostname }}"
+        CODE_NAME: "{{ agent_current_branch }}"
         SKIP_SSL_VALIDATION: "true"
 - name: Prepare Agent 1 listening after start
   hosts: agent1

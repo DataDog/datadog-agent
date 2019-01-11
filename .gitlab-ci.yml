@@ -23,6 +23,7 @@ before_script:
 
 dependencies_clear_cache:
   stage: prepare
+  before_script: []
   cache:
     policy: push
     key: "agent-deps"

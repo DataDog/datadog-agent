@@ -104,7 +104,7 @@
       retries: 300
       with_items: "{{ server.results }}"
 
-    - debug: var="ec2_jobs"
+    # - debug: var="ec2_jobs"
 
     # Mandatory configuration for Molecule to function.
 

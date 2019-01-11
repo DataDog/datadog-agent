@@ -2,6 +2,7 @@ import os
 import json
 import util
 import testinfra.utils.ansible_runner
+from collections import defaultdict
 
 testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
     os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('receiver_vm')
@@ -22,6 +23,25 @@ def test_receiver_ok(host):
     assert host.check_output(c) == "200"
 
 
+def test_generic_events(host):
+    url = "http://localhost:7070/api/topic/sts_generic_events?offset=0&limit=40"
+
+    def wait_for_metrics():
+        data = host.check_output("curl \"%s\"" % url)
+        json_data = json.loads(data)
+        print(json.dumps(json_data))
+
+        events = defaultdict(set)
+        for message in json_data["messages"]:
+            events[message["message"]["GenericEvent"]["host"]].add(message["message"]["GenericEvent"]["name"])
+
+        print events
+        assert events["agent1"] == {"System.Agent Startup", "processStateEvent"}
+        assert events["agent2"] == {"System.Agent Startup", "processStateEvent"}
+
+    util.wait_until(wait_for_metrics, 30, 3)
+
+
 def test_created_connection_after_start_with_metrics(host, Ansible):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
     # FIXME: Maybe there is a more direct way to get this variable
@@ -31,6 +51,7 @@ def test_created_connection_after_start_with_metrics(host, Ansible):
     def wait_for_connection():
         data = host.check_output("curl %s" % url)
         json_data = json.loads(data)
+        print(json.dumps(json_data))
         outgoing_conn = next(connection for message in json_data["messages"]
                              for connection in message["message"]["Connections"]["connections"]
                              if connection["remoteEndpoint"]["endpoint"]["port"] == conn_port
