@@ -513,7 +513,7 @@ func TestHandleTraces(t *testing.T) {
 		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(buf.Bytes()))
 		req.Header.Set("Content-Type", "application/msgpack")
 
-		// Add meta data to simulate data comming from multiple applications
+		// Add meta data to simulate data coming from multiple applications
 		req.Header.Set("Datadog-Meta-Lang", langs[n%len(langs)])
 
 		handler.ServeHTTP(rr, req)
@@ -623,7 +623,7 @@ func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(buf.Bytes()))
 		req.Header.Set("Content-Type", "application/msgpack")
 
-		// Add meta data to simulate data comming from multiple applications
+		// Add meta data to simulate data coming from multiple applications
 		for _, v := range headerFields {
 			req.Header.Set(v, langs[n%len(langs)])
 		}
@@ -663,7 +663,7 @@ func BenchmarkHandleTracesFromMultipleApps(b *testing.B) {
 		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(buf.Bytes()))
 		req.Header.Set("Content-Type", "application/msgpack")
 
-		// Add meta data to simulate data comming from multiple applications
+		// Add meta data to simulate data coming from multiple applications
 		for _, v := range headerFields {
 			req.Header.Set(v, langs[n%len(langs)])
 		}

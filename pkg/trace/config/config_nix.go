@@ -3,7 +3,7 @@
 package config
 
 const (
-	// DefaultLogFilePath is where the agent will write logs if not overriden in the conf
+	// DefaultLogFilePath is where the agent will write logs if not overridden in the conf
 	DefaultLogFilePath = "/var/log/datadog/trace-agent.log"
 
 	// Agent 5 Python Environment - exposes access to Python utilities

@@ -86,7 +86,8 @@ func (s *fakeBackend) Out() <-chan interface{} { return s.out }
 func (s *fakeBackend) Shutdown(wait time.Duration) error {
 	defer close(s.out)
 
-	ctx, _ := context.WithTimeout(context.Background(), wait)
+	ctx, cancel := context.WithTimeout(context.Background(), wait)
+	defer cancel()
 	return s.srv.Shutdown(ctx)
 }
 

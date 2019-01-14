@@ -11,7 +11,7 @@ import (
 )
 
 func applyEnv() {
-	// Warning: do not use BindEnv to bind config variables. They will be overriden
+	// Warning: do not use BindEnv to bind config variables. They will be overridden
 	// when using the legacy config loader.
 	for _, override := range []struct{ env, key string }{
 		// Core agent:

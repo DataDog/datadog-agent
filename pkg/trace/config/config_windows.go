@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	// DefaultLogFilePath is where the agent will write logs if not overriden in the conf
+	// DefaultLogFilePath is where the agent will write logs if not overridden in the conf
 	DefaultLogFilePath = "c:\\programdata\\datadog\\logs\\trace-agent.log"
 
 	// Agent 5 Python Environment - exposes access to Python utilities

@@ -214,9 +214,8 @@ func CalcPreSampleRate(maxUserAvg, currentUserAvg, currentRate float64) (float64
 		return 1, nil // not initialized yet, beside, need to return now else divide by zero error
 	}
 
-	newRate := float64(1)
 	slope := currentUserAvg / currentRate
-	newRate = maxUserAvg / slope
+	newRate := maxUserAvg / slope
 	if newRate >= 1 {
 		return 1, nil // no need to pre-sample anything
 	}

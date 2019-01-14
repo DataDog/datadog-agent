@@ -7,7 +7,6 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/process"
 )
 
 const (
@@ -56,7 +55,7 @@ type Info struct {
 // CurrentInfo is used to query CPU and Mem info, it keeps data from
 // the previous calls to calculate averages. It is not thread safe.
 type CurrentInfo struct {
-	p          *process.Process
+	pid        int32
 	mu         sync.Mutex
 	cacheDelay time.Duration
 
@@ -86,12 +85,8 @@ func init() {
 
 // NewCurrentInfo creates a new CurrentInfo referring to the current running program.
 func NewCurrentInfo() (*CurrentInfo, error) {
-	p, err := process.NewProcess(int32(os.Getpid()))
-	if err != nil {
-		return nil, err
-	}
 	return &CurrentInfo{
-		p:          p,
+		pid:        int32(os.Getpid()),
 		cacheDelay: cacheDelay,
 	}, nil
 }
@@ -108,19 +103,19 @@ func (pi *CurrentInfo) CPU() CPUInfo {
 	}
 	pi.lastCPUTime = now
 
-	times, err := pi.p.Times()
+	userTime, err := cpuTimeUser(pi.pid)
 	if err != nil {
 		log.Debugf("unable to get CPU times: %v", err)
 		return pi.lastCPU
 	}
 
-	dua := times.User - pi.lastCPUUser
-	pi.lastCPUUser = times.User
+	dua := userTime - pi.lastCPUUser
+	pi.lastCPUUser = userTime
 	if dua <= 0 {
 		pi.lastCPU.UserAvg = 0 // shouldn't happen, but make sure result is always > 0
 	} else {
 		pi.lastCPU.UserAvg = float64(time.Second) * dua / float64(dt)
-		pi.lastCPUUser = times.User
+		pi.lastCPUUser = userTime
 	}
 
 	return pi.lastCPU
