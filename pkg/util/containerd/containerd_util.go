@@ -40,11 +40,12 @@ type ContainerdItf interface {
 
 // ContainerdUtil is the util used to interact with the Containerd api.
 type ContainerdUtil struct {
-	cl           *containerd.Client
-	socketPath   string
-	initRetry    retry.Retrier
-	queryTimeout time.Duration
-	namespace    string
+	cl                *containerd.Client
+	socketPath        string
+	initRetry         retry.Retrier
+	queryTimeout      time.Duration
+	connectionTimeout time.Duration
+	namespace         string
 }
 
 // GetContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
@@ -53,9 +54,10 @@ func GetContainerdUtil() (ContainerdItf, error) {
 	once.Do(func() {
 
 		globalContainerdUtil = &ContainerdUtil{
-			queryTimeout: config.Datadog.GetDuration("cri_query_timeout") * time.Second,
-			socketPath:   config.Datadog.GetString("cri_socket_path"),
-			namespace:    config.Datadog.GetString("containerd_namespace"),
+			queryTimeout:      config.Datadog.GetDuration("cri_query_timeout") * time.Second,
+			connectionTimeout: config.Datadog.GetDuration("cri_connection_timeout") * time.Second,
+			socketPath:        config.Datadog.GetString("cri_socket_path"),
+			namespace:         config.Datadog.GetString("containerd_namespace"),
 		}
 		if globalContainerdUtil.socketPath == "" {
 			log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")
@@ -71,7 +73,7 @@ func GetContainerdUtil() (ContainerdItf, error) {
 		})
 	})
 	if err := globalContainerdUtil.initRetry.TriggerRetry(); err != nil {
-		log.Error("Containerd init error: %s", err.Error())
+		log.Errorf("Containerd init error: %s", err.Error())
 		return nil, err
 	}
 	return globalContainerdUtil, nil
@@ -109,7 +111,7 @@ func (c *ContainerdUtil) connect() error {
 		return nil
 	}
 
-	c.cl, err = containerd.New(c.socketPath)
+	c.cl, err = containerd.New(c.socketPath, containerd.WithTimeout(c.connectionTimeout))
 	if err != nil {
 		return err
 	}
