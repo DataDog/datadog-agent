@@ -96,7 +96,7 @@ func requestFlare(caseID string) error {
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be mising."))
 
-		filePath, e = flare.CreateDCAArchive(true, common.GetDistPath(), logFile)
+		filePath, e = flare.CreateDCAArchive(true, common.GetDistPath(), logFile, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

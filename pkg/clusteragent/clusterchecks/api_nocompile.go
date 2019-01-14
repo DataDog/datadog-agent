@@ -38,3 +38,8 @@ func NewHandler(_ *autodiscovery.AutoConfig) (*Handler, error) {
 func (h *Handler) Run(_ context.Context) error {
 	return ErrNotCompiled
 }
+
+// GetAgentStatus not implemented
+func (h *Handler) GetAgentStatus() (string, interface{}) {
+	return "", nil
+}

@@ -31,30 +31,40 @@ import (
 func SetupHandlers(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/flare", makeFlare(sc)).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/status", getStatus(sc)).Methods("GET")
 
 	// Install versioned apis
 	v1.Install(r.PathPrefix("/api/v1").Subrouter(), sc)
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got a request for the status. Making status.")
-	s, err := status.GetDCAStatus()
-	w.Header().Set("Content-Type", "application/json")
-	if err != nil {
-		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
-		return
+func buildStatusCallbacks(sc clusteragent.ServerContext) status.Callbacks {
+	var statusCallbacks status.Callbacks
+	if sc.ClusterCheckHandler != nil {
+		statusCallbacks = append(statusCallbacks, sc.ClusterCheckHandler.GetAgentStatus)
 	}
-	jsonStats, err := json.Marshal(s)
-	if err != nil {
-		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
-		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
-		return
+	return statusCallbacks
+}
+
+func getStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Info("Got a request for the status. Making status.")
+		s, err := status.GetDCAStatus(buildStatusCallbacks(sc))
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
+			http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
+			return
+		}
+		jsonStats, err := json.Marshal(s)
+		if err != nil {
+			log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
+			http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
+			return
+		}
+		w.Write(jsonStats)
 	}
-	w.Write(jsonStats)
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -94,21 +104,23 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request) {
-	log.Infof("Making a flare")
-	w.Header().Set("Content-Type", "application/json")
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultDCALogFile
-	}
-	filePath, err := flare.CreateDCAArchive(false, common.GetDistPath(), logFile)
-	if err != nil || filePath == "" {
-		if err != nil {
-			log.Errorf("The flare failed to be created: %s", err)
-		} else {
-			log.Warnf("The flare failed to be created")
+func makeFlare(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Infof("Making a flare")
+		w.Header().Set("Content-Type", "application/json")
+		logFile := config.Datadog.GetString("log_file")
+		if logFile == "" {
+			logFile = common.DefaultDCALogFile
 		}
-		http.Error(w, err.Error(), 500)
+		filePath, err := flare.CreateDCAArchive(false, common.GetDistPath(), logFile, buildStatusCallbacks(sc))
+		if err != nil || filePath == "" {
+			if err != nil {
+				log.Errorf("The flare failed to be created: %s", err)
+			} else {
+				log.Warnf("The flare failed to be created")
+			}
+			http.Error(w, err.Error(), 500)
+		}
+		w.Write([]byte(filePath))
 	}
-	w.Write([]byte(filePath))
 }

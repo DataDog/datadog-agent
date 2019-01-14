@@ -14,27 +14,27 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mholt/archiver"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
+func CreateDCAArchive(local bool, distPath, logFilePath string, callbacks status.Callbacks) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":     config.Datadog.GetString("confd_path"),
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
-	return createDCAArchive(zipFilePath, local, confSearchPaths, logFilePath)
+	return createDCAArchive(zipFilePath, local, confSearchPaths, logFilePath, callbacks)
 }
 
-func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
+func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string, callbacks status.Callbacks) (string, error) {
 	b := make([]byte, 10)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -71,7 +71,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err = zipDCAStatusFile(tempDir, hostname)
+		err = zipDCAStatusFile(tempDir, hostname, callbacks)
 		if err != nil {
 			log.Infof("Error getting the status of the DCA, %q", err)
 			return "", err
@@ -126,10 +126,10 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	return zipFilePath, nil
 }
 
-func zipDCAStatusFile(tempDir, hostname string) error {
+func zipDCAStatusFile(tempDir, hostname string, callbacks status.Callbacks) error {
 	// Grab the status
 	log.Infof("Zipping the status at %s for %s", tempDir, hostname)
-	s, err := status.GetAndFormatDCAStatus()
+	s, err := status.GetAndFormatDCAStatus(callbacks)
 	if err != nil {
 		log.Infof("Error zipping the status: %q", err)
 		return err

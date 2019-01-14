@@ -27,6 +27,12 @@ import (
 
 var timeFormat = "2006-01-02 15:04:05.000000 MST"
 
+// Callback is a method components can expose to insert data in the status payload
+type Callback func() (string, interface{})
+
+// Callbacks holds a slice of Callback functions
+type Callbacks []Callback
+
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
@@ -121,7 +127,7 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 }
 
 // GetDCAStatus grabs the status from expvar and puts it into a map
-func GetDCAStatus() (map[string]interface{}, error) {
+func GetDCAStatus(callbacks Callbacks) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 	stats, err := expvarStats(stats)
 	if err != nil {
@@ -152,16 +158,23 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
-		return stats, nil
+	} else {
+		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
-	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
+
+	for _, c := range callbacks {
+		name, value := c()
+		if name != "" && value != nil {
+			stats[name] = value
+		}
+	}
 
 	return stats, nil
 }
 
 // GetAndFormatDCAStatus gets and formats the DCA status all in one go.
-func GetAndFormatDCAStatus() ([]byte, error) {
-	s, err := GetDCAStatus()
+func GetAndFormatDCAStatus(callbacks Callbacks) ([]byte, error) {
+	s, err := GetDCAStatus(callbacks)
 	if err != nil {
 		log.Infof("Error while getting status %q", err)
 		return nil, err
