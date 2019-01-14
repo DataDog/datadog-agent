@@ -33,9 +33,8 @@ import (
 // that forward the warning to the logger and send the warning to
 // the collector for display in the status page and the web UI.
 //
-// If custom tags are set in the check configuration file,
-// they will be automatically appended to each send done by this
-// check.
+// If custom tags are set in the instance configuration, they will
+// be automatically appended to each send done by this check.
 type CheckBase struct {
 	checkName      string
 	checkID        check.ID
@@ -90,7 +89,7 @@ func (c *CheckBase) CommonConfigure(instance integration.Data) error {
 	}
 
 	// Set custom tags configured for this check
-	if commonOptions.Tags != nil && len(commonOptions.Tags) > 0 {
+	if len(commonOptions.Tags) > 0 {
 		s, err := aggregator.GetSender(c.checkID)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
