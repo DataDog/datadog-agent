@@ -19,6 +19,7 @@ core,github.com/cihub/seelog,BSD-3-Clause
 core,github.com/clbanning/mxj,MIT
 core,github.com/codemirror/CodeMirror,MIT
 core,github.com/containerd/containerd,Apache-2.0
+core,github.com/containerd/cri,Apache-2.0
 core,github.com/containerd/continuity,Apache-2.0
 core,github.com/containerd/cgroups,Apache-2.0
 core,github.com/containerd/fifo,Apache-2.0
