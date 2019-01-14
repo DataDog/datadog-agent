@@ -349,10 +349,10 @@ spec:
                   mountPath: /etc/datadog-agent/conf.d/kubelet.d/conf.yaml
                   subPath: kubelet.yaml
                 - name: datadog-config
-                  mountPath: /etc/datadog-agent/conf.d/network.d/conf.yaml.default
+                  mountPath: /etc/datadog-agent/conf.d/network.d/conf.yaml.example
                   subPath: network.yaml
                 - name: datadog-config
-                  mountPath: /etc/datadog-agent/conf.d/memory.d/conf.yaml.default
+                  mountPath: /etc/datadog-agent/conf.d/memory.d/conf.yaml.example
                   subPath: memory.yaml
                 - name: proc
                   mountPath: /host/proc
