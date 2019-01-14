@@ -54,10 +54,10 @@ const (
 var (
 	// implements a string set of non-intergrations with an empty stuct map
 	nonIntegrationsWheelSet = map[string]struct{}{
-		"checks_base":        struct{}{},
-		"checks_dev":         struct{}{},
-		"checks_test_helper": struct{}{},
-		"a7":                 struct{}{},
+		"checks_base":        {},
+		"checks_dev":         {},
+		"checks_test_helper": {},
+		"a7":                 {},
 	}
 )
 
