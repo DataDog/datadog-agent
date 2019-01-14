@@ -12,7 +12,9 @@ import (
 )
 
 func TestServiceUp(t *testing.T) {
-	expectedTags := []string{}
+	expectedTags := []string{
+		instanceTag,
+	}
 
 	sender.AssertServiceCheck(t, "docker.service_up", metrics.ServiceCheckOK, "", expectedTags, "")
 }

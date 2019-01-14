@@ -22,6 +22,7 @@ func init() {
 func TestEvents(t *testing.T) {
 	nowTimestamp := time.Now().Unix()
 	expectedTags := []string{
+		instanceTag,
 		"highcardlabeltag:eventhigh",
 		"lowcardlabeltag:eventlow",
 		"highcardenvtag:eventhighenv",

@@ -26,6 +26,9 @@ var retryDelay = flag.Int("retry-delay", 1, "time to wait between retries (defau
 var retryTimeout = flag.Int("retry-timeout", 30, "maximum time before failure (default 30 seconds)")
 var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker containers (for debugging)")
 
+// Must be repeated in the following dockerCfgString
+const instanceTag = "instanceTag:MustBeHere"
+
 var dockerCfgString = `
 collect_events: true
 collect_container_size: true
