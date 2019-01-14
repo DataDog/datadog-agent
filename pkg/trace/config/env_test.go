@@ -206,8 +206,8 @@ func TestLoadEnv(t *testing.T) {
 				cfg, err := Load("./testdata/full." + ext)
 				assert.NoError(err)
 				assert.Equal(map[string]map[string]float64{
-					"web": map[string]float64{"http.request": 1},
-					"db":  map[string]float64{"sql.query": 0.5},
+					"web": {"http.request": 1},
+					"db":  {"sql.query": 0.5},
 				}, cfg.AnalyzedSpansByService)
 			})
 

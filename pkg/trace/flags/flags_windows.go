@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+// DefaultConfigPath specifies the default configuration path.
 var DefaultConfigPath = "c:\\programdata\\datadog\\datadog.yaml"
 
 func init() {

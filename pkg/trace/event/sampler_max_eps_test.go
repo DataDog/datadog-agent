@@ -49,7 +49,7 @@ func TestMaxEPSSampler(t *testing.T) {
 
 func generateTestEvents(numEvents int) []*pb.Span {
 	testEvents := make([]*pb.Span, numEvents)
-	for i, _ := range testEvents {
+	for i := range testEvents {
 		testEvents[i] = testutil.RandomSpan()
 	}
 	return testEvents

@@ -28,7 +28,7 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 
 // ratesByService returns a map of service signatures mapping to the rates identified using
 // the signatures.
-func (cat serviceKeyCatalog) ratesByService(rates map[Signature]float64, totalScore float64) map[ServiceSignature]float64 {
+func (cat *serviceKeyCatalog) ratesByService(rates map[Signature]float64, totalScore float64) map[ServiceSignature]float64 {
 	rbs := make(map[ServiceSignature]float64, len(rates)+1)
 	defer cat.mu.Unlock()
 	cat.mu.Lock()

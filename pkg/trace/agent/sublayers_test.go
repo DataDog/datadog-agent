@@ -337,17 +337,17 @@ func TestBuildTraceActiveSpansMapping(t *testing.T) {
 			},
 			[]int64{0, 10, 15, 20, 50, 60, 70, 80, 110, 120, 130, 150},
 			map[int64][]uint64{
-				0:   []uint64{1},
-				10:  []uint64{2},
-				15:  []uint64{2, 5},
-				20:  []uint64{4, 5},
-				50:  []uint64{2, 5},
-				60:  []uint64{5, 6},
-				70:  []uint64{6},
-				80:  []uint64{3, 6},
-				110: []uint64{7},
-				120: []uint64{1, 7},
-				130: []uint64{7},
+				0:   {1},
+				10:  {2},
+				15:  {2, 5},
+				20:  {4, 5},
+				50:  {2, 5},
+				60:  {5, 6},
+				70:  {6},
+				80:  {3, 6},
+				110: {7},
+				120: {1, 7},
+				130: {7},
 			},
 		},
 	}
@@ -373,22 +373,22 @@ func TestSetSublayersOnSpan(t *testing.T) {
 	assert := assert.New(t)
 
 	values := []SublayerValue{
-		SublayerValue{
+		{
 			Metric: "_sublayers.duration.by_service",
 			Tag:    Tag{"sublayer_service", "pgsql"},
 			Value:  30.0,
 		},
-		SublayerValue{
+		{
 			Metric: "_sublayers.duration.by_service",
 			Tag:    Tag{"sublayer_service", "pgsql-read"},
 			Value:  20.0,
 		},
-		SublayerValue{
+		{
 			Metric: "_sublayers.duration.by_type",
 			Tag:    Tag{"sublayer_type", "db"},
 			Value:  30.0,
 		},
-		SublayerValue{
+		{
 			Metric: "_sublayers.span_count",
 			Value:  2.0,
 		},
