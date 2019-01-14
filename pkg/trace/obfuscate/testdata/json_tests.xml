@@ -1,0 +1,490 @@
+<ObfuscateTests>
+	<TestSuite>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues></KeepValues>
+			<In> { "query": { "multi_match" : { "query" : "guide", "fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"] } } } </In>
+			<Out> { "query": { "multi_match": { "query": "?", "fields" : ["?", { "key": "?", "other": ["?", "?", {"k": "?"}] }, "?"] } } } </Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues></KeepValues>
+			<In><![CDATA[
+{
+  "highlight": {
+    "pre_tags": [ "<em>" ],
+    "post_tags": [ "</em>" ],
+    "index": 1
+  }
+}
+			]]></In>
+		<Out><![CDATA[
+{
+  "highlight": {
+    "pre_tags": [ "?" ],
+    "post_tags": [ "?" ],
+    "index": "?"
+  }
+}
+]]></Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues>
+				<key>other</key>
+			</KeepValues>
+			<In> { "query": { "multi_match" : { "query" : "guide", "fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"] } } } </In>
+			<Out>{ "query": { "multi_match": { "query": "?", "fields" : ["?", { "key": "?", "other": ["1", "2", {"k": "v"}] }, "?"] } } }</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues><key>fields</key></KeepValues>
+			<In> {"fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"]}</In>
+			<Out>{"fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"]}</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues><key>k</key></KeepValues>
+			<In> {"fields" : ["_all", { "key": "value", "other": ["1", "2", {"k": "v"}] }, "2"]}</In>
+			<Out>{"fields" : ["?", { "key": "?", "other": ["?", "?", {"k": "v"}] }, "?"]}</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues><key>C</key></KeepValues>
+			<In> {"fields" : [{"A": 1, "B": {"C": 3}}, "2"]}</In>
+			<Out> {"fields" : [{"A": "?", "B": {"C": 3}}, "?"]}</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<In>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": 2,
+    "from": 0,
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</In>
+			<Out>
+{
+    "query": {
+	   "match" : {
+		  "title" : "?"
+	   }
+    },
+    "size": "?",
+    "from": "?",
+    "_source": [ "?", "?", "?" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues><key>_source</key></KeepValues>
+			<In>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": 2,
+    "from": 0,
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</In>
+			<Out>
+{
+    "query": {
+	   "match" : {
+		  "title" : "?"
+	   }
+    },
+    "size": "?",
+    "from": "?",
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues><key>query</key></KeepValues>
+			<In>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": 2,
+    "from": 0,
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</In>
+			<Out>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": "?",
+    "from": "?",
+    "_source": [ "?", "?", "?" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues><key>match</key></KeepValues>
+			<In>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": 2,
+    "from": 0,
+    "_source": [ "title", "summary", "publish_date" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</In>
+			<Out>
+{
+    "query": {
+	   "match" : {
+		  "title" : "in action"
+	   }
+    },
+    "size": "?",
+    "from": "?",
+    "_source": [ "?", "?", "?" ],
+    "highlight": {
+	   "fields" : {
+		  "title" : {}
+	   }
+    }
+}
+			</Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues>
+				<key>hits</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+	"outer": {
+	    "total": 2,
+	    "max_score": 0.9105287,
+	    "hits": [
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "3",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "build scalable search applications using Elasticsearch without having to do complex low-level programming or understand advanced data science algorithms",
+			"title": "Elasticsearch in Action",
+			"publish_date": "2015-12-03"
+		   },
+		   "highlight": {
+			"title": [
+			  "Elasticsearch Action"
+			]
+		   }
+		 },
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "4",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "Comprehensive guide to implementing a scalable search engine using Apache Solr",
+			"title": "Solr in Action",
+			"publish_date": "2014-04-05"
+		   },
+		   "highlight": {
+			"title": [
+			  "Solr in Action"
+			]
+		   }
+		 }
+	    ]
+    }
+}
+]]></In>
+			<Out><![CDATA[
+{
+	"outer": {
+	    "total": "?",
+	    "max_score": "?",
+	    "hits": [
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "3",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "build scalable search applications using Elasticsearch without having to do complex low-level programming or understand advanced data science algorithms",
+			"title": "Elasticsearch in Action",
+			"publish_date": "2015-12-03"
+		   },
+		   "highlight": {
+			"title": [
+			  "Elasticsearch Action"
+			]
+		   }
+		 },
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "4",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "Comprehensive guide to implementing a scalable search engine using Apache Solr",
+			"title": "Solr in Action",
+			"publish_date": "2014-04-05"
+		   },
+		   "highlight": {
+			"title": [
+			  "Solr in Action"
+			]
+		   }
+		 }
+	    ]
+    }
+}
+]]></Out>
+		</Test>
+
+		<!-- ******************************************************************** -->
+
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues>
+				<key>_index</key>
+				<key>title</key>
+			</KeepValues>
+			<In>
+{
+	"hits": {
+	    "total": 2,
+	    "max_score": 0.9105287,
+	    "hits": [
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "3",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "build scalable search applications using Elasticsearch without having to do complex low-level programming or understand advanced data science algorithms",
+			"title": "Elasticsearch in Action",
+			"publish_date": "2015-12-03"
+		   },
+		   "highlight": {
+			"title": [
+			  "Elasticsearch Action"
+			]
+		   }
+		 },
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "book",
+		   "_id": "4",
+		   "_score": 0.9105287,
+		   "_source": {
+			"summary": "Comprehensive guide to implementing a scalable search engine using Apache Solr",
+			"title": "Solr in Action",
+			"publish_date": "2014-04-05"
+		   },
+		   "highlight": {
+			"title": [
+			  "Solr Action"
+			]
+		   }
+		 }
+	    ]
+    }
+}
+			</In>
+			<Out>
+{
+	"hits": {
+	    "total": "?",
+	    "max_score": "?",
+	    "hits": [
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "?",
+		   "_id": "?",
+		   "_score": "?",
+		   "_source": {
+			"summary": "?",
+			"title": "Elasticsearch in Action",
+			"publish_date": "?"
+		   },
+		   "highlight": {
+			"title": [
+			  "Elasticsearch Action"
+			]
+		   }
+		 },
+		 {
+		   "_index": "bookdb_index",
+		   "_type": "?",
+		   "_id": "?",
+		   "_score": "?",
+		   "_source": {
+			"summary": "?",
+			"title": "Solr in Action",
+			"publish_date": "?"
+		   },
+		   "highlight": {
+			"title": [
+			  "Solr Action"
+			]
+		   }
+		 }
+	    ]
+    }
+}
+			</Out>
+		</Test>
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<KeepValues>
+				<key>_source</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+  "query": {
+    "bool": {
+      "must": [ { "match": { "title": "smith" } } ],
+      "must_not": [ { "match_phrase": { "title": "granny smith" } } ],
+      "filter": [ { "exists": { "field": "title" } } ]
+    }
+  },
+  "aggs": {
+    "my_agg": { "terms": { "field": "user", "size": 10 } }
+  },
+  "highlight": {
+    "pre_tags": [ "<em>" ], "post_tags": [ "</em>" ],
+    "fields": {
+      "body": { "number_of_fragments": 1, "fragment_size": 20 },
+      "title": {}
+    }
+  },
+  "size": 20,
+  "from": 100,
+  "_source": [ "title", "id" ],
+  "sort": [ { "_id": { "order": "desc" } } ]
+}
+]]></In>
+			<Out><![CDATA[
+{
+  "query": {
+    "bool": {
+      "must": [ { "match": { "title": "?" } } ],
+      "must_not": [ { "match_phrase": { "title": "?" } } ],
+      "filter": [ { "exists": { "field": "?" } } ]
+    }
+  },
+  "aggs": {
+    "my_agg": { "terms": { "field": "?", "size": "?" } }
+  },
+  "highlight": {
+    "pre_tags": [ "?" ], "post_tags": [ "?" ],
+    "fields": {
+      "body": { "number_of_fragments": "?", "fragment_size": "?" },
+      "title": {}
+    }
+  },
+  "size": "?",
+  "from": "?",
+  "_source": [ "title", "id" ],
+  "sort": [ { "_id": { "order": "?" } }
+  ]
+}
+			
+]]></Out>
+		</Test>
+		<Test>
+			<Tag>elasticsearch.body</Tag>
+			<DontNormalize>true</DontNormalize>
+			<In>{"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-1851516970739438017","_type":"trace"}} {"trace_id":-1851516970739438017,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":532865,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.08579267671651072,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.021115904Z","end":"2018-06-29T11:30:49.021648769Z","trace_id":-1851516970739438017,"span_id":3635861121986229119,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:49.021115904Z","end":"2018-06-29T11:30:49.021648769Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-7171575148150503216","_type":"trace"}} {"trace_id":-7171575148150503216,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":541925,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.02845090898763012,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.870599936Z","end":"2018-06-29T11:30:49.871141861Z","trace_id":-7171575148150503216,"span_id":-4982373041719473893,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:49.870599936Z","end":"2018-06-29T11:30:49.871141861Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:3438931145341397782","_type":"trace"}} {"trace_id":3438931145341397782,"span":[{"service":"master-db","name":"postgres.query","resource":"begin","duration":1988172,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"begin","system.pid":"23463"},"metrics":{"_sample_rate":1,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":-1},"type":"sql","resource_hash":"fc747ae36f14c50d","start":"2018-06-29T11:30:48.886354944Z","end":"2018-06-29T11:30:48.888343116Z","trace_id":3438931145341397782,"span_id":8432748882772113994,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:48.886354944Z","end":"2018-06-29T11:30:48.888343116Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-2942210836778233450","_type":"trace"}} {"trace_id":-2942210836778233450,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":538825,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.09493583930982655,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:48.995932928Z","end":"2018-06-29T11:30:48.996471753Z","trace_id":-2942210836778233450,"span_id":1801908560308090622,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:48.995932928Z","end":"2018-06-29T11:30:48.996471753Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:1154462040005386081","_type":"trace"}} {"trace_id":1154462040005386081,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":16173124,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.03305929657743924,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.730038784Z","end":"2018-...</In>
+			<Out>{"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?"...</Out>
+		</Test>
+	</TestSuite>
+</ObfuscateTests>
