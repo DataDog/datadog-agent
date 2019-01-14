@@ -66,9 +66,15 @@ func (p permissionsInfos) statFiles() error {
 			return fmt.Errorf("can't lookup for gid info: %v", err)
 		}
 
+		uname := u.Name
+		if len(uname) == 0 {
+			// full name could be empty, use the login name instead
+			uname = u.Username
+		}
+
 		p[filePath] = filePermsInfo{
 			mode:  fi.Mode(),
-			owner: u.Name,
+			owner: uname,
 			group: g.Name,
 		}
 	}
