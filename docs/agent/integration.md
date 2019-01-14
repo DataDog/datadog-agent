@@ -12,6 +12,16 @@ It has several subcommands:
 The usage and documentation of these commands can be printed with `datadog-agent integration --help`.
 On linux, the command needs to be executed as the `dd-agent` user, and as `administrator` on windows.
 
+## Recommended usage and workflow
+
+1. Check out the version of the integration you have installed in your agent with the `show` command
+1. Look at the changelog of the integration on the [integrations-core][1] repository to identify the version you want and make sure the changes correspond to what you want
+1. Install the integration with the `install` command
+1. Restart your agent
+
+**Note** When using a configuration management tool, it is recommended to pin the integration to the desired version, and when the agent is upgraded, to remove the pin of the individual integration.
+Otherwise, upgrading the agent without removing the pin on the individual integration will likely cause the configuration management tool to fail since the version of the integration will likely not be compatible with the new version of the agent.
+
 ## Install an integration
 
 With the `datadog-agent integration install` command, you can install a specific version of an official Datadog integration (available on the [integrations-core repository][1]), provided that it is compatible with the version of the agent. The command does this verification and exits with a failure in case of incompatibilities.
@@ -48,7 +58,6 @@ Upon agent upgrade, every integration that you individually upgraded using the c
 
 Configuration management tools can leverage this command to deploy the version of an integration across your entire infrastructure.
 
-
 ## Remove an integration
 
 To remove an integration, use the `datadog-agent integration remove` command.
@@ -65,7 +74,7 @@ Windows:
 "C:\Program Files\Datadog\Datadog Agent\embedded\agent.exe" integration remove datadog-vsphere
 ```
 
-Removing and integration does not remove the corresponding configuration folder in the `conf.d` directory.
+Removing an integration does not remove the corresponding configuration folder in the `conf.d` directory.
 
 ## Show information about an integration
 
@@ -96,17 +105,6 @@ Windows:
 ```
 "C:\Program Files\Datadog\Datadog Agent\embedded\agent.exe" integration freeze
 ```
-
-## Recommended usage and workflow
-
-1. Check out the version you have installed in your agent with the `show` command
-1. Look at the changelog of the integration on the [integrations-core][1] repository to identify the version you want and make sure the changes correspond to what you want
-1. Install the integration with the `install` command
-1. Restart your agent
-
-**Note** When using a configuration management tool, it is recommended to pin the integration to the desired version, and when the agent is upgraded, to remove the pin of the individual integration.
-Otherwise, upgrading the agent without removing the pin on the individual integration will likely cause the configuration management tool to fail since the version of the integration will likely not be compatible with the new version of the agent.
-
 
 [1]: https://github.com/DataDog/integrations-core
 [2]: https://github.com/DataDog/integrations-core/blob/master/AGENT_INTEGRATIONS.md
