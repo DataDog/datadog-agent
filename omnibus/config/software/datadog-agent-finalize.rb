@@ -31,7 +31,7 @@ build do
 
             # remove the config files for the subservices; they'll be started
             # based on the config file
-            delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/apm.d"
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
@@ -78,7 +78,7 @@ build do
             mkdir "/var/log/datadog"
 
             # remove unused configs
-            delete "/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "/etc/datadog-agent/conf.d/apm.d"
 
             # remove windows specific configs
             delete "/etc/datadog-agent/conf.d/winproc.d"
