@@ -8,9 +8,25 @@
 package gui
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 )
 
 func getPythonChecks() ([]string, error) {
-	return py.GetPythonIntegrationList()
+	pyChecks := []string{}
+
+	// The integration list includes JMX integrations, they ship as wheels too.
+	// JMX wheels just contain sample configs, but they do ship.
+	integrations, err := py.GetPythonIntegrationList()
+	if err != nil {
+		return []string{}, err
+	}
+
+	for _, integration := range integrations {
+		if _, ok := check.JMXChecks[integration]; !ok {
+			pyChecks = append(pyChecks, integration)
+		}
+	}
+
+	return pyChecks, nil
 }

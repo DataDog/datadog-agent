@@ -270,7 +270,6 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Get wheels
 	pyIntegrations, err := getPythonChecks()
 	if err != nil {
 		log.Errorf("Unable to compile list of installed integrations: %v", err)
@@ -278,6 +277,7 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get python wheels
 	integrations = append(integrations, pyIntegrations...)
 
 	// Get go-checks
@@ -285,7 +285,9 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	integrations = append(integrations, goIntegrations...)
 
 	// Get jmx-checks
-	integrations = append(integrations, check.JMXChecks...)
+	for integration, _ := range check.JMXChecks {
+		integrations = append(integrations, integration)
+	}
 
 	if len(integrations) == 0 {
 		w.Write([]byte("No check (.py) files found."))
