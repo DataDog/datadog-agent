@@ -53,6 +53,7 @@ type Handler struct {
 	m                    sync.RWMutex // Below fields protected by the mutex
 	state                state
 	leaderIP             string
+	port                 int
 }
 
 // NewHandler returns a populated Handler
@@ -67,6 +68,7 @@ func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
 		warmupDuration:   config.Datadog.GetDuration("cluster_checks.warmup_duration") * time.Second,
 		leadershipChan:   make(chan state, 1),
 		dispatcher:       newDispatcher(),
+		port:             config.Datadog.GetInt("cluster_agent.cmd_port"),
 	}
 
 	if config.Datadog.GetBool("leader_election") {

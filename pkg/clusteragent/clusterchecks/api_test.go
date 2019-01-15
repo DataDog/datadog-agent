@@ -15,7 +15,9 @@ import (
 )
 
 func TestShouldHandle(t *testing.T) {
-	h := &Handler{}
+	h := &Handler{
+		port: 5005,
+	}
 
 	// Initial state
 	code, reason := h.ShouldHandle()
@@ -33,5 +35,5 @@ func TestShouldHandle(t *testing.T) {
 	h.leaderIP = "1.2.3.4"
 	code, reason = h.ShouldHandle()
 	assert.Equal(t, http.StatusFound, code)
-	assert.Equal(t, "1.2.3.4", reason)
+	assert.Equal(t, "1.2.3.4:5005", reason)
 }

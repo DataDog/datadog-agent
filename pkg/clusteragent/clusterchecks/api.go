@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -28,7 +29,7 @@ func (h *Handler) ShouldHandle() (int, string) {
 	case leader:
 		return http.StatusOK, ""
 	case follower:
-		return http.StatusFound, h.leaderIP
+		return http.StatusFound, fmt.Sprintf("%s:%d", h.leaderIP, h.port)
 	default:
 		return http.StatusServiceUnavailable, notReadyReason
 	}
