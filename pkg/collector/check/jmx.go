@@ -13,13 +13,13 @@ import (
 
 // JMXChecks list of JMXFetch checks supported: implemented as set with an empty struct map
 var JMXChecks = map[string]struct{}{
-	"activemq":    struct{}{},
-	"activemq_58": struct{}{},
-	"cassandra":   struct{}{},
-	"jmx":         struct{}{},
-	"solr":        struct{}{},
-	"tomcat":      struct{}{},
-	"kafka":       struct{}{},
+	"activemq":    {},
+	"activemq_58": {},
+	"cassandra":   {},
+	"jmx":         {},
+	"solr":        {},
+	"tomcat":      {},
+	"kafka":       {},
 }
 
 // IsJMXConfig checks if a certain YAML config is a JMX config
