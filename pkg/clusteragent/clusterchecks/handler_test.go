@@ -219,8 +219,8 @@ func TestHandlerRun(t *testing.T) {
 	})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// Dispatcher is flushed, no config remain
-		allconfigs, err := h.GetAllConfigs()
-		return err == nil && len(allconfigs.Configs) == 0
+		state, err := h.GetState()
+		return err == nil && len(state.Nodes) == 0 && len(state.Dangling) == 0
 	})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// API redirects to leader again

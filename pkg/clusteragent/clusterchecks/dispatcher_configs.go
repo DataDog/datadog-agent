@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 // getAllConfigs returns all configurations known to the store, for reporting
@@ -17,6 +18,25 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	defer d.store.RUnlock()
 
 	return makeConfigArray(d.store.digestToConfig), nil
+}
+
+func (d *dispatcher) getState() (types.StateResponse, error) {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	response := types.StateResponse{
+		Warmup:   !d.store.active,
+		Dangling: makeConfigArray(d.store.danglingConfigs),
+	}
+	for _, node := range d.store.nodes {
+		n := types.StateNodeResponse{
+			Name:    node.name,
+			Configs: makeConfigArray(node.digestToConfig),
+		}
+		response.Nodes = append(response.Nodes, n)
+	}
+
+	return response, nil
 }
 
 func (d *dispatcher) addConfig(config integration.Config, targetNodeName string) {

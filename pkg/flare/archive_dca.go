@@ -6,6 +6,8 @@
 package flare
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -106,6 +108,11 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		return "", err
 	}
 
+	err = zipClusterAgentClusterChecks(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip clustercheck status: %s", err)
+	}
+
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		err = zipHPAStatus(tempDir, hostname)
 		if err != nil {
@@ -187,6 +194,29 @@ func zipMetadataMap(tempDir, hostname string) error {
 	}
 
 	return ioutil.WriteFile(f, sByte, os.ModePerm)
+}
+
+func zipClusterAgentClusterChecks(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	GetClusterChecks(writer)
+	writer.Flush()
+
+	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = w.Write(b.Bytes())
+	return err
 }
 
 func zipHPAStatus(tempDir, hostname string) error {

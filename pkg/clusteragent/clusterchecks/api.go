@@ -34,12 +34,9 @@ func (h *Handler) ShouldHandle() (int, string) {
 	}
 }
 
-// GetAllConfigs returns all configurations known to the store, for reporting
-func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
-	configs, err := h.dispatcher.getAllConfigs()
-	response := types.ConfigResponse{
-		Configs: configs,
-	}
+// GetState returns the state of the dispatching, for the clusterchecks cmd
+func (h *Handler) GetState() (types.StateResponse, error) {
+	response, err := h.dispatcher.getState()
 	return response, err
 }
 

@@ -22,3 +22,16 @@ type ConfigResponse struct {
 	LastChange int64                `json:"last_change"`
 	Configs    []integration.Config `json:"configs"`
 }
+
+// StateResponse holds the DCA response for a dispatching state query
+type StateResponse struct {
+	Warmup   bool                 `json:"warmup"`
+	Nodes    []StateNodeResponse  `json:"nodes"`
+	Dangling []integration.Config `json:"dangling"`
+}
+
+// StateNodeResponse is a chunk of StateResponse
+type StateNodeResponse struct {
+	Name    string               `json:"name"`
+	Configs []integration.Config `json:"configs"`
+}
