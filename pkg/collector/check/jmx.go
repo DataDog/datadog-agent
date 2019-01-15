@@ -11,24 +11,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-// JMXChecks list of JMXFetch checks supported
-var JMXChecks = []string{
-	"activemq",
-	"activemq_58",
-	"cassandra",
-	"jmx",
-	"solr",
-	"tomcat",
-	"kafka",
+// JMXChecks list of JMXFetch checks supported: implemented as set with an empty struct map
+var JMXChecks = map[string]struct{}{
+	"activemq":    {},
+	"activemq_58": {},
+	"cassandra":   {},
+	"jmx":         {},
+	"solr":        {},
+	"tomcat":      {},
+	"kafka":       {},
 }
 
 // IsJMXConfig checks if a certain YAML config is a JMX config
 func IsJMXConfig(name string, initConf integration.Data) bool {
 
-	for _, check := range JMXChecks {
-		if check == name {
-			return true
-		}
+	if _, ok := JMXChecks[name]; ok {
+		return true
 	}
 
 	rawInitConfig := integration.RawMap{}

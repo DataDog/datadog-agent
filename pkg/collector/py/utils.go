@@ -51,6 +51,16 @@ const (
 	pyIntegrationListFunc = "get_datadog_wheels"
 )
 
+var (
+	// implements a string set of non-intergrations with an empty stuct map
+	nonIntegrationsWheelSet = map[string]struct{}{
+		"checks_base":        {},
+		"checks_dev":         {},
+		"checks_test_helper": {},
+		"a7":                 {},
+	}
+)
+
 // newStickyLock register the current thread with the interpreter and locks
 // the GIL. It also sticks the goroutine to the current thread so that a
 // subsequent call to `Unlock` will unregister the very same thread.
@@ -448,7 +458,7 @@ func GetPythonIntegrationList() ([]string, error) {
 	ddPythonPackages := []string{}
 	for i := 0; i < python.PyList_Size(packages); i++ {
 		pkgName := python.PyString_AsString(python.PyList_GetItem(packages, i))
-		if pkgName == "checks_base" {
+		if _, ok := nonIntegrationsWheelSet[pkgName]; ok {
 			continue
 		}
 		ddPythonPackages = append(ddPythonPackages, pkgName)
