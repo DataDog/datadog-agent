@@ -218,11 +218,6 @@ func TestHandlerRun(t *testing.T) {
 		return h.state == follower && h.leaderIP == "1.2.3.6"
 	})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
-		// Dispatcher is flushed, no config remain
-		state, err := h.GetState()
-		return err == nil && len(state.Nodes) == 0 && len(state.Dangling) == 0
-	})
-	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// API redirects to leader again
 		code, reason := h.ShouldHandle()
 		return code == http.StatusFound && reason == "1.2.3.6"
@@ -237,12 +232,17 @@ func TestHandlerRun(t *testing.T) {
 	//
 
 	le.set("", nil)
-	h.PostStatus("dummy", types.NodeStatus{})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// API serves requests
 		code, reason := h.ShouldHandle()
 		return code == http.StatusOK && reason == ""
 	})
+	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
+		// Dispatcher has been flushed, no config remain
+		state, err := h.GetState()
+		return err == nil && len(state.Nodes) == 0 && len(state.Dangling) == 0
+	})
+
 	h.PostStatus("dummy", types.NodeStatus{})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
 		// Test whether we're connected to the AD
