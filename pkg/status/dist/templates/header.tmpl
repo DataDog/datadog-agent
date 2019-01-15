@@ -78,6 +78,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 {{- end}}
 
 {{- if .custommetrics }}
+
   Custom Metrics Server
   =====================
     {{- if .custommetrics.Error }}
@@ -94,24 +95,25 @@ NOTE: Changes made to this template should be reflected on the following templat
       {{ else }}
       Total: {{ .custommetrics.External.Total }}
       Valid: {{ .custommetrics.External.Valid }}
-      {{ range $metric := .custommetrics.External.Metrics }}
+      {{- range $metric := .custommetrics.External.Metrics }}
       {{- range $name, $value := $metric }}
       {{- if or (eq $name "hpa") (eq $name "labels") }}
       {{$name}}:
       {{- range $k, $v := $value }}
       - {{$k}}: {{$v}}
       {{- end -}}
-      {{else}}
+      {{- else}}
       {{$name}}: {{$value}}
       {{- end }}
       {{- end }}
-      {{ end }}
+      {{- end }}
       {{- end }}
     {{- end }}
     {{- end }}
 {{- end }}
 
 {{- if .clusterchecks }}
+
   Cluster Checks Dispatching
   ==========================
   {{- if .clusterchecks.Leader }}
