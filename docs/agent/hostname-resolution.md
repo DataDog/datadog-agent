@@ -1,6 +1,6 @@
 _Edit 2018-09-18 : Highlight the differences between Windows and other OSes._
 
-_Edit 2018-11-21 : The default value of the new `hostname_fqdn` flag is planned to change in some future version instead of 6.4.0 to give users more time to take it into account and evaluate impact_
+_Edit 2019-01-15 : The default value of the new `hostname_fqdn` flag is planned to change in some future version instead of 6.4.0 to give users more time to take it into account and evaluate impact_
 
 # Difference in hostname resolution between Agent v5 and Agent v6
 
@@ -34,7 +34,7 @@ If you're affected by this change, we recommend that you take the following acti
 
 - Upgrading from Agent v5 to Agent v6 (a future version which uses the fqdn by default): you don’t need to take any action.
 
-- If you wish to keep the current behavior of Agent v6 for now, set hostname_fqdn to false so that the hostname doesn't change in a future version. We recommend you switch hostname_fqdn to true whenever possible.
+- If you wish to ensure the current default behavior of Agent v6 is preserved when you upgrade the Agent in the future, set `hostname_fqdn` to `false`. That said, we recommend you switch `hostname_fqdn` to `true` whenever possible.
 
 ## Windows
 
