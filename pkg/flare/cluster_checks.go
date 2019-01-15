@@ -50,6 +50,12 @@ func GetClusterChecks(w io.Writer) error {
 		return err
 	}
 
+	// Gracefully exit when dispatcher is not running
+	if len(cr.NotRunning) > 0 {
+		fmt.Fprintf(w, "Cluster-check dispatching logic not running: %s\n", cr.NotRunning)
+		return nil
+	}
+
 	// Print warmup message
 	if cr.Warmup {
 		fmt.Fprintln(w, fmt.Sprintf("=== %s in progress ===", color.BlueString("Warmup")))

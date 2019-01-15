@@ -36,8 +36,17 @@ func (h *Handler) ShouldHandle() (int, string) {
 
 // GetState returns the state of the dispatching, for the clusterchecks cmd
 func (h *Handler) GetState() (types.StateResponse, error) {
-	response, err := h.dispatcher.getState()
-	return response, err
+	h.m.RLock()
+	defer h.m.RUnlock()
+
+	switch h.state {
+	case leader:
+		return h.dispatcher.getState()
+	case follower:
+		return types.StateResponse{NotRunning: "currently follower"}, nil
+	default:
+		return types.StateResponse{NotRunning: notReadyReason}, nil
+	}
 }
 
 // GetConfigs returns configurations dispatched to a given node

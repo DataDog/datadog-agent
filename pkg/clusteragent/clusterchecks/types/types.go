@@ -25,9 +25,10 @@ type ConfigResponse struct {
 
 // StateResponse holds the DCA response for a dispatching state query
 type StateResponse struct {
-	Warmup   bool                 `json:"warmup"`
-	Nodes    []StateNodeResponse  `json:"nodes"`
-	Dangling []integration.Config `json:"dangling"`
+	NotRunning string               `json:"not_running"` // Reason why not running, empty if leading
+	Warmup     bool                 `json:"warmup"`
+	Nodes      []StateNodeResponse  `json:"nodes"`
+	Dangling   []integration.Config `json:"dangling"`
 }
 
 // StateNodeResponse is a chunk of StateResponse

@@ -96,10 +96,7 @@ func getState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shouldHandle(w, r, sc.ClusterCheckHandler, "getState") {
-			return
-		}
-
+		// No redirection for this one, internal endpoint
 		response, err := sc.ClusterCheckHandler.GetState()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
