@@ -10,6 +10,7 @@
 # and another the rest of the directory.
 
 /cmd/                                   @DataDog/agent-core
+/cmd/trace-agent/                       @DataDog/apm
 /omnibus/                               @DataDog/agent-core
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
@@ -20,6 +21,7 @@
 /pkg/serializer/                        @DataDog/agent-core
 /pkg/status/                            @DataDog/agent-core
 /pkg/version/                           @DataDog/agent-core
+/pkg/trace/                             @DataDog/apm
 
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /Dockerfiles/                           @DataDog/container-integrations

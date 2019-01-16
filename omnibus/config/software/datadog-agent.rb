@@ -64,6 +64,15 @@ build do
 
   copy 'bin', install_dir
 
+
+  command "invoke trace-agent.build", :env => env
+
+  if windows?
+    copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  else
+    copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
+  end
+
   if linux?
     if debian?
       erb source: "upstart_debian.conf.erb",
