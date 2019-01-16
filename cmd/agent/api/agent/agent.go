@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -51,6 +52,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
+	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -257,6 +259,24 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonTags)
+}
+
+func secretInfo(w http.ResponseWriter, r *http.Request) {
+	info, err := secrets.GetDebugInfo()
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	jsonInfo, err := json.Marshal(info)
+	if err != nil {
+		log.Errorf("Unable to marshal secrets info response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(jsonInfo)
 }
 
 // max returns the maximum value between a and b.

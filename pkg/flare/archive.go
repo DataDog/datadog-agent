@@ -385,11 +385,16 @@ func zipSecrets(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	secrets.GetDebugInfo(writer)
+	info, err := secrets.GetDebugInfo()
+	if err != nil {
+		fmt.Fprintf(writer, "%s", err)
+	} else {
+		info.Print(writer)
+	}
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "secrets.log")
-	err := ensureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}

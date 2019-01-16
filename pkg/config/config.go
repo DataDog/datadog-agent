@@ -469,7 +469,7 @@ func Load() error {
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		finalConfig, err := secrets.Decrypt(conf)
+		finalConfig, err := secrets.Decrypt(conf, "datadog.yaml")
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
