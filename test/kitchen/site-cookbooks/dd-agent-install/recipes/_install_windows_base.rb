@@ -55,6 +55,6 @@ remote_file temp_file do
 end
 
 execute "install-agent" do
-  command "start /wait msiexec /q /i #{temp_file} #{install_options}"
+  command "start /wait msiexec /log install.log /q /i #{temp_file} #{install_options}"
   action :run
 end

@@ -87,7 +87,7 @@ if node['platform_family'] == 'windows'
     end
   end
   
-  temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli')
+  temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-up').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 
   dd_agent_installer = "#{dd_agent_installer_basename}.msi"
   temp_file = "#{temp_file_basename}.msi"
@@ -111,7 +111,7 @@ if node['platform_family'] == 'windows'
   end
 
   execute "install-agent" do
-    command "start /wait msiexec /q /i #{temp_file} #{install_options}"
+    command "start /wait msiexec /log upgrade.log /q /i #{temp_file} #{install_options}"
     action :run
     notifies :restart, 'service[datadog-agent]'
   end

@@ -259,10 +259,6 @@ suites:
   run_list:
     - "recipe[datadog::dd-agent]"
     - "recipe[dd-agent-upgrade]"
-  excludes: <% if windows_platforms.nil? || windows_platforms.empty? %>[]<% end %>
-    <% windows_platforms.each do |p| %>
-    - <%= p %>
-    <% end %>
   attributes:
     apt:
       unattended_upgrades:
