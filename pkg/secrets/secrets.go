@@ -9,16 +9,18 @@ package secrets
 
 import (
 	"fmt"
-	"io"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	secretCache map[string]string
+	// list of handles and where they were found
+	secretOrigin map[string]common.StringSet
 
 	secretBackendCommand       string
 	secretBackendArguments     []string
@@ -28,6 +30,7 @@ var (
 
 func init() {
 	secretCache = make(map[string]string)
+	secretOrigin = make(map[string]common.StringSet)
 }
 
 // Init initializes the command and other options of the secrets package. Since
@@ -118,7 +121,7 @@ var secretFetcher = fetchSecret
 
 // Decrypt replaces all encrypted secrets in data by executing
 // "secret_backend_command" once if all secrets aren't present in the cache.
-func Decrypt(data []byte) ([]byte, error) {
+func Decrypt(data []byte, origin string) ([]byte, error) {
 	if data == nil || secretBackendCommand == "" {
 		return data, nil
 	}
@@ -138,6 +141,8 @@ func Decrypt(data []byte) ([]byte, error) {
 			// Check if we already know this secret
 			if secret, ok := secretCache[handle]; ok {
 				log.Debugf("Secret '%s' was retrieved from cache", handle)
+				// keep track of place where a handle was found
+				secretOrigin[handle].Add(origin)
 				return secret, nil
 			}
 			newHandles = append(newHandles, handle)
@@ -155,7 +160,7 @@ func Decrypt(data []byte) ([]byte, error) {
 
 	// check if any new secrets need to be fetch
 	if len(newHandles) != 0 {
-		secrets, err := secretFetcher(newHandles)
+		secrets, err := secretFetcher(newHandles, origin)
 		if err != nil {
 			return nil, err
 		}
@@ -186,28 +191,16 @@ func Decrypt(data []byte) ([]byte, error) {
 }
 
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
-func GetDebugInfo(w io.Writer) {
+func GetDebugInfo() (*SecretInfo, error) {
 	if secretBackendCommand == "" {
-		fmt.Fprintln(w, "No secret_backend_command set: secrets feature is not enabled")
-		return
+		return nil, fmt.Errorf("No secret_backend_command set: secrets feature is not enabled")
 	}
+	info := &SecretInfo{ExecutablePath: secretBackendCommand}
+	info.populateRights()
 
-	fmt.Fprintf(w, "=== Checking executable rights ===\n")
-	fmt.Fprintf(w, "executable path: %s\n", secretBackendCommand)
-
-	err := checkRights(secretBackendCommand)
-	if err != nil {
-		fmt.Fprintf(w, "Check Rights: the executable does not have the correct rights: %s\n", err)
-	} else {
-		fmt.Fprintf(w, "Check Rights: the executable has the correct rights\n")
+	info.SecretsHandles = map[string][]string{}
+	for handle, originNames := range secretOrigin {
+		info.SecretsHandles[handle] = originNames.GetAll()
 	}
-
-	listRightsDetails(secretBackendCommand, w)
-
-	fmt.Fprintf(w, "=== Secrets stats ===\n")
-	fmt.Fprintf(w, "Number of secrets decrypted: %d\n", len(secretCache))
-	fmt.Fprintln(w, "secrets Handle decrypted:")
-	for handle := range secretCache {
-		fmt.Fprintf(w, "- %s\n", handle)
-	}
+	return info, nil
 }

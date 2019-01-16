@@ -17,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 var (
@@ -142,52 +144,82 @@ func TestExecCommandError(t *testing.T) {
 }
 
 func TestFetchSecretExecError(t *testing.T) {
+	defer func() {
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+	}()
+
 	runCommand = func(string) ([]byte, error) { return nil, fmt.Errorf("some error") }
-	_, err := fetchSecret([]string{"handle1", "handle2"})
+	_, err := fetchSecret([]string{"handle1", "handle2"}, "test")
 	assert.NotNil(t, err)
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
+	defer func() {
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+	}()
+
 	runCommand = func(string) ([]byte, error) { return []byte("{"), nil }
-	_, err := fetchSecret([]string{"handle1", "handle2"})
+	_, err := fetchSecret([]string{"handle1", "handle2"}, "test")
 	assert.NotNil(t, err)
 }
 
 func TestFetchSecretMissingSecret(t *testing.T) {
+	defer func() {
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+	}()
+
 	secrets := []string{"handle1", "handle2"}
 
 	runCommand = func(string) ([]byte, error) { return []byte("{}"), nil }
-	_, err := fetchSecret(secrets)
+	_, err := fetchSecret(secrets, "test")
 	assert.NotNil(t, err)
 	assert.Equal(t, "secret handle 'handle1' was not decrypted by the secret_backend_command", err.Error())
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
+	defer func() {
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+	}()
+
 	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
 	}
-	_, err := fetchSecret([]string{"handle1"})
+	_, err := fetchSecret([]string{"handle1"}, "test")
 	assert.NotNil(t, err)
 	assert.Equal(t, "an error occurred while decrypting 'handle1': some error", err.Error())
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
+	defer func() {
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+	}()
+
 	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
 	}
-	_, err := fetchSecret([]string{"handle1"})
+	_, err := fetchSecret([]string{"handle1"}, "test")
 	assert.NotNil(t, err)
 	assert.Equal(t, "decrypted secret for 'handle1' is empty", err.Error())
 
 	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": \"\"}}"), nil
 	}
-	_, err = fetchSecret([]string{"handle1"})
+	_, err = fetchSecret([]string{"handle1"}, "test")
 	assert.NotNil(t, err)
 	assert.Equal(t, "decrypted secret for 'handle1' is empty", err.Error())
 }
 
 func TestFetchSecret(t *testing.T) {
+	defer func() {
+		secretCache = map[string]string{}
+		secretOrigin = map[string]common.StringSet{}
+	}()
+
 	secrets := []string{"handle1", "handle2"}
 	// some dummy value to check the cache is not purge
 	secretCache["test"] = "yes"
@@ -198,7 +230,7 @@ func TestFetchSecret(t *testing.T) {
 		res = append(res, []byte("\"handle3\":{\"value\":\"p3\"}}")...)
 		return res, nil
 	}
-	resp, err := fetchSecret(secrets)
+	resp, err := fetchSecret(secrets, "test")
 	require.Nil(t, err)
 	assert.Equal(t, map[string]string{
 		"handle1": "p1",
@@ -209,4 +241,5 @@ func TestFetchSecret(t *testing.T) {
 		"handle1": "p1",
 		"handle2": "p2",
 	}, secretCache)
+	assert.Equal(t, map[string]common.StringSet{"handle1": common.NewStringSet("test"), "handle2": common.NewStringSet("test")}, secretOrigin)
 }
