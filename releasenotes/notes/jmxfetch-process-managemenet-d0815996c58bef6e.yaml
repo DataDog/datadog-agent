@@ -6,9 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
-  - |
-    Adding process reaping for children in docker environments.
 fixes:
   - |
-    Reintroducing JMXFetch process management and healthcheck.
+    Reintroducing JMXFetch process lifecycle management on Linux.
+    Adding JMXFetch healthcheck for docker environments.
