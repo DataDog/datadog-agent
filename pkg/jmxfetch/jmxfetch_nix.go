@@ -43,7 +43,7 @@ func (j *JMXFetch) Monitor() {
 		// stopTimes here will only start yielding values potentially <= ival _after_ the first
 		// maxRestarts attempts, which is fine and consistent.
 		if stopTimes[idx].Sub(stopTimes[oldestIdx]).Seconds() <= ival {
-			log.Errorf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up")
+			log.Errorf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", maxRestarts, ival)
 			return
 		}
 
