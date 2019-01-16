@@ -50,13 +50,13 @@ func TestUpdateLeaderIP(t *testing.T) {
 
 	// First run, become leader
 	le.set("", nil)
-	err := h.updateLeaderIP(true)
+	err := h.updateLeaderIP()
 	assert.NoError(t, err)
 	assert.Equal(t, "", h.leaderIP)
 	h.assertLeadershipMessage(t, leader)
 
 	// Second run, still leader, no update
-	err = h.updateLeaderIP(false)
+	err = h.updateLeaderIP()
 	assert.NoError(t, err)
 	assert.Equal(t, "", h.leaderIP)
 	h.assertNoLeadershipMessage(t)
@@ -64,28 +64,28 @@ func TestUpdateLeaderIP(t *testing.T) {
 	// Query error
 	queryError := errors.New("test query error")
 	le.set("1.2.3.4", queryError)
-	err = h.updateLeaderIP(false)
+	err = h.updateLeaderIP()
 	assert.Equal(t, queryError, err)
 	assert.Equal(t, "", h.leaderIP)
 	h.assertNoLeadershipMessage(t)
 
 	// Lose leadership
 	le.set("1.2.3.4", nil)
-	err = h.updateLeaderIP(false)
+	err = h.updateLeaderIP()
 	assert.NoError(t, err)
 	assert.Equal(t, "1.2.3.4", h.leaderIP)
 	h.assertLeadershipMessage(t, follower)
 
 	// New leader, still following
 	le.set("1.2.3.40", nil)
-	err = h.updateLeaderIP(false)
+	err = h.updateLeaderIP()
 	assert.NoError(t, err)
 	assert.Equal(t, "1.2.3.40", h.leaderIP)
 	h.assertNoLeadershipMessage(t)
 
 	// Back to leader
 	le.set("", nil)
-	err = h.updateLeaderIP(false)
+	err = h.updateLeaderIP()
 	assert.NoError(t, err)
 	assert.Equal(t, "", h.leaderIP)
 	h.assertLeadershipMessage(t, leader)
@@ -97,10 +97,31 @@ func TestUpdateLeaderIP(t *testing.T) {
 		leaderStatusCallback: le.get,
 	}
 	le.set("1.2.3.4", nil)
-	err = h.updateLeaderIP(true)
+	err = h.updateLeaderIP()
 	assert.NoError(t, err)
 	assert.Equal(t, "1.2.3.4", h.leaderIP)
 	h.assertLeadershipMessage(t, follower)
+
+	// Start fresh, test unknown -> unknown -> leader
+	le = &fakeLeaderEngine{}
+	h = &Handler{
+		leadershipChan:       make(chan state, 1),
+		leaderStatusCallback: le.get,
+	}
+	le.set("", errors.New("failing"))
+	for i := 0; i < 4; i++ {
+		err = h.updateLeaderIP()
+		assert.Error(t, err)
+		assert.Equal(t, "", h.leaderIP)
+		assert.Equal(t, unknown, h.state)
+		h.assertNoLeadershipMessage(t)
+	}
+	le.set("", nil)
+	err = h.updateLeaderIP()
+	assert.NoError(t, err)
+	assert.Equal(t, "", h.leaderIP)
+	assert.Equal(t, leader, h.state)
+	h.assertLeadershipMessage(t, leader)
 }
 
 // TestHandlerRun tests the full lifecycle of the handling/dispatching

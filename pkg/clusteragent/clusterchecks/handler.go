@@ -158,7 +158,7 @@ func (h *Handler) runDispatch(ctx context.Context) {
 }
 
 func (h *Handler) leaderWatch(ctx context.Context) {
-	err := h.updateLeaderIP(true)
+	err := h.updateLeaderIP()
 	if err != nil {
 		log.Warnf("Could not refresh leadership status: %s", err)
 	}
@@ -174,7 +174,7 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 		case <-healthProbe.C:
 			// This goroutine might hang if the leader election engine blocks
 		case <-watchTicker.C:
-			err := h.updateLeaderIP(false)
+			err := h.updateLeaderIP()
 			if err != nil {
 				log.Warnf("Could not refresh leadership status: %s", err)
 			}
@@ -186,38 +186,41 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 
 // updateLeaderIP queries the leader election engine and updates
 // the leader IP accordlingly. In case of leadership statuschange,
-// a boolean is sent on leadershipChan:
-//   - true: becoming leader
-//   - false: lost leadership
-func (h *Handler) updateLeaderIP(firstRun bool) error {
+// a state type is sent on leadershipChan.
+func (h *Handler) updateLeaderIP() error {
 	newIP, err := h.leaderStatusCallback()
 	if err != nil {
 		return err
 	}
 
-	// Lock after the kubernetes call returns, leaderStatusCallback is constant
+	// Lock after the leader engine call returns
 	h.m.Lock()
 	defer h.m.Unlock()
 
-	// Fast exit if no change
-	if !firstRun && (newIP == h.leaderIP) {
-		return nil
-	}
-
-	// Test if the leader/follower status changed
-	newState := follower
-	if newIP == "" {
-		newState = leader
-	}
-	statusChange := h.state != newState
-
-	// Store new state
+	var newState state
 	h.leaderIP = newIP
-	h.state = newState
 
-	// Notify leadership status change
-	if firstRun || statusChange {
+	switch h.state {
+	case leader:
+		if newIP != "" {
+			newState = follower
+		}
+	case follower:
+		if newIP == "" {
+			newState = leader
+		}
+	case unknown:
+		if newIP == "" {
+			newState = leader
+		} else {
+			newState = follower
+		}
+	}
+
+	if newState != unknown {
+		h.state = newState
 		h.leadershipChan <- newState
 	}
+
 	return nil
 }
