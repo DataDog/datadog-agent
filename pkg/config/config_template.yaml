@@ -321,8 +321,8 @@ api_key:
 # Number of JMX restarts allowed in the restart-interval before giving up
 # jmx_max_restarts: 3
 #
-# Duration of the restart interval in secons
-# jmx_max_restart_interval: 5
+# Duration of the restart interval in seconds
+# jmx_restart_interval: 5
 #
 #
 {{ end -}}
