@@ -27,7 +27,7 @@ variables (see Invoke docs for more details).
 
 ### Note
 
-We don't want to pollute your system-wide python installation, so a python virtual
+We don't want to pollute your system-wide python installation, so a python 2.7 virtual
 environment is recommended (though optional). It will help keep an isolated development
 environment and ensure a clean system python.
 
