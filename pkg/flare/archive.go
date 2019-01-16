@@ -48,7 +48,7 @@ var (
 	// It is a best effort to match the api key field without matching our
 	// own already redacted (we don't want to match: **************************abcde)
 	// Basically we allow many special chars while forbidding *
-	otherAPIKeysRx       = regexp.MustCompile(`api_key:\s*[a-zA-Z0-9\/\]\[\(\)\{\}><#@$+=]+`)
+	otherAPIKeysRx       = regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
 	otherAPIKeysReplacer = log.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(b []byte) []byte {
