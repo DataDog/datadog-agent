@@ -11,18 +11,17 @@ package secrets
 
 import (
 	"fmt"
-	"io"
 )
 
 // Init placeholder when compiled without the 'secrets' build tag
 func Init(command string, arguments []string, timeout int, maxSize int) {}
 
-// Decrypt placeholder when compiled without the 'secrets' build tag
-func Decrypt(data []byte) ([]byte, error) {
+// Decrypt encrypted secrets are not available on windows
+func Decrypt(data []byte, origin string) ([]byte, error) {
 	return data, nil
 }
 
-// GetDebugInfo expose debug informations about secrets to be included in a flare
-func GetDebugInfo(w io.Writer) {
-	fmt.Fprintln(w, "Secret feature is disabled")
+// GetDebugInfo exposes debug informations about secrets to be included in a flare
+func GetDebugInfo() (*SecretInfo, error) {
+	return nil, fmt.Errorf("Secret feature is disabled")
 }
