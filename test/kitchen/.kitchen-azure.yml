@@ -257,8 +257,9 @@ suites:
 # candidate
 - name: dd-agent-upgrade-agent5
   run_list:
-    - "recipe[datadog::dd-agent]"
-    - "recipe[dd-agent-upgrade]"
+    - "recipe[datadog::dd-agent]" # Setup Agent 5
+    - "recipe[dd-agent-upgrade]" # Upgrade to Agent 6
+    - "recipe[dd-agent-import-conf]" # Import the configuration from 5 to 6
   attributes:
     apt:
       unattended_upgrades:
