@@ -191,7 +191,7 @@ will refuse to use it otherwise):
 - Have at least `exec` right for the owner.
 
 Also:
-- The executable will not share any environment variables with the agent.
+- The executable will share the same environment variables than agent.
 - Never output sensitive information on STDERR. If the binary exit with a
   different status code than `0` the agent will log the standard error output
   of the executable to ease troubleshooting.
@@ -206,7 +206,7 @@ will refuse to use it otherwise):
 - Be a valid Win32 application so the agent can execute it.
 
 Also:
-- The executable will not share any environment variables with the agent.
+- The executable will share any the same environment variables than agent.
 - Never output sensitive information on STDERR. If the binary exit with a
   different status code than `0` the agent will log the standard error output
   of the executable to ease troubleshooting.
