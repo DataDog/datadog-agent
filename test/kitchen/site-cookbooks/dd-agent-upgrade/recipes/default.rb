@@ -69,6 +69,11 @@ if node['platform_family'] != 'windows'
     action :upgrade
     version node['dd-agent-upgrade']['version']
   end
+  execute "import-command" do
+    command "sudo -u dd-agent -- datadog-agent import /etc/dd-agent/ /etc/datadog-agent/"
+    action :run
+    notifies :restart, 'service[datadog-agent]'
+  end
 end
 
 if node['platform_family'] == 'windows'
