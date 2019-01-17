@@ -13,7 +13,21 @@ text in configuration files. Users have the flexibility to design their
 executable according to their preferred key management service, authentication
 method, and continuous integration workflow.
 
+For now, secrets are not supported in APM or Live Process configurations.
+
 This section covers how to set up this feature.
+
+* [Defining secrets in configurations](#defining-secrets-in-configurations)
+* [Retrieving secrets from the secret backend](#retrieving-secrets-from-the-secret-backend)
+  * [Configuration](#configuration)
+  * [Agent security requirements](#agent-security-requirements)
+    * [Linux](#linux)
+  * [The executable API](#the-executable-api)
+* [Troubleshooting](#troubleshooting)
+  * [Seeing configurations after secrets were injected](#seeing-configurations-after-secrets-were-injected)
+  * [Debugging your secret_backend_command](#debugging-your-secret_backend_command)
+    * [Linux](#linux-1)
+  * [Agent refusing to start](#agent-refusing-to-start)
 
 ## Defining secrets in configurations
 
@@ -23,6 +37,7 @@ in your configuration (not the key), in any section (`init_config`, `instances`,
 `logs`, ...).
 
 Secrets are supported in every configuration backend: file, etcd, consul ...
+But for now, secrets are **NOT** supported in environment variables.
 
 Secrets are also supported in `datadog.yaml`. The agent will first load the
 main configuration and reload it after decrypting the secrets. This means the
@@ -62,7 +77,7 @@ In this example the secret's handle is the string `{"env": "prod", "check":
 Example 2:
 
 ```
-ENC[AES256_GCM,data:v8jQ=,iv:HBE=,aad:21c=,tag:gA==]
+"ENC[AES256_GCM,data:v8jQ=,iv:HBE=,aad:21c=,tag:gA==]"
 ```
 
 In this example the secret handle is the string `AES256_GCM,data:v8jQ=,iv:HBE=,aad:21c=,tag:gA==`.
@@ -81,8 +96,10 @@ In this example the secret handle is the string `user_array[1337]`.
 
 **Autodiscovery**:
 
-Secrets are resolved **after** Autodiscovery template variables. This means you
-can use them in a secret handle to fetch secrets specific to a container.
+Secrets are resolved **after**
+[Autodiscovery](https://docs.datadoghq.com/agent/autodiscovery/?tab=docker)
+template variables. This means you can use them in a secret handle to fetch
+secrets specific to a container.
 
 Example:
 
@@ -150,16 +167,6 @@ Regardless of the workflow, the user should **take great care to secure the
 executable itself**, including setting appropriate permissions and considering
 the security implications of their executable in their environment.
 
-In particular, the executable **MUST** (the agent will refuse to use it otherwise):
-
-- Belong to the same user running the agent (usually `dd-agent`).
-- Have **no** rights for `group` or `other`.
-- Have at least `exec` right for the owner.
-- The executable will not share any environment variables with the agent.
-- Never output sensitive information on STDERR. If the binary exit with a
-  different status code than `0` the agent will log the standard error output
-  of the executable to ease troubleshooting.
-
 ### Configuration
 
 In `datadog.yaml` you must set the following variables:
@@ -169,6 +176,26 @@ secret_backend_command: /path/to/your/executable
 ```
 
 More settings are available: see `datadog.yaml`.
+
+### Agent security requirements
+
+The agent will run `secret_backend_command` executable as a sub-process.
+
+#### Linux
+
+On Linux, the executable set as `secret_backend_command` **MUST** (the agent
+will refuse to use it otherwise):
+
+- Belong to the same user running the agent (by default `dd-agent` or `root`
+  inside a container).
+- Have **no** rights for `group` or `other`.
+- Have at least `exec` right for the owner.
+
+Also:
+- The executable will be run with an empty environment.
+- Never output sensitive information on STDERR. If the binary exit with a
+  different status code than `0` the agent will log the standard error output
+  of the executable to ease troubleshooting.
 
 ### The executable API
 
@@ -226,24 +253,47 @@ with 2 fields:
 
 Example:
 
-Here is a dummy script prefixing every secret with `decrypted_`:
+Here is a dummy Go program prefixing every secret with `decrypted_`:
 
-```py
-#!/usr/bin/python
+```golang
+package main
 
-import json
-import sys
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+)
 
-# Reading the input payload from STDIN
-payload = sys.stdin.read()
-# parsing the payload
-requested_secrets = json.loads(payload)
+type secretsPayload struct {
+	Secrets []string `json:secrets`
+	Version int      `json:version`
+}
 
-secrets = {}
-for secret_handle in requested_secrets["secrets"]:
-    secrets[secret_handle] = {"value": "decrypted_"+secret_handle, "error": None}
+func main() {
+	data, err := ioutil.ReadAll(os.Stdin)
 
-print json.dumps(secrets)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not read from stdin: %s", err)
+		os.Exit(1)
+	}
+	secrets := secretsPayload{}
+	json.Unmarshal(data, &secrets)
+
+	res := map[string]map[string]string{}
+	for _, handle := range secrets.Secrets {
+		res[handle] = map[string]string{
+			"value": "decrypted_" + handle,
+		}
+	}
+
+	output, err := json.Marshal(res)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not serialize res: %s", err)
+		os.Exit(1)
+	}
+	fmt.Printf(string(output))
+}
 ```
 
 This will update this configuration (in the check file):
@@ -264,9 +314,12 @@ instances:
     password: decrypted_db_prod_password
 ```
 
-### Troubleshooting
+## Troubleshooting
 
-To quickly see how the configurations are resolved you can use the `configcheck` command :
+### Seeing configurations after secrets were injected
+
+To quickly see how the check's configurations are resolved you can use the
+`configcheck` command :
 
 ```shell
 sudo -u dd-agent -- datadog-agent configcheck
@@ -291,3 +344,27 @@ password: <decrypted_password2>
 ```
 
 Note that the agent needs to be restarted to pick up changes on configuration files.
+
+### Debugging your secret_backend_command
+
+To test or debug outside of the agent you can simply mimic how the agent will run it:
+
+#### Linux
+
+```bash
+sudo su dd-agent - bash -c "echo '{\"version\": \"1.0\", \"secrets\": [\"secret1\", \"secret2\"]}' | /path/to/the/secret_backend_command
+```
+
+The `dd-agent` user is created when you install the datadog-agent.
+
+### Agent refusing to start
+
+The first thing the agent does on startup is to load `datadog.yaml` and decrypt
+any secrets in it. This is done before setting up the logging. This means that
+on platform/setup errors occuring when loading `datadog.yaml` aren't written in
+the logs but on stderr (this can occurs when the executable given to the agent
+for secrets returns an error).
+
+If you have secrets in `datadog.yaml` and the agent refuse to start: either try
+to start the agent manually to be able to see STDERR or remove secrets from
+`datadog.yaml` and test with secrets in a check configuration file first.
