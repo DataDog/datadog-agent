@@ -180,10 +180,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		err = tagger.Init()
-		if err != nil {
-			log.Criticalf("Unable to start tagging system: %s", err)
-		}
+		tagger.Init()
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")

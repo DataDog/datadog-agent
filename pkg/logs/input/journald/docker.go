@@ -42,8 +42,5 @@ func (t *Tailer) getContainerTags(containerID string) []string {
 
 // initializeTagger initializes the tag collector.
 func (t *Tailer) initializeTagger() {
-	err := tagger.Init()
-	if err != nil {
-		log.Warn(err)
-	}
+	tagger.Init()
 }

@@ -81,12 +81,8 @@ func isIntegrationAvailable() bool {
 
 // setup initializes the pod watcher and the tagger.
 func (l *Launcher) setup() error {
-	var err error
 	// initialize the tagger to collect container tags
-	err = tagger.Init()
-	if err != nil {
-		return err
-	}
+	tagger.Init()
 	return nil
 }
 
