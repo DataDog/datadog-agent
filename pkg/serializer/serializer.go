@@ -231,7 +231,11 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 	smallEnough, payload, err := split.CheckSizeAndSerialize(m, false, split.MarshalJSON)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
-	} else if !smallEnough {
+	}
+
+	log.Tracef("Sending host metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+
+	if !smallEnough {
 		return fmt.Errorf("metadata payload was too big to send, metadata payloads cannot be split")
 	}
 
@@ -240,7 +244,6 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 	}
 
 	log.Infof("Sent host metadata payload, size: %d bytes.", len(payload))
-	log.Debugf("Sent host metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
 	return nil
 }
 
