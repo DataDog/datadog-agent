@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"strings"
 )
 
 // Inspect returns the list of external metrics from the hpa to use for autoscaling.
@@ -25,9 +26,8 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 				log.Errorf("Missing required \"external\" section in the %s/%s HPA, skipping processing", hpa.Namespace, hpa.Name)
 				continue
 			}
-
 			em := custommetrics.ExternalMetricValue{
-				MetricName: metricSpec.External.MetricName,
+				MetricName: strings.ToLower(metricSpec.External.MetricName),
 				HPA: custommetrics.ObjectReference{
 					Name:      hpa.Name,
 					Namespace: hpa.Namespace,
@@ -35,7 +35,9 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 				},
 			}
 			if metricSpec.External.MetricSelector != nil {
-				em.Labels = metricSpec.External.MetricSelector.MatchLabels
+				for k, v := range metricSpec.External.MetricSelector.MatchLabels {
+					em.Labels[strings.ToLower(k)] = strings.ToLower(v)
+				}
 			}
 			emList = append(emList, em)
 		default:
