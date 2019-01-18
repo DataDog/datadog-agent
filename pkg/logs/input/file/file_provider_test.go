@@ -13,6 +13,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -26,7 +27,7 @@ type ProviderTestSuite struct {
 
 // newLogSources returns a new log source initialized with the right path.
 func (suite *ProviderTestSuite) newLogSources(path string) []*config.LogSource {
-	return []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
+	return []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: types.FileType, Path: path})}
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -153,8 +154,8 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	filesLimit := 2
 	fileProvider := NewProvider(filesLimit)
 	logSources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
+		config.NewLogSource("", &config.LogsConfig{Type: types.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
+		config.NewLogSource("", &config.LogsConfig{Type: types.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
 	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(2, len(files))

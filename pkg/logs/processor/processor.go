@@ -6,9 +6,9 @@
 package processor
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
@@ -72,15 +72,15 @@ func applyRedactingRules(msg *message.Message) (bool, []byte) {
 	content := msg.Content
 	for _, rule := range msg.Origin.LogSource.Config.ProcessingRules {
 		switch rule.Type {
-		case config.ExcludeAtMatch:
+		case types.ExcludeAtMatch:
 			if rule.Reg.Match(content) {
 				return false, nil
 			}
-		case config.IncludeAtMatch:
+		case types.IncludeAtMatch:
 			if !rule.Reg.Match(content) {
 				return false, nil
 			}
-		case config.MaskSequences:
+		case types.MaskSequences:
 			content = rule.Reg.ReplaceAllLiteral(content, rule.ReplacePlaceholderBytes)
 		}
 	}

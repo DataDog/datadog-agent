@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/client"
@@ -64,8 +65,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	// a channel that will lock the scheduler in case of setup failure
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
-	launcher.addedSources = sources.GetAddedForType(config.DockerType)
-	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
+	launcher.addedSources = sources.GetAddedForType(types.DockerType)
+	launcher.removedSources = sources.GetRemovedForType(types.DockerType)
 	launcher.addedServices = services.GetAddedServices(service.Docker)
 	launcher.removedServices = services.GetRemovedServices(service.Docker)
 	return launcher, nil
@@ -186,7 +187,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 	}
 
 	overridenSource := config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
-		Type:    config.DockerType,
+		Type:    types.DockerType,
 		Service: shortName,
 		Source:  shortName,
 	})

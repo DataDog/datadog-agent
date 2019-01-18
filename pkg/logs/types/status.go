@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://wwm.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package config
+package types
 
 import (
 	"strings"

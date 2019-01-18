@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
@@ -50,7 +51,7 @@ func (suite *AgentTestSuite) SetupTest() {
 	fd.Close()
 
 	logConfig := config.LogsConfig{
-		Type:       config.FileType,
+		Type:       types.FileType,
 		Path:       suite.testLogFile,
 		Identifier: "test", // As it was from service-discovery to force the tailer to read from the start.
 	}

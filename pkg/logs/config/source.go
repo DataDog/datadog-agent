@@ -7,6 +7,8 @@ package config
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // LogSource holds a reference to an integration name and a log configuration, and allows to track errors and
@@ -14,11 +16,11 @@ import (
 // Changing the status is designed to be thread safe.
 type LogSource struct {
 	Name     string
-	Config   *LogsConfig
-	Status   *LogStatus
+	Config   types.LogsConfig
+	Status   types.LogStatus
 	inputs   map[string]bool
 	lock     *sync.Mutex
-	Messages *Messages
+	Messages *types.Messages
 	// sourceType is the type of the source that we are tailing whereas Config.Type is the type of the tailer
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
@@ -26,15 +28,31 @@ type LogSource struct {
 }
 
 // NewLogSource creates a new log source.
-func NewLogSource(name string, config *LogsConfig) *LogSource {
+func NewLogSource(name string, config types.LogsConfig) *LogSource {
 	return &LogSource{
 		Name:     name,
 		Config:   config,
 		Status:   NewLogStatus(),
 		inputs:   make(map[string]bool),
 		lock:     &sync.Mutex{},
-		Messages: NewMessages(),
+		Messages: types.NewMessages(),
 	}
+}
+
+func (s *LogSource) GetName() string {
+	return s.Name
+}
+
+func (s *LogSource) GetConfig() types.LogsConfig {
+	return s.Config
+}
+
+func (s *LogSource) GetStatus() types.LogStatus {
+	return s.Status
+}
+
+func (s *LogSource) GetMessages() *types.Messages {
+	return s.Messages
 }
 
 // AddInput registers an input as being handled by this source.

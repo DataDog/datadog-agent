@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-package config
+package types
 
 import (
 	"testing"
@@ -59,5 +59,10 @@ func TestRemoveMessageAndRemoveWarning(t *testing.T) {
 	messages.RemoveMessage("foo")
 	assert.Equal(t, []string{"bar_message"}, messages.GetMessages())
 	messages.RemoveWarning("bar")
+	assert.Equal(t, []string{"foo_warning"}, messages.GetWarnings())
+
+	// adding a warning several time is a no-op
+	messages.AddWarning("foo", "foo_warning")
+	messages.AddWarning("foo", "foo_warning")
 	assert.Equal(t, []string{"foo_warning"}, messages.GetWarnings())
 }

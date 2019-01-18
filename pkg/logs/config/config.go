@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -35,7 +36,7 @@ func DefaultSources() []*LogSource {
 	if coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
 		// append a new source to collect all logs from all containers
 		source := NewLogSource(ContainerCollectAll, &LogsConfig{
-			Type:    DockerType,
+			Type:    types.DockerType,
 			Service: "docker",
 			Source:  "docker",
 		})

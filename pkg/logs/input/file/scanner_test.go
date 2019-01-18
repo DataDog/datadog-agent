@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
@@ -58,7 +59,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.testRotatedFile = f
 
 	suite.openFilesLimit = 100
-	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})
+	suite.source = config.NewLogSource("", &config.LogsConfig{Type: types.FileType, Path: suite.testPath})
 	sleepDuration := 20 * time.Millisecond
 	suite.s = NewScanner(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
@@ -210,7 +211,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
-	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
+	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: types.FileType, Path: path}))
 
 	// create file
 	path = fmt.Sprintf("%s/test.log", testDir)
@@ -258,7 +259,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
-	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
+	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: types.FileType, Path: path}))
 
 	// test at scan
 	scanner.scan()

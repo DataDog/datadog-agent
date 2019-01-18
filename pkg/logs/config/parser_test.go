@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -77,10 +78,10 @@ logs:
 
 	var config *LogsConfig
 	var tag string
-	var rule ProcessingRule
+	var rule types.ProcessingRule
 
 	config = configs[0]
-	assert.Equal(t, FileType, config.Type)
+	assert.Equal(t, types.FileType, config.Type)
 	assert.Equal(t, "/var/log/app.log", config.Path)
 	assert.Equal(t, 2, len(config.Tags))
 
@@ -91,16 +92,16 @@ logs:
 	assert.Equal(t, "b:c", strings.TrimSpace(tag))
 
 	config = configs[1]
-	assert.Equal(t, UDPType, config.Type)
+	assert.Equal(t, types.UDPType, config.Type)
 	assert.Equal(t, "foo", config.Source)
 	assert.Equal(t, "bar", config.Service)
 
 	config = configs[2]
-	assert.Equal(t, DockerType, config.Type)
+	assert.Equal(t, types.DockerType, config.Type)
 	assert.Equal(t, 1, len(config.ProcessingRules))
 
 	rule = config.ProcessingRules[0]
-	assert.Equal(t, IncludeAtMatch, rule.Type)
+	assert.Equal(t, types.IncludeAtMatch, rule.Type)
 	assert.Equal(t, "numbers", rule.Name)
 	assert.Equal(t, "^[0-9]+$", rule.Pattern)
 }

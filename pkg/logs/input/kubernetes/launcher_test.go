@@ -10,10 +10,10 @@ package kubernetes
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
@@ -37,7 +37,7 @@ func TestGetSource(t *testing.T) {
 
 	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
-	assert.Equal(t, config.FileType, source.Config.Type)
+	assert.Equal(t, types.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
 	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
 	assert.Equal(t, "boo", source.Config.Identifier)
@@ -68,7 +68,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 
 	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
-	assert.Equal(t, config.FileType, source.Config.Type)
+	assert.Equal(t, types.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
 	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
 	assert.Equal(t, "boo", source.Config.Identifier)
@@ -124,7 +124,7 @@ func TestGetSourceAddContainerdParser(t *testing.T) {
 
 	source, err := launcher.getSource(pod, container)
 	assert.Nil(t, err)
-	assert.Equal(t, config.FileType, source.Config.Type)
+	assert.Equal(t, types.FileType, source.Config.Type)
 }
 
 func TestSearchContainer(t *testing.T) {

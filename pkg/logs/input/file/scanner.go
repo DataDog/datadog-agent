@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -41,8 +42,8 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 	return &Scanner{
 		pipelineProvider:    pipelineProvider,
 		tailingLimit:        tailingLimit,
-		addedSources:        sources.GetAddedForType(config.FileType),
-		removedSources:      sources.GetRemovedForType(config.FileType),
+		addedSources:        sources.GetAddedForType(types.FileType),
+		removedSources:      sources.GetRemovedForType(types.FileType),
 		fileProvider:        NewProvider(tailingLimit),
 		tailers:             make(map[string]*Tailer),
 		registry:            registry,

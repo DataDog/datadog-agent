@@ -10,6 +10,7 @@ package docker
 import (
 	"testing"
 
+	types2 "github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 
@@ -21,10 +22,10 @@ func TestFindSourceWithSourceFiltersShouldSucceed(t *testing.T) {
 	var container *Container
 
 	sources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Identifier: "1234567890"}),
+		config.NewLogSource("", &config.LogsConfig{Type: types2.DockerType, Image: "myapp"}),
+		config.NewLogSource("", &config.LogsConfig{Type: types2.DockerType, Label: "mylabel"}),
+		config.NewLogSource("", &config.LogsConfig{Type: types2.DockerType, Image: "myapp", Label: "mylabel"}),
+		config.NewLogSource("", &config.LogsConfig{Type: types2.DockerType, Identifier: "1234567890"}),
 	}
 
 	container = NewContainer(types.Container{Image: "myapp"}, nil)
@@ -61,8 +62,8 @@ func TestFindSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
 	var container *Container
 
 	sources := []*config.LogSource{
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType}),
-		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
+		config.NewLogSource("", &config.LogsConfig{Type: types2.DockerType}),
+		config.NewLogSource("", &config.LogsConfig{Type: types2.DockerType, Label: "mylabel"}),
 	}
 
 	container = NewContainer(types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}}, nil)

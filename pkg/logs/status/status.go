@@ -9,8 +9,8 @@ import (
 	"expvar"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 var (
@@ -41,15 +41,15 @@ type Status struct {
 
 // Builder is used to build the status.
 type Builder struct {
-	sources  *config.LogSources
-	messages *config.Messages
+	sources  types.LogSources
+	messages *types.Messages
 }
 
 // Initialize instantiates a builder that holds the sources required to build the current status later on.
-func Initialize(sources *config.LogSources) {
+func Initialize(sources types.LogSources) {
 	builder = &Builder{
 		sources:  sources,
-		messages: config.NewMessages(),
+		messages: types.NewMessages(),
 	}
 }
 
@@ -66,12 +66,12 @@ func Get() Status {
 		}
 	}
 	// Sort sources by name (ie. by integration name ~= file name)
-	sources := make(map[string][]*config.LogSource)
+	sources := make(map[string][]types.LogSource)
 	for _, source := range builder.sources.GetSources() {
-		if _, exists := sources[source.Name]; !exists {
-			sources[source.Name] = []*config.LogSource{}
+		if _, exists := sources[source.GetName()]; !exists {
+			sources[source.GetName()] = []types.LogSource{}
 		}
-		sources[source.Name] = append(sources[source.Name], source)
+		sources[source.GetName()] = append(sources[source.GetName()], source)
 	}
 	// Convert to json
 	var integrations []Integration
@@ -80,20 +80,20 @@ func Get() Status {
 		var sources []Source
 		for _, source := range sourceList {
 			var status string
-			if source.Status.IsPending() {
+			if source.GetStatus().IsPending() {
 				status = "Pending"
-			} else if source.Status.IsSuccess() {
+			} else if source.GetStatus().IsSuccess() {
 				status = "OK"
-			} else if source.Status.IsError() {
-				status = source.Status.GetError()
+			} else if source.GetStatus().IsError() {
+				status = source.GetStatus().GetError()
 			}
 
 			sources = append(sources, Source{
-				Type:          source.Config.Type,
-				Configuration: toDictionary(source.Config),
+				Type:          source.GetConfig().GetType(),
+				Configuration: toDictionary(source.GetConfig()),
 				Status:        status,
 				Inputs:        source.GetInputs(),
-				Messages:      source.Messages.GetMessages(),
+				Messages:      source.GetMessages().GetMessages(),
 			})
 
 			for _, warning := range builder.messages.GetWarnings() {
@@ -126,23 +126,23 @@ func RemoveGlobalWarning(key string) {
 }
 
 // toDictionary returns a representation of the configuration
-func toDictionary(c *config.LogsConfig) map[string]interface{} {
+func toDictionary(c types.LogsConfig) map[string]interface{} {
 	dictionary := make(map[string]interface{})
-	switch c.Type {
-	case config.TCPType, config.UDPType:
-		dictionary["Port"] = c.Port
-	case config.FileType:
-		dictionary["Path"] = c.Path
-	case config.DockerType:
-		dictionary["Image"] = c.Image
-		dictionary["Label"] = c.Label
-		dictionary["Name"] = c.Name
-	case config.JournaldType:
-		dictionary["IncludeUnits"] = strings.Join(c.IncludeUnits, ", ")
-		dictionary["ExcludeUnits"] = strings.Join(c.ExcludeUnits, ", ")
-	case config.WindowsEventType:
-		dictionary["ChannelPath"] = c.ChannelPath
-		dictionary["Query"] = c.Query
+	switch c.GetType() {
+	case types.TCPType, types.UDPType:
+		dictionary["Port"] = c.GetPort()
+	case types.FileType:
+		dictionary["Path"] = c.GetPath()
+	case types.DockerType:
+		dictionary["Image"] = c.GetImage()
+		dictionary["Label"] = c.GetLabel()
+		dictionary["Name"] = c.GetName()
+	case types.JournaldType:
+		dictionary["IncludeUnits"] = strings.Join(c.GetIncludeUnits(), ", ")
+		dictionary["ExcludeUnits"] = strings.Join(c.GetExcludeUnits(), ", ")
+	case types.WindowsEventType:
+		dictionary["ChannelPath"] = c.GetChannelPath()
+		dictionary["Query"] = c.GetQuery()
 	}
 	for k, v := range dictionary {
 		if v == "" {

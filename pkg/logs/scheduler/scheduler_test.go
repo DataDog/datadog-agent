@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	services := service.NewServices()
 	scheduler := NewScheduler(logSources, services)
 
-	logSourcesStream := logSources.GetAddedForType(config.DockerType)
+	logSourcesStream := logSources.GetAddedForType(types.DockerType)
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
@@ -33,12 +34,12 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 
 	go scheduler.Schedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
-	assert.Equal(t, config.DockerType, logSource.Name)
+	assert.Equal(t, types.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
 	assert.Equal(t, "", logSource.GetSourceType())
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
-	assert.Equal(t, config.DockerType, logSource.Config.Type)
+	assert.Equal(t, types.DockerType, logSource.Config.Type)
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
@@ -65,7 +66,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
 	scheduler := NewScheduler(logSources, services)
-	logSourcesStream := logSources.GetRemovedForType(config.DockerType)
+	logSourcesStream := logSources.GetRemovedForType(types.DockerType)
 
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
@@ -82,12 +83,12 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 
 	go scheduler.Unschedule([]integration.Config{configSource})
 	logSource := <-logSourcesStream
-	assert.Equal(t, config.DockerType, logSource.Name)
+	assert.Equal(t, types.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
 	assert.Equal(t, "", logSource.GetSourceType())
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
-	assert.Equal(t, config.DockerType, logSource.Config.Type)
+	assert.Equal(t, types.DockerType, logSource.Config.Type)
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 

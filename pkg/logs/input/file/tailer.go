@@ -15,6 +15,7 @@ import (
 	"time"
 
 	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -53,7 +54,7 @@ type Tailer struct {
 // NewTailer returns an initialized Tailer
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
 	var parser logParser.Parser
-	if source.GetSourceType() == config.ContainerdType {
+	if source.GetSourceType() == types.ContainerdType {
 		parser = containerdFileParser
 	} else {
 		parser = logParser.NoopParser

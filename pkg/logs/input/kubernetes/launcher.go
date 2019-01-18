@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -203,7 +204,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 			}
 		}
 	}
-	cfg.Type = config.FileType
+	cfg.Type = types.FileType
 	cfg.Path = l.getPath(pod, container)
 	cfg.Identifier = container.ID
 	cfg.Tags = append(cfg.Tags, l.getTags(container)...)

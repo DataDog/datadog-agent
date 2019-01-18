@@ -8,38 +8,9 @@ package config
 import (
 	"fmt"
 	"regexp"
-)
 
-// Logs source types
-const (
-	TCPType          = "tcp"
-	UDPType          = "udp"
-	FileType         = "file"
-	ContainerdType   = "containerd"
-	DockerType       = "docker"
-	JournaldType     = "journald"
-	WindowsEventType = "windows_event"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
-
-// Logs rule types
-const (
-	ExcludeAtMatch = "exclude_at_match"
-	IncludeAtMatch = "include_at_match"
-	MaskSequences  = "mask_sequences"
-	MultiLine      = "multi_line"
-)
-
-// ProcessingRule defines an exclusion or a masking rule to
-// be applied on log lines
-type ProcessingRule struct {
-	Type               string
-	Name               string
-	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
-	Pattern            string
-	// TODO: should be moved out
-	Reg                     *regexp.Regexp
-	ReplacePlaceholderBytes []byte
-}
 
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
@@ -64,7 +35,7 @@ type LogsConfig struct {
 	Source          string
 	SourceCategory  string
 	Tags            []string
-	ProcessingRules []ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+	ProcessingRules []types.ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 }
 
 // Validate returns an error if the config is misconfigured
@@ -75,11 +46,11 @@ func (c *LogsConfig) Validate() error {
 		// an autodiscovery label because so we must override it at some point,
 		// this check is mostly used for sanity purposed to detect an override miss.
 		return fmt.Errorf("a config must have a type")
-	case c.Type == FileType && c.Path == "":
+	case c.Type == types.FileType && c.Path == "":
 		return fmt.Errorf("file source must have a path")
-	case c.Type == TCPType && c.Port == 0:
+	case c.Type == types.TCPType && c.Port == 0:
 		return fmt.Errorf("tcp source must have a port")
-	case c.Type == UDPType && c.Port == 0:
+	case c.Type == types.UDPType && c.Port == 0:
 		return fmt.Errorf("udp source must have a port")
 	}
 	return c.validateProcessingRules()
@@ -97,7 +68,7 @@ func (c *LogsConfig) validateProcessingRules() error {
 		}
 
 		switch rule.Type {
-		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
+		case types.ExcludeAtMatch, types.IncludeAtMatch, types.MaskSequences, types.MultiLine:
 			break
 		case "":
 			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
@@ -125,12 +96,12 @@ func (c *LogsConfig) Compile() error {
 			return err
 		}
 		switch rule.Type {
-		case ExcludeAtMatch, IncludeAtMatch:
+		case types.ExcludeAtMatch, types.IncludeAtMatch:
 			rules[i].Reg = re
-		case MaskSequences:
+		case types.MaskSequences:
 			rules[i].Reg = re
 			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
-		case MultiLine:
+		case types.MultiLine:
 			rules[i].Reg, err = regexp.Compile("^" + rule.Pattern)
 			if err != nil {
 				return err
@@ -138,4 +109,68 @@ func (c *LogsConfig) Compile() error {
 		}
 	}
 	return nil
+}
+
+func (c *LogsConfig) GetType() string {
+	return c.Type
+}
+
+func (c *LogsConfig) GetPort() int {
+	return c.Port
+}
+
+func (c *LogsConfig) GetPath() string {
+	return c.Path
+}
+
+func (c *LogsConfig) GetIncludeUnits() []string {
+	return c.IncludeUnits
+}
+
+func (c *LogsConfig) GetExcludeUnits() []string {
+	return c.ExcludeUnits
+}
+
+func (c *LogsConfig) GetImage() string {
+	return c.Image
+}
+
+func (c *LogsConfig) GetLabel() string {
+	return c.Label
+}
+
+func (c *LogsConfig) GetName() string {
+	return c.Name
+}
+
+func (c *LogsConfig) GetIdentifier() string {
+	return c.Identifier
+}
+
+func (c *LogsConfig) GetChannelPath() string {
+	return c.ChannelPath
+}
+
+func (c *LogsConfig) GetQuery() string {
+	return c.Query
+}
+
+func (c *LogsConfig) GetService() string {
+	return c.Service
+}
+
+func (c *LogsConfig) GetSource() string {
+	return c.Source
+}
+
+func (c *LogsConfig) GetSourceCategory() string {
+	return c.SourceCategory
+}
+
+func (c *LogsConfig) GetTags() []string {
+	return c.Tags
+}
+
+func (c *LogsConfig) GetProcessingRules() []types.ProcessingRule {
+	return c.ProcessingRules
 }

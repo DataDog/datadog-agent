@@ -8,6 +8,7 @@ package config
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/stretchr/testify/suite"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -89,9 +90,9 @@ func (suite *ConfigTestSuite) TestDefaultSources() {
 
 	source = sources[0]
 	suite.Equal("container_collect_all", source.Name)
-	suite.Equal(DockerType, source.Config.Type)
-	suite.Equal("docker", source.Config.Source)
-	suite.Equal("docker", source.Config.Service)
+	suite.Equal(types.DockerType, source.Config.GetType())
+	suite.Equal("docker", source.Config.GetSource())
+	suite.Equal("docker", source.Config.GetService())
 }
 
 func (suite *ConfigTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride() {

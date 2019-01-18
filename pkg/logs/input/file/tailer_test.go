@@ -12,13 +12,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/stretchr/testify/suite"
-
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -48,7 +48,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	suite.testFile = f
 	suite.outputChan = make(chan *message.Message, chanSize)
 	suite.source = config.NewLogSource("", &config.LogsConfig{
-		Type: config.FileType,
+		Type: types.FileType,
 		Path: suite.testPath,
 	})
 	sleepDuration := 10 * time.Millisecond

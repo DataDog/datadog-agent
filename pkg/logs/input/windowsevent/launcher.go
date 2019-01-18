@@ -6,6 +6,7 @@
 package windowsevent
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -24,7 +25,7 @@ type Launcher struct {
 // NewLauncher returns a new Launcher.
 func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider) *Launcher {
 	return &Launcher{
-		sources:          sources.GetAddedForType(config.WindowsEventType),
+		sources:          sources.GetAddedForType(types.WindowsEventType),
 		pipelineProvider: pipelineProvider,
 		tailers:          make(map[string]*Tailer),
 		stop:             make(chan struct{}),

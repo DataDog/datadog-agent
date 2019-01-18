@@ -33,7 +33,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 		s.mu.Unlock()
 		return
 	}
-	stream, exists := s.addedByType[source.Config.Type]
+	stream, exists := s.addedByType[source.Config.GetType()]
 	s.mu.Unlock()
 
 	if exists {
@@ -52,7 +52,7 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 			break
 		}
 	}
-	stream, streamExists := s.removedByType[source.Config.Type]
+	stream, streamExists := s.removedByType[source.Config.GetType()]
 	s.mu.Unlock()
 
 	if sourceFound && streamExists {

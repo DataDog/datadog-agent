@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // Launcher summons different protocol specific listeners based on configuration
@@ -26,8 +27,8 @@ func NewLauncher(sources *config.LogSources, frameSize int, pipelineProvider pip
 	return &Launcher{
 		pipelineProvider: pipelineProvider,
 		frameSize:        frameSize,
-		tcpSources:       sources.GetAddedForType(config.TCPType),
-		udpSources:       sources.GetAddedForType(config.UDPType),
+		tcpSources:       sources.GetAddedForType(types.TCPType),
+		udpSources:       sources.GetAddedForType(types.UDPType),
 		stop:             make(chan struct{}),
 	}
 }

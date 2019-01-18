@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,7 +28,7 @@ type Launcher struct {
 // New returns a new Launcher.
 func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
 	return &Launcher{
-		sources:          sources.GetAddedForType(config.JournaldType),
+		sources:          sources.GetAddedForType(types.JournaldType),
 		pipelineProvider: pipelineProvider,
 		registry:         registry,
 		tailers:          make(map[string]*Tailer),
