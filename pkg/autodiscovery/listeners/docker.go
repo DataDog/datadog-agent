@@ -303,6 +303,12 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	if found {
 		ips["rancher"] = rancherIP
 	}
+
+	if len(ips) == 0 {
+		// More cases require a container inspect, delay it until
+		// template resolution, when GetHosts will be called.
+		return nil
+	}
 	return ips
 }
 
@@ -402,6 +408,13 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	rancherIP, found := docker.FindRancherIPInLabels(cInspect.Config.Labels)
 	if found {
 		ips["rancher"] = rancherIP
+	}
+
+	// Some CNI solutions (including ECS awsvpc) do not assign an IP
+	// through docker, but set a valid reachable hostname. Use it if
+	// no IP is discovered.
+	if len(ips) == 0 && cInspect.Config != nil && len(cInspect.Config.Hostname) > 0 {
+		ips["hostname"] = cInspect.Config.Hostname
 	}
 
 	s.hosts = ips

@@ -243,8 +243,11 @@ func TestGetHosts(t *testing.T) {
 	cj = types.ContainerJSON{
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
-		Config:            &container.Config{},
-		NetworkSettings:   &networkSettings,
+		Config: &container.Config{
+			// Should NOT be picked up, as we have valid IPs
+			Hostname: "ip-172-29-161-245.ec2.internal",
+		},
+		NetworkSettings: &networkSettings,
 	}
 	// update cj in the cache
 	cacheKey = docker.GetInspectCacheKey(id, false)
@@ -293,6 +296,41 @@ func TestGetRancherIP(t *testing.T) {
 
 	hosts, _ := svc.GetHosts()
 	assert.Equal(t, "10.42.90.224", hosts["rancher"])
+	assert.Equal(t, 1, len(hosts))
+}
+
+func TestFallbackToHostname(t *testing.T) {
+	id := "fooooooooooo"
+	cBase := types.ContainerJSONBase{
+		ID:    id,
+		Image: "test",
+	}
+
+	nets := make(map[string]*network.EndpointSettings)
+	nets["none"] = &network.EndpointSettings{}
+
+	networkSettings := types.NetworkSettings{
+		Networks: nets,
+	}
+
+	cj := types.ContainerJSON{
+		ContainerJSONBase: &cBase,
+		Mounts:            make([]types.MountPoint, 0),
+		Config: &container.Config{
+			Hostname: "ip-172-29-161-245.ec2.internal",
+		},
+		NetworkSettings: &networkSettings,
+	}
+	// add cj to the cache to avoir having to query docker in the test
+	cacheKey := docker.GetInspectCacheKey(id, false)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
+
+	svc := DockerService{
+		cID: id,
+	}
+
+	hosts, _ := svc.GetHosts()
+	assert.Equal(t, "ip-172-29-161-245.ec2.internal", hosts["hostname"])
 	assert.Equal(t, 1, len(hosts))
 }
 

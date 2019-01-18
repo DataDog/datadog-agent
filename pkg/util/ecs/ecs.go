@@ -11,10 +11,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -131,7 +133,27 @@ func IsFargateInstance() bool {
 	}
 	var resp TaskMetadata
 	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
-		fmt.Printf("decode err: %s\n", err)
+		log.Debugf("Error decoding response: %s", err)
+		cacheIsFargateInstance(false)
+		return false
+	}
+
+	//
+	//
+	// We only need to keep one of these two, let's discuss
+	//
+	//
+
+	// This envvar is set to AWS_ECS_EC2 on classic EC2 instances
+	if os.Getenv("AWS_EXECUTION_ENV") != "AWS_ECS_FARGATE" {
+		cacheIsFargateInstance(false)
+		return false
+	}
+
+	// Classic ECS+EC2 on awsvpc mode also has access to this metadata endpoint
+	// Fargate instances do not have access to the EC2 endpoint though, so
+	// the following call failing will confirm Fargate mode.
+	if _, err := ec2.GetInstanceID(); err == nil {
 		cacheIsFargateInstance(false)
 		return false
 	}
@@ -265,5 +287,13 @@ func getAgentContainerURLS() ([]string, error) {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", ip, DefaultAgentPort))
 		}
 	}
+
+	// Add the container hostname, as it holds the instance's private IP when ecs-agent
+	// runs in the (default) host network mode. This allows us to connect back to it
+	// from an agent container running in awsvpc mode.
+	if ecsConfig.Config != nil && ecsConfig.Config.Hostname != "" {
+		urls = append(urls, fmt.Sprintf("http://%s:%d/", ecsConfig.Config.Hostname, DefaultAgentPort))
+	}
+
 	return urls, nil
 }
