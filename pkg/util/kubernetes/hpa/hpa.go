@@ -28,6 +28,7 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 			}
 			em := custommetrics.ExternalMetricValue{
 				MetricName: strings.ToLower(metricSpec.External.MetricName),
+				Labels: make(map[string]string),
 				HPA: custommetrics.ObjectReference{
 					Name:      hpa.Name,
 					Namespace: hpa.Namespace,
