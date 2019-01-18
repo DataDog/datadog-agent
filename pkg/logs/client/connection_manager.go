@@ -8,6 +8,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -16,13 +17,15 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	backoffUnit       = 2 * time.Second
-	backoffMax        = 30 * time.Second
-	connectionTimeout = 20 * time.Second
+	backoffUnit           = 2 * time.Second
+	backoffMax            = 30 * time.Second
+	connectionTimeout     = 20 * time.Second
+	statusConnectionError = "connection_error"
 )
 
 // A ConnectionManager manages connections
@@ -54,7 +57,11 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 	})
 
 	var retries int
+	var err error
 	for {
+		if err != nil {
+			status.AddGlobalWarning(statusConnectionError, fmt.Sprintf("Connection to the log intake cannot be established: %v", err))
+		}
 		if retries > 0 {
 			log.Debugf("Connect attempt #%d", retries)
 			cm.backoff(ctx, retries)
@@ -71,7 +78,6 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 
 		var conn net.Conn
-		var err error
 
 		if cm.endpoint.ProxyAddress != "" {
 			var dialer proxy.Dialer
@@ -109,6 +115,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 
 		go cm.handleServerClose(conn)
+		status.RemoveGlobalWarning(statusConnectionError)
 		return conn, nil
 	}
 }
