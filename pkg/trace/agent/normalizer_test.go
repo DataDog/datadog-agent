@@ -90,9 +90,9 @@ func TestNormalizeName(t *testing.T) {
 
 func TestNormalizeNameFailure(t *testing.T) {
 	invalidNames := []string{
-		"",                                // Empty.
-		"/",                               // No alphanumerics.
-		"//",                              // Still no alphanumerics.
+		"",   // Empty.
+		"/",  // No alphanumerics.
+		"//", // Still no alphanumerics.
 		strings.Repeat("x", MaxNameLen+1), // Too long.
 	}
 	s := testSpan()
@@ -387,7 +387,7 @@ func TestNormalizeInvalidUTF8(t *testing.T) {
 func BenchmarkNormalization(b *testing.B) {
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i += 1 {
+	for i := 0; i < b.N; i++ {
 		Normalize(testSpan())
 	}
 }

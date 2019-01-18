@@ -12,7 +12,7 @@ func TestAdjustCoefficients(t *testing.T) {
 
 	for _, a := range [][5]float64{
 		// currentTPS, totalTPS, maxTPS, offset, cardinality
-		[5]float64{10, 50, 15, 0.5, 200},
+		{10, 50, 15, 0.5, 200},
 	} {
 		currentTPS, totalTPS, maxTPS, offset, cardinality := a[0], a[1], a[2], a[3], a[4]
 		newOffset, newSlope := adjustCoefficients(currentTPS, totalTPS, maxTPS, offset, cardinality)
