@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
-// Sampler chooses which spans to write to the API
+// Sampler chooses wich spans to write to the API
 type Sampler struct {
 	// For stats
 	keptTraceCount  uint64

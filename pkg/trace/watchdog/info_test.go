@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"runtime"
 	"testing"
 	"time"
 
+	"github.com/shirou/gopsutil/process"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -171,6 +173,14 @@ func doTestNetHigh(t *testing.T, n int) {
 	assert.True(info.Connections <= int32(n*3), fmt.Sprintf("not enough connections %d > %d * 3", info.Connections, n))
 }
 
+func TestNetHigh(t *testing.T) {
+	doTestNetHigh(t, 10)
+	if testing.Short() {
+		return
+	}
+	doTestNetHigh(t, 200)
+}
+
 func TestNetLow(t *testing.T) {
 	assert := assert.New(t)
 	runtime.GC()
@@ -211,5 +221,26 @@ func BenchmarkNet(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_ = Net()
+	}
+}
+
+func BenchmarkCPUTimes(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	p, err := process.NewProcess(int32(os.Getpid()))
+	if err != nil {
+		b.Fatalf("unable to create Process: %v", err)
+	}
+	for i := 0; i < b.N; i++ {
+		_, _ = p.Times()
+	}
+}
+
+func BenchmarkReadMemStats(b *testing.B) {
+	var ms runtime.MemStats
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		runtime.ReadMemStats(&ms)
 	}
 }

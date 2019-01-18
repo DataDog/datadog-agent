@@ -69,7 +69,6 @@ type JSONObfuscationConfig struct {
 	KeepValues []string `mapstructure:"keep_values"`
 }
 
-// ReplaceRule specifies a replace rule.
 type ReplaceRule struct {
 	// Name specifies the name of the tag that the replace rule addresses. However,
 	// some exceptions apply such as:

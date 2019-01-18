@@ -23,7 +23,6 @@ import (
 
 var elog debug.Log
 
-// ServiceName specifies the service name used in the operating system.
 const ServiceName = "datadog-trace-agent"
 
 type myservice struct{}
@@ -266,7 +265,7 @@ func exePath() (string, error) {
 			if !fi.Mode().IsDir() {
 				return p, nil
 			}
-			return "", fmt.Errorf("%s is directory", p)
+			err = fmt.Errorf("%s is directory", p)
 		}
 	}
 	return "", err

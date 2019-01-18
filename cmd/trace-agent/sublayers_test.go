@@ -20,8 +20,8 @@ func TestExtractTopLevelSubtracesWithSimpleTrace(t *testing.T) {
 	}
 
 	expected := []Subtrace{
-		{trace[0], trace},
-		{trace[1], []*pb.Span{trace[1], trace[2], trace[3]}},
+		Subtrace{trace[0], trace},
+		Subtrace{trace[1], []*pb.Span{trace[1], trace[2], trace[3]}},
 	}
 
 	traceutil.ComputeTopLevel(trace)
@@ -50,8 +50,8 @@ func TestExtractTopLevelSubtracesShouldIgnoreLeafTopLevel(t *testing.T) {
 	}
 
 	expected := []Subtrace{
-		{trace[0], trace},
-		{trace[1], []*pb.Span{trace[1], trace[2]}},
+		Subtrace{trace[0], trace},
+		Subtrace{trace[1], []*pb.Span{trace[1], trace[2]}},
 	}
 
 	traceutil.ComputeTopLevel(trace)
@@ -79,8 +79,8 @@ func TestExtractTopLevelSubtracesWorksInSpiteOfCycles(t *testing.T) {
 	}
 
 	expected := []Subtrace{
-		{trace[0], trace},
-		{trace[1], []*pb.Span{trace[1], trace[2]}},
+		Subtrace{trace[0], trace},
+		Subtrace{trace[1], []*pb.Span{trace[1], trace[2]}},
 	}
 
 	traceutil.ComputeTopLevel(trace)

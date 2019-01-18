@@ -1,7 +1,6 @@
 package testsuite
 
 import (
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -12,16 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
-func TestMain(m *testing.M) {
-	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
-		fmt.Println("--- SKIP: to run tests in this package, set the INTEGRATION environment variable")
-		return
-	}
-	os.Exit(m.Run())
-}
-
 func TestHostname(t *testing.T) {
-	r := test.Runner{Verbose: true}
+	r := test.Runner{}
 	if err := r.Start(); err != nil {
 		t.Fatal(err)
 	}

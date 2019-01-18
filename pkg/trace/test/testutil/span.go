@@ -63,37 +63,37 @@ var names = []string{
 }
 
 var metas = map[string][]string{
-	"query": {
+	"query": []string{
 		"GET beaker:c76db4c3af90410197cf88b0afba4942:session",
 		"SELECT id\n                 FROM ddsuperuser\n                WHERE id = %(id)s",
 		"\n        -- get_contexts_sub_query[[org:9543 query_id:a135e15e7d batch:1]]\n        WITH sub_contexts as (\n            \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags,\n            org_id\n        FROM vs9543.dim_context c\n        WHERE key = ANY(%(key)s)\n        \n        \n        \n        \n    \n        )\n        \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags\n        FROM sub_contexts c\n        WHERE (c.org_id = %(org_id)s AND c.tags @> %(yes_tags0)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags1)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags2)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags3)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags4)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags5)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags6)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags7)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags8)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags9)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags10)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags11)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags12)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags13)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags14)s)\n        OR (c.org_id = %(org_id)s AND c.tags @> %(yes_tags15)s)\n        \n        \n        \n        \n    \n        ",
 	},
-	"in.host": {
+	"in.host": []string{
 		"8.8.8.8",
 		"172.0.0.42",
 		"2a01:e35:2ee1:7160:f66d:4ff:fe71:b690",
 		"postgres.service.consul",
 		"",
 	},
-	"out.host": {
+	"out.host": []string{
 		"/dev/null",
 		"138.195.130.42",
 		"raclette.service",
 		"datadoghq.com",
 	},
-	"in.section": {
+	"in.section": []string{
 		"4242",
 		"22",
 		"dogdataprod",
 		"replica",
 	},
-	"out.section": {
+	"out.section": []string{
 		"-",
 		"8080",
 		"standby",
 		"proxy-XXX",
 	},
-	"user": {
+	"user": []string{
 		"mattp",
 		"bartek",
 		"benjamin",
