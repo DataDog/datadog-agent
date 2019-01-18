@@ -41,13 +41,15 @@ type Status struct {
 
 // Builder is used to build the status.
 type Builder struct {
-	sources *config.LogSources
+	sources  *config.LogSources
+	messages *config.Messages
 }
 
 // Initialize instantiates a builder that holds the sources required to build the current status later on.
 func Initialize(sources *config.LogSources) {
 	builder = &Builder{
-		sources: sources,
+		sources:  sources,
+		messages: config.NewMessages(),
 	}
 }
 
@@ -94,7 +96,7 @@ func Get() Status {
 				Messages:      source.Messages.GetMessages(),
 			})
 
-			for _, warning := range source.Messages.GetWarnings() {
+			for _, warning := range builder.messages.GetWarnings() {
 				warningsDeduplicator[warning] = struct{}{}
 			}
 		}
@@ -111,6 +113,16 @@ func Get() Status {
 		Integrations: integrations,
 		Messages:     warnings,
 	}
+}
+
+// AddWarning create a warning
+func AddGlobalWarning(key string, warning string) {
+	builder.messages.AddWarning(key, warning)
+}
+
+// RemoveWarning removes a warning
+func RemoveGlobalWarning(key string) {
+	builder.messages.RemoveWarning(key)
 }
 
 // toDictionary returns a representation of the configuration

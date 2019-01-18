@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -78,7 +79,7 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 		}
 
 		if len(filesToTail) >= p.filesLimit {
-			source.Messages.AddWarning(
+			status.AddGlobalWarning(
 				openFilesLimitWarningType,
 				fmt.Sprintf(
 					"The limit on the maximum number of files in use (%d) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
@@ -86,7 +87,7 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 				),
 			)
 		} else {
-			source.Messages.RemoveWarning(openFilesLimitWarningType)
+			status.RemoveGlobalWarning(openFilesLimitWarningType)
 		}
 
 		if p.containsWildcard(source.Config.Path) {
