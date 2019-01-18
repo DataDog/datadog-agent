@@ -72,9 +72,3 @@ cmd/agent/android/app/build
 
 # local copy of device signing cert
 platform.pk8
-
-# trace agent windows artifacts
-cmd/trace-agent/windows_resources/trace-agent-msg.rc
-cmd/trace-agent/windows_resources/*.bin
-pkg/trace/info/git_version.go
-trace-agent-msg.h
