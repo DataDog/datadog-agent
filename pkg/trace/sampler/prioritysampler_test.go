@@ -58,12 +58,13 @@ func TestPrioritySample(t *testing.T) {
 	env := defaultEnv
 
 	s := getTestPriorityEngine()
+	trace, root := getTestTraceWithService(t, "my-service", s)
 
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "checking fresh backend total score is 0")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "checkeing fresh backend sampled score is 0")
 
 	s = getTestPriorityEngine()
-	trace, root := getTestTraceWithService(t, "my-service", s)
+	trace, root = getTestTraceWithService(t, "my-service", s)
 
 	SetSamplingPriority(root, -1)
 	sampled, rate := s.Sample(trace, root, env)

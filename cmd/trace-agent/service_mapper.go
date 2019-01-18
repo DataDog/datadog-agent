@@ -74,7 +74,7 @@ func (s *ServiceMapper) update(metadata pb.ServicesMetadata) {
 			continue
 		}
 
-		// We do this inside the for loop to avoid unnecessary memory allocations.
+		// We do this inside the for loop to avoid unecessary memory allocations.
 		// After few method executions, the cache will be warmed up and this section be skipped altogether.
 		if changes == nil {
 			changes = make(pb.ServicesMetadata)

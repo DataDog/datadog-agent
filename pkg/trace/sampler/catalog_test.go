@@ -28,7 +28,7 @@ func TestServiceKeyCatalogRegister(t *testing.T) {
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
 	assert.Equal(
 		map[ServiceSignature]Signature{
-			{"service1", "none"}: sig1,
+			ServiceSignature{"service1", "none"}: sig1,
 		},
 		cat.lookup,
 	)
@@ -37,8 +37,8 @@ func TestServiceKeyCatalogRegister(t *testing.T) {
 	sig2 := cat.register(ServiceSignature{root2.Service, defaultEnv})
 	assert.Equal(
 		map[ServiceSignature]Signature{
-			{"service1", "none"}: sig1,
-			{"service2", "none"}: sig2,
+			ServiceSignature{"service1", "none"}: sig1,
+			ServiceSignature{"service2", "none"}: sig2,
 		},
 		cat.lookup,
 	)
@@ -63,23 +63,23 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 
 	rateByService := cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
-		{"service1", "none"}: 0.3,
-		{"service2", "none"}: 0.7,
-		{}:                   0.2,
+		ServiceSignature{"service1", "none"}: 0.3,
+		ServiceSignature{"service2", "none"}: 0.7,
+		ServiceSignature{}:                   0.2,
 	}, rateByService)
 
 	delete(rates, sig1)
 
 	rateByService = cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
-		{"service2", "none"}: 0.7,
-		{}:                   0.2,
+		ServiceSignature{"service2", "none"}: 0.7,
+		ServiceSignature{}:                   0.2,
 	}, rateByService)
 
 	delete(rates, sig2)
 
 	rateByService = cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
-		{}: 0.2,
+		ServiceSignature{}: 0.2,
 	}, rateByService)
 }

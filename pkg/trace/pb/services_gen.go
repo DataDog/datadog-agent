@@ -16,7 +16,7 @@ func (z *ServicesMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 	if (*z) == nil && zxhx > 0 {
 		(*z) = make(ServicesMetadata, zxhx)
 	} else if len((*z)) > 0 {
-		for key := range *z {
+		for key, _ := range *z {
 			delete((*z), key)
 		}
 	}
@@ -36,7 +36,7 @@ func (z *ServicesMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 		if zwht == nil && zlqf > 0 {
 			zwht = make(map[string]string, zlqf)
 		} else if len(zwht) > 0 {
-			for key := range zwht {
+			for key, _ := range zwht {
 				delete(zwht, key)
 			}
 		}

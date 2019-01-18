@@ -220,7 +220,7 @@ func TestQueuablePayloadSender_MaxQueuedPayloads(t *testing.T) {
 
 	// Monitor should agree on previous fact
 	assert.Equal([]*payload{payload3}, monitor.SuccessPayloads(),
-		"Monitor should agree with endpoint on successful payloads")
+		"Monitor should agree with endpoint on succesful payloads")
 	assert.Equal([]*payload{payload1, payload2}, monitor.FailurePayloads(),
 		"Monitor should agree with endpoint on failed payloads")
 	assert.Contains(monitor.FailureEvents()[0].err.Error(), "max queued payloads",
@@ -291,7 +291,7 @@ func TestQueuablePayloadSender_MaxQueuedBytes(t *testing.T) {
 
 	// Monitor should agree on previous fact
 	assert.Equal([]*payload{payload2, payload3}, monitor.SuccessPayloads(),
-		"Monitor should agree with endpoint on successful payloads")
+		"Monitor should agree with endpoint on succesful payloads")
 	assert.Equal([]*payload{payload1}, monitor.FailurePayloads(),
 		"Monitor should agree with endpoint on failed payloads")
 	assert.Contains(monitor.FailureEvents()[0].err.Error(), "max queued bytes",

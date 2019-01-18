@@ -12,6 +12,16 @@ import (
 
 var errBogus = fmt.Errorf("bogus error")
 
+func TestDefaultRandomSeed(t *testing.T) {
+	assert := assert.New(t)
+
+	delayProvider1 := DefaultExponentialDelayProvider()
+	delayProvider2 := DefaultExponentialDelayProvider()
+
+	// Ensure different timers are not synchronized in their backoffing (use different seeds)
+	assert.NotEqual(delayProvider1(0, nil), delayProvider2(0, nil))
+}
+
 func TestExponentialDelay(t *testing.T) {
 	assert := assert.New(t)
 

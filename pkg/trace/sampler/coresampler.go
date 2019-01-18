@@ -153,7 +153,7 @@ func (s *Sampler) GetMaxTPSSampleRate() float64 {
 	return maxTPSrate
 }
 
-// CombineRates merges two rates from Sampler1, Sampler2. Both samplers law are independent,
+// CombineRates merges two rates from Sampler1, Sampler2. Both samplers law are independant,
 // and {sampled} = {sampled by Sampler1} or {sampled by Sampler2}
 func CombineRates(rate1 float64, rate2 float64) float64 {
 	if rate1 >= 1 || rate2 >= 1 {

@@ -20,7 +20,7 @@ func (t Tag) String() string {
 	return t.Name + ":" + t.Value
 }
 
-// SplitTag splits the tag into group and value. If it doesn't have a separator
+// SplitTag splits the tag into group and value. If it doesn't have a seperator
 // the empty string will be used for the group.
 func SplitTag(tag string) (group, value string) {
 	split := strings.SplitN(tag, ":", 2)
@@ -162,10 +162,12 @@ func (t TagSet) MatchFilters(filters []string) TagSet {
 
 	for _, f := range filters {
 		g, v := SplitTag(f)
-		_, ok := filterMap[g]
+		m, ok := filterMap[g]
 		if !ok {
-			filterMap[g] = make(map[string]struct{})
+			m = make(map[string]struct{})
+			filterMap[g] = m
 		}
+
 		if v != "" {
 			filterMap[g][v] = struct{}{}
 		}

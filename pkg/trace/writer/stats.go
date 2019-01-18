@@ -159,7 +159,7 @@ func (w *StatsWriter) buildPayloads(stats []agent.StatsBucket, maxEntriesPerPayl
 
 	if maxEntriesPerPayloads <= 0 || nbEntries < maxEntriesPerPayloads {
 		// nothing to do, break early
-		return []*agent.StatsPayload{{
+		return []*agent.StatsPayload{&agent.StatsPayload{
 			HostName: w.hostName,
 			Env:      w.env,
 			Stats:    stats,

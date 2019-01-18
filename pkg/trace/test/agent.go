@@ -36,11 +36,8 @@ func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
 		if verbose {
 			log.Print("agent: trace-agent not found, trying to install...")
 		}
-		err := exec.Command("go", "install", "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
+		err := exec.Command("go", "install", "github.com/DataDog/datadog-trace-agent/cmd/trace-agent").Run()
 		if err != nil {
-			if verbose {
-				log.Printf("error installing trace-agent: %v", err)
-			}
 			return nil, ErrNotInstalled
 		}
 		if _, err := exec.LookPath("trace-agent"); err != nil {
