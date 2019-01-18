@@ -174,10 +174,10 @@ func TestFullIniConfig(t *testing.T) {
 	}, c.AnalyzedRateByServiceLegacy)
 
 	assert.Equal(map[string]map[string]float64{
-		"service3": map[string]float64{
+		"service3": {
 			"op3": 1.3,
 		},
-		"service4": map[string]float64{
+		"service4": {
 			"op4": 1.4,
 			"op5": 1.5,
 		},
@@ -274,7 +274,7 @@ func TestFullYamlConfig(t *testing.T) {
 
 	noProxy := true
 	if _, ok := os.LookupEnv("NO_PROXY"); ok {
-		// Happens in CircleCI: if the enviornment variable is set,
+		// Happens in CircleCI: if the environment variable is set,
 		// it will overwrite our loaded configuration and will cause
 		// this test to fail.
 		noProxy = false

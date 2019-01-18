@@ -105,7 +105,7 @@ func (r *HTTPReceiver) Run() {
 	http.HandleFunc("/v0.4/traces", r.httpHandleWithVersion(v04, r.handleTraces))
 	http.HandleFunc("/v0.4/services", r.httpHandleWithVersion(v04, r.handleServices))
 
-	// expvar implicitely publishes "/debug/vars" on the same port
+	// expvar implicitly publishes "/debug/vars" on the same port
 	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	if err := r.Listen(addr, ""); err != nil {
 		osutil.Exitf("%v", err)
@@ -155,7 +155,8 @@ func (r *HTTPReceiver) Listen(addr, logExtra string) error {
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
 	expiry := time.Now().Add(20 * time.Second) // give it 20 seconds
-	ctx, _ := context.WithDeadline(context.Background(), expiry)
+	ctx, cancel := context.WithDeadline(context.Background(), expiry)
+	defer cancel()
 	return r.server.Shutdown(ctx)
 }
 
@@ -210,7 +211,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
-	// We successfuly decoded the payload
+	// We successfully decoded the payload
 	r.replyTraces(v, w)
 
 	// We parse the tags from the header

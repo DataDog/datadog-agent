@@ -62,7 +62,7 @@ func TestLimitedReader(t *testing.T) {
 	assert.Equal(t, int64(3), lr.Count)
 
 	tmp = make([]byte, 1)
-	n, err = lr.Read(tmp)
+	_, err = lr.Read(tmp)
 	assert.Equal(t, ErrLimitedReaderLimitReached, err)
 	assert.Equal(t, int64(3), lr.Count)
 }

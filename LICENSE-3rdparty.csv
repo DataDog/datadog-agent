@@ -152,3 +152,6 @@ core,k8s.io/apiextensions-apiserver,Apache-2.0
 core,github.com/docker/spdystream,Apache-2.0
 core,gopkg.in/square/go-jose.v2,Apache-2.0
 core,github.com/opencontainers/go-digest,Apache-2.0
+core,github.com/philhofer/fwd,MIT
+core,github.com/DataDog/datadog-go,MIT
+core,github.com/tinylib/msgp,MIT

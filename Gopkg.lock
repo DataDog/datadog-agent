@@ -18,6 +18,14 @@
   version = "4.7.1"
 
 [[projects]]
+  digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"
+  name = "github.com/DataDog/datadog-go"
+  packages = ["statsd"]
+  pruneopts = ""
+  revision = "e67964b4021ad3a334e748e8811eb3cd6becbc6e"
+  version = "2.1.0"
+
+[[projects]]
   branch = "master"
   digest = "1:db1b73d955d10cdd26831baf9f3575bec36b817da2fbdcc7cf9bba908fa31b8c"
   name = "github.com/DataDog/gohai"
@@ -1005,6 +1013,14 @@
   version = "v2.0.1"
 
 [[projects]]
+  digest = "1:210286d0cb60ffe28f1ca00b664029e8943009f95d06d8f8c336301b28e1aee5"
+  name = "github.com/philhofer/fwd"
+  packages = ["."]
+  pruneopts = ""
+  revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:29e34e58f26655c4d73135cdfc0517ea2ff1483eff34e5d5ef4b6fddbb81e31b"
   name = "github.com/pierrec/lz4"
   packages = [
@@ -1203,6 +1219,14 @@
   packages = ["capability"]
   pruneopts = ""
   revision = "33e07d32887e1e06b7c025f27ce52f62c7990bc0"
+
+[[projects]]
+  digest = "1:23ed2a28cfc147d46f7fbf4d85f83f6d659e15eac4ad1c16c4d32b19da5bd2fa"
+  name = "github.com/tinylib/msgp"
+  packages = ["msgp"]
+  pruneopts = ""
+  revision = "af6442a0fcf6e2a1b824f70dd0c734f01e817751"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:444c05e2a216066b0def62df62e3cef74d51f5ea0ecd6547a100daa2281547ff"
@@ -1907,6 +1931,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/DataDog/agent-payload/gogen",
+    "github.com/DataDog/datadog-go/statsd",
     "github.com/DataDog/gohai/cpu",
     "github.com/DataDog/gohai/filesystem",
     "github.com/DataDog/gohai/memory",
@@ -1949,8 +1974,10 @@
     "github.com/fatih/color",
     "github.com/go-ini/ini",
     "github.com/go-ole/go-ole",
+    "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
+    "github.com/golang/protobuf/proto",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
@@ -1986,6 +2013,7 @@
     "github.com/stretchr/testify/mock",
     "github.com/stretchr/testify/require",
     "github.com/stretchr/testify/suite",
+    "github.com/tinylib/msgp/msgp",
     "github.com/urfave/negroni",
     "golang.org/x/mobile/asset",
     "golang.org/x/net/context",

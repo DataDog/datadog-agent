@@ -336,10 +336,6 @@ func getProgramBanner(version string) (string, string) {
 // If error is nil, means the program is running.
 // If not, it displays a pretty-printed message anyway (for support)
 func Info(w io.Writer, conf *config.AgentConfig) error {
-	host := conf.ReceiverHost
-	if host == "0.0.0.0" {
-		host = "127.0.0.1" // [FIXME:christian] not fool-proof
-	}
 	url := fmt.Sprintf("http://%s:%d/debug/vars", conf.ReceiverHost, conf.ReceiverPort)
 	client := http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(url)
