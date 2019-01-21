@@ -305,7 +305,7 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	}
 
 	if len(ips) == 0 {
-		// More cases require a container inspect, delay it until
+		// Other edge cases require a container inspect, delay it until
 		// template resolution, when GetHosts will be called.
 		return nil
 	}

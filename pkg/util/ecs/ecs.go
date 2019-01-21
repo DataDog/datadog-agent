@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -111,7 +110,6 @@ func (u *Util) init() error {
 // It detects it by getting and unmarshalling the metadata API response.
 func IsFargateInstance() bool {
 	var ok, isFargate bool
-
 	if cached, hit := cache.Cache.Get(isFargateInstanceCacheKey); hit {
 		isFargate, ok = cached.(bool)
 		if !ok {
@@ -119,6 +117,16 @@ func IsFargateInstance() bool {
 		} else {
 			return isFargate
 		}
+	}
+
+	// This envvar is set to AWS_ECS_EC2 on classic EC2 instances
+	// Versions 1.0.0 to 1.3.0 (latest at the time) of the Fargate
+	// platform set this envvar.
+	// If Fargate detection were to fail, running a container with
+	// `env` as cmd will allow to check if it is still present.
+	if os.Getenv("AWS_EXECUTION_ENV") != "AWS_ECS_FARGATE" {
+		cacheIsFargateInstance(false)
+		return false
 	}
 
 	client := &http.Client{Timeout: timeout}
@@ -134,26 +142,6 @@ func IsFargateInstance() bool {
 	var resp TaskMetadata
 	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
 		log.Debugf("Error decoding response: %s", err)
-		cacheIsFargateInstance(false)
-		return false
-	}
-
-	//
-	//
-	// We only need to keep one of these two, let's discuss
-	//
-	//
-
-	// This envvar is set to AWS_ECS_EC2 on classic EC2 instances
-	if os.Getenv("AWS_EXECUTION_ENV") != "AWS_ECS_FARGATE" {
-		cacheIsFargateInstance(false)
-		return false
-	}
-
-	// Classic ECS+EC2 on awsvpc mode also has access to this metadata endpoint
-	// Fargate instances do not have access to the EC2 endpoint though, so
-	// the following call failing will confirm Fargate mode.
-	if _, err := ec2.GetInstanceID(); err == nil {
 		cacheIsFargateInstance(false)
 		return false
 	}
