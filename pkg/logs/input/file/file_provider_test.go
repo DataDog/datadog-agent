@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 type ProviderTestSuite struct {
@@ -68,6 +69,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 }
 
 func (suite *ProviderTestSuite) TearDownTest() {
+	status.Clear()
 	os.Remove(suite.testDir)
 }
 
@@ -75,6 +77,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	path := fmt.Sprintf("%s/1/1.log", suite.testDir)
 	fileProvider := NewProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
+	status.CreateSources(logSources)
 	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(1, len(files))
@@ -87,6 +90,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
 	fileProvider := NewProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
+	status.CreateSources(logSources)
 	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(3, len(files))
@@ -98,7 +102,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 		[]string{
 			"The limit on the maximum number of files in use (3) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
 		},
-		logSources[0].Messages.GetWarnings(),
+		status.Get().Messages,
 	)
 }
 
@@ -106,6 +110,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
 	fileProvider := NewProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
+	status.CreateSources(logSources)
 	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(2, len(files))
@@ -119,6 +124,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
 	fileProvider := NewProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
+	status.CreateSources(logSources)
 	files := fileProvider.FilesToTail(logSources)
 
 	suite.Equal(3, len(files))
@@ -130,7 +136,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 		[]string{
 			"The limit on the maximum number of files in use (3) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
 		},
-		logSources[0].Messages.GetWarnings(),
+		status.Get().Messages,
 	)
 }
 
@@ -138,6 +144,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	fileProvider := NewProvider(suite.filesLimit)
 	logSources := suite.newLogSources(path)
+	status.CreateSources(logSources)
 	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
@@ -145,7 +152,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 		[]string{
 			"The limit on the maximum number of files in use (3) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
 		},
-		logSources[0].Messages.GetWarnings(),
+		status.Get().Messages,
 	)
 }
 
@@ -156,6 +163,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
+	status.CreateSources(logSources)
 	files := fileProvider.FilesToTail(logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
@@ -163,14 +171,14 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		[]string{
 			"The limit on the maximum number of files in use (2) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
 		},
-		logSources[0].Messages.GetWarnings(),
+		status.Get().Messages,
 	)
 	suite.Equal([]string{"0 files tailed out of 2 files matching"}, logSources[1].Messages.GetMessages())
 	suite.Equal(
 		[]string{
 			"The limit on the maximum number of files in use (2) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
 		},
-		logSources[1].Messages.GetWarnings(),
+		status.Get().Messages,
 	)
 
 	os.Remove(fmt.Sprintf("%s/1/2.log", suite.testDir))
@@ -186,7 +194,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		[]string{
 			"The limit on the maximum number of files in use (2) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
 		},
-		logSources[1].Messages.GetWarnings(),
+		status.Get().Messages,
 	)
 
 	os.Remove(fmt.Sprintf("%s/2/1.log", suite.testDir))

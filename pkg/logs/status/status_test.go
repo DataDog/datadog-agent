@@ -15,24 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-func consumeSources(sources *config.LogSources) {
-	go func() {
-		sources := sources.GetAddedForType("foo")
-		for range sources {
-			// ensure that another component is consuming the channel to prevent
-			// the producer to get stuck.
-		}
-	}()
-}
-
 func createSources() *config.LogSources {
-	sources := config.NewLogSources()
-	consumeSources(sources)
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
-	sources.AddSource(config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}))
-	sources.AddSource(config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}))
-	Initialize(sources)
-	return sources
+	return CreateSources([]*config.LogSource{
+		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+		config.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
+		config.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+	})
 }
 
 func TestSourceAreGroupedByIntegrations(t *testing.T) {
@@ -57,15 +45,12 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 
 func TestStatusDeduplicateWarnings(t *testing.T) {
 	defer Clear()
-	sources := createSources()
+	createSources()
 
-	logSources := sources.GetSources()
-	assert.Equal(t, 3, len(logSources))
-
-	logSources[0].Messages.AddWarning("bar", "Unique Warning")
-	for _, source := range logSources {
-		source.Messages.AddWarning("foo", "Identical Warning")
-	}
+	AddGlobalWarning("bar", "Unique Warning")
+	AddGlobalWarning("foo", "Identical Warning")
+	AddGlobalWarning("foo", "Identical Warning")
+	AddGlobalWarning("foo", "Identical Warning")
 
 	status := Get()
 	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Messages)
@@ -76,8 +61,7 @@ func TestMetrics(t *testing.T) {
 	Clear()
 	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
 
-	sources := createSources()
-	logSources := sources.GetSources()
-	logSources[0].Messages.AddWarning("bar", "Unique Warning")
+	createSources()
+	AddGlobalWarning("bar", "Unique Warning")
 	assert.Equal(t, metrics.LogsExpvars.String(), `{"DestinationErrors": 0, "DestinationLogsDropped": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": "Unique Warning"}`)
 }
