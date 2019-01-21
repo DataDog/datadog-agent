@@ -115,12 +115,12 @@ func Get() Status {
 	}
 }
 
-// AddWarning create a warning
+// AddGlobalWarning create a warning
 func AddGlobalWarning(key string, warning string) {
 	builder.messages.AddWarning(key, warning)
 }
 
-// RemoveWarning removes a warning
+// RemoveGlobalWarning removes a warning
 func RemoveGlobalWarning(key string) {
 	builder.messages.RemoveWarning(key)
 }
