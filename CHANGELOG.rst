@@ -166,7 +166,10 @@ Other Notes
 
 - Log host metadata at debug level regardless of its size.
 
+.. _Release Notes_6.8.3:
 
+6.8.3
+=====
 
 .. _Release Notes_6.8.3_Prelude:
 
