@@ -440,6 +440,12 @@ agent_android_apk:
     - pip install -U pip
     - pip install -r requirements.txt
     - inv -e deps --android
+    # Some Android license has changed, we have to accept the new version.
+    # But on top of that, there is a bug in sdkmanager not updating correctly
+    # the existing license, so, we have to manually accept the new license.
+    # https://issuetracker.google.com/issues/123054726
+    # The real fix will be to change the builders
+    - echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
