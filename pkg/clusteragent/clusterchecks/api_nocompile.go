@@ -26,7 +26,7 @@ type Handler struct{}
 
 // GetState not implemented
 func (h *Handler) GetState() (types.StateResponse, error) {
-	return nil, ErrNotCompiled
+	return types.StateResponse{}, ErrNotCompiled
 }
 
 // NewHandler not implemented
