@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -76,6 +77,10 @@ func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
 		}
 		h.leaderStatusCallback = callback
 	}
+
+	// Cache a pointer to the handler for the agent status command
+	key := cache.BuildAgentKey(handlerCacheKey)
+	cache.Cache.Set(key, h, cache.NoExpiration)
 
 	return h, nil
 }

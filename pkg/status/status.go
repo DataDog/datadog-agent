@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -26,12 +27,6 @@ import (
 )
 
 var timeFormat = "2006-01-02 15:04:05.000000 MST"
-
-// Callback is a method components can expose to insert data in the status payload
-type Callback func() (string, interface{})
-
-// Callbacks holds a slice of Callback functions
-type Callbacks []Callback
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
@@ -127,7 +122,7 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 }
 
 // GetDCAStatus grabs the status from expvar and puts it into a map
-func GetDCAStatus(callbacks Callbacks) (map[string]interface{}, error) {
+func GetDCAStatus() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 	stats, err := expvarStats(stats)
 	if err != nil {
@@ -162,10 +157,12 @@ func GetDCAStatus(callbacks Callbacks) (map[string]interface{}, error) {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
 
-	for _, c := range callbacks {
-		name, value := c()
-		if name != "" && value != nil {
-			stats[name] = value
+	if config.Datadog.GetBool("cluster_checks.enabled") {
+		cchecks, err := clusterchecks.GetStats()
+		if err != nil {
+			log.Errorf("Error grabbing clusterchecks stats: %s", err)
+		} else {
+			stats["clusterchecks"] = cchecks
 		}
 	}
 
@@ -173,8 +170,8 @@ func GetDCAStatus(callbacks Callbacks) (map[string]interface{}, error) {
 }
 
 // GetAndFormatDCAStatus gets and formats the DCA status all in one go.
-func GetAndFormatDCAStatus(callbacks Callbacks) ([]byte, error) {
-	s, err := GetDCAStatus(callbacks)
+func GetAndFormatDCAStatus() ([]byte, error) {
+	s, err := GetDCAStatus()
 	if err != nil {
 		log.Infof("Error while getting status %q", err)
 		return nil, err

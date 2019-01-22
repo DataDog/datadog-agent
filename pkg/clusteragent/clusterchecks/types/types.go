@@ -36,3 +36,18 @@ type StateNodeResponse struct {
 	Name    string               `json:"name"`
 	Configs []integration.Config `json:"configs"`
 }
+
+// Stats holds statistics for the agent status command
+type Stats struct {
+	// Following
+	Follower bool
+	LeaderIP string
+
+	// Leading
+	Leader          bool
+	Active          bool
+	NodeCount       int
+	ActiveConfigs   int
+	DanglingConfigs int
+	TotalConfigs    int
+}

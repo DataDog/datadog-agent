@@ -27,16 +27,16 @@ import (
 )
 
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string, callbacks status.Callbacks) (string, error) {
+func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":     config.Datadog.GetString("confd_path"),
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
-	return createDCAArchive(zipFilePath, local, confSearchPaths, logFilePath, callbacks)
+	return createDCAArchive(zipFilePath, local, confSearchPaths, logFilePath)
 }
 
-func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string, callbacks status.Callbacks) (string, error) {
+func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
 	b := make([]byte, 10)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -73,7 +73,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err = zipDCAStatusFile(tempDir, hostname, callbacks)
+		err = zipDCAStatusFile(tempDir, hostname)
 		if err != nil {
 			log.Infof("Error getting the status of the DCA, %q", err)
 			return "", err
@@ -133,10 +133,10 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	return zipFilePath, nil
 }
 
-func zipDCAStatusFile(tempDir, hostname string, callbacks status.Callbacks) error {
+func zipDCAStatusFile(tempDir, hostname string) error {
 	// Grab the status
 	log.Infof("Zipping the status at %s for %s", tempDir, hostname)
-	s, err := status.GetAndFormatDCAStatus(callbacks)
+	s, err := status.GetAndFormatDCAStatus()
 	if err != nil {
 		log.Infof("Error zipping the status: %q", err)
 		return err
