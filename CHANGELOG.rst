@@ -2,10 +2,171 @@
 Release Notes
 =============
 
-.. _Release Notes_6.8.3:
+.. _Release Notes_6.9.0:
 
-6.8.3
+6.9.0
 =====
+
+.. _Release Notes_6.9.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-01-22
+
+- Please refer to the `6.9.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-690>`_ for the list of changes on the Core Checks.
+
+- Please refer to the `6.9.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.9.0>`_ for the list of changes on the Trace Agent.
+
+- Please refer to the `6.9.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.9.0>`_ for the list of changes on the Process Agent.
+
+
+.. _Release Notes_6.9.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- On EC2 hosts that were upgraded from Agent 5.x using the install script or that have the ``hostname_fqdn`` option enabled if your hostname currently begins with ``ip-`` or ``domU-`` (default EC2 hostnames) your hostname will change to the EC2 instance ID.
+  Example: ``ip-10-1-1-1.ec2.internal`` => ``i-1234567890abcdef0``.
+  This is an effort to fix a bug in the hostname resolution that was introduced in the version 6.3 of the Agent.
+
+- Kubernetes logs integration is now automatically enabled if it can find ``/var/log/pods``.
+  If ``logs_config.container_collect_all`` is not enabled, only pods with Datadog logs
+  annotation will be collected. If ``logs_config.container_collect_all`` is enabled, logs for
+  all pods (matching ``ac_exclude`` and ``ac_include`` filters if applicable) will be collected.
+
+
+.. _Release Notes_6.9.0_New Features:
+
+New Features
+------------
+
+- Introduce a way to configure the cardinality level of tags that
+  the tagger should return. This is split between two options - one for
+  checks and one for dogstatsd. The three cardinality levels are High,
+  Orchestrator, and Low. Checks get Low and Orchestrator-level tags by default
+  Dogstatsd benefits from Low-card tags only by default.
+
+- You can add extra listeners and config providers via the ``DD_EXTRA_LISTENERS`` and
+  ``DD_EXTRA_CONFIG_PROVIDERS`` enviroment variables. They will be added on top of the
+  ones defined in the ``listeners`` and ``config_providers`` section of the datadog.yaml
+  configuration file.
+
+- Adding native containerd check, based on the containerd socket.
+
+- You can now see an extra instance id when displaying the Agent status depending on the check.
+  If the instance contains an attribute ``name`` or ``namespace``, it will be displayed next to the instance id.
+
+- Added a new ``container_cgroup_prefix`` option to fix some cases where system slices
+  were detected as containers.
+
+- Add ``datadog-agent integration show [package]`` command to show information about an installed integration.
+
+
+.. _Release Notes_6.9.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- AutoDiscovery can now monitor unready pods.
+  It looks for a new pod annotation "ad.datadoghq.com/tolerate-unready"
+  which, if set to `true` will make AutoDiscovery monitor that pod
+  regardless of its readiness state.
+
+- Add debug information about the secrets feature to the flare.
+
+- On the ``check`` command, add a pause of 1sec between the 2 check runs when
+  ``--check-rate`` is set. Allows some checks to gather more meaningful metric samples.
+
+- Docker disk IO metrics are now tagged by ``device``
+
+- Introduces an expvar reporting the number of dogstatsd
+  packets per second processed if `dogstatsd_stats_enable`
+  is enabled.
+
+- Add an Endpoints section in the GUI status page and the
+  CLI status command, listing all endpoints used by the agent
+  and their api keys.
+
+- Expose number of packets received for each dogstatsd listeners through expvar
+
+- Better descriptions of the ``install`` and ``freeze`` subcommands of the ``datadog-agent integration`` command.
+
+- In the flare, try to redact api keys from other services.
+
+- Support the ``site`` config option in the log agent.
+
+- Add ability for Python checks to submit trace logs.
+
+
+.. _Release Notes_6.9.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- datadog/dogstatsd image: gohai metadata collection is now disabled by default
+
+- If `dogstatsd_stats_enable` is indeed enabled, we should
+  consume and report on the generated stats. Fixes stagnant
+  channel and misleading debug statement.
+
+- Fix a hostname resolution bug on EC2 hosts which could happen when the ``hostname_fqdn`` option was enabled, and which made the Agent use a non-unique FQDN instead of the EC2 instance ID.
+
+- Fix a bug with parsing of ``trace.ignore`` in the ``import`` command.
+
+- Fixes bug in windows core checks where adding/removing devices isn't
+  caught, so only devices present on startup are monitored.
+
+- Fix bug of the ``datadog-agent integration install`` command that prevented
+  moving configuration files when the ``conf.d`` folder is a mounted directory.
+
+- The ``datadog-agent integration install`` command creates the configuration folder
+  for an integration with the correct permissions so that the configuration files can be copied.
+
+- On windows, fixes downgrades.  Fix won't be apparent for an
+  additional release, since the core fix occurs on install.
+
+- On Windows, further fixes when installation drive isn't c:.  Fixes
+  problem where `logs` was effectively hardcoded to use `c:` for programdata
+  Fixes installation problem where process & trace service were using
+  `c:\programdata\...` to find datadog.yaml regardless of installation dir
+  
+  If upgrading from a prior version, the configuration file (datadog.yaml) may 
+  have incorrect data.  It will be necessary to manually update those entries.
+  For example
+  `confd_path: c:\programdata\datadog\conf.d`
+  will have to be changed to
+  `confd_path: d:\programdata\datadog\conf.d`
+  etc.
+
+- Removed the command arguments from the flare's container list
+  to avoid collecting sensitive information
+
+- Fix a rare crash caused by a nil map dereference in the ``gohai`` library
+
+- Reintroducing JMXFetch process lifecycle management on Linux.
+  Adding JMXFetch healthcheck for docker environments.
+
+- Fix warning about unknown setting "StartLimitIntervalSecs" in the agent
+  service file with systemd version <=229.
+
+
+.. _Release Notes_6.9.0_Other Notes:
+
+Other Notes
+-----------
+
+- The ``datadog-agent integration`` command is now GA.
+
+- On the packaged Linux Agent, the python interpreter is now built with the
+  ``-fPIC`` flag.
+
+- JMXFetch upgraded to 0.24.1. See https://github.com/DataDog/jmxfetch/releases/tag/0.24.0 and
+  https://github.com/DataDog/jmxfetch/releases/tag/0.24.1
+
+- Log host metadata at debug level regardless of its size.
+
+
 
 .. _Release Notes_6.8.3_Prelude:
 
