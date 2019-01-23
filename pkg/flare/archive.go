@@ -44,6 +44,9 @@ var (
 	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
 		config.Datadog.GetString("expvar_port"))
 
+	// Match .yaml and .yml to ship configuration files in the flare.
+	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
+
 	// Match other services api keys
 	// It is a best effort to match the api key field without matching our
 	// own already redacted (we don't want to match: **************************abcde)
@@ -528,8 +531,10 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 				return nil
 			}
 
-			if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
+			firstSuffix := getFirstSuffix(f.Name())
+			ext := filepath.Ext(f.Name())
 
+			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
 				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
 				err := ensureParentDirsExist(f)
