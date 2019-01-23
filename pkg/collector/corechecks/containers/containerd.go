@@ -18,7 +18,7 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/types"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -47,7 +47,6 @@ type ContainerdCheck struct {
 
 // ContainerdConfig contains the custom options and configurations set by the user.
 type ContainerdConfig struct {
-	Tags              []string `yaml:"tags"`
 	ContainerdFilters []string `yaml:"filters"`
 	CollectEvents     bool     `yaml:"collect_events"`
 }
@@ -104,11 +103,11 @@ func (c *ContainerdCheck) Run() error {
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	cu, errHealth := cutil.GetContainerdUtil()
 	if errHealth != nil {
-		sender.ServiceCheck("containerd.health", metrics.ServiceCheckCritical, "", c.instance.Tags, fmt.Sprintf("Connectivity error %v", errHealth))
+		sender.ServiceCheck("containerd.health", metrics.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
 		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
-	sender.ServiceCheck("containerd.health", metrics.ServiceCheckOK, "", c.instance.Tags, "")
+	sender.ServiceCheck("containerd.health", metrics.ServiceCheckOK, "", nil, "")
 	ns := cu.Namespace()
 
 	if c.instance.CollectEvents {
@@ -122,17 +121,17 @@ func (c *ContainerdCheck) Run() error {
 		}
 		events := c.sub.Flush(time.Now().Unix())
 		// Process events
-		computeEvents(events, sender, c.instance.Tags, c.filters)
+		computeEvents(events, sender, c.filters)
 	}
 
 	nk := namespaces.WithNamespace(context.Background(), ns)
-	computeMetrics(sender, nk, cu, c.instance.Tags, c.filters)
+	computeMetrics(sender, nk, cu, c.filters)
 
 	return nil
 }
 
 // compute events converts Containerd events into Datadog events
-func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags []string, fil *containers.Filter) {
+func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *containers.Filter) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -157,7 +156,6 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags 
 				output.Tags = append(output.Tags, fmt.Sprintf("%s:%s", k, v))
 			}
 		}
-		output.Tags = append(output.Tags, userTags...)
 		output.Ts = e.Timestamp.Unix()
 		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
 		if split[1] == "containers" || split[1] == "tasks" {
@@ -173,7 +171,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, userTags 
 	}
 }
 
-func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.ContainerdItf, userTags []string, fil *containers.Filter) {
+func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.ContainerdItf, fil *containers.Filter) {
 	containers, err := cu.Containers()
 	if err != nil {
 		log.Errorf(err.Error())
@@ -194,7 +192,6 @@ func computeMetrics(sender aggregator.Sender, nk context.Context, cu cutil.Conta
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
 		}
-		tags = append(tags, userTags...)
 		// Tagger tags
 		taggerTags, err := tagger.Tag(ctn.ID(), collectors.HighCardinality)
 		if err != nil {

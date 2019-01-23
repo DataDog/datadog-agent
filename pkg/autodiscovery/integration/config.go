@@ -52,10 +52,11 @@ type Config struct {
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
 type CommonInstanceConfig struct {
-	MinCollectionInterval int    `yaml:"min_collection_interval"`
-	EmptyDefaultHostname  bool   `yaml:"empty_default_hostname"`
-	Name                  string `yaml:"name"`
-	Namespace             string `yaml:"namespace"`
+	MinCollectionInterval int      `yaml:"min_collection_interval"`
+	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
+	Tags                  []string `yaml:"tags"`
+	Name                  string   `yaml:"name"`
+	Namespace             string   `yaml:"namespace"`
 }
 
 // Equal determines whether the passed config is the same

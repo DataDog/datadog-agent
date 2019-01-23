@@ -85,11 +85,11 @@ type snmpInstanceCfg struct {
 	Timeout         uint                    `yaml:"timeout,omitempty"`
 	Retries         uint                    `yaml:"retries,omitempty"`
 	Metrics         []metric                `yaml:"metrics,omitempty"`
-	Tags            []string                `yaml:"tags,omitempty"`
 	OIDTranslator   *util.BiMap             `yaml:",omitempty"` //will not be in yaml
 	NameLookup      map[string]string       `yaml:",omitempty"` //will not be in yaml
 	MetricMap       map[string]*metric      `yaml:",omitempty"` //will not be in yaml
 	TagMap          map[string][]*metricTag `yaml:",omitempty"` //will not be in yaml
+	snmpDeviceTag   string                  `yaml:",omitempty"` //will not be in yaml
 	snmp            *snmpgo.SNMP
 }
 
@@ -426,7 +426,7 @@ func (c *snmpConfig) parse(data []byte, initData []byte) error {
 	tagbuff.WriteString(":")
 	tagbuff.WriteString(fmt.Sprintf("%d", c.instance.Port))
 
-	c.instance.Tags = append(c.instance.Tags, tagbuff.String())
+	c.instance.snmpDeviceTag = tagbuff.String()
 
 	//security - make sure we're backward compatible
 	switch c.instance.AuthProtocol {
@@ -507,7 +507,7 @@ func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
 				}
 
 				//set tag
-				tagbundle := append([]string(nil), c.cfg.instance.Tags...)
+				tagbundle := []string{c.cfg.instance.snmpDeviceTag}
 				for _, entry := range registry {
 					tagbuff.Reset()
 					if entry.Tag.Column != "" && len(entry.Varbinds) > 0 {

@@ -37,7 +37,6 @@ const (
 
 // KubeASConfig is the config of the API server.
 type KubeASConfig struct {
-	Tags                     []string `yaml:"tags"`
 	CollectEvent             bool     `yaml:"collect_events"`
 	CollectOShiftQuotas      bool     `yaml:"collect_openshift_clusterquotas"`
 	FilteredEventType        []string `yaml:"filtered_event_types"`
@@ -279,7 +278,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			log.Debug("API Server component's structure is not expected")
 			continue
 		}
-		tagComp := append(k.instance.Tags, fmt.Sprintf("component:%s", component.Name))
+		tagComp := []string{fmt.Sprintf("component:%s", component.Name)}
 		for _, condition := range component.Conditions {
 			status_check := metrics.ServiceCheckUnknown
 
@@ -341,7 +340,6 @@ ITER_EVENTS:
 			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error())
 			continue
 		}
-		datadogEv.Tags = append(datadogEv.Tags, k.instance.Tags...)
 		sender.Event(datadogEv)
 	}
 	return nil

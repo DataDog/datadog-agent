@@ -140,9 +140,7 @@ func TestCollectTags(t *testing.T) {
 // TestComputeEvents checks the conversion of Containerd events to Datadog events
 func TestComputeEvents(t *testing.T) {
 	containerdCheck := &ContainerdCheck{
-		instance: &ContainerdConfig{
-			Tags: []string{"test"},
-		},
+		instance:  &ContainerdConfig{},
 		CheckBase: corechecks.NewCheckBase("containerd"),
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
@@ -187,7 +185,7 @@ func TestComputeEvents(t *testing.T) {
 			},
 			},
 			expectedTitle: "Event on containers from Containerd",
-			expectedTags:  []string{"foo:bar", "test"},
+			expectedTags:  []string{"foo:bar"},
 			numberEvents:  1,
 		},
 		{
@@ -201,7 +199,7 @@ func TestComputeEvents(t *testing.T) {
 			},
 			},
 			expectedTitle: "Event on images from Containerd",
-			expectedTags:  []string{"foo:baz", "test"},
+			expectedTags:  []string{"foo:baz"},
 			numberEvents:  1,
 		},
 		{
@@ -215,13 +213,13 @@ func TestComputeEvents(t *testing.T) {
 			},
 			},
 			expectedTitle: "Event on images from Containerd",
-			expectedTags:  []string{},
+			expectedTags:  nil,
 			numberEvents:  0,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			computeEvents(test.events, mocked, containerdCheck.instance.Tags, containerdCheck.filters)
+			computeEvents(test.events, mocked, containerdCheck.filters)
 			mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)

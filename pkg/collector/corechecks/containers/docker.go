@@ -44,7 +44,7 @@ type DockerConfig struct {
 	CollectImageSize         bool               `yaml:"collect_image_size"`
 	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
 	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
-	Tags                     []string           `yaml:"tags"`
+	Tags                     []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
 	CollectEvent             bool               `yaml:"collect_events"`
 	FilteredEventType        []string           `yaml:"filtered_event_types"`
 	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
@@ -141,14 +141,14 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 				log.Errorf("Could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
 			}
-			tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
+			tags := []string{fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag)}
 
 			sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
 			sender.Gauge("docker.image.size", float64(i.Size), "", tags)
 		}
 	}
-	sender.Gauge("docker.images.available", float64(len(availableImages)), "", d.instance.Tags)
-	sender.Gauge("docker.images.intermediate", float64(len(allImages)-len(availableImages)), "", d.instance.Tags)
+	sender.Gauge("docker.images.available", float64(len(availableImages)), "", nil)
+	sender.Gauge("docker.images.intermediate", float64(len(allImages)-len(availableImages)), "", nil)
 	return nil
 }
 
@@ -161,13 +161,13 @@ func (d *DockerCheck) Run() error {
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error initialising check: %s", err)
 		return err
 	}
 	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error collecting containers: %s", err)
 		return err
 	}
@@ -184,7 +184,6 @@ func (d *DockerCheck) Run() error {
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 		}
-		tags = append(tags, d.instance.Tags...)
 
 		if c.CPU != nil {
 			sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
@@ -265,21 +264,21 @@ func (d *DockerCheck) Run() error {
 
 	var totalRunning, totalStopped int64
 	for _, image := range images {
-		sender.Gauge("docker.containers.running", float64(image.running), "", append(d.instance.Tags, image.tags...))
+		sender.Gauge("docker.containers.running", float64(image.running), "", image.tags)
 		totalRunning += image.running
-		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", append(d.instance.Tags, image.tags...))
+		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", image.tags)
 		totalStopped += image.stopped
 	}
-	sender.Gauge("docker.containers.running.total", float64(totalRunning), "", d.instance.Tags)
-	sender.Gauge("docker.containers.stopped.total", float64(totalStopped), "", d.instance.Tags)
+	sender.Gauge("docker.containers.running.total", float64(totalRunning), "", nil)
+	sender.Gauge("docker.containers.stopped.total", float64(totalStopped), "", nil)
 
 	if err := d.countAndWeightImages(sender, du); err != nil {
 		log.Error(err.Error())
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error collecting images: %s", err)
 		return err
 	}
-	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", d.instance.Tags, "")
+	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
 
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
 		events, err := d.retrieveEvents(du)
@@ -312,17 +311,17 @@ func (d *DockerCheck) Run() error {
 					continue
 				}
 				if stat.Free != nil {
-					sender.Gauge(fmt.Sprintf("docker.%s.free", stat.Name), float64(*stat.Free), "", d.instance.Tags)
+					sender.Gauge(fmt.Sprintf("docker.%s.free", stat.Name), float64(*stat.Free), "", nil)
 				}
 				if stat.Used != nil {
-					sender.Gauge(fmt.Sprintf("docker.%s.used", stat.Name), float64(*stat.Used), "", d.instance.Tags)
+					sender.Gauge(fmt.Sprintf("docker.%s.used", stat.Name), float64(*stat.Used), "", nil)
 				}
 				if stat.Total != nil {
-					sender.Gauge(fmt.Sprintf("docker.%s.total", stat.Name), float64(*stat.Total), "", d.instance.Tags)
+					sender.Gauge(fmt.Sprintf("docker.%s.total", stat.Name), float64(*stat.Total), "", nil)
 				}
 				percent := stat.GetPercentUsed()
 				if !math.IsNaN(percent) {
-					sender.Gauge(fmt.Sprintf("docker.%s.percent", stat.Name), percent, "", d.instance.Tags)
+					sender.Gauge(fmt.Sprintf("docker.%s.percent", stat.Name), percent, "", nil)
 				}
 			}
 		}
@@ -333,8 +332,8 @@ func (d *DockerCheck) Run() error {
 		if err != nil {
 			d.Warnf("Error collecting volume stats: %s", err)
 		} else {
-			sender.Gauge("docker.volume.count", float64(attached), "", append(d.instance.Tags, "volume_state:attached"))
-			sender.Gauge("docker.volume.count", float64(dangling), "", append(d.instance.Tags, "volume_state:dangling"))
+			sender.Gauge("docker.volume.count", float64(attached), "", []string{"volume_state:attached"})
+			sender.Gauge("docker.volume.count", float64(dangling), "", []string{"volume_state:dangling"})
 		}
 	}
 
