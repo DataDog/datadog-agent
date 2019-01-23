@@ -8,13 +8,18 @@
 package clusterchecks
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 func generateIntegration(name string) integration.Config {
@@ -51,8 +56,8 @@ func TestScheduleUnschedule(t *testing.T) {
 	dispatcher.Schedule([]integration.Config{config1, config2})
 	stored, err = dispatcher.getAllConfigs()
 	assert.NoError(t, err)
-	assert.Len(t, stored, 1)
-	assert.Contains(t, stored, config2)
+	require.Len(t, stored, 1)
+	assert.Equal(t, "cluster-check", stored[0].Name)
 	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
 
 	dispatcher.Unschedule([]integration.Config{config1, config2})
@@ -250,7 +255,7 @@ func TestDanglingConfig(t *testing.T) {
 
 	// get the danglings and make sure they are removed from the store
 	configs := dispatcher.retrieveAndClearDangling()
-	assert.Equal(t, []integration.Config{config}, configs)
+	assert.Len(t, configs, 1)
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
 }
 
@@ -274,4 +279,63 @@ func TestReset(t *testing.T) {
 	assert.EqualError(t, err, "node node1 is unknown")
 
 	requireNotLocked(t, dispatcher.store)
+}
+
+func TestPatchConfiguration(t *testing.T) {
+	checkConfig := integration.Config{
+		Name:          "test",
+		ADIdentifiers: []string{"redis"},
+		ClusterCheck:  true,
+		InitConfig:    integration.Data("{foo}"),
+		Instances:     []integration.Data{integration.Data("tags: [\"foo:bar\", \"bar:foo\"]")},
+		LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+	initialDigest := checkConfig.Digest()
+
+	mockConfig := config.Mock()
+	mockConfig.Set("cluster_name", "testing")
+	clustername.ResetClusterName()
+	dispatcher := newDispatcher()
+
+	out, err := dispatcher.patchConfiguration(checkConfig)
+	assert.NoError(t, err)
+
+	// Make sure we modify the copy but not the original
+	assert.Equal(t, initialDigest, checkConfig.Digest())
+	assert.NotEqual(t, initialDigest, out.Digest())
+
+	assert.False(t, out.ClusterCheck)
+	assert.Len(t, out.ADIdentifiers, 0)
+	require.Len(t, out.Instances, 1)
+
+	rawConfig := integration.RawMap{}
+	err = yaml.Unmarshal(out.Instances[0], &rawConfig)
+	assert.NoError(t, err)
+	assert.Contains(t, rawConfig["tags"], "foo:bar")
+	assert.Contains(t, rawConfig["tags"], "cluster_name:testing")
+	assert.Equal(t, true, rawConfig["empty_default_hostname"])
+}
+
+func TestClusterNameTag(t *testing.T) {
+	for _, tc := range []struct {
+		clusterNameConfig string
+		tagNameConfig     string
+		expected          []string
+	}{
+		{"testing", "cluster_name", []string{"cluster_name:testing"}},
+		{"mycluster", "custom_name", []string{"custom_name:mycluster"}},
+		{"", "cluster_name", nil},
+		{"testing", "", nil},
+	} {
+		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			mockConfig := config.Mock()
+			mockConfig.Set("cluster_name", tc.clusterNameConfig)
+			mockConfig.Set("cluster_checks.cluster_tag_name", tc.tagNameConfig)
+
+			clustername.ResetClusterName()
+			dispatcher := newDispatcher()
+			assert.EqualValues(t, tc.expected, dispatcher.extraTags)
+		})
+	}
+
 }

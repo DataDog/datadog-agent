@@ -208,6 +208,25 @@ func (c *Data) MergeAdditionalTags(tags []string) error {
 	return nil
 }
 
+// SetField allows to set an arbitrary field to a given value,
+// overriding the existing value if present
+func (c *Data) SetField(key string, value interface{}) error {
+	rawConfig := RawMap{}
+	err := yaml.Unmarshal(*c, &rawConfig)
+	if err != nil {
+		return err
+	}
+
+	rawConfig[key] = value
+	out, err := yaml.Marshal(&rawConfig)
+	if err != nil {
+		return err
+	}
+	*c = Data(out)
+
+	return nil
+}
+
 // Digest returns an hash value representing the data stored in this configuration.
 // The ClusterCheck field is intentionally left out to keep a stable digest
 // between the cluster-agent and the node-agents

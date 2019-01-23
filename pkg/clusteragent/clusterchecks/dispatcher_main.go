@@ -9,11 +9,13 @@ package clusterchecks
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,6 +23,7 @@ import (
 type dispatcher struct {
 	store                 *clusterStore
 	nodeExpirationSeconds int64
+	extraTags             []string
 }
 
 func newDispatcher() *dispatcher {
@@ -28,6 +31,13 @@ func newDispatcher() *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
+
+	clusterTagValue := clustername.GetClusterName()
+	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
+	if clusterTagName != "" && clusterTagValue != "" {
+		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+	}
+
 	return d
 }
 
@@ -39,23 +49,35 @@ func (d *dispatcher) Stop() {
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
 	for _, c := range configs {
-		d.add(c)
+		if !c.ClusterCheck {
+			continue // Ignore non cluster-check configs
+		}
+		patched, err := d.patchConfiguration(c)
+		if err != nil {
+			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
+			continue
+		}
+		d.add(patched)
 	}
 }
 
 // Unschedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Unschedule(configs []integration.Config) {
 	for _, c := range configs {
-		d.remove(c)
+		if !c.ClusterCheck {
+			continue // Ignore non cluster-check configs
+		}
+		patched, err := d.patchConfiguration(c)
+		if err != nil {
+			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
+			continue
+		}
+		d.remove(patched)
 	}
 }
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) {
-	if !config.ClusterCheck {
-		return // Ignore non cluster-check configs
-	}
-
 	target := d.getLeastBusyNode()
 	if target == "" {
 		// If no node is found, store it in the danglingConfigs map for retrying later.
@@ -69,9 +91,6 @@ func (d *dispatcher) add(config integration.Config) {
 
 // remove deletes a given configuration
 func (d *dispatcher) remove(config integration.Config) {
-	if !config.ClusterCheck {
-		return // Ignore non cluster-check configs
-	}
 	digest := config.Digest()
 	log.Debugf("Removing configuration %s:%s", config.Name, digest)
 	d.removeConfig(digest)
