@@ -49,7 +49,7 @@ def pkg_config_path(use_embedded_libs):
     return retval
 
 
-def get_build_flags(ctx, static=False, use_embedded_libs=False, use_venv=False):
+def get_build_flags(ctx, static=False, use_embedded_libs=False, prefix=None, use_venv=False):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -57,7 +57,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False, use_venv=False):
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx)
+    ldflags = get_version_ldflags(ctx, prefix)
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
         "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
@@ -124,7 +124,7 @@ def get_payload_version():
 
     return ""
 
-def get_version_ldflags(ctx):
+def get_version_ldflags(ctx, prefix=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -133,7 +133,7 @@ def get_version_ldflags(ctx):
     commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
 
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
-    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
+    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     return ldflags
 
@@ -151,57 +151,54 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
 
-def query_version(ctx, git_sha_length=7, match=None):
+def query_version(ctx, git_sha_length=7, prefix=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
-    cmd = "git describe --tags"
-    if match:
-        cmd += " --match \"{}\"".format(match)
-    described_version = ctx.run(cmd, hide=True).stdout.strip()
-    # For the tag 6.0.0-beta.0, this will match 6.0.0
-    version_match = re.findall(r"^(?:dca-)?v?(\d+\.\d+\.\d+)", described_version)
-
-    if version_match and version_match[0]:
-        version = version_match[0]
+    cmd = "git describe --tags --candidates=50"
+    if prefix and type(prefix) == str:
+        cmd += " --match \"{}-*\"".format(prefix)
     else:
-        raise Exception("Could not query valid version from tags of local git repository")
+        cmd += " --match \"[0-9]*\""
+    if git_sha_length and type(git_sha_length) == int:
+        cmd += " --abbrev={}".format(git_sha_length)
+    described_version = ctx.run(cmd, hide=True).stdout.strip()
 
     # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
-    commits_since_version_match = re.findall(r"^.*-(\d+)\-g[0-9a-f]+$", described_version)
-    git_sha_match = re.findall(r"g([0-9a-f]+)$", described_version)
+    commit_number_match = re.match(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version)
+    commit_number = 0
+    if commit_number_match:
+        commit_number = int(commit_number_match.group('commit_number'))
 
-    if commits_since_version_match and commits_since_version_match[0]:
-        commits_since_version = int(commits_since_version_match[0])
+    version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
+    if prefix and type(prefix) == str:
+        version_re = r"^(?:{}-)?".format(prefix) + version_re
     else:
-        commits_since_version = 0
+        version_re = r"^" + version_re
+    if commit_number == 0:
+        version_re += r"(?P<git_sha>)$"
+    else:
+        version_re += r"-\d+-g(?P<git_sha>[0-9a-f]+)$"
 
-    pre_regex = ""
-    # for the output, 6.0.0-beta.0-1-g4f19118, this will match beta.0
+    version_match = re.match(
+            version_re,
+            described_version)
+
+    if not version_match:
+        raise Exception("Could not query valid version from tags of local git repository")
+
+    # version: for the tag 6.0.0-beta.0, this will match 6.0.0
+    # pre: for the output, 6.0.0-beta.0-1-g4f19118, this will match beta.0
     # if there have been no commits since, it will be just 6.0.0-beta.0,
     # and it will match beta.0
-    if commits_since_version == 0:
-        pre_regex = r"^(?:dca-)?v?\d+\.\d+\.\d+(?:-|\.)([0-9A-Za-z.-]+)$"
-    else:
-        pre_regex = r"^(?:dca-)?v?\d+\.\d+\.\d+(?:-|\.)([0-9A-Za-z.-]+)-\d+-g[0-9a-f]+$"
-
-    pre_match = re.findall(pre_regex, described_version)
-    pre = ""
-    if pre_match and pre_match[0]:
-        pre = pre_match[0]
-
-    # for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
-    git_sha = ""
-    if git_sha_match and git_sha_match[0]:
-        git_sha_long = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
-        git_sha = git_sha_long[:git_sha_length]
-
-    return version, pre, commits_since_version, git_sha
+    # git_sha: for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
+    version, pre, git_sha = version_match.group('version', 'pre', 'git_sha')
+    return version, pre, commit_number, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, match=None):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, match)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
