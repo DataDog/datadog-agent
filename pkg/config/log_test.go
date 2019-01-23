@@ -6,8 +6,11 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
 	"testing"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,4 +23,23 @@ func TestExtractShortPathFromFullPath(t *testing.T) {
 	assert.Equal(t, "pkg/collector/scheduler.go", extractShortPathFromFullPath("pkg/collector/scheduler.go"))
 	// no path
 	assert.Equal(t, "main.go", extractShortPathFromFullPath("main.go"))
+}
+
+func benchmarkLogFormat(logFormat string, b *testing.B) {
+	var buff bytes.Buffer
+	w := bufio.NewWriter(&buff)
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, logFormat)
+
+	for n := 0; n < b.N; n++ {
+		l.Infof("Hello I am a log")
+	}
+}
+
+func BenchmarkLogFormatFilename(b *testing.B) {
+	benchmarkLogFormat("%Date(%s) | %LEVEL | (%File:%Line in %FuncShort) | %Msg", b)
+}
+
+func BenchmarkLogFormatShortFilePath(b *testing.B) {
+	benchmarkLogFormat("%Date(%s) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg", b)
 }
