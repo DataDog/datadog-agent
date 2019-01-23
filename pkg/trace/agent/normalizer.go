@@ -39,11 +39,12 @@ func Normalize(s *pb.Span) error {
 	if len(s.Service) > MaxServiceLen {
 		return fmt.Errorf("`Service` too long (%d chars max): %s", MaxServiceLen, s.Service)
 	}
-	// service shall comply with Datadog tag normalization as it's eventually a tag
-	s.Service = NormalizeTag(s.Service)
-	if s.Service == "" {
-		return fmt.Errorf("invalid `Service`: %s", s.Service)
+	// service should comply with Datadog tag normalization as it's eventually a tag
+	svc := NormalizeTag(s.Service)
+	if svc == "" {
+		return fmt.Errorf("invalid `Service`: %q", s.Service)
 	}
+	s.Service = svc
 
 	// Name
 	if s.Name == "" {
@@ -60,10 +61,11 @@ func Normalize(s *pb.Span) error {
 	s.Name = name
 
 	// Resource
-	s.Resource = toUTF8(s.Resource)
+	resource := toUTF8(s.Resource)
 	if s.Resource == "" {
-		return errors.New("empty `Resource`")
+		return fmt.Errorf("`Resource` is invalid UTF-8: %q", resource)
 	}
+	s.Resource = resource
 
 	// ParentID, TraceID and SpanID set in the client could be the same
 	// Supporting the ParentID == TraceID == SpanID for the root span, is compliant
@@ -94,7 +96,11 @@ func Normalize(s *pb.Span) error {
 	// ParentID set on the client side, no way of checking
 
 	// Type
-	s.Type = toUTF8(s.Type)
+	typ := toUTF8(s.Type)
+	if typ == "" {
+		return fmt.Errorf("`Type` is invalid UTF-8: %q", typ)
+	}
+	s.Type = typ
 	if len(s.Type) > MaxTypeLen {
 		return fmt.Errorf("`Type` too long (%d chars max): %s", MaxTypeLen, s.Type)
 	}
