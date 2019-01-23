@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 require "./lib/ostools.rb"
 
@@ -86,7 +86,7 @@ package :msi do
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
   additional_sign_files [
-      "#{install_dir}\\bin\\agent\\trace-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
     ]
   if ENV['SIGN_WINDOWS']
@@ -121,10 +121,11 @@ dependency 'datadog-agent'
 # Additional software
 dependency 'datadog-pip'
 dependency 'datadog-agent-integrations'
+dependency 'datadog-a7'
+dependency 'datadog-agent-env-check'
 dependency 'jmxfetch'
 
 # External agents
-dependency 'datadog-trace-agent'
 dependency 'datadog-process-agent' # Includes network-tracer
 
 if osx?

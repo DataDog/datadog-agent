@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -26,8 +26,6 @@ func Since(registry auditor.Registry, identifier string, creationTime service.Cr
 		since, err = time.Parse(config.DateFormat, offset)
 		if err != nil {
 			since = time.Now().UTC()
-		} else {
-			since = since.Add(time.Nanosecond)
 		}
 	case creationTime == service.After:
 		// a new service has been discovered and was launched after the agent start, tail from the beginning

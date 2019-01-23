@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package serializer
 
@@ -231,8 +231,12 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 	smallEnough, payload, err := split.CheckSizeAndSerialize(m, false, split.MarshalJSON)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
-	} else if !smallEnough {
-		return fmt.Errorf("metadata payload was too big to send, metadata payloads cannot be split")
+	}
+
+	log.Debugf("Sending host metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+
+	if !smallEnough {
+		return fmt.Errorf("metadata payload was too big to send (%d bytes), metadata payloads cannot be split", len(payload))
 	}
 
 	if err := s.Forwarder.SubmitV1Intake(forwarder.Payloads{&payload}, jsonExtraHeaders); err != nil {
@@ -240,7 +244,6 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 	}
 
 	log.Infof("Sent host metadata payload, size: %d bytes.", len(payload))
-	log.Debugf("Sent host metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
 	return nil
 }
 

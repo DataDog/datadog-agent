@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package app
 
@@ -27,6 +27,7 @@ import (
 var (
 	checkRate  bool
 	checkTimes int
+	checkPause int
 	checkName  string
 	checkDelay int
 	logLevel   string
@@ -38,8 +39,9 @@ const checkCmdFlushInterval = time.Hour
 func init() {
 	AgentCmd.AddCommand(checkCmd)
 
-	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice")
+	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice with a 1sec-pause between the 2 runs")
 	checkCmd.Flags().IntVarP(&checkTimes, "check-times", "t", 1, "number of times to run the check")
+	checkCmd.Flags().IntVar(&checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	checkCmd.SetArgs([]string{"checkName"})
@@ -147,21 +149,27 @@ var checkCmd = &cobra.Command{
 
 func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	s := check.NewStats(c)
-	i := 0
 	times := checkTimes
+	pause := checkPause
 	if checkRate {
 		if checkTimes > 2 {
 			color.Yellow("The check-rate option is overriding check-times to 2")
 		}
+		if pause > 0 {
+			color.Yellow("The check-rate option is overriding pause to 1000ms")
+		}
 		times = 2
+		pause = 1000
 	}
-	for i < times {
+	for i := 0; i < times; i++ {
 		t0 := time.Now()
 		err := c.Run()
 		warnings := c.GetWarnings()
 		mStats, _ := c.GetMetricStats()
 		s.Add(time.Since(t0), err, warnings, mStats)
-		i++
+		if pause > 0 && i < times-1 {
+			time.Sleep(time.Duration(pause) * time.Millisecond)
+		}
 	}
 
 	return s

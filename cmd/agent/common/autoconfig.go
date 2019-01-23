@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package common
 
@@ -58,7 +58,12 @@ func SetupAutoConfig(confdPath string) {
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders
 	err = config.Datadog.UnmarshalKey("config_providers", &CP)
+
 	if err == nil {
+		// Add extra config providers
+		for _, name := range config.Datadog.GetStringSlice("extra_config_providers") {
+			CP = append(CP, config.ConfigurationProviders{Name: name, Polling: true})
+		}
 		for _, cp := range CP {
 			factory, found := providers.ProviderCatalog[cp.Name]
 			if found {
@@ -88,6 +93,10 @@ func SetupAutoConfig(confdPath string) {
 	var listeners []config.Listeners
 	err = config.Datadog.UnmarshalKey("listeners", &listeners)
 	if err == nil {
+		// Add extra listeners
+		for _, name := range config.Datadog.GetStringSlice("extra_listeners") {
+			listeners = append(listeners, config.Listeners{Name: name})
+		}
 		listeners = AutoAddListeners(listeners)
 		AC.AddListeners(listeners)
 	} else {

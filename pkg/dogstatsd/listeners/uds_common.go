@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listeners
 
@@ -22,11 +22,13 @@ var (
 	udsExpvars               = expvar.NewMap("dogstatsd-uds")
 	udsOriginDetectionErrors = expvar.Int{}
 	udsPacketReadingErrors   = expvar.Int{}
+	udsPackets               = expvar.Int{}
 )
 
 func init() {
 	udsExpvars.Set("OriginDetectionErrors", &udsOriginDetectionErrors)
 	udsExpvars.Set("PacketReadingErrors", &udsPacketReadingErrors)
+	udsExpvars.Set("Packets", &udsPackets)
 
 }
 
@@ -117,7 +119,7 @@ func (l *UDSListener) Listen() {
 		var n int
 		var err error
 		packet := l.packetPool.Get()
-
+		udsPackets.Add(1)
 		if l.OriginDetection {
 			// Read datagram + credentials in ancilary data
 			oob := l.oobPool.Get().([]byte)

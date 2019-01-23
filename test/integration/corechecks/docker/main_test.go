@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package docker
 
@@ -25,9 +25,6 @@ import (
 var retryDelay = flag.Int("retry-delay", 1, "time to wait between retries (default 1 second)")
 var retryTimeout = flag.Int("retry-timeout", 30, "maximum time before failure (default 30 seconds)")
 var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker containers (for debugging)")
-
-// Must be repeated in the following dockerCfgString
-const instanceTag = "instanceTag:MustBeHere"
 
 var dockerCfgString = `
 collect_events: true

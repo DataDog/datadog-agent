@@ -18,8 +18,16 @@
   version = "4.7.1"
 
 [[projects]]
+  digest = "1:e64fddc819e2abc68792a743dd857c379449a56f2b9eaf030c03fb0ec19de884"
+  name = "github.com/DataDog/datadog-go"
+  packages = ["statsd"]
+  pruneopts = ""
+  revision = "e67964b4021ad3a334e748e8811eb3cd6becbc6e"
+  version = "2.1.0"
+
+[[projects]]
   branch = "master"
-  digest = "1:e629518d413e890d23a9cb7e1e4f3e559eb926f2442b3dfdc1c07915ce309162"
+  digest = "1:db1b73d955d10cdd26831baf9f3575bec36b817da2fbdcc7cf9bba908fa31b8c"
   name = "github.com/DataDog/gohai"
   packages = [
     "cpu",
@@ -31,7 +39,7 @@
     "processes/gops",
   ]
   pruneopts = ""
-  revision = "508b4f7bfc834501c944ab00e99b6f0e760f5ea7"
+  revision = "bc98f936c76570e79c1c7e739425ff22ab2ee4a3"
 
 [[projects]]
   branch = "master"
@@ -56,6 +64,14 @@
   pruneopts = ""
   revision = "67921128fb397dd80339870d2193d6b1e6856fd4"
   version = "v0.4.8"
+
+[[projects]]
+  digest = "1:20c01a4587d9c51dcdb96f9a87fd66f5b73181b268c7c1ae697858e58b58eed2"
+  name = "github.com/Microsoft/hcsshim"
+  packages = ["."]
+  pruneopts = ""
+  revision = "0acf63599bff447edf6bbfb8bbb38cb5fb33aa1e"
+  version = "v0.6.14"
 
 [[projects]]
   digest = "1:b0fe84bcee1d0c3579d855029ccd3a76deea187412da2976985e4946289dbb2c"
@@ -163,6 +179,107 @@
   version = "v1.8"
 
 [[projects]]
+  branch = "master"
+  digest = "1:d336b148d15d4409c1af3cd5f1445983153a1e3d65357a991f57ad98b6100ea9"
+  name = "github.com/containerd/cgroups"
+  packages = ["."]
+  pruneopts = ""
+  revision = "3024bc7cc0c88af4b32d38a14444f38e65ab169f"
+
+[[projects]]
+  digest = "1:7778290513552388cec9e9a7f70d9fd2e9b5b74eeeb5bf0d73a9a3ee71426e8b"
+  name = "github.com/containerd/containerd"
+  packages = [
+    ".",
+    "api/events",
+    "api/services/containers/v1",
+    "api/services/content/v1",
+    "api/services/diff/v1",
+    "api/services/events/v1",
+    "api/services/images/v1",
+    "api/services/introspection/v1",
+    "api/services/leases/v1",
+    "api/services/namespaces/v1",
+    "api/services/snapshots/v1",
+    "api/services/tasks/v1",
+    "api/services/version/v1",
+    "api/types",
+    "api/types/task",
+    "archive",
+    "archive/compression",
+    "cio",
+    "containers",
+    "content",
+    "content/proxy",
+    "defaults",
+    "diff",
+    "errdefs",
+    "events",
+    "events/exchange",
+    "filters",
+    "identifiers",
+    "images",
+    "images/archive",
+    "leases",
+    "leases/proxy",
+    "log",
+    "mount",
+    "namespaces",
+    "oci",
+    "pkg/dialer",
+    "platforms",
+    "plugin",
+    "reference",
+    "remotes",
+    "remotes/docker",
+    "remotes/docker/schema1",
+    "rootfs",
+    "runtime/linux/runctypes",
+    "snapshots",
+    "snapshots/proxy",
+    "sys",
+  ]
+  pruneopts = ""
+  revision = "9754871865f7fe2f4e74d43e2fc7ccd237edcbce"
+  version = "v1.2.2"
+
+[[projects]]
+  branch = "master"
+  digest = "1:423ea89c6936c81ad8346cbabb92be187a36df7fcf2931f0acab4abbb945b1ee"
+  name = "github.com/containerd/continuity"
+  packages = [
+    "fs",
+    "syscallx",
+    "sysx",
+  ]
+  pruneopts = ""
+  revision = "c7c5070e6f6e090ab93b0a61eb921f2196fc3383"
+
+[[projects]]
+  digest = "1:3bc276f1f7b8b1ec876ddaad0aba0671003c47feac2cdf6c74554c9d1631a4b1"
+  name = "github.com/containerd/cri"
+  packages = ["pkg/util"]
+  pruneopts = ""
+  revision = "f3687c59470b76ee57c90d4b3dd92888dec58c2b"
+  version = "v1.11.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:adb09a6a2bfd5eb4d00c8a8c843446db632e4d891794fa8fa541f76362d5c8ed"
+  name = "github.com/containerd/fifo"
+  packages = ["."]
+  pruneopts = ""
+  revision = "3d5202aec260678c48179c56f40e6f38a095738c"
+
+[[projects]]
+  branch = "master"
+  digest = "1:90b8fd46cd5a82defd2074ccf8709378175f12aa69be20fef763a08d3befef3c"
+  name = "github.com/containerd/typeurl"
+  packages = ["."]
+  pruneopts = ""
+  revision = "a93fcdb778cd272c6e9b3028b2f42d813e785d40"
+
+[[projects]]
   digest = "1:652b604fcce4f12cb6a53823aeacf9e166136d415e0cd55788a14c26503ded88"
   name = "github.com/coreos/etcd"
   packages = [
@@ -196,6 +313,7 @@
   name = "github.com/coreos/go-systemd"
   packages = [
     "daemon",
+    "dbus",
     "sdjournal",
   ]
   pruneopts = ""
@@ -247,6 +365,9 @@
     "api/types/versions",
     "api/types/volume",
     "client",
+    "pkg/random",
+    "pkg/stringid",
+    "pkg/testutil/assert",
     "pkg/tlsconfig",
   ]
   pruneopts = ""
@@ -264,6 +385,14 @@
   pruneopts = ""
   revision = "3ede32e2033de7505e6500d6c868c2b9ed9f169d"
   version = "v0.3.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:ea839a56aacf233edd6d46dc774e313f73d32d59cf904d79b25c3fed62f96dc4"
+  name = "github.com/docker/go-events"
+  packages = ["."]
+  pruneopts = ""
+  revision = "9461782956ad83b30282bf90e31fa6a70c255ba9"
 
 [[projects]]
   digest = "1:582d54fcb7233da8dde1dfd2210a5b9675d0685f84246a8d317b07d680c18b1b"
@@ -426,6 +555,22 @@
   revision = "811b1089cde9dad18d4d0c2d09fbdbf28dbd27a5"
 
 [[projects]]
+  digest = "1:e772845668c277db6fcc8c6fcf31664c74851f6cce4d225be4f4adbee3861057"
+  name = "github.com/godbus/dbus"
+  packages = ["."]
+  pruneopts = ""
+  revision = "a389bdde4dd695d414e47b755e95e72b7826432c"
+  version = "v4.1.0"
+
+[[projects]]
+  digest = "1:78f3bcfb1777ad793cc7d26054b77e315e0bcbdeda6106449d44f2b688752a27"
+  name = "github.com/gogo/googleapis"
+  packages = ["google/rpc"]
+  pruneopts = ""
+  revision = "08a7655d27152912db7aaf4f983275eaf8d128ef"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:0a3f6a0c68ab8f3d455f8892295503b179e571b7fefe47cc6c556405d1f83411"
   name = "github.com/gogo/protobuf"
   packages = [
@@ -433,6 +578,7 @@
     "proto",
     "protoc-gen-gogo/descriptor",
     "sortkeys",
+    "types",
   ]
   pruneopts = ""
   revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
@@ -789,6 +935,36 @@
   version = "v1.0.0-rc1"
 
 [[projects]]
+  digest = "1:f26c8670b11e29a49c8e45f7ec7f2d5bac62e8fd4e3c0ae1662baa4a697f984a"
+  name = "github.com/opencontainers/image-spec"
+  packages = [
+    "identity",
+    "specs-go",
+    "specs-go/v1",
+  ]
+  pruneopts = ""
+  revision = "d60099175f88c47cd379c4738d158884749ed235"
+  version = "v1.0.1"
+
+[[projects]]
+  digest = "1:fa19ddee0e5ee5951a6a450a4b6ec635a42957f86bfc87d9d778eeee04ad2036"
+  name = "github.com/opencontainers/runc"
+  packages = [
+    "libcontainer/system",
+    "libcontainer/user",
+  ]
+  pruneopts = ""
+  revision = "baf6536d6259209c3edfa2b22237af82942d3dfa"
+  version = "v0.1.1"
+
+[[projects]]
+  digest = "1:6695522de4de350bba68ec33f8e901e216583e533ec7c296eb2233025aa2aa9f"
+  name = "github.com/opencontainers/runtime-spec"
+  packages = ["specs-go"]
+  pruneopts = ""
+  revision = "d810dbc60d8c5aeeb3d054bd1132fab2121968ce"
+
+[[projects]]
   digest = "1:8aeb4a73c41fd79a868943af3319dc9472172b21063deff6b4391872139f7728"
   name = "github.com/openshift/api"
   packages = ["quota/v1"]
@@ -835,6 +1011,14 @@
   pruneopts = ""
   revision = "5f041e8faa004a95c88a202771f4cc3e991971e6"
   version = "v2.0.1"
+
+[[projects]]
+  digest = "1:210286d0cb60ffe28f1ca00b664029e8943009f95d06d8f8c336301b28e1aee5"
+  name = "github.com/philhofer/fwd"
+  packages = ["."]
+  pruneopts = ""
+  revision = "bb6d471dc95d4fe11e432687f8b70ff496cf3136"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:29e34e58f26655c4d73135cdfc0517ea2ff1483eff34e5d5ef4b6fddbb81e31b"
@@ -949,6 +1133,14 @@
   revision = "bb4de0191aa41b5507caa14b0650cdbddcd9280b"
 
 [[projects]]
+  digest = "1:3fcbf733a8d810a21265a7f2fe08a3353db2407da052b233f8b204b5afc03d9b"
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  pruneopts = ""
+  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
+  version = "v1.0.6"
+
+[[projects]]
   digest = "1:7ba2551c9a8de293bc575dbe2c0d862c52252d26f267f784547f059f512471c8"
   name = "github.com/spf13/afero"
   packages = [
@@ -1021,6 +1213,22 @@
   version = "v1.2.2"
 
 [[projects]]
+  branch = "master"
+  digest = "1:de4af92150d65d81d336207580465d02ea82eca8eea35988d554204cadc06704"
+  name = "github.com/syndtr/gocapability"
+  packages = ["capability"]
+  pruneopts = ""
+  revision = "33e07d32887e1e06b7c025f27ce52f62c7990bc0"
+
+[[projects]]
+  digest = "1:23ed2a28cfc147d46f7fbf4d85f83f6d659e15eac4ad1c16c4d32b19da5bd2fa"
+  name = "github.com/tinylib/msgp"
+  packages = ["msgp"]
+  pruneopts = ""
+  revision = "af6442a0fcf6e2a1b824f70dd0c734f01e817751"
+  version = "v1.1.0"
+
+[[projects]]
   digest = "1:444c05e2a216066b0def62df62e3cef74d51f5ea0ecd6547a100daa2281547ff"
   name = "github.com/ugorji/go"
   packages = ["codec"]
@@ -1091,6 +1299,14 @@
   ]
   pruneopts = ""
   revision = "97aa3a539ec716117a9d15a4659a911f50d13c3c"
+
+[[projects]]
+  branch = "master"
+  digest = "1:b2ea75de0ccb2db2ac79356407f8a4cd8f798fe15d41b381c00abf3ae8e55ed1"
+  name = "golang.org/x/sync"
+  packages = ["errgroup"]
+  pruneopts = ""
+  revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
 
 [[projects]]
   branch = "master"
@@ -1715,6 +1931,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/DataDog/agent-payload/gogen",
+    "github.com/DataDog/datadog-go/statsd",
     "github.com/DataDog/gohai/cpu",
     "github.com/DataDog/gohai/filesystem",
     "github.com/DataDog/gohai/memory",
@@ -1731,6 +1948,15 @@
     "github.com/beevik/ntp",
     "github.com/cihub/seelog",
     "github.com/clbanning/mxj",
+    "github.com/containerd/cgroups",
+    "github.com/containerd/containerd",
+    "github.com/containerd/containerd/api/events",
+    "github.com/containerd/containerd/api/types",
+    "github.com/containerd/containerd/cio",
+    "github.com/containerd/containerd/containers",
+    "github.com/containerd/containerd/events",
+    "github.com/containerd/containerd/namespaces",
+    "github.com/containerd/typeurl",
     "github.com/coreos/etcd/client",
     "github.com/coreos/go-systemd/sdjournal",
     "github.com/docker/docker/api/types",
@@ -1742,12 +1968,16 @@
     "github.com/docker/docker/api/types/swarm",
     "github.com/docker/docker/api/types/versions",
     "github.com/docker/docker/client",
+    "github.com/docker/docker/pkg/testutil/assert",
     "github.com/docker/go-connections/nat",
     "github.com/dustin/go-humanize",
     "github.com/fatih/color",
     "github.com/go-ini/ini",
     "github.com/go-ole/go-ole",
+    "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
+    "github.com/gogo/protobuf/types",
+    "github.com/golang/protobuf/proto",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
@@ -1783,6 +2013,7 @@
     "github.com/stretchr/testify/mock",
     "github.com/stretchr/testify/require",
     "github.com/stretchr/testify/suite",
+    "github.com/tinylib/msgp/msgp",
     "github.com/urfave/negroni",
     "golang.org/x/mobile/asset",
     "golang.org/x/net/context",

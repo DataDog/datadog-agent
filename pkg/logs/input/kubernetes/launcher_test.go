@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -18,7 +18,7 @@ import (
 )
 
 func TestGetSource(t *testing.T) {
-	launcher := &Launcher{}
+	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -46,7 +46,7 @@ func TestGetSource(t *testing.T) {
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{}
+	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -78,7 +78,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{}
+	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -90,6 +90,7 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 			Namespace: "buu",
 			UID:       "baz",
 			Annotations: map[string]string{
+				// missing [ ]
 				"ad.datadoghq.com/foo.logs": `{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}`,
 			},
 		},
@@ -104,7 +105,7 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceAddContainerdParser(t *testing.T) {
-	launcher := &Launcher{}
+	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -143,7 +144,7 @@ func TestSearchContainer(t *testing.T) {
 			Namespace: "podNamespace",
 			UID:       "podUID",
 			Annotations: map[string]string{
-				"ad.datadoghq.com/foo.logs": `{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}`,
+				"ad.datadoghq.com/fooName.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
 			},
 		},
 		Status: kubelet.Status{
@@ -165,6 +166,58 @@ func TestSearchContainer(t *testing.T) {
 
 	_, err := searchContainer(serviceBaz, pod)
 	assert.EqualError(t, err, "Container docker://bazID not found")
+}
+
+func TestContainerCollectAll(t *testing.T) {
+	launcherCollectAll := &Launcher{collectAll: true}
+	launcherCollectAllDisabled := &Launcher{collectAll: false}
+	containerFoo := kubelet.ContainerStatus{
+		Name:  "fooName",
+		Image: "fooImage",
+		ID:    "docker://fooID",
+	}
+	containerBar := kubelet.ContainerStatus{
+		Name:  "barName",
+		Image: "barImage",
+		ID:    "docker://barID",
+	}
+	podFoo := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "podName",
+			Namespace: "podNamespace",
+			UID:       "podUIDFoo",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/fooName.logs": `[{"source":"any_source","service":"any_service"}]`,
+			},
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{containerFoo, containerBar},
+		},
+	}
+	podBar := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "podName",
+			Namespace: "podNamespace",
+			UID:       "podUIDBarr",
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{containerFoo, containerBar},
+		},
+	}
+
+	source, err := launcherCollectAll.getSource(podFoo, containerFoo)
+	assert.Nil(t, err)
+	assert.Equal(t, "docker://fooID", source.Config.Identifier)
+	source, err = launcherCollectAll.getSource(podBar, containerBar)
+	assert.Nil(t, err)
+	assert.Equal(t, "docker://barID", source.Config.Identifier)
+
+	source, err = launcherCollectAllDisabled.getSource(podFoo, containerFoo)
+	assert.Nil(t, err)
+	assert.Equal(t, "docker://fooID", source.Config.Identifier)
+	source, err = launcherCollectAllDisabled.getSource(podBar, containerBar)
+	assert.Equal(t, collectAllDisabledError, err)
+	assert.Nil(t, source)
 }
 
 // contains returns true if the list contains all the items.

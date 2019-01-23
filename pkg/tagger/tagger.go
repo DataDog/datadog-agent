@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package tagger
 
@@ -218,17 +218,16 @@ func (t *Tagger) Stop() error {
 
 // GetEntityHash returns the tags hash of an entity
 func (t *Tagger) GetEntityHash(entity string) string {
-	_, _, tagsHash := t.tagStore.lookup(entity, true)
+	_, _, tagsHash := t.tagStore.lookup(entity, collectors.HighCardinality)
 	return tagsHash
 }
 
-// Tag returns tags for a given entity. If highCard is false, high
-// cardinality tags are left out.
-func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
+// Tag returns tags for a given entity
+func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
 	if entity == "" {
 		return nil, fmt.Errorf("empty entity ID")
 	}
-	cachedTags, sources, _ := t.tagStore.lookup(entity, highCard)
+	cachedTags, sources, _ := t.tagStore.lookup(entity, cardinality)
 
 	if len(sources) == len(t.fetchers) {
 		// All sources sent data to cache
@@ -247,7 +246,7 @@ IterCollectors:
 			}
 		}
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
-		low, high, err := collector.Fetch(entity)
+		low, orch, high, err := collector.Fetch(entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
@@ -256,15 +255,19 @@ IterCollectors:
 			continue // don't store empty tags, retry next time
 		}
 		tagArrays = append(tagArrays, low)
-		if highCard {
+		if cardinality == collectors.OrchestratorCardinality {
+			tagArrays = append(tagArrays, orch)
+		} else if cardinality == collectors.HighCardinality {
+			tagArrays = append(tagArrays, orch)
 			tagArrays = append(tagArrays, high)
 		}
 		// Submit to cache for next lookup
 		t.tagStore.processTagInfo(&collectors.TagInfo{
-			Entity:       entity,
-			Source:       name,
-			LowCardTags:  low,
-			HighCardTags: high,
+			Entity:               entity,
+			Source:               name,
+			LowCardTags:          low,
+			OrchestratorCardTags: orch,
+			HighCardTags:         high,
 		})
 	}
 	t.RUnlock()
@@ -275,7 +278,7 @@ IterCollectors:
 }
 
 // List the content of the tagger
-func (t *Tagger) List(highCard bool) response.TaggerListResponse {
+func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
 	r := response.TaggerListResponse{
 		Entities: make(map[string]response.TaggerListEntity),
 	}
@@ -284,7 +287,7 @@ func (t *Tagger) List(highCard bool) response.TaggerListResponse {
 	defer t.tagStore.storeMutex.RUnlock()
 	for entityID, et := range t.tagStore.store {
 		entity := response.TaggerListEntity{}
-		tags, sources, _ := et.get(highCard)
+		tags, sources, _ := et.get(cardinality)
 		entity.Tags = copyArray(tags)
 		entity.Sources = copyArray(sources)
 		r.Entities[entityID] = entity

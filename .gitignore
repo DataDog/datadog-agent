@@ -1,5 +1,5 @@
-# dogstatsd image temporary file
-Dockerfiles/dogstatsd/alpine/dogstatsd
+# dogstatsd image temporary binaries
+Dockerfiles/dogstatsd/alpine/static/
 
 # folders
 vendor/
@@ -29,6 +29,7 @@ datadog.yaml
 network-tracer.yaml
 dogstatsd.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
+Dockerfiles/cluster-agent/dist
 
 # jetbrains IDE directory
 /.idea/
@@ -71,3 +72,9 @@ cmd/agent/android/app/build
 
 # local copy of device signing cert
 platform.pk8
+
+# trace agent windows artifacts
+cmd/trace-agent/windows_resources/trace-agent-msg.rc
+cmd/trace-agent/windows_resources/*.bin
+pkg/trace/info/git_version.go
+trace-agent-msg.h

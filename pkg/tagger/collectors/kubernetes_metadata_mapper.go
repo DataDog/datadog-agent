@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
@@ -36,10 +36,11 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		if po.Spec.HostNetwork == true {
 			for _, container := range po.Status.Containers {
 				info := &TagInfo{
-					Source:       kubeMetadataCollectorName,
-					Entity:       container.ID,
-					HighCardTags: []string{},
-					LowCardTags:  []string{},
+					Source:               kubeMetadataCollectorName,
+					Entity:               container.ID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
 				}
 				tagInfo = append(tagInfo, info)
 			}
@@ -73,24 +74,26 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 			tagList.AddLow(tag[0], tag[1])
 		}
 
-		low, high := tagList.Compute()
+		low, orchestrator, high := tagList.Compute()
 		// Register the tags for the pod itself
 		if po.Metadata.UID != "" {
 			podInfo := &TagInfo{
-				Source:       kubeMetadataCollectorName,
-				Entity:       kubelet.PodUIDToEntityName(po.Metadata.UID),
-				HighCardTags: high,
-				LowCardTags:  low,
+				Source:               kubeMetadataCollectorName,
+				Entity:               kubelet.PodUIDToEntityName(po.Metadata.UID),
+				HighCardTags:         high,
+				OrchestratorCardTags: orchestrator,
+				LowCardTags:          low,
 			}
 			tagInfo = append(tagInfo, podInfo)
 		}
 		// Register the tags for all its containers
 		for _, container := range po.Status.Containers {
 			info := &TagInfo{
-				Source:       kubeMetadataCollectorName,
-				Entity:       container.ID,
-				HighCardTags: high,
-				LowCardTags:  low,
+				Source:               kubeMetadataCollectorName,
+				Entity:               container.ID,
+				HighCardTags:         high,
+				OrchestratorCardTags: orchestrator,
+				LowCardTags:          low,
 			}
 			tagInfo = append(tagInfo, info)
 		}

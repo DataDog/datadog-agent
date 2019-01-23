@@ -2,12 +2,12 @@ FROM alpine:3.8
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
-ENV DOCKER_DD_AGENT=true \
-    DD_HEALTH_PORT=5555
+ENV DOCKER_DD_AGENT=true
 
 RUN apk add --no-cache ca-certificates
 
 COPY entrypoint.sh probe.sh /
+COPY dogstatsd.yaml /etc/datadog-agent/dogstatsd.yaml
 COPY static/dogstatsd /dogstatsd
 
 EXPOSE 8125/udp

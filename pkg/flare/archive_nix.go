@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 
@@ -52,12 +52,9 @@ func (p permissionsInfos) statFiles() error {
 			return fmt.Errorf("while getting info of %s: %s", filePath, err)
 		}
 
-		sys, ok := fi.Sys().(*syscall.Stat_t)
-		if !ok {
-			// not enough information to append for this file
-			// might rarely happen on system not supporting this feature, but as
-			// we're building with !windows tag, shouldn't happen except for plan9
-			return fmt.Errorf("can't retrieve file uid/gid infos")
+		var sys syscall.Stat_t
+		if err := syscall.Stat(filePath, &sys); err != nil {
+			return fmt.Errorf("can't retrieve file %s uid/gid infos: %s", filePath, err)
 		}
 
 		u, err := user.LookupId(strconv.Itoa(int(sys.Uid)))
@@ -69,9 +66,15 @@ func (p permissionsInfos) statFiles() error {
 			return fmt.Errorf("can't lookup for gid info: %v", err)
 		}
 
+		uname := u.Name
+		if len(uname) == 0 {
+			// full name could be empty, use the login name instead
+			uname = u.Username
+		}
+
 		p[filePath] = filePermsInfo{
 			mode:  fi.Mode(),
-			owner: u.Name,
+			owner: uname,
 			group: g.Name,
 		}
 	}

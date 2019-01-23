@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -33,6 +33,7 @@ const (
 	kubeletMetricsPath     = "/metrics"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
+	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
 )
 
 var globalKubeUtil *KubeUtil
@@ -101,7 +102,7 @@ func GetKubeUtil() (*KubeUtil, error) {
 }
 
 // HostnameProvider kubelet implementation for the hostname provider
-func HostnameProvider(hostName string) (string, error) {
+func HostnameProvider() (string, error) {
 	ku, err := GetKubeUtil()
 	if err != nil {
 		return "", err
@@ -501,7 +502,7 @@ func (ku *KubeUtil) init() error {
 	// setting the kubeletHost
 	ku.kubeletHost = config.Datadog.GetString("kubernetes_kubelet_host")
 	if ku.kubeletHost == "" {
-		ku.kubeletHost, err = docker.HostnameProvider("")
+		ku.kubeletHost, err = docker.HostnameProvider()
 		if err != nil {
 			return fmt.Errorf("unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
 		}
@@ -539,6 +540,9 @@ func (ku *KubeUtil) init() error {
 func IsPodReady(pod *Pod) bool {
 	if pod.Status.Phase != "Running" {
 		return false
+	}
+	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
+		return true
 	}
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {

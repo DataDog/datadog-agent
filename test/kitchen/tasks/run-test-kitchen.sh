@@ -87,7 +87,7 @@ if [ -z ${SERVER_PASSWORD+x} ]; then
   export SERVER_PASSWORD=$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)
 fi
 
-chef gem install net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen
+chef gem install bundler:1.17.3 net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen
 cp .kitchen-azure.yml .kitchen.yml
 
 ## check to see if we want the windows-installer tester instead

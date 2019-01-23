@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build cpython
 
@@ -151,6 +151,10 @@ func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 		log.Info(goMsg)
 	case 10: // DEBUG
 		log.Debug(goMsg)
+	// Custom log level defined in:
+	// https://github.com/DataDog/integrations-core/blob/master/datadog_checks_base/datadog_checks/base/log.py
+	case 7: // TRACE
+		log.Trace(goMsg)
 	default: // unknown log level
 		log.Info(goMsg)
 	}

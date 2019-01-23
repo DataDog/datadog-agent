@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const kubeServiceIDPrefix = "kube_service://"
 
 // ServicesMapper maps pod names to the names of the services targeting the pod
 // keyed by the namespace a pod belongs to. This data structure allows for O(1)
@@ -186,4 +188,11 @@ func (metaBundle *MetadataMapperBundle) ServicesForPod(ns, podName string) ([]st
 	defer metaBundle.m.RUnlock()
 
 	return metaBundle.Services.Get(ns, podName)
+}
+
+func EntityForService(svc *v1.Service) string {
+	if svc == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s%s", kubeServiceIDPrefix, svc.ObjectMeta.UID)
 }

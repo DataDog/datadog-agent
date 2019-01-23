@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package status
 
@@ -62,6 +62,13 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["JMXStatus"] = GetJMXStatus()
 
 	stats["logsStats"] = logs.GetStatus()
+
+	endpointsInfos, err := getEndpointsInfos()
+	if endpointsInfos != nil && err == nil {
+		stats["endpointsInfos"] = endpointsInfos
+	} else {
+		stats["endpointsInfos"] = nil
+	}
 
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		stats["clusterAgentStatus"] = getDCAStatus()
@@ -135,6 +142,13 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
 
+	endpointsInfos, err := getEndpointsInfos()
+	if endpointsInfos != nil && err == nil {
+		stats["endpointsInfos"] = endpointsInfos
+	} else {
+		stats["endpointsInfos"] = nil
+	}
+
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
@@ -168,7 +182,6 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 // getDCAPartialConfig returns config parameters of interest for the status page.
 func getDCAPartialConfig() map[string]string {
 	conf := make(map[string]string)
-	conf["log_file"] = config.Datadog.GetString("log_file")
 	conf["log_level"] = config.Datadog.GetString("log_level")
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	return conf
@@ -182,6 +195,27 @@ func getPartialConfig() map[string]string {
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	conf["additional_checksd"] = config.Datadog.GetString("additional_checksd")
 	return conf
+}
+
+func getEndpointsInfos() (map[string]interface{}, error) {
+	endpoints, err := config.GetMultipleEndpoints()
+	if err != nil {
+		return nil, err
+	}
+
+	endpointsInfos := make(map[string]interface{})
+
+	// obfuscate the api keys
+	for endpoint, keys := range endpoints {
+		for i, key := range keys {
+			if len(key) > 5 {
+				keys[i] = key[len(key)-5:]
+			}
+		}
+		endpointsInfos[endpoint] = keys
+	}
+
+	return endpointsInfos, nil
 }
 
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
@@ -212,8 +246,20 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	stats["aggregatorStats"] = aggregatorStats
 
 	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
+	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
 	dogstatsdStats := make(map[string]interface{})
 	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	dogstatsdUdsStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats)
+	for name, value := range dogstatsdUdsStats {
+		dogstatsdStats["Uds"+name] = value
+	}
+	dogstatsdUDPStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats)
+	for name, value := range dogstatsdUDPStats {
+		dogstatsdStats["Udp"+name] = value
+	}
 	stats["dogstatsdStats"] = dogstatsdStats
 
 	pyLoaderData := expvar.Get("pyLoader")

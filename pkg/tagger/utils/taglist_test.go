@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package utils
 
@@ -16,9 +16,11 @@ func TestNewTagList(t *testing.T) {
 	require.NotNil(t, list)
 	require.NotNil(t, list.lowCardTags)
 	require.NotNil(t, list.highCardTags)
-	low, high := list.Compute()
+	low, orchestrator, high := list.Compute()
 	require.NotNil(t, low)
 	require.Empty(t, low)
+	require.NotNil(t, orchestrator)
+	require.Empty(t, orchestrator)
 	require.NotNil(t, high)
 	require.Empty(t, high)
 }
@@ -91,6 +93,7 @@ func TestAddHighOrLow(t *testing.T) {
 func TestCompute(t *testing.T) {
 	list := NewTagList()
 	list.AddHigh("foo", "bar")
+	list.AddOrchestrator("pod", "redis")
 	list.AddLow("faa", "baz")
 	list.AddLow("low", "yes")
 	list.AddAuto("+high", "yes-high")
@@ -101,11 +104,13 @@ func TestCompute(t *testing.T) {
 	list.AddAuto("+", "empty")
 	list.AddAuto("", "")
 
-	low, high := list.Compute()
+	low, orchestrator, high := list.Compute()
 	require.Len(t, low, 3)
 	require.Contains(t, low, "faa:baz")
 	require.Contains(t, low, "low:yes")
 	require.Contains(t, low, "lowlow:yes-low")
+	require.Len(t, orchestrator, 1)
+	require.Contains(t, orchestrator, "pod:redis")
 	require.Len(t, high, 2)
 	require.Contains(t, high, "foo:bar")
 	require.Contains(t, high, "high:yes-high")
@@ -114,38 +119,49 @@ func TestCompute(t *testing.T) {
 func TestCopy(t *testing.T) {
 	list := NewTagList()
 	list.AddHigh("foo", "bar")
+	list.AddOrchestrator("pod", "redis")
 	list.AddLow("faa", "baz")
 	list.AddLow("low", "yes")
 
 	list2 := list.Copy()
 	list2.AddHigh("foo2", "bar2")
+	list2.AddOrchestrator("pod2", "redis2")
 	list2.AddLow("faa2", "baz2")
 
 	list3 := list.Copy()
 	list3.AddHigh("foo3", "bar3")
+	list3.AddOrchestrator("pod3", "redis3")
 	list3.AddLow("faa3", "baz3")
 
-	low, high := list.Compute()
+	low, orchestrator, high := list.Compute()
 	require.Len(t, low, 2)
 	require.Contains(t, low, "faa:baz")
 	require.Contains(t, low, "low:yes")
+	require.Len(t, orchestrator, 1)
+	require.Contains(t, orchestrator, "pod:redis")
 	require.Len(t, high, 1)
 	require.Contains(t, high, "foo:bar")
 
-	low2, high2 := list2.Compute()
+	low2, orchestrator2, high2 := list2.Compute()
 	require.Len(t, low2, 3)
 	require.Contains(t, low2, "faa:baz")
 	require.Contains(t, low2, "low:yes")
 	require.Contains(t, low2, "faa2:baz2")
+	require.Len(t, orchestrator2, 2)
+	require.Contains(t, orchestrator2, "pod:redis")
+	require.Contains(t, orchestrator2, "pod2:redis2")
 	require.Len(t, high2, 2)
 	require.Contains(t, high2, "foo:bar")
 	require.Contains(t, high2, "foo2:bar2")
 
-	low3, high3 := list3.Compute()
+	low3, orchestrator3, high3 := list3.Compute()
 	require.Len(t, low3, 3)
 	require.Contains(t, low3, "faa:baz")
 	require.Contains(t, low3, "low:yes")
 	require.Contains(t, low3, "faa3:baz3")
+	require.Len(t, orchestrator3, 2)
+	require.Contains(t, orchestrator3, "pod:redis")
+	require.Contains(t, orchestrator3, "pod3:redis3")
 	require.Len(t, high3, 2)
 	require.Contains(t, high3, "foo:bar")
 	require.Contains(t, high3, "foo3:bar3")

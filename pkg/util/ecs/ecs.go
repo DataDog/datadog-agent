@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -86,6 +86,12 @@ func GetUtil() (*Util, error) {
 		return nil, err
 	}
 	return globalUtil, nil
+}
+
+// IsECSInstance returns whether the agent is running in ECS.
+func IsECSInstance() bool {
+	_, err := GetUtil()
+	return err == nil
 }
 
 // init makes an empty Util bootstrap itself.
@@ -194,14 +200,14 @@ func detectAgentURL() (string, error) {
 		// List all interfaces for the ecs-agent container
 		agentURLS, err := getAgentContainerURLS()
 		if err != nil {
-			log.Debugf("could inspect ecs-agent container: ", err)
+			log.Debugf("could inspect ecs-agent container: %s", err)
 		} else {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
 		gw, err := docker.DefaultGateway()
 		if err != nil {
-			log.Debugf("could not get docker default gateway: ", err)
+			log.Debugf("could not get docker default gateway: %s", err)
 		}
 		if gw != nil {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", gw.String(), DefaultAgentPort))

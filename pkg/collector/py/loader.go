@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build cpython
 
@@ -11,11 +11,15 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/sbinet/go-python"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +28,18 @@ import (
 var (
 	pyLoaderStats   *expvar.Map
 	configureErrors map[string][]string
+	py3Warnings     map[string][]string
 	statsLock       sync.RWMutex
+)
+
+const (
+	wheelNamespace = "datadog_checks"
+	a7ReadyMetric  = "datadog.agent.check_ready"
+	a7Ready        = 1
+	a7NotReady     = 0
+	a7TagReady     = "ready"
+	a7TagNotReady  = "not_ready"
+	a7TagUnknown   = "unknown"
 )
 
 func init() {
@@ -34,6 +49,7 @@ func init() {
 	loaders.RegisterLoader(10, factory)
 
 	configureErrors = map[string][]string{}
+	py3Warnings = map[string][]string{}
 	pyLoaderStats = expvar.NewMap("pyLoader")
 	pyLoaderStats.Set("ConfigureErrors", expvar.Func(expvarConfigureErrors))
 }
@@ -45,6 +61,7 @@ const agentCheckModuleName = "checks"
 // PythonCheckLoader is a specific loader for checks living in Python modules
 type PythonCheckLoader struct {
 	agentCheckClass *python.PyObject
+	telemetry       aggregator.Sender
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
@@ -67,7 +84,13 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 		return nil, errors.New("unable to initialize AgentCheck class")
 	}
 
-	return &PythonCheckLoader{agentCheckClass}, nil
+	sender, err := aggregator.GetSender("collector_python")
+	if err != nil {
+		log.Errorf("Unable to get a new metrics sender: %s", err)
+		return nil, errors.New("unable to initialize collector telemetry")
+	}
+
+	return &PythonCheckLoader{agentCheckClass: agentCheckClass, telemetry: sender}, nil
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
@@ -75,7 +98,7 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
-	whlModuleName := fmt.Sprintf("datadog_checks.%s", config.Name)
+	whlModuleName := fmt.Sprintf("%s.%s", wheelNamespace, config.Name)
 
 	// Looking for wheels first
 	modules := []string{whlModuleName, moduleName}
@@ -93,10 +116,15 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 
 	var pyErr string
 	var checkModule *python.PyObject
-	for _, name := range modules {
+	var name string
+	var loadedAsWheel bool
+	for _, name = range modules {
 		// import python module containing the check
 		checkModule = python.PyImport_ImportModule(name)
 		if checkModule != nil {
+			if strings.HasPrefix(name, fmt.Sprintf("%s.", wheelNamespace)) {
+				loadedAsWheel = true
+			}
 			break
 		}
 
@@ -160,7 +188,48 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 			} else {
 				log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, errors.New(pyErr))
 			}
-			log.Infof("python check '%s' doesn't have a '__version__' attribute", config.Name)
+			log.Debugf("python check '%s' doesn't have a '__version__' attribute", config.Name)
+
+		}
+
+		if !agentConfig.Datadog.GetBool("disable_py3_validation") && !loadedAsWheel {
+			// Customers, though unlikely might version their custom checks.
+			// Let's use the module namespace to try to decide if this was a
+			// custom check, check for py3 compatibility
+			checkFilePath := checkModule.GetAttrString("__file__")
+
+			tags := []string{"check_name:" + name, "agent_version_major:6"}
+			if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+				tags = append(tags, fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor))
+			}
+
+			if checkFilePath != nil {
+				defer checkFilePath.DecRef()
+				if python.PyString_Check(checkFilePath) {
+					filePath := python.PyString_AsString(checkFilePath)
+
+					// __file__ return the .pyc file path
+					if strings.HasSuffix(moduleName, ".pyc") {
+						filePath = filePath[:len(filePath)-1]
+					}
+					if warnings, err := validatePython3(name, filePath); err == nil {
+						val, status := addExpvarPy3Warnings(name, warnings)
+						tags = append(tags, fmt.Sprintf("status:%s", status))
+						cl.telemetry.Gauge(a7ReadyMetric, val, "", tags)
+					} else {
+						tags = append(tags, fmt.Sprintf("status:%s", a7TagUnknown))
+						cl.telemetry.Gauge(a7ReadyMetric, a7NotReady, "", tags)
+					}
+				} else {
+					tags = append(tags, fmt.Sprintf("status:%s", a7TagUnknown))
+					cl.telemetry.Gauge(a7ReadyMetric, a7NotReady, "", tags)
+					log.Debugf("Error: %s check attribute '__file__' is not a type string", name)
+				}
+			} else {
+				log.Debugf("Could not query the __file__ attribute for check %s", name)
+				python.PyErr_Clear()
+			}
+			cl.telemetry.Commit()
 		}
 	}
 
@@ -214,4 +283,22 @@ func addExpvarConfigureError(check string, errMsg string) {
 	} else {
 		configureErrors[check] = []string{errMsg}
 	}
+}
+
+func expvarPy3Warnings() interface{} {
+	statsLock.RLock()
+	defer statsLock.RUnlock()
+
+	return py3Warnings
+}
+
+func addExpvarPy3Warnings(checkName string, warnings []string) (float64, string) {
+	statsLock.Lock()
+	defer statsLock.Unlock()
+
+	if len(warnings) > 0 {
+		py3Warnings[checkName] = warnings
+		return a7NotReady, a7TagNotReady
+	}
+	return a7Ready, a7TagReady
 }

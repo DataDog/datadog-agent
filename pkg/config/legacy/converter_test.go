@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package legacy
 
@@ -203,6 +203,29 @@ func TestDefaultValues(t *testing.T) {
 	agentConfig := make(Config)
 	FromAgentConfig(agentConfig)
 	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
+}
+
+func TestTraceIgnoreResources(t *testing.T) {
+	require := require.New(t)
+
+	cases := []struct {
+		config   string
+		expected []string
+	}{
+		{`r1`, []string{"r1"}},
+		{`"r1","r2,"`, []string{"r1", "r2,"}},
+		{`"r1"`, []string{"r1"}},
+		{`r1,r2`, []string{"r1", "r2"}},
+	}
+
+	for _, c := range cases {
+		cfg := make(Config)
+		cfg["trace.ignore.resource"] = c.config
+		err := FromAgentConfig(cfg)
+		require.NoError(err)
+		require.Equal(c.expected, config.Datadog.GetStringSlice("apm_config.ignore_resources"))
+
+	}
 }
 
 func TestConverter(t *testing.T) {

@@ -1,6 +1,6 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build cpython
 
@@ -41,6 +41,7 @@ var (
 	verbose      bool
 	useSysPython bool
 	tufConfig    string
+	versionOnly  bool
 )
 
 type integrationVersion struct {
@@ -107,6 +108,7 @@ func init() {
 	tufCmd.AddCommand(removeCmd)
 	tufCmd.AddCommand(searchCmd)
 	tufCmd.AddCommand(freezeCmd)
+	tufCmd.AddCommand(showCmd)
 	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
 	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
 	tufCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
@@ -116,16 +118,18 @@ func init() {
 
 	// Power user flags - mark as hidden
 	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
+
+	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 }
 
 var tufCmd = &cobra.Command{
 	Use:   "integration [command]",
-	Short: "Datadog integration manager (ALPHA feature)",
+	Short: "Datadog integration manager",
 	Long:  ``,
 }
 
 var installCmd = &cobra.Command{
-	Use:   "install [package]",
+	Use:   "install [package==version]",
 	Short: "Install Datadog integration core/extra packages",
 	Long: `Install Datadog integration core/extra packages
 You must specify a version of the package to install using the syntax: <package>==<version>, with
@@ -151,9 +155,17 @@ var searchCmd = &cobra.Command{
 
 var freezeCmd = &cobra.Command{
 	Use:   "freeze",
-	Short: "Freeze list of installed python packages",
+	Short: "Print the list of installed packages in the agent's python environment",
 	Long:  ``,
 	RunE:  freeze,
+}
+
+var showCmd = &cobra.Command{
+	Use:   "show [package]",
+	Short: "Print out information about [package]",
+	Args:  cobra.ExactArgs(1),
+	Long:  ``,
+	RunE:  show,
 }
 
 func getTufConfigPath() string {
@@ -527,7 +539,7 @@ func moveConfigurationFilesOf(integration string) error {
 		check = strings.Replace(check, "-", "_", -1)
 	}
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
-	if err := os.MkdirAll(confFileDest, os.ModeDir); err != nil {
+	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {
 		return err
 	}
 
@@ -555,13 +567,18 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		}
 		src := filepath.Join(srcFolder, filename)
 		dst := filepath.Join(dstFolder, filename)
-		err = os.Rename(src, dst)
+		srcContent, err := ioutil.ReadFile(src)
 		if err != nil {
-			errorMsg = fmt.Sprintf("%s\nError moving configuration file %s: %v", errorMsg, filename, err)
+			errorMsg = fmt.Sprintf("%s\nError reading configuration file %s: %v", errorMsg, src, err)
+			continue
+		}
+		err = ioutil.WriteFile(dst, srcContent, 0644)
+		if err != nil {
+			errorMsg = fmt.Sprintf("%s\nError writing configuration file %s: %v", errorMsg, dst, err)
 			continue
 		}
 		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully moved configuration file %s", filename,
+			"Successfully copied configuration file %s", filename,
 		)))
 	}
 	if errorMsg != "" {
@@ -607,4 +624,36 @@ func freeze(cmd *cobra.Command, args []string) error {
 	}
 
 	return tuf(tufArgs)
+}
+
+func show(cmd *cobra.Command, args []string) error {
+
+	cachePath, err := getTUFPipCachePath()
+	if err != nil {
+		return err
+	}
+
+	packageName := strings.Replace(args[0], "_", "-", -1)
+
+	version, err := installedVersion(packageName, cachePath)
+	if err != nil {
+		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
+	}
+
+	if version == nil {
+		// Package not installed, return 0 and print nothing
+		return nil
+	}
+
+	if versionOnly {
+		// Print only the version for easier parsing
+		fmt.Println(version)
+	} else {
+		msg := `Package %s:
+Installed version: %s
+`
+		fmt.Printf(msg, packageName, version)
+	}
+
+	return nil
 }

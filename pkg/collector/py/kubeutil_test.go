@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build cpython,kubelet
 
@@ -21,8 +21,9 @@ import (
 )
 
 func TestGetKubeletConnectionInfoNotFound(t *testing.T) {
-	config.Datadog.Set("kubernetes_http_kubelet_port", 0)
-	config.Datadog.Set("kubernetes_https_kubelet_port", 0)
+	mockConfig := config.Mock()
+	mockConfig.Set("kubernetes_http_kubelet_port", 0)
+	mockConfig.Set("kubernetes_https_kubelet_port", 0)
 	kubelet.ResetGlobalKubeUtil()
 	cache.Cache.Delete(kubeletCacheKey)
 
