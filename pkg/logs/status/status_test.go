@@ -54,6 +54,10 @@ func TestStatusDeduplicateWarnings(t *testing.T) {
 
 	status := Get()
 	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Messages)
+
+	RemoveGlobalWarning("foo")
+	status = Get()
+	assert.ElementsMatch(t, []string{"Unique Warning"}, status.Messages)
 }
 
 func TestMetrics(t *testing.T) {
