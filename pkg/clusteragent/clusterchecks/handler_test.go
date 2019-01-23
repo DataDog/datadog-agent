@@ -141,6 +141,7 @@ func TestHandlerRun(t *testing.T) {
 		leadershipChan:       make(chan state, 1),
 		dispatcher:           newDispatcher(),
 		leaderStatusCallback: le.get,
+		port:                 5005,
 	}
 
 	//
@@ -179,7 +180,7 @@ func TestHandlerRun(t *testing.T) {
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// API redirects to leader
 		code, reason := h.ShouldHandle()
-		return code == http.StatusFound && reason == "1.2.3.4"
+		return code == http.StatusFound && reason == "1.2.3.4:5005"
 	})
 
 	//
@@ -246,7 +247,7 @@ func TestHandlerRun(t *testing.T) {
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// API redirects to leader again
 		code, reason := h.ShouldHandle()
-		return code == http.StatusFound && reason == "1.2.3.6"
+		return code == http.StatusFound && reason == "1.2.3.6:5005"
 	})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
 		// RemoveScheduler is called
