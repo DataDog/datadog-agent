@@ -46,7 +46,6 @@ blacklist = [
   'docker_daemon',
   'kubernetes',
   'ntp',                           # provided as a go check by the core agent
-  'openstack_controller',          # Check currently under active development and in beta
 ]
 
 core_constraints_file = 'core_constraints.txt'
