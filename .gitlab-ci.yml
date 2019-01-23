@@ -792,6 +792,9 @@ testkitchen_cleanup_azure:
 #
 # image_build
 #
+# docker build must run with DOCKER_CONTENT_TRUST to
+# enable signature check of the base images
+#
 
 .docker_build_job_definition: &docker_build_job_definition
   stage: image_build
@@ -804,7 +807,7 @@ testkitchen_cleanup_azure:
     - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
-    - docker build $BUILD_ARG --pull --tag $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $BUILD_CONTEXT
+    - DOCKER_CONTENT_TRUST=1 docker build $BUILD_ARG --pull --tag $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $BUILD_CONTEXT
     - docker push $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
 
 # build the agent6 image
