@@ -36,6 +36,9 @@ template: |
           fixes:
             - |
               Add normal bug fixes here, or remove this section.
+          trace:
+            - |
+              Notes related to the trace agent.
           other:
             - |
               Add here every other information you want in the CHANGELOG that
@@ -50,4 +53,5 @@ sections:
   - [deprecations, Deprecation Notes]
   - [security, Security Issues]
   - [fixes, Bug Fixes]
+  - [trace, Trace Agent]
   - [other, Other Notes]
