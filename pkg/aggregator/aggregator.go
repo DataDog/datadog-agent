@@ -148,10 +148,16 @@ func SetDefaultAggregator(agg *BufferedAggregator) {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	dogstatsdIn        chan *metrics.MetricSample
-	checkMetricIn      chan senderMetricSample
-	serviceCheckIn     chan metrics.ServiceCheck
-	eventIn            chan metrics.Event
+	bufferedMetricIn       chan []*metrics.MetricSample
+	bufferedServiceCheckIn chan []*metrics.ServiceCheck
+	bufferedEventIn        chan []*metrics.Event
+
+	metricIn       chan *metrics.MetricSample
+	eventIn        chan metrics.Event
+	serviceCheckIn chan metrics.ServiceCheck
+
+	checkMetricIn chan senderMetricSample
+
 	sampler            TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
 	distSampler        distSampler
@@ -171,10 +177,16 @@ type BufferedAggregator struct {
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s *serializer.Serializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		dogstatsdIn:        make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
-		checkMetricIn:      make(chan senderMetricSample, 100),    // TODO make buffer size configurable
-		serviceCheckIn:     make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
-		eventIn:            make(chan metrics.Event, 100),         // TODO make buffer size configurable
+		bufferedMetricIn:       make(chan []*metrics.MetricSample, 100), // TODO make buffer size configurable
+		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, 100), // TODO make buffer size configurable
+		bufferedEventIn:        make(chan []*metrics.Event, 100),        // TODO make buffer size configurable
+
+		metricIn:       make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
+		serviceCheckIn: make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
+		eventIn:        make(chan metrics.Event, 100),         // TODO make buffer size configurable
+
+		checkMetricIn: make(chan senderMetricSample, 100), // TODO make buffer size configurable
+
 		sampler:            *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
 		distSampler:        newDistSampler(bucketSize),
@@ -215,7 +227,12 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 
 // GetChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
 func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan metrics.Event, chan metrics.ServiceCheck) {
-	return agg.dogstatsdIn, agg.eventIn, agg.serviceCheckIn
+	return agg.metricIn, agg.eventIn, agg.serviceCheckIn
+}
+
+// GetBufferedChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
+func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+	return agg.bufferedMetricIn, agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
 // SetHostname sets the hostname that the aggregator uses by default on all the data it sends
@@ -489,18 +506,37 @@ func (agg *BufferedAggregator) run() {
 			agg.flush()
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
-		case sample := <-agg.dogstatsdIn:
-			aggregatorDogstatsdMetricSample.Add(1)
-			agg.addSample(sample, timeNowNano())
-		case ss := <-agg.checkMetricIn:
+
+		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
-			agg.handleSenderSample(ss)
-		case sc := <-agg.serviceCheckIn:
-			aggregatorServiceCheck.Add(1)
-			agg.addServiceCheck(sc)
-		case e := <-agg.eventIn:
+			agg.handleSenderSample(checkMetric)
+
+		case metric := <-agg.metricIn:
+			aggregatorDogstatsdMetricSample.Add(1)
+			agg.addSample(metric, timeNowNano())
+		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
-			agg.addEvent(e)
+			agg.addEvent(event)
+		case serviceCheck := <-agg.serviceCheckIn:
+			aggregatorServiceCheck.Add(1)
+			agg.addServiceCheck(serviceCheck)
+
+		case metrics := <-agg.bufferedMetricIn:
+			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
+			for _, sample := range metrics {
+				agg.addSample(sample, timeNowNano())
+			}
+		case serviceChecks := <-agg.bufferedServiceCheckIn:
+			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
+			for _, serviceCheck := range serviceChecks {
+				agg.addServiceCheck(*serviceCheck)
+			}
+		case events := <-agg.bufferedEventIn:
+			aggregatorEvent.Add(int64(len(events)))
+			for _, event := range events {
+				agg.addEvent(*event)
+			}
+
 		case h := <-agg.hostnameUpdate:
 			aggregatorHostnameUpdate.Add(1)
 			agg.hostname = h
