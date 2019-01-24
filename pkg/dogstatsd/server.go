@@ -60,7 +60,7 @@ type Server struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) (*Server, error) {
+func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -151,7 +151,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 	return s, nil
 }
 
-func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
+func (s *Server) handleMessages(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
@@ -191,21 +191,36 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 	}
 }
 
-func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
+func (s *Server) worker(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) {
 	for {
 		select {
 		case <-s.stopChan:
 			return
 		case <-s.health.C:
 		case packets := <-s.packetsIn:
+			events := make([]*metrics.Event, 0, len(packets))
+			serviceChecks := make([]*metrics.ServiceCheck, 0, len(packets))
+			metricSamples := make([]*metrics.MetricSample, 0, len(packets))
+
 			for _, packet := range packets {
-				s.handlePacket(packet, metricOut, eventOut, serviceCheckOut)
+				metricSamples, events, serviceChecks = s.parsePacket(packet, metricSamples, events, serviceChecks)
+				s.packetPool.Put(packet)
+			}
+
+			if len(metricSamples) != 0 {
+				metricOut <- metricSamples
+			}
+			if len(events) != 0 {
+				eventOut <- events
+			}
+			if len(serviceChecks) != 0 {
+				serviceCheckOut <- serviceChecks
 			}
 		}
 	}
 }
 
-func (s *Server) handlePacket(packet *listeners.Packet, metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
+func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {
 	extraTags := s.extraTags
 
 	if packet.Origin != listeners.NoOrigin {
@@ -242,7 +257,7 @@ func (s *Server) handlePacket(packet *listeners.Packet, metricOut chan<- *metric
 				serviceCheck.Tags = append(serviceCheck.Tags, extraTags...)
 			}
 			dogstatsdServiceCheckPackets.Add(1)
-			serviceCheckOut <- *serviceCheck
+			serviceChecks = append(serviceChecks, serviceCheck)
 		} else if bytes.HasPrefix(message, []byte("_e")) {
 			event, err := parseEventMessage(message, s.defaultHostname)
 			if err != nil {
@@ -254,7 +269,7 @@ func (s *Server) handlePacket(packet *listeners.Packet, metricOut chan<- *metric
 				event.Tags = append(event.Tags, extraTags...)
 			}
 			dogstatsdEventPackets.Add(1)
-			eventOut <- *event
+			events = append(events, event)
 		} else {
 			sample, err := parseMetricMessage(message, s.metricPrefix, s.defaultHostname)
 			if err != nil {
@@ -266,17 +281,16 @@ func (s *Server) handlePacket(packet *listeners.Packet, metricOut chan<- *metric
 				sample.Tags = append(sample.Tags, extraTags...)
 			}
 			dogstatsdMetricPackets.Add(1)
-			metricOut <- sample
+			metricSamples = append(metricSamples, sample)
 			if s.histToDist && sample.Mtype == metrics.HistogramType {
 				distSample := sample.Copy()
 				distSample.Name = s.histToDistPrefix + distSample.Name
 				distSample.Mtype = metrics.DistributionType
-				metricOut <- distSample
+				metricSamples = append(metricSamples, distSample)
 			}
 		}
 	}
-	// Return the packet object back to the object pool for reuse
-	s.packetPool.Put(packet)
+	return metricSamples, events, serviceChecks
 }
 
 // Stop stops a running Dogstatsd server
