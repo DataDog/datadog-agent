@@ -897,8 +897,8 @@ dev_branch_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
 dev_master_docker_hub:
@@ -908,8 +908,8 @@ dev_master_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
     - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
 
 dca_dev_branch_docker_hub:

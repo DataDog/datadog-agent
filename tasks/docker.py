@@ -125,9 +125,14 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
 
 
 @task
-def publish(ctx, src, dst):
+def publish(ctx, src, dst, signed_push=False):
     print("Uploading {} to {}".format(src, dst))
-    ctx.run("docker pull {src} && docker tag {src} {dst} && docker push {dst}".format(
+    ctx.run("docker pull {src} && docker tag {src} {dst}".format(
         src=src,
         dst=dst)
     )
+
+    push_env = {}
+    if signed_push:
+        push_env["DOCKER_CONTENT_TRUST"] = "1"
+    ctx.run("docker push {dst}".format(dst=dst), env=push_env)
