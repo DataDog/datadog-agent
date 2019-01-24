@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"sort"
 	"strings"
 	"unicode"
@@ -251,54 +250,91 @@ func FilterTags(tags, groups []string) []string {
 // backend requirements
 // taken from dd-go.model.NormalizeTag
 func NormalizeTag(tag string) string {
-	// unless you just throw out unicode, this is already as fast as it gets
-
-	buf := bytes.NewBuffer(make([]byte, 0, 2*len(tag)))
-	lastWasUnderscore := false
-
-	for _, c := range tag {
-		// fast path for len check
-		if buf.Len() >= maxTagLength {
+	var (
+		trim   int      // start character (if trimming)
+		wiping bool     // true when the previous character has been discarded
+		wipe   [][2]int // sections to discard: (start, end) pairs
+		chars  int      // number of characters processed
+	)
+	var (
+		i int  // current byte
+		c rune // current rune
+	)
+	norm := []byte(tag)
+	for i, c = range tag {
+		if chars >= maxTagLength {
+			// we've reached the maximum
 			break
 		}
-		// fast path for ascii alphabetic chars
+		// all letters are ok
 		switch {
 		case c >= 'a' && c <= 'z':
-			buf.WriteRune(c)
-			lastWasUnderscore = false
+			chars++
+			wiping = false
 			continue
 		case c >= 'A' && c <= 'Z':
-			c -= 'A' - 'a'
-			buf.WriteRune(c)
-			lastWasUnderscore = false
+			// lower-case
+			norm[i] += 'a' - 'A'
+			chars++
+			wiping = false
 			continue
 		}
 
 		c = unicode.ToLower(c)
 		switch {
-		// handle always valid cases
 		case unicode.IsLetter(c) || c == ':':
-			buf.WriteRune(c)
-			lastWasUnderscore = false
-		// skip any characters that can't start the string
-		case buf.Len() == 0:
+			chars++
+			wiping = false
+		case chars == 0:
+			// this character can not start the string, trim
+			trim = i + 1
 			continue
-		// handle valid characters that can't start the string.
 		case unicode.IsDigit(c) || c == '.' || c == '/' || c == '-':
-			buf.WriteRune(c)
-			lastWasUnderscore = false
-		// convert anything else to underscores (including underscores), but only allow one in a row.
-		case !lastWasUnderscore:
-			buf.WriteRune('_')
-			lastWasUnderscore = true
+			chars++
+			wiping = false
+		default:
+			// illegal character
+			if !wiping {
+				// start a new cut
+				wipe = append(wipe, [2]int{i, i + 1})
+				wiping = true
+			} else {
+				// lengthen current cut
+				wipe[len(wipe)-1][1]++
+			}
 		}
 	}
 
-	// strip trailing underscores
-	if lastWasUnderscore {
-		b := buf.Bytes()
-		return string(b[:len(b)-1])
+	norm = norm[trim : i+1] // trim start and end
+	if len(wipe) == 0 {
+		// tag was ok, return it as it is
+		return string(norm)
 	}
+	delta := trim // cut offsets delta
+	for _, cut := range wipe {
+		// start and end of cut, including delta from previous cuts:
+		start, end := cut[0]-delta, cut[1]-delta
 
-	return buf.String()
+		if end >= len(norm) {
+			// this cut includes the end of the string; discard it
+			// completely and finish the loop.
+			norm = norm[:start]
+			break
+		}
+		// replace the beginning of the cut with '_'
+		norm[start] = '_'
+		if end-start == 1 {
+			// nothing to discard
+			continue
+		}
+		// discard remaining characters in the cut
+		copy(norm[start+1:], norm[end:])
+
+		// shorten the slice
+		norm = norm[:len(norm)-(end-start)+1]
+
+		// count the new delta for future cuts
+		delta += cut[1] - cut[0] - 1
+	}
+	return string(norm)
 }
