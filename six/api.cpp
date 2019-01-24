@@ -8,6 +8,16 @@
 #include <datadog_agent_six.h>
 #include <six.h>
 
+#if __linux__
+#define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
+#define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
+#elif __APPLE__
+#define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
+#define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
+#elif _WIN32
+#else
+#error Platform not supported
+#endif
 
 #define AS_TYPE(Type, Obj) reinterpret_cast<Type *>(Obj)
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
@@ -24,7 +34,7 @@ void init(six_t* six, char* pythonHome)
 six_t *make2()
 {
     // load library
-    two = dlopen("libdatadog-agent-two.so", RTLD_LAZY);
+    two = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY);
     if (!two) {
         std::cerr << "Unable to open 'two' library: " << dlerror() << std::endl;
         return 0;
@@ -62,7 +72,7 @@ void destroy2(six_t* six)
 six_t *make3()
 {
     // load the library
-    three = dlopen("libdatadog-agent-three.so", RTLD_LAZY);
+    three = dlopen(DATADOG_AGENT_THREE, RTLD_LAZY);
     if (!three) {
         std::cerr << "Unable to open 'three' library: " << dlerror() << std::endl;
         return 0;
