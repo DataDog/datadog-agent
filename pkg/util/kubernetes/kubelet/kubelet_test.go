@@ -247,7 +247,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	pods, err := kubeutil.GetLocalPodList()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 6)
+	require.Len(suite.T(), pods, 7)
 
 	select {
 	case r := <-kubelet.Requests:

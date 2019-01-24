@@ -40,10 +40,10 @@ func (suite *PodwatcherTestSuite) SetupTest() {
 func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), sourcePods, 6)
+	require.Len(suite.T(), sourcePods, 7)
 
 	threePods := sourcePods[:3]
-	sixthPods := sourcePods[3:]
+	remainingPods := sourcePods[3:]
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
@@ -52,8 +52,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 
 	changes, err := watcher.computeChanges(threePods)
 	require.Nil(suite.T(), err)
-	// The second pod is pending with no container
-	require.Len(suite.T(), changes, 2)
+	// The second pod is a static pod but should be found
+	require.Len(suite.T(), changes, 3)
 
 	// Same list should detect no change
 	changes, err = watcher.computeChanges(threePods)
@@ -61,20 +61,20 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	require.Len(suite.T(), changes, 0)
 
 	// A pod with new containers should be sent
-	changes, err = watcher.computeChanges(sixthPods)
+	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 3)
-	require.Equal(suite.T(), changes[0].Metadata.UID, sixthPods[0].Metadata.UID)
+	require.Len(suite.T(), changes, 4)
+	require.Equal(suite.T(), changes[0].Metadata.UID, remainingPods[0].Metadata.UID)
 
 	// A new container ID in an existing pod should trigger
-	sixthPods[0].Status.Containers[0].ID = "testNewID"
-	changes, err = watcher.computeChanges(sixthPods)
+	remainingPods[0].Status.Containers[0].ID = "testNewID"
+	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
-	require.Equal(suite.T(), changes[0].Metadata.UID, sixthPods[0].Metadata.UID)
+	require.Equal(suite.T(), changes[0].Metadata.UID, remainingPods[0].Metadata.UID)
 
 	// Sending the same pod again with no change
-	changes, err = watcher.computeChanges(sixthPods)
+	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 0)
 }
@@ -91,7 +91,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 
 	changes, err := watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 4, fmt.Sprintf("%d", len(changes)))
+	require.Len(suite.T(), changes, 5, fmt.Sprintf("%d", len(changes)))
 	for _, po := range changes {
 		require.True(suite.T(), IsPodReady(po))
 	}
@@ -104,12 +104,12 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	// The nginx become Ready
 	sourcePods, err = loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), sourcePods, 6)
+	require.Len(suite.T(), sourcePods, 7)
 
-	// Should detect 1 change: nginx
+	// Should detect 2 changes: nginx and the new kube-proxy static pod
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 2)
 	assert.Equal(suite.T(), "nginx", changes[0].Spec.Containers[0].Name)
 	require.True(suite.T(), IsPodReady(changes[0]))
 }
@@ -117,7 +117,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), sourcePods, 6)
+	require.Len(suite.T(), sourcePods, 7)
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
@@ -126,7 +126,8 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 
 	_, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), watcher.lastSeen, 10)
+	// 7 pods (including 2 statics) + 5 container statuses (static pods don't report these)
+	require.Len(suite.T(), watcher.lastSeen, 12)
 
 	expire, err := watcher.Expire()
 	require.Nil(suite.T(), err)
@@ -147,13 +148,13 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 1)
 	require.Equal(suite.T(), testContainerID, expire[0])
-	require.Len(suite.T(), watcher.lastSeen, 9)
+	require.Len(suite.T(), watcher.lastSeen, 11)
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), sourcePods, 6)
+	require.Len(suite.T(), sourcePods, 7)
 
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
@@ -162,7 +163,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 	_, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), watcher.lastSeen, 10)
+	require.Len(suite.T(), watcher.lastSeen, 12)
 
 	expire, err := watcher.Expire()
 	require.Nil(suite.T(), err)
@@ -173,26 +174,28 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 		watcher.lastSeen[k] = watcher.lastSeen[k].Add(-10 * time.Minute)
 	}
 
-	// Remove one pod from the list, make sure we take the good one
+	// Remove last pods from the list, make sure we stop at the right one
 	oldPod := sourcePods[5]
 	require.Contains(suite.T(), oldPod.Metadata.UID, "d91aa43c-0769-11e8-afcc-000c29dea4f6")
 
 	_, err = watcher.computeChanges(sourcePods[0:5])
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), watcher.lastSeen, 10)
+	require.Len(suite.T(), watcher.lastSeen, 12)
 
-	// That one should expire, we'll have 8 entities left
+	// That one should expire, we'll have 9 entities left
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	expectedExpire := []string{
 		"kubernetes_pod://d91aa43c-0769-11e8-afcc-000c29dea4f6",
 		"docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
+		"kubernetes_pod://260c2b1d43b094af6d6b4ccba082c2db",
 	}
+
 	require.Equal(suite.T(), len(expectedExpire), len(expire))
 	for _, expectedEntity := range expectedExpire {
 		assert.Contains(suite.T(), expire, expectedEntity)
 	}
-	require.Len(suite.T(), watcher.lastSeen, 8)
+	require.Len(suite.T(), watcher.lastSeen, 9)
 }
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
@@ -216,8 +219,7 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	pods, err := watcher.PullChanges()
 	require.Nil(suite.T(), err)
 	<-kubelet.Requests // Throwing away /pods GET
-	// The second pod is pending with no container
-	require.Len(suite.T(), pods, 5)
+	require.Len(suite.T(), pods, 7)
 }
 
 func TestPodwatcherTestSuite(t *testing.T) {

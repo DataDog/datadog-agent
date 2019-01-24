@@ -34,6 +34,7 @@ const (
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
 	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
+	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
 var globalKubeUtil *KubeUtil
@@ -538,9 +539,15 @@ func (ku *KubeUtil) init() error {
 
 // IsPodReady return a bool if the Pod is ready
 func IsPodReady(pod *Pod) bool {
+	// static pods are always reported as Pending, so we make an exception there
+	if pod.Status.Phase == "Pending" && isPodStatic(pod) {
+		return true
+	}
+
 	if pod.Status.Phase != "Running" {
 		return false
 	}
+
 	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
 		return true
 	}
@@ -548,6 +555,14 @@ func IsPodReady(pod *Pod) bool {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true
 		}
+	}
+	return false
+}
+
+// isPodStatic identifies whether a pod is static or not based on an annotation
+func isPodStatic(pod *Pod) bool {
+	if source, ok := pod.Metadata.Annotations[configSourceAnnotation]; ok == true && source == "file" {
+		return len(pod.Status.Containers) == 0
 	}
 	return false
 }
