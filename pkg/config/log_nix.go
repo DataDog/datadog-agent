@@ -16,6 +16,10 @@ func GetSyslogURI() string {
 		if uri == "" {
 			uri = defaultSyslogURI
 		}
+	} else {
+		// When syslog is disabled, don't try to connect to the
+		// configured uri (tcp, udp, ...).
+		uri = ""
 	}
 
 	return uri
