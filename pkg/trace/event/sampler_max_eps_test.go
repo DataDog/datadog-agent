@@ -19,7 +19,7 @@ func TestMaxEPSSampler(t *testing.T) {
 	}{
 		{"low", generateTestEvents(1000), 100, 50, 1., 0},
 		{"limit", generateTestEvents(1000), 100, 100, 1., 0},
-		{"overload", generateTestEvents(1000), 100, 150, 100. / 150., 0.05},
+		{"overload", generateTestEvents(1000), 100, 150, 100. / 150., 0.1},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			assert := assert.New(t)
