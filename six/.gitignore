@@ -12,6 +12,7 @@ datadog-agent-six.pc
 
 # OS X trash
 .DS_Store
+*.dSYM
 
 # Compiled Object files
 *.slo
@@ -41,3 +42,8 @@ datadog-agent-six.pc
 *.exe
 *.out
 *.app
+
+# Local development
+compile_commands.json
+.tox
+demo/demo
