@@ -1,0 +1,43 @@
+# CMake generated files
+*appinfo.h
+bin/
+build/
+docs/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+constants.h
+datadog-agent-six.pc
+
+# OS X trash
+.DS_Store
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so*
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
