@@ -21,22 +21,25 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // add_module_func_noargs(six2, "my_module", "print_foo", print_foo);
+    add_module_func_noargs(six2, "my_module", "print_foo", print_foo);
     init(six2, NULL);
     printf("Embedding Python version %s\n", get_py_version(six2));
     printf("\n");
 
-    // run_any_file(six2, "./demo/main.py");
+    run_simple_file(six2, "./demo/main.py");
 
-    // six3 = make3();
-    // if (!six3) {
-    //     return 1;
-    // }
-    // init(six3, NULL);
-    // printf("Embedding Python version %s\n", get_py_version(six3));
-    // printf("\n");
+    six3 = make3();
+    if (!six3) {
+        return 1;
+    }
+    init(six3, NULL);
+    printf("Embedding Python version %s\n", get_py_version(six3));
+    printf("\n");
 
-    // destroy2(six2);
-    // destroy3(six3);
-    // printf("All cleaned up\n");
+    printf("Also embedded Python version %s\n", get_py_version(six2));
+    printf("\n");
+
+    destroy2(six2);
+    destroy3(six3);
+    printf("All cleaned up\n");
 }

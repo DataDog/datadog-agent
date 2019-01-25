@@ -13,7 +13,7 @@
 
 class Three: public Six {
 public:
-    Three(): _modules() {};
+    Three(): _modules(), _pythonHome(NULL) {};
     ~Three();
 
     void init(const char* pythonHome);
@@ -23,7 +23,7 @@ public:
     // const API
     bool isInitialized() const;
     const char* getPyVersion() const;
-    void runAnyFile(const char* path) const {}
+    int runSimpleFile(const char* path) const;
     SixPyObject* getNone() const { return reinterpret_cast<SixPyObject*>(Py_None); }
 
 private:
@@ -31,6 +31,7 @@ private:
     typedef std::map<std::string, PyMethods> PyModules;
 
     PyModules _modules;
+    wchar_t *_pythonHome;
 };
 
 #ifdef __cplusplus

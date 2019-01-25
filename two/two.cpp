@@ -18,8 +18,9 @@ void Two::init(const char* pythonHome) {
         _pythonHome = pythonHome;
     }
 
+    // TODO: is this a good idea? Py_NoSiteFlag = 1;
     Py_SetPythonHome(const_cast<char *>(_pythonHome));
-    Py_InitializeEx(0);
+    Py_Initialize();
 
     PyModules::iterator it;
     for (it = _modules.begin(); it != _modules.end(); ++it) {
@@ -37,17 +38,15 @@ const char* Two::getPyVersion() const
     return Py_GetVersion();
 }
 
-void Two::runAnyFile(const char* path) const
+int Two::runSimpleFile(const char* path) const
 {
     FILE* fp = fopen(path, "r");
     if (!fp) {
         std::cerr << "error opening file: " << path << std::endl;
-        return;
+        return -1;
     }
 
-    PyRun_AnyFile(fp, path);
-
-    fclose(fp);
+    return PyRun_SimpleFileEx(fp, path, 1);  // automatically closes the file
 }
 
 void Two::addModuleFunction(const char* module, const char* funcName,
