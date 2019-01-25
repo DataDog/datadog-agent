@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -109,7 +110,6 @@ func (u *Util) init() error {
 // It detects it by getting and unmarshalling the metadata API response.
 func IsFargateInstance() bool {
 	var ok, isFargate bool
-
 	if cached, hit := cache.Cache.Get(isFargateInstanceCacheKey); hit {
 		isFargate, ok = cached.(bool)
 		if !ok {
@@ -117,6 +117,16 @@ func IsFargateInstance() bool {
 		} else {
 			return isFargate
 		}
+	}
+
+	// This envvar is set to AWS_ECS_EC2 on classic EC2 instances
+	// Versions 1.0.0 to 1.3.0 (latest at the time) of the Fargate
+	// platform set this envvar.
+	// If Fargate detection were to fail, running a container with
+	// `env` as cmd will allow to check if it is still present.
+	if os.Getenv("AWS_EXECUTION_ENV") != "AWS_ECS_FARGATE" {
+		cacheIsFargateInstance(false)
+		return false
 	}
 
 	client := &http.Client{Timeout: timeout}
@@ -131,7 +141,7 @@ func IsFargateInstance() bool {
 	}
 	var resp TaskMetadata
 	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
-		fmt.Printf("decode err: %s\n", err)
+		log.Debugf("Error decoding response: %s", err)
 		cacheIsFargateInstance(false)
 		return false
 	}
@@ -265,5 +275,13 @@ func getAgentContainerURLS() ([]string, error) {
 			urls = append(urls, fmt.Sprintf("http://%s:%d/", ip, DefaultAgentPort))
 		}
 	}
+
+	// Add the container hostname, as it holds the instance's private IP when ecs-agent
+	// runs in the (default) host network mode. This allows us to connect back to it
+	// from an agent container running in awsvpc mode.
+	if ecsConfig.Config != nil && ecsConfig.Config.Hostname != "" {
+		urls = append(urls, fmt.Sprintf("http://%s:%d/", ecsConfig.Config.Hostname, DefaultAgentPort))
+	}
+
 	return urls, nil
 }
