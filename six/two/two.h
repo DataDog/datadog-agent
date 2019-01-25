@@ -16,12 +16,12 @@ public:
     Two(): Six(), _modules() {};
     ~Two();
 
-    // API
-    virtual void init(const char* pythonHome);
-    virtual void addModuleFunction(const char* module, const char* funcName,
-                                   void* func, MethType t);
+    void init(const char* pythonHome);
+    void addModuleFunction(const char* module, const char* funcName,
+                           void* func, MethType t);
 
     // const API
+    bool isInitialized() const;
     const char* getPyVersion() const;
     void runAnyFile(const char* path) const;
     SixPyObject* getNone() const { return reinterpret_cast<SixPyObject*>(Py_None); }

@@ -27,6 +27,11 @@ void Two::init(const char* pythonHome) {
     }
 }
 
+bool Two::isInitialized() const
+{
+    return Py_IsInitialized();
+}
+
 const char* Two::getPyVersion() const
 {
     return Py_GetVersion();

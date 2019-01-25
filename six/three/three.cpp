@@ -29,6 +29,11 @@ void Three::init(const char* pythonHome)
     Py_SetPythonHome(_pythonHome);
 }
 
+bool Three::isInitialized() const
+{
+    return Py_IsInitialized();
+}
+
 const char* Three::getPyVersion() const
 {
     return Py_GetVersion();
