@@ -27,7 +27,7 @@ public:
     // Public Const API
     virtual bool isInitialized() const = 0;
     virtual const char* getPyVersion() const = 0;
-    virtual void runAnyFile(const char* path) const = 0;
+    virtual int runSimpleFile(const char* path) const = 0;
     virtual SixPyObject* getNone() const = 0;
 };
 

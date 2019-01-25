@@ -7,26 +7,28 @@
 
 #include <iostream>
 
-static wchar_t *_pythonHome;
-
 
 Three::~Three()
 {
-    PyMem_RawFree((void*)_pythonHome);
+    if (_pythonHome) {
+        PyMem_RawFree((void*)_pythonHome);
+    }
     Py_Finalize();
 }
 
 void Three::init(const char* pythonHome)
 {
-    Py_Initialize();
-
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
+        if (_pythonHome) {
+           PyMem_RawFree((void*)_pythonHome);
+        }
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
     Py_SetPythonHome(_pythonHome);
+    Py_Initialize();
 }
 
 bool Three::isInitialized() const
@@ -43,4 +45,15 @@ void Three::addModuleFunction(const char* module, const char* funcName,
                               void* func, Three::MethType t)
 {
 
+}
+
+int Three::runSimpleFile(const char* path) const
+{
+    FILE* fp = fopen(path, "r");
+    if (!fp) {
+        std::cerr << "error opening file: " << path << std::endl;
+        return -1;
+    }
+
+    return PyRun_SimpleFileEx(fp, path, 1);  // automatically closes the file
 }
