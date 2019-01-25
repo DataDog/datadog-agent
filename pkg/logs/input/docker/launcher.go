@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -20,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -81,10 +81,7 @@ func (l *Launcher) setup() error {
 		return err
 	}
 	// initialize the tagger
-	err = tagger.Init()
-	if err != nil {
-		return err
-	}
+	tagger.Init()
 	return nil
 }
 

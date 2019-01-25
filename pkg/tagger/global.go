@@ -29,8 +29,7 @@ var ChecksCardinality collectors.TagCardinality
 var DogstatsdCardinality collectors.TagCardinality
 
 // Init must be called once config is available, call it in your cmd
-// defaultTagger.Init cannot fail for now, keeping the `error` for API stability
-func Init() error {
+func Init() {
 	initOnce.Do(func() {
 		var err error
 		checkCard := config.Datadog.GetString("checks_tag_cardinality")
@@ -49,7 +48,6 @@ func Init() error {
 
 		defaultTagger.Init(collectors.DefaultCatalog)
 	})
-	return nil
 }
 
 // Tag queries the defaultTagger to get entity tags from cache or sources.

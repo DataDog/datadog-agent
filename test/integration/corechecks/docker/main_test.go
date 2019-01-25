@@ -96,10 +96,7 @@ func setup() error {
 	}
 
 	// Setup tagger
-	err = tagger.Init()
-	if err != nil {
-		return err
-	}
+	tagger.Init()
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
