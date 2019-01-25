@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build !windows
+// +build secrets
 
 package secrets
 
@@ -120,7 +120,6 @@ var secretFetcher = fetchSecret
 // "secret_backend_command" once if all secrets aren't present in the cache.
 func Decrypt(data []byte) ([]byte, error) {
 	if data == nil || secretBackendCommand == "" {
-		log.Debugf("No data to decrypt or no secretBackendCommand set: skipping")
 		return data, nil
 	}
 
@@ -193,7 +192,17 @@ func GetDebugInfo(w io.Writer) {
 		return
 	}
 
-	listRights(secretBackendCommand, w)
+	fmt.Fprintf(w, "=== Checking executable rights ===\n")
+	fmt.Fprintf(w, "executable path: %s\n", secretBackendCommand)
+
+	err := checkRights(secretBackendCommand)
+	if err != nil {
+		fmt.Fprintf(w, "Check Rights: the executable does not have the correct rights: %s\n", err)
+	} else {
+		fmt.Fprintf(w, "Check Rights: the executable has the correct rights\n")
+	}
+
+	listRightsDetails(secretBackendCommand, w)
 
 	fmt.Fprintf(w, "=== Secrets stats ===\n")
 	fmt.Fprintf(w, "Number of secrets decrypted: %d\n", len(secretCache))

@@ -41,6 +41,11 @@ func authorizedUser() bool {
 	return true
 }
 
+func isIntegrationUser() bool {
+	elevated, _ := winutil.IsProcessElevated()
+	return elevated
+}
+
 func getTUFPipCachePath() (string, error) {
 	if _, err := os.Stat(tufPipCachePath); err != nil {
 		if os.IsNotExist(err) {

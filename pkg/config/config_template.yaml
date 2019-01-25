@@ -188,7 +188,7 @@ api_key:
 # Disable Python3 validation of python checks
 # disable_py3_validation: false
 
-# BETA: Encrypted Secrets (Linux only)
+# BETA: Encrypted Secrets
 #
 # This feature is in beta and its options or behaviour might break between
 # minor or bugfix releases of the Agent.

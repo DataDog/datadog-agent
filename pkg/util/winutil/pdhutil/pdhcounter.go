@@ -99,6 +99,7 @@ func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstance
 	}
 	path, err := p.MakeCounterPath("", counterName, "", allcounters)
 	if err != nil {
+		log.Warnf("Failed pdhEnumObjectItems %v", err)
 		return nil, err
 	}
 	winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)
