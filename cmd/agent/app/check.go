@@ -31,6 +31,7 @@ var (
 	checkName  string
 	checkDelay int
 	logLevel   string
+	formatJSON bool
 )
 
 // Make the check cmd aggregator never flush by setting a very high interval
@@ -44,6 +45,7 @@ func init() {
 	checkCmd.Flags().IntVar(&checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
+	checkCmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator output as json")
 	checkCmd.SetArgs([]string{"checkName"})
 }
 
@@ -139,7 +141,7 @@ var checkCmd = &cobra.Command{
 			fmt.Println(string(checkStatus))
 		}
 
-		if checkRate == false && checkTimes < 2 {
+		if checkRate == false && checkTimes < 2 && !formatJSON {
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 		}
 
@@ -176,31 +178,55 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 }
 
 func printMetrics(agg *aggregator.BufferedAggregator) {
+	aggJSON := make(map[string]interface{})
+
 	series := agg.GetSeries()
 	if len(series) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
-		j, _ := json.MarshalIndent(series, "", "  ")
-		fmt.Println(string(j))
+		if formatJSON {
+			aggJSON["metrics"] = series
+		} else {
+			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
+			j, _ := json.MarshalIndent(series, "", "  ")
+			fmt.Println(string(j))
+		}
 	}
 
 	sketches := agg.GetSketches()
 	if len(sketches) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
-		j, _ := json.MarshalIndent(sketches, "", "  ")
-		fmt.Println(string(j))
+		if formatJSON {
+			aggJSON["sketches"] = sketches
+		} else {
+			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
+			j, _ := json.MarshalIndent(sketches, "", "  ")
+			fmt.Println(string(j))
+		}
 	}
 
 	serviceChecks := agg.GetServiceChecks()
 	if len(serviceChecks) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
-		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-		fmt.Println(string(j))
+		if formatJSON {
+			aggJSON["service_checks"] = serviceChecks
+		} else {
+			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
+			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
+			fmt.Println(string(j))
+		}
 	}
 
 	events := agg.GetEvents()
 	if len(events) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
-		j, _ := json.MarshalIndent(events, "", "  ")
+		if formatJSON {
+			aggJSON["events"] = events
+		} else {
+			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
+			j, _ := json.MarshalIndent(events, "", "  ")
+			fmt.Println(string(j))
+		}
+	}
+
+	if formatJSON {
+		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
+		j, _ := json.MarshalIndent(aggJSON, "", "  ")
 		fmt.Println(string(j))
 	}
 }
