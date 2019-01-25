@@ -54,7 +54,6 @@ six_t *make2()
     return AS_TYPE(six_t, create());
 }
 
-
 void destroy2(six_t* six)
 {
     if (two) {
@@ -92,7 +91,6 @@ six_t *make3()
     return AS_TYPE(six_t, create_three());
 }
 
-
 void destroy3(six_t* six)
 {
     if (three) {
@@ -107,6 +105,10 @@ void destroy3(six_t* six)
     }
 }
 
+int is_initialized(six_t* six)
+{
+    return AS_CTYPE(Six, six)->isInitialized();
+}
 
 const char *get_py_version(const six_t* six)
 {

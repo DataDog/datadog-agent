@@ -43,6 +43,7 @@ extern "C" {
     DATADOG_AGENT_SIX_API void add_module_func_keywords(six_t*, char*, char*, void*);
 
     // C CONST API
+    DATADOG_AGENT_SIX_API int is_initialized(six_t*);
     DATADOG_AGENT_SIX_API six_pyobject_t* get_none(const six_t*);
     DATADOG_AGENT_SIX_API const char* get_py_version(const six_t*);
     DATADOG_AGENT_SIX_API void run_any_file(const six_t*, const char* path);
