@@ -101,12 +101,19 @@ func (sl *stickyLock) getPythonError() (string, error) {
 
 	ptype, pvalue, ptraceback := python.PyErr_Fetch() // new references, have to be decref'd
 	defer python.PyErr_Clear()
-	defer ptype.DecRef()
-	defer pvalue.DecRef()
-	defer ptraceback.DecRef()
+
+	// We want the defer to have the latest value of pvalue,
+	// which can be modified by NormalizeException, hence the func wrap
+	// We put ptype and ptraceback because that doesn't hurt, and one day
+	// PyErr_NormalizeException might also modify them.
+	defer func() {
+		pvalue.DecRef()
+		ptype.DecRef()
+		ptraceback.DecRef()
+	}()
 
 	// Make sure exception values are normalized, as per python C API docs. No error to handle here
-	python.PyErr_NormalizeException(ptype, pvalue, ptraceback)
+	ptype, pvalue, ptraceback = python.PyErr_NormalizeException(ptype, pvalue, ptraceback)
 
 	if ptraceback != nil {
 		// There's a traceback, try to format it nicely
