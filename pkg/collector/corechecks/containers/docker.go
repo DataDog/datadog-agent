@@ -197,14 +197,11 @@ func (d *DockerCheck) Run() error {
 		if c.Memory != nil {
 			sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
 			sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
+			sender.Gauge("docker.mem.failed_count", float64(c.Memory.MemFailCnt),"",tags)
 			if c.Memory.SwapPresent == true {
 				sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
 			}
-
-			if c.Memory.MemFailCntPresent == true {
-				sender.Gauge("docker.mem.failed.count", float64(c.Memory.MemFailCnt),"",tags)
-			}
-
+			
 			if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
 				if c.Memory.HierarchicalMemoryLimit != 0 {

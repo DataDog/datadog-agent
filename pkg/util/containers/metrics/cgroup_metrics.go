@@ -106,7 +106,6 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 			ret.TotalUnevictable = v
 		case "failcnt":
 			ret.MemFailCnt = v
-			ret.MemFailCntPresent = true
 		}
 	}
 	if err := scanner.Err(); err != nil {
