@@ -18,7 +18,6 @@ void Two::init(const char* pythonHome) {
         _pythonHome = pythonHome;
     }
 
-    // TODO: is this a good idea? Py_NoSiteFlag = 1;
     Py_SetPythonHome(const_cast<char *>(_pythonHome));
     Py_Initialize();
 

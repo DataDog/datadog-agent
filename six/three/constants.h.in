@@ -1,1 +1,4 @@
-static const char *_defaultPythonHome = "@Python3_LIBRARY_DIRS@/..";
+#if _WIN32
+#else
+static const char *_defaultPythonHome = "@Python3_STDLIB@/../..";
+#endif
