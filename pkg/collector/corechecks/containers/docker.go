@@ -195,13 +195,15 @@ func (d *DockerCheck) Run() error {
 			log.Debugf("Empty CPU metrics for container %s", c.ID[:12])
 		}
 		if c.Memory != nil {
-			
 			sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
 			sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
 			if c.Memory.SwapPresent == true {
 				sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
 			}
-			sender.Gauge("docker.mem.failed.count", float64(c.Memory.MemFailCnt),"",tags)
+
+			if c.Memory.MemFailCntPresent == true {
+				sender.Gauge("docker.mem.failed.count", float64(c.Memory.MemFailCnt),"",tags)
+			}
 
 			if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
