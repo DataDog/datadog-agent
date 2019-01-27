@@ -115,9 +115,9 @@ const char *get_py_version(const six_t* six)
     return AS_CTYPE(Six, six)->getPyVersion();
 }
 
-int run_simple_file(const six_t* six, const char* path)
+int run_simple_string(const six_t* six, const char* code)
 {
-    return AS_CTYPE(Six, six)->runSimpleFile(path);
+    return AS_CTYPE(Six, six)->runSimpleString(code);
 }
 
 six_pyobject_t* get_none(const six_t* six)

@@ -23,7 +23,7 @@ public:
     // const API
     bool isInitialized() const;
     const char* getPyVersion() const;
-    int runSimpleFile(const char* path) const;
+    int runSimpleString(const char* path) const;
     SixPyObject* getNone() const { return reinterpret_cast<SixPyObject*>(Py_None); }
 
 private:
