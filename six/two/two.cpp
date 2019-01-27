@@ -37,15 +37,9 @@ const char* Two::getPyVersion() const
     return Py_GetVersion();
 }
 
-int Two::runSimpleFile(const char* path) const
+int Two::runSimpleString(const char* code) const
 {
-    FILE* fp = fopen(path, "r");
-    if (!fp) {
-        std::cerr << "error opening file: " << path << std::endl;
-        return -1;
-    }
-
-    return PyRun_SimpleFileEx(fp, path, 1);  // automatically closes the file
+    return PyRun_SimpleString(code);
 }
 
 void Two::addModuleFunction(const char* module, const char* funcName,

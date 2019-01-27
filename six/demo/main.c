@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <datadog_agent_six.h>
 
@@ -14,6 +15,24 @@ static six_pyobject_t *print_foo() {
     return get_none(six2);
 }
 
+char* read_file(const char* path)
+{
+    FILE *f = fopen(path, "rb");
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    char *string = malloc(fsize + 1);
+    long read = fread(string, fsize, 1, f);
+    if (read < 1) {
+        fprintf(stderr, "Error reading file!\n");
+    }
+    fclose(f);
+
+    string[fsize] = 0;
+
+    return string;
+}
 
 int main(int argc, char *argv[]) {
     six2 = make2();
@@ -26,7 +45,9 @@ int main(int argc, char *argv[]) {
     printf("Embedding Python version %s\n", get_py_version(six2));
     printf("\n");
 
-    run_simple_file(six2, "./demo/main.py");
+    char *code = read_file("./demo/main.py");
+    run_simple_string(six2, code);
+    free(code);
 
     six3 = make3();
     if (!six3) {

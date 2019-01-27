@@ -47,13 +47,7 @@ void Three::addModuleFunction(const char* module, const char* funcName,
 
 }
 
-int Three::runSimpleFile(const char* path) const
+int Three::runSimpleString(const char* code) const
 {
-    FILE* fp = fopen(path, "r");
-    if (!fp) {
-        std::cerr << "error opening file: " << path << std::endl;
-        return -1;
-    }
-
-    return PyRun_SimpleFileEx(fp, path, 1);  // automatically closes the file
+    return PyRun_SimpleString(code);
 }
