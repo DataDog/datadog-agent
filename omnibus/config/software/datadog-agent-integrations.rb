@@ -57,6 +57,11 @@ blacklist = [
   'openstack_controller',          # Check currently under active development and in beta
 ]
 
+if arm?
+  blacklist.push('ibm_mq')
+  blacklist.push('ibm_was')
+end
+
 core_constraints_file = 'core_constraints.txt'
 agent_requirements_file = 'agent_requirements.txt'
 
