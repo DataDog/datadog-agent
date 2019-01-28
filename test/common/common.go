@@ -13,6 +13,7 @@ import (
 
 var lock sync.Mutex
 
+// Capture code from https://github.com/zimmski/osutil
 func Capture(call func()) (output []byte, err error) {
 	lock.Lock()
 	defer lock.Unlock()
