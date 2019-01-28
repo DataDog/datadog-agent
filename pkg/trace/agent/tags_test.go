@@ -145,3 +145,41 @@ func TestTagSetKey(t *testing.T) {
 	ts := NewTagSetFromString("a:b,a:b:c,abc")
 	assert.Equal(t, ":abc,a:b,a:b:c", ts.Key())
 }
+
+func TestNormalizeTag(t *testing.T) {
+	for _, tt := range []struct{ in, out string }{
+		{in: "ok", out: "ok"},
+		{in: "AlsO:ök", out: "also:ök"},
+		{in: ":still_ok", out: ":still_ok"},
+		{in: "___trim", out: "trim"},
+		{in: "12.:trim@", out: ":trim"},
+		{in: "12.:trim@@", out: ":trim"},
+		{in: "fun:ky__tag/1", out: "fun:ky_tag/1"},
+		{in: "fun:ky@tag/2", out: "fun:ky_tag/2"},
+		{in: "fun:ky@@@tag/3", out: "fun:ky_tag/3"},
+		{in: "tag:1/2.3", out: "tag:1/2.3"},
+		{in: "---fun:k####y_ta@#g/1_@@#", out: "fun:k_y_ta_g/1"},
+		{in: "AlsO:œ#@ö))œk", out: "also:œ_ö_œk"},
+	} {
+		t.Run("", func(t *testing.T) {
+			assert.Equal(t, tt.out, NormalizeTag(tt.in), tt.in)
+		})
+	}
+}
+
+func benchNormalizeTag(tag string) func(b *testing.B) {
+	return func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			NormalizeTag(tag)
+		}
+	}
+}
+
+func BenchmarkNormalizeTag(b *testing.B) {
+	b.Run("ok", benchNormalizeTag("good_tag"))
+	b.Run("trim", benchNormalizeTag("___trim_left"))
+	b.Run("trim-both", benchNormalizeTag("___trim_right@@#!"))
+	b.Run("plenty", benchNormalizeTag("fun:ky_ta@#g/1"))
+	b.Run("more", benchNormalizeTag("fun:k####y_ta@#g/1_@@#"))
+}
