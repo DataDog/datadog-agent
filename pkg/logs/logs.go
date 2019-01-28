@@ -6,6 +6,7 @@
 package logs
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -30,7 +31,7 @@ func Start() error {
 		return nil
 	}
 	// setup the server config
-	endpoints, err := config.BuildEndpoints()
+	endpoints, err := sender.BuildEndpoints()
 	if err != nil {
 		return err
 	}
