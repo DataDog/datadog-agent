@@ -266,7 +266,7 @@ func NormalizeTag(tag string) string {
 			// we've reached the maximum
 			break
 		}
-		// all letters are ok
+		// fast path; all letters are ok
 		switch {
 		case c >= 'a' && c <= 'z':
 			chars++
