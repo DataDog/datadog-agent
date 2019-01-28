@@ -69,11 +69,10 @@ void Two::addModuleFunction(const char* module, const char* funcName,
         ""
     };
 
-    PyMethodDef guard = {NULL, NULL};
-
     if (_modules.find(module) == _modules.end()) {
         _modules[module] = PyMethods();
         // add the guard
+        PyMethodDef guard = {NULL, NULL};
         _modules[module].push_back(guard);
     }
 
