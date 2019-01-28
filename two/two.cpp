@@ -25,6 +25,9 @@ void Two::init(const char* pythonHome) {
     for (it = _modules.begin(); it != _modules.end(); ++it) {
         Py_InitModule(it->first.c_str(), &_modules[it->first][0]);
     }
+
+    // In Python3 this is called from Py_Initialize already
+    PyEval_InitThreads();
 }
 
 bool Two::isInitialized() const
