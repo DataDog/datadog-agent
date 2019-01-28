@@ -11,7 +11,9 @@
 
 /cmd/                                   @DataDog/agent-core
 /cmd/trace-agent/                       @DataDog/apm
-/omnibus/                               @DataDog/agent-core
+/cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
+/cmd/cluster-agent/                     @DataDog/container-integrations
+
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
 /pkg/collector/                         @DataDog/agent-core
@@ -22,9 +24,6 @@
 /pkg/status/                            @DataDog/agent-core
 /pkg/version/                           @DataDog/agent-core
 /pkg/trace/                             @DataDog/apm
-
-/cmd/cluster-agent/                     @DataDog/container-integrations
-/Dockerfiles/                           @DataDog/container-integrations
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-core
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
@@ -37,13 +36,15 @@
 /pkg/util/ecs/                          @DataDog/container-integrations @DataDog/burrito
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/burrito
 /pkg/util/retry/                        @DataDog/container-integrations
-
 /pkg/logs/                              @DataDog/logs-intake
-
 /pkg/metadata/ecs/                      @DataDog/burrito
 /pkg/metadata/kubernetes/               @DataDog/burrito
 /pkg/procmatch/                         @DataDog/burrito
-
 /pkg/quantile                           @DataDog/metrics-aggregation
 
-/cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
+/Dockerfiles/                           @DataDog/container-integrations
+/docs/trace-agent                       @DataDog/apm
+/omnibus/                               @DataDog/agent-core
+/tasks/trace.py                         @DataDog/apm
+
+/Makefile.trace                         @DataDog/apm
