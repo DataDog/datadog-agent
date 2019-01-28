@@ -13,7 +13,7 @@ section of this document.
 
 ## Run on macOS
 
-The APM agent (aka Trace Agent) isn't part of the macOS Datadog Agent yet and it needs to be run manually,
+The Trace Agent isn't part of the macOS Datadog Agent yet and it needs to be run manually,
 on the side.
 
 - Have the [macOS Agent](https://app.datadoghq.com/account/settings#agent/mac) installed.
@@ -76,4 +76,6 @@ After cloning the repo, simply run the following command in the root of the `dat
 go install ./cmd/trace-agent
 ```
 
-You may now run the agent using `trace-agent` (considering the path `$GOPATH/bin` is in your system's `$PATH`).
+You may now run the agent using `trace-agent` (considering the path `$GOPATH/bin` is in your system's `$PATH`). For any type
+of troubleshooting, check the agent output or logs (`/var/log/datadog/trace-agent.log` on Linux) to ensure that traces are sane
+and that they are reaching the Datadog API.
