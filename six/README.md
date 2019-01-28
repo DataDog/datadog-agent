@@ -24,13 +24,30 @@ that must be implemented by any supported backend, see `include/six.h` for detai
 These libraries provide Python support for extending and embedding by linking
 different versions of the CPython library.
 
+## Requirements
+
+* C/C++ compiler
+* Python 2.7.x development packages
+* Python 3.7.x development packages
+* Cmake version 3.12 or above
+
+## Build
+
+Six can be built using CMake. Run the configurator/generator first:
+
+```sh
+ccmake .
+```
+
+Then just run `make` to build the project.
+
 ## Demo
 
 Examples about how to use Six are provided in form of a C application under `demo`
 and a Go application under `demo_go` that uses `cgo`.
 
-## Build
-
-Six can be built using CMake.
-
 ## Test
+
+```sh
+make -C test
+```
