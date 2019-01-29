@@ -275,7 +275,7 @@ func TestInspect(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "foo",
-					Labels:     nil,
+					Labels:     map[string]string{},
 					Timestamp:  0,
 					Value:      0,
 					Valid:      false,
