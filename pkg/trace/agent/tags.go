@@ -251,6 +251,9 @@ func FilterTags(tags, groups []string) []string {
 // backend requirements
 // taken from dd-go.model.NormalizeTag
 func NormalizeTag(tag string) string {
+	if len(tag) == 0 {
+		return ""
+	}
 	var (
 		trim   int      // start character (if trimming)
 		wiping bool     // true when the previous character has been discarded
