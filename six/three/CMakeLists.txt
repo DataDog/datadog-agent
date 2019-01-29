@@ -14,6 +14,6 @@ target_include_directories(datadog-agent-three PUBLIC
     ${Python3_INCLUDE_DIRS}
 )
 target_link_libraries(datadog-agent-three ${Python3_LIBRARIES})
-install(TARGETS datadog-agent-three
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
+#install(TARGETS datadog-agent-three
+#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#)

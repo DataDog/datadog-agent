@@ -2,19 +2,26 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 #include <iostream>
-#include <dlfcn.h>
+
 
 #include <datadog_agent_six.h>
 #include <six.h>
 
 #if __linux__
+#include <dlfcn.h>
 #define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
 #define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif __APPLE__
+#include <dlfcn.h>
 #define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
 #elif _WIN32
+#define DATADOG_AGENT_TWO "datadog-agent-two.dll"
+#define DATADOG_AGENT_THREE "datadog-agent-three.dll"
 #else
 #error Platform not supported
 #endif
@@ -23,14 +30,86 @@
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
 
 
+#ifdef _WIN32
+static HMODULE two, three;
+#else
 static void *two, *three;
-
+#endif
 
 void init(six_t* six, char* pythonHome)
 {
     AS_TYPE(Six, six)->init(pythonHome);
 }
+#ifdef _WIN32
 
+six_t *make2()
+{
+    // load library
+    two = LoadLibraryA(DATADOG_AGENT_TWO);
+    if (!two) {
+        std::cerr << "Unable to open 'two' library: " << GetLastError() << std::endl;
+        return 0;
+    }
+
+
+    // dlsym class factory
+    create_t* create = (create_t*)GetProcAddress(two, "create");
+    if (!create) {
+        std::cerr << "Unable to open 'two' factory: " << GetLastError() << std::endl;
+        return 0;
+    }
+
+    return AS_TYPE(six_t, create());
+}
+
+void destroy2(six_t* six)
+{
+    if (two) {
+        // dlsym object destructor
+        destroy_t* destroy = (destroy_t*)GetProcAddress(two, "destroy");
+        if (!destroy) {
+            std::cerr << "Unable to open 'two' destructor: " << GetLastError() << std::endl;
+            return;
+        }
+        destroy(AS_TYPE(Six, six));
+    }
+}
+
+six_t *make3()
+{
+    // load the library
+    three = LoadLibraryA(DATADOG_AGENT_THREE);
+    if (!three) {
+        std::cerr << "Unable to open 'three' library: " << GetLastError() << std::endl;
+        return 0;
+    }
+
+
+    // dlsym class factory
+    create_t* create_three = (create_t*)GetProcAddress(three, "create");
+    if (!create_three) {
+        std::cerr << "Unable to open 'three' factory: " << GetLastError() << std::endl;
+        return 0;
+    }
+
+    return AS_TYPE(six_t, create_three());
+}
+
+void destroy3(six_t* six)
+{
+    if (three) {
+        // dlsym object destructor
+        destroy_t* destroy = (destroy_t*)GetProcAddress(three, "destroy");
+        
+        if (!destroy) {
+            std::cerr << "Unable to open 'three' destructor: " << GetLastError() << std::endl;
+            return;
+        }
+        destroy(AS_TYPE(Six, six));
+    }
+}
+
+#else
 six_t *make2()
 {
     // load library
@@ -104,6 +183,7 @@ void destroy3(six_t* six)
         destroy(AS_TYPE(Six, six));
     }
 }
+#endif
 
 int is_initialized(six_t* six)
 {
