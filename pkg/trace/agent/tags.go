@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 const maxTagLength = 200
@@ -280,14 +281,16 @@ func NormalizeTag(tag string) string {
 			continue
 		}
 
-		c = unicode.ToLower(c)
+		if unicode.IsUpper(c) {
+			utf8.EncodeRune(norm[i:], unicode.ToLower(c))
+		}
 		switch {
 		case unicode.IsLetter(c) || c == ':':
 			chars++
 			wiping = false
 		case chars == 0:
 			// this character can not start the string, trim
-			trim = i + 1
+			trim = i + utf8.RuneLen(c)
 			continue
 		case unicode.IsDigit(c) || c == '.' || c == '/' || c == '-':
 			chars++
@@ -296,16 +299,16 @@ func NormalizeTag(tag string) string {
 			// illegal character
 			if !wiping {
 				// start a new cut
-				wipe = append(wipe, [2]int{i, i + 1})
+				wipe = append(wipe, [2]int{i, i + utf8.RuneLen(c)})
 				wiping = true
 			} else {
 				// lengthen current cut
-				wipe[len(wipe)-1][1]++
+				wipe[len(wipe)-1][1] += utf8.RuneLen(c)
 			}
 		}
 	}
 
-	norm = norm[trim : i+1] // trim start and end
+	norm = norm[trim : i+utf8.RuneLen(c)] // trim start and end
 	if len(wipe) == 0 {
 		// tag was ok, return it as it is
 		return string(norm)

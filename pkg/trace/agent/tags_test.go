@@ -149,6 +149,7 @@ func TestTagSetKey(t *testing.T) {
 func TestNormalizeTag(t *testing.T) {
 	for _, tt := range []struct{ in, out string }{
 		{in: "ok", out: "ok"},
+		{in: "™Ö™Ö™™Ö™", out: "ö_ö_ö"},
 		{in: "AlsO:ök", out: "also:ök"},
 		{in: ":still_ok", out: ":still_ok"},
 		{in: "___trim", out: "trim"},
