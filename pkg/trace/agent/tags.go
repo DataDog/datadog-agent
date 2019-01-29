@@ -270,9 +270,9 @@ func NormalizeTag(tag string) string {
 			// we've reached the maximum
 			break
 		}
-		// fast path; all letters are ok
+		// fast path; all letters (and colons) are ok
 		switch {
-		case c >= 'a' && c <= 'z':
+		case c >= 'a' && c <= 'z' || c == ':':
 			chars++
 			wiping = false
 			continue
@@ -285,10 +285,16 @@ func NormalizeTag(tag string) string {
 		}
 
 		if utf8.ValidRune(c) && unicode.IsUpper(c) {
-			utf8.EncodeRune(norm[i:], unicode.ToLower(c))
+			// lowercase this character
+			if low := unicode.ToLower(c); utf8.RuneLen(c) == utf8.RuneLen(low) {
+				// but only if the width of the lowercased character is the same;
+				// there are some rare edge-cases where this is not the case, such
+				// as \u017F (ſ)
+				utf8.EncodeRune(norm[i:], low)
+			}
 		}
 		switch {
-		case unicode.IsLetter(c) || c == ':':
+		case unicode.IsLetter(c):
 			chars++
 			wiping = false
 		case chars == 0:
