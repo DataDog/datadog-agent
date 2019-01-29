@@ -291,6 +291,7 @@ func NormalizeTag(tag string) string {
 				// there are some rare edge-cases where this is not the case, such
 				// as \u017F (ſ)
 				utf8.EncodeRune(norm[i:], low)
+				c = low
 			}
 		}
 		switch {

@@ -164,6 +164,7 @@ func TestNormalizeTag(t *testing.T) {
 		{in: ":::test", out: ":::test"},
 		{in: "contiguous_____underscores", out: "contiguous_underscores"},
 		{in: "foo_", out: "foo"},
+		{in: "\u017Fodd_\u017Fcase\u017F", out: "\u017Fodd_\u017Fcase\u017F"}, // edge-case
 		{in: "", out: ""},
 		{in: " ", out: ""},
 		{in: "ok", out: "ok"},
