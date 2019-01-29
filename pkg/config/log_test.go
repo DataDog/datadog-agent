@@ -45,3 +45,30 @@ func BenchmarkLogFormatFilename(b *testing.B) {
 func BenchmarkLogFormatShortFilePath(b *testing.B) {
 	benchmarkLogFormat("%Date(%s) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg", b)
 }
+
+func TestExtractContextString(t *testing.T) {
+	assert.Equal(t, `, "foo": "bar"`, extractContextString(map[string]interface{}{"foo": "bar"}))
+	assert.Equal(t, `, "foo": 3`, extractContextString(map[string]interface{}{"foo": 3}))
+}
+
+func benchmarkLogFormatWithContext(logFormat string, b *testing.B) {
+	var buff bytes.Buffer
+	w := bufio.NewWriter(&buff)
+
+	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, logFormat)
+	context := map[string]interface{}{"extra": "context", "foo": "bar"}
+
+	for n := 0; n < b.N; n++ {
+		l.SetContext(context)
+		l.Infof("Hello I am a log")
+		l.SetContext(nil)
+	}
+}
+
+func BenchmarkLogFormatWithoutContextFormatting(b *testing.B) {
+	benchmarkLogFormatWithContext("%Date(%s) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg", b)
+}
+
+func BenchmarkLogFormatWithContextFormatting(b *testing.B) {
+	benchmarkLogFormatWithContext("%Date(%s) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg %ExtraContext", b)
+}

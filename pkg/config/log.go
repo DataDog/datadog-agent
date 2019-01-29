@@ -7,6 +7,7 @@ package config
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -29,7 +30,7 @@ var syslogTLSConfig *tls.Config
 
 // BuildCommonFormat returns the log common format seelog string
 func BuildCommonFormat(loggerName LoggerName) string {
-	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat, loggerName)
+	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg %%ExtraContext%%n", logDateFormat, loggerName)
 }
 
 func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
@@ -41,7 +42,7 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
 // BuildJSONFormat returns the log JSON format seelog string
 func BuildJSONFormat(loggerName LoggerName) string {
 	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter)
-	return fmt.Sprintf("{&quot;agent&quot;:&quot;%s&quot;,&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:%%QuoteMsg}%%n", strings.ToLower(string(loggerName)), logDateFormat)
+	return fmt.Sprintf("{&quot;agent&quot;:&quot;%s&quot;,&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:%%QuoteMsg%%ExtraContext}%%n", strings.ToLower(string(loggerName)), logDateFormat)
 }
 
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
@@ -131,8 +132,8 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	<formats>
 		<format id="json" format="%s"/>
 		<format id="common" format="%s"/>
-		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(syslogRFC)+`){&quot;agent&quot;:&quot;%s&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(syslogRFC)+`) %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n" />
+		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(syslogRFC)+`){&quot;agent&quot;:&quot;%s&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;%%ExtraContext}%%n"/>
+		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(syslogRFC)+`) %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg %%ExtraContext%%n" />
 	</formats>
 </seelog>`,
 		BuildJSONFormat(loggerName),
@@ -347,8 +348,35 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return slices[len(slices)-1]
 }
 
+func createExtraContext(params string) seelog.FormatterFunc {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		contextMap, ok := context.CustomContext().(map[string]interface{})
+		if len(contextMap) == 0 || !ok {
+			return ""
+		}
+		return extractContextString(contextMap)
+	}
+}
+
+func extractContextString(contextMap map[string]interface{}) string {
+	contextStr := ""
+	i := 0
+	sep := ", "
+	for k, v := range contextMap {
+		if i == len(contextMap)-1 {
+			sep = ""
+		}
+		k, _ := json.Marshal(k)
+		v, _ := json.Marshal(v)
+		contextStr += fmt.Sprintf("%s: %s%s", string(k), string(v), sep)
+		i++
+	}
+	return ", " + contextStr
+}
+
 func init() {
 	seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
 	seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
+	seelog.RegisterCustomFormatter("ExtraContext", createExtraContext)
 	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
 }
