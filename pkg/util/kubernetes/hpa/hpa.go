@@ -12,9 +12,10 @@ import (
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"strings"
 )
 
 // Inspect returns the list of external metrics from the hpa to use for autoscaling.
@@ -28,7 +29,7 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 			}
 			em := custommetrics.ExternalMetricValue{
 				MetricName: strings.ToLower(metricSpec.External.MetricName),
-				Labels: make(map[string]string),
+				Labels:     make(map[string]string),
 				HPA: custommetrics.ObjectReference{
 					Name:      hpa.Name,
 					Namespace: hpa.Namespace,
