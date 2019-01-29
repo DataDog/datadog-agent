@@ -3,6 +3,7 @@ package three
 // #cgo CFLAGS: -I../../include
 // #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
 // #include <datadog_agent_six.h>
+//
 import "C"
 
 import (
@@ -11,30 +12,26 @@ import (
 	common "../common"
 )
 
-func get3() *C.six_t {
-	six := C.make3()
-	C.init(six, nil)
-	return six
-}
+var six *C.six_t
 
-func init3() error {
-	six := C.make3()
+func setUp() error {
+	six = C.make3()
 	if six == nil {
 		return fmt.Errorf("`make3` failed")
 	}
 
 	C.init(six, nil)
-	if C.is_initialized(six) != 1 {
-		return fmt.Errorf("Six not initialized")
-	}
 
 	return nil
 }
 
-func getVersion() string {
-	six := get3()
-	ret := C.GoString(C.get_py_version(six))
+func tearDown() {
 	C.destroy3(six)
+	six = nil
+}
+
+func getVersion() string {
+	ret := C.GoString(C.get_py_version(six))
 	return ret
 }
 
@@ -43,9 +40,7 @@ func runString(code string) (string, error) {
 	var err error
 	var output []byte
 	output, err = common.Capture(func() {
-		six := get3()
 		ret = C.run_simple_string(six, C.CString(code)) == 0
-		C.destroy3(six)
 	})
 
 	if err != nil {
