@@ -61,18 +61,6 @@ func Initialize(paths ...string) *python.PyThreadState {
 		signals.ErrorStopper <- true
 	}
 
-	// make sure the Python threading facilities are correctly initialized,
-	// please notice this will also lock the GIL, see [0] for reference.
-	//
-	// [0]: https://docs.python.org/2/c-api/init.html#c.PyEval_InitThreads
-	if C.PyEval_ThreadsInitialized() == 0 {
-		C.PyEval_InitThreads()
-	}
-	if C.PyEval_ThreadsInitialized() == 0 {
-		log.Error("python: could not initialize the GIL")
-		signals.ErrorStopper <- true
-	}
-
 	// Set the PYTHONPATH if needed.
 	// We still hold a lock from calling `C.PyEval_InitThreads()` above, so we can
 	// safely use go-python here without any additional loking operation.
