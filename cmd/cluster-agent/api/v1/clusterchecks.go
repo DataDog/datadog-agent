@@ -22,7 +22,7 @@ import (
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/clusterchecks/status/{nodeName}", postCheckStatus(sc)).Methods("POST")
 	r.HandleFunc("/clusterchecks/configs/{nodeName}", getCheckConfigs(sc)).Methods("GET")
-	r.HandleFunc("/clusterchecks", getAllCheckConfigs(sc)).Methods("GET")
+	r.HandleFunc("/clusterchecks", getState(sc)).Methods("GET")
 }
 
 // postCheckStatus is used by the node-agent's config provider
@@ -87,8 +87,8 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 	}
 }
 
-// getAllCheckConfigs is used by the clustercheck config
-func getAllCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+// getState is used by the clustercheck config
+func getState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
 	if sc.ClusterCheckHandler == nil {
 		return func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -96,18 +96,15 @@ func getAllCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWrite
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !shouldHandle(w, r, sc.ClusterCheckHandler, "getAllCheckConfigs") {
-			return
-		}
-
-		response, err := sc.ClusterCheckHandler.GetAllConfigs()
+		// No redirection for this one, internal endpoint
+		response, err := sc.ClusterCheckHandler.GetState()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			incrementRequestMetric("getAllCheckConfigs", http.StatusInternalServerError)
+			incrementRequestMetric("getState", http.StatusInternalServerError)
 			return
 		}
 
-		writeJSONResponse(w, response, "getAllCheckConfigs")
+		writeJSONResponse(w, response, "getState")
 	}
 }
 

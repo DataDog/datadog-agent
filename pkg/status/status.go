@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -162,9 +163,18 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
-		return stats, nil
+	} else {
+		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
-	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
+
+	if config.Datadog.GetBool("cluster_checks.enabled") {
+		cchecks, err := clusterchecks.GetStats()
+		if err != nil {
+			log.Errorf("Error grabbing clusterchecks stats: %s", err)
+		} else {
+			stats["clusterchecks"] = cchecks
+		}
+	}
 
 	return stats, nil
 }
