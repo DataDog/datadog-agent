@@ -284,7 +284,7 @@ func NormalizeTag(tag string) string {
 			continue
 		}
 
-		if unicode.IsUpper(c) {
+		if utf8.ValidRune(c) && unicode.IsUpper(c) {
 			utf8.EncodeRune(norm[i:], unicode.ToLower(c))
 		}
 		switch {
