@@ -40,7 +40,10 @@ func (c *Container) FillCgroupLimits() error {
 	if err != nil {
 		return fmt.Errorf("soft mem limit: %s", err)
 	}
-
+	c.MemFailCnt, err = c.cgroup.FailedMemoryCount()
+	if err != nill {
+		return fmt.Errorf("failed mem count: %s", err)
+	}
 	return nil
 }
 

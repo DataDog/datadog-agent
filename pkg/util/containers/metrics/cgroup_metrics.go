@@ -104,8 +104,6 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 			ret.TotalActiveFile = v
 		case "total_unevictable":
 			ret.TotalUnevictable = v
-		case "failcnt":
-			ret.MemFailCnt = v
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -133,6 +131,18 @@ func (c ContainerCgroup) MemLimit() (uint64, error) {
 	return v, nil
 }
 
+// FailedMemoryCount returns the number of times this cgroup reached its memory limit, if it exists.
+// If the file does not exist or there is no limit, then this will default to 0
+func (c ContainerCgroup) FailedMemoryCount() (unit64, error){
+	v, err := c.ParseSingleStat("memory", "memory.failcnt")
+	if os.IsNotExist(err) {
+		log.Debugf("Missing cgroup file: %s",
+			c.cgroupFilePath("memory", "memory.failcnt"))
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+}
 // SoftMemLimit returns the soft memory limit of the cgroup, if it exists. If the file does not
 // exist or there is no limit then this will default to 0.
 func (c ContainerCgroup) SoftMemLimit() (uint64, error) {

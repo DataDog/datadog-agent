@@ -197,7 +197,6 @@ func (d *DockerCheck) Run() error {
 		if c.Memory != nil {
 			sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
 			sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
-			sender.Gauge("docker.mem.failed_count", float64(c.Memory.MemFailCnt),"",tags)
 			if c.Memory.SwapPresent == true {
 				sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
 			}
@@ -223,7 +222,9 @@ func (d *DockerCheck) Run() error {
 		} else {
 			log.Debugf("Empty memory metrics for container %s", c.ID[:12])
 		}
-
+		if c.MemFailCnt != nil {
+			sender.Gauge("docker.mem.failed_count", float64(c.MemFailCnt),"",tags)
+		}
 		if c.IO != nil {
 			d.reportIOMetrics(c.IO, tags, sender)
 		} else {
