@@ -57,9 +57,9 @@ func nextField(slice, sep []byte) ([]byte, []byte) {
 	return slice[:sepIndex], slice[sepIndex+1:]
 }
 
-// parseTags parses `rawTags` and returns a slice of tags,
-// and, if extractHost is true, the extracted hostname
-func parseTags(rawTags []byte, extractHost bool, defaultHostname string) ([]string, string) {
+// parseTags parses `rawTags` and returns a slice of tags
+// and the extracted hostname
+func parseTags(rawTags []byte, defaultHostname string) ([]string, string) {
 	if len(rawTags) == 0 {
 		return nil, defaultHostname
 	}
@@ -71,7 +71,7 @@ func parseTags(rawTags []byte, extractHost bool, defaultHostname string) ([]stri
 	var tag []byte
 	for {
 		tag, remainder = nextField(remainder, tagSeparator)
-		if extractHost && bytes.HasPrefix(tag, []byte("host:")) {
+		if bytes.HasPrefix(tag, []byte("host:")) {
 			host = string(tag[5:])
 		} else {
 			tagsList = append(tagsList, string(tag))
@@ -133,7 +133,7 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 		} else if bytes.HasPrefix(rawMetadataField, []byte("h:")) {
 			hostFromField = string(rawMetadataField[2:])
 		} else if bytes.HasPrefix(rawMetadataField, []byte("#")) {
-			service.Tags, hostFromTags = parseTags(rawMetadataField[1:], true, defaultHostname)
+			service.Tags, hostFromTags = parseTags(rawMetadataField[1:], defaultHostname)
 		} else if bytes.HasPrefix(rawMetadataField, []byte("m:")) {
 			service.Message = string(rawMetadataField[2:])
 		} else {
@@ -238,7 +238,7 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("s:")) {
 				event.SourceTypeName = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				event.Tags, hostFromTags = parseTags(rawMetadataFields[i][1:], true, defaultHostname)
+				event.Tags, hostFromTags = parseTags(rawMetadataFields[i][1:], defaultHostname)
 
 			} else {
 				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
@@ -285,7 +285,7 @@ func parseMetricMessage(message []byte, namespace string, defaultHostname string
 		rawMetadataField, remainder = nextField(remainder, fieldSeparator)
 
 		if bytes.HasPrefix(rawMetadataField, []byte("#")) {
-			metricTags, host = parseTags(rawMetadataField[1:], true, defaultHostname)
+			metricTags, host = parseTags(rawMetadataField[1:], defaultHostname)
 		} else if bytes.HasPrefix(rawMetadataField, []byte("@")) {
 			rawSampleRate := rawMetadataField[1:]
 			var err error
