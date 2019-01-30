@@ -1150,6 +1150,27 @@ latest_release:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:latest-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
 
+#
+# Use this step to revert the latest tag to a previous release
+# while maintaining content trust signatures
+# - remove the leading dot from the name
+# - set the RELEASE envvar
+# - in the gitlab pipeline view, trigger the step (in the first column)
+#
+.latest_revert_to_previous_release:
+  <<: *docker_tag_job_definition
+  stage: source_test
+  when: manual
+  variables:
+    <<: *docker_hub_variables
+    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
+  script:
+    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
+
+
 dca_tag_release:
   <<: *docker_tag_job_definition
   <<: *run_when_triggered_on_tag
