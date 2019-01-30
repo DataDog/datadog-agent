@@ -11,7 +11,12 @@
 static six_t *six2, *six3;
 
 static six_pyobject_t *print_foo() {
-    printf("I'm extending Python!\n\n");
+    printf("I'm extending Python2!\n\n");
+    return get_none(six2);
+}
+
+static six_pyobject_t *print_foo3() {
+    printf("I'm extending Python3!\n\n");
     return get_none(six2);
 }
 
@@ -35,11 +40,15 @@ char* read_file(const char* path)
 }
 
 int main(int argc, char *argv[]) {
+    /************
+     * Python 2 *
+     ************/
     six2 = make2();
     if (!six2) {
         return 1;
     }
 
+    // add a new `print_foo` to the custom builtin module `datadog_agent`
     add_module_func(six2, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS,
                     "print_foo", print_foo);
     init(six2, NULL);
@@ -48,20 +57,27 @@ int main(int argc, char *argv[]) {
 
     char *code = read_file("./demo/main.py");
     run_simple_string(six2, code);
-    free(code);
 
+    /************
+     * Python 3 *
+     ************/
     six3 = make3();
     if (!six3) {
         return 1;
     }
+
+    // add a new `print_foo` to the custom builtin module `datadog_agent`
+    add_module_func(six3, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS,
+                    "print_foo", print_foo3);
+
     init(six3, NULL);
     printf("Embedding Python version %s\n", get_py_version(six3));
     printf("\n");
 
-    printf("Also embedded Python version %s\n", get_py_version(six2));
-    printf("\n");
+    run_simple_string(six3, code);
 
     destroy2(six2);
     destroy3(six3);
+    free(code);
     printf("All cleaned up\n");
 }
