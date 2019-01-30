@@ -23,7 +23,7 @@ void Two::init(const char* pythonHome) {
 
     PyModules::iterator it;
     for (it = _modules.begin(); it != _modules.end(); ++it) {
-        Py_InitModule(it->first.c_str(), &_modules[it->first][0]);
+        Py_InitModule(getExtensionModuleName(it->first), &_modules[it->first][0]);
     }
 
     // In Python3 this is called from Py_Initialize already
@@ -45,11 +45,15 @@ int Two::runSimpleString(const char* code) const
     return PyRun_SimpleString(code);
 }
 
-void Two::addModuleFunction(const char* module, const char* funcName,
-                            void* func, MethType t)
+int Two::addModuleFunction(ExtensionModule module, MethType t,
+                           const char* funcName, void* func)
 {
-    int ml_flags;
+    if (getExtensionModuleName(module) == "") {
+        std::cerr << "Unknown ExtensionModule value" << std::endl;
+        return -1;
+    }
 
+    int ml_flags;
     switch (t) {
         case Six::NOARGS:
             ml_flags = METH_NOARGS;
@@ -60,6 +64,9 @@ void Two::addModuleFunction(const char* module, const char* funcName,
         case Six::KEYWORDS:
             ml_flags = METH_VARARGS | METH_KEYWORDS;
             break;
+        default:
+            std::cerr << "Unknown MethType value" << std::endl;
+            return -1;
     }
 
     PyMethodDef def = {
@@ -78,4 +85,7 @@ void Two::addModuleFunction(const char* module, const char* funcName,
 
     // insert at beginning so we keep guard at the end
     _modules[module].insert(_modules[module].begin(), def);
+
+    // success
+    return 0;
 }

@@ -9,7 +9,7 @@ import common "../common"
 //
 // extern six_pyobject_t *printFoo();
 // static void goSetupMyModule(six_t *six) {
-//     add_module_func_noargs(six, "my_module", "print_foo", printFoo);
+//    add_module_func(six, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", printFoo);
 // }
 import "C"
 
@@ -30,8 +30,8 @@ func extend() (string, error) {
 
 	code := C.CString(`
 try:
-	import my_module
-	my_module.print_foo()
+	import datadog_agent
+	datadog_agent.print_foo()
 except Exception as e:
 	print(e, flush=True)
 	`)

@@ -19,6 +19,9 @@ public:
     void init(const char* pythonHome);
     void addModuleFunction(const char* module, const char* funcName,
                            void* func, MethType t);
+    int addModuleFunction(ExtensionModule module, MethType t,
+                          const char* funcName, void* func);
+
 
     // const API
     bool isInitialized() const;
@@ -28,7 +31,7 @@ public:
 
 private:
     typedef std::vector<PyMethodDef> PyMethods;
-    typedef std::map<std::string, PyMethods> PyModules;
+    typedef std::map<ExtensionModule, PyMethods> PyModules;
 
     PyModules _modules;
 };

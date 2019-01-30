@@ -30,6 +30,16 @@ extern "C" {
     struct six_pyobject_s;
     typedef struct six_pyobject_s six_pyobject_t;
 
+    typedef enum six_module_e {
+        DATADOG_AGENT_SIX_DATADOG_AGENT
+    } six_module_t;
+
+    typedef enum six_module_func_e {
+        DATADOG_AGENT_SIX_NOARGS,
+        DATADOG_AGENT_SIX_ARGS,
+        DATADOG_AGENT_SIX_KEYWORDS
+    } six_module_func_t;
+
     // FACTORIES
     DATADOG_AGENT_SIX_API six_t* make2();
     DATADOG_AGENT_SIX_API void destroy2(six_t*);
@@ -38,9 +48,9 @@ extern "C" {
 
     // C API
     DATADOG_AGENT_SIX_API void init(six_t*, char*);
-    DATADOG_AGENT_SIX_API void add_module_func_noargs(six_t*, char*, char*, void*);
-    DATADOG_AGENT_SIX_API void add_module_func_args(six_t*, char*, char*, void*);
-    DATADOG_AGENT_SIX_API void add_module_func_keywords(six_t*, char*, char*, void*);
+    DATADOG_AGENT_SIX_API int add_module_func(six_t*, six_module_t module,
+                                              six_module_func_t func_type,
+                                              char *func_name, void *func);
 
     // C CONST API
     DATADOG_AGENT_SIX_API int is_initialized(six_t*);
