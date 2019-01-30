@@ -26,12 +26,12 @@
   version = "2.1.0"
 
 [[projects]]
-  digest = "1:d3ad1d8c2704bd1506683b8836356dd1571c6c39a0614c35409a66357a79e4c1"
+  digest = "1:3319c0b61ed60d9be4a03d7df292c07751b2f984a4dc452dcb5c52365c973192"
   name = "github.com/DataDog/go-python3"
   packages = ["."]
   pruneopts = ""
-  revision = "8531cecce7962dac67d9ad553cb51404637dedb6"
-  version = "0.1.0"
+  revision = "0b25cc550560f4b3e49c89af907f7cfeffe94dac"
+  version = "0.1.1"
 
 [[projects]]
   branch = "master"
