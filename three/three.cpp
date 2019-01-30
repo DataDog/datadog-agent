@@ -7,6 +7,20 @@
 
 #include <iostream>
 
+static struct PyModuleDef datadog_agent_def = {
+    PyModuleDef_HEAD_INIT, // m_base
+    "datadog_agent", // m_name
+    NULL, // m_doc
+    -1, // m_size
+    NULL, // m_methods, will be filled later
+    NULL, NULL, NULL, NULL // not needed, we're doing Single-phase initialization
+};
+
+PyMODINIT_FUNC
+PyInit_datadog_agent(void)
+{
+    return PyModule_Create(&datadog_agent_def);
+}
 
 Three::~Three()
 {
@@ -27,22 +41,12 @@ void Three::init(const char* pythonHome)
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
+    // init builtin modules one by one
+    datadog_agent_def.m_methods = &_modules[DATADOG_AGENT][0];
+    PyImport_AppendInittab(getExtensionModuleName(DATADOG_AGENT), &PyInit_datadog_agent);
+
     Py_SetPythonHome(_pythonHome);
     Py_Initialize();
-
-    PyModules::iterator it;
-    for (it = _modules.begin(); it != _modules.end(); ++it) {
-        PyModuleDef mod_def = {
-            PyModuleDef_HEAD_INIT, // m_base
-            it->first.c_str(), // m_name
-            NULL, // m_doc
-            -1, // m_size
-            &_modules[it->first][0], // m_methods
-            NULL, NULL, NULL, NULL // not needed, we're doing Single-phase initialization
-        };
-        PyObject *module = PyModule_Create(&mod_def);
-        PyState_AddModule(module, &mod_def);
-    }
 }
 
 bool Three::isInitialized() const
@@ -55,11 +59,15 @@ const char* Three::getPyVersion() const
     return Py_GetVersion();
 }
 
-void Three::addModuleFunction(const char* module, const char* funcName,
-                              void* func, Three::MethType t)
+int Three::addModuleFunction(ExtensionModule module, MethType t,
+                             const char* funcName, void* func)
 {
-    int ml_flags;
+    if (getExtensionModuleName(module) == "") {
+        std::cerr << "Unknown ExtensionModule value" << std::endl;
+        return -1;
+    }
 
+    int ml_flags;
     switch (t) {
         case Six::NOARGS:
             ml_flags = METH_NOARGS;

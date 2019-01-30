@@ -16,19 +16,33 @@ public:
         KEYWORDS
     };
 
+    enum ExtensionModule {
+        DATADOG_AGENT
+    };
+
     Six() {};
     virtual ~Six() {};
 
     // Public API
     virtual void init(const char* pythonHome) = 0;
-    virtual void addModuleFunction(const char* module, const char* funcName,
-                                   void* func, MethType t) = 0;
+    virtual int addModuleFunction(ExtensionModule module, MethType t,
+                                  const char* funcName, void* func) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;
     virtual const char* getPyVersion() const = 0;
     virtual int runSimpleString(const char* code) const = 0;
     virtual SixPyObject* getNone() const = 0;
+
+protected:
+    const char* getExtensionModuleName(ExtensionModule m)
+    {
+        switch(m) {
+            case DATADOG_AGENT:
+                return "datadog_agent";
+        }
+        return "";
+    }
 };
 
 typedef Six* create_t();

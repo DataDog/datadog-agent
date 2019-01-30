@@ -40,7 +40,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    add_module_func_noargs(six2, "my_module", "print_foo", print_foo);
+    add_module_func(six2, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS,
+                    "print_foo", print_foo);
     init(six2, NULL);
     printf("Embedding Python version %s\n", get_py_version(six2));
     printf("\n");

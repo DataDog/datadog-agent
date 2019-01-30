@@ -125,17 +125,34 @@ six_pyobject_t* get_none(const six_t* six)
     return AS_TYPE(six_pyobject_t, AS_CTYPE(Six, six)->getNone());
 }
 
-void add_module_func_noargs(six_t* six, char* moduleName, char* funcName, void* func)
+int add_module_func(six_t* six, six_module_t module, six_module_func_t func_type,
+                     char *func_name, void *func)
 {
-    AS_TYPE(Six, six)->addModuleFunction(moduleName, funcName, func, Six::NOARGS);
-}
+    Six::ExtensionModule six_module;
+    switch(module) {
+        case DATADOG_AGENT_SIX_DATADOG_AGENT:
+            six_module = Six::DATADOG_AGENT;
+            break;
+        default:
+            std::cerr << "Unknown six_module_t value" << std::endl;
+            return -1;
+    }
 
-void add_module_func_args(six_t* six, char* moduleName, char* funcName, void* func)
-{
-    AS_TYPE(Six, six)->addModuleFunction(moduleName, funcName, func, Six::ARGS);
-}
+    Six::MethType six_func_type;
+    switch(func_type) {
+        case DATADOG_AGENT_SIX_NOARGS:
+            six_func_type = Six::NOARGS;
+            break;
+        case DATADOG_AGENT_SIX_ARGS:
+            six_func_type = Six::ARGS;
+            break;
+        case DATADOG_AGENT_SIX_KEYWORDS:
+            six_func_type = Six::KEYWORDS;
+            break;
+        default:
+            std::cerr << "Unknown six_module_func_t value" << std::endl;
+            return -1;
+    }
 
-void add_module_func_keywords(six_t* six, char* moduleName, char* funcName, void* func)
-{
-    AS_TYPE(Six, six)->addModuleFunction(moduleName, funcName, func, Six::KEYWORDS);
+    return AS_TYPE(Six, six)->addModuleFunction(six_module, six_func_type, func_name, func);
 }
