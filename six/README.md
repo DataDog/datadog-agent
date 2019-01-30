@@ -30,6 +30,7 @@ different versions of the CPython library.
 * Python 2.7.x development packages
 * Python 3.7.x development packages
 * Cmake version 3.12 or above
+* Go compiler with `cgo` capabilities to run the tests
 
 ## Build
 
@@ -43,11 +44,11 @@ Then just run `make` to build the project.
 
 ## Demo
 
-Examples about how to use Six are provided in form of a C application under `demo`
-and a Go application under `demo_go` that uses `cgo`.
+Examples about how to use Six are provided in form of a C application under `demo`.
 
 ## Test
 
+Tests are written in Golang using `cgo`, to run the testsuite from the root folder:
 ```sh
 make -C test
 ```
