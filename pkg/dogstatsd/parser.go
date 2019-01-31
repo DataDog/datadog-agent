@@ -11,9 +11,18 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	hostTagPrefix        = "host:"
+	entityIDTagPrefix    = "_dd.entity_id:"
+	lenHostTagPrefix     = len(hostTagPrefix)
+	lenEntityIDTagPrefix = len(entityIDTagPrefix)
 )
 
 // Schema of a dogstatsd packet: see http://docs.datadoghq.com
@@ -28,9 +37,12 @@ var metricTypes = map[string]metrics.MetricType{
 	"d":  metrics.DistributionType,
 }
 
+type tagRetriever func(entity string, cardinality collectors.TagCardinality) ([]string, error)
+
 var tagSeparator = []byte(",")
 var fieldSeparator = []byte("|")
 var valueSeparator = []byte(":")
+var getTags tagRetriever = tagger.Tag
 
 func nextMessage(packet *[]byte) (message []byte) {
 	if len(*packet) == 0 {
@@ -71,8 +83,16 @@ func parseTags(rawTags []byte, defaultHostname string) ([]string, string) {
 	var tag []byte
 	for {
 		tag, remainder = nextField(remainder, tagSeparator)
-		if bytes.HasPrefix(tag, []byte("host:")) {
-			host = string(tag[5:])
+		if bytes.HasPrefix(tag, []byte(hostTagPrefix)) {
+			host = string(tag[lenHostTagPrefix:])
+		} else if bytes.HasPrefix(tag, []byte(entityIDTagPrefix)) {
+			// currently only supported for pods
+			entity := kubelet.KubePodPrefix + string(tag[lenEntityIDTagPrefix:])
+			entityTags, err := getTags(entity, tagger.DogstatsdCardinality)
+			if err != nil || len(entityTags) == 0 {
+				continue
+			}
+			tagsList = append(tagsList, entityTags...)
 		} else {
 			tagsList = append(tagsList, string(tag))
 		}
@@ -239,7 +259,6 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 				event.SourceTypeName = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
 				event.Tags, hostFromTags = parseTags(rawMetadataFields[i][1:], defaultHostname)
-
 			} else {
 				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
 			}
