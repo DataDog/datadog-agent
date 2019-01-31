@@ -36,7 +36,7 @@ var (
 	fieldSeparator                    = []byte("|")
 	valueSeparator                    = []byte(":")
 	hostTagPrefix                     = []byte("host:")
-	entityIDTagPrefix                 = []byte("dd_entity_id:")
+	entityIDTagPrefix                 = []byte("dd.internal.entity_id:")
 	lenHostTagPrefix                  = len(hostTagPrefix)
 	lenEntityIDTagPrefix              = len(entityIDTagPrefix)
 	getTags              tagRetriever = tagger.Tag
@@ -68,7 +68,8 @@ func nextField(slice, sep []byte) ([]byte, []byte) {
 }
 
 // parseTags parses `rawTags` and returns a slice of tags
-// and the extracted hostname
+// and the extracted hostname, injects tagger tags if an entity
+// is provided via a special tag
 func parseTags(rawTags []byte, defaultHostname string) ([]string, string) {
 	if len(rawTags) == 0 {
 		return nil, defaultHostname
@@ -87,7 +88,8 @@ func parseTags(rawTags []byte, defaultHostname string) ([]string, string) {
 			// currently only supported for pods
 			entity := kubelet.KubePodPrefix + string(tag[lenEntityIDTagPrefix:])
 			entityTags, err := getTags(entity, tagger.DogstatsdCardinality)
-			if err != nil || len(entityTags) == 0 {
+			if err != nil {
+				log.Tracef("Cannot get tags for entity %s: %s", entity, err)
 				continue
 			}
 			tagsList = append(tagsList, entityTags...)

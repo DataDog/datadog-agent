@@ -736,10 +736,13 @@ func TestNamespace(t *testing.T) {
 
 func TestEntityOriginDetectionNoTags(t *testing.T) {
 	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+		if entity == "otherentity" {
+			return []string{"tag:ishouldnothave"}, nil
+		}
 		return []string{}, nil
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd_entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -754,10 +757,13 @@ func TestEntityOriginDetectionNoTags(t *testing.T) {
 
 func TestEntityOriginDetectionTags(t *testing.T) {
 	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-		return []string{"foo:bar", "bar:buz"}, nil
+		if entity == "kubernetes_pod://foo" {
+			return []string{"foo:bar", "bar:buz"}, nil
+		}
+		return []string{}, nil
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd_entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -777,7 +783,7 @@ func TestEntityOriginDetectionTagsError(t *testing.T) {
 		return nil, errors.New("cannot get tags")
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd_entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
