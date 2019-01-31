@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -106,7 +107,7 @@ type MockExtractor struct {
 	Rate float64
 }
 
-func (e *MockExtractor) Extract(s *agent.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
+func (e *MockExtractor) Extract(s *stats.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
 	if e.Rate < 0 {
 		return 0, false
 	}

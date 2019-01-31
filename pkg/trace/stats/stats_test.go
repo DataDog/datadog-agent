@@ -1,4 +1,4 @@
-package agent
+package stats
 
 import (
 	"bytes"
@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -105,10 +106,10 @@ type expectedDistribution struct {
 	topLevel float64
 }
 
-func TestStatsBucketDefault(t *testing.T) {
+func TestBucketDefault(t *testing.T) {
 	assert := assert.New(t)
 
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 
 	// No custom aggregators only the defaults
 	aggr := []string{}
@@ -213,10 +214,10 @@ func TestStatsBucketDefault(t *testing.T) {
 	}
 }
 
-func TestStatsBucketExtraAggregators(t *testing.T) {
+func TestBucketExtraAggregators(t *testing.T) {
 	assert := assert.New(t)
 
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 
 	// one custom aggregator
 	aggr := []string{"version"}
@@ -263,7 +264,7 @@ func TestStatsBucketExtraAggregators(t *testing.T) {
 	}
 }
 
-func TestStatsBucketMany(t *testing.T) {
+func TestBucketMany(t *testing.T) {
 	if testing.Short() {
 		return
 	}
@@ -277,7 +278,7 @@ func TestStatsBucketMany(t *testing.T) {
 	}
 	const n = 100000
 
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 
 	// No custom aggregators only the defaults
 	aggr := []string{}
@@ -303,7 +304,7 @@ func TestStatsBucketMany(t *testing.T) {
 	}
 }
 
-func TestStatsBucketSublayers(t *testing.T) {
+func TestBucketSublayers(t *testing.T) {
 	assert := assert.New(t)
 
 	tr := testTrace()
@@ -315,7 +316,7 @@ func TestStatsBucketSublayers(t *testing.T) {
 
 	assert.NotNil(sublayers)
 
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 
 	// No custom aggregators only the defaults
 	aggr := []string{}
@@ -401,7 +402,7 @@ func TestStatsBucketSublayers(t *testing.T) {
 	}
 }
 
-func TestStatsBucketSublayersTopLevel(t *testing.T) {
+func TestBucketSublayersTopLevel(t *testing.T) {
 	assert := assert.New(t)
 
 	tr := testTraceTopLevel()
@@ -413,7 +414,7 @@ func TestStatsBucketSublayersTopLevel(t *testing.T) {
 
 	assert.NotNil(sublayers)
 
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 
 	// No custom aggregators only the defaults
 	aggr := []string{}
@@ -520,7 +521,7 @@ func TestTsRounding(t *testing.T) {
 
 func BenchmarkHandleSpan(b *testing.B) {
 
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 	aggr := []string{}
 
 	b.ResetTimer()
@@ -533,8 +534,7 @@ func BenchmarkHandleSpan(b *testing.B) {
 }
 
 func BenchmarkHandleSpanSublayers(b *testing.B) {
-
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 	aggr := []string{}
 
 	tr := testTrace()

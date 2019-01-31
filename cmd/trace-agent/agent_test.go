@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
@@ -490,7 +491,7 @@ func generateTraffic(processor *event.Processor, serviceName string, operationNa
 
 Loop:
 	for {
-		spans := make([]*agent.WeightedSpan, spansPerTick)
+		spans := make([]*stats.WeightedSpan, spansPerTick)
 		for i := range spans {
 			span := testutil.RandomSpan()
 			span.Service = serviceName
@@ -498,14 +499,14 @@ Loop:
 			if extractionRate >= 0 {
 				span.Metrics[sampler.KeySamplingRateEventExtraction] = extractionRate
 			}
-			spans[i] = &agent.WeightedSpan{
+			spans[i] = &stats.WeightedSpan{
 				Span: span,
 				// Make all spans top level for simpler testing of legacy extractor
 				TopLevel: true,
 			}
 		}
 		trace := agent.ProcessedTrace{
-			WeightedTrace: agent.WeightedTrace(spans),
+			WeightedTrace: stats.WeightedTrace(spans),
 			Root:          spans[0].Span,
 		}
 		if priority != sampler.PriorityNone {
