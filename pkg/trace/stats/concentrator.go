@@ -1,4 +1,4 @@
-package main
+package stats
 
 import (
 	"sort"
@@ -7,7 +7,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -33,21 +33,21 @@ type Concentrator struct {
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen int
 
-	OutStats chan []agent.StatsBucket
+	OutStats chan []StatsBucket
 
 	exit   chan struct{}
 	exitWG *sync.WaitGroup
 
-	buckets map[int64]*agent.StatsRawBucket // buckets used to aggregate stats per timestamp
+	buckets map[int64]*StatsRawBucket // buckets used to aggregate stats per timestamp
 	mu      sync.Mutex
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(aggregators []string, bsize int64, out chan []agent.StatsBucket) *Concentrator {
+func NewConcentrator(aggregators []string, bsize int64, out chan []StatsBucket) *Concentrator {
 	c := Concentrator{
 		aggregators: aggregators,
 		bsize:       bsize,
-		buckets:     make(map[int64]*agent.StatsRawBucket),
+		buckets:     make(map[int64]*StatsRawBucket),
 		// At start, only allow stats for the current time bucket. Ensure we don't
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(time.Now().UnixNano(), bsize),
@@ -101,15 +101,25 @@ func (c *Concentrator) Stop() {
 	c.exitWG.Wait()
 }
 
-// Add appends to the proper stats bucket this trace's statistics
-func (c *Concentrator) Add(t agent.ProcessedTrace) {
-	c.addNow(t, time.Now().UnixNano())
+// SublayerMap maps spans to their sublayer values.
+type SublayerMap map[*pb.Span][]SublayerValue
+
+// Input contains input for the concentractor.
+type Input struct {
+	Trace     WeightedTrace
+	Sublayers SublayerMap
+	Env       string
 }
 
-func (c *Concentrator) addNow(t agent.ProcessedTrace, now int64) {
+// Add appends to the proper stats bucket this trace's statistics
+func (c *Concentrator) Add(i *Input) {
+	c.addNow(i, time.Now().UnixNano())
+}
+
+func (c *Concentrator) addNow(i *Input, now int64) {
 	c.mu.Lock()
 
-	for _, s := range t.WeightedTrace {
+	for _, s := range i.Trace {
 		// We do not compute stats for non top level spans since this is not surfaced in the UI
 		if !s.TopLevel {
 			continue
@@ -124,24 +134,24 @@ func (c *Concentrator) addNow(t agent.ProcessedTrace, now int64) {
 
 		b, ok := c.buckets[btime]
 		if !ok {
-			b = agent.NewStatsRawBucket(btime, c.bsize)
+			b = NewStatsRawBucket(btime, c.bsize)
 			c.buckets[btime] = b
 		}
 
-		sublayers, _ := t.Sublayers[s.Span]
-		b.HandleSpan(s, t.Env, c.aggregators, sublayers)
+		subs, _ := i.Sublayers[s.Span]
+		b.HandleSpan(s, i.Env, c.aggregators, subs)
 	}
 
 	c.mu.Unlock()
 }
 
 // Flush deletes and returns complete statistic buckets
-func (c *Concentrator) Flush() []agent.StatsBucket {
+func (c *Concentrator) Flush() []StatsBucket {
 	return c.flushNow(time.Now().UnixNano())
 }
 
-func (c *Concentrator) flushNow(now int64) []agent.StatsBucket {
-	var sb []agent.StatsBucket
+func (c *Concentrator) flushNow(now int64) []StatsBucket {
+	var sb []StatsBucket
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {

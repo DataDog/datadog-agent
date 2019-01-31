@@ -1,4 +1,4 @@
-package main
+package stats
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -28,7 +29,7 @@ const processStatsInterval = time.Minute
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver           *api.HTTPReceiver
-	Concentrator       *Concentrator
+	Concentrator       *stats.Concentrator
 	Blacklister        *filters.Blacklister
 	Replacer           *filters.Replacer
 	ScoreSampler       *Sampler
@@ -63,13 +64,13 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	// inter-component channels
 	rawTraceChan := make(chan pb.Trace, 5000) // about 1000 traces/sec for 5 sec, TODO: move to *model.Trace
 	tracePkgChan := make(chan *writer.TracePackage)
-	statsChan := make(chan []agent.StatsBucket)
+	statsChan := make(chan []stats.StatsBucket)
 	serviceChan := make(chan pb.ServicesMetadata, 50)
 	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
 
 	// create components
 	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan, serviceChan)
-	c := NewConcentrator(
+	c := stats.NewConcentrator(
 		conf.ExtraAggregators,
 		conf.BucketInterval.Nanoseconds(),
 		statsChan,
@@ -217,17 +218,17 @@ func (a *Agent) Process(t pb.Trace) {
 	// which is not thread-safe while samplers and Concentrator might modify it too.
 	traceutil.ComputeTopLevel(t)
 
-	subtraces := ExtractTopLevelSubtraces(t, root)
-	sublayers := make(map[*pb.Span][]agent.SublayerValue)
+	subtraces := stats.ExtractTopLevelSubtraces(t, root)
+	sublayers := make(map[*pb.Span][]stats.SublayerValue)
 	for _, subtrace := range subtraces {
-		subtraceSublayers := agent.ComputeSublayers(subtrace.Trace)
+		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
 		sublayers[subtrace.Root] = subtraceSublayers
-		agent.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
+		stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
 	}
 
 	pt := agent.ProcessedTrace{
 		Trace:         t,
-		WeightedTrace: agent.NewWeightedTrace(t, root),
+		WeightedTrace: stats.NewWeightedTrace(t, root),
 		Root:          root,
 		Env:           a.conf.DefaultEnv,
 		Sublayers:     sublayers,
@@ -245,7 +246,11 @@ func (a *Agent) Process(t pb.Trace) {
 	go func(pt agent.ProcessedTrace) {
 		defer watchdog.LogOnPanic()
 		// Everything is sent to concentrator for stats, regardless of sampling.
-		a.Concentrator.Add(pt)
+		a.Concentrator.Add(&stats.Input{
+			Trace:     pt.WeightedTrace,
+			Sublayers: pt.Sublayers,
+			Env:       pt.Env,
+		})
 	}(pt)
 
 	// Don't go through sampling for < 0 priority traces

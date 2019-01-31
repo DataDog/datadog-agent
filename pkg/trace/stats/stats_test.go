@@ -1,4 +1,4 @@
-package agent
+package stats
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+
 	"github.com/stretchr/testify/assert"
 )
 

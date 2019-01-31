@@ -1,4 +1,4 @@
-package main
+package stats
 
 import (
 	"fmt"
@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+
 	"github.com/stretchr/testify/assert"
 )
 
 var testBucketInterval = time.Duration(2 * time.Second).Nanoseconds()
 
 func NewTestConcentrator() *Concentrator {
-	statsChan := make(chan []agent.StatsBucket)
+	statsChan := make(chan []StatsBucket)
 	return NewConcentrator([]string{}, time.Second.Nanoseconds(), statsChan)
 }
 
@@ -47,7 +47,7 @@ func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, r
 // time before its start
 func TestConcentratorOldestTs(t *testing.T) {
 	assert := assert.New(t)
-	statsChan := make(chan []agent.StatsBucket)
+	statsChan := make(chan []StatsBucket)
 
 	now := time.Now().UnixNano()
 
@@ -62,12 +62,11 @@ func TestConcentratorOldestTs(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(trace)
-	wt := agent.NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
-	testTrace := agent.ProcessedTrace{
-		Env:           "none",
-		Trace:         trace,
-		WeightedTrace: wt,
+	testTrace := &Input{
+		Env:   "none",
+		Trace: wt,
 	}
 
 	t.Run("cold", func(t *testing.T) {
@@ -152,7 +151,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 // time bucket they end up.
 func TestConcentratorStatsTotals(t *testing.T) {
 	assert := assert.New(t)
-	statsChan := make(chan []agent.StatsBucket)
+	statsChan := make(chan []StatsBucket)
 	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
@@ -173,12 +172,11 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(trace)
-	wt := agent.NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
-	testTrace := agent.ProcessedTrace{
-		Env:           "none",
-		Trace:         trace,
-		WeightedTrace: wt,
+	testTrace := &Input{
+		Env:   "none",
+		Trace: wt,
 	}
 	c.Add(testTrace)
 
@@ -211,7 +209,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 // TestConcentratorStatsCounts tests exhaustively each stats bucket, over multiple time buckets.
 func TestConcentratorStatsCounts(t *testing.T) {
 	assert := assert.New(t)
-	statsChan := make(chan []agent.StatsBucket)
+	statsChan := make(chan []StatsBucket)
 	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
@@ -279,12 +277,11 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = map[string]int64{}
 
 	traceutil.ComputeTopLevel(trace)
-	wt := agent.NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
-	testTrace := agent.ProcessedTrace{
-		Env:           "none",
-		Trace:         trace,
-		WeightedTrace: wt,
+	testTrace := &Input{
+		Env:   "none",
+		Trace: wt,
 	}
 	c.Add(testTrace)
 
@@ -304,7 +301,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 				t.FailNow()
 			}
 
-			receivedBuckets := []agent.StatsBucket{stats[0]}
+			receivedBuckets := []StatsBucket{stats[0]}
 
 			assert.Equal(expectedFlushedTs, receivedBuckets[0].Start)
 
@@ -335,7 +332,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 // TestConcentratorSublayersStatsCounts tests exhaustively the sublayer stats of a single time window.
 func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	assert := assert.New(t)
-	statsChan := make(chan []agent.StatsBucket)
+	statsChan := make(chan []StatsBucket)
 	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
@@ -351,20 +348,19 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 		testSpan(6, 2, 30, 0, "A3", "resource6", 0),
 	}
 	traceutil.ComputeTopLevel(trace)
-	wt := agent.NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
 	subtraces := ExtractTopLevelSubtraces(trace, traceutil.GetRoot(trace))
-	sublayers := make(map[*pb.Span][]agent.SublayerValue)
+	sublayers := make(map[*pb.Span][]SublayerValue)
 	for _, subtrace := range subtraces {
-		subtraceSublayers := agent.ComputeSublayers(subtrace.Trace)
+		subtraceSublayers := ComputeSublayers(subtrace.Trace)
 		sublayers[subtrace.Root] = subtraceSublayers
 	}
 
-	testTrace := agent.ProcessedTrace{
-		Env:           "none",
-		Trace:         trace,
-		WeightedTrace: wt,
-		Sublayers:     sublayers,
+	testTrace := &Input{
+		Env:       "none",
+		Trace:     wt,
+		Sublayers: sublayers,
 	}
 
 	c.Add(testTrace)
@@ -376,7 +372,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 
 	assert.Equal(alignedNow, stats[0].Start)
 
-	var receivedCounts map[string]agent.Count
+	var receivedCounts map[string]Count
 
 	// Start with the first/older bucket
 	receivedCounts = stats[0].Counts

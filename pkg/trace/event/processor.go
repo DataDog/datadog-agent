@@ -4,6 +4,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
 // Processor is responsible for all the logic surrounding extraction and sampling of APM events from processed traces.
@@ -93,7 +94,7 @@ func (p *Processor) Process(t agent.ProcessedTrace) (events []*pb.Span, numExtra
 	return
 }
 
-func (p *Processor) extract(span *agent.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
+func (p *Processor) extract(span *stats.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
 	for _, extractor := range p.extractors {
 		if rate, ok := extractor.Extract(span, priority); ok {
 			return rate, ok

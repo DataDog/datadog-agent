@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +23,7 @@ func TestTracerServiceExtractor(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(trace)
-	wt := agent.NewWeightedTrace(trace, trace[0])
+	wt := stats.NewWeightedTrace(trace, trace[0])
 
 	go func() {
 		testExtractor.Process(wt)
