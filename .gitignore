@@ -89,3 +89,11 @@ kubeconfig
 .vagrant
 
 version.txt
+*.retry
+
+.circleci/images/gitlab-runner/Makefile
+.circleci/images/gitlab-runner/hosts
+.circleci/images/gitlab-runner/provisioner/gitlab_vars.yml
+.circleci/images/gitlab-runner/.terraform/*
+.circleci/images/windows-builder/hosts
+.circleci/images/gitlab-runner/provisioner/hosts

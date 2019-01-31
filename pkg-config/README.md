@@ -22,3 +22,22 @@ is present in the go source file:
 ```
 
 (see https://golang.org/cmd/cgo/ for more details on `cgo` usage)
+
+
+System python on windows runner: system/python-2.7.pc
+
+```
+
+prefix=C:/python27-x64
+exec_prefix=${prefix}
+libdir=${exec_prefix}/libs
+includedir=${prefix}/include
+
+Name: Python
+Description: Python library
+Requires:
+Version: 2.7
+Libs: -L${libdir} -lpython27 -lpthread -lm
+Cflags: -I${includedir} -DMS_WIN64
+
+```

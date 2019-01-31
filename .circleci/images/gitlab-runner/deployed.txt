@@ -1,0 +1,1 @@
+This instance was prepared by gitlab-runner tf script

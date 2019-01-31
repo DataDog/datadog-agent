@@ -1,4 +1,4 @@
-prefix=C:/opt/datadog-agent/embedded
+prefix=C:/opt/stackstate-agent/embedded
 exec_prefix=${prefix}
 libdir=${exec_prefix}/libs
 includedir=${prefix}/include

@@ -40,10 +40,10 @@
     </Upgrade>
 
     <!-- Close application when uninstalling -->
-    <util:CloseApplication Id="CloseTrayApp" 
-                          CloseMessage="yes" 
+    <util:CloseApplication Id="CloseTrayApp"
+                          CloseMessage="yes"
                           EndSessionMessage="yes"
-                          Target="ddtray.exe" 
+                          Target="ddtray.exe"
                           ElevatedCloseMessage="yes"
                           TerminateProcess="1"
                           Timeout="1"
@@ -343,9 +343,9 @@
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
                  NeverOverwrite="yes"
                  Permanent="yes">
-        <File Id="datadog.yaml.example"
-              Name="datadog.yaml"
-              Source="$(var.EtcFiles)\datadog.yaml.example"/>
+        <File Id="stackstate.yaml.example"
+              Name="stackstate.yaml"
+              Source="$(var.EtcFiles)\stackstate.yaml.example"/>
       </Component>
 
       <Directory Id="checks.d" Name="checks.d">
@@ -432,7 +432,7 @@
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
-      <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="stackstate.yaml.example" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="checks.d" />
@@ -556,7 +556,7 @@
 
    <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />
     <Binary Id="BackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
-    
+
     <Property Id="ShortCompanyName" Value="!(loc.CompanyNameShort)" />
 
   </Product>

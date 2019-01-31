@@ -20,6 +20,7 @@ source git: 'https://github.com/StackVista/stackstate-trace-agent.git'
 relative_path 'src/github.com/StackVista/stackstate-trace-agent'
 
 if windows?
+  trace_agent_windows_binary = ENV['TRACE_AGENT_WINDOWS_BINARY']
   trace_agent_binary = "trace-agent.exe"
 else
   trace_agent_binary = "trace-agent"
@@ -53,8 +54,17 @@ build do
     env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
 
     # build trace-agent
+
     if windows?
-      command "make windows", :env => env
+      if trace_agent_windows_binary.nil? || trace_agent_windows_binary.empty?
+          command "make windows", :env => env
+      else
+          binary = "stackstate-trace-agent-#{trace_agent_version}.exe"
+          url = "https://s3-eu-west-1.amazonaws.com/stackstate-trace-agent-2-test/#{binary}"
+          mkdir "#{gopath.to_path}/bin"
+          curl_cmd = "powershell -Command wget -OutFile #{gopath.to_path}/bin/#{trace_agent_binary} #{url}"
+          command curl_cmd
+      end
     end
     command "make install", :env => env
 

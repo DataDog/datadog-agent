@@ -93,7 +93,7 @@ package :msi do
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/stackstate-agent/packaging/stackstate-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/stackstate-agent/src/github.com/StackVista/stackstate-agent/bin/agent",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/StackVista/stackstate-agent/bin/agent",
     'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\stackstate-agent",
   })
 end
@@ -109,7 +109,7 @@ if linux?
   dependency 'curl'
 end
 
-dependency 'cacerts'
+dependency 'cacerts_override' # [VS] _override
 # creates required build directories
 dependency 'datadog-agent-prepare'
 

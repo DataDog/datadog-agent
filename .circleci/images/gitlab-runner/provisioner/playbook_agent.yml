@@ -1,0 +1,58 @@
+- hosts: all
+#  vars:
+#    gitlab_ci_url: https://git.something.com/ci
+#    registration_token: sdfsdfsdfsdfsdfsdfsd
+#    token: ghjkghjkghjkghjkghjkghjkghjkgh
+
+  vars_files:
+    - gitlab_vars.yml
+
+  tasks:
+
+  - name: Gitlab Runner | Check if a service is installed
+    win_service:
+      name: gitlab-runner
+    register: gitlab_service
+
+  - debug: var="gitlab_service"
+
+  - name: Gitlab Runner | Stop if exists
+    win_service:
+      name: gitlab-runner
+      state: stopped
+    when: gitlab_service.exists
+
+
+  - name: Create dir (per installation docs)
+    win_file:
+      path: C:\GitLab-Runner
+      state: directory
+
+  - name: Fetch GitLab Runner Binary
+    win_get_url:
+      url: https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-windows-amd64.exe
+      dest: C:\GitLab-Runner\gitlab-runner.exe
+
+#       --config value Config file [%CONFIG_FILE%]
+
+  - name: configure GitLab Runner
+    win_shell:
+      C:\GitLab-Runner\gitlab-runner.exe register --non-interactive `
+       --url {{ gitlab_runner_ci_url }} `
+       --registration-token {{ gitlab_runner_registration_token }} `
+       --executor shell `
+       --description "{{ gitlab_runner_description }}" `
+       --builds-dir "{{ gitlab_builds_dir }}" `
+       --cache-dir "{{ gitlab_caches_dir }}" `
+       --shell {{ gitlab_shell }} `
+       --tag-list {{ gitlab_tags|join(', ') }} `
+       --env "GIT_SSL_NO_VERIFY=true"
+
+#      {{ "--env \"%s\"" | format(gitlab_environment) }}
+
+  - name: Install runner as service
+    win_command: C:\GitLab-Runner\gitlab-runner.exe install
+    when: not gitlab_service.exists
+
+  - name: Start runner service
+    win_command: C:\GitLab-Runner\gitlab-runner.exe start
