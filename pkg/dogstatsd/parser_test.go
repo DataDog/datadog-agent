@@ -186,7 +186,7 @@ func TestParseGaugeWithTags(t *testing.T) {
 }
 
 func TestParseGaugeWithHostTag(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,"+hostTagPrefix+"my-hostname,sometag2:somevalue2"), "", "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -200,7 +200,7 @@ func TestParseGaugeWithHostTag(t *testing.T) {
 }
 
 func TestParseGaugeWithEmptyHostTag(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,"+hostTagPrefix+",sometag2:somevalue2"), "", "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -383,7 +383,7 @@ func TestServiceCheckMetadataHostname(t *testing.T) {
 }
 
 func TestServiceCheckMetadataHostnameInTag(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#"+hostTagPrefix+"localhost"), "default-hostname")
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#host:localhost"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -395,7 +395,7 @@ func TestServiceCheckMetadataHostnameInTag(t *testing.T) {
 }
 
 func TestServiceCheckMetadataEmptyHostTag(t *testing.T) {
-	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#"+hostTagPrefix+",other:tag"), "default-hostname")
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#host:,other:tag"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -614,7 +614,7 @@ func TestEventMetadataHostname(t *testing.T) {
 }
 
 func TestEventMetadataHostnameInTag(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#"+hostTagPrefix+"localhost"), "default-hostname")
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#host:localhost"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -630,7 +630,7 @@ func TestEventMetadataHostnameInTag(t *testing.T) {
 }
 
 func TestEventMetadataEmptyHostTag(t *testing.T) {
-	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#"+hostTagPrefix+",other:tag"), "default-hostname")
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#host:,other:tag"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -739,7 +739,7 @@ func TestEntityOriginDetectionNoTags(t *testing.T) {
 		return []string{}, nil
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,"+hostTagPrefix+"my-hostname,"+entityIDTagPrefix+"foo,sometag2:somevalue2"), "", "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd_entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -757,7 +757,7 @@ func TestEntityOriginDetectionTags(t *testing.T) {
 		return []string{"foo:bar", "bar:buz"}, nil
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,"+hostTagPrefix+"my-hostname,"+entityIDTagPrefix+"foo,sometag2:somevalue2"), "", "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd_entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -777,7 +777,7 @@ func TestEntityOriginDetectionTagsError(t *testing.T) {
 		return nil, errors.New("cannot get tags")
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,"+hostTagPrefix+"my-hostname,"+entityIDTagPrefix+"foo,sometag2:somevalue2"), "", "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd_entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)

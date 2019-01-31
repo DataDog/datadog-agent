@@ -18,31 +18,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	hostTagPrefix        = "host:"
-	entityIDTagPrefix    = "_dd.entity_id:"
-	lenHostTagPrefix     = len(hostTagPrefix)
-	lenEntityIDTagPrefix = len(entityIDTagPrefix)
-)
-
 // Schema of a dogstatsd packet: see http://docs.datadoghq.com
-
-// MetricTypes maps the dogstatsd metric types to the agent metric types
-var metricTypes = map[string]metrics.MetricType{
-	"g":  metrics.GaugeType,
-	"c":  metrics.CounterType,
-	"s":  metrics.SetType,
-	"h":  metrics.HistogramType,
-	"ms": metrics.HistogramType,
-	"d":  metrics.DistributionType,
-}
 
 type tagRetriever func(entity string, cardinality collectors.TagCardinality) ([]string, error)
 
-var tagSeparator = []byte(",")
-var fieldSeparator = []byte("|")
-var valueSeparator = []byte(":")
-var getTags tagRetriever = tagger.Tag
+var (
+	// metricTypes maps the dogstatsd metric types to the agent metric types
+	metricTypes = map[string]metrics.MetricType{
+		"g":  metrics.GaugeType,
+		"c":  metrics.CounterType,
+		"s":  metrics.SetType,
+		"h":  metrics.HistogramType,
+		"ms": metrics.HistogramType,
+		"d":  metrics.DistributionType,
+	}
+	tagSeparator                      = []byte(",")
+	fieldSeparator                    = []byte("|")
+	valueSeparator                    = []byte(":")
+	hostTagPrefix                     = []byte("host:")
+	entityIDTagPrefix                 = []byte("dd_entity_id:")
+	lenHostTagPrefix                  = len(hostTagPrefix)
+	lenEntityIDTagPrefix              = len(entityIDTagPrefix)
+	getTags              tagRetriever = tagger.Tag
+)
 
 func nextMessage(packet *[]byte) (message []byte) {
 	if len(*packet) == 0 {
@@ -83,9 +81,9 @@ func parseTags(rawTags []byte, defaultHostname string) ([]string, string) {
 	var tag []byte
 	for {
 		tag, remainder = nextField(remainder, tagSeparator)
-		if bytes.HasPrefix(tag, []byte(hostTagPrefix)) {
+		if bytes.HasPrefix(tag, hostTagPrefix) {
 			host = string(tag[lenHostTagPrefix:])
-		} else if bytes.HasPrefix(tag, []byte(entityIDTagPrefix)) {
+		} else if bytes.HasPrefix(tag, entityIDTagPrefix) {
 			// currently only supported for pods
 			entity := kubelet.KubePodPrefix + string(tag[lenEntityIDTagPrefix:])
 			entityTags, err := getTags(entity, tagger.DogstatsdCardinality)
