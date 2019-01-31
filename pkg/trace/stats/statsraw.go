@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/quantile"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
 
 // Most "algorithm" stuff here is tested with stats_test.go as what is important

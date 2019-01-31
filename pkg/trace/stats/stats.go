@@ -3,7 +3,7 @@ package stats
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/quantile"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
 
 // Hardcoded measures names for ease of reference
