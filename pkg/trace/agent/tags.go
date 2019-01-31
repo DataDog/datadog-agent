@@ -3,11 +3,7 @@ package agent
 import (
 	"sort"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 )
-
-const maxTagLength = 200
 
 // Tag represents a key / value dimension on traces and stats.
 type Tag struct {
@@ -245,109 +241,4 @@ func FilterTags(tags, groups []string) []string {
 		}
 	}
 	return out
-}
-
-// NormalizeTag applies some normalization to ensure the tags match the
-// backend requirements
-// taken from dd-go.model.NormalizeTag
-func NormalizeTag(tag string) string {
-	if len(tag) == 0 {
-		return ""
-	}
-	var (
-		trim   int      // start character (if trimming)
-		wiping bool     // true when the previous character has been discarded
-		wipe   [][2]int // sections to discard: (start, end) pairs
-		chars  int      // number of characters processed
-	)
-	var (
-		i int  // current byte
-		c rune // current rune
-	)
-	norm := []byte(tag)
-	for i, c = range tag {
-		if chars >= maxTagLength {
-			// we've reached the maximum
-			break
-		}
-		// fast path; all letters (and colons) are ok
-		switch {
-		case c >= 'a' && c <= 'z' || c == ':':
-			chars++
-			wiping = false
-			continue
-		case c >= 'A' && c <= 'Z':
-			// lower-case
-			norm[i] += 'a' - 'A'
-			chars++
-			wiping = false
-			continue
-		}
-
-		if utf8.ValidRune(c) && unicode.IsUpper(c) {
-			// lowercase this character
-			if low := unicode.ToLower(c); utf8.RuneLen(c) == utf8.RuneLen(low) {
-				// but only if the width of the lowercased character is the same;
-				// there are some rare edge-cases where this is not the case, such
-				// as \u017F (ſ)
-				utf8.EncodeRune(norm[i:], low)
-				c = low
-			}
-		}
-		switch {
-		case unicode.IsLetter(c):
-			chars++
-			wiping = false
-		case chars == 0:
-			// this character can not start the string, trim
-			trim = i + utf8.RuneLen(c)
-			continue
-		case unicode.IsDigit(c) || c == '.' || c == '/' || c == '-':
-			chars++
-			wiping = false
-		default:
-			// illegal character
-			if !wiping {
-				// start a new cut
-				wipe = append(wipe, [2]int{i, i + utf8.RuneLen(c)})
-				wiping = true
-			} else {
-				// lengthen current cut
-				wipe[len(wipe)-1][1] += utf8.RuneLen(c)
-			}
-		}
-	}
-
-	norm = norm[trim : i+utf8.RuneLen(c)] // trim start and end
-	if len(wipe) == 0 {
-		// tag was ok, return it as it is
-		return string(norm)
-	}
-	delta := trim // cut offsets delta
-	for _, cut := range wipe {
-		// start and end of cut, including delta from previous cuts:
-		start, end := cut[0]-delta, cut[1]-delta
-
-		if end >= len(norm) {
-			// this cut includes the end of the string; discard it
-			// completely and finish the loop.
-			norm = norm[:start]
-			break
-		}
-		// replace the beginning of the cut with '_'
-		norm[start] = '_'
-		if end-start == 1 {
-			// nothing to discard
-			continue
-		}
-		// discard remaining characters in the cut
-		copy(norm[start+1:], norm[end:])
-
-		// shorten the slice
-		norm = norm[:len(norm)-(end-start)+1]
-
-		// count the new delta for future cuts
-		delta += cut[1] - cut[0] - 1
-	}
-	return string(norm)
 }
