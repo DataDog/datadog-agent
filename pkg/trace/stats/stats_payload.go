@@ -6,15 +6,15 @@ import (
 	"encoding/json"
 )
 
-// StatsPayload represents the payload to be flushed to the stats endpoint
-type StatsPayload struct {
-	HostName string        `json:"hostname"`
-	Env      string        `json:"env"`
-	Stats    []StatsBucket `json:"stats"`
+// Payload represents the payload to be flushed to the stats endpoint
+type Payload struct {
+	HostName string   `json:"hostname"`
+	Env      string   `json:"env"`
+	Stats    []Bucket `json:"stats"`
 }
 
-// EncodeStatsPayload encodes the stats payload as json/gzip.
-func EncodeStatsPayload(payload *StatsPayload) ([]byte, error) {
+// EncodePayload encodes the stats payload as json/gzip.
+func EncodePayload(payload *Payload) ([]byte, error) {
 	var b bytes.Buffer
 	var err error
 

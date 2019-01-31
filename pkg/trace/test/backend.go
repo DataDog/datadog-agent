@@ -96,7 +96,7 @@ func (s *fakeBackend) handleHealth(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
-	var payload stats.StatsPayload
+	var payload stats.Payload
 	if err := readJSONRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
 	}

@@ -64,7 +64,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	// inter-component channels
 	rawTraceChan := make(chan pb.Trace, 5000) // about 1000 traces/sec for 5 sec, TODO: move to *model.Trace
 	tracePkgChan := make(chan *writer.TracePackage)
-	statsChan := make(chan []stats.StatsBucket)
+	statsChan := make(chan []stats.Bucket)
 	serviceChan := make(chan pb.ServicesMetadata, 50)
 	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
 

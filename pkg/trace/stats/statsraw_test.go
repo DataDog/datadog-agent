@@ -10,7 +10,7 @@ import (
 )
 
 func TestGrain(t *testing.T) {
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 	assert := assert.New(t)
 
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
@@ -21,7 +21,7 @@ func TestGrain(t *testing.T) {
 }
 
 func TestGrainWithExtraTags(t *testing.T) {
-	srb := NewStatsRawBucket(0, 1e9)
+	srb := NewRawBucket(0, 1e9)
 	assert := assert.New(t)
 
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"meta2": "two", "meta1": "ONE"}}
@@ -32,7 +32,7 @@ func TestGrainWithExtraTags(t *testing.T) {
 }
 
 func BenchmarkHandleSpanRandom(b *testing.B) {
-	sb := NewStatsRawBucket(0, 1e9)
+	sb := NewRawBucket(0, 1e9)
 	aggr := []string{}
 
 	b.ResetTimer()

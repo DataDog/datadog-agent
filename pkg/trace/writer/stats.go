@@ -22,7 +22,7 @@ type StatsWriter struct {
 	exit   chan struct{}
 
 	// InStats is the stream of stat buckets to send out.
-	InStats <-chan []stats.StatsBucket
+	InStats <-chan []stats.Bucket
 
 	// info contains various statistics about the writer, which are
 	// occasionally sent as metrics to Datadog.
@@ -40,7 +40,7 @@ type StatsWriter struct {
 }
 
 // NewStatsWriter returns a new writer for stats.
-func NewStatsWriter(conf *config.AgentConfig, InStats <-chan []stats.StatsBucket) *StatsWriter {
+func NewStatsWriter(conf *config.AgentConfig, InStats <-chan []stats.Bucket) *StatsWriter {
 	cfg := conf.StatsWriterConfig
 	endpoints := newEndpoints(conf, pathStats)
 	sender := newMultiSender(endpoints, cfg.SenderConfig)
@@ -96,7 +96,7 @@ func (w *StatsWriter) Stop() {
 	w.sender.Stop()
 }
 
-func (w *StatsWriter) handleStats(s []stats.StatsBucket) {
+func (w *StatsWriter) handleStats(s []stats.Bucket) {
 	payloads, nbStatBuckets, nbEntries := w.buildPayloads(s, w.conf.MaxEntriesPerPayload)
 	if len(payloads) == 0 {
 		return
@@ -119,7 +119,7 @@ func (w *StatsWriter) handleStats(s []stats.StatsBucket) {
 
 	for _, p := range payloads {
 		// synchronously send the payloads one after the other
-		data, err := stats.EncodeStatsPayload(p)
+		data, err := stats.EncodePayload(p)
 		if err != nil {
 			log.Errorf("encoding issue: %v", err)
 			return
@@ -138,9 +138,9 @@ type timeWindow struct {
 
 // buildPayloads returns a set of payload to send out, each paylods guaranteed
 // to have the number of stats buckets under the given maximum.
-func (w *StatsWriter) buildPayloads(s []stats.StatsBucket, maxEntriesPerPayloads int) ([]*stats.StatsPayload, int, int) {
+func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int) ([]*stats.Payload, int, int) {
 	if len(s) == 0 {
-		return []*stats.StatsPayload{}, 0, 0
+		return []*stats.Payload{}, 0, 0
 	}
 
 	// 1. Get an estimate of how many payloads we need, based on the total
@@ -159,7 +159,7 @@ func (w *StatsWriter) buildPayloads(s []stats.StatsBucket, maxEntriesPerPayloads
 
 	if maxEntriesPerPayloads <= 0 || nbEntries < maxEntriesPerPayloads {
 		// nothing to do, break early
-		return []*stats.StatsPayload{{
+		return []*stats.Payload{{
 			HostName: w.hostName,
 			Env:      w.env,
 			Stats:    s,
@@ -174,9 +174,9 @@ func (w *StatsWriter) buildPayloads(s []stats.StatsBucket, maxEntriesPerPayloads
 	// 2. Create a slice of nbPayloads maps, mapping a time window (stat +
 	//    duration) to a stat bucket. We will build the payloads from these
 	//    maps. This allows is to have one stat bucket per time window.
-	pMaps := make([]map[timeWindow]stats.StatsBucket, nbPayloads)
+	pMaps := make([]map[timeWindow]stats.Bucket, nbPayloads)
 	for i := 0; i < nbPayloads; i++ {
-		pMaps[i] = make(map[timeWindow]stats.StatsBucket, nbPayloads)
+		pMaps[i] = make(map[timeWindow]stats.Bucket, nbPayloads)
 	}
 
 	// 3. Iterate over all entries of each stats. Add the entry to one of
@@ -192,7 +192,7 @@ func (w *StatsWriter) buildPayloads(s []stats.StatsBucket, maxEntriesPerPayloads
 			pm := pMaps[i%nbPayloads]
 			newsb, ok := pm[tw]
 			if !ok {
-				newsb = stats.NewStatsBucket(tw.start, tw.duration)
+				newsb = stats.NewBucket(tw.start, tw.duration)
 			}
 			pm[tw] = newsb
 
@@ -223,14 +223,14 @@ func (w *StatsWriter) buildPayloads(s []stats.StatsBucket, maxEntriesPerPayloads
 	// 4. Create the nbPayloads payloads from the maps.
 	nbStats := 0
 	nbEntries = 0
-	payloads := make([]*stats.StatsPayload, 0, nbPayloads)
+	payloads := make([]*stats.Payload, 0, nbPayloads)
 	for _, pm := range pMaps {
-		pstats := make([]stats.StatsBucket, 0, len(pm))
+		pstats := make([]stats.Bucket, 0, len(pm))
 		for _, sb := range pm {
 			pstats = append(pstats, sb)
 			nbEntries += len(sb.Counts)
 		}
-		payloads = append(payloads, &stats.StatsPayload{
+		payloads = append(payloads, &stats.Payload{
 			HostName: w.hostName,
 			Env:      w.env,
 			Stats:    pstats,

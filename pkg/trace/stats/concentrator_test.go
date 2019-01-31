@@ -15,7 +15,7 @@ import (
 var testBucketInterval = time.Duration(2 * time.Second).Nanoseconds()
 
 func NewTestConcentrator() *Concentrator {
-	statsChan := make(chan []StatsBucket)
+	statsChan := make(chan []Bucket)
 	return NewConcentrator([]string{}, time.Second.Nanoseconds(), statsChan)
 }
 
@@ -47,7 +47,7 @@ func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, r
 // time before its start
 func TestConcentratorOldestTs(t *testing.T) {
 	assert := assert.New(t)
-	statsChan := make(chan []StatsBucket)
+	statsChan := make(chan []Bucket)
 
 	now := time.Now().UnixNano()
 
@@ -77,7 +77,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		for i := 0; i < c.bufferLen; i++ {
 			stats := c.flushNow(flushTime)
-			if !assert.Equal(0, len(stats), "We should get exactly 0 StatsBucket") {
+			if !assert.Equal(0, len(stats), "We should get exactly 0 Bucket") {
 				t.FailNow()
 			}
 			flushTime += testBucketInterval
@@ -85,7 +85,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		stats := c.flushNow(flushTime)
 
-		if !assert.Equal(1, len(stats), "We should get exactly 1 StatsBucket") {
+		if !assert.Equal(1, len(stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
 		}
 
@@ -108,14 +108,14 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		for i := 0; i < c.bufferLen-1; i++ {
 			stats := c.flushNow(flushTime)
-			if !assert.Equal(0, len(stats), "We should get exactly 0 StatsBucket") {
+			if !assert.Equal(0, len(stats), "We should get exactly 0 Bucket") {
 				t.FailNow()
 			}
 			flushTime += testBucketInterval
 		}
 
 		stats := c.flushNow(flushTime)
-		if !assert.Equal(1, len(stats), "We should get exactly 1 StatsBucket") {
+		if !assert.Equal(1, len(stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
 		}
 		flushTime += testBucketInterval
@@ -131,7 +131,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		}
 
 		stats = c.flushNow(flushTime)
-		if !assert.Equal(1, len(stats), "We should get exactly 1 StatsBucket") {
+		if !assert.Equal(1, len(stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
 		}
 
@@ -151,7 +151,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 // time bucket they end up.
 func TestConcentratorStatsTotals(t *testing.T) {
 	assert := assert.New(t)
-	statsChan := make(chan []StatsBucket)
+	statsChan := make(chan []Bucket)
 	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
@@ -209,7 +209,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 // TestConcentratorStatsCounts tests exhaustively each stats bucket, over multiple time buckets.
 func TestConcentratorStatsCounts(t *testing.T) {
 	assert := assert.New(t)
-	statsChan := make(chan []StatsBucket)
+	statsChan := make(chan []Bucket)
 	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
@@ -297,11 +297,11 @@ func TestConcentratorStatsCounts(t *testing.T) {
 				return
 			}
 
-			if !assert.Equal(1, len(stats), "We should get exactly 1 StatsBucket") {
+			if !assert.Equal(1, len(stats), "We should get exactly 1 Bucket") {
 				t.FailNow()
 			}
 
-			receivedBuckets := []StatsBucket{stats[0]}
+			receivedBuckets := []Bucket{stats[0]}
 
 			assert.Equal(expectedFlushedTs, receivedBuckets[0].Start)
 
@@ -332,7 +332,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 // TestConcentratorSublayersStatsCounts tests exhaustively the sublayer stats of a single time window.
 func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	assert := assert.New(t)
-	statsChan := make(chan []StatsBucket)
+	statsChan := make(chan []Bucket)
 	c := NewConcentrator([]string{}, testBucketInterval, statsChan)
 
 	now := time.Now().UnixNano()
@@ -366,7 +366,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	c.Add(testTrace)
 	stats := c.flushNow(alignedNow + int64(c.bufferLen)*c.bsize)
 
-	if !assert.Equal(1, len(stats), "We should get exactly 1 StatsBucket") {
+	if !assert.Equal(1, len(stats), "We should get exactly 1 Bucket") {
 		t.FailNow()
 	}
 

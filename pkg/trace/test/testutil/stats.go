@@ -10,9 +10,9 @@ var defaultAggregators = []string{"service", "resource"}
 
 const defaultEnv = "none"
 
-// TestStatsBucket returns a fixed stats bucket to be used in unit tests
-func TestStatsBucket() stats.StatsBucket {
-	srb := stats.NewStatsRawBucket(0, 1e9)
+// TestBucket returns a fixed stats bucket to be used in unit tests
+func TestBucket() stats.Bucket {
+	srb := stats.NewRawBucket(0, 1e9)
 	srb.HandleSpan(TestWeightedSpan(), defaultEnv, defaultAggregators, nil)
 	sb := srb.Export()
 
@@ -23,33 +23,33 @@ func TestStatsBucket() stats.StatsBucket {
 	//    code as indeed, stats buckets are (un)marshalled
 	js, err := json.Marshal(sb)
 	if err != nil {
-		return stats.NewStatsBucket(0, 1e9)
+		return stats.NewBucket(0, 1e9)
 	}
-	var sb2 stats.StatsBucket
+	var sb2 stats.Bucket
 	err = json.Unmarshal(js, &sb2)
 	if err != nil {
-		return stats.NewStatsBucket(0, 1e9)
+		return stats.NewBucket(0, 1e9)
 	}
 	return sb2
 }
 
-// StatsBucketWithSpans returns a stats bucket populated with spans stats
-func StatsBucketWithSpans(spans []*stats.WeightedSpan) stats.StatsBucket {
-	srb := stats.NewStatsRawBucket(0, 1e9)
+// BucketWithSpans returns a stats bucket populated with spans stats
+func BucketWithSpans(spans []*stats.WeightedSpan) stats.Bucket {
+	srb := stats.NewRawBucket(0, 1e9)
 	for _, s := range spans {
 		srb.HandleSpan(s, defaultEnv, defaultAggregators, nil)
 	}
 	return srb.Export()
 }
 
-// RandomStatsBucket returns a bucket made from n random spans, useful to run benchmarks and tests
-func RandomStatsBucket(n int) stats.StatsBucket {
+// RandomBucket returns a bucket made from n random spans, useful to run benchmarks and tests
+func RandomBucket(n int) stats.Bucket {
 	spans := make([]*stats.WeightedSpan, 0, n)
 	for i := 0; i < n; i++ {
 		spans = append(spans, RandomWeightedSpan())
 	}
 
-	return StatsBucketWithSpans(spans)
+	return BucketWithSpans(spans)
 }
 
 // TestDistroValues is a pre-defined list of values

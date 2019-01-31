@@ -33,21 +33,21 @@ type Concentrator struct {
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen int
 
-	OutStats chan []StatsBucket
+	OutStats chan []Bucket
 
 	exit   chan struct{}
 	exitWG *sync.WaitGroup
 
-	buckets map[int64]*StatsRawBucket // buckets used to aggregate stats per timestamp
+	buckets map[int64]*RawBucket // buckets used to aggregate stats per timestamp
 	mu      sync.Mutex
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(aggregators []string, bsize int64, out chan []StatsBucket) *Concentrator {
+func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Concentrator {
 	c := Concentrator{
 		aggregators: aggregators,
 		bsize:       bsize,
-		buckets:     make(map[int64]*StatsRawBucket),
+		buckets:     make(map[int64]*RawBucket),
 		// At start, only allow stats for the current time bucket. Ensure we don't
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(time.Now().UnixNano(), bsize),
@@ -134,7 +134,7 @@ func (c *Concentrator) addNow(i *Input, now int64) {
 
 		b, ok := c.buckets[btime]
 		if !ok {
-			b = NewStatsRawBucket(btime, c.bsize)
+			b = NewRawBucket(btime, c.bsize)
 			c.buckets[btime] = b
 		}
 
@@ -146,12 +146,12 @@ func (c *Concentrator) addNow(i *Input, now int64) {
 }
 
 // Flush deletes and returns complete statistic buckets
-func (c *Concentrator) Flush() []StatsBucket {
+func (c *Concentrator) Flush() []Bucket {
 	return c.flushNow(time.Now().UnixNano())
 }
 
-func (c *Concentrator) flushNow(now int64) []StatsBucket {
-	var sb []StatsBucket
+func (c *Concentrator) flushNow(now int64) []Bucket {
+	var sb []Bucket
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {
