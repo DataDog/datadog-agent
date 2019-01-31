@@ -6,12 +6,9 @@
 package dogstatsd
 
 import (
-	// stdlib
-
-	"fmt"
+	"errors"
 	"testing"
 
-	// 3p
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -777,7 +774,7 @@ func TestEntityOriginDetectionTags(t *testing.T) {
 
 func TestEntityOriginDetectionTagsError(t *testing.T) {
 	getTags = func(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-		return nil, fmt.Errorf("Cannot get tags")
+		return nil, errors.New("cannot get tags")
 	}
 
 	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,_dd.entity_id:foo,sometag2:somevalue2"), "", "default-hostname")
