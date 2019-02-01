@@ -4,30 +4,31 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_TWO_H
 #define DATADOG_AGENT_SIX_TWO_H
-#include <vector>
 #include <map>
 #include <string>
+#include <vector>
 
-#include <six.h>
 #include <Python.h>
+#include <six.h>
 
-class Two: public Six {
+class Two : public Six {
 public:
-    Two(): Six(), _modules() {};
+    Two()
+        : Six()
+        , _modules() {};
     ~Two();
 
-    void init(const char* pythonHome);
-    void addModuleFunction(const char* module, const char* funcName,
-                           void* func, MethType t);
+    void init(const char *pythonHome);
+    void addModuleFunction(const char *module, const char *funcName,
+                           void *func, MethType t);
     int addModuleFunction(ExtensionModule module, MethType t,
-                          const char* funcName, void* func);
-
+                          const char *funcName, void *func);
 
     // const API
     bool isInitialized() const;
-    const char* getPyVersion() const;
-    int runSimpleString(const char* code) const;
-    SixPyObject* getNone() const { return reinterpret_cast<SixPyObject*>(Py_None); }
+    const char *getPyVersion() const;
+    int runSimpleString(const char *code) const;
+    SixPyObject *getNone() const { return reinterpret_cast<SixPyObject *>(Py_None); }
 
 private:
     typedef std::vector<PyMethodDef> PyMethods;
@@ -40,15 +41,13 @@ private:
 extern "C" {
 #endif
 
-    Six* create()
-    {
-        return new Two();
-    }
+Six *create() {
+    return new Two();
+}
 
-    void destroy(Six* p)
-    {
-        delete p;
-    }
+void destroy(Six *p) {
+    delete p;
+}
 
 #ifdef __cplusplus
 }

@@ -7,13 +7,11 @@
 
 #include <iostream>
 
-
-Two::~Two()
-{
+Two::~Two() {
     Py_Finalize();
 }
 
-void Two::init(const char* pythonHome) {
+void Two::init(const char *pythonHome) {
     if (pythonHome != NULL) {
         _pythonHome = pythonHome;
     }
@@ -30,24 +28,20 @@ void Two::init(const char* pythonHome) {
     PyEval_InitThreads();
 }
 
-bool Two::isInitialized() const
-{
+bool Two::isInitialized() const {
     return Py_IsInitialized();
 }
 
-const char* Two::getPyVersion() const
-{
+const char *Two::getPyVersion() const {
     return Py_GetVersion();
 }
 
-int Two::runSimpleString(const char* code) const
-{
+int Two::runSimpleString(const char *code) const {
     return PyRun_SimpleString(code);
 }
 
 int Two::addModuleFunction(ExtensionModule module, MethType t,
-                           const char* funcName, void* func)
-{
+                           const char *funcName, void *func) {
     if (getExtensionModuleName(module) == "") {
         std::cerr << "Unknown ExtensionModule value" << std::endl;
         return -1;
@@ -55,18 +49,18 @@ int Two::addModuleFunction(ExtensionModule module, MethType t,
 
     int ml_flags;
     switch (t) {
-        case Six::NOARGS:
-            ml_flags = METH_NOARGS;
-            break;
-        case Six::ARGS:
-            ml_flags = METH_VARARGS;
-            break;
-        case Six::KEYWORDS:
-            ml_flags = METH_VARARGS | METH_KEYWORDS;
-            break;
-        default:
-            std::cerr << "Unknown MethType value" << std::endl;
-            return -1;
+    case Six::NOARGS:
+        ml_flags = METH_NOARGS;
+        break;
+    case Six::ARGS:
+        ml_flags = METH_VARARGS;
+        break;
+    case Six::KEYWORDS:
+        ml_flags = METH_VARARGS | METH_KEYWORDS;
+        break;
+    default:
+        std::cerr << "Unknown MethType value" << std::endl;
+        return -1;
     }
 
     PyMethodDef def = {
@@ -79,7 +73,7 @@ int Two::addModuleFunction(ExtensionModule module, MethType t,
     if (_modules.find(module) == _modules.end()) {
         _modules[module] = PyMethods();
         // add the guard
-        PyMethodDef guard = {NULL, NULL};
+        PyMethodDef guard = { NULL, NULL };
         _modules[module].push_back(guard);
     }
 
