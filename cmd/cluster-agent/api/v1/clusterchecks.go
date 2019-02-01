@@ -28,9 +28,7 @@ func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) 
 // postCheckStatus is used by the node-agent's config provider
 func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
 	if sc.ClusterCheckHandler == nil {
-		return func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}
+		return notEnabledHandler
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -64,9 +62,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 // getCheckConfigs is used by the node-agent's config provider
 func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
 	if sc.ClusterCheckHandler == nil {
-		return func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}
+		return notEnabledHandler
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -90,9 +86,7 @@ func getCheckConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 // getState is used by the clustercheck config
 func getState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
 	if sc.ClusterCheckHandler == nil {
-		return func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		}
+		return notEnabledHandler
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -148,4 +142,10 @@ func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handl
 		incrementRequestMetric(handler, code)
 		return false
 	}
+}
+
+// notEnabledHandler returns a 404 response when cluster-checks are disabled
+func notEnabledHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte("Cluster-checks are not enabled"))
 }
