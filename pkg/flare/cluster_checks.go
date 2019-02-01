@@ -27,6 +27,11 @@ func GetClusterChecks(w io.Writer) error {
 		color.NoColor = true
 	}
 
+	if !config.Datadog.GetBool("cluster_checks.enabled") {
+		fmt.Fprintln(w, "Cluster-checks are not enabled")
+		return nil
+	}
+
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
@@ -42,6 +47,7 @@ func GetClusterChecks(w io.Writer) error {
 		} else {
 			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
 		}
+		return err
 	}
 
 	var cr types.StateResponse
