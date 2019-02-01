@@ -26,7 +26,7 @@ func TestProcessor(t *testing.T) {
 
 		// Test Extractors
 		{"0/1/none", []float64{0}, 1, sampler.PriorityNone, 0, 0, 0},
-		{"0.5/1/none", []float64{0.5}, 1, sampler.PriorityNone, 0.5, 1, 0.1},
+		{"0.5/1/none", []float64{0.5}, 1, sampler.PriorityNone, 0.5, 1, 0.15},
 		{"-1,0.8/1/none", []float64{-1, 0.8}, 1, sampler.PriorityNone, 0.8, 1, 0.1},
 		{"-1,-1,-0.8/1/none", []float64{-1, -1, 0.8}, 1, sampler.PriorityNone, 0.8, 1, 0.1},
 
