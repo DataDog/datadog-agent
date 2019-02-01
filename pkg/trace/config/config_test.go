@@ -267,7 +267,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(0.5, c.ExtraSampleRate)
 	assert.Equal(5.0, c.MaxTPS)
 	assert.Equal(50.0, c.MaxEPS)
-	assert.Equal(0.005, c.MaxCPU)
+	assert.Equal(0.5, c.MaxCPU)
 	assert.EqualValues(123.4, c.MaxMemory)
 	assert.Equal(12, c.MaxConnections)
 	assert.Equal("0.0.0.0", c.ReceiverHost)
