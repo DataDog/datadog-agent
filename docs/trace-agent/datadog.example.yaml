@@ -103,7 +103,7 @@ apm_config:
 # 
 #   # Maximum CPU percentage allowed to be occupied by the trace agent
 #   # The agent will be killed if this number is surpassed.
-#   max_cpu_percent: 0.5
+#   max_cpu_percent: 50
 #
 #   # Defines obfuscation rules for sensitive data. Disabled by default.
 #   obfuscation:

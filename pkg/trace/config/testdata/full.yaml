@@ -14,7 +14,7 @@ apm_config:
   enabled: false
   log_file: abc
   apm_dd_url: https://datadog.unittests
-  max_cpu_percent: 0.5
+  max_cpu_percent: 50
   max_memory: 123.4
   max_connections: 12
   additional_endpoints:
