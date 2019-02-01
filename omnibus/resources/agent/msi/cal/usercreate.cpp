@@ -1,8 +1,7 @@
 #include "stdafx.h"
 
 #pragma comment(lib, "shlwapi.lib")
-#define MIN_PASS_LEN 12
-#define MAX_PASS_LEN 18
+
 
 bool generatePassword(wchar_t* passbuf, int passbuflen) {
     if (passbuflen < MAX_PASS_LEN + 1) {
@@ -73,7 +72,7 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
     return true;
 
 }
-DWORD changeRegistryAcls(const wchar_t* name) {
+DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 
     ExplicitAccess localsystem;
     localsystem.BuildGrantSid(TRUSTEE_IS_USER, GENERIC_ALL | KEY_ALL_ACCESS, SECURITY_LOCAL_SYSTEM_RID, 0);
@@ -84,8 +83,10 @@ DWORD changeRegistryAcls(const wchar_t* name) {
     //ExplicitAccess suser;
     //suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
 
+    PSID  usersid = GetSidForUser(data.getDomainPtr(), data.getUserPtr());
     ExplicitAccess dduser;
-    dduser.BuildGrantUser(ddAgentUserName.c_str(), GENERIC_ALL | KEY_ALL_ACCESS);
+    dduser.BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,
+        SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
 
     WinAcl acl;
@@ -112,7 +113,7 @@ DWORD changeRegistryAcls(const wchar_t* name) {
 
 }
 
-DWORD addDdUserPermsToFile(std::wstring &filename)
+DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
 {
     if(!PathFileExistsW((LPCWSTR) filename.c_str()))
     {
@@ -120,8 +121,9 @@ DWORD addDdUserPermsToFile(std::wstring &filename)
         WcaLog(LOGMSG_STANDARD, "file doesn't exist, not doing anything");
         return 0;
     }
+    PSID  usersid = GetSidForUser(data.getDomainPtr(), data.getUserPtr());
     ExplicitAccess dduser;
-    dduser.BuildGrantUser(ddAgentUserName.c_str(), FILE_ALL_ACCESS, 
+    dduser.BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,
                           SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
     // get the current ACLs and append, rather than just set; if the file exists,
@@ -216,7 +218,7 @@ doneRemove:
     return ;
 }
 
-int doCreateUser(std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf)
+int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf)
 {
     
     USER_INFO_1 ui;
@@ -240,88 +242,6 @@ int doCreateUser(std::wstring& name, const wchar_t * domain, std::wstring& comme
 
 }
 
-int CreateDDUser(MSIHANDLE hInstall)
-{
-    int ret = 0;
-    bool ddAgentPropertySet = false;
-    bool ddAgentPasswordSet = false;
-    wchar_t *passbuf = NULL;
-    DWORD passbuflen = 0;
-    if(false == (ddAgentPropertySet = loadDdAgentUserName(hInstall))){
-        WcaLog(LOGMSG_STANDARD, "DDAGENT username not supplied, using default");
-    }
-    if(false == (ddAgentPasswordSet = loadDdAgentPassword(hInstall, &passbuf, &passbuflen))) {
-        WcaLog(LOGMSG_STANDARD, "Password not provided, will generate password");
-    }
-   
-    if(isDomainController(hInstall)) {
-        if(!ddAgentPropertySet || !ddAgentPasswordSet) {
-            WcaLog(LOGMSG_STANDARD, "Detected domain server, but username/password not provided.  Can't install");
-            ret = -1; 
-            goto ddUserReturn;
-        } 
-    }
-    
-
-    if (!ddAgentPasswordSet) {
-        passbuflen = MAX_PASS_LEN + 2;
-        passbuf = new wchar_t[passbuflen];
-        
-        if (!generatePassword(passbuf, passbuflen)) {
-
-            WcaLog(LOGMSG_STANDARD, "Failed to generate password");
-            ret = -1; 
-            goto ddUserReturn;
-        }
-    }
-    ret = doCreateUser(ddAgentUserNameUnqualified, ddAgentUserDomainPtr, ddAgentUserDescription, passbuf);
-    if (ret == NERR_UserExists) {
-        WcaLog(LOGMSG_STANDARD, "Attempting to reset password of existing user");
-        // if the user exists, update the password with the newly generated
-        // password.  We need to update the password on every install, b/c the
-        // service registration code runs on every upgrade, and we need to know
-        // the password.  Rather than store the password, just generate a new
-        // one and use that
-        USER_INFO_1003 newPassword;
-        newPassword.usri1003_password = passbuf;
-        ret = NetUserSetInfo(NULL, // always local server
-            ddAgentUserName.c_str(),
-            1003, // according to the docs there's no constant
-            (LPBYTE)&newPassword,
-            NULL);
-        if (0 == ret) {
-            MarkInstallStepComplete(strDdUserPasswordChanged);
-        } else {
-            WcaLog(LOGMSG_STANDARD, "Failed to reset password for user %d", ret);
-        }
-    } else if (ret != 0) {
-        // failed with some unexpected reason
-        WcaLog(LOGMSG_STANDARD, "Failed to create dd agent user");
-        goto ddUserReturn;
-    }
-    else {
-        // user was successfully create.  Store that in case we need to rollback
-        WcaLog(LOGMSG_STANDARD, "Created DD agent user");
-        MarkInstallStepComplete(strDdUserCreated);
-    }
-    if(!ddAgentPropertySet){
-        MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserName.c_str(), (LPCWSTR)ddAgentUserName.c_str());
-    }
-    if(!ddAgentPasswordSet){
-        // now store the password in the property so the installer can use it
-        MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserPassword.c_str(), (LPCWSTR)passbuf);
-    }
-    // write the user naem we used to the `enableservices` key, so that it can be retrieved during the 
-    // deferred custom action
-    MsiSetProperty(hInstall, (LPCWSTR) propertyEnableServicesDeferredKey.c_str(), (LPCWSTR)ddAgentUserName.c_str());
-    
-ddUserReturn:
-    if(passbuf) {
-        memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));
-        delete [] passbuf;
-    }
-    return ret;
-}
 
 
 DWORD DeleteUser(std::wstring& name) {
@@ -428,4 +348,21 @@ bool isDomainController(MSIHANDLE hInstall)
         NetApiBufferFree((LPVOID)si);
     }
     return ret;
+}
+
+int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
+{
+    LPUSER_INFO_0 pBuf = NULL;
+    NET_API_STATUS st = NetUserGetInfo(data.getDomainPtr(), data.getUserPtr(), 0, (LPBYTE*)&pBuf);
+    switch(st){
+        case NERR_Success:
+            WcaLog(LOGMSG_STANDARD, "Found user %s exists", data.getFullUsernameMbcs().c_str());
+            return 1;
+        case NERR_UserNotFound:
+            WcaLog(LOGMSG_STANDARD, "User %s not present on system", data.getFullUsernameMbcs().c_str());
+            return 0;
+        default:
+            WcaLog(LOGMSG_STANDARD, "Unexpected error %d looking for user %s", st, data.getFullUsernameMbcs().c_str());
+    }
+    return -1;
 }

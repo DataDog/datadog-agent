@@ -31,7 +31,9 @@
 
 // TODO: reference additional headers your program requires here
 #include "winacl.h"
+#include "customactiondata.h"
 #include "customaction.h"
 #include "strings.h"
+#include "ddreg.h"
 
 

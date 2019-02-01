@@ -142,6 +142,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CustomAction.cpp" />
+    <ClCompile Include="customactiondata.cpp" />
+    <ClCompile Include="ddreg.cpp" />
     <ClCompile Include="installsteps.cpp" />
     <ClCompile Include="rollback.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -160,6 +162,8 @@
     <None Include="CustomAction.def" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="customactiondata.h" />
+    <ClInclude Include="ddreg.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="strings.h" />
     <ClInclude Include="targetver.h" />

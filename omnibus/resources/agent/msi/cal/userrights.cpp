@@ -184,7 +184,7 @@ void BuildExplicitAccessWithSid(EXPLICIT_ACCESS_W &data, PSID pSID, DWORD perms,
 	data.Trustee.ptstrName = (LPTSTR)pSID;
 }
 
-int EnableServiceForUser(const std::wstring& service, const std::wstring& user)
+int EnableServiceForUser(const std::wstring& service, const wchar_t* domain, const wchar_t* user)
 {
     int ret = 0;
     SC_HANDLE hscm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS | GENERIC_ALL | READ_CONTROL);
@@ -221,7 +221,7 @@ int EnableServiceForUser(const std::wstring& service, const std::wstring& user)
 		WcaLog(LOGMSG_STANDARD,"Failed to query security info %d\n", GetLastError());
 		goto cleanAndReturn;
 	}
-	if ((sid = GetSidForUser(NULL, user.c_str())) == NULL) {
+	if ((sid = GetSidForUser(domain, user)) == NULL) {
 		WcaLog(LOGMSG_STANDARD,"Failed to get sid\n");
 		goto cleanAndReturn;
 	}

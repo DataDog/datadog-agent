@@ -7,9 +7,6 @@ std::wstring installStepsKey = datadog_key_root + L"\\installSteps";
 std::wstring datadog_service_name(L"DataDog Agent");
 
 std::wstring ddAgentUserName(L".\\ddagentuser");
-std::wstring ddAgentUserNameUnqualified;
-std::wstring ddAgentUserDomain;
-const wchar_t *ddAgentUserDomainPtr = NULL;
 std::wstring ddAgentUserDescription(L"User context under which the DataDog Agent service runs");
 
 std::wstring traceService(L"datadog-trace-agent");
@@ -99,32 +96,6 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
     return true;
 }
 
-bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName ) {
-    std::wstring tmpName;
-    if(loadPropertyString(hInstall, propertyName ? propertyName : propertyDDAgentUserName.c_str(), tmpName)){
-        if(std::wstring::npos == tmpName.find(L'\\')) {
-            WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
-            ddAgentUserName = L".\\" + tmpName;
-        } else {
-            ddAgentUserName = tmpName;
-        }
-        // now create the splits between the domain and user for all to use, too
-        std::wstring domain, user;
-        std::wistringstream asStream(tmpName);
-        // username is going to be of the form <domain>\<username>
-        // if the <domain> is ".", then just do local machine
-        getline(asStream, ddAgentUserDomain, L'\\');
-        getline(asStream, ddAgentUserNameUnqualified, L'\\');
-        if(domain == L"."){
-            ddAgentUserDomainPtr = NULL;
-        } else {
-            ddAgentUserDomainPtr = ddAgentUserDomain.c_str();
-        }
-
-        return true;
-    }
-    return false;
-}
 
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **pass, DWORD *len) {
     return loadPropertyString(hInstall, propertyDDAgentUserPassword.c_str(), pass, len);
