@@ -7,7 +7,9 @@ package aggregator
 
 import (
 	// stdlib
+	"fmt"
 	"testing"
+	"time"
 
 	// 3p
 	"github.com/stretchr/testify/assert"
@@ -15,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var checkID1 check.ID = "1"
@@ -141,4 +145,114 @@ func TestSetHostname(t *testing.T) {
 	agg.SetHostname("different-hostname")
 	assert.Equal(t, "different-hostname", agg.hostname)
 	assert.Equal(t, "different-hostname", checkSender.defaultHostname)
+}
+
+func TestDefaultData(t *testing.T) {
+	resetAggregator()
+	s := &serializer.MockSerializer{}
+	agg := InitAggregator(s, "hostname", "agent")
+	start := time.Now()
+
+	s.On("SendServiceChecks", metrics.ServiceChecks{{
+		CheckName: "datadog.agent.up",
+		Status:    metrics.ServiceCheckOK,
+		Ts:        start.Unix(),
+		Host:      agg.hostname,
+	}}).Return(nil).Times(1)
+
+	series := metrics.Series{&metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
+		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
+		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}}
+
+	s.On("SendSeries", series).Return(nil).Times(1)
+
+	agg.flush(start)
+	s.AssertNotCalled(t, "SendEvents")
+	s.AssertNotCalled(t, "SendSketch")
+}
+
+func TestRecurentSeries(t *testing.T) {
+	resetAggregator()
+	s := &serializer.MockSerializer{}
+	agg := NewBufferedAggregator(s, "hostname", "agent", DefaultFlushInterval)
+
+	// Add two recurrentSeries
+	AddRecurrentSeries(&metrics.Serie{
+		Name:   "some.metric.1",
+		Points: []metrics.Point{{Value: 21}},
+		Tags:   []string{"tag:1", "tag:2"},
+		MType:  metrics.APIGaugeType,
+	})
+	AddRecurrentSeries(&metrics.Serie{
+		Name:           "some.metric.2",
+		Points:         []metrics.Point{{Value: 22}},
+		Tags:           nil,
+		Host:           "non default host",
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "non default SourceTypeName",
+	})
+
+	start := time.Now()
+
+	agentUp := metrics.ServiceChecks{{
+		CheckName: "datadog.agent.up",
+		Status:    metrics.ServiceCheckOK,
+		Ts:        start.Unix(),
+		Host:      agg.hostname,
+	}}
+
+	series := metrics.Series{&metrics.Serie{
+		Name:           "some.metric.1",
+		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
+		Tags:           []string{"tag:1", "tag:2"},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           "some.metric.2",
+		Points:         []metrics.Point{{Value: 22, Ts: float64(start.Unix())}},
+		Tags:           nil,
+		Host:           "non default host",
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "non default SourceTypeName",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
+		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
+		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}}
+
+	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
+	s.On("SendSeries", series).Return(nil).Times(1)
+
+	agg.flush(start)
+	s.AssertNotCalled(t, "SendEvents")
+	s.AssertNotCalled(t, "SendSketch")
+
+	// Assert that recurrentSeries are sent on each flushed
+	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
+	s.On("SendSeries", series).Return(nil).Times(1)
+	agg.flush(start)
+	s.AssertNotCalled(t, "SendEvents")
+	s.AssertNotCalled(t, "SendSketch")
+
 }
