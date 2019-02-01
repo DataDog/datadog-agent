@@ -13,6 +13,8 @@ import (
 type rateLimitedListener struct {
 	connLease int32 // How many connections are available for this listener before rate-limiting kicks in
 	*net.TCPListener
+
+	exit chan struct{}
 }
 
 // newRateLimitedListener returns a new wrapped listener, which is non-initialized
@@ -23,16 +25,28 @@ func newRateLimitedListener(l net.Listener, conns int) (*rateLimitedListener, er
 		return nil, errors.New("cannot wrap listener")
 	}
 
-	sl := &rateLimitedListener{connLease: int32(conns), TCPListener: tcpL}
-
-	return sl, nil
+	return &rateLimitedListener{
+		connLease:   int32(conns),
+		TCPListener: tcpL,
+		exit:        make(chan struct{}),
+	}, nil
 }
 
 // Refresh periodically refreshes the connection lease, and thus cancels any rate limits in place
 func (sl *rateLimitedListener) Refresh(conns int) {
-	for range time.Tick(30 * time.Second) {
-		atomic.StoreInt32(&sl.connLease, int32(conns))
-		log.Debugf("Refreshed the connection lease: %d conns available", conns)
+	defer close(sl.exit)
+
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-sl.exit:
+			return
+		case <-t.C:
+			atomic.StoreInt32(&sl.connLease, int32(conns))
+			log.Debugf("Refreshed the connection lease: %d conns available", conns)
+		}
 	}
 }
 
@@ -77,4 +91,11 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 
 		return newConn, err
 	}
+}
+
+// Close wraps the Close method of the underlying tcp listener
+func (sl *rateLimitedListener) Close() error {
+	sl.exit <- struct{}{}
+	<-sl.exit
+	return sl.TCPListener.Close()
 }
