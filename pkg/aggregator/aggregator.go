@@ -92,6 +92,10 @@ var (
 	aggregatorServiceCheck            = expvar.Int{}
 	aggregatorEvent                   = expvar.Int{}
 	aggregatorHostnameUpdate          = expvar.Int{}
+
+	// Hold series to be added to aggregated series on each flush
+	recurrentSeries     metrics.Series
+	recurrentSeriesLock sync.Mutex
 )
 
 func init() {
@@ -125,12 +129,12 @@ func init() {
 }
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(s *serializer.Serializer, hostname, agentName string) *BufferedAggregator {
+func InitAggregator(s serializer.MetricSerializer, hostname, agentName string) *BufferedAggregator {
 	return InitAggregatorWithFlushInterval(s, hostname, agentName, DefaultFlushInterval)
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s *serializer.Serializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
 		aggregatorInstance = NewBufferedAggregator(s, hostname, agentName, flushInterval)
 		go aggregatorInstance.run()
@@ -159,7 +163,7 @@ type BufferedAggregator struct {
 	events             metrics.Events
 	flushInterval      time.Duration
 	mu                 sync.Mutex // to protect the checkSamplers field
-	serializer         *serializer.Serializer
+	serializer         serializer.MetricSerializer
 	hostname           string
 	hostnameUpdate     chan string
 	hostnameUpdateDone chan struct{}    // signals that the hostname update is finished
@@ -169,7 +173,7 @@ type BufferedAggregator struct {
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s *serializer.Serializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:        make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
 		checkMetricIn:      make(chan senderMetricSample, 100),    // TODO make buffer size configurable
@@ -202,6 +206,13 @@ func deduplicateTags(tags []string) []string {
 		idx++
 	}
 	return tags[:idx]
+}
+
+// AddRecurrentSeries adds a serie to the series that are sent at every flush
+func AddRecurrentSeries(newSerie *metrics.Serie) {
+	recurrentSeriesLock.Lock()
+	defer recurrentSeriesLock.Unlock()
+	recurrentSeries = append(recurrentSeries, newSerie)
 }
 
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
@@ -311,9 +322,40 @@ func (agg *BufferedAggregator) GetSeries() metrics.Series {
 	return series
 }
 
-func (agg *BufferedAggregator) flushSeries() {
-	start := time.Now()
+func (agg *BufferedAggregator) flushSeries(start time.Time) {
 	series := agg.GetSeries()
+
+	recurrentSeriesLock.Lock()
+	// Adding recurrentSeries to the flushed ones
+	for _, extra := range recurrentSeries {
+		if extra.Host == "" {
+			extra.Host = agg.hostname
+		}
+		if extra.SourceTypeName == "" {
+			extra.SourceTypeName = "System"
+		}
+
+		newSerie := &metrics.Serie{
+			Name:           extra.Name,
+			Tags:           extra.Tags,
+			Host:           extra.Host,
+			MType:          extra.MType,
+			SourceTypeName: extra.SourceTypeName,
+		}
+
+		// Updating Ts for every points
+		updatedPoints := []metrics.Point{}
+		for _, point := range extra.Points {
+			updatedPoints = append(updatedPoints,
+				metrics.Point{
+					Value: point.Value,
+					Ts:    float64(start.Unix()),
+				})
+		}
+		newSerie.Points = updatedPoints
+		series = append(series, newSerie)
+	}
+	recurrentSeriesLock.Unlock()
 
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
 	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
@@ -368,9 +410,8 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 	return serviceChecks
 }
 
-func (agg *BufferedAggregator) flushServiceChecks() {
+func (agg *BufferedAggregator) flushServiceChecks(start time.Time) {
 	// Add a simple service check for the Agent status
-	start := time.Now()
 	agg.addServiceCheck(metrics.ServiceCheck{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
@@ -409,9 +450,8 @@ func (agg *BufferedAggregator) GetSketches() metrics.SketchSeriesList {
 	return agg.distSampler.flush(timeNowNano())
 }
 
-func (agg *BufferedAggregator) flushSketches() {
+func (agg *BufferedAggregator) flushSketches(start time.Time) {
 	// Serialize and forward in a separate goroutine
-	start := time.Now()
 	sketchSeries := agg.GetSketches()
 	addFlushCount("Sketches", int64(len(sketchSeries)))
 	if len(sketchSeries) == 0 {
@@ -440,9 +480,8 @@ func (agg *BufferedAggregator) GetEvents() metrics.Events {
 }
 
 // flushEvents serializes and forwards events in a separate goroutine
-func (agg *BufferedAggregator) flushEvents() {
+func (agg *BufferedAggregator) flushEvents(start time.Time) {
 	// Serialize and forward in a separate goroutine
-	start := time.Now()
 	events := agg.GetEvents()
 	if len(events) == 0 {
 		return
@@ -469,11 +508,11 @@ func (agg *BufferedAggregator) flushEvents() {
 	}()
 }
 
-func (agg *BufferedAggregator) flush() {
-	agg.flushSeries()
-	agg.flushSketches()
-	agg.flushServiceChecks()
-	agg.flushEvents()
+func (agg *BufferedAggregator) flush(start time.Time) {
+	agg.flushSeries(start)
+	agg.flushSketches(start)
+	agg.flushServiceChecks(start)
+	agg.flushEvents(start)
 }
 
 func (agg *BufferedAggregator) run() {
@@ -486,7 +525,7 @@ func (agg *BufferedAggregator) run() {
 		case <-agg.health.C:
 		case <-agg.TickerChan:
 			start := time.Now()
-			agg.flush()
+			agg.flush(start)
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
 		case sample := <-agg.dogstatsdIn:

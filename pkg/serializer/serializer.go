@@ -70,6 +70,16 @@ func initExtraHeaders() {
 	}
 }
 
+// MetricSerializer represents the interface of method needed by the aggregator to serialize its data
+type MetricSerializer interface {
+	SendEvents(e marshaler.Marshaler) error
+	SendServiceChecks(sc marshaler.Marshaler) error
+	SendSeries(series marshaler.Marshaler) error
+	SendSketch(sketches marshaler.Marshaler) error
+	SendMetadata(m marshaler.Marshaler) error
+	SendJSONToV1Intake(data interface{}) error
+}
+
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
 	Forwarder forwarder.Forwarder
