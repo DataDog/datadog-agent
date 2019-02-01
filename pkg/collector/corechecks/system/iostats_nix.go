@@ -76,7 +76,7 @@ func (c *IOCheck) nixIO() error {
 		tagbuff.WriteString("device:")
 		tagbuff.WriteString(device)
 		tags := []string{tagbuff.String()}
-		if len(ioStats.Label) > 0 {
+		if ioStats.Label != "" {
 			tags = append(tags, fmt.Sprintf("device-label:%s", ioStats.Label))
 		}
 
