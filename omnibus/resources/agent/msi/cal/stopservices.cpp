@@ -566,6 +566,21 @@ public:
         lpServiceStartName(NULL), // will set to LOCAL_SYSTEM by default
         lpPassword(NULL) // no password for LOCAL_SYSTEM
     {}
+    serviceDef(const wchar_t* name) :
+        svcName(name),
+        displayName(NULL),
+        displayDescription(NULL),
+        access(SERVICE_ALL_ACCESS),
+        serviceType(SERVICE_WIN32_OWN_PROCESS),
+        startType(SERVICE_DEMAND_START),
+        dwErrorControl(SERVICE_ERROR_NORMAL),
+        lpBinaryPathName(NULL),
+        lpLoadOrderGroup(NULL), // not needed
+        lpdwTagId(NULL), // no tag identifier
+        lpDependencies(NULL), // no dependencies to start
+        lpServiceStartName(NULL), // will set to LOCAL_SYSTEM by default
+        lpPassword(NULL) // no password for LOCAL_SYSTEM
+    {}
 
     serviceDef(const wchar_t * name, const wchar_t *display, const wchar_t *desc,
                const wchar_t* path, const wchar_t* deps, DWORD st,
@@ -719,4 +734,44 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
     CloseServiceHandle(hScManager);
     return retval;
 
+}
+int uninstallServices(MSIHANDLE hInstall, CustomActionData& data) {
+    SC_HANDLE hScManager = NULL;
+    SC_HANDLE hService = NULL;
+    int retval = 0;
+    // Get a handle to the SCM database. 
+#define NUM_SERVICES 3
+    serviceDef services[NUM_SERVICES] = {
+        serviceDef(agentService.c_str(), L"DataDog Agent", L"Send metrics to DataDog",
+                   L"c:\\program files\\datadog\\datadog agent\\embedded\\agent.exe",
+                   L"winmgmt\0\0", SERVICE_AUTO_START, data.getFullUsername().c_str(), NULL),
+        serviceDef(traceService.c_str(), L"DataDog Trace Agent", L"Send tracing metrics to DataDog",
+                   L"c:\\program files\\datadog\\datadog agent\\bin\\agent\\trace-agent.exe",
+                   L"datadogagent\0\0", SERVICE_DEMAND_START, data.getFullUsername().c_str(), NULL),
+        serviceDef(processService.c_str(), L"DataDog Process Agent", L"Send process metrics to DataDog",
+                   L"c:\\program files\\datadog\\datadog agent\\bin\\agent\\process-agent.exe",
+                   L"datadogagent\0\0", SERVICE_DEMAND_START, NULL, NULL)
+
+    };
+    WcaLog(LOGMSG_STANDARD, "Installing services");
+    hScManager = OpenSCManager(
+        NULL,                    // local computer
+        NULL,                    // ServicesActive database 
+        SC_MANAGER_ALL_ACCESS);  // full access rights 
+
+    if (NULL == hScManager)
+    {
+        WcaLog(LOGMSG_STANDARD, "OpenSCManager failed (%d)\n", GetLastError());
+        return -1;
+    }
+    for (int i = NUM_SERVICES - 1; i >= 0; i--) {
+        WcaLog(LOGMSG_STANDARD, "deleting service service %d", i);
+        DWORD rbret = services[i].destroy(hScManager);
+        if (rbret != 0) {
+            WcaLog(LOGMSG_STANDARD, "Failed to uninstall service %d 0x%x", rbret, rbret);
+        }
+    }
+    WcaLog(LOGMSG_STANDARD, "done uinstalling services");
+    CloseServiceHandle(hScManager);
+    return retval;
 }

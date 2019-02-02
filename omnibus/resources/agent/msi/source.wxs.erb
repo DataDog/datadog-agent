@@ -401,8 +401,10 @@
       <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact -->
       <Custom Action='StopDDServices' After='StopServices'> </Custom>
       <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> NOT _UNINSTALL </Custom>
-      <Custom Action='FinalizeInstall' After='InstallFiles'> NOT _UNINSTALL </Custom>
+      <Custom Action='FinalizeInstall' After='InstallServices'> NOT _UNINSTALL </Custom>
       <Custom Action='StartDDServices' After='FinalizeInstall'> NOT _UNINSTALL </Custom>
+      
+      <Custom Action='SetUninstallProperty' Before='DoUninstall'> _UNINSTALL </Custom>
       <Custom Action='DoUninstall' Before='InstallFinalize'> _UNINSTALL </Custom>
       <!--
       <Custom Action='adjustrights' After='adddduser'> NOT (REMOVE = "ALL") </Custom>
@@ -543,10 +545,14 @@
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
-        Value='DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]' />
+        Value='DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];PROJECTLOCATION=[PROJECTLOCATION]' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='check' Impersonate='no'/>
+
+    <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall' 
+        Value='DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];PROJECTLOCATION=[PROJECTLOCATION]' />
+    
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
 
 

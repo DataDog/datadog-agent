@@ -244,78 +244,11 @@ int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring&
 
 
 
-DWORD DeleteUser(std::wstring& name) {
-    NET_API_STATUS ret = NetUserDel(NULL, name.c_str());
+DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
+    NET_API_STATUS ret = NetUserDel(host, name);
     return (DWORD)ret;
 }
 
-UINT doRemoveDDUser()
-{
-    UINT er = 0;
-    LOCALGROUP_MEMBERS_INFO_0 lmi0;
-    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_3));
-    PSID sid = NULL;
-    LSA_HANDLE hLsa = NULL;
-    DWORD nErr;
-    // change the rights on this user
-    sid = GetSidForUser(NULL, (LPCWSTR)ddAgentUserName.c_str());
-    if (!sid) {
-        goto LExit;
-    }
-    if ((hLsa = GetPolicyHandle()) == NULL) {
-        goto LExit;
-    }
-
-    // remove it from the "performance monitor users" group
-    lmi0.lgrmi0_sid = sid;
-    nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
-    if(nErr == NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to Performance Monitor Users");
-    } else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS ) {
-        WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);
-    } else {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error removing user from group %d", nErr);
-    }
-
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
-    }
-
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
-    }
-
-    // remove the dd user from the \programdata\ file permissions 
-    removeUserPermsFromFile(logfilename, sid);
-    removeUserPermsFromFile(datadogyamlfile, sid);
-    removeUserPermsFromFile(confddir, sid);
-    removeUserPermsFromFile(programdataroot, sid);
-    
-    // delete the auth token file entirely
-    DeleteFile(authtokenfilename.c_str());
-
-    er = DeleteUser(ddAgentUserName);
-    if (0 != er) {
-        // don't actually fail on failure.  We're doing an uninstall,
-        // and failing will just leave the system in a more confused state
-        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
-    } 
-    
-LExit:
-    if (sid) {
-        delete[](BYTE *) sid;
-    }
-    if (hLsa) {
-        LsaClose(hLsa);
-    }
-    return er;
-}
 
 
 bool isDomainController(MSIHANDLE hInstall)

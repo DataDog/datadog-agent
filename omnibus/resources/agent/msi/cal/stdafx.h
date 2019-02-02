@@ -36,4 +36,4 @@
 #include "strings.h"
 #include "ddreg.h"
 
-
+#include "resource.h"

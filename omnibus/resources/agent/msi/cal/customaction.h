@@ -11,9 +11,8 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data);
 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
 
-int CreateDDUser(MSIHANDLE hInstall);
-DWORD DeleteUser(std::wstring& name);
-UINT doRemoveDDUser();
+DWORD DeleteUser(const wchar_t* host, const wchar_t* name);
+
 
 bool AddPrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
 bool RemovePrivileges(PSID AccountSID, LSA_HANDLE PolicyHandle, LPCWSTR rightToAdd);
@@ -24,12 +23,8 @@ bool InitLsaString(
 
 PSID GetSidForUser(LPCWSTR host, LPCWSTR user);
 
-
 LSA_HANDLE GetPolicyHandle();
 
-
-
-DWORD DeleteSecretsRegKey();
 
 
 //stopservices.cpp
@@ -37,13 +32,9 @@ VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring &svcName);
 DWORD DoStartSvc(MSIHANDLE hInstall, std::wstring &svcName);
 int doesServiceExist(MSIHANDLE hInstall, std::wstring& svcName);
 int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *password);
+int uninstallServices(MSIHANDLE hInstall, CustomActionData& data);
 
-
-
-
-
-void MarkInstallStepComplete(std::wstring &step);
-bool WasInstallStepCompleted(std::wstring &step);
+extern HMODULE hDllModule;
 // rights we might be interested in
 /*
 #define SE_INTERACTIVE_LOGON_NAME           TEXT("SeInteractiveLogonRight")

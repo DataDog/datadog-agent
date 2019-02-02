@@ -2,7 +2,6 @@
 extern std::wstring datadog_path;
 extern std::wstring datadog_key_root;
 extern std::wstring datadog_acl_key_datadog;
-extern std::wstring installStepsKey;
 extern std::wstring datadog_service_name;
 
 extern std::wstring ddAgentUserName;
@@ -37,6 +36,8 @@ extern std::wstring strFilePermissionsChanged;
 extern std::wstring strAddDdUserToPerfmon;
 extern std::wstring strChangedRegistryPermissions;
 
+void initializeStringsFromStringTable();
+void buildStrings(CustomActionData& data);
 
 void toMbcs(std::string& target, LPCWSTR src);
 bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName = NULL);
