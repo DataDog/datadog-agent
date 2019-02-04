@@ -6,13 +6,12 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install dependencies
+          name: Build
           command: |
-            apt-get update
-            apt install -y cmake clang-format
             cmake .
+            make
       - run:
-          name: Linting
+          name: Lint
           command: |
             make clang-format
             [[ $(git ls-files -m | wc -l) -eq 0 ]]
