@@ -359,7 +359,7 @@ func install(cmd *cobra.Command, args []string) error {
 	if localWheel {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
-		tufArgs := []string{
+		pipArgs := []string{
 			"install",
 			"--cache-dir", cachePath,
 			// Do *not* install dependencies by default. This is partly to prevent
@@ -368,7 +368,7 @@ func install(cmd *cobra.Command, args []string) error {
 		}
 
 		// Install the wheel
-		return tuf(append(tufArgs, args[0]), true)
+		return pip(append(pipArgs, args[0]), true)
 	}
 
 	// Additional verification for installation
