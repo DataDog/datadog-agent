@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/viper"
+	"github.com/DataDog/viper"
 	yaml "gopkg.in/yaml.v2"
 )
 
