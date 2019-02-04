@@ -17,26 +17,23 @@ static struct PyModuleDef datadog_agent_def = {
 };
 
 PyMODINIT_FUNC
-PyInit_datadog_agent(void)
-{
+PyInit_datadog_agent(void) {
     return PyModule_Create(&datadog_agent_def);
 }
 
-Three::~Three()
-{
+Three::~Three() {
     if (_pythonHome) {
-        PyMem_RawFree((void*)_pythonHome);
+        PyMem_RawFree((void *)_pythonHome);
     }
     Py_Finalize();
 }
 
-void Three::init(const char* pythonHome)
-{
+void Three::init(const char *pythonHome) {
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
         if (_pythonHome) {
-           PyMem_RawFree((void*)_pythonHome);
+            PyMem_RawFree((void *)_pythonHome);
         }
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
@@ -49,19 +46,16 @@ void Three::init(const char* pythonHome)
     Py_Initialize();
 }
 
-bool Three::isInitialized() const
-{
+bool Three::isInitialized() const {
     return Py_IsInitialized();
 }
 
-const char* Three::getPyVersion() const
-{
+const char *Three::getPyVersion() const {
     return Py_GetVersion();
 }
 
 int Three::addModuleFunction(ExtensionModule module, MethType t,
-                             const char* funcName, void* func)
-{
+                             const char *funcName, void *func) {
     if (getExtensionModuleName(module) == "") {
         std::cerr << "Unknown ExtensionModule value" << std::endl;
         return -1;
@@ -69,15 +63,15 @@ int Three::addModuleFunction(ExtensionModule module, MethType t,
 
     int ml_flags;
     switch (t) {
-        case Six::NOARGS:
-            ml_flags = METH_NOARGS;
-            break;
-        case Six::ARGS:
-            ml_flags = METH_VARARGS;
-            break;
-        case Six::KEYWORDS:
-            ml_flags = METH_VARARGS | METH_KEYWORDS;
-            break;
+    case Six::NOARGS:
+        ml_flags = METH_NOARGS;
+        break;
+    case Six::ARGS:
+        ml_flags = METH_VARARGS;
+        break;
+    case Six::KEYWORDS:
+        ml_flags = METH_VARARGS | METH_KEYWORDS;
+        break;
     }
 
     PyMethodDef def = {
@@ -90,7 +84,7 @@ int Three::addModuleFunction(ExtensionModule module, MethType t,
     if (_modules.find(module) == _modules.end()) {
         _modules[module] = PyMethods();
         // add the guard
-        PyMethodDef guard = {NULL, NULL, 0, NULL};
+        PyMethodDef guard = { NULL, NULL, 0, NULL };
         _modules[module].push_back(guard);
     }
 
@@ -98,7 +92,6 @@ int Three::addModuleFunction(ExtensionModule module, MethType t,
     _modules[module].insert(_modules[module].begin(), def);
 }
 
-int Three::runSimpleString(const char* code) const
-{
+int Three::runSimpleString(const char *code) const {
     return PyRun_SimpleString(code);
 }

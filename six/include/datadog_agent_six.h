@@ -6,57 +6,56 @@
 #define DATADOG_AGENT_SIX_H_INCLUDED
 
 #ifndef DATADOG_AGENT_SIX_API
-#  ifdef DATADOG_AGENT_SIX_TEST
-#     define DATADOG_AGENT_SIX_API
-#  elif _WIN32
-#     define DATADOG_AGENT_SIX_API __declspec(dllexport)
-#  else
-#     if __GNUC__ >= 4
-#         define DATADOG_AGENT_SIX_API __attribute__((visibility("default")))
-#     else
-#         define DATADOG_AGENT_SIX_API
-#     endif
-#  endif
+#    ifdef DATADOG_AGENT_SIX_TEST
+#        define DATADOG_AGENT_SIX_API
+#    elif _WIN32
+#        define DATADOG_AGENT_SIX_API __declspec(dllexport)
+#    else
+#        if __GNUC__ >= 4
+#            define DATADOG_AGENT_SIX_API __attribute__((visibility("default")))
+#        else
+#            define DATADOG_AGENT_SIX_API
+#        endif
+#    endif
 #endif
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-    struct six_s;
-    typedef struct six_s six_t;
+struct six_s;
+typedef struct six_s six_t;
 
-    struct six_pyobject_s;
-    typedef struct six_pyobject_s six_pyobject_t;
+struct six_pyobject_s;
+typedef struct six_pyobject_s six_pyobject_t;
 
-    typedef enum six_module_e {
-        DATADOG_AGENT_SIX_DATADOG_AGENT
-    } six_module_t;
+typedef enum six_module_e {
+    DATADOG_AGENT_SIX_DATADOG_AGENT
+} six_module_t;
 
-    typedef enum six_module_func_e {
-        DATADOG_AGENT_SIX_NOARGS,
-        DATADOG_AGENT_SIX_ARGS,
-        DATADOG_AGENT_SIX_KEYWORDS
-    } six_module_func_t;
+typedef enum six_module_func_e {
+    DATADOG_AGENT_SIX_NOARGS,
+    DATADOG_AGENT_SIX_ARGS,
+    DATADOG_AGENT_SIX_KEYWORDS
+} six_module_func_t;
 
-    // FACTORIES
-    DATADOG_AGENT_SIX_API six_t* make2();
-    DATADOG_AGENT_SIX_API void destroy2(six_t*);
-    DATADOG_AGENT_SIX_API six_t* make3();
-    DATADOG_AGENT_SIX_API void destroy3(six_t*);
+// FACTORIES
+DATADOG_AGENT_SIX_API six_t *make2();
+DATADOG_AGENT_SIX_API void destroy2(six_t *);
+DATADOG_AGENT_SIX_API six_t *make3();
+DATADOG_AGENT_SIX_API void destroy3(six_t *);
 
-    // C API
-    DATADOG_AGENT_SIX_API void init(six_t*, char*);
-    DATADOG_AGENT_SIX_API int add_module_func(six_t*, six_module_t module,
-                                              six_module_func_t func_type,
-                                              char *func_name, void *func);
+// C API
+DATADOG_AGENT_SIX_API void init(six_t *, char *);
+DATADOG_AGENT_SIX_API int add_module_func(six_t *, six_module_t module,
+                                          six_module_func_t func_type,
+                                          char *func_name, void *func);
 
-    // C CONST API
-    DATADOG_AGENT_SIX_API int is_initialized(six_t*);
-    DATADOG_AGENT_SIX_API six_pyobject_t* get_none(const six_t*);
-    DATADOG_AGENT_SIX_API const char* get_py_version(const six_t*);
-    DATADOG_AGENT_SIX_API int run_simple_string(const six_t*, const char* path);
+// C CONST API
+DATADOG_AGENT_SIX_API int is_initialized(six_t *);
+DATADOG_AGENT_SIX_API six_pyobject_t *get_none(const six_t *);
+DATADOG_AGENT_SIX_API const char *get_py_version(const six_t *);
+DATADOG_AGENT_SIX_API int run_simple_string(const six_t *, const char *path);
 
 #ifdef __cplusplus
 }

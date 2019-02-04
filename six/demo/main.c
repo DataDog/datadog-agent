@@ -7,7 +7,6 @@
 
 #include <datadog_agent_six.h>
 
-
 static six_t *six2, *six3;
 
 static six_pyobject_t *print_foo() {
@@ -20,8 +19,7 @@ static six_pyobject_t *print_foo3() {
     return get_none(six2);
 }
 
-char* read_file(const char* path)
-{
+char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);

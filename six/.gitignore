@@ -47,3 +47,6 @@ datadog-agent-six.pc
 compile_commands.json
 .tox
 demo/demo
+
+# IDEs configurations
+*.user
