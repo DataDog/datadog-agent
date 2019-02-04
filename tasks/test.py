@@ -30,6 +30,7 @@ DEFAULT_TOOL_TARGETS = [
 
 DEFAULT_TEST_TARGETS = [
     "./pkg",
+    "./cmd",
 ]
 
 
