@@ -923,7 +923,7 @@
           "annotations": {
               "scheduler.alpha.kubernetes.io/critical-pod": "",
               "kubernetes.io/config.hash": "260c2b1d43b094af6d6b4ccba082c2db",
-              "kubernetes.io/config.source": "file",
+              "kubernetes.io/config.source": "http",
               "kubernetes.io/config.seen": "2018-02-13T16:10:19.507814572Z"
           },
           "selfLink": "/api/v1/namespaces/kube-system/pods/kube-proxy-gke-haissam-default-pool-be5066f1-wnvn",
