@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
@@ -201,7 +200,7 @@ func (a *Agent) Process(t pb.Trace) {
 	// Extra sanitization steps of the trace.
 	for _, span := range t {
 		a.obfuscator.Obfuscate(span)
-		agent.Truncate(span)
+		Truncate(span)
 	}
 	a.Replacer.Replace(&t)
 
@@ -226,7 +225,7 @@ func (a *Agent) Process(t pb.Trace) {
 		stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
 	}
 
-	pt := agent.ProcessedTrace{
+	pt := ProcessedTrace{
 		Trace:         t,
 		WeightedTrace: stats.NewWeightedTrace(t, root),
 		Root:          root,
@@ -243,7 +242,7 @@ func (a *Agent) Process(t pb.Trace) {
 		a.ServiceExtractor.Process(pt.WeightedTrace)
 	}()
 
-	go func(pt agent.ProcessedTrace) {
+	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
 		// Everything is sent to concentrator for stats, regardless of sampling.
 		a.Concentrator.Add(&stats.Input{
@@ -258,7 +257,7 @@ func (a *Agent) Process(t pb.Trace) {
 		return
 	}
 	// Run both full trace sampling and transaction extraction in another goroutine.
-	go func(pt agent.ProcessedTrace) {
+	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
 
 		tracePkg := writer.TracePackage{}
@@ -284,7 +283,7 @@ func (a *Agent) Process(t pb.Trace) {
 	}(pt)
 }
 
-func (a *Agent) sample(pt agent.ProcessedTrace) (sampled bool, rate float64) {
+func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
 	var sampledPriority, sampledScore bool
 	var ratePriority, rateScore float64
 
