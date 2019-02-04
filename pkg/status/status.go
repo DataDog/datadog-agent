@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -97,8 +98,8 @@ func GetAndFormatStatus() ([]byte, error) {
 	return []byte(st), nil
 }
 
-// GetCheckStatus gets the status of a single check
-func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
+// GetCheckStatusJSON gets the status of a single check as JSON
+func GetCheckStatusJSON(c check.Check, cs *check.Stats) ([]byte, error) {
 	s, err := GetStatus()
 	if err != nil {
 		return nil, err
@@ -108,6 +109,16 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	checks[c.String()].(map[check.ID]interface{})[c.ID()] = cs
 
 	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return statusJSON, nil
+}
+
+// GetCheckStatus gets the status of a single check as human-readable text
+func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
+	statusJSON, err := GetCheckStatusJSON(c, cs)
 	if err != nil {
 		return nil, err
 	}
@@ -152,9 +163,18 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
-		return stats, nil
+	} else {
+		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
-	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
+
+	if config.Datadog.GetBool("cluster_checks.enabled") {
+		cchecks, err := clusterchecks.GetStats()
+		if err != nil {
+			log.Errorf("Error grabbing clusterchecks stats: %s", err)
+		} else {
+			stats["clusterchecks"] = cchecks
+		}
+	}
 
 	return stats, nil
 }

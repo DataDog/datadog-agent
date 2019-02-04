@@ -104,6 +104,7 @@ func (d *dispatcher) expireNodes() {
 				log.Infof("Expiring out node %s, last status report %d seconds ago", name, timestampNow()-node.heartbeat)
 			}
 			for digest, config := range node.digestToConfig {
+				delete(d.store.digestToNode, digest)
 				d.store.danglingConfigs[digest] = config
 				danglingConfigs.Inc()
 			}

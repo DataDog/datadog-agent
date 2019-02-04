@@ -4,8 +4,31 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 )
+
+func testSpan() *pb.Span {
+	return &pb.Span{
+		Duration: 10000000,
+		Error:    0,
+		Resource: "GET /some/raclette",
+		Service:  "django",
+		Name:     "django.controller",
+		SpanID:   42,
+		Start:    1448466874000000000,
+		TraceID:  424242,
+		Meta: map[string]string{
+			"user": "leo",
+			"pool": "fondue",
+		},
+		Metrics: map[string]float64{
+			"cheese_weight": 100000.0,
+		},
+		ParentID: 1111,
+		Type:     "http",
+	}
+}
 
 func TestTruncateResourcePassThru(t *testing.T) {
 	s := testSpan()

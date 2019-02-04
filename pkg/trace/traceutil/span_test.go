@@ -117,17 +117,17 @@ func TestTopLevelGetSetBlackBox(t *testing.T) {
 	span := &pb.Span{}
 
 	assert.False(HasTopLevel(span), "by default, all spans are considered non top-level")
-	setTopLevel(span, true)
+	SetTopLevel(span, true)
 	assert.True(HasTopLevel(span), "marked as top-level")
-	setTopLevel(span, false)
+	SetTopLevel(span, false)
 	assert.False(HasTopLevel(span), "no more top-level")
 
 	span.Metrics = map[string]float64{"custom": 42}
 
 	assert.False(HasTopLevel(span), "by default, all spans are considered non top-level")
-	setTopLevel(span, true)
+	SetTopLevel(span, true)
 	assert.True(HasTopLevel(span), "marked as top-level")
-	setTopLevel(span, false)
+	SetTopLevel(span, false)
 	assert.False(HasTopLevel(span), "no more top-level")
 }
 
@@ -137,19 +137,19 @@ func TestTopLevelGetSetMetrics(t *testing.T) {
 	span := &pb.Span{}
 
 	assert.Nil(span.Metrics, "no meta at all")
-	setTopLevel(span, true)
+	SetTopLevel(span, true)
 	assert.Equal(float64(1), span.Metrics["_top_level"], "should have a _top_level:1 flag")
-	setTopLevel(span, false)
+	SetTopLevel(span, false)
 	assert.Equal(len(span.Metrics), 0, "no meta at all")
 
 	span.Metrics = map[string]float64{"custom": 42}
 
 	assert.False(HasTopLevel(span), "still non top-level")
-	setTopLevel(span, true)
+	SetTopLevel(span, true)
 	assert.Equal(float64(1), span.Metrics["_top_level"], "should have a _top_level:1 flag")
 	assert.Equal(float64(42), span.Metrics["custom"], "former metrics should still be here")
 	assert.True(HasTopLevel(span), "marked as top-level")
-	setTopLevel(span, false)
+	SetTopLevel(span, false)
 	assert.False(HasTopLevel(span), "non top-level any more")
 	assert.Equal(float64(0), span.Metrics["_top_level"], "should have no _top_level:1 flag")
 	assert.Equal(float64(42), span.Metrics["custom"], "former metrics should still be here")

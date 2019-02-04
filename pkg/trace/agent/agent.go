@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -28,7 +28,7 @@ const processStatsInterval = time.Minute
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver           *api.HTTPReceiver
-	Concentrator       *Concentrator
+	Concentrator       *stats.Concentrator
 	Blacklister        *filters.Blacklister
 	Replacer           *filters.Replacer
 	ScoreSampler       *Sampler
@@ -63,13 +63,13 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	// inter-component channels
 	rawTraceChan := make(chan pb.Trace, 5000) // about 1000 traces/sec for 5 sec, TODO: move to *model.Trace
 	tracePkgChan := make(chan *writer.TracePackage)
-	statsChan := make(chan []agent.StatsBucket)
+	statsChan := make(chan []stats.Bucket)
 	serviceChan := make(chan pb.ServicesMetadata, 50)
 	filteredServiceChan := make(chan pb.ServicesMetadata, 50)
 
 	// create components
 	r := api.NewHTTPReceiver(conf, dynConf, rawTraceChan, serviceChan)
-	c := NewConcentrator(
+	c := stats.NewConcentrator(
 		conf.ExtraAggregators,
 		conf.BucketInterval.Nanoseconds(),
 		statsChan,
@@ -200,7 +200,7 @@ func (a *Agent) Process(t pb.Trace) {
 	// Extra sanitization steps of the trace.
 	for _, span := range t {
 		a.obfuscator.Obfuscate(span)
-		agent.Truncate(span)
+		Truncate(span)
 	}
 	a.Replacer.Replace(&t)
 
@@ -217,17 +217,17 @@ func (a *Agent) Process(t pb.Trace) {
 	// which is not thread-safe while samplers and Concentrator might modify it too.
 	traceutil.ComputeTopLevel(t)
 
-	subtraces := ExtractTopLevelSubtraces(t, root)
-	sublayers := make(map[*pb.Span][]agent.SublayerValue)
+	subtraces := stats.ExtractTopLevelSubtraces(t, root)
+	sublayers := make(map[*pb.Span][]stats.SublayerValue)
 	for _, subtrace := range subtraces {
-		subtraceSublayers := agent.ComputeSublayers(subtrace.Trace)
+		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
 		sublayers[subtrace.Root] = subtraceSublayers
-		agent.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
+		stats.SetSublayersOnSpan(subtrace.Root, subtraceSublayers)
 	}
 
-	pt := agent.ProcessedTrace{
+	pt := ProcessedTrace{
 		Trace:         t,
-		WeightedTrace: agent.NewWeightedTrace(t, root),
+		WeightedTrace: stats.NewWeightedTrace(t, root),
 		Root:          root,
 		Env:           a.conf.DefaultEnv,
 		Sublayers:     sublayers,
@@ -242,10 +242,14 @@ func (a *Agent) Process(t pb.Trace) {
 		a.ServiceExtractor.Process(pt.WeightedTrace)
 	}()
 
-	go func(pt agent.ProcessedTrace) {
+	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
 		// Everything is sent to concentrator for stats, regardless of sampling.
-		a.Concentrator.Add(pt)
+		a.Concentrator.Add(&stats.Input{
+			Trace:     pt.WeightedTrace,
+			Sublayers: pt.Sublayers,
+			Env:       pt.Env,
+		})
 	}(pt)
 
 	// Don't go through sampling for < 0 priority traces
@@ -253,7 +257,7 @@ func (a *Agent) Process(t pb.Trace) {
 		return
 	}
 	// Run both full trace sampling and transaction extraction in another goroutine.
-	go func(pt agent.ProcessedTrace) {
+	go func(pt ProcessedTrace) {
 		defer watchdog.LogOnPanic()
 
 		tracePkg := writer.TracePackage{}
@@ -267,7 +271,7 @@ func (a *Agent) Process(t pb.Trace) {
 		}
 
 		// NOTE: Events can be processed on non-sampled traces.
-		events, numExtracted := a.EventProcessor.Process(pt)
+		events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
 		tracePkg.Events = events
 
 		atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
@@ -279,7 +283,7 @@ func (a *Agent) Process(t pb.Trace) {
 	}(pt)
 }
 
-func (a *Agent) sample(pt agent.ProcessedTrace) (sampled bool, rate float64) {
+func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
 	var sampledPriority, sampledScore bool
 	var ratePriority, rateScore float64
 

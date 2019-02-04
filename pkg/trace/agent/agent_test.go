@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
@@ -356,7 +356,7 @@ func TestSampling(t *testing.T) {
 			if tt.hasErrors {
 				root.Error = 1
 			}
-			pt := agent.ProcessedTrace{Trace: pb.Trace{root}, Root: root}
+			pt := ProcessedTrace{Trace: pb.Trace{root}, Root: root}
 			if tt.hasPriority {
 				sampler.SetSamplingPriority(pt.Root, 1)
 			}
@@ -490,7 +490,7 @@ func generateTraffic(processor *event.Processor, serviceName string, operationNa
 
 Loop:
 	for {
-		spans := make([]*agent.WeightedSpan, spansPerTick)
+		spans := make([]*pb.Span, spansPerTick)
 		for i := range spans {
 			span := testutil.RandomSpan()
 			span.Service = serviceName
@@ -498,21 +498,15 @@ Loop:
 			if extractionRate >= 0 {
 				span.Metrics[sampler.KeySamplingRateEventExtraction] = extractionRate
 			}
-			spans[i] = &agent.WeightedSpan{
-				Span: span,
-				// Make all spans top level for simpler testing of legacy extractor
-				TopLevel: true,
-			}
+			traceutil.SetTopLevel(span, true)
+			spans[i] = span
 		}
-		trace := agent.ProcessedTrace{
-			WeightedTrace: agent.WeightedTrace(spans),
-			Root:          spans[0].Span,
-		}
+		root := spans[0]
 		if priority != sampler.PriorityNone {
-			sampler.SetSamplingPriority(trace.Root, priority)
+			sampler.SetSamplingPriority(root, priority)
 		}
 
-		events, _ := processor.Process(trace)
+		events, _ := processor.Process(root, spans)
 		totalSampled += len(events)
 
 		<-eventTicker.C
@@ -555,13 +549,13 @@ func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	agent := NewAgent(ctx, c)
+	ta := NewAgent(ctx, c)
 	log.UseLogger(log.Disabled)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		agent.Process(testutil.RandomTrace(10, 8))
+		ta.Process(testutil.RandomTrace(10, 8))
 	}
 }
 
@@ -570,12 +564,12 @@ func BenchmarkWatchdog(b *testing.B) {
 	conf.Endpoints[0].APIKey = "apikey_2"
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	agent := NewAgent(ctx, conf)
+	ta := NewAgent(ctx, conf)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		agent.watchdog()
+		ta.watchdog()
 	}
 }
 
@@ -583,7 +577,7 @@ func BenchmarkWatchdog(b *testing.B) {
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
 		obfuscate.NewObfuscator(nil).Obfuscate(span)
-		agent.Truncate(span)
+		Truncate(span)
 	}
 	return t
 }

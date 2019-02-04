@@ -31,6 +31,7 @@ var (
 	checkName  string
 	checkDelay int
 	logLevel   string
+	formatJSON bool
 )
 
 // Make the check cmd aggregator never flush by setting a very high interval
@@ -44,6 +45,7 @@ func init() {
 	checkCmd.Flags().IntVar(&checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
+	checkCmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	checkCmd.SetArgs([]string{"checkName"})
 }
 
@@ -127,19 +129,47 @@ var checkCmd = &cobra.Command{
 			fmt.Println("Multiple check instances found, running each of them")
 		}
 
+		var instancesData []interface{}
+
 		for _, c := range cs {
 			s := runCheck(c, agg)
 
 			// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 			time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
-			printMetrics(agg)
+			if formatJSON {
+				aggregatorData := getMetricsData(agg)
+				var collectorData map[string]interface{}
 
-			checkStatus, _ := status.GetCheckStatus(c, s)
-			fmt.Println(string(checkStatus))
+				collectorJSON, _ := status.GetCheckStatusJSON(c, s)
+				json.Unmarshal(collectorJSON, &collectorData)
+
+				checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})[checkName].(map[string]interface{})
+
+				// There is only one checkID per run so we'll just access that
+				var runnerData map[string]interface{}
+				for _, checkIDData := range checkRuns {
+					runnerData = checkIDData.(map[string]interface{})
+					break
+				}
+
+				instanceData := map[string]interface{}{
+					"aggregator": aggregatorData,
+					"runner":     runnerData,
+				}
+				instancesData = append(instancesData, instanceData)
+			} else {
+				printMetrics(agg)
+				checkStatus, _ := status.GetCheckStatus(c, s)
+				fmt.Println(string(checkStatus))
+			}
 		}
 
-		if checkRate == false && checkTimes < 2 {
+		if formatJSON {
+			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
+			instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
+			fmt.Println(string(instancesJSON))
+		} else if checkRate == false && checkTimes < 2 {
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 		}
 
@@ -203,4 +233,36 @@ func printMetrics(agg *aggregator.BufferedAggregator) {
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
 	}
+}
+
+func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
+	aggData := make(map[string]interface{})
+
+	series := agg.GetSeries()
+	if len(series) != 0 {
+		// Workaround to get the raw sequence of metrics, see:
+		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
+		var data map[string]interface{}
+		sj, _ := json.Marshal(series)
+		json.Unmarshal(sj, &data)
+
+		aggData["metrics"] = data["series"]
+	}
+
+	sketches := agg.GetSketches()
+	if len(sketches) != 0 {
+		aggData["sketches"] = sketches
+	}
+
+	serviceChecks := agg.GetServiceChecks()
+	if len(serviceChecks) != 0 {
+		aggData["service_checks"] = serviceChecks
+	}
+
+	events := agg.GetEvents()
+	if len(events) != 0 {
+		aggData["events"] = events
+	}
+
+	return aggData
 }

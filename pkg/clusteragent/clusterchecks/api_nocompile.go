@@ -12,7 +12,7 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 var (
@@ -24,9 +24,9 @@ var (
 // Handler not implemented
 type Handler struct{}
 
-// GetAllConfigs not implemented
-func (h *Handler) GetAllConfigs() ([]integration.Config, error) {
-	return nil, ErrNotCompiled
+// GetState not implemented
+func (h *Handler) GetState() (types.StateResponse, error) {
+	return types.StateResponse{}, ErrNotCompiled
 }
 
 // NewHandler not implemented
@@ -37,4 +37,9 @@ func NewHandler(_ *autodiscovery.AutoConfig) (*Handler, error) {
 // Run not implemented
 func (h *Handler) Run(_ context.Context) error {
 	return ErrNotCompiled
+}
+
+// GetStats not implemented
+func GetStats() (*types.Stats, error) {
+	return nil, ErrNotCompiled
 }

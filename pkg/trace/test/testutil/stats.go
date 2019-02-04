@@ -3,16 +3,16 @@ package testutil
 import (
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
 var defaultAggregators = []string{"service", "resource"}
 
 const defaultEnv = "none"
 
-// TestStatsBucket returns a fixed stats bucket to be used in unit tests
-func TestStatsBucket() agent.StatsBucket {
-	srb := agent.NewStatsRawBucket(0, 1e9)
+// TestBucket returns a fixed stats bucket to be used in unit tests
+func TestBucket() stats.Bucket {
+	srb := stats.NewRawBucket(0, 1e9)
 	srb.HandleSpan(TestWeightedSpan(), defaultEnv, defaultAggregators, nil)
 	sb := srb.Export()
 
@@ -23,33 +23,33 @@ func TestStatsBucket() agent.StatsBucket {
 	//    code as indeed, stats buckets are (un)marshalled
 	js, err := json.Marshal(sb)
 	if err != nil {
-		return agent.NewStatsBucket(0, 1e9)
+		return stats.NewBucket(0, 1e9)
 	}
-	var sb2 agent.StatsBucket
+	var sb2 stats.Bucket
 	err = json.Unmarshal(js, &sb2)
 	if err != nil {
-		return agent.NewStatsBucket(0, 1e9)
+		return stats.NewBucket(0, 1e9)
 	}
 	return sb2
 }
 
-// StatsBucketWithSpans returns a stats bucket populated with spans stats
-func StatsBucketWithSpans(spans []*agent.WeightedSpan) agent.StatsBucket {
-	srb := agent.NewStatsRawBucket(0, 1e9)
+// BucketWithSpans returns a stats bucket populated with spans stats
+func BucketWithSpans(spans []*stats.WeightedSpan) stats.Bucket {
+	srb := stats.NewRawBucket(0, 1e9)
 	for _, s := range spans {
 		srb.HandleSpan(s, defaultEnv, defaultAggregators, nil)
 	}
 	return srb.Export()
 }
 
-// RandomStatsBucket returns a bucket made from n random spans, useful to run benchmarks and tests
-func RandomStatsBucket(n int) agent.StatsBucket {
-	spans := make([]*agent.WeightedSpan, 0, n)
+// RandomBucket returns a bucket made from n random spans, useful to run benchmarks and tests
+func RandomBucket(n int) stats.Bucket {
+	spans := make([]*stats.WeightedSpan, 0, n)
 	for i := 0; i < n; i++ {
 		spans = append(spans, RandomWeightedSpan())
 	}
 
-	return StatsBucketWithSpans(spans)
+	return BucketWithSpans(spans)
 }
 
 // TestDistroValues is a pre-defined list of values
@@ -157,9 +157,9 @@ var TestDistroValues = []int64{
 }
 
 // TestDistribution returns a distribution with pre-defined values
-func TestDistribution() agent.Distribution {
-	tgs := agent.NewTagSetFromString("service:X,host:Z")
-	d := agent.NewDistribution("duration", "Y|duration|service:X,host:Z", "Y", tgs)
+func TestDistribution() stats.Distribution {
+	tgs := stats.NewTagSetFromString("service:X,host:Z")
+	d := stats.NewDistribution("duration", "Y|duration|service:X,host:Z", "Y", tgs)
 	for i, v := range TestDistroValues {
 		d.Add(float64(v), uint64(i))
 	}

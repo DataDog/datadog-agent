@@ -78,6 +78,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 {{- end}}
 
 {{- if .custommetrics }}
+
   Custom Metrics Server
   =====================
     {{- if .custommetrics.Error }}
@@ -94,20 +95,45 @@ NOTE: Changes made to this template should be reflected on the following templat
       {{ else }}
       Total: {{ .custommetrics.External.Total }}
       Valid: {{ .custommetrics.External.Valid }}
-      {{ range $metric := .custommetrics.External.Metrics }}
+      {{- range $metric := .custommetrics.External.Metrics }}
       {{- range $name, $value := $metric }}
       {{- if or (eq $name "hpa") (eq $name "labels") }}
       {{$name}}:
       {{- range $k, $v := $value }}
       - {{$k}}: {{$v}}
       {{- end -}}
-      {{else}}
+      {{- else}}
       {{$name}}: {{$value}}
       {{- end }}
       {{- end }}
-      {{ end }}
+      {{- end }}
       {{- end }}
     {{- end }}
     {{- end }}
+{{- end }}
+
+{{- if .clusterchecks }}
+
+  Cluster Checks Dispatching
+  ==========================
+  {{- if .clusterchecks.Leader }}
+    {{- if .clusterchecks.Active }}
+    Status: Leader, serving requests
+    Active nodes: {{ .clusterchecks.NodeCount }}
+    Check Configurations: {{ .clusterchecks.TotalConfigs }}
+      - Dispatched: {{ .clusterchecks.ActiveConfigs }}
+      - Unassigned: {{ .clusterchecks.DanglingConfigs }}
+    {{- else }}
+    Status: Leader, warming up
+    {{- end }}
+  {{- else if .clusterchecks.Follower }}
+    {{- if .clusterchecks.LeaderIP }}
+    Status: Follower, redirecting to leader at {{ .clusterchecks.LeaderIP }}
+    {{- else }}
+    Status: Follower, no leader found
+    {{- end }}
+  {{- else }}
+    Status: unknown
+  {{- end }}
 {{- end }}
 {{/* this line intentionally left blank */}}

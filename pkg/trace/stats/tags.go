@@ -1,13 +1,9 @@
-package agent
+package stats
 
 import (
-	"bytes"
 	"sort"
 	"strings"
-	"unicode"
 )
-
-const maxTagLength = 200
 
 // Tag represents a key / value dimension on traces and stats.
 type Tag struct {
@@ -245,60 +241,4 @@ func FilterTags(tags, groups []string) []string {
 		}
 	}
 	return out
-}
-
-// NormalizeTag applies some normalization to ensure the tags match the
-// backend requirements
-// taken from dd-go.model.NormalizeTag
-func NormalizeTag(tag string) string {
-	// unless you just throw out unicode, this is already as fast as it gets
-
-	buf := bytes.NewBuffer(make([]byte, 0, 2*len(tag)))
-	lastWasUnderscore := false
-
-	for _, c := range tag {
-		// fast path for len check
-		if buf.Len() >= maxTagLength {
-			break
-		}
-		// fast path for ascii alphabetic chars
-		switch {
-		case c >= 'a' && c <= 'z':
-			buf.WriteRune(c)
-			lastWasUnderscore = false
-			continue
-		case c >= 'A' && c <= 'Z':
-			c -= 'A' - 'a'
-			buf.WriteRune(c)
-			lastWasUnderscore = false
-			continue
-		}
-
-		c = unicode.ToLower(c)
-		switch {
-		// handle always valid cases
-		case unicode.IsLetter(c) || c == ':':
-			buf.WriteRune(c)
-			lastWasUnderscore = false
-		// skip any characters that can't start the string
-		case buf.Len() == 0:
-			continue
-		// handle valid characters that can't start the string.
-		case unicode.IsDigit(c) || c == '.' || c == '/' || c == '-':
-			buf.WriteRune(c)
-			lastWasUnderscore = false
-		// convert anything else to underscores (including underscores), but only allow one in a row.
-		case !lastWasUnderscore:
-			buf.WriteRune('_')
-			lastWasUnderscore = true
-		}
-	}
-
-	// strip trailing underscores
-	if lastWasUnderscore {
-		b := buf.Bytes()
-		return string(b[:len(b)-1])
-	}
-
-	return buf.String()
 }

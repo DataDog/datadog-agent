@@ -1,10 +1,10 @@
-package agent
+package stats
 
 import (
 	"bytes"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/quantile"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 )
 
 // Most "algorithm" stuff here is tested with stats_test.go as what is important
@@ -55,10 +55,10 @@ type statsSubKey struct {
 	aggr    string
 }
 
-// StatsRawBucket is used to compute span data and aggregate it
+// RawBucket is used to compute span data and aggregate it
 // within a time-framed bucket. This should not be used outside
-// the agent, use StatsBucket for this.
-type StatsRawBucket struct {
+// the agent, use Bucket for this.
+type RawBucket struct {
 	// This should really have no public fields. At all.
 
 	start    int64 // timestamp of start in our format
@@ -72,10 +72,10 @@ type StatsRawBucket struct {
 	keyBuf bytes.Buffer
 }
 
-// NewStatsRawBucket opens a new calculation bucket for time ts and initializes it properly
-func NewStatsRawBucket(ts, d int64) *StatsRawBucket {
+// NewRawBucket opens a new calculation bucket for time ts and initializes it properly
+func NewRawBucket(ts, d int64) *RawBucket {
 	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
-	return &StatsRawBucket{
+	return &RawBucket{
 		start:        ts,
 		duration:     d,
 		data:         make(map[statsKey]groupedStats),
@@ -83,11 +83,11 @@ func NewStatsRawBucket(ts, d int64) *StatsRawBucket {
 	}
 }
 
-// Export transforms a StatsRawBucket into a StatsBucket, typically used
-// before communicating data to the API, as StatsRawBucket is the internal
-// type while StatsBucket is the public, shared one.
-func (sb *StatsRawBucket) Export() StatsBucket {
-	ret := NewStatsBucket(sb.start, sb.duration)
+// Export transforms a RawBucket into a Bucket, typically used
+// before communicating data to the API, as RawBucket is the internal
+// type while Bucket is the public, shared one.
+func (sb *RawBucket) Export() Bucket {
+	ret := NewBucket(sb.start, sb.duration)
 	for k, v := range sb.data {
 		hitsKey := GrainKey(k.name, HITS, k.aggr)
 		ret.Counts[hitsKey] = Count{
@@ -184,7 +184,7 @@ func assembleGrain(b *bytes.Buffer, env, resource, service string, m map[string]
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *StatsRawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []string, sublayers []SublayerValue) {
+func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []string, sublayers []SublayerValue) {
 	if env == "" {
 		panic("env should never be empty")
 	}
@@ -207,7 +207,7 @@ func (sb *StatsRawBucket) HandleSpan(s *WeightedSpan, env string, aggregators []
 	}
 }
 
-func (sb *StatsRawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
+func (sb *RawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
 	var gs groupedStats
 	var ok bool
 
@@ -238,7 +238,7 @@ func (sb *StatsRawBucket) add(s *WeightedSpan, aggr string, tags TagSet) {
 	sb.data[key] = gs
 }
 
-func (sb *StatsRawBucket) addSublayer(s *WeightedSpan, aggr string, tags TagSet, sub SublayerValue) {
+func (sb *RawBucket) addSublayer(s *WeightedSpan, aggr string, tags TagSet, sub SublayerValue) {
 	// This is not as efficient as a "regular" add as we don't update
 	// all sublayers at once (one call for HITS, and another one for ERRORS, DURATION...)
 	// when logically, if we have a sublayer for HITS, we also have one for DURATION,
