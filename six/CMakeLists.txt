@@ -5,3 +5,6 @@ add_subdirectory(two)
 add_subdirectory(three)
 add_subdirectory(six)
 add_subdirectory(demo)
+
+## Dev tools
+include(cmake/clang-format.cmake)
