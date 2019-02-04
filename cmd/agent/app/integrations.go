@@ -103,26 +103,26 @@ func (v *integrationVersion) equals(otherVersion *integrationVersion) bool {
 }
 
 func init() {
-	AgentCmd.AddCommand(tufCmd)
-	tufCmd.AddCommand(installCmd)
-	tufCmd.AddCommand(removeCmd)
-	tufCmd.AddCommand(searchCmd)
-	tufCmd.AddCommand(freezeCmd)
-	tufCmd.AddCommand(showCmd)
-	tufCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
-	tufCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
-	tufCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
-	tufCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
-	tufCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
-	tufCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
+	AgentCmd.AddCommand(integrationCmd)
+	integrationCmd.AddCommand(installCmd)
+	integrationCmd.AddCommand(removeCmd)
+	integrationCmd.AddCommand(searchCmd)
+	integrationCmd.AddCommand(freezeCmd)
+	integrationCmd.AddCommand(showCmd)
+	integrationCmd.PersistentFlags().BoolVarP(&withoutTuf, "no-tuf", "t", false, "don't use TUF repo")
+	integrationCmd.PersistentFlags().BoolVarP(&inToto, "in-toto", "i", false, "enable in-toto")
+	integrationCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
+	integrationCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
+	integrationCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
+	integrationCmd.PersistentFlags().StringVar(&tufConfig, "tuf-cfg", getTufConfigPath(), "path to TUF config file")
 
 	// Power user flags - mark as hidden
-	tufCmd.PersistentFlags().MarkHidden("use-sys-python")
+	integrationCmd.PersistentFlags().MarkHidden("use-sys-python")
 
 	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 }
 
-var tufCmd = &cobra.Command{
+var integrationCmd = &cobra.Command{
 	Use:   "integration [command]",
 	Short: "Datadog integration manager",
 	Long:  ``,
@@ -135,21 +135,21 @@ var installCmd = &cobra.Command{
 You must specify a version of the package to install using the syntax: <package>==<version>, with
  - <package> of the form datadog-<integration-name>
  - <version> of the form x.y.z`,
-	RunE: installTuf,
+	RunE: install,
 }
 
 var removeCmd = &cobra.Command{
 	Use:   "remove [package]",
 	Short: "Remove Datadog integration core/extra packages",
 	Long:  ``,
-	RunE:  removeTuf,
+	RunE:  remove,
 }
 
 var searchCmd = &cobra.Command{
 	Use:    "search [package]",
 	Short:  "Search Datadog integration core/extra packages",
 	Long:   ``,
-	RunE:   searchTuf,
+	RunE:   search,
 	Hidden: true,
 }
 
@@ -200,7 +200,7 @@ func getTUFConfigFilePath() (string, error) {
 	return tufConfig, nil
 }
 
-func validateTufArgs(args []string) error {
+func validateArgs(args []string) error {
 	if len(args) > 1 {
 		return fmt.Errorf("Too many arguments")
 	} else if len(args) == 0 {
@@ -219,7 +219,7 @@ func validateTufArgs(args []string) error {
 	return nil
 }
 
-func tuf(args []string) error {
+func pip(args []string) error {
 	if !allowRoot && !authorizedUser() {
 		return errors.New("Please use this tool as the agent-running user")
 	}
@@ -255,13 +255,13 @@ func tuf(args []string) error {
 	// Append implicit flags to the *pip* command
 	args = append(args, implicitFlags...)
 
-	tufCmd := exec.Command(pipPath, args...)
-	tufCmd.Env = os.Environ()
+	pipCmd := exec.Command(pipPath, args...)
+	pipCmd.Env = os.Environ()
 
 	// Proxy support
 	proxies := config.GetProxies()
 	if proxies != nil {
-		tufCmd.Env = append(tufCmd.Env,
+		pipCmd.Env = append(pipCmd.Env,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
 			fmt.Sprintf("HTTPS_PROXY=%s", proxies.HTTPS),
 			fmt.Sprintf("NO_PROXY=%s", strings.Join(proxies.NoProxy, ",")),
@@ -269,26 +269,26 @@ func tuf(args []string) error {
 	}
 
 	if !withoutTuf {
-		tufCmd.Env = append(tufCmd.Env,
+		pipCmd.Env = append(pipCmd.Env,
 			fmt.Sprintf("TUF_CONFIG_FILE=%s", tufPath),
 		)
 
 		// Enable tuf logging
 		if verbose {
-			tufCmd.Env = append(tufCmd.Env,
+			pipCmd.Env = append(pipCmd.Env,
 				"TUF_ENABLE_LOGGING=1",
 			)
 		}
 
 		// Enable phase 1, aka in-toto
 		if inToto {
-			tufCmd.Env = append(tufCmd.Env,
+			pipCmd.Env = append(pipCmd.Env,
 				"TUF_DOWNLOAD_IN_TOTO_METADATA=1",
 			)
 			// Change the working directory to one the Datadog Agent can read, so
 			// that we can switch to temporary working directories, and back, for
 			// in-toto.
-			tufCmd.Dir, _ = executable.Folder()
+			pipCmd.Dir, _ = executable.Folder()
 		}
 	} else {
 		if inToto {
@@ -297,7 +297,7 @@ func tuf(args []string) error {
 	}
 
 	// forward the standard output to the Agent logger
-	stdout, err := tufCmd.StdoutPipe()
+	stdout, err := pipCmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
@@ -309,7 +309,7 @@ func tuf(args []string) error {
 	}()
 
 	// forward the standard error to the Agent logger
-	stderr, err := tufCmd.StderrPipe()
+	stderr, err := pipCmd.StderrPipe()
 	if err != nil {
 		return err
 	}
@@ -320,7 +320,7 @@ func tuf(args []string) error {
 		}
 	}()
 
-	err = tufCmd.Run()
+	err = pipCmd.Run()
 	if err != nil {
 		fmt.Printf(color.RedString(
 			fmt.Sprintf("error running command: %v", err)))
@@ -329,8 +329,8 @@ func tuf(args []string) error {
 	return err
 }
 
-func installTuf(cmd *cobra.Command, args []string) error {
-	if err := validateTufArgs(args); err != nil {
+func install(cmd *cobra.Command, args []string) error {
+	if err := validateArgs(args); err != nil {
 		return err
 	}
 
@@ -382,7 +382,7 @@ func installTuf(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	tufArgs := []string{
+	pipArgs := []string{
 		"install",
 		"--cache-dir", cachePath,
 		// We replace the PyPI index with our own by default, in order to prevent
@@ -395,13 +395,13 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	}
 
 	// Install the wheel
-	if err := tuf(append(tufArgs, args[0])); err != nil {
+	if err := pip(append(pipArgs, args[0])); err != nil {
 		return err
 	}
 
 	// Run pip check to determine if the installed integration is compatible with the base check version
-	pipErr := pipCheck(cachePath)
-	if pipErr == nil {
+	pipCheckErr := pipCheck(cachePath)
+	if pipCheckErr == nil {
 		err := moveConfigurationFilesOf(integration)
 		if err == nil {
 			fmt.Println(color.GreenString(fmt.Sprintf(
@@ -418,29 +418,29 @@ func installTuf(cmd *cobra.Command, args []string) error {
 	// Either way, roll back the install and return the error
 	if currentVersion == nil {
 		// Special case where we tried to install a new integration, not yet released with the agent
-		tufArgs = []string{
+		pipArgs = []string{
 			"uninstall",
 			integration,
 			"-y",
 		}
 	} else {
-		tufArgs = append(tufArgs, fmt.Sprintf("%s==%s", integration, currentVersion))
+		pipArgs = append(pipArgs, fmt.Sprintf("%s==%s", integration, currentVersion))
 	}
 
 	// Perform the rollback
-	tufErr := tuf(tufArgs)
-	if tufErr == nil {
+	pipErr := pip(pipArgs)
+	if pipErr == nil {
 		// Rollback successful, return error encountered during `pip check`
 		return fmt.Errorf(
 			"error when validating the agent's python environment, %s wasn't installed: %v",
-			integration, pipErr,
+			integration, pipCheckErr,
 		)
 	}
 
 	// Rollback failed, mention that the integration could be broken
 	return fmt.Errorf(
 		"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken:\n - %v\n- %v",
-		integration, versionToInstall, pipErr, tufErr,
+		integration, versionToInstall, pipCheckErr, pipErr,
 	)
 }
 
@@ -587,43 +587,43 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	return nil
 }
 
-func removeTuf(cmd *cobra.Command, args []string) error {
-	if err := validateTufArgs(args); err != nil {
+func remove(cmd *cobra.Command, args []string) error {
+	if err := validateArgs(args); err != nil {
 		return err
 	}
 
-	tufArgs := []string{
+	pipArgs := []string{
 		"uninstall",
 	}
-	tufArgs = append(tufArgs, args...)
-	tufArgs = append(tufArgs, "-y")
+	pipArgs = append(pipArgs, args...)
+	pipArgs = append(pipArgs, "-y")
 
-	return tuf(tufArgs)
+	return pip(pipArgs)
 }
 
-func searchTuf(cmd *cobra.Command, args []string) error {
+func search(cmd *cobra.Command, args []string) error {
 
 	// NOTE: search will always go to our TUF repository, which doesn't
 	//       support searching currently.
-	tufArgs := []string{
+	pipArgs := []string{
 		"search",
 		// We replace the PyPI index with our own by default, in order to prevent
 		// accidental installation of Datadog or even third-party packages from
 		// PyPI.
 		"--index", tufIndex,
 	}
-	tufArgs = append(tufArgs, args...)
+	pipArgs = append(pipArgs, args...)
 
-	return tuf(tufArgs)
+	return pip(pipArgs)
 }
 
 func freeze(cmd *cobra.Command, args []string) error {
 
-	tufArgs := []string{
+	pipArgs := []string{
 		"freeze",
 	}
 
-	return tuf(tufArgs)
+	return pip(pipArgs)
 }
 
 func show(cmd *cobra.Command, args []string) error {
