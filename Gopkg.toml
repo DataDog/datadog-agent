@@ -127,8 +127,8 @@
   version = "~1.1.4"
 
 [[constraint]]
-  name = "github.com/spf13/viper"
-  version = "=v1.0.2"
+  name = "github.com/DataDog/viper"
+  version = "=v1.3.1"
 
 [[constraint]]
   name = "github.com/coreos/go-systemd"
