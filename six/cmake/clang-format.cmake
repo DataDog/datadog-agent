@@ -7,7 +7,7 @@ file(GLOB_RECURSE
 # Adding clang-format target if executable is found
 find_program(
     CLANG_FORMAT
-    NAMES "clang-format"
+    NAMES clang-format-8 clang-format
     PATHS "/usr/local/bin"
     )
 if(CLANG_FORMAT)
