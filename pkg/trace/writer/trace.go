@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	log "github.com/cihub/seelog"
 	"github.com/golang/protobuf/proto"
@@ -77,10 +76,7 @@ func NewTraceWriter(conf *config.AgentConfig, in <-chan *TracePackage) *TraceWri
 // Start starts the writer.
 func (w *TraceWriter) Start() {
 	w.sender.Start()
-	go func() {
-		defer watchdog.LogOnPanic()
-		w.Run()
-	}()
+	go w.Run()
 }
 
 // Run runs the main loop of the writer goroutine. It sends traces to the payload constructor, flushing it periodically

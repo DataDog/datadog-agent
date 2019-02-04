@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
 // Sampler chooses which spans to write to the API
@@ -51,15 +50,8 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *sampler.DynamicConfig
 
 // Run starts sampling traces
 func (s *Sampler) Run() {
-	go func() {
-		defer watchdog.LogOnPanic()
-		s.engine.Run()
-	}()
-
-	go func() {
-		defer watchdog.LogOnPanic()
-		s.logStats()
-	}()
+	go s.engine.Run()
+	go s.logStats()
 }
 
 // Add samples a trace and returns true if trace was sampled (should be kept), false otherwise

@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
 const agentDisabledMessage = `trace-agent not enabled.
@@ -36,8 +35,6 @@ func Run(ctx context.Context) {
 		SetupDefaultLogger()
 		defer log.Flush()
 	}
-
-	defer watchdog.LogOnPanic()
 
 	// start CPU profiling
 	if flags.CPUProfile != "" {

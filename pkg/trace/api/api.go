@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
 const (
@@ -111,11 +110,7 @@ func (r *HTTPReceiver) Run() {
 	}
 
 	go r.PreSampler.Run()
-
-	go func() {
-		defer watchdog.LogOnPanic()
-		r.logStats()
-	}()
+	go r.logStats()
 }
 
 // Listen creates a new HTTP server listening on the provided address.
@@ -139,14 +134,8 @@ func (r *HTTPReceiver) Listen(addr, logExtra string) error {
 	}
 	log.Infof("listening for traces at http://%s%s", addr, logExtra)
 
-	go func() {
-		defer watchdog.LogOnPanic()
-		ln.Refresh(r.conf.ConnectionLimit)
-	}()
-	go func() {
-		defer watchdog.LogOnPanic()
-		r.server.Serve(ln)
-	}()
+	go ln.Refresh(r.conf.ConnectionLimit)
+	go r.server.Serve(ln)
 
 	return nil
 }

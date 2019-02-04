@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
 	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"
@@ -146,11 +145,9 @@ func main() {
 	// if we are an interactive session, then just invoke the agent on the command line.
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	// Handle stops properly
-	go func() {
-		defer watchdog.LogOnPanic()
-		handleSignal(cancelFunc)
-	}()
+	go handleSignal(cancelFunc)
 
 	// Invoke the Agent
 	agent.Run(ctx)

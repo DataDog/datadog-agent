@@ -9,7 +9,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	log "github.com/cihub/seelog"
 )
@@ -60,15 +59,8 @@ func NewStatsWriter(conf *config.AgentConfig, InStats <-chan []stats.Bucket) *St
 func (w *StatsWriter) Start() {
 	w.sender.Start()
 
-	go func() {
-		defer watchdog.LogOnPanic()
-		w.Run()
-	}()
-
-	go func() {
-		defer watchdog.LogOnPanic()
-		w.monitor()
-	}()
+	go w.Run()
+	go w.monitor()
 }
 
 // Run runs the event loop of the writer's main goroutine. It reads stat buckets

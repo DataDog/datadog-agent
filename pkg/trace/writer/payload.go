@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer/backoff"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	log "github.com/cihub/seelog"
@@ -152,10 +151,7 @@ func (s *queuableSender) doSend(payload *payload) (sendStats, error) {
 
 // Start asynchronously starts this QueueablePayloadSender.
 func (s *queuableSender) Start() {
-	go func() {
-		defer watchdog.LogOnPanic()
-		s.Run()
-	}()
+	go s.Run()
 }
 
 // Run executes the queuableSender main logic synchronously.

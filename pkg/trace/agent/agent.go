@@ -237,20 +237,14 @@ func (a *Agent) Process(t pb.Trace) {
 		pt.Env = tenv
 	}
 
-	go func() {
-		defer watchdog.LogOnPanic()
-		a.ServiceExtractor.Process(pt.WeightedTrace)
-	}()
+	go a.ServiceExtractor.Process(pt.WeightedTrace)
 
-	go func(pt ProcessedTrace) {
-		defer watchdog.LogOnPanic()
-		// Everything is sent to concentrator for stats, regardless of sampling.
-		a.Concentrator.Add(&stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
-		})
-	}(pt)
+	// Everything is sent to concentrator for stats, regardless of sampling.
+	go a.Concentrator.Add(&stats.Input{
+		Trace:     pt.WeightedTrace,
+		Sublayers: pt.Sublayers,
+		Env:       pt.Env,
+	})
 
 	// Don't go through sampling for < 0 priority traces
 	if priority < 0 {
@@ -258,8 +252,6 @@ func (a *Agent) Process(t pb.Trace) {
 	}
 	// Run both full trace sampling and transaction extraction in another goroutine.
 	go func(pt ProcessedTrace) {
-		defer watchdog.LogOnPanic()
-
 		tracePkg := writer.TracePackage{}
 
 		sampled, rate := a.sample(pt)

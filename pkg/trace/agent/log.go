@@ -8,7 +8,6 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
 const agentLoggerConfigFmt = `
@@ -148,7 +147,6 @@ func (r *ThrottledReceiver) AfterParse(args log.CustomReceiverInitArgs) error {
 
 	// Start the goroutine resetting the log count
 	go func() {
-		defer watchdog.LogOnPanic()
 		for {
 			select {
 			case <-r.tick:
@@ -157,7 +155,6 @@ func (r *ThrottledReceiver) AfterParse(args log.CustomReceiverInitArgs) error {
 				return
 			}
 		}
-
 	}()
 
 	return nil

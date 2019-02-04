@@ -6,7 +6,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	log "github.com/cihub/seelog"
 )
 
@@ -38,7 +37,6 @@ func (s *ServiceMapper) Start() {
 	s.done.Add(1)
 
 	go func() {
-		defer watchdog.LogOnPanic()
 		s.Run()
 		s.done.Done()
 	}()

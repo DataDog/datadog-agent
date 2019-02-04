@@ -8,7 +8,6 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
 // defaultBufferLen represents the default buffer length; the number of bucket size
@@ -65,10 +64,7 @@ func NewConcentrator(aggregators []string, bsize int64, out chan []Bucket) *Conc
 
 // Start starts the concentrator.
 func (c *Concentrator) Start() {
-	go func() {
-		defer watchdog.LogOnPanic()
-		c.Run()
-	}()
+	go c.Run()
 }
 
 // Run runs the main loop of the concentrator goroutine. Traces are received
