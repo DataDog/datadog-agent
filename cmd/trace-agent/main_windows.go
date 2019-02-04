@@ -9,8 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "net/http/pprof"
-
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
@@ -57,7 +56,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		}
 	}()
 	elog.Info(0x40000003, ServiceName)
-	runAgent(ctx)
+	agent.Run(ctx)
 
 	changes <- svc.Status{State: svc.Stopped}
 	return
@@ -154,7 +153,7 @@ func main() {
 	}()
 
 	// Invoke the Agent
-	runAgent(ctx)
+	agent.Run(ctx)
 }
 
 func startService() error {

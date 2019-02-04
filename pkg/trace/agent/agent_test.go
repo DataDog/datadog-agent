@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -357,7 +356,7 @@ func TestSampling(t *testing.T) {
 			if tt.hasErrors {
 				root.Error = 1
 			}
-			pt := agent.ProcessedTrace{Trace: pb.Trace{root}, Root: root}
+			pt := ProcessedTrace{Trace: pb.Trace{root}, Root: root}
 			if tt.hasPriority {
 				sampler.SetSamplingPriority(pt.Root, 1)
 			}
@@ -550,13 +549,13 @@ func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	agent := NewAgent(ctx, c)
+	ta := NewAgent(ctx, c)
 	log.UseLogger(log.Disabled)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		agent.Process(testutil.RandomTrace(10, 8))
+		ta.Process(testutil.RandomTrace(10, 8))
 	}
 }
 
@@ -565,12 +564,12 @@ func BenchmarkWatchdog(b *testing.B) {
 	conf.Endpoints[0].APIKey = "apikey_2"
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	agent := NewAgent(ctx, conf)
+	ta := NewAgent(ctx, conf)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		agent.watchdog()
+		ta.watchdog()
 	}
 }
 
@@ -578,7 +577,7 @@ func BenchmarkWatchdog(b *testing.B) {
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
 		obfuscate.NewObfuscator(nil).Obfuscate(span)
-		agent.Truncate(span)
+		Truncate(span)
 	}
 	return t
 }
