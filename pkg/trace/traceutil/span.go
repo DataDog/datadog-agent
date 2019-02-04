@@ -22,8 +22,8 @@ func HasForceMetrics(s *pb.Span) bool {
 	return s.Meta[TraceMetricsKey] == "true"
 }
 
-// setTopLevel sets the top-level attribute of the span.
-func setTopLevel(s *pb.Span, topLevel bool) {
+// SetTopLevel sets the top-level attribute of the span.
+func SetTopLevel(s *pb.Span, topLevel bool) {
 	if !topLevel {
 		if s.Metrics == nil {
 			return
