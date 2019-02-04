@@ -119,22 +119,22 @@ func TestGetVersionFromReqLine(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestValidateTufArgs(t *testing.T) {
+func TestValidateArgs(t *testing.T) {
 	// No args
 	args := []string{}
-	err := validateTufArgs(args, false)
+	err := validateArgs(args, false)
 	assert.NotNil(t, err)
 
 	// Too many args
 	args = []string{"arg1", "arg2"}
-	err = validateTufArgs(args, true)
+	err = validateArgs(args, true)
 	assert.NotNil(t, err)
 
 	// Not local => name starts with datadog
 	args = []string{"foo"}
-	err = validateTufArgs(args, false)
+	err = validateArgs(args, false)
 	assert.NotNil(t, err)
 	args = []string{"datadog-foo"}
-	err = validateTufArgs(args, false)
+	err = validateArgs(args, false)
 	assert.Nil(t, err)
 }
