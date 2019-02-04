@@ -1,0 +1,17 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: debian:stretch
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            apt install -y cmake clang-format
+            cmake .
+      - run:
+          name: Linting
+          command: |
+            make clang-format
+            [[ $(git ls-files -m | wc -l) -eq 0 ]]
