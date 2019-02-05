@@ -16,7 +16,8 @@
 		"metrics": {
 			"payloads": 0.932265594506285,
 			"rowcount": 0.7833576827797065,
-			"size": 0.5232127069412313
+			"size": 0.5232127069412313,
+            "_sampling_priority_v1": 1
 		},
 		"type": "redis"
 	},

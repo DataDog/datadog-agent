@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -54,10 +53,6 @@ type Agent struct {
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
-
-	// wg is used only in tests to wait for all goroutines in the Process method
-	// to complete.
-	wg *sync.WaitGroup
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -242,69 +237,41 @@ func (a *Agent) Process(t pb.Trace) {
 		pt.Env = tenv
 	}
 
-	if a.wg != nil {
-		a.wg.Add(1)
-	}
-	go func() {
-		if a.wg != nil {
-			defer a.wg.Done()
-		}
-		defer watchdog.LogOnPanic()
-		a.ServiceExtractor.Process(pt.WeightedTrace)
-	}()
+	a.ServiceExtractor.Process(pt.WeightedTrace)
 
-	if a.wg != nil {
-		a.wg.Add(1)
-	}
-	go func(pt ProcessedTrace) {
-		if a.wg != nil {
-			defer a.wg.Done()
-		}
-		defer watchdog.LogOnPanic()
-		// Everything is sent to concentrator for stats, regardless of sampling.
-		a.Concentrator.Add(&stats.Input{
-			Trace:     pt.WeightedTrace,
-			Sublayers: pt.Sublayers,
-			Env:       pt.Env,
-		})
-	}(pt)
+	// Everything is sent to concentrator for stats, regardless of sampling.
+	a.Concentrator.Add(&stats.Input{
+		Trace:     pt.WeightedTrace,
+		Sublayers: pt.Sublayers,
+		Env:       pt.Env,
+	})
 
 	// Don't go through sampling for < 0 priority traces
 	if priority < 0 {
 		return
 	}
 
-	if a.wg != nil {
-		a.wg.Add(1)
-	}
 	// Run both full trace sampling and transaction extraction in another goroutine.
-	go func(pt ProcessedTrace) {
-		if a.wg != nil {
-			defer a.wg.Done()
-		}
-		defer watchdog.LogOnPanic()
+	tracePkg := writer.TracePackage{}
 
-		tracePkg := writer.TracePackage{}
+	sampled, rate := a.sample(pt)
 
-		sampled, rate := a.sample(pt)
+	if sampled {
+		pt.Sampled = sampled
+		sampler.AddGlobalRate(pt.Root, rate)
+		tracePkg.Trace = pt.Trace
+	}
 
-		if sampled {
-			pt.Sampled = sampled
-			sampler.AddGlobalRate(pt.Root, rate)
-			tracePkg.Trace = pt.Trace
-		}
+	// NOTE: Events can be processed on non-sampled traces.
+	events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
+	tracePkg.Events = events
 
-		// NOTE: Events can be processed on non-sampled traces.
-		events, numExtracted := a.EventProcessor.Process(pt.Root, pt.Trace)
-		tracePkg.Events = events
+	atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
+	atomic.AddInt64(&ts.EventsSampled, int64(len(tracePkg.Events)))
 
-		atomic.AddInt64(&ts.EventsExtracted, int64(numExtracted))
-		atomic.AddInt64(&ts.EventsSampled, int64(len(tracePkg.Events)))
-
-		if !tracePkg.Empty() {
-			a.tracePkgChan <- &tracePkg
-		}
-	}(pt)
+	if !tracePkg.Empty() {
+		a.tracePkgChan <- &tracePkg
+	}
 }
 
 func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {

@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -148,6 +147,7 @@ func TestProcess(t *testing.T) {
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_sampling_priority_v1": -1}, // don't sample
 		}
 		agnt.Process(pb.Trace{span})
 
@@ -170,12 +170,14 @@ func TestProcess(t *testing.T) {
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_sampling_priority_v1": -1}, // don't sample
 		}
 		spanInvalid := &pb.Span{
 			Resource: "INSERT INTO db VALUES (1, 2, 3)",
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_sampling_priority_v1": -1}, // don't sample
 		}
 
 		stats := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -196,6 +198,22 @@ func TestProcess(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg)
 		defer cancel()
+
+		// we need to drain these channels to avoid blocking, because the
+		// agent instance isn't started (= writers not receiving packages).
+		exit := make(chan bool)
+		go func() {
+			defer close(exit)
+			for {
+				select {
+				case <-agnt.ServiceExtractor.outServices:
+				case <-agnt.tracePkgChan:
+				case <-agnt.Concentrator.OutStats:
+				case <-exit:
+					return
+				}
+			}
+		}()
 
 		now := time.Now()
 		for _, key := range []sampler.SamplingPriority{
@@ -234,6 +252,9 @@ func TestProcess(t *testing.T) {
 		assert.EqualValues(t, 3, stats.TracesPriority0)
 		assert.EqualValues(t, 4, stats.TracesPriority1)
 		assert.EqualValues(t, 5, stats.TracesPriority2)
+
+		exit <- true
+		<-exit
 	})
 }
 
@@ -570,8 +591,6 @@ func benchProcess(b *testing.B, c *config.AgentConfig) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	ta.wg = &sync.WaitGroup{}
-
 	exit := make(chan bool)
 	go func() {
 		defer close(exit)
@@ -588,7 +607,6 @@ func benchProcess(b *testing.B, c *config.AgentConfig) {
 
 	for i := 0; i < b.N; i++ {
 		ta.Process(testutil.CopyTrace(t))
-		ta.wg.Wait()
 	}
 
 	exit <- true
