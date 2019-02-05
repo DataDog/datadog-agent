@@ -78,8 +78,8 @@ set -x
 # on linux it can just download the latest version from the package manager
 if [ -z ${AGENT_VERSION+x} ]; then
   pushd ../..
-    export AGENT_VERSION=`inv agent.version --url-safe --git-sha-length=9 --match=[0-9]*`
-    export DD_AGENT_EXPECTED_VERSION=`inv agent.version --url-safe --git-sha-length=7 --match=[0-9]*`
+    export AGENT_VERSION=`inv agent.version --url-safe --git-sha-length=9`
+    export DD_AGENT_EXPECTED_VERSION=`inv agent.version --url-safe --git-sha-length=7`
   popd
 fi
 
