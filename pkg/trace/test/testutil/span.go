@@ -327,3 +327,28 @@ func TestWeightedSpan() *stats.WeightedSpan {
 		TopLevel: true,
 	}
 }
+
+// CopySpan returns a copy of span.
+func CopySpan(span *pb.Span) *pb.Span {
+	cp := &pb.Span{
+		Service:  span.Service,
+		Name:     span.Name,
+		Resource: span.Resource,
+		TraceID:  span.TraceID,
+		SpanID:   span.SpanID,
+		ParentID: span.ParentID,
+		Start:    span.Start,
+		Duration: span.Duration,
+		Error:    span.Error,
+		Meta:     make(map[string]string, len(span.Meta)),
+		Metrics:  make(map[string]float64, len(span.Metrics)),
+		Type:     span.Type,
+	}
+	for k, v := range span.Metrics {
+		cp.Metrics[k] = v
+	}
+	for k, v := range span.Meta {
+		cp.Meta[k] = v
+	}
+	return cp
+}

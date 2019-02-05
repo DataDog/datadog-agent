@@ -110,3 +110,12 @@ func GetTestTrace(traceN, size int, realisticIDs bool) pb.Traces {
 	}
 	return traces
 }
+
+// CopyTrace returns a copy of t.
+func CopyTrace(t pb.Trace) pb.Trace {
+	cp := make(pb.Trace, len(t))
+	for i, span := range t {
+		cp[i] = CopySpan(span)
+	}
+	return cp
+}
