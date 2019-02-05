@@ -87,6 +87,7 @@ BEGIN
     IDS_DATADOG_PATH "Datadog\\Datadog Agent"
     IDS_DATADOG_KEY_ROOT_BASE "SOFTWARE\\"
     IDS_DATADOG_ACL_KEY_DATADOG_BASE "MACHINE\\SOFTWARE\\"
+    IDS_DATADOG_KEY_PATH "SOFTWARE\\Datadog\\Datadog Agent"
 
     IDS_DATADOG_SERVICE_NAME "Datadog Agent"
     IDS_DATADOG_AGENT_USER_NAME ".\\ddagentuser"
@@ -106,6 +107,17 @@ BEGIN
     IDS_DATADOGYAML "datadog.yaml"
     IDS_CONFDSUFFIX "conf.d"
     IDS_LOGSDIRSUFFIX "logs"
+
+    IDS_REGKEY_ROLLBACK_KEY_NAME "installRollback"
+    IDS_REGKEY_UNINSTALL_KEY_NAME "uninstallStatus"
+
+END
+
+STRINGTABLE
+BEGIN
+    IDS_CREATED_DD_USER_NAME        "CreatedDDUser"
+    IDS_CREATED_DD_USER_DOMAIN      "CreatedDDUserDomain"
+    IDS_INSTALLED_SERVICES          "Installed Services"
 END
 
 #ifndef APSTUDIO_INVOKED

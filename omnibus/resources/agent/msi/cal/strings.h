@@ -29,15 +29,16 @@ extern std::wstring datadogyamlfile;
 extern std::wstring confddir;
 extern std::wstring logdir;
 
+extern std::wstring strRollbackKeyName;
+extern std::wstring strUninstallKeyName;
+
 // installation steps
-extern std::wstring strDdUserCreated;
-extern std::wstring strDdUserPasswordChanged;
-extern std::wstring strFilePermissionsChanged;
-extern std::wstring strAddDdUserToPerfmon;
-extern std::wstring strChangedRegistryPermissions;
+extern std::wstring installCreatedDDUser;
+extern std::wstring installCreatedDDDomain;
+extern std::wstring installInstalledServices;
 
 void initializeStringsFromStringTable();
-void buildStrings(CustomActionData& data);
+
 
 void toMbcs(std::string& target, LPCWSTR src);
 bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName = NULL);

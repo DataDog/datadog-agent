@@ -6,4 +6,5 @@ EXPORTS
 	PreStopServices
 	PostStartServices
 	DoUninstall
+    DoRollback
 	

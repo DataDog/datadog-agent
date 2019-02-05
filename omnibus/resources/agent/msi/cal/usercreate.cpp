@@ -74,6 +74,9 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
 }
 DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 
+    std::string namestr;
+    toMbcs(namestr, name);
+    WcaLog(LOGMSG_STANDARD, "Changing registry ACL on %s", namestr.c_str());
     ExplicitAccess localsystem;
     localsystem.BuildGrantSid(TRUSTEE_IS_USER, GENERIC_ALL | KEY_ALL_ACCESS, SECURITY_LOCAL_SYSTEM_RID, 0);
 

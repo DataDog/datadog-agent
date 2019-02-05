@@ -1,5 +1,6 @@
 #include "stdafx.h"
 
+
 std::wstring datadog_path ;                             //IDS_DATADOG_PATH
 std::wstring datadog_key_root_base;                     // IDS_DATADOG_KEY_ROOT_BASE
 std::wstring datadog_acl_key_datadog_base;              // IDS_DATADOG_ACL_KEY_DATADOG_BASE
@@ -27,6 +28,8 @@ std::wstring datadogyaml;                       // IDS_DATADOGYAML
 std::wstring confdsuffix;                       // IDS_CONFSDSUFFIX
 std::wstring logsdirsuffix;                     // IDS_LOGSDIRSUFFIX
 
+std::wstring strRollbackKeyName;                // IDS_REGKEY_ROLLBACK_KEY_NAME
+std::wstring strUninstallKeyName;               // IDS_REGKEY_UNINSTALL_KEY_NAME
 
 std::wstring programdataroot;
 std::wstring logfilename;
@@ -39,18 +42,12 @@ std::wstring propertyCustomActionData(L"CustomActionData");
 std::wstring datadog_key_root;
 std::wstring datadog_acl_key_datadog;
 
-// installation steps
-std::wstring strDdUserCreated(L"00-ddUserCreated");
-std::wstring strDdUserPasswordChanged(L"01-ddUserPasswordChanged");
-std::wstring strFilePermissionsChanged(L"02-ddUserFilePermsChanged");
-std::wstring strAddDdUserToPerfmon(L"03-ddUserAddedToPerfmon");
-std::wstring strChangedRegistryPermissions(L"04-ddRegPermsChanged");
 
 std::wstring* loadStrings[] = {
-    NULL,
     &datadog_path,
     &datadog_key_root_base,
     &datadog_acl_key_datadog_base,
+    &datadog_key_root,
     &datadog_service_name,
     &ddAgentUserName,
     &ddAgentUserDescription,
@@ -65,7 +62,19 @@ std::wstring* loadStrings[] = {
     &authTokenSuffix,
     &datadogyaml,
     &confdsuffix,
-    &logsdirsuffix
+    &logsdirsuffix,
+    &strRollbackKeyName,
+    &strUninstallKeyName
+};
+
+// strings for tracking install state
+std::wstring installCreatedDDUser;
+std::wstring installCreatedDDDomain;
+std::wstring installInstalledServices;
+std::wstring *installStrings[] = {
+    &installCreatedDDUser,
+    &installCreatedDDDomain,
+    &installInstalledServices,
 };
 void loadStringToWstring(int id, std::wstring *target)
 {
@@ -99,33 +108,47 @@ void loadStringToWstring(int id, std::wstring *target)
         delete[] tgtbuffer;
     }
 }
-void initializeStringsFromStringTable()
-{
-    for (int i = 1; i < sizeof(loadStrings) / sizeof(std::wstring*); i++)
-    {
-        loadStringToWstring(STRINGTABLE_BASE + i, loadStrings[i]);
-    }
-}
+static bool initialized = false;
 
-void buildStrings(CustomActionData& data)
+void getOsStrings()
 {
+    PWSTR outstr = NULL;
     // build up all the path-based strings
     std::wstring programfiles;
 
-    data.value(propertyAppDataDir, programdataroot);
-    data.value(propertyProgramFilesDir, programfiles);
-
+    if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
+    {
+        programdataroot = outstr;
+    }
+    if(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, 0, &outstr) == S_OK)
+    {
+        programfiles = outstr;
+    }
     logfilename = programdataroot + logsSuffix;
     authtokenfilename = programdataroot + authTokenSuffix;
     datadogyamlfile = programdataroot + datadogyaml;
     confddir = programdataroot + confdsuffix;
     logdir = programdataroot + logsdirsuffix;
 
-    datadog_key_root = datadog_key_root_base + datadog_path;
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
 
-
 }
+void initializeStringsFromStringTable()
+{
+    if (initialized) {
+        return;
+    }
+    for (int i = 0; i < sizeof(loadStrings) / sizeof(std::wstring*); i++)
+    {
+        loadStringToWstring(STRINGTABLE_BASE + i, loadStrings[i]);
+    }
+    for (int i = 0; i < sizeof(installStrings) / sizeof(std::wstring*); i++) {
+        loadStringToWstring(INSTALLTABLE_BASE + i, installStrings[i]);
+    }
+    getOsStrings();
+    initialized = true;
+}
+
 void toMbcs(std::string& target, LPCWSTR src) {
     size_t len = wcslen(src);
     size_t narrowlen = (2 * len) + 1;

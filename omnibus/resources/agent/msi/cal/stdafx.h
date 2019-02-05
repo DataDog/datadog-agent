@@ -2,6 +2,7 @@
 
 #include "targetver.h"
 
+#define NTDDI_VERSION NTDDI_VISTA
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files:
 #include <windows.h>
@@ -11,6 +12,7 @@
 #include <AclAPI.h>
 #include <sddl.h>
 #include <shlwapi.h>
+#include <shlobj.h>
 
 #include <stdlib.h>
 #include <strsafe.h>

@@ -40,7 +40,9 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     PSID sid = NULL;
     LSA_HANDLE hLsa = NULL;
     std::wstring propval;
-    ddRegKey regkey;
+    ddRegKey regkeybase;
+    RegKey keyRollback, keyInstall;
+
     std::wstring waitval;
 
     // first, get the necessary initialization data
@@ -49,14 +51,18 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     hr = WcaInitialize(hInstall, "CA: FinalizeInstall");
     ExitOnFailure(hr, "Failed to initialize");
     WcaLog(LOGMSG_STANDARD, "Initialized.");
-    //MessageBoxA(NULL, "hi", "bye", MB_OK);
-    initializeStringsFromStringTable();
+
+#ifdef _DEBUG
+    MessageBox(NULL, L"hi", L"bye", MB_OK);
+#endif
     if(!data.init(hInstall)){
         WcaLog(LOGMSG_STANDARD, "Failed to load custom action property data");
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
-    buildStrings(data);
+    regkeybase.deleteSubKey(strRollbackKeyName.c_str());
+    regkeybase.createSubKey(strRollbackKeyName.c_str(), keyRollback, REG_OPTION_VOLATILE);
+    regkeybase.createSubKey(strUninstallKeyName.c_str(), keyInstall);
 
     // check to see if the supplied dd-agent-user exists
     if ((ddUserExists = doesUserExist(hInstall, data)) == -1) {
@@ -159,6 +165,14 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             er = ERROR_INSTALL_FAILURE;
             goto LExit;
         }
+        // store that we created the user, and store the username so we can
+        // delete on rollback/uninstall
+        keyRollback.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
+        keyInstall.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
+        if (data.getDomainPtr()) {
+            keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+            keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+        }
         // since we just created the user, fix up all the rights we want
         hr = -1;
         sid = GetSidForUser(data.getDomainPtr(), data.getUserPtr());
@@ -215,11 +229,15 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             passToUse = providedPassword.c_str();
         }
         int ret = installServices(hInstall, data, passToUse);
+
         if (ret != 0) {
             WcaLog(LOGMSG_STANDARD, "Failed to create install services");
             er = ERROR_INSTALL_FAILURE;
             goto LExit;
         }
+        keyRollback.setStringValue(installInstalledServices.c_str(), L"true");
+        keyInstall.setStringValue(installInstalledServices.c_str(), L"true");
+
     }
     er = addDdUserPermsToFile(data, logfilename);
     WcaLog(LOGMSG_STANDARD, "%d setting log file perms", er);
@@ -269,7 +287,6 @@ extern "C" UINT __stdcall PreStopServices(MSIHANDLE hInstall) {
     ExitOnFailure(hr, "Failed to initialize");
     
     WcaLog(LOGMSG_STANDARD, "Initialized.");
-    initializeStringsFromStringTable();
     DoStopSvc(hInstall, agentService);
     WcaLog(LOGMSG_STANDARD, "Waiting for prestop to complete");
     Sleep(10000);
@@ -289,7 +306,7 @@ extern "C" UINT __stdcall PostStartServices(MSIHANDLE hInstall) {
     ExitOnFailure(hr, "Failed to initialize");
     
     WcaLog(LOGMSG_STANDARD, "Initialized.");
-    initializeStringsFromStringTable();
+
     er = DoStartSvc(hInstall, agentService);
     WcaLog(LOGMSG_STANDARD, "Waiting for start to complete");
     Sleep(5000);
@@ -302,103 +319,169 @@ LExit:
     return WcaFinalize(er);
 
 }
+typedef enum _uninstall_type {
+    UNINSTALL_UNINSTALL,
+    UNINSTALL_ROLLBACK
+} UNINSTALL_TYPE;
 
-
+UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t);
 extern "C" UINT __stdcall DoUninstall(MSIHANDLE hInstall) {
-    HRESULT hr = S_OK;
+    // that's helpful.  WcaInitialize Log header silently limited to 32 chars
+    HRESULT hr = WcaInitialize(hInstall, "CA: DoUninstall");
+    UINT er = 0;
+    ExitOnFailure(hr, "Failed to initialize");
+     
+    WcaLog(LOGMSG_STANDARD, "Initialized.");
+    initializeStringsFromStringTable();
+    er = doUninstallAs(hInstall, UNINSTALL_UNINSTALL);
+    if (er != 0) {
+        hr = -1;
+    }
+LExit:
+    er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+    return WcaFinalize(er);
+}
+
+extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
+    // that's helpful.  WcaInitialize Log header silently limited to 32 chars
+    HRESULT hr = WcaInitialize(hInstall, "CA: DoRollback");
+    UINT er = 0;
+    ExitOnFailure(hr, "Failed to initialize");
+
+    WcaLog(LOGMSG_STANDARD, "Initialized.");
+    initializeStringsFromStringTable();
+    // we'll need to stop the services manually if we got far enough to start
+    // them before installation failed.
+    DoStopSvc(hInstall, agentService);
+    er = doUninstallAs(hInstall, UNINSTALL_ROLLBACK);
+    if (er != 0) {
+        hr = -1;
+    }
+LExit:
+    er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+    return WcaFinalize(er);
+}
+UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
+{
+
     DWORD er = ERROR_SUCCESS;
     CustomActionData data;
     PSID sid = NULL;
     LSA_HANDLE hLsa = NULL;
     std::wstring propval;
     ddRegKey regkey;
+    RegKey installState;
     std::wstring waitval;
     DWORD nErr = 0;
     LOCALGROUP_MEMBERS_INFO_0 lmi0;
     memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
-
-    // that's helpful.  WcaInitialize Log header silently limited to 32 chars
-    hr = WcaInitialize(hInstall, "CA: DoUninstall");
-    ExitOnFailure(hr, "Failed to initialize");
-
-    WcaLog(LOGMSG_STANDARD, "Initialized.");
-    initializeStringsFromStringTable();
-    if (!data.init(hInstall)) {
-        WcaLog(LOGMSG_STANDARD, "Failed to load custom action property data");
-        er = ERROR_INSTALL_FAILURE;
-        goto LExit;
-    }
-    buildStrings(data);
-    sid = GetSidForUser(data.getDomainPtr(), data.getUserPtr());
-    if ((hLsa = GetPolicyHandle()) == NULL) {
-        goto LExit;
-    }
-
-    // remove dd user from programdata root
-    removeUserPermsFromFile(programdataroot, sid);
-
-    // remove dd user from log directory
-    removeUserPermsFromFile(logdir, sid);
-
-    // remove dd user from conf directory
-    removeUserPermsFromFile(confddir, sid);
-
-    // remove dd user from datadog.yaml
-    removeUserPermsFromFile(datadogyamlfile, sid);
-
-    // remove the auth token file altogether
-    DeleteFile(authtokenfilename.c_str());
-
-    // uninstall the services
-    uninstallServices(hInstall, data);
-
-    // remove dd user from Performance monitor users
-    lmi0.lgrmi0_sid = sid;
-    nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
-    if (nErr == NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "removed ddagentuser from Performance Monitor Users");
-    }
-    else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS) {
-        WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);
+    BOOL willDeleteUser = false;
+    if (t == UNINSTALL_UNINSTALL) {
+        regkey.createSubKey(strUninstallKeyName.c_str(), installState);
     }
     else {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error removing user from group %d", nErr);
+        regkey.createSubKey(strRollbackKeyName.c_str(), installState);
+    }
+    // check to see if we created the user, and if so, what the user's name was
+    std::wstring installedUser, installedDomain;
+    const wchar_t* installedUserPtr = NULL;
+    const wchar_t* installedDomainPtr = NULL;
+    if (installState.getStringValue(installCreatedDDUser.c_str(), installedUser))
+    {
+        std::string usershort;
+        toMbcs(usershort, installedUser.c_str());
+        WcaLog(LOGMSG_STANDARD, "This install installed user %s, will remove", usershort.c_str());
+        installedUserPtr = installedUser.c_str();
+        if (installState.getStringValue(installCreatedDDDomain.c_str(), installedDomain)) {
+            installedDomainPtr = installedDomain.c_str();
+            toMbcs(usershort, installedDomainPtr);
+            WcaLog(LOGMSG_STANDARD, "Removing user from domain %s", usershort);
+        }
+        willDeleteUser = true;
     }
 
-    // remove dd user right for
-    //   SE_SERVICE_LOGON NAME
-    //   SE_DENY_REMOVE_INTERACTIVE_LOGON_NAME
-    //   SE_DENY_NETWORK_LOGIN_NAME
-    //   SE_DENY_INTERACTIVE_LOGIN_NAME
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
+    if (willDeleteUser)
+    {
+        sid = GetSidForUser(installedDomainPtr, installedUserPtr);
+
+        // remove dd user from programdata root
+        removeUserPermsFromFile(programdataroot, sid);
+
+        // remove dd user from log directory
+        removeUserPermsFromFile(logdir, sid);
+
+        // remove dd user from conf directory
+        removeUserPermsFromFile(confddir, sid);
+
+        // remove dd user from datadog.yaml
+        removeUserPermsFromFile(datadogyamlfile, sid);
+
+        // remove dd user from Performance monitor users
+        lmi0.lgrmi0_sid = sid;
+        nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
+        if (nErr == NERR_Success) {
+            WcaLog(LOGMSG_STANDARD, "removed ddagentuser from Performance Monitor Users");
+        }
+        else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS) {
+            WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);
+        }
+        else {
+            WcaLog(LOGMSG_STANDARD, "Unexpected error removing user from group %d", nErr);
+        }
+
+        // remove dd user right for
+        //   SE_SERVICE_LOGON NAME
+        //   SE_DENY_REMOVE_INTERACTIVE_LOGON_NAME
+        //   SE_DENY_NETWORK_LOGIN_NAME
+        //   SE_DENY_INTERACTIVE_LOGIN_NAME
+        if ((hLsa = GetPolicyHandle()) != NULL) {
+            if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
+                WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
+            }
+
+            if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
+                WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
+            }
+            if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
+                WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
+            }
+            if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
+                WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
+            }
+        }
+        // delete the user
+        er = DeleteUser(installedDomainPtr, installedUserPtr);
+        if (0 != er) {
+            // don't actually fail on failure.  We're doing an uninstall,
+            // and failing will just leave the system in a more confused state
+            WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
+        }
+    }
+    // remove the auth token file altogether
+
+    DeleteFile(authtokenfilename.c_str());
+    std::wstring svcsInstalled;
+    if (installState.getStringValue(installInstalledServices.c_str(), svcsInstalled))
+    {
+        // uninstall the services
+        uninstallServices(hInstall, data);
+    }
+    else {
+        // this would have to be the rollback state, during an upgrade.
+        // attempt to restart the services
+        if (doesServiceExist(hInstall, agentService)) {
+            // attempt to start it back up
+            DoStartSvc(hInstall, agentService);
+        }
     }
 
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
-    }
-    // delete the user
-    er = DeleteUser(data.getDomainPtr(), data.getUserPtr());
-    if (0 != er) {
-        // don't actually fail on failure.  We're doing an uninstall,
-        // and failing will just leave the system in a more confused state
-        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
-    }
-LExit:
     if (sid) {
         delete[](BYTE *) sid;
     }
     if (hLsa) {
         LsaClose(hLsa);
     }
-    er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
-    return WcaFinalize(er);
+    return er;
 
 }
 HMODULE hDllModule;
@@ -416,6 +499,7 @@ extern "C" BOOL WINAPI DllMain(
         WcaGlobalInitialize(hInst);
         // initialize random number generator
         hDllModule = (HMODULE)hInst;
+        initializeStringsFromStringTable();
         break;
 
     case DLL_PROCESS_DETACH:

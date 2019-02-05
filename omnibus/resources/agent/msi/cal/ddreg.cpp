@@ -1,10 +1,18 @@
 #include "stdafx.h"
 
-ddRegKey::ddRegKey() :
-    hKeyRoot(NULL)
+RegKey::RegKey()
+    : hKeyRoot(NULL)
 {
-    LSTATUS st = RegCreateKeyEx(HKEY_LOCAL_MACHINE,
-        datadog_key_root.c_str(),
+}
+
+RegKey::RegKey(HKEY parentKey, const wchar_t* subkey)
+    : hKeyRoot(NULL)
+{
+    std::string ls;
+    toMbcs(ls, subkey);
+    WcaLog(LOGMSG_STANDARD, "Creating/opening key %s", ls.c_str());
+    LSTATUS st = RegCreateKeyEx(parentKey,
+        subkey,
         0, //reserved, must be zero
         NULL, // class
         0, // no options
@@ -15,14 +23,7 @@ ddRegKey::ddRegKey() :
 
 }
 
-ddRegKey::~ddRegKey()
-{
-    if (this->hKeyRoot) {
-        RegCloseKey(this->hKeyRoot);
-    }
-}
-
-bool ddRegKey::getStringValue(const wchar_t* valname, std::wstring& val)
+bool RegKey::getStringValue(const wchar_t* valname, std::wstring& val)
 {
     wchar_t * retdata = NULL;
     DWORD dataSize = 0;
@@ -58,3 +59,47 @@ bool ddRegKey::getStringValue(const wchar_t* valname, std::wstring& val)
     return st == ERROR_SUCCESS ? true : false;
 
 }
+
+bool RegKey::setStringValue(const wchar_t* valname, const wchar_t* value)
+{
+    RegSetValueEx(this->hKeyRoot, valname, 0, REG_SZ, (const BYTE*)value, (wcslen(value) + 1) * sizeof(wchar_t));
+    return true;
+}
+
+bool RegKey::deleteSubKey(const wchar_t * keyname) {
+    return RegDeleteKeyEx(this->hKeyRoot, keyname, 0, 0) == ERROR_SUCCESS ? true : false;
+}
+
+bool RegKey::createSubKey(const wchar_t *keyname, RegKey& subkey, DWORD options)
+{
+    std::string ls;
+    toMbcs(ls, keyname);
+    
+    WcaLog(LOGMSG_STANDARD, "Creating/opening subkey %s", ls.c_str());
+    LSTATUS st = RegCreateKeyEx(this->hKeyRoot,
+        keyname,
+        0, //reserved, must be zero
+        NULL, // class
+        options, 
+        KEY_ALL_ACCESS,
+        NULL, // default security
+        &(subkey.hKeyRoot),
+        NULL); // don't care about disposition
+    return st == ERROR_SUCCESS ? true : false;
+}
+RegKey::~RegKey()
+{
+    if (this->hKeyRoot) {
+        RegCloseKey(this->hKeyRoot);
+    }
+}
+
+
+
+ddRegKey::ddRegKey() :
+    RegKey(HKEY_LOCAL_MACHINE, datadog_key_root.c_str())
+{
+
+}
+
+

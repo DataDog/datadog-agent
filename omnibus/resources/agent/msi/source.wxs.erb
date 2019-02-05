@@ -406,12 +406,15 @@
       
       <Custom Action='SetUninstallProperty' Before='DoUninstall'> _UNINSTALL </Custom>
       <Custom Action='DoUninstall' Before='InstallFinalize'> _UNINSTALL </Custom>
+
+      <Custom Action='DoRollback' Before='FinalizeInstall'> NOT _UNINSTALL </Custom>
       <!--
       <Custom Action='adjustrights' After='adddduser'> NOT (REMOVE = "ALL") </Custom>
       <Custom Action='deldduser' After='DeleteServices'> (NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
       <Custom Action='verifyregperms' After='adddduser'> NOT (REMOVE = "ALL") </Custom>
       <Custom Action='enableservices' Before='InstallFinalize'> NOT (REMOVE = "ALL") </Custom>
 
+      
       <Custom Action='InstallationRollback' Before='adddduser' />
       -->
     </InstallExecuteSequence>
@@ -554,6 +557,8 @@
         Value='DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];PROJECTLOCATION=[PROJECTLOCATION]' />
     
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
+
+    <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' />
 
 
     <!--
