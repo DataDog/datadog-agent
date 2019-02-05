@@ -356,18 +356,21 @@ func install(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	pipArgs := []string{
+		"install",
+		"--cache-dir", cachePath,
+		// We replace the PyPI index with our own by default, in order to prevent
+		// accidental installation of Datadog or even third-party packages from
+		// PyPI.
+		"--index-url", tufIndex,
+		// Do *not* install dependencies by default. This is partly to prevent
+		// accidental installation / updates of third-party dependencies from PyPI.
+		"--no-deps",
+	}
+
 	if localWheel {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
-		pipArgs := []string{
-			"install",
-			"--cache-dir", cachePath,
-			// Do *not* install dependencies by default. This is partly to prevent
-			// accidental installation / updates of third-party dependencies from PyPI.
-			"--no-deps",
-		}
-
-		// Install the wheel
 		return pip(append(pipArgs, args[0]), true)
 	}
 
@@ -412,18 +415,6 @@ func install(cmd *cobra.Command, args []string) error {
 			"error when validating the agent's python environment, won't install %s: %v",
 			integration, err,
 		)
-	}
-
-	pipArgs := []string{
-		"install",
-		"--cache-dir", cachePath,
-		// We replace the PyPI index with our own by default, in order to prevent
-		// accidental installation of Datadog or even third-party packages from
-		// PyPI.
-		"--index-url", tufIndex,
-		// Do *not* install dependencies by default. This is partly to prevent
-		// accidental installation / updates of third-party dependencies from PyPI.
-		"--no-deps",
 	}
 
 	// Install the wheel
