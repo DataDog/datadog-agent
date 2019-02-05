@@ -218,7 +218,7 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus"):
+def image_build(ctx, base_dir="omnibus", skip_tests=False):
     """
     Build the docker image
     """
@@ -232,7 +232,13 @@ def image_build(ctx, base_dir="omnibus"):
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, "Dockerfiles/agent/")
-    ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
+
+    # Build with the testing target
+    if not skip_tests:
+        ctx.run("docker build -t {} --target testing Dockerfiles/agent".format(AGENT_TAG))
+
+    # Build with the release target
+    ctx.run("docker build -t {} --target release Dockerfiles/agent".format(AGENT_TAG))
     ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
 
 
