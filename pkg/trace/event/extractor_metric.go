@@ -1,7 +1,7 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -21,7 +21,7 @@ func NewMetricBasedExtractor() Extractor {
 //
 // NOTE: If priority is UserKeep (manually sampled) any extraction rate bigger than 0 is upscaled to 1 to ensure no
 // extraction sampling is done on this event.
-func (e *metricBasedExtractor) Extract(s *agent.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
+func (e *metricBasedExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
 	if len(s.Metrics) == 0 {
 		// metric not set
 		return 0, false

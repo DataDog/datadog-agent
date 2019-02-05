@@ -1,8 +1,7 @@
-package agent
+package stats
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -21,7 +20,7 @@ type WeightedTrace []*WeightedSpan
 func NewWeightedTrace(trace pb.Trace, root *pb.Span) WeightedTrace {
 	wt := make(WeightedTrace, len(trace))
 
-	weight := sampler.Weight(root)
+	weight := Weight(root)
 
 	for i := range trace {
 		wt[i] = &WeightedSpan{
@@ -31,4 +30,21 @@ func NewWeightedTrace(trace pb.Trace, root *pb.Span) WeightedTrace {
 		}
 	}
 	return wt
+}
+
+// keySamplingRateGlobal is a metric key holding the global sampling rate.
+const keySamplingRateGlobal = "_sample_rate"
+
+// Weight returns the weight of the span as defined for sampling, i.e. the
+// inverse of the sampling rate.
+func Weight(s *pb.Span) float64 {
+	if s == nil {
+		return 1.0
+	}
+	sampleRate, ok := s.Metrics[keySamplingRateGlobal]
+	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
+		return 1.0
+	}
+
+	return 1.0 / sampleRate
 }

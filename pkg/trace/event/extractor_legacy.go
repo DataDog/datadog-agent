@@ -1,8 +1,9 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // legacyExtractor is an event extractor that decides whether to extract APM events from spans based on
@@ -23,8 +24,8 @@ func NewLegacyExtractor(rateByService map[string]float64) Extractor {
 // span's service. In this case the extracted event is returned along with the found extraction rate and a true value.
 // If this rate doesn't exist or the provided span is not a top level one, then no extraction is done and false is
 // returned as the third value, with the others being invalid.
-func (e *legacyExtractor) Extract(s *agent.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
-	if !s.TopLevel {
+func (e *legacyExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
+	if !traceutil.HasTopLevel(s) {
 		return 0, false
 	}
 	extractionRate, ok := e.rateByService[s.Service]

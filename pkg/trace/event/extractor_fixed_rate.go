@@ -1,7 +1,7 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -23,7 +23,7 @@ func NewFixedRateExtractor(rateByServiceAndName map[string]map[string]float64) E
 // on the rateByServiceAndName map passed in the constructor. The extracted event is returned along with the associated
 // extraction rate and a true value. If no extraction happened, false is returned as the third value and the others
 // are invalid.
-func (e *fixedRateExtractor) Extract(s *agent.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
+func (e *fixedRateExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
 	operations, ok := e.rateByServiceAndName[s.Service]
 	if !ok {
 		return 0, false

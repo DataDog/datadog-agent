@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	"github.com/stretchr/testify/assert"
@@ -29,15 +29,15 @@ func TestStatsWriter_StatHandling(t *testing.T) {
 	statsWriter.Start()
 
 	// Given 2 slices of 3 test buckets
-	testStats1 := []agent.StatsBucket{
-		testutil.RandomStatsBucket(3),
-		testutil.RandomStatsBucket(3),
-		testutil.RandomStatsBucket(3),
+	testStats1 := []stats.Bucket{
+		testutil.RandomBucket(3),
+		testutil.RandomBucket(3),
+		testutil.RandomBucket(3),
 	}
-	testStats2 := []agent.StatsBucket{
-		testutil.RandomStatsBucket(3),
-		testutil.RandomStatsBucket(3),
-		testutil.RandomStatsBucket(3),
+	testStats2 := []stats.Bucket{
+		testutil.RandomBucket(3),
+		testutil.RandomBucket(3),
+		testutil.RandomBucket(3),
 	}
 
 	// When sending those slices
@@ -62,8 +62,8 @@ func TestStatsWriter_StatHandling(t *testing.T) {
 		"Content-Encoding":             "gzip",
 	}
 
-	assertStatsPayload(assert, expectedHeaders, testStats1, payload1)
-	assertStatsPayload(assert, expectedHeaders, testStats2, payload2)
+	assertPayload(assert, expectedHeaders, testStats1, payload1)
+	assertPayload(assert, expectedHeaders, testStats2, payload2)
 }
 
 func TestStatsWriter_UpdateInfoHandling(t *testing.T) {
@@ -84,10 +84,10 @@ func TestStatsWriter_UpdateInfoHandling(t *testing.T) {
 
 	// When sending 1 payload with 3 buckets
 	expectedNumPayloads++
-	payload1Buckets := []agent.StatsBucket{
-		testutil.RandomStatsBucket(5),
-		testutil.RandomStatsBucket(5),
-		testutil.RandomStatsBucket(5),
+	payload1Buckets := []stats.Bucket{
+		testutil.RandomBucket(5),
+		testutil.RandomBucket(5),
+		testutil.RandomBucket(5),
 	}
 	statsChannel <- payload1Buckets
 	expectedNumBuckets += 3
@@ -95,10 +95,10 @@ func TestStatsWriter_UpdateInfoHandling(t *testing.T) {
 
 	// And another one with another 3 buckets
 	expectedNumPayloads++
-	payload2Buckets := []agent.StatsBucket{
-		testutil.RandomStatsBucket(5),
-		testutil.RandomStatsBucket(5),
-		testutil.RandomStatsBucket(5),
+	payload2Buckets := []stats.Bucket{
+		testutil.RandomBucket(5),
+		testutil.RandomBucket(5),
+		testutil.RandomBucket(5),
 	}
 	statsChannel <- payload2Buckets
 	expectedNumBuckets += 3
@@ -110,10 +110,10 @@ func TestStatsWriter_UpdateInfoHandling(t *testing.T) {
 	// And then sending a third payload with other 3 buckets with an errored out endpoint
 	testEndpoint.SetError(fmt.Errorf("non retriable error"))
 	expectedNumErrors++
-	payload3Buckets := []agent.StatsBucket{
-		testutil.RandomStatsBucket(5),
-		testutil.RandomStatsBucket(5),
-		testutil.RandomStatsBucket(5),
+	payload3Buckets := []stats.Bucket{
+		testutil.RandomBucket(5),
+		testutil.RandomBucket(5),
+		testutil.RandomBucket(5),
 	}
 	statsChannel <- payload3Buckets
 	expectedNumBuckets += 3
@@ -128,10 +128,10 @@ func TestStatsWriter_UpdateInfoHandling(t *testing.T) {
 		endpoint: testEndpoint,
 	})
 	expectedMinNumRetries++
-	payload4Buckets := []agent.StatsBucket{
-		testutil.RandomStatsBucket(5),
-		testutil.RandomStatsBucket(5),
-		testutil.RandomStatsBucket(5),
+	payload4Buckets := []stats.Bucket{
+		testutil.RandomBucket(5),
+		testutil.RandomBucket(5),
+		testutil.RandomBucket(5),
 	}
 	statsChannel <- payload4Buckets
 	expectedNumBuckets += 3
@@ -182,10 +182,10 @@ func TestStatsWriter_BuildPayloads(t *testing.T) {
 		// This gives us a total of 45 entries. 3 per span, 5
 		// spans per stat bucket. Each buckets have the same
 		// time window (start: 0, duration 1e9).
-		stats := []agent.StatsBucket{
-			testutil.RandomStatsBucket(5),
-			testutil.RandomStatsBucket(5),
-			testutil.RandomStatsBucket(5),
+		stats := []stats.Bucket{
+			testutil.RandomBucket(5),
+			testutil.RandomBucket(5),
+			testutil.RandomBucket(5),
 		}
 
 		// Remove duplicates so that we have a predictable state. In another
@@ -225,10 +225,10 @@ func TestStatsWriter_BuildPayloads(t *testing.T) {
 		// This gives us a total of 45 entries. 3 per span, 5
 		// spans per stat bucket. Each buckets have the same
 		// time window (start: 0, duration 1e9).
-		stats := []agent.StatsBucket{
-			testutil.RandomStatsBucket(5),
-			testutil.RandomStatsBucket(5),
-			testutil.RandomStatsBucket(5),
+		stats := []stats.Bucket{
+			testutil.RandomBucket(5),
+			testutil.RandomBucket(5),
+			testutil.RandomBucket(5),
 		}
 
 		// Remove duplicates so that we have a predictable
@@ -290,10 +290,10 @@ func TestStatsWriter_BuildPayloads(t *testing.T) {
 		// This gives us a tota of 45 entries. 3 per span, 5 spans per
 		// stat bucket. Each buckets have the same time window (start:
 		// 0, duration 1e9).
-		stats := []agent.StatsBucket{
-			testutil.RandomStatsBucket(5),
-			testutil.RandomStatsBucket(5),
-			testutil.RandomStatsBucket(5),
+		stats := []stats.Bucket{
+			testutil.RandomBucket(5),
+			testutil.RandomBucket(5),
+			testutil.RandomBucket(5),
 		}
 
 		payloads, nbStatBuckets, nbEntries := sw.buildPayloads(stats, 1337)
@@ -309,7 +309,7 @@ func TestStatsWriter_BuildPayloads(t *testing.T) {
 	})
 }
 
-func removeDuplicateEntries(stats []agent.StatsBucket) int {
+func removeDuplicateEntries(stats []stats.Bucket) int {
 	nbEntries := 0
 	entries := make(map[string]struct{}, 45)
 	for _, s := range stats {
@@ -325,7 +325,7 @@ func removeDuplicateEntries(stats []agent.StatsBucket) int {
 	return nbEntries
 }
 
-func countsByEntries(stats []agent.StatsBucket) map[string]float64 {
+func countsByEntries(stats []stats.Bucket) map[string]float64 {
 	counts := make(map[string]float64)
 	for _, s := range stats {
 		for k, c := range s.Counts {
@@ -341,7 +341,7 @@ func countsByEntries(stats []agent.StatsBucket) map[string]float64 {
 	return counts
 }
 
-func assertCountByEntries(assert *assert.Assertions, expectedCounts map[string]float64, payloads []*agent.StatsPayload) {
+func assertCountByEntries(assert *assert.Assertions, expectedCounts map[string]float64, payloads []*stats.Payload) {
 	actualCounts := make(map[string]float64)
 	for _, p := range payloads {
 		for _, s := range p.Stats {
@@ -359,19 +359,19 @@ func assertCountByEntries(assert *assert.Assertions, expectedCounts map[string]f
 	assert.Equal(expectedCounts, actualCounts)
 }
 
-func calculateStatPayloadSize(buckets []agent.StatsBucket) int64 {
-	statsPayload := &agent.StatsPayload{
+func calculateStatPayloadSize(buckets []stats.Bucket) int64 {
+	statsPayload := &stats.Payload{
 		HostName: testHostName,
 		Env:      testEnv,
 		Stats:    buckets,
 	}
 
-	data, _ := agent.EncodeStatsPayload(statsPayload)
+	data, _ := stats.EncodePayload(statsPayload)
 	return int64(len(data))
 }
 
-func assertStatsPayload(assert *assert.Assertions, headers map[string]string, buckets []agent.StatsBucket, p *payload) {
-	statsPayload := agent.StatsPayload{}
+func assertPayload(assert *assert.Assertions, headers map[string]string, buckets []stats.Bucket, p *payload) {
+	statsPayload := stats.Payload{}
 
 	reader := bytes.NewBuffer(p.bytes)
 	gzipReader, err := gzip.NewReader(reader)
@@ -388,8 +388,8 @@ func assertStatsPayload(assert *assert.Assertions, headers map[string]string, bu
 	assert.Equal(buckets, statsPayload.Stats, "Stat buckets should match expectation")
 }
 
-func testStatsWriter() (*StatsWriter, chan []agent.StatsBucket, *testEndpoint, *testutil.TestStatsClient) {
-	statsChannel := make(chan []agent.StatsBucket)
+func testStatsWriter() (*StatsWriter, chan []stats.Bucket, *testEndpoint, *testutil.TestStatsClient) {
+	statsChannel := make(chan []stats.Bucket)
 	conf := &config.AgentConfig{
 		Hostname:          testHostName,
 		DefaultEnv:        testEnv,

@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +24,7 @@ func TestProcessor(t *testing.T) {
 
 		// Test Extractors
 		{"0/1/none", []float64{0}, 1, sampler.PriorityNone, 0, 0, 0},
-		{"0.5/1/none", []float64{0.5}, 1, sampler.PriorityNone, 0.5, 1, 0.1},
+		{"0.5/1/none", []float64{0.5}, 1, sampler.PriorityNone, 0.5, 1, 0.15},
 		{"-1,0.8/1/none", []float64{-1, 0.8}, 1, sampler.PriorityNone, 0.8, 1, 0.1},
 		{"-1,-1,-0.8/1/none", []float64{-1, -1, 0.8}, 1, sampler.PriorityNone, 0.8, 1, 0.1},
 
@@ -56,19 +55,18 @@ func TestProcessor(t *testing.T) {
 			testSampler := &MockEventSampler{Rate: test.samplerRate}
 			p := newProcessor(extractors, testSampler)
 
-			testSpans := createTestSpans("test", "test")
-			testTrace := agent.ProcessedTrace{WeightedTrace: testSpans}
-			testTrace.Root = testSpans[0].Span
-			sampler.SetPreSampleRate(testTrace.Root, testPreSampleRate)
-			sampler.SetClientRate(testTrace.Root, testClientSampleRate)
+			testTrace := createTestSpans("test", "test")
+			root := testTrace[0]
+			sampler.SetPreSampleRate(root, testPreSampleRate)
+			sampler.SetClientRate(root, testClientSampleRate)
 			if test.priority != sampler.PriorityNone {
-				sampler.SetSamplingPriority(testTrace.Root, test.priority)
+				sampler.SetSamplingPriority(root, test.priority)
 			}
 
 			p.Start()
-			events, extracted := p.Process(testTrace)
+			events, extracted := p.Process(root, testTrace)
 			p.Stop()
-			total := len(testSpans)
+			total := len(testTrace)
 			returned := len(events)
 
 			expectedExtracted := float64(total) * test.expectedExtractedPct
@@ -106,7 +104,7 @@ type MockExtractor struct {
 	Rate float64
 }
 
-func (e *MockExtractor) Extract(s *agent.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
+func (e *MockExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
 	if e.Rate < 0 {
 		return 0, false
 	}

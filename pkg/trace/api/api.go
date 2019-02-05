@@ -16,7 +16,6 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -237,7 +236,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		atomic.AddInt64(&ts.TracesReceived, 1)
 		atomic.AddInt64(&ts.SpansReceived, int64(spans))
 
-		err := agent.NormalizeTrace(trace)
+		err := normalizeTrace(trace)
 		if err != nil {
 			atomic.AddInt64(&ts.TracesDropped, 1)
 			atomic.AddInt64(&ts.SpansDropped, int64(spans))

@@ -39,10 +39,9 @@ func TestMoveConfigurationsFiles(t *testing.T) {
 	assert.Equal(t, 4, len(filesMoved))
 	for _, file := range filesMoved {
 		assert.Contains(t, yamlFiles, file.Name())
+		// Check that we didn't move the txt file
+		assert.NotEqual(t, otherFile, file.Name())
 	}
-	filesNotMoved, _ := ioutil.ReadDir(srcFolder)
-	assert.Equal(t, 1, len(filesNotMoved))
-	assert.Equal(t, otherFile, filesNotMoved[0].Name())
 }
 
 func TestParseVersion(t *testing.T) {

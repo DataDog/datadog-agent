@@ -5,10 +5,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	writerconfig "github.com/DataDog/datadog-agent/pkg/trace/writer/config"
 	log "github.com/cihub/seelog"
@@ -22,7 +22,7 @@ type StatsWriter struct {
 	exit   chan struct{}
 
 	// InStats is the stream of stat buckets to send out.
-	InStats <-chan []agent.StatsBucket
+	InStats <-chan []stats.Bucket
 
 	// info contains various statistics about the writer, which are
 	// occasionally sent as metrics to Datadog.
@@ -40,7 +40,7 @@ type StatsWriter struct {
 }
 
 // NewStatsWriter returns a new writer for stats.
-func NewStatsWriter(conf *config.AgentConfig, InStats <-chan []agent.StatsBucket) *StatsWriter {
+func NewStatsWriter(conf *config.AgentConfig, InStats <-chan []stats.Bucket) *StatsWriter {
 	cfg := conf.StatsWriterConfig
 	endpoints := newEndpoints(conf, pathStats)
 	sender := newMultiSender(endpoints, cfg.SenderConfig)
@@ -96,8 +96,8 @@ func (w *StatsWriter) Stop() {
 	w.sender.Stop()
 }
 
-func (w *StatsWriter) handleStats(stats []agent.StatsBucket) {
-	payloads, nbStatBuckets, nbEntries := w.buildPayloads(stats, w.conf.MaxEntriesPerPayload)
+func (w *StatsWriter) handleStats(s []stats.Bucket) {
+	payloads, nbStatBuckets, nbEntries := w.buildPayloads(s, w.conf.MaxEntriesPerPayload)
 	if len(payloads) == 0 {
 		return
 	}
@@ -119,7 +119,7 @@ func (w *StatsWriter) handleStats(stats []agent.StatsBucket) {
 
 	for _, p := range payloads {
 		// synchronously send the payloads one after the other
-		data, err := agent.EncodeStatsPayload(p)
+		data, err := stats.EncodePayload(p)
 		if err != nil {
 			log.Errorf("encoding issue: %v", err)
 			return
@@ -138,9 +138,9 @@ type timeWindow struct {
 
 // buildPayloads returns a set of payload to send out, each paylods guaranteed
 // to have the number of stats buckets under the given maximum.
-func (w *StatsWriter) buildPayloads(stats []agent.StatsBucket, maxEntriesPerPayloads int) ([]*agent.StatsPayload, int, int) {
-	if len(stats) == 0 {
-		return []*agent.StatsPayload{}, 0, 0
+func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int) ([]*stats.Payload, int, int) {
+	if len(s) == 0 {
+		return []*stats.Payload{}, 0, 0
 	}
 
 	// 1. Get an estimate of how many payloads we need, based on the total
@@ -153,17 +153,17 @@ func (w *StatsWriter) buildPayloads(stats []agent.StatsBucket, maxEntriesPerPayl
 	//    maps, so the algorithm is correct, but indeed this means we could
 	//    do better.
 	nbEntries := 0
-	for _, s := range stats {
+	for _, s := range s {
 		nbEntries += len(s.Counts)
 	}
 
 	if maxEntriesPerPayloads <= 0 || nbEntries < maxEntriesPerPayloads {
 		// nothing to do, break early
-		return []*agent.StatsPayload{{
+		return []*stats.Payload{{
 			HostName: w.hostName,
 			Env:      w.env,
-			Stats:    stats,
-		}}, len(stats), nbEntries
+			Stats:    s,
+		}}, len(s), nbEntries
 	}
 
 	nbPayloads := nbEntries / maxEntriesPerPayloads
@@ -174,9 +174,9 @@ func (w *StatsWriter) buildPayloads(stats []agent.StatsBucket, maxEntriesPerPayl
 	// 2. Create a slice of nbPayloads maps, mapping a time window (stat +
 	//    duration) to a stat bucket. We will build the payloads from these
 	//    maps. This allows is to have one stat bucket per time window.
-	pMaps := make([]map[timeWindow]agent.StatsBucket, nbPayloads)
+	pMaps := make([]map[timeWindow]stats.Bucket, nbPayloads)
 	for i := 0; i < nbPayloads; i++ {
-		pMaps[i] = make(map[timeWindow]agent.StatsBucket, nbPayloads)
+		pMaps[i] = make(map[timeWindow]stats.Bucket, nbPayloads)
 	}
 
 	// 3. Iterate over all entries of each stats. Add the entry to one of
@@ -185,14 +185,14 @@ func (w *StatsWriter) buildPayloads(stats []agent.StatsBucket, maxEntriesPerPayl
 	//    inputted stat buckets. We must check that we never overwrite an
 	//    entry in the new stats buckets but cleanly merge instead.
 	i := 0
-	for _, b := range stats {
+	for _, b := range s {
 		tw := timeWindow{b.Start, b.Duration}
 
 		for ekey, e := range b.Counts {
 			pm := pMaps[i%nbPayloads]
 			newsb, ok := pm[tw]
 			if !ok {
-				newsb = agent.NewStatsBucket(tw.start, tw.duration)
+				newsb = stats.NewBucket(tw.start, tw.duration)
 			}
 			pm[tw] = newsb
 
@@ -223,14 +223,14 @@ func (w *StatsWriter) buildPayloads(stats []agent.StatsBucket, maxEntriesPerPayl
 	// 4. Create the nbPayloads payloads from the maps.
 	nbStats := 0
 	nbEntries = 0
-	payloads := make([]*agent.StatsPayload, 0, nbPayloads)
+	payloads := make([]*stats.Payload, 0, nbPayloads)
 	for _, pm := range pMaps {
-		pstats := make([]agent.StatsBucket, 0, len(pm))
+		pstats := make([]stats.Bucket, 0, len(pm))
 		for _, sb := range pm {
 			pstats = append(pstats, sb)
 			nbEntries += len(sb.Counts)
 		}
-		payloads = append(payloads, &agent.StatsPayload{
+		payloads = append(payloads, &stats.Payload{
 			HostName: w.hostName,
 			Env:      w.env,
 			Stats:    pstats,

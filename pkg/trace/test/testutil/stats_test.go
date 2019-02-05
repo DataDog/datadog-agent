@@ -6,14 +6,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRandomStatsBucket(t *testing.T) {
+func TestRandomBucket(t *testing.T) {
 	for i := 10; i < 100; i += 10 {
-		b := RandomStatsBucket(i)
+		b := RandomBucket(i)
 		assert.False(t, b.IsEmpty())
 	}
 }
 
-func TestTestStatsBucket(t *testing.T) {
-	b := TestStatsBucket()
+func TestTestBucket(t *testing.T) {
+	b := TestBucket()
 	assert.False(t, b.IsEmpty())
 }

@@ -128,6 +128,6 @@ func ComputeTopLevel(t pb.Trace) {
 				continue
 			}
 		}
-		setTopLevel(span, true)
+		SetTopLevel(span, true)
 	}
 }

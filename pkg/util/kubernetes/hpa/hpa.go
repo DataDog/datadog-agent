@@ -12,6 +12,8 @@ import (
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,9 +27,9 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 				log.Errorf("Missing required \"external\" section in the %s/%s HPA, skipping processing", hpa.Namespace, hpa.Name)
 				continue
 			}
-
 			em := custommetrics.ExternalMetricValue{
-				MetricName: metricSpec.External.MetricName,
+				MetricName: strings.ToLower(metricSpec.External.MetricName),
+				Labels:     make(map[string]string),
 				HPA: custommetrics.ObjectReference{
 					Name:      hpa.Name,
 					Namespace: hpa.Namespace,
@@ -35,7 +37,9 @@ func Inspect(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetrics
 				},
 			}
 			if metricSpec.External.MetricSelector != nil {
-				em.Labels = metricSpec.External.MetricSelector.MatchLabels
+				for k, v := range metricSpec.External.MetricSelector.MatchLabels {
+					em.Labels[strings.ToLower(k)] = strings.ToLower(v)
+				}
 			}
 			emList = append(emList, em)
 		default:

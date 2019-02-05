@@ -4,8 +4,8 @@ package main
 
 import (
 	"context"
-	_ "net/http/pprof"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -19,5 +19,5 @@ func main() {
 		handleSignal(cancelFunc)
 	}()
 
-	runAgent(ctx)
+	agent.Run(ctx)
 }

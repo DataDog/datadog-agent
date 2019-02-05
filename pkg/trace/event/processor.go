@@ -1,7 +1,6 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
@@ -46,64 +45,56 @@ func (p *Processor) Stop() {
 
 // Process takes a processed trace, extracts events from it and samples them, returning a collection of
 // sampled events along with the total count of extracted events.
-func (p *Processor) Process(t agent.ProcessedTrace) (events []*pb.Span, numExtracted int64) {
+func (p *Processor) Process(root *pb.Span, t pb.Trace) (events []*pb.Span, numExtracted int64) {
 	if len(p.extractors) == 0 {
 		return
 	}
 
-	priority, hasPriority := t.GetSamplingPriority()
+	priority, hasPriority := sampler.GetSamplingPriority(root)
 	if !hasPriority {
 		priority = sampler.PriorityNone
 	}
 
-	clientSampleRate := sampler.GetClientRate(t.Root)
-	preSampleRate := sampler.GetPreSampleRate(t.Root)
+	clientSampleRate := sampler.GetClientRate(root)
+	preSampleRate := sampler.GetPreSampleRate(root)
 
-	for _, wspan := range t.WeightedTrace {
-		extractionRate, ok := p.extract(wspan, priority)
+	for _, span := range t {
+		extractionRate, ok := p.extract(span, priority)
 		if !ok {
 			continue
 		}
-
-		event := wspan.Span
-		sampled := p.extractionSample(event, extractionRate)
-		if !sampled {
+		if !sampler.SampleByRate(span.TraceID, extractionRate) {
 			continue
 		}
+
 		numExtracted++
 
-		sampled, epsRate := p.maxEPSSample(event, priority)
+		sampled, epsRate := p.maxEPSSample(span, priority)
 		if !sampled {
 			continue
 		}
 
-		// This event got sampled, so add it to results
-		events = append(events, event)
-		// And set whatever rates had been set on the trace initially
-		sampler.SetClientRate(event, clientSampleRate)
-		sampler.SetPreSampleRate(event, preSampleRate)
-		// As well as the rates of sampling done during this processing
-		sampler.SetEventExtractionRate(event, extractionRate)
-		sampler.SetMaxEPSRate(event, epsRate)
+		sampler.SetMaxEPSRate(span, epsRate)
+		sampler.SetClientRate(span, clientSampleRate)
+		sampler.SetPreSampleRate(span, preSampleRate)
+		sampler.SetEventExtractionRate(span, extractionRate)
 		if hasPriority {
-			sampler.SetSamplingPriority(event, priority)
+			sampler.SetSamplingPriority(span, priority)
 		}
+
+		events = append(events, span)
 	}
 
-	return
+	return events, numExtracted
 }
 
-func (p *Processor) extract(span *agent.WeightedSpan, priority sampler.SamplingPriority) (float64, bool) {
+func (p *Processor) extract(span *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
 	for _, extractor := range p.extractors {
 		if rate, ok := extractor.Extract(span, priority); ok {
 			return rate, ok
 		}
 	}
 	return 0, false
-}
-
-func (p *Processor) extractionSample(event *pb.Span, extractionRate float64) bool {
-	return sampler.SampleByRate(event.TraceID, extractionRate)
 }
 
 func (p *Processor) maxEPSSample(event *pb.Span, priority sampler.SamplingPriority) (sampled bool, rate float64) {
