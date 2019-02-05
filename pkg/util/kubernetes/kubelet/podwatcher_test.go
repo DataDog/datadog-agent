@@ -52,7 +52,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 
 	changes, err := watcher.computeChanges(threePods)
 	require.Nil(suite.T(), err)
-	// The second pod is a static pod but should be found
+	// The first pod is a static pod but should be found
 	require.Len(suite.T(), changes, 3)
 
 	// Same list should detect no change

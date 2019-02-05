@@ -64,12 +64,12 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		}
 
 		podEntity := PodUIDToEntityName(pod.Metadata.UID)
-		newPod := false
+		newStaticPod := false
 		_, found := w.lastSeen[podEntity]
 		// static pods are included specifically because they won't have any container
 		// as they're not updated in the pod list after creation
 		if isPodStatic(pod) == true && found == false {
-			newPod = true
+			newStaticPod = true
 		}
 
 		// Refresh last pod seen time
@@ -83,7 +83,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			}
 			w.lastSeen[container.ID] = now
 		}
-		if newPod || newContainer {
+		if newStaticPod || newContainer {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
