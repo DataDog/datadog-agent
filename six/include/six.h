@@ -10,24 +10,16 @@ struct SixPyObject {};
 
 class Six {
 public:
-    enum MethType {
-        NOARGS = 0,
-        ARGS,
-        KEYWORDS
-    };
+    enum MethType { NOARGS = 0, ARGS, KEYWORDS };
 
-    enum ExtensionModule {
-        DATADOG_AGENT
-    };
+    enum ExtensionModule { DATADOG_AGENT };
 
     Six() {};
     virtual ~Six() {};
 
     // Public API
     virtual void init(const char *pythonHome) = 0;
-    virtual int addModuleFunction(ExtensionModule module, MethType t,
-                                  const char *funcName, void *func)
-        = 0;
+    virtual int addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;
