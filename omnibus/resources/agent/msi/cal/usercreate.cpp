@@ -118,12 +118,16 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 
 DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
 {
+    std::string shortfile;
+    toMbcs(shortfile, (LPCWSTR)filename.c_str());
+
     if(!PathFileExistsW((LPCWSTR) filename.c_str()))
     {
         // return success; we don't need to do anything
-        WcaLog(LOGMSG_STANDARD, "file doesn't exist, not doing anything");
+        WcaLog(LOGMSG_STANDARD, "file %s doesn't exist, not doing anything", shortfile.c_str());
         return 0;
     }
+    WcaLog(LOGMSG_STANDARD, "Changing file permissions on %s", shortfile.c_str());
     PSID  usersid = GetSidForUser(data.getDomainPtr(), data.getUserPtr());
     ExplicitAccess dduser;
     dduser.BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,

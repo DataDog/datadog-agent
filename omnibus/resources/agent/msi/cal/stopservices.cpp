@@ -72,7 +72,9 @@ VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring &svcName)
     SC_HANDLE hService = NULL;
 
     // Get a handle to the SCM database. 
-
+    std::string shortname;
+    toMbcs(shortname, svcName.c_str());
+    WcaLog(LOGMSG_STANDARD, "Stopping service %s", shortname.c_str());
     hScManager = OpenSCManager(
         NULL,                    // local computer
         NULL,                    // ServicesActive database 
@@ -326,6 +328,9 @@ DWORD __stdcall DoStartSvc(MSIHANDLE hInstall, std::wstring& svcname)
     DWORD dwBytesNeeded;
     DWORD err = 0;
     SC_HANDLE schSCManager = NULL;
+    std::string shortname;
+    toMbcs(shortname, svcname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Starting service %s", shortname.c_str());
     // Get a handle to the SCM database. 
 
     schSCManager = OpenSCManager(

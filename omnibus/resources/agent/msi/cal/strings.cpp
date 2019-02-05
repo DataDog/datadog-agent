@@ -27,6 +27,7 @@ std::wstring authTokenSuffix;                   // IDS_AUTHTOKENSUFFIX
 std::wstring datadogyaml;                       // IDS_DATADOGYAML
 std::wstring confdsuffix;                       // IDS_CONFSDSUFFIX
 std::wstring logsdirsuffix;                     // IDS_LOGSDIRSUFFIX
+std::wstring datadogdir;
 
 std::wstring strRollbackKeyName;                // IDS_REGKEY_ROLLBACK_KEY_NAME
 std::wstring strUninstallKeyName;               // IDS_REGKEY_UNINSTALL_KEY_NAME
@@ -63,6 +64,7 @@ std::wstring* loadStrings[] = {
     &datadogyaml,
     &confdsuffix,
     &logsdirsuffix,
+    &datadogdir,
     &strRollbackKeyName,
     &strUninstallKeyName
 };
@@ -119,6 +121,7 @@ void getOsStrings()
     if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
     {
         programdataroot = outstr;
+        programdataroot += datadogdir;
     }
     if(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, 0, &outstr) == S_OK)
     {

@@ -13,7 +13,6 @@
    */
 //#define _NO_DD_USER_RIGHTS_REMOVAL
 
-
 #ifdef CA_CMD_TEST
 #define LOGMSG_STANDARD 0
 void WcaLog(int type, const char * fmt...)
@@ -306,6 +305,10 @@ extern "C" UINT __stdcall PostStartServices(MSIHANDLE hInstall) {
     ExitOnFailure(hr, "Failed to initialize");
     
     WcaLog(LOGMSG_STANDARD, "Initialized.");
+#ifdef _DEBUG
+    MessageBox(NULL, L"PostStartServices", L"PostStartServices", MB_OK);
+#endif
+
 
     er = DoStartSvc(hInstall, agentService);
     WcaLog(LOGMSG_STANDARD, "Waiting for start to complete");
