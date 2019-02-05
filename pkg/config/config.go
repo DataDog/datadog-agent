@@ -31,6 +31,8 @@ const DefaultSite = "datadoghq.com"
 
 const infraURLPrefix = "https://app."
 
+var overrideVars = map[string]interface{}{}
+
 // Datadog is the global configuration object
 var (
 	Datadog Config
@@ -479,6 +481,8 @@ func Load() error {
 
 	loadProxyFromEnv(Datadog)
 	sanitizeAPIKey(Datadog)
+	applyOverrides(Datadog)
+
 	return nil
 }
 
@@ -631,4 +635,18 @@ func IsKubernetes() bool {
 		return true
 	}
 	return false
+}
+
+// SetOverrides provides an externally accessible method for
+// overriding config variables.
+// This method must be called before Load() to be effective.
+func SetOverrides(vars map[string]interface{}) {
+	overrideVars = vars
+}
+
+// applyOverrides overrides config variables.
+func applyOverrides(config Config) {
+	for k, v := range overrideVars {
+		config.Set(k, v)
+	}
 }
