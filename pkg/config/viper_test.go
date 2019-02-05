@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spf13/viper"
+	"github.com/DataDog/viper"
 	"github.com/stretchr/testify/assert"
 )
 
