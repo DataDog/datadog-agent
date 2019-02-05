@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -521,42 +523,76 @@ Loop:
 	return float64(totalSampled) / duration.Seconds()
 }
 
-func BenchmarkAgentTraceProcessing(b *testing.B) {
-	c := config.New()
-	c.Endpoints[0].APIKey = "test"
+func BenchmarkProcess(b *testing.B) {
+	b.Run("defaults", func(b *testing.B) {
+		c := config.New()
+		c.Endpoints[0].APIKey = "test"
 
-	runTraceProcessingBenchmark(b, c)
+		benchProcess(b, c)
+	})
+
+	b.Run("filters", func(b *testing.B) {
+		b.Run("regular", func(b *testing.B) {
+			c := config.New()
+			c.Endpoints[0].APIKey = "test"
+			c.Ignore["resource"] = []string{"[0-9]{3}", "foobar", "G.T [a-z]+", "[^123]+_baz"}
+
+			benchProcess(b, c)
+		})
+
+		b.Run("worst-case", func(b *testing.B) {
+			// worst case scenario: spans are tested against multiple rules without any match.
+			// this means we won't compesate the overhead of filtering by dropping traces
+			c := config.New()
+			c.Endpoints[0].APIKey = "test"
+			c.Ignore["resource"] = []string{"[0-9]{3}", "foobar", "aaaaa?aaaa", "[^123]+_baz"}
+
+			benchProcess(b, c)
+		})
+	})
 }
 
-func BenchmarkAgentTraceProcessingWithFiltering(b *testing.B) {
-	c := config.New()
-	c.Endpoints[0].APIKey = "test"
-	c.Ignore["resource"] = []string{"[0-9]{3}", "foobar", "G.T [a-z]+", "[^123]+_baz"}
-
-	runTraceProcessingBenchmark(b, c)
-}
-
-// worst case scenario: spans are tested against multiple rules without any match.
-// this means we won't compesate the overhead of filtering by dropping traces
-func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
-	c := config.New()
-	c.Endpoints[0].APIKey = "test"
-	c.Ignore["resource"] = []string{"[0-9]{3}", "foobar", "aaaaa?aaaa", "[^123]+_baz"}
-
-	runTraceProcessingBenchmark(b, c)
-}
-
-func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
+func benchProcess(b *testing.B, c *config.AgentConfig) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	ta := NewAgent(ctx, c)
 	log.UseLogger(log.Disabled)
 
+	f, err := os.Open("./testdata/trace1.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+	var t pb.Trace
+	if err := json.NewDecoder(f).Decode(&t); err != nil {
+		b.Fatal(err)
+	}
+
 	b.ResetTimer()
 	b.ReportAllocs()
+
+	ta.wg = &sync.WaitGroup{}
+
+	exit := make(chan bool)
+	go func() {
+		defer close(exit)
+		for {
+			select {
+			case <-ta.ServiceExtractor.outServices:
+			case <-ta.tracePkgChan:
+			case <-ta.Concentrator.OutStats:
+			case <-exit:
+				return
+			}
+		}
+	}()
+
 	for i := 0; i < b.N; i++ {
-		ta.Process(testutil.RandomTrace(10, 8))
+		ta.Process(testutil.CopyTrace(t))
+		ta.wg.Wait()
 	}
+
+	exit <- true
+	<-exit
 }
 
 func BenchmarkWatchdog(b *testing.B) {

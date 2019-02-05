@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -53,6 +54,10 @@ type Agent struct {
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
+
+	// wg is used only in tests to wait for all goroutines in the Process method
+	// to complete.
+	wg *sync.WaitGroup
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -237,12 +242,24 @@ func (a *Agent) Process(t pb.Trace) {
 		pt.Env = tenv
 	}
 
+	if a.wg != nil {
+		a.wg.Add(1)
+	}
 	go func() {
+		if a.wg != nil {
+			defer a.wg.Done()
+		}
 		defer watchdog.LogOnPanic()
 		a.ServiceExtractor.Process(pt.WeightedTrace)
 	}()
 
+	if a.wg != nil {
+		a.wg.Add(1)
+	}
 	go func(pt ProcessedTrace) {
+		if a.wg != nil {
+			defer a.wg.Done()
+		}
 		defer watchdog.LogOnPanic()
 		// Everything is sent to concentrator for stats, regardless of sampling.
 		a.Concentrator.Add(&stats.Input{
@@ -256,8 +273,15 @@ func (a *Agent) Process(t pb.Trace) {
 	if priority < 0 {
 		return
 	}
+
+	if a.wg != nil {
+		a.wg.Add(1)
+	}
 	// Run both full trace sampling and transaction extraction in another goroutine.
 	go func(pt ProcessedTrace) {
+		if a.wg != nil {
+			defer a.wg.Done()
+		}
 		defer watchdog.LogOnPanic()
 
 		tracePkg := writer.TracePackage{}
