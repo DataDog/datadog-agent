@@ -69,7 +69,7 @@ And check that the status is "running".
 
 ## Development
 
-First, make sure Go 1.10+ is installed. You can do this by following the steps on the [official website](https://golang.org/dl/).
+First, make sure Go 1.11+ is installed. You can do this by following the steps on the [official website](https://golang.org/dl/).
 After cloning the repo, simply run the following command in the root of the `datadog-agent` repository:
 
 ```bash
