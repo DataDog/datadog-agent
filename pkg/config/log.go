@@ -6,8 +6,8 @@
 package config
 
 import (
+	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -359,19 +359,17 @@ func createExtraContext(params string) seelog.FormatterFunc {
 }
 
 func extractContextString(contextMap map[string]interface{}) string {
-	contextStr := ""
+	b := new(bytes.Buffer)
 	i := 0
-	sep := ", "
-	for k, v := range contextMap {
+	sep := ","
+	for key, value := range contextMap {
 		if i == len(contextMap)-1 {
 			sep = ""
 		}
-		k, _ := json.Marshal(k)
-		v, _ := json.Marshal(v)
-		contextStr += fmt.Sprintf("%s: %s%s", string(k), string(v), sep)
+		fmt.Fprintf(b, "\"%s\": \"%v\"%s", key, value, sep)
 		i++
 	}
-	return ", " + contextStr
+	return "," + b.String()
 }
 
 func init() {

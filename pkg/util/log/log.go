@@ -398,9 +398,13 @@ func Info(v ...interface{}) {
 
 // Infoc logs at the info level with context
 func Infoc(message string, context map[string]interface{}) {
-	logger.inner.SetContext(context)
-	logger.info(logger.scrub(message))
-	logger.inner.SetContext(nil)
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+		logger.inner.SetContext(context)
+		logger.info(logger.scrub(message))
+		logger.inner.SetContext(nil)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { Infoc(message, context) })
+	}
 }
 
 // Warn logs at the warn level and returns an error containing the formated log message
