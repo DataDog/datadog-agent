@@ -89,6 +89,9 @@ func (series Series) Marshal() ([]byte, error) {
 //FIXME(olivier): remove this as soon as the v1 API can handle `device` as a regular tag
 func populateDeviceField(series Series) {
 	for _, serie := range series {
+		if !hasDeviceTag(serie) {
+			continue
+		}
 		// make a copy of the tags array. Otherwise the underlying array won't have
 		// the device tag for the Nth iteration (N>1), and the device field will
 		// be lost
@@ -103,6 +106,16 @@ func populateDeviceField(series Series) {
 		}
 		serie.Tags = filteredTags
 	}
+}
+
+// hasDeviceField check wehter or not a serie contains a device tag
+func hasDeviceTag(serie *Serie) bool {
+	for _, tag := range serie.Tags {
+		if strings.HasPrefix(tag, "device:") {
+			return true
+		}
+	}
+	return false
 }
 
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints

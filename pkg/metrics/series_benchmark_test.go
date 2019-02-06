@@ -20,6 +20,7 @@ func benchmarkPopulateDeviceField(numberOfTags int, b *testing.B) {
 	series := []*Serie{serie}
 
 	for n := 0; n < b.N; n++ {
+		serie.Tags = tags
 		populateDeviceField(series)
 	}
 }
