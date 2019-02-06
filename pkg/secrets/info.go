@@ -8,6 +8,7 @@ package secrets
 import (
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 )
 
@@ -31,8 +32,10 @@ func (si *SecretInfo) Print(w io.Writer) {
 	fmt.Fprintf(w, "\nRights Detail:\n")
 	fmt.Fprintf(w, "%s\n", si.RightDetails)
 
-	fmt.Fprintf(w, "Owner username: %s\n", si.UnixOwner)
-	fmt.Fprintf(w, "Group name: %s\n", si.UnixGroup)
+	if runtime.GOOS != "windows" {
+		fmt.Fprintf(w, "Owner username: %s\n", si.UnixOwner)
+		fmt.Fprintf(w, "Group name: %s\n", si.UnixGroup)
+	}
 
 	fmt.Fprintf(w, "\n=== Secrets stats ===\n")
 	fmt.Fprintf(w, "Number of secrets decrypted: %d\n", len(si.SecretsHandles))
