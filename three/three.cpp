@@ -13,13 +13,13 @@ static struct PyModuleDef datadog_agent_def = {
     NULL, // m_doc
     -1, // m_size
     NULL, // m_methods, will be filled later
-    NULL, NULL, NULL, NULL // not needed, we're doing Single-phase initialization
+    NULL,
+    NULL,
+    NULL,
+    NULL // not needed, we're doing Single-phase initialization
 };
 
-PyMODINIT_FUNC
-PyInit_datadog_agent(void) {
-    return PyModule_Create(&datadog_agent_def);
-}
+PyMODINIT_FUNC PyInit_datadog_agent(void) { return PyModule_Create(&datadog_agent_def); }
 
 Three::~Three() {
     if (_pythonHome) {
@@ -46,16 +46,11 @@ void Three::init(const char *pythonHome) {
     Py_Initialize();
 }
 
-bool Three::isInitialized() const {
-    return Py_IsInitialized();
-}
+bool Three::isInitialized() const { return Py_IsInitialized(); }
 
-const char *Three::getPyVersion() const {
-    return Py_GetVersion();
-}
+const char *Three::getPyVersion() const { return Py_GetVersion(); }
 
-int Three::addModuleFunction(ExtensionModule module, MethType t,
-                             const char *funcName, void *func) {
+int Three::addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == "") {
         std::cerr << "Unknown ExtensionModule value" << std::endl;
         return -1;
@@ -74,12 +69,7 @@ int Three::addModuleFunction(ExtensionModule module, MethType t,
         break;
     }
 
-    PyMethodDef def = {
-        funcName,
-        (PyCFunction)func,
-        ml_flags,
-        ""
-    };
+    PyMethodDef def = { funcName, (PyCFunction)func, ml_flags, "" };
 
     if (_modules.find(module) == _modules.end()) {
         _modules[module] = PyMethods();
@@ -92,6 +82,4 @@ int Three::addModuleFunction(ExtensionModule module, MethType t,
     _modules[module].insert(_modules[module].begin(), def);
 }
 
-int Three::runSimpleString(const char *code) const {
-    return PyRun_SimpleString(code);
-}
+int Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }

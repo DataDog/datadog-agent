@@ -19,10 +19,8 @@ public:
     ~Two();
 
     void init(const char *pythonHome);
-    void addModuleFunction(const char *module, const char *funcName,
-                           void *func, MethType t);
-    int addModuleFunction(ExtensionModule module, MethType t,
-                          const char *funcName, void *func);
+    void addModuleFunction(const char *module, const char *funcName, void *func, MethType t);
+    int addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func);
 
     // const API
     bool isInitialized() const;
@@ -41,13 +39,9 @@ private:
 extern "C" {
 #endif
 
-Six *create() {
-    return new Two();
-}
+Six *create() { return new Two(); }
 
-void destroy(Six *p) {
-    delete p;
-}
+void destroy(Six *p) { delete p; }
 
 #ifdef __cplusplus
 }

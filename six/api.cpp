@@ -24,9 +24,7 @@
 
 static void *two, *three;
 
-void init(six_t *six, char *pythonHome) {
-    AS_TYPE(Six, six)->init(pythonHome);
-}
+void init(six_t *six, char *pythonHome) { AS_TYPE(Six, six)->init(pythonHome); }
 
 six_t *make2() {
     // load library
@@ -98,24 +96,15 @@ void destroy3(six_t *six) {
     }
 }
 
-int is_initialized(six_t *six) {
-    return AS_CTYPE(Six, six)->isInitialized();
-}
+int is_initialized(six_t *six) { return AS_CTYPE(Six, six)->isInitialized(); }
 
-const char *get_py_version(const six_t *six) {
-    return AS_CTYPE(Six, six)->getPyVersion();
-}
+const char *get_py_version(const six_t *six) { return AS_CTYPE(Six, six)->getPyVersion(); }
 
-int run_simple_string(const six_t *six, const char *code) {
-    return AS_CTYPE(Six, six)->runSimpleString(code);
-}
+int run_simple_string(const six_t *six, const char *code) { return AS_CTYPE(Six, six)->runSimpleString(code); }
 
-six_pyobject_t *get_none(const six_t *six) {
-    return AS_TYPE(six_pyobject_t, AS_CTYPE(Six, six)->getNone());
-}
+six_pyobject_t *get_none(const six_t *six) { return AS_TYPE(six_pyobject_t, AS_CTYPE(Six, six)->getNone()); }
 
-int add_module_func(six_t *six, six_module_t module, six_module_func_t func_type,
-                    char *func_name, void *func) {
+int add_module_func(six_t *six, six_module_t module, six_module_func_t func_type, char *func_name, void *func) {
     Six::ExtensionModule six_module;
     switch (module) {
     case DATADOG_AGENT_SIX_DATADOG_AGENT:

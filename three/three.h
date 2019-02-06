@@ -19,8 +19,7 @@ public:
     ~Three();
 
     void init(const char *pythonHome);
-    int addModuleFunction(ExtensionModule module, MethType t,
-                          const char *funcName, void *func);
+    int addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func);
 
     // const API
     bool isInitialized() const;
@@ -40,13 +39,9 @@ private:
 extern "C" {
 #endif
 
-extern Six *create() {
-    return new Three();
-}
+extern Six *create() { return new Three(); }
 
-extern void destroy(Six *p) {
-    delete p;
-}
+extern void destroy(Six *p) { delete p; }
 
 #ifdef __cplusplus
 }
