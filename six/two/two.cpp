@@ -7,9 +7,7 @@
 
 #include <iostream>
 
-Two::~Two() {
-    Py_Finalize();
-}
+Two::~Two() { Py_Finalize(); }
 
 void Two::init(const char *pythonHome) {
     if (pythonHome != NULL) {
@@ -28,20 +26,13 @@ void Two::init(const char *pythonHome) {
     PyEval_InitThreads();
 }
 
-bool Two::isInitialized() const {
-    return Py_IsInitialized();
-}
+bool Two::isInitialized() const { return Py_IsInitialized(); }
 
-const char *Two::getPyVersion() const {
-    return Py_GetVersion();
-}
+const char *Two::getPyVersion() const { return Py_GetVersion(); }
 
-int Two::runSimpleString(const char *code) const {
-    return PyRun_SimpleString(code);
-}
+int Two::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
 
-int Two::addModuleFunction(ExtensionModule module, MethType t,
-                           const char *funcName, void *func) {
+int Two::addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == "") {
         std::cerr << "Unknown ExtensionModule value" << std::endl;
         return -1;
@@ -63,12 +54,7 @@ int Two::addModuleFunction(ExtensionModule module, MethType t,
         return -1;
     }
 
-    PyMethodDef def = {
-        funcName,
-        (PyCFunction)func,
-        ml_flags,
-        ""
-    };
+    PyMethodDef def = { funcName, (PyCFunction)func, ml_flags, "" };
 
     if (_modules.find(module) == _modules.end()) {
         _modules[module] = PyMethods();
