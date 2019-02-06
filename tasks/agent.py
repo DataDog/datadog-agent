@@ -107,6 +107,14 @@ def apply_branding(ctx):
 
     # Windows MSI
     do_sed_rename(ctx, 's/"datadog\.yaml\.example"/"stackstate\.yaml\.example"/', "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/ddtray/ststray/', "./cmd/systray/systray.rc")
+    do_sed_rename(ctx, 's/ddtray/ststray/', "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/ddtray/ststray/', "./tasks/systray.py")
+    do_sed_rename(ctx, 's/datadog/stackstate/', "./cmd/agent/gui/views/templates/index.tmpl")
+    do_sed_rename(ctx, 's/"DataDog Agent 6"/"StackState Agent 2"/', "./cmd/agent/gui/views/templates/index.tmpl")
+    do_sed_rename(ctx, 's/Datadog/StackState/', "./cmd/agent/gui/views/templates/index.tmpl")
+    do_sed_rename(ctx, 's/dd_logo_side\\.png/sts_logo_side\\.png/', "./omnibus/resources/agent/msi/bundle.wxs.erb")
+
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
