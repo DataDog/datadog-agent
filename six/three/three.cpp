@@ -6,8 +6,6 @@
 
 #include "constants.h"
 
-#include <iostream>
-
 static struct PyModuleDef datadog_agent_def = {
     PyModuleDef_HEAD_INIT, // m_base
     "datadog_agent", // m_name
@@ -53,7 +51,7 @@ const char *Three::getPyVersion() const { return Py_GetVersion(); }
 
 int Three::addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getExtensionModuleUnknown()) {
-        std::cerr << "Unknown ExtensionModule value" << std::endl;
+        setError("Unknown ExtensionModule value");
         return -1;
     }
 
@@ -68,6 +66,9 @@ int Three::addModuleFunction(ExtensionModule module, MethType t, const char *fun
     case Six::KEYWORDS:
         ml_flags = METH_VARARGS | METH_KEYWORDS;
         break;
+    default:
+        setError("Unknown MethType value");
+        return -1;
     }
 
     PyMethodDef def = { funcName, (PyCFunction)func, ml_flags, "" };

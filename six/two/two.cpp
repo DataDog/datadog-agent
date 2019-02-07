@@ -6,8 +6,6 @@
 
 #include "constants.h"
 
-#include <iostream>
-
 Two::~Two() { Py_Finalize(); }
 
 void Two::init(const char *pythonHome) {
@@ -36,7 +34,7 @@ int Two::runSimpleString(const char *code) const { return PyRun_SimpleString(cod
 
 int Two::addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getExtensionModuleUnknown()) {
-        std::cerr << "Unknown ExtensionModule value" << std::endl;
+        setError("Unknown ExtensionModule value");
         return -1;
     }
 
@@ -52,7 +50,7 @@ int Two::addModuleFunction(ExtensionModule module, MethType t, const char *funcN
         ml_flags = METH_VARARGS | METH_KEYWORDS;
         break;
     default:
-        std::cerr << "Unknown MethType value" << std::endl;
+        setError("Unknown MethType value");
         return -1;
     }
 
