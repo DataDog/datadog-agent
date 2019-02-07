@@ -4,6 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_SIX_H
 #define DATADOG_AGENT_SIX_SIX_H
+#include <mutex>
 #include <string>
 
 struct SixPyObject {};
@@ -22,20 +23,25 @@ public:
     // Public API
     virtual void init(const char *pythonHome) = 0;
     virtual int addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) = 0;
+    void setError(const std::string &msg);
+    void clearError();
 
     // Public Const API
     virtual bool isInitialized() const = 0;
     virtual const char *getPyVersion() const = 0;
     virtual int runSimpleString(const char *code) const = 0;
     virtual SixPyObject *getNone() const = 0;
+    std::string getError() const;
+    bool hasError() const;
 
 protected:
     const std::string &getExtensionModuleName(ExtensionModule);
     const std::string &getExtensionModuleUnknown() { return _module_unknown; }
 
-    std::string _error;
-
 private:
+    std::string _error;
+    mutable std::mutex _error_mtx;
+
     // these strings need to be alive for the whole interpreter lifetime because
     // they'll be used from the CPython Inittab
     std::string _module_unknown;
