@@ -3,6 +3,7 @@ file(GLOB_RECURSE
      ALL_SOURCE_FILES
      *.[ch]pp *.[ch]xx *.cc *.h
     )
+list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX ".CMakeFiles.")
 
 # Adding clang-format target if executable is found
 find_program(
