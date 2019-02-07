@@ -478,9 +478,17 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.unschedule(configs)
 	for _, c := range configs {
 		ac.store.removeLoadedConfig(c)
+	}
+}
+
+func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
+	for _, c := range configs {
 		// if the config is a template, remove it from the cache
 		if c.IsTemplate() {
-			ac.store.templateCache.Del(c)
+			err := ac.store.templateCache.Del(c)
+			if err != nil {
+				log.Debugf("Could not delete template: %v", err)
+			}
 		}
 	}
 }
