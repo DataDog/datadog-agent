@@ -102,7 +102,7 @@ func TestContent(t *testing.T) {
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_MESSAGE: "bar",
-				"_A": "foo.service",
+				"_A":                               "foo.service",
 			},
 		}))
 
