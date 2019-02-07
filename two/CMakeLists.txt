@@ -13,7 +13,7 @@ target_include_directories(datadog-agent-two PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${Python2_INCLUDE_DIRS}
 )
-target_link_libraries(datadog-agent-two ${Python2_LIBRARIES})
+target_link_libraries(datadog-agent-two ${Python2_LIBRARIES} datadog-agent-six)
 install(TARGETS datadog-agent-two
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )

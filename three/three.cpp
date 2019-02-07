@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#include "three.h"
 #include "constants.h"
+#include "three.h"
 
 #include <iostream>
 
@@ -40,7 +40,7 @@ void Three::init(const char *pythonHome) {
 
     // init builtin modules one by one
     datadog_agent_def.m_methods = &_modules[DATADOG_AGENT][0];
-    PyImport_AppendInittab(getExtensionModuleName(DATADOG_AGENT), &PyInit_datadog_agent);
+    PyImport_AppendInittab(getExtensionModuleName(DATADOG_AGENT).c_str(), &PyInit_datadog_agent);
 
     Py_SetPythonHome(_pythonHome);
     Py_Initialize();
@@ -51,7 +51,7 @@ bool Three::isInitialized() const { return Py_IsInitialized(); }
 const char *Three::getPyVersion() const { return Py_GetVersion(); }
 
 int Three::addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) {
-    if (getExtensionModuleName(module) == "") {
+    if (getExtensionModuleName(module) == getExtensionModuleUnknown()) {
         std::cerr << "Unknown ExtensionModule value" << std::endl;
         return -1;
     }
@@ -80,6 +80,8 @@ int Three::addModuleFunction(ExtensionModule module, MethType t, const char *fun
 
     // insert at beginning so we keep guard at the end
     _modules[module].insert(_modules[module].begin(), def);
+
+    return 1;
 }
 
 int Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
