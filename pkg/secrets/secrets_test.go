@@ -9,7 +9,6 @@ package secrets
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"testing"
 
@@ -288,9 +287,16 @@ func TestDebugInfo(t *testing.T) {
 	require.Nil(t, err)
 
 	assert.Equal(t, "some_command", info.ExecutablePath)
-	assert.True(t, reflect.DeepEqual(map[string][]string{
+
+	// sort handle first. The only handle with multiple location is "pass2".
+	handles := info.SecretsHandles
+	pass2Handles := sort.StringSlice(handles["pass2"])
+	pass2Handles.Sort()
+	handles["pass2"] = pass2Handles
+
+	assert.Equal(t, map[string][]string{
 		"pass1": {"test"},
 		"pass2": {"test", "test2"},
 		"pass3": {"test2"},
-	}, info.SecretsHandles))
+	}, handles)
 }
