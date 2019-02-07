@@ -559,7 +559,7 @@ func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
-func (ac *AutoConfig) GetUnresolvedTemplates() map[string]integration.Config {
+func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.GetUnresolvedTemplates()
 }
 

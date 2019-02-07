@@ -69,6 +69,7 @@ func TestString(t *testing.T) {
   fooBarBaz: test
 instances:
 - justFoo
+logs_config: null
 `
 	assert.Equal(t, config.String(), expected)
 }
