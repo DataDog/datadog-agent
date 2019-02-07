@@ -4,6 +4,7 @@ project(datadog-agent-six VERSION 0.1.0 DESCRIPTION "CPython backend for the Dat
 include(GNUInstallDirs)
 add_library(datadog-agent-six SHARED
     api.cpp
+    six.cpp
 )
 set_target_properties(datadog-agent-six PROPERTIES
     VERSION ${PROJECT_VERSION}

@@ -14,7 +14,9 @@ public:
 
     enum ExtensionModule { DATADOG_AGENT };
 
-    Six() {};
+    Six()
+        : _module_unknown("")
+        , _module_datadog_agent("datadog_agent") {};
     virtual ~Six() {};
 
     // Public API
@@ -28,13 +30,14 @@ public:
     virtual SixPyObject *getNone() const = 0;
 
 protected:
-    const char *getExtensionModuleName(ExtensionModule m) {
-        switch (m) {
-        case DATADOG_AGENT:
-            return "datadog_agent";
-        }
-        return "";
-    }
+    const std::string &getExtensionModuleName(ExtensionModule);
+    const std::string &getExtensionModuleUnknown() { return _module_unknown; }
+
+    std::string _error;
+
+private:
+    std::string _module_unknown;
+    std::string _module_datadog_agent;
 };
 
 typedef Six *create_t();

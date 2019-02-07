@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#include "two.h"
 #include "constants.h"
+#include "two.h"
 
 #include <iostream>
 
@@ -19,7 +19,7 @@ void Two::init(const char *pythonHome) {
 
     PyModules::iterator it;
     for (it = _modules.begin(); it != _modules.end(); ++it) {
-        Py_InitModule(getExtensionModuleName(it->first), &_modules[it->first][0]);
+        Py_InitModule(getExtensionModuleName(it->first).c_str(), &_modules[it->first][0]);
     }
 
     // In Python3 this is called from Py_Initialize already
@@ -33,7 +33,7 @@ const char *Two::getPyVersion() const { return Py_GetVersion(); }
 int Two::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
 
 int Two::addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) {
-    if (getExtensionModuleName(module) == "") {
+    if (getExtensionModuleName(module) == getExtensionModuleUnknown()) {
         std::cerr << "Unknown ExtensionModule value" << std::endl;
         return -1;
     }

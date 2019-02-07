@@ -47,8 +47,7 @@ int main(int argc, char *argv[]) {
     }
 
     // add a new `print_foo` to the custom builtin module `datadog_agent`
-    add_module_func(six2, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS,
-                    "print_foo", print_foo);
+    add_module_func(six2, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
     init(six2, NULL);
     printf("Embedding Python version %s\n", get_py_version(six2));
     printf("\n");
@@ -65,8 +64,7 @@ int main(int argc, char *argv[]) {
     }
 
     // add a new `print_foo` to the custom builtin module `datadog_agent`
-    add_module_func(six3, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS,
-                    "print_foo", print_foo3);
+    add_module_func(six3, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo3);
 
     init(six3, NULL);
     printf("Embedding Python version %s\n", get_py_version(six3));
