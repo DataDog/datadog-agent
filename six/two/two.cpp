@@ -2,8 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#include "constants.h"
 #include "two.h"
+
+#include "constants.h"
 
 #include <iostream>
 
@@ -22,7 +23,8 @@ void Two::init(const char *pythonHome) {
         Py_InitModule(getExtensionModuleName(it->first).c_str(), &_modules[it->first][0]);
     }
 
-    // In Python3 this is called from Py_Initialize already
+    // In recent versions of Python3 this is called from Py_Initialize already,
+    // for Python2 it has to be explicit.
     PyEval_InitThreads();
 }
 
