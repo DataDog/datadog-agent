@@ -76,10 +76,12 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 		}
 		if len(cr.Unresolved) > 0 {
 			fmt.Fprintln(w, fmt.Sprintf("\n=== %s Configs ===", color.YellowString("Unresolved")))
-			for ids, config := range cr.Unresolved {
+			for ids, configs := range cr.Unresolved {
 				fmt.Fprintln(w, fmt.Sprintf("\n%s: %s", color.BlueString("Auto-discovery IDs"), color.YellowString(ids)))
-				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Template")))
-				fmt.Fprintln(w, config.String())
+				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Templates")))
+				for _, config := range configs {
+					fmt.Fprintln(w, config.String())
+				}
 			}
 		}
 	}

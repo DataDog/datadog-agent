@@ -11,10 +11,10 @@ import (
 
 // ConfigCheckResponse holds the config check response
 type ConfigCheckResponse struct {
-	Configs         []integration.Config          `json:"configs"`
-	ResolveWarnings map[string][]string           `json:"resolve_warnings"`
-	ConfigErrors    map[string]string             `json:"config_errors"`
-	Unresolved      map[string]integration.Config `json:"unresolved"`
+	Configs         []integration.Config            `json:"configs"`
+	ResolveWarnings map[string][]string             `json:"resolve_warnings"`
+	ConfigErrors    map[string]string               `json:"config_errors"`
+	Unresolved      map[string][]integration.Config `json:"unresolved"`
 }
 
 // TaggerListResponse holds the tagger list response
