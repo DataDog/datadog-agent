@@ -2,8 +2,6 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#include <iostream>
-
 #include <six.h>
 
 const std::string &Six::getExtensionModuleName(Six::ExtensionModule m) {
