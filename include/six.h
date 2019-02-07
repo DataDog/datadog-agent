@@ -36,6 +36,8 @@ protected:
     std::string _error;
 
 private:
+    // these strings need to be alive for the whole interpreter lifetime because
+    // they'll be used from the CPython Inittab
     std::string _module_unknown;
     std::string _module_datadog_agent;
 };
