@@ -9,6 +9,7 @@ package secrets
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -287,9 +288,9 @@ func TestDebugInfo(t *testing.T) {
 	require.Nil(t, err)
 
 	assert.Equal(t, "some_command", info.ExecutablePath)
-	assert.Equal(t, map[string][]string{
+	assert.True(t, reflect.DeepEqual(map[string][]string{
 		"pass1": {"test"},
 		"pass2": {"test", "test2"},
 		"pass3": {"test2"},
-	}, info.SecretsHandles)
+	}, info.SecretsHandles))
 }
