@@ -14,3 +14,35 @@ const std::string &Six::getExtensionModuleName(Six::ExtensionModule m) {
         return _module_unknown;
     }
 }
+
+void Six::setError(const std::string &msg) {
+    _error_mtx.lock();
+    _error = msg;
+    _error_mtx.unlock();
+}
+
+void Six::clearError() {
+    _error_mtx.lock();
+    _error = "";
+    _error_mtx.unlock();
+}
+
+std::string Six::getError() const {
+    std::string ret;
+
+    _error_mtx.lock();
+    ret = _error;
+    _error_mtx.unlock();
+
+    return ret;
+}
+
+bool Six::hasError() const {
+    bool ret;
+
+    _error_mtx.lock();
+    ret = _error != "";
+    _error_mtx.unlock();
+
+    return ret;
+}
