@@ -192,7 +192,7 @@ func TestDiffAutoscalter(t *testing.T) {
 
 func TestInspect(t *testing.T) {
 	metricName := "requests_per_s"
-	metricNameUpper := "ReQuesTs_Per_S"
+
 	testCases := map[string]struct {
 		hpa      *autoscalingv2.HorizontalPodAutoscaler
 		expected []custommetrics.ExternalMetricValue
@@ -275,7 +275,7 @@ func TestInspect(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "foo",
-					Labels:     map[string]string{},
+					Labels:     nil,
 					Timestamp:  0,
 					Value:      0,
 					Valid:      false,
@@ -294,34 +294,6 @@ func TestInspect(t *testing.T) {
 				},
 			},
 			[]custommetrics.ExternalMetricValue{},
-		},
-		"upper cases handled": {
-			&autoscalingv2.HorizontalPodAutoscaler{
-				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
-					Metrics: []autoscalingv2.MetricSpec{
-						{
-							Type: autoscalingv2.ExternalMetricSourceType,
-							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricNameUpper,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"DcoS_vErsIoN": "1.9.4",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			[]custommetrics.ExternalMetricValue{
-				{
-					MetricName: "requests_per_s",
-					Labels:     map[string]string{"dcos_version": "1.9.4"},
-					Timestamp:  0,
-					Value:      0,
-					Valid:      false,
-				},
-			},
 		},
 	}
 
