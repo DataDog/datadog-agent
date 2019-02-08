@@ -16,4 +16,4 @@ HEALTHCHECK --interval=1m --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/dogstatsd", "-c", "/etc/datadog-agent/" "start"]
+CMD ["/dogstatsd", "-c", "/etc/datadog-agent/", "start"]
