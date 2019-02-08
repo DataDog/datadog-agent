@@ -75,6 +75,8 @@ func (c *Config) String() string {
 	var instances []interface{}
 	var logsConfig interface{}
 
+	rawConfig["check_name"] = c.Name
+
 	yaml.Unmarshal(c.InitConfig, &initConfig)
 	rawConfig["init_config"] = initConfig
 
