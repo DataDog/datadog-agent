@@ -19,8 +19,9 @@ public:
     ~Two();
 
     void init(const char *pythonHome);
-    void addModuleFunction(const char *module, const char *funcName, void *func, MethType t);
     int addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func);
+    GILState GILEnsure();
+    void GILRelease(GILState);
 
     // const API
     bool isInitialized() const;
