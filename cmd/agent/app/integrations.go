@@ -123,7 +123,7 @@ func init() {
 
 	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 	installCmd.Flags().BoolVarP(
-		&localWheel, "local-wheel", "w", false, "install from locally available wheel file, without security verifications",
+		&localWheel, "local-wheel", "w", false, "install an agent check from a locally available wheel file. No security validation is performed, so use at your own risk.",
 	)
 }
 
@@ -373,6 +373,8 @@ func install(cmd *cobra.Command, args []string) error {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
 		// Verify that the wheel depends on `datadog_checks_base` to decide if it's an agent check or not
+		fmt.Println("Trying to install a package from a local file is at your own risk. No security verifications will be performed.")
+		fmt.Println("You should only use this to install an agent check, and not arbitrary wheels.")
 		if ok, err := validateBaseDependency(args[0]); err != nil {
 			return fmt.Errorf("error while reading the wheel %s: %v", args[0], err)
 		} else if !ok {
