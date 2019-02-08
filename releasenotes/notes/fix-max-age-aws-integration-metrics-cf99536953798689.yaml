@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Extend maxAge for AWS Integration metrics

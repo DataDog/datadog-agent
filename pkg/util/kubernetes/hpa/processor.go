@@ -61,7 +61,14 @@ func (p *Processor) UpdateExternalMetrics(emList []custommetrics.ExternalMetricV
 		metricIdentifier := getKey(em.MetricName, em.Labels)
 		metric := metrics[metricIdentifier]
 
-		if time.Now().Unix()-metric.timestamp > maxAge || !metric.valid {
+		now := time.Now().Unix()
+
+		// AWS Integration may be delayed
+		if strings.HasPrefix(em.MetricName, "aws.") {
+			now = now - 600
+		}
+
+		if now-metric.timestamp > maxAge || !metric.valid {
 			// invalidating sparse metrics that are outdated
 			em.Valid = false
 			em.Value = metric.value
