@@ -99,6 +99,8 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 			// Process removed configs first to handle the case where a
 			// container churn would result in the same configuration hash.
 			ac.processRemovedConfigs(removedConfigs)
+			// We can also remove any cached template
+			ac.removeConfigTemplates(removedConfigs)
 
 			for _, config := range newConfigs {
 				config.Provider = pd.provider.String()
