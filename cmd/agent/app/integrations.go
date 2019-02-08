@@ -29,6 +29,7 @@ import (
 const (
 	tufConfigFile       = "public-tuf-config.json"
 	reqAgentReleaseFile = "requirements-agent-release.txt"
+	constraintsFile     = "final_constraints.txt"
 	tufPkgPattern       = "datadog(-|_).*"
 	tufIndex            = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
@@ -357,8 +358,15 @@ func install(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	here, err := executable.Folder()
+	if err != nil {
+		return err
+	}
+	constraintsPath := filepath.Join(here, relConstraintsPath)
+
 	pipArgs := []string{
 		"install",
+		"--constraint", constraintsPath,
 		"--cache-dir", cachePath,
 		// We replace the PyPI index with our own by default, in order to prevent
 		// accidental installation of Datadog or even third-party packages from
