@@ -7,6 +7,7 @@
 package app
 
 import (
+	"archive/zip"
 	"bufio"
 	"errors"
 	"fmt"
@@ -371,6 +372,12 @@ func install(cmd *cobra.Command, args []string) error {
 	if localWheel {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
+		// Verify that the wheel depends on `datadog_checks_base` to decide if it's an agent check or not
+		if ok, err := validateBaseDependency(args[0]); err != nil {
+			return fmt.Errorf("error while reading the wheel %s: %v", args[0], err)
+		} else if !ok {
+			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", args[0])
+		}
 		return pip(append(pipArgs, args[0]), true)
 	}
 
@@ -465,6 +472,34 @@ func install(cmd *cobra.Command, args []string) error {
 		"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken:\n - %v\n- %v",
 		integration, versionToInstall, pipCheckErr, pipErr,
 	)
+}
+
+func validateBaseDependency(wheelPath string) (bool, error) {
+	reader, err := zip.OpenReader(wheelPath)
+	if err != nil {
+		return false, err
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if strings.HasSuffix(file.Name, "METADATA") {
+			fileReader, err := file.Open()
+			if err != nil {
+				return false, err
+			}
+			defer fileReader.Close()
+			scanner := bufio.NewScanner(fileReader)
+			for scanner.Scan() {
+				if strings.Contains(scanner.Text(), "Requires-Dist: datadog-checks-base") {
+					return true, nil
+				}
+			}
+			if err := scanner.Err(); err != nil {
+				return false, err
+			}
+		}
+	}
+	return false, nil
 }
 
 func minAllowedVersion(integration string) (*integrationVersion, error) {
