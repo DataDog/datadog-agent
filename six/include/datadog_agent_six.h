@@ -31,7 +31,15 @@ typedef struct six_pyobject_s six_pyobject_t;
 
 typedef enum six_gilstate_e { DATADOG_AGENT_SIX_GIL_LOCKED, DATADOG_AGENT_SIX_GIL_UNLOCKED } six_gilstate_t;
 
-typedef enum six_module_e { DATADOG_AGENT_SIX_DATADOG_AGENT } six_module_t;
+typedef enum six_module_e {
+    DATADOG_AGENT_SIX__UTIL = 0,
+    DATADOG_AGENT_SIX_AGGREGATOR,
+    DATADOG_AGENT_SIX_CONTAINERS,
+    DATADOG_AGENT_SIX_DATADOG_AGENT,
+    DATADOG_AGENT_SIX_KUBEUTIL,
+    DATADOG_AGENT_SIX_TAGGER,
+    DATADOG_AGENT_SIX_UTIL,
+} six_module_t;
 
 typedef enum six_module_func_e {
     DATADOG_AGENT_SIX_NOARGS,

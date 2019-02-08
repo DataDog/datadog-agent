@@ -18,7 +18,7 @@ void Two::init(const char *pythonHome) {
 
     PyModules::iterator it;
     for (it = _modules.begin(); it != _modules.end(); ++it) {
-        Py_InitModule(getExtensionModuleName(it->first).c_str(), &_modules[it->first][0]);
+        Py_InitModule(builtins::getExtensionModuleName(it->first).c_str(), &_modules[it->first][0]);
     }
 
     // In recent versions of Python3 this is called from Py_Initialize already,
@@ -32,8 +32,8 @@ const char *Two::getPyVersion() const { return Py_GetVersion(); }
 
 int Two::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
 
-int Two::addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) {
-    if (getExtensionModuleName(module) == getExtensionModuleUnknown()) {
+int Two::addModuleFunction(builtins::ExtensionModule module, MethType t, const char *funcName, void *func) {
+    if (builtins::getExtensionModuleName(module) == builtins::module_unknown) {
         setError("Unknown ExtensionModule value");
         return -1;
     }

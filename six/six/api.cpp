@@ -105,10 +105,10 @@ int run_simple_string(const six_t *six, const char *code) { return AS_CTYPE(Six,
 six_pyobject_t *get_none(const six_t *six) { return AS_TYPE(six_pyobject_t, AS_CTYPE(Six, six)->getNone()); }
 
 int add_module_func(six_t *six, six_module_t module, six_module_func_t func_type, char *func_name, void *func) {
-    Six::ExtensionModule six_module;
+    builtins::ExtensionModule six_module;
     switch (module) {
     case DATADOG_AGENT_SIX_DATADOG_AGENT:
-        six_module = Six::DATADOG_AGENT;
+        six_module = builtins::MODULE_DATADOG_AGENT;
         break;
     default:
         std::cerr << "Unknown six_module_t value" << std::endl;
