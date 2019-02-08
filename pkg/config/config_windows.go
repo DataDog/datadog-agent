@@ -16,7 +16,7 @@ var (
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = "c:\\programdata\\datadog\\run"
 	defaultSyslogURI            = ""
-	defaultGuiPort              = "5002"
+	defaultGuiPort              = 5002
 )
 
 // ServiceName is the name that'll be used to register the Agent
