@@ -61,10 +61,6 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 				continue
 			}
 		}
-		if len(metadataNames) == 0 {
-			log.Tracef("No cluster metadata for the pod %s on node %s", po.Metadata.Name, po.Spec.NodeName)
-			continue
-		}
 		for _, tagDCA := range metadataNames {
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)
 			tag = strings.Split(tagDCA, ":")
