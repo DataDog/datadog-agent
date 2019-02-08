@@ -483,8 +483,14 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 
 func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
 	for _, c := range configs {
-		// if the config is a template, remove it from the cache
 		if c.IsTemplate() {
+			// Remove the resolved configurations
+			tplDigest := c.Digest()
+			configs := ac.store.getConfigsForTemplate(tplDigest)
+			ac.store.removeConfigsForTemplate(tplDigest)
+			ac.processRemovedConfigs(configs)
+
+			// Remove template from the cache
 			err := ac.store.templateCache.Del(c)
 			if err != nil {
 				log.Debugf("Could not delete template: %v", err)
@@ -553,6 +559,7 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	}
 	ac.store.setLoadedConfig(resolvedConfig)
 	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
+	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
 		svc.GetEntity(),
 		tagger.GetEntityHash(svc.GetEntity()),

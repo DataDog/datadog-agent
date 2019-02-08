@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Autodiscovery now removes childen configurations when removing templates

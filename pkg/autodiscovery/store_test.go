@@ -27,3 +27,21 @@ func TestServiceToConfig(t *testing.T) {
 	s.addConfigForService(service.GetEntity(), integration.Config{Name: "foo"})
 	assert.Equal(t, len(s.getConfigsForService(service.GetEntity())), 1)
 }
+
+func TestTemplateToConfig(t *testing.T) {
+	s := newStore()
+	s.addConfigForTemplate("digest1", integration.Config{Name: "foo"})
+	s.addConfigForTemplate("digest1", integration.Config{Name: "bar"})
+	s.addConfigForTemplate("digest2", integration.Config{Name: "foo"})
+
+	assert.Len(t, s.getConfigsForTemplate("digest1"), 2)
+	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+
+	s.removeConfigsForTemplate("digest1")
+	assert.Len(t, s.getConfigsForTemplate("digest1"), 0)
+	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+
+	s.addConfigForTemplate("digest1", integration.Config{Name: "foo"})
+	assert.Len(t, s.getConfigsForTemplate("digest1"), 1)
+	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+}
