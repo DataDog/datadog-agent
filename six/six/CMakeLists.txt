@@ -5,6 +5,7 @@ include(GNUInstallDirs)
 add_library(datadog-agent-six SHARED
     api.cpp
     six.cpp
+    builtins.cpp
 )
 set_target_properties(datadog-agent-six PROPERTIES
     VERSION ${PROJECT_VERSION}
@@ -15,8 +16,6 @@ configure_file(datadog-agent-six.pc.in datadog-agent-six.pc @ONLY)
 target_include_directories(datadog-agent-six PRIVATE ./include)
 target_include_directories(datadog-agent-six PUBLIC
     ${CMAKE_SOURCE_DIR}/include
-    ../two
-    ../three
 )
 find_library( LIBdl dl )
 install(TARGETS datadog-agent-six
