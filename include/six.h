@@ -7,22 +7,22 @@
 #include <mutex>
 #include <string>
 
+#include "builtins.h"
+
+// Opaque type to wrap PyObject
 struct SixPyObject {};
 
 class Six {
 public:
     enum MethType { NOARGS = 0, ARGS, KEYWORDS };
     enum GILState { GIL_LOCKED = 0, GIL_UNLOCKED };
-    enum ExtensionModule { DATADOG_AGENT };
 
-    Six()
-        : _module_unknown("")
-        , _module_datadog_agent("datadog_agent") {};
+    Six() {};
     virtual ~Six() {};
 
     // Public API
     virtual void init(const char *pythonHome) = 0;
-    virtual int addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) = 0;
+    virtual int addModuleFunction(builtins::ExtensionModule module, MethType t, const char *funcName, void *func) = 0;
     void setError(const std::string &msg);
     void clearError();
     virtual GILState GILEnsure() = 0;
@@ -36,18 +36,9 @@ public:
     std::string getError() const;
     bool hasError() const;
 
-protected:
-    const std::string &getExtensionModuleName(ExtensionModule);
-    const std::string &getExtensionModuleUnknown() { return _module_unknown; }
-
 private:
     std::string _error;
     mutable std::mutex _error_mtx;
-
-    // these strings need to be alive for the whole interpreter lifetime because
-    // they'll be used from the CPython Inittab
-    std::string _module_unknown;
-    std::string _module_datadog_agent;
 };
 
 typedef Six *create_t();

@@ -4,15 +4,6 @@
 // Copyright 2019 Datadog, Inc.
 #include <six.h>
 
-const std::string &Six::getExtensionModuleName(Six::ExtensionModule m) {
-    switch (m) {
-    case DATADOG_AGENT:
-        return _module_datadog_agent;
-    default:
-        return _module_unknown;
-    }
-}
-
 void Six::setError(const std::string &msg) {
     _error_mtx.lock();
     _error = msg;

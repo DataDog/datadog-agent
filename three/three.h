@@ -19,7 +19,7 @@ public:
     ~Three();
 
     void init(const char *pythonHome);
-    int addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func);
+    int addModuleFunction(builtins::ExtensionModule module, MethType t, const char *funcName, void *func);
     GILState GILEnsure();
     void GILRelease(GILState);
 
@@ -31,7 +31,7 @@ public:
 
 private:
     typedef std::vector<PyMethodDef> PyMethods;
-    typedef std::map<ExtensionModule, PyMethods> PyModules;
+    typedef std::map<builtins::ExtensionModule, PyMethods> PyModules;
 
     PyModules _modules;
     wchar_t *_pythonHome;

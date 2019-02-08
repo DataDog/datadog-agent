@@ -4,21 +4,38 @@
 // Copyright 2019 Datadog, Inc.
 #include "three.h"
 
+#include "builtins.h"
 #include "constants.h"
 
-static struct PyModuleDef datadog_agent_def = {
-    PyModuleDef_HEAD_INIT, // m_base
-    "datadog_agent", // m_name
-    NULL, // m_doc
-    -1, // m_size
-    NULL, // m_methods, will be filled later
-    NULL,
-    NULL,
-    NULL,
-    NULL // not needed, we're doing Single-phase initialization
-};
+// we only populate the fields `m_base` and `m_name`, we don't need any of the rest since we're doing Single-phase
+// initialization
+static struct PyModuleDef def__util
+    = { PyModuleDef_HEAD_INIT, builtins::module__util.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+PyMODINIT_FUNC PyInit__util(void) { return PyModule_Create(&def__util); }
 
-PyMODINIT_FUNC PyInit_datadog_agent(void) { return PyModule_Create(&datadog_agent_def); }
+static struct PyModuleDef def_aggregator
+    = { PyModuleDef_HEAD_INIT, builtins::module_aggregator.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+PyMODINIT_FUNC PyInit_aggregator(void) { return PyModule_Create(&def_aggregator); }
+
+static struct PyModuleDef def_containers
+    = { PyModuleDef_HEAD_INIT, builtins::module_containers.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+PyMODINIT_FUNC PyInit_containers(void) { return PyModule_Create(&def_containers); }
+
+static struct PyModuleDef def_datadog_agent
+    = { PyModuleDef_HEAD_INIT, builtins::module_datadog_agent.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+PyMODINIT_FUNC PyInit_datadog_agent(void) { return PyModule_Create(&def_datadog_agent); }
+
+static struct PyModuleDef def_kubeutil
+    = { PyModuleDef_HEAD_INIT, builtins::module_kubeutil.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+PyMODINIT_FUNC PyInit_kubeutil(void) { return PyModule_Create(&def_kubeutil); }
+
+static struct PyModuleDef def_tagger
+    = { PyModuleDef_HEAD_INIT, builtins::module_tagger.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+PyMODINIT_FUNC PyInit_tagger(void) { return PyModule_Create(&def_tagger); }
+
+static struct PyModuleDef def_util
+    = { PyModuleDef_HEAD_INIT, builtins::module_util.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+PyMODINIT_FUNC PyInit_util(void) { return PyModule_Create(&def_util); }
 
 Three::~Three() {
     if (_pythonHome) {
@@ -38,8 +55,35 @@ void Three::init(const char *pythonHome) {
     }
 
     // init builtin modules one by one
-    datadog_agent_def.m_methods = &_modules[DATADOG_AGENT][0];
-    PyImport_AppendInittab(getExtensionModuleName(DATADOG_AGENT).c_str(), &PyInit_datadog_agent);
+
+    // _util
+    def__util.m_methods = &_modules[builtins::MODULE__UTIL][0];
+    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE__UTIL).c_str(), &PyInit__util);
+
+    // aggregator
+    def_aggregator.m_methods = &_modules[builtins::MODULE_AGGREGATOR][0];
+    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_AGGREGATOR).c_str(), &PyInit_aggregator);
+
+    // containers
+    def_containers.m_methods = &_modules[builtins::MODULE_CONTAINERS][0];
+    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_CONTAINERS).c_str(), &PyInit_containers);
+
+    // datadog_agent
+    def_datadog_agent.m_methods = &_modules[builtins::MODULE_DATADOG_AGENT][0];
+    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_DATADOG_AGENT).c_str(),
+                           &PyInit_datadog_agent);
+
+    // kubeutil
+    def_kubeutil.m_methods = &_modules[builtins::MODULE_KUBEUTIL][0];
+    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_KUBEUTIL).c_str(), &PyInit_kubeutil);
+
+    // tagger
+    def_tagger.m_methods = &_modules[builtins::MODULE_TAGGER][0];
+    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_TAGGER).c_str(), &PyInit_tagger);
+
+    // util
+    def_util.m_methods = &_modules[builtins::MODULE_UTIL][0];
+    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_UTIL).c_str(), &PyInit_util);
 
     Py_SetPythonHome(_pythonHome);
     Py_Initialize();
@@ -49,8 +93,8 @@ bool Three::isInitialized() const { return Py_IsInitialized(); }
 
 const char *Three::getPyVersion() const { return Py_GetVersion(); }
 
-int Three::addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) {
-    if (getExtensionModuleName(module) == getExtensionModuleUnknown()) {
+int Three::addModuleFunction(builtins::ExtensionModule module, MethType t, const char *funcName, void *func) {
+    if (builtins::getExtensionModuleName(module) == builtins::module_unknown) {
         setError("Unknown ExtensionModule value");
         return -1;
     }
