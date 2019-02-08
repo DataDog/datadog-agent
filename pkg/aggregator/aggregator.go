@@ -192,6 +192,9 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname, agentName string,
 }
 
 func deduplicateTags(tags []string) []string {
+	if len(tags) == 0 {
+		return tags
+	}
 	sort.Strings(tags)
 
 	j := 0

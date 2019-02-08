@@ -1,0 +1,13 @@
+goos: darwin
+goarch: amd64
+pkg: github.com/DataDog/datadog-agent/pkg/aggregator
+BenchmarkDeduplicateTags2-4      	200000000	        82.9 ns/op	      32 B/op	       1 allocs/op
+BenchmarkDeduplicateTags4-4      	100000000	       139 ns/op	      32 B/op	       1 allocs/op
+BenchmarkDeduplicateTags10-4     	50000000	       281 ns/op	      32 B/op	       1 allocs/op
+BenchmarkDeduplicateTags20-4     	20000000	       750 ns/op	      32 B/op	       1 allocs/op
+BenchmarkDeduplicateTags40-4     	10000000	      1702 ns/op	      32 B/op	       1 allocs/op
+BenchmarkDeduplicateTags60-4     	 5000000	      2921 ns/op	      32 B/op	       1 allocs/op
+BenchmarkDeduplicateTags100-4    	 3000000	      5193 ns/op	      32 B/op	       1 allocs/op
+BenchmarkDeduplicateTags1000-4   	  200000	     89007 ns/op	      32 B/op	       1 allocs/op
+PASS
+ok  	github.com/DataDog/datadog-agent/pkg/aggregator	145.457s
