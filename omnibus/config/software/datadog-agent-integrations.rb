@@ -49,6 +49,10 @@ blacklist = [
   'openstack_controller',          # Check currently under active development and in beta
 ]
 
+if suse?
+  blacklist.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
+end
+
 core_constraints_file = 'core_constraints.txt'
 agent_requirements_file = 'agent_requirements.txt'
 
