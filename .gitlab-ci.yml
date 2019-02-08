@@ -14,6 +14,8 @@ variables:
   STS_DOCKER_TEST_REPO: stackstate-agent-2-test
   STS_AWS_RELEASE_BUCKET_YUM: stackstate-agent-2-rpm
   STS_AWS_TEST_BUCKET_YUM: stackstate-agent-2-rpm-test
+  STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-2
+  STS_AWS_TEST_BUCKET_WIN: stackstate-agent-2-test
 
 before_script:
  - mkdir -p /go/src/github.com/StackVista
@@ -115,6 +117,7 @@ deps-windows:
   script:
     - call .gitlab-scripts/windows_build_env.cmd
     - call .gitlab-scripts/windows_deps.cmd
+    - inv version -u > version.txt
   artifacts:
     paths:
         - "vendor"
@@ -344,10 +347,19 @@ pre_release_deb:
 pre_release_win:
   stage: pre_release
   dependencies:
+    - deps-windows
     - build_win
   before_script: []
   script:
-    - aws.exe s3 cp . s3://stackstate-agent-2-test/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi"
+    - set WIN_CI_PROJECT_DIR=%CD%
+    - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
+    - call %WORKON_HOME%\venv\Scripts\activate.bat
+    - call ridk enable
+    - set /P VERSION=< version.txt
+    - copy stackstate-agent-%VERSION%-1-x86_64.msi stackstate-agent-latest-1-x86_64.msi
+    - aws.exe s3 cp . s3://stackstate-agent-2-test/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read
+    - cd %WIN_CI_PROJECT_DIR% && inv release.generate-install -t
+    - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET_WIN']).object('install.ps1').upload_file('./install.ps1', acl:'public-read')"
   tags:
     - sts_windows
 

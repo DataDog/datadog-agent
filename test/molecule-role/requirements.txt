@@ -58,6 +58,7 @@ pytest==3.9.3
 python-dateutil==2.7.5
 python-gilt==1.2.1
 PyYAML==3.13
+pywinrm==0.3.0
 requests==2.20.0
 s3transfer==0.1.13
 scandir==1.9.0

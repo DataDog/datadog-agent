@@ -1,4 +1,35 @@
 ---
+- name: Prepare Windows Agents (pre)
+  hosts: agent_win_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    # - debug: msg={{ ansible_facts }}
+
+    - name: Add test-stackstate-agent.sts to /etc/hosts
+      win_lineinfile:
+        path: C:\\Windows\\System32\\drivers\\etc\\hosts
+        line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
+        state: present
+
+    - name: Install stackstate-agent
+      win_shell: ". { iwr -useb {{ agent_repo_url }}/install.ps1 } | iex; install -stsApiKey API_KEY -stsUrl https://test-stackstate-agent.sts/stsAgent -stsHostname {{ inventory_hostname }} -stsCodeName {{ agent_current_branch }} -stsSkipSSLValidation true"
+      register: install_result
+
+    # - name: Install stackstate-agent (1/2)
+    #   win_get_url:
+    #     url: https://s3-eu-west-1.amazonaws.com/stackstate-agent-2-test/windows/master/stackstate-agent-2.0.0.git.443.ef0c11ef-1-x86_64.msi
+    #     dest: C:\stackstate-agent.msi
+    #
+    # - debug: msg="STS_API_KEY=API_KEY STS_URL=https://test-stackstate-agent.sts/stsAgent STS_HOSTNAME={{ inventory_hostname }} SKIP_SSL_VALIDATION=true"
+    #
+    # - name: Install stackstate-agent (2/2)
+    #   win_shell: Start-Process -FilePath "$env:systemroot\system32\msiexec.exe" -ArgumentList "/i C:\stackstate-agent.msi /qn /passive STS_API_KEY=API_KEY STS_URL=https://test-stackstate-agent.sts/stsAgent STS_HOSTNAME=agent-win SKIP_SSL_VALIDATION=true" -Wait
+    #   register: install_result
+
+    - debug: var="install_result"
+
 - name: Prepare Receiver
   hosts: receiver_vm
   gather_facts: false
@@ -75,7 +106,7 @@
         mode: "0755"
     - name: Copy Configuration files
       copy:
-        src: "../../{{ item }}"
+        src: "files/receiver/{{ item }}"
         dest: "/home/ubuntu/{{ item }}"
       with_items:
         - docker.nginx
@@ -86,8 +117,9 @@
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
-- name: Prepare Agents (pre)
-  hosts: agent_vm
+
+- name: Prepare Linux Agents (pre)
+  hosts: agent_linux_vm
   gather_facts: false
   vars_files:
     - common_vars.yml
@@ -117,27 +149,36 @@
         name: libselinux-python
         state: present
       when: ansible_distribution == "Fedora"
-- name: Prepare Agent 1 listening before start
-  hosts: agent1
+
+- name: Prepare Ubuntu Agent listening before start
+  hosts: agent-ubuntu
   gather_facts: false
   vars_files:
     - common_vars.yml
   tasks:
     # We use ncat to keep a listening port open and get a direction
-    - name: Open listening port on agent 1
+    - name: Open listening port on Ubuntu Agent
       shell: "nohup ncat --broker --listen -p {{ test_connection_port_before_start }} &"
       become: true
-- name: Prepare Agent 2 connecting before start
-  hosts: agent2
+- name: Prepare Fedora Agent connecting before start
+  hosts: agent-fedora
   gather_facts: false
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Connect to agent 1
-      shell: nohup bash -c "yes | ncat {{ hostvars['agent1']['ansible_host'] }} {{ test_connection_port_before_start }}" &
+    - name: Connect to Ubuntu Agent
+      shell: nohup bash -c "yes | ncat {{ hostvars['agent-ubuntu']['ansible_host'] }} {{ test_connection_port_before_start }}" &
       become: true
-- name: Prepare Agents (post)
-  hosts: agent_vm
+
+    - name: Add test-stackstate-agent.sts to /etc/hosts
+      become: true
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
+
+
+- name: Prepare Linux Agents (post)
+  hosts: agent_linux_vm
   gather_facts: false
   vars_files:
     - common_vars.yml
@@ -155,25 +196,26 @@
         STS_HOSTNAME: "{{ inventory_hostname }}"
         CODE_NAME: "{{ agent_current_branch }}"
         SKIP_SSL_VALIDATION: "true"
-- name: Prepare Agent 1 listening after start
-  hosts: agent1
+
+- name: Prepare Ubuntu Agent listening after start
+  hosts: agent-ubuntu
   gather_facts: false
   vars_files:
     - common_vars.yml
   tasks:
-    # Wait a bit for the process agent to have started
-    - name: Wait a bit for the process agent
+    - name: Wait a bit for the process agent to start
       pause:
         seconds: 10
-    - name: Open listening port on agent 1
+    - name: Open listening port {{ test_connection_port_after_start }}
       shell: "nohup nc -l -p {{ test_connection_port_after_start }} > /dev/null &"
       become: true
-- name: Prepare Agent 2 connecting after start
-  hosts: agent2
+
+- name: Prepare Fedora Agent connecting after start
+  hosts: agent-fedora
   gather_facts: false
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Connect to agent 1
-      shell: nohup bash -c "yes | ncat {{ hostvars['agent1']['ansible_host'] }} {{ test_connection_port_after_start }}" &
+    - name: Connect to Ubuntu agent
+      shell: nohup bash -c "yes | ncat {{ hostvars['agent-ubuntu']['ansible_host'] }} {{ test_connection_port_after_start }}" &
       become: true

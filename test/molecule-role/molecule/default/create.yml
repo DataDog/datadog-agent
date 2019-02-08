@@ -7,6 +7,9 @@
     - common_vars.yml
   vars:
     ssh_port: 22
+    winrm_http_port: 5985
+    winrm_https_port: 5986
+    winrm_rdp_port: 3389
 
     security_group_name: molecule
     security_group_description: Security group for testing Molecule
@@ -14,6 +17,18 @@
       - proto: tcp
         from_port: "{{ ssh_port }}"
         to_port: "{{ ssh_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ winrm_http_port }}"
+        to_port: "{{ winrm_http_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ winrm_https_port }}"
+        to_port: "{{ winrm_https_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ winrm_rdp_port }}"
+        to_port: "{{ winrm_rdp_port }}"
         cidr_ip: '0.0.0.0/0'
       - proto: tcp
         from_port: 7077  # StackState Receiver port
@@ -91,6 +106,7 @@
         count_tag:
           instance: "{{ item.name }}"
           molecule_run_id: "{{ molecule_run_id }}"
+        user_data: "{{ lookup('file', item.user_data) }}"
       register: server
       with_items: "{{ molecule_yml.platforms }}"
       async: 7200

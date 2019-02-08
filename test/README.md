@@ -22,4 +22,4 @@ Now execute `./molecule.sh`, this will show you the help.
 To run a single ansible command use:
 
     $ source p-env/bin/activate
-    $ ansible agent1 -i /tmp/molecule/molecule-role/default/ansible_inventory.yml -m debug -a msg="{{ ansible_facts }}"
+    $ ansible agent-ubuntu -i /tmp/molecule/molecule-role/default/ansible_inventory.yml -m debug -a msg="{{ ansible_facts }}"

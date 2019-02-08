@@ -2,3 +2,4 @@
 agentmsg.rc
 *.bin
 install.sh
+install.ps1

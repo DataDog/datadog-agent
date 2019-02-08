@@ -8,22 +8,38 @@ lint:
   options:
     config-file: .yamllint
 platforms:
-  - name: agent1
+  - name: agent-ubuntu
     image: ami-0da760e590e7de0e8    # Ubuntu 18.04 (EBS-Backed x86_64)
     instance_type: t2.micro
     vpc_subnet_id: subnet-41c8f224  # eu-west-1a
     region: eu-west-1
     groups:
-      - agent_vm
+      - agent_linux_vm
     ssh_user: ubuntu
-  - name: agent2
+    user_data: files/agent/none.txt
+
+  - name: agent-fedora
     image: ami-420d213b             # Fedora-Cloud-Base-28-1.1.x86_64-hvm-eu-west-1-standard-0
     instance_type: t2.micro
     vpc_subnet_id: subnet-41c8f224  # eu-west-1a
     region: eu-west-1
     groups:
-      - agent_vm
+      - agent_linux_vm
     ssh_user: fedora
+    user_data: files/agent/none.txt
+
+  - name: agent-win
+    image: ami-0a5cbbecdba7dfe83    # amazon/Windows_Server-2016-English-Full-Base-2019.01.10 (EBS-Backed)
+    instance_type: t3.small
+    vpc_subnet_id: subnet-41c8f224  # eu-west-1a
+    region: eu-west-1
+    groups:
+      - agent_win_vm
+    ssh_user: test
+    test_user: test
+    test_user_pwd: Bionic!
+    user_data: files/agent/winrm_advanced.txt
+
   - name: receiver
     image: ami-0da760e590e7de0e8    # Ubuntu 18.04 (EBS-Backed x86_64)
     instance_type: t2.small
@@ -32,11 +48,27 @@ platforms:
     groups:
       - receiver_vm
     ssh_user: ubuntu
+    user_data: files/agent/none.txt
 provisioner:
   name: ansible
   playbooks:
     create: create.yml
+    prepare: prepare.yml
     destroy: destroy.yml
+  inventory:
+    host_vars:
+      agent-win:
+        ansible_user: test
+        ansible_password: Bionic!
+        ansible_port: 5986
+        ansible_connection: winrm
+    group_vars:
+      agent_win_vm:
+        ansible_become: false
+        ansible_winrm_scheme: https
+        ansible_winrm_server_cert_validation: ignore
+        ansible_port: 5986
+        ansible_connection: winrm
   lint:
     name: ansible-lint
 scenario:

@@ -14,6 +14,12 @@ trace_agent_version = ENV['TRACE_AGENT_VERSION']
 if trace_agent_version.nil? || trace_agent_version.empty?
   trace_agent_version = 'master'
 end
+
+trace_agent_branch = ENV['TRACE_AGENT_BRANCH']
+if trace_agent_branch.nil? || trace_agent_branch.empty?
+  trace_agent_branch = 'master'
+end
+
 default_version trace_agent_version
 
 source git: 'https://github.com/StackVista/stackstate-trace-agent.git'
@@ -60,7 +66,7 @@ build do
           command "make windows", :env => env
       else
           binary = "stackstate-trace-agent-#{trace_agent_version}.exe"
-          url = "https://s3-eu-west-1.amazonaws.com/stackstate-trace-agent-2-test/#{binary}"
+          url = "https://s3-eu-west-1.amazonaws.com/stackstate-trace-agent-2-test/#{trace_agent_branch}/#{binary}"
           mkdir "#{gopath.to_path}/bin"
           curl_cmd = "powershell -Command wget -OutFile #{gopath.to_path}/bin/#{trace_agent_binary} #{url}"
           command curl_cmd
