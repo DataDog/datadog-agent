@@ -133,3 +133,21 @@ int add_module_func(six_t *six, six_module_t module, six_module_func_t func_type
 
     return AS_TYPE(Six, six)->addModuleFunction(six_module, six_func_type, func_name, func);
 }
+
+six_gilstate_t ensure_gil(six_t *six) {
+    if (AS_TYPE(Six, six)->GILEnsure() == Six::GIL_LOCKED) {
+        return DATADOG_AGENT_SIX_GIL_LOCKED;
+    }
+    return DATADOG_AGENT_SIX_GIL_UNLOCKED;
+}
+
+void release_gil(six_t *six, six_gilstate_t state) {
+    Six::GILState gstate;
+    if (state == DATADOG_AGENT_SIX_GIL_LOCKED) {
+        gstate = Six::GIL_LOCKED;
+    } else {
+        gstate = Six::GIL_UNLOCKED;
+    }
+
+    AS_TYPE(Six, six)->GILRelease(gstate);
+}

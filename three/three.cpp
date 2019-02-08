@@ -87,3 +87,19 @@ int Three::addModuleFunction(ExtensionModule module, MethType t, const char *fun
 }
 
 int Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
+
+Six::GILState Three::GILEnsure() {
+    PyGILState_STATE state = PyGILState_Ensure();
+    if (state == PyGILState_LOCKED) {
+        return Six::GIL_LOCKED;
+    }
+    return Six::GIL_UNLOCKED;
+}
+
+void Three::GILRelease(Six::GILState state) {
+    if (state == Six::GIL_LOCKED) {
+        PyGILState_Release(PyGILState_LOCKED);
+    } else {
+        PyGILState_Release(PyGILState_UNLOCKED);
+    }
+}

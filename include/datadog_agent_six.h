@@ -29,6 +29,8 @@ typedef struct six_s six_t;
 struct six_pyobject_s;
 typedef struct six_pyobject_s six_pyobject_t;
 
+typedef enum six_gilstate_e { DATADOG_AGENT_SIX_GIL_LOCKED, DATADOG_AGENT_SIX_GIL_UNLOCKED } six_gilstate_t;
+
 typedef enum six_module_e { DATADOG_AGENT_SIX_DATADOG_AGENT } six_module_t;
 
 typedef enum six_module_func_e {
@@ -47,12 +49,15 @@ DATADOG_AGENT_SIX_API void destroy3(six_t *);
 DATADOG_AGENT_SIX_API void init(six_t *, char *);
 DATADOG_AGENT_SIX_API int add_module_func(six_t *, six_module_t module, six_module_func_t func_type, char *func_name,
                                           void *func);
+DATADOG_AGENT_SIX_API six_gilstate_t ensure_gil(six_t *);
+DATADOG_AGENT_SIX_API void release_gil(six_t *, six_gilstate_t);
 
 // C CONST API
 DATADOG_AGENT_SIX_API int is_initialized(six_t *);
 DATADOG_AGENT_SIX_API six_pyobject_t *get_none(const six_t *);
 DATADOG_AGENT_SIX_API const char *get_py_version(const six_t *);
 DATADOG_AGENT_SIX_API int run_simple_string(const six_t *, const char *path);
+DATADOG_AGENT_SIX_API six_pyobject_t *import_from(const six_t *, const char *module, const char *name);
 
 #ifdef __cplusplus
 }

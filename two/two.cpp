@@ -69,3 +69,19 @@ int Two::addModuleFunction(ExtensionModule module, MethType t, const char *funcN
     // success
     return 0;
 }
+
+Six::GILState Two::GILEnsure() {
+    PyGILState_STATE state = PyGILState_Ensure();
+    if (state == PyGILState_LOCKED) {
+        return Six::GIL_LOCKED;
+    }
+    return Six::GIL_UNLOCKED;
+}
+
+void Two::GILRelease(Six::GILState state) {
+    if (state == Six::GIL_LOCKED) {
+        PyGILState_Release(PyGILState_LOCKED);
+    } else {
+        PyGILState_Release(PyGILState_UNLOCKED);
+    }
+}

@@ -12,7 +12,7 @@ struct SixPyObject {};
 class Six {
 public:
     enum MethType { NOARGS = 0, ARGS, KEYWORDS };
-
+    enum GILState { GIL_LOCKED = 0, GIL_UNLOCKED };
     enum ExtensionModule { DATADOG_AGENT };
 
     Six()
@@ -25,6 +25,8 @@ public:
     virtual int addModuleFunction(ExtensionModule module, MethType t, const char *funcName, void *func) = 0;
     void setError(const std::string &msg);
     void clearError();
+    virtual GILState GILEnsure() = 0;
+    virtual void GILRelease(GILState) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;
