@@ -9,6 +9,14 @@
 extern "C" {
 #endif
 
+typedef enum six_gilstate_e { DATADOG_AGENT_SIX_GIL_LOCKED, DATADOG_AGENT_SIX_GIL_UNLOCKED } six_gilstate_t;
+
+typedef enum six_module_func_e {
+    DATADOG_AGENT_SIX_NOARGS,
+    DATADOG_AGENT_SIX_ARGS,
+    DATADOG_AGENT_SIX_KEYWORDS
+} six_module_func_t;
+
 typedef enum six_module_e {
     DATADOG_AGENT_SIX__UTIL = 0,
     DATADOG_AGENT_SIX_AGGREGATOR,

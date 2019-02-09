@@ -14,19 +14,16 @@ struct SixPyObject {};
 
 class Six {
 public:
-    enum MethType { NOARGS = 0, ARGS, KEYWORDS };
-    enum GILState { GIL_LOCKED = 0, GIL_UNLOCKED };
-
     Six() {};
     virtual ~Six() {};
 
     // Public API
     virtual void init(const char *pythonHome) = 0;
-    virtual int addModuleFunction(six_module_t module, MethType t, const char *funcName, void *func) = 0;
+    virtual int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) = 0;
     void setError(const std::string &msg);
     void clearError();
-    virtual GILState GILEnsure() = 0;
-    virtual void GILRelease(GILState) = 0;
+    virtual six_gilstate_t GILEnsure() = 0;
+    virtual void GILRelease(six_gilstate_t) = 0;
     virtual SixPyObject *importFrom(const char *module, const char *name) = 0;
 
     // Public Const API

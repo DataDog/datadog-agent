@@ -4,37 +4,36 @@
 // Copyright 2019 Datadog, Inc.
 #include "three.h"
 
-#include "builtins.h"
 #include "constants.h"
 
 // we only populate the fields `m_base` and `m_name`, we don't need any of the rest since we're doing Single-phase
 // initialization
 static struct PyModuleDef def__util
-    = { PyModuleDef_HEAD_INIT, builtins::module__util.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+    = { PyModuleDef_HEAD_INIT, datadog_agent_six__util, NULL, -1, NULL, NULL, NULL, NULL, NULL };
 PyMODINIT_FUNC PyInit__util(void) { return PyModule_Create(&def__util); }
 
 static struct PyModuleDef def_aggregator
-    = { PyModuleDef_HEAD_INIT, builtins::module_aggregator.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+    = { PyModuleDef_HEAD_INIT, datadog_agent_six_aggregator, NULL, -1, NULL, NULL, NULL, NULL, NULL };
 PyMODINIT_FUNC PyInit_aggregator(void) { return PyModule_Create(&def_aggregator); }
 
 static struct PyModuleDef def_containers
-    = { PyModuleDef_HEAD_INIT, builtins::module_containers.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+    = { PyModuleDef_HEAD_INIT, datadog_agent_six_containers, NULL, -1, NULL, NULL, NULL, NULL, NULL };
 PyMODINIT_FUNC PyInit_containers(void) { return PyModule_Create(&def_containers); }
 
 static struct PyModuleDef def_datadog_agent
-    = { PyModuleDef_HEAD_INIT, builtins::module_datadog_agent.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+    = { PyModuleDef_HEAD_INIT, datadog_agent_six_datadog_agent, NULL, -1, NULL, NULL, NULL, NULL, NULL };
 PyMODINIT_FUNC PyInit_datadog_agent(void) { return PyModule_Create(&def_datadog_agent); }
 
 static struct PyModuleDef def_kubeutil
-    = { PyModuleDef_HEAD_INIT, builtins::module_kubeutil.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+    = { PyModuleDef_HEAD_INIT, datadog_agent_six_kubeutil, NULL, -1, NULL, NULL, NULL, NULL, NULL };
 PyMODINIT_FUNC PyInit_kubeutil(void) { return PyModule_Create(&def_kubeutil); }
 
 static struct PyModuleDef def_tagger
-    = { PyModuleDef_HEAD_INIT, builtins::module_tagger.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+    = { PyModuleDef_HEAD_INIT, datadog_agent_six_tagger, NULL, -1, NULL, NULL, NULL, NULL, NULL };
 PyMODINIT_FUNC PyInit_tagger(void) { return PyModule_Create(&def_tagger); }
 
 static struct PyModuleDef def_util
-    = { PyModuleDef_HEAD_INIT, builtins::module_util.c_str(), NULL, -1, NULL, NULL, NULL, NULL, NULL };
+    = { PyModuleDef_HEAD_INIT, datadog_agent_six_util, NULL, -1, NULL, NULL, NULL, NULL, NULL };
 PyMODINIT_FUNC PyInit_util(void) { return PyModule_Create(&def_util); }
 
 Three::~Three() {
@@ -57,33 +56,32 @@ void Three::init(const char *pythonHome) {
     // init builtin modules one by one
 
     // _util
-    def__util.m_methods = &_modules[builtins::MODULE__UTIL][0];
-    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE__UTIL).c_str(), &PyInit__util);
+    def__util.m_methods = &_modules[DATADOG_AGENT_SIX__UTIL][0];
+    PyImport_AppendInittab(datadog_agent_six__util, &PyInit__util);
 
     // aggregator
-    def_aggregator.m_methods = &_modules[builtins::MODULE_AGGREGATOR][0];
-    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_AGGREGATOR).c_str(), &PyInit_aggregator);
+    def_aggregator.m_methods = &_modules[DATADOG_AGENT_SIX_AGGREGATOR][0];
+    PyImport_AppendInittab(datadog_agent_six_aggregator, &PyInit_aggregator);
 
     // containers
-    def_containers.m_methods = &_modules[builtins::MODULE_CONTAINERS][0];
-    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_CONTAINERS).c_str(), &PyInit_containers);
+    def_containers.m_methods = &_modules[DATADOG_AGENT_SIX_CONTAINERS][0];
+    PyImport_AppendInittab(datadog_agent_six_containers, &PyInit_containers);
 
     // datadog_agent
-    def_datadog_agent.m_methods = &_modules[builtins::MODULE_DATADOG_AGENT][0];
-    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_DATADOG_AGENT).c_str(),
-                           &PyInit_datadog_agent);
+    def_datadog_agent.m_methods = &_modules[DATADOG_AGENT_SIX_DATADOG_AGENT][0];
+    PyImport_AppendInittab(datadog_agent_six_datadog_agent, &PyInit_datadog_agent);
 
     // kubeutil
-    def_kubeutil.m_methods = &_modules[builtins::MODULE_KUBEUTIL][0];
-    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_KUBEUTIL).c_str(), &PyInit_kubeutil);
+    def_kubeutil.m_methods = &_modules[DATADOG_AGENT_SIX_KUBEUTIL][0];
+    PyImport_AppendInittab(datadog_agent_six_kubeutil, &PyInit_kubeutil);
 
     // tagger
-    def_tagger.m_methods = &_modules[builtins::MODULE_TAGGER][0];
-    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_TAGGER).c_str(), &PyInit_tagger);
+    def_tagger.m_methods = &_modules[DATADOG_AGENT_SIX_TAGGER][0];
+    PyImport_AppendInittab(datadog_agent_six_tagger, &PyInit_tagger);
 
     // util
-    def_util.m_methods = &_modules[builtins::MODULE_UTIL][0];
-    PyImport_AppendInittab(builtins::getExtensionModuleName(builtins::MODULE_UTIL).c_str(), &PyInit_util);
+    def_util.m_methods = &_modules[DATADOG_AGENT_SIX_UTIL][0];
+    PyImport_AppendInittab(datadog_agent_six_util, &PyInit_util);
 
     Py_SetPythonHome(_pythonHome);
     Py_Initialize();
@@ -93,21 +91,21 @@ bool Three::isInitialized() const { return Py_IsInitialized(); }
 
 const char *Three::getPyVersion() const { return Py_GetVersion(); }
 
-int Three::addModuleFunction(builtins::ExtensionModule module, MethType t, const char *funcName, void *func) {
-    if (builtins::getExtensionModuleName(module) == builtins::module_unknown) {
+int Three::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
+    if (getExtensionModuleName(module) == getUnknownModuleName()) {
         setError("Unknown ExtensionModule value");
         return -1;
     }
 
     int ml_flags;
     switch (t) {
-    case Six::NOARGS:
+    case DATADOG_AGENT_SIX_NOARGS:
         ml_flags = METH_NOARGS;
         break;
-    case Six::ARGS:
+    case DATADOG_AGENT_SIX_ARGS:
         ml_flags = METH_VARARGS;
         break;
-    case Six::KEYWORDS:
+    case DATADOG_AGENT_SIX_KEYWORDS:
         ml_flags = METH_VARARGS | METH_KEYWORDS;
         break;
     default:
@@ -132,18 +130,43 @@ int Three::addModuleFunction(builtins::ExtensionModule module, MethType t, const
 
 int Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
 
-Six::GILState Three::GILEnsure() {
+six_gilstate_t Three::GILEnsure() {
     PyGILState_STATE state = PyGILState_Ensure();
     if (state == PyGILState_LOCKED) {
-        return Six::GIL_LOCKED;
+        return DATADOG_AGENT_SIX_GIL_LOCKED;
     }
-    return Six::GIL_UNLOCKED;
+    return DATADOG_AGENT_SIX_GIL_UNLOCKED;
 }
 
-void Three::GILRelease(Six::GILState state) {
-    if (state == Six::GIL_LOCKED) {
+void Three::GILRelease(six_gilstate_t state) {
+    if (state == DATADOG_AGENT_SIX_GIL_LOCKED) {
         PyGILState_Release(PyGILState_LOCKED);
     } else {
         PyGILState_Release(PyGILState_UNLOCKED);
     }
+}
+
+// return new reference
+SixPyObject *Three::importFrom(const char *module, const char *name) {
+    PyObject *obj_module, *obj_symbol;
+
+    obj_module = PyImport_ImportModule(module);
+    if (obj_module == NULL) {
+        PyErr_Print();
+        setError("Unable to import module");
+        goto error;
+    }
+
+    obj_symbol = PyObject_GetAttrString(obj_module, name);
+    if (obj_symbol == NULL) {
+        setError("Unable to load symbol");
+        goto error;
+    }
+
+    return reinterpret_cast<SixPyObject *>(obj_symbol);
+
+error:
+    Py_XDECREF(obj_module);
+    Py_XDECREF(obj_symbol);
+    return NULL;
 }
