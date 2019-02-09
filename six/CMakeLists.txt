@@ -5,7 +5,6 @@ include(GNUInstallDirs)
 add_library(datadog-agent-six SHARED
     api.cpp
     six.cpp
-    builtins.cpp
 )
 set_target_properties(datadog-agent-six PROPERTIES
     VERSION ${PROJECT_VERSION}
