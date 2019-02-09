@@ -177,6 +177,8 @@ suites:
       <% if ENV['WINDOWS_AGENT_FILE'] %>
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
+    dd-agent-rspec:
+        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
 
 # Installs the latest release Agent 6, then updates it to the latest release
@@ -231,6 +233,8 @@ suites:
     dd-agent-upgrade-rspec:
       # Used by the rspec test to know the version to which the agent should be upgraded
       agent_expected_version: &agent_expected_version <%= ENV['DD_AGENT_EXPECTED_VERSION'] || "5.99.0" %>
+    dd-agent-rspec:
+        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
 
 # Installs the latest release Agent 5, then updates it to the latest release
@@ -275,6 +279,8 @@ suites:
     dd-agent-upgrade-rspec:
       # Used by the rspec test to know the version to which the agent should be upgraded
       agent_expected_version: &agent_expected_version <%= ENV['DD_AGENT_EXPECTED_VERSION'] || "5.99.0" %>
+    dd-agent-rspec:
+        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
 
 # Installs the latest release candidate using the install script
@@ -293,6 +299,8 @@ suites:
       api_key: <%= api_key %>
       candidate_repo_branch: pipeline-<%= ENV['CI_PIPELINE_ID'] %>
       install_candidate: true
+    dd-agent-rspec:
+        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
 # Installs the latest release candidate using the step-by-step instructions (on dogweb)
 - name: dd-agent-step-by-step
@@ -315,3 +323,5 @@ suites:
       repo_branch_yum: pipeline-<%= ENV['CI_PIPELINE_ID'] %>
       candidate_repo_branch: pipeline-<%= ENV['CI_PIPELINE_ID'] %>
       install_candidate: true
+    dd-agent-rspec:
+        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

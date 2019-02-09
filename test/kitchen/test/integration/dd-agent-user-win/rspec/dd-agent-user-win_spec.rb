@@ -18,7 +18,8 @@ def get_user_sid(uname)
 end 
 
 def get_sddl_for_object(name) 
-  outp = `powershell -command "get-acl -Path \"#{name}\" | format-list -Property sddl"`.gsub("\n", "").gsub(" ", "")
+  cmd = "powershell -command \"get-acl -Path \\\"#{name}\\\" | format-list -Property sddl\""
+  outp = `#{cmd}`.gsub("\n", "").gsub(" ", "")
   sddl = outp.gsub("/\s+/", "").split(":").drop(1).join(":").strip
   sddl
 end
@@ -59,6 +60,41 @@ def equal_sddl?(left, right)
   end
   return false if right_dacl.length != 0
   return true
+end
+def get_security_settings
+  fname = "secout.txt"
+  system "secedit /export /cfg  #{fname} /areas USER_RIGHTS"
+  data = Hash.new
+  
+  utext = File.open(fname).read
+  text = utext.unpack("v*").pack("U*") 
+  text.each_line do |line|
+    next unless line.include? "="
+    kv = line.strip.split("=")
+    data[kv[0].strip] = kv[1].strip
+  end
+  #File::delete(fname)
+  data
+end
+
+def check_has_security_right(data, k, name)
+  right = data[k]
+  unless right
+    return false
+  end
+  rights = right.split(",")
+  rights.each do |r|
+    return true if r == name
+  end
+  false
+end
+
+def check_is_user_in_group(user, group)
+  members = `net localgroup "#{group}"`
+  members.split(/\n+/).each do |line|
+    return true if line.strip == user
+  end
+  false
 end
 
 def get_username_from_tasklist(exename)
@@ -123,18 +159,35 @@ A;ID;FA;;;#{dd_user_id} grants the ddagentuser FileAllAccess, this ACE is inheri
 shared_examples_for 'an Agent with valid permissions' do
   dd_user_sid = get_user_sid('ddagentuser')
   #datadog_yaml_sddl = get_sddl_for_object("c:\\programdata\\datadog\\datadog.yaml")
+  it 'has proper permissions on programdata\datadog' do
+    # should have a sddl like so 
+    # O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;<sid>)
+
+    # on server 2016, it doesn't have the assigned system right, only the inherited.
+    # allow either
+    #expected_sddl = "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    expected_sddl = "O:SYG:SYD:AI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)(A;OICIIOID;GA;;;CO)(A;OICIID;0x1200a9;;;BU)(A;CIID;DCLCRPCR;;;BU)"
+    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog")
+    equal_base = equal_sddl?(expected_sddl, actual_sddl)
+    equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
+    expect(equal_base | equal_2016).to be_truthy
+  end
   it 'has proper permissions on datadog.yaml' do
     # should have a sddl like so 
     # O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;<sid>)
 
     # on server 2016, it doesn't have the assigned system right, only the inherited.
     # allow either
-    expected_sddl = "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    #expected_sddl = "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    expected_sddl      = "O:SYG:SYD:AI(A;;FA;;;#{dd_user_sid})(A;ID;FA;;;#{dd_user_sid})(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;0x1200a9;;;BU)"
+    expected_sddl_2008 = "O:SYG:SYD:AI(A;;FA;;;SY)(A;;FA;;;#{dd_user_sid})(A;ID;FA;;;#{dd_user_sid})(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;0x1200a9;;;BU)"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\datadog.yaml")
     equal_base = equal_sddl?(expected_sddl, actual_sddl)
+    equal_2008 = equal_sddl?(expected_sddl_2008, actual_sddl)
     equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
-    expect(equal_base | equal_2016).to be_truthy
+    expect(equal_base | equal_2008 | equal_2016).to be_truthy
   end
   it 'has proper permissions on the conf.d directory' do
     # A,OICI;FA;;;SY = Allows Object Inheritance (OI) container inherit (CI); File All Access to LocalSystem
@@ -142,12 +195,55 @@ shared_examples_for 'an Agent with valid permissions' do
     # A,OICIID;FA;;;BA = Allow OI, CI, ID, File All Access (FA) to Builtin Administrators
     # A,OICIID;FA;;;SY = Inherited right of OI, CI, (FA) to LocalSystem
     # A,OICIID;FA;;;dd_user_sid = explicit right assignment of OI, CI, FA to the dd-agent user, inherited from the parent
-    expected_sddl = "O:SYG:SYD:(A;OICI;FA;;;SY)(A;OICIID;WD;;;BU)(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)(A;OICIID;FA;;;#{dd_user_sid})"
-    actual_siddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\conf.d")
+
+    expected_sddl =      "O:SYG:SYD:AI(A;OICI;FA;;;#{dd_user_sid})(A;OICIID;FA;;;#{dd_user_sid})(A;OICIID;WD;;;BU)(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)(A;OICIIOID;GA;;;CO)(A;OICIID;0x1200a9;;;BU)(A;CIID;DCLCRPCR;;;BU)"
+    expected_sddl_2008 = "O:SYG:SYD:AI(A;OICI;FA;;;SY)(A;OICI;FA;;;#{dd_user_sid})(A;OICIID;FA;;;#{dd_user_sid})(A;OICIID;WD;;;BU)(A;OICIID;FA;;;BA)(A;OICIID;FA;;;SY)(A;OICIIOID;GA;;;CO)(A;OICIID;0x1200a9;;;BU)(A;CIID;DCLCRPCR;;;BU)"
+    actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\conf.d")
+
+    sddl_result = equal_sddl?(expected_sddl, actual_sddl)
+    equal_2008 = equal_sddl?(expected_sddl_2008, actual_sddl)
+    expect(sddl_result | equal_2008).to be_truthy
   end
+
+  it 'has the proper permissions on the DataDog registry key' do
+    # A;;KA;;;SY  = Allows KA (KeyAllAccess) to local system
+    # A;;KA;;;BA  = Allows KA (KeyAllAccess) to BA builtin administrators
+    # A;;KA;; <dd_user_sid> allows KEY_ALL_ACCESS to the dd agent user
+    # A;OICIIO; Object Inherit AC, container inherit ace, Inherit only ace
+    #  CCDCLCSWRPWPSDRCWDWOGA CC = SDDL Create Child
+    #                         DC = SDDL Delete Child
+    #                         LC = Listchildrent
+    #                         SW = self write
+    #                         RP = read property
+    #                         WP = write property
+    #                         SD = standard delete
+    #                         RC = read control
+    #                         WD = WRITE DAC
+    #                         WO = Write owner
+    #                         GA = Generic All
+    #    for dd-agent-user
+    # A;CIID;KR;;;BU  = Allow Container Inherit/inherited ace KeyRead to BU (builtin users)
+    # A;CIID;KA;;;BA  =                                       KeyAllAccess  (builtin admins)
+    # A;CIID;KA;;;SY  =                                       Keyallaccess  (local system)
+    # A;CIIOID;KA;;;CO= container inherit, inherit only, inherited ace, keyallAccess, to creator/owner
+    # A;CIID;KR;;;AC = allow container inherit/inherited ace  Key Read to AC ()
+    expected_sddl =           "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)"
+    expected_sddl_2008 =      "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;ID;KR;;;BU)(A;CIIOID;GR;;;BU)(A;ID;KA;;;BA)(A;CIIOID;GA;;;BA)(A;ID;KA;;;SY)(A;CIIOID;GA;;;SY)(A;CIIOID;GA;;;CO)"
+    expected_sddl_with_edge = "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)(A;CIID;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)"
+    
+    ## sigh.  M$ added a mystery sid some time back, that Edge/IE use for sandboxing,
+    ## and it's an inherited ace.  Allow that one, too
+
+    actual_sddl = get_sddl_for_object("HKLM:Software\\Datadog\\Datadog Agent")
+
+    sddl_result = equal_sddl?(expected_sddl, actual_sddl)
+    equal_2008 = equal_sddl?(expected_sddl_2008, actual_sddl)
+    edge_result = equal_sddl?(expected_sddl_with_edge, actual_sddl)
+    expect(sddl_result | equal_2008 | edge_result).to be_truthy
+  end
+
   it 'has agent.exe running as ddagentuser' do
     uname = get_username_from_tasklist("agent.exe")
-    puts "uftl #{uname}"
     expect(get_username_from_tasklist("agent.exe")).to eq("ddagentuser")
   end
   it 'has trace agent running as ddagentuser' do
@@ -156,7 +252,15 @@ shared_examples_for 'an Agent with valid permissions' do
   it 'has process agent running as local_system' do
     expect(get_username_from_tasklist("process-agent.exe")).to eq("SYSTEM")
   end
-
+  secdata = get_security_settings
+  it 'has proper security rights assigned' do
+    expect(check_has_security_right(secdata, "SeDenyInteractiveLogonRight", "ddagentuser")).to be_truthy
+    expect(check_has_security_right(secdata, "SeDenyNetworkLogonRight", "ddagentuser")).to be_truthy
+    expect(check_has_security_right(secdata, "SeDenyRemoteInteractiveLogonRight", "ddagentuser")).to be_truthy
+  end
+  it 'is in proper groups' do
+    expect(check_is_user_in_group("ddagentuser", "Performance Monitor Users")).to be_truthy
+  end
 end
 describe 'dd-agent-user-win' do
 #  it_behaves_like 'an installed Agent'

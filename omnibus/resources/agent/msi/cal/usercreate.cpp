@@ -293,6 +293,7 @@ bool isDomainController(MSIHANDLE hInstall)
 int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
 {
     LPUSER_INFO_0 pBuf = NULL;
+
     NET_API_STATUS st = NetUserGetInfo(data.getDomainPtr(), data.getUserPtr(), 0, (LPBYTE*)&pBuf);
     switch(st){
         case NERR_Success:
