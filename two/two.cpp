@@ -18,7 +18,7 @@ void Two::init(const char *pythonHome) {
 
     PyModules::iterator it;
     for (it = _modules.begin(); it != _modules.end(); ++it) {
-        Py_InitModule(builtins::getExtensionModuleName(it->first).c_str(), &_modules[it->first][0]);
+        Py_InitModule(getExtensionModuleName(it->first), &_modules[it->first][0]);
     }
 
     // In recent versions of Python3 this is called from Py_Initialize already,
@@ -32,21 +32,21 @@ const char *Two::getPyVersion() const { return Py_GetVersion(); }
 
 int Two::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
 
-int Two::addModuleFunction(builtins::ExtensionModule module, MethType t, const char *funcName, void *func) {
-    if (builtins::getExtensionModuleName(module) == builtins::module_unknown) {
+int Two::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
+    if (getExtensionModuleName(module) == getUnknownModuleName()) {
         setError("Unknown ExtensionModule value");
         return -1;
     }
 
     int ml_flags;
     switch (t) {
-    case Six::NOARGS:
+    case DATADOG_AGENT_SIX_NOARGS:
         ml_flags = METH_NOARGS;
         break;
-    case Six::ARGS:
+    case DATADOG_AGENT_SIX_ARGS:
         ml_flags = METH_VARARGS;
         break;
-    case Six::KEYWORDS:
+    case DATADOG_AGENT_SIX_KEYWORDS:
         ml_flags = METH_VARARGS | METH_KEYWORDS;
         break;
     default:
@@ -70,16 +70,16 @@ int Two::addModuleFunction(builtins::ExtensionModule module, MethType t, const c
     return 0;
 }
 
-Six::GILState Two::GILEnsure() {
+six_gilstate_t Two::GILEnsure() {
     PyGILState_STATE state = PyGILState_Ensure();
     if (state == PyGILState_LOCKED) {
-        return Six::GIL_LOCKED;
+        return DATADOG_AGENT_SIX_GIL_LOCKED;
     }
-    return Six::GIL_UNLOCKED;
+    return DATADOG_AGENT_SIX_GIL_UNLOCKED;
 }
 
-void Two::GILRelease(Six::GILState state) {
-    if (state == Six::GIL_LOCKED) {
+void Two::GILRelease(six_gilstate_t state) {
+    if (state == DATADOG_AGENT_SIX_GIL_LOCKED) {
         PyGILState_Release(PyGILState_LOCKED);
     } else {
         PyGILState_Release(PyGILState_UNLOCKED);

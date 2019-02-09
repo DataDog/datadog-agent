@@ -19,9 +19,10 @@ public:
     ~Two();
 
     void init(const char *pythonHome);
-    int addModuleFunction(builtins::ExtensionModule module, MethType t, const char *funcName, void *func);
-    GILState GILEnsure();
-    void GILRelease(GILState);
+    int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
+    six_gilstate_t GILEnsure();
+    void GILRelease(six_gilstate_t);
+    SixPyObject *importFrom(const char *module, const char *name) { return NULL; }
 
     // const API
     bool isInitialized() const;
@@ -31,7 +32,7 @@ public:
 
 private:
     typedef std::vector<PyMethodDef> PyMethods;
-    typedef std::map<builtins::ExtensionModule, PyMethods> PyModules;
+    typedef std::map<six_module_t, PyMethods> PyModules;
 
     PyModules _modules;
 };

@@ -30,14 +30,6 @@ typedef struct six_s six_t;
 struct six_pyobject_s;
 typedef struct six_pyobject_s six_pyobject_t;
 
-typedef enum six_gilstate_e { DATADOG_AGENT_SIX_GIL_LOCKED, DATADOG_AGENT_SIX_GIL_UNLOCKED } six_gilstate_t;
-
-typedef enum six_module_func_e {
-    DATADOG_AGENT_SIX_NOARGS,
-    DATADOG_AGENT_SIX_ARGS,
-    DATADOG_AGENT_SIX_KEYWORDS
-} six_module_func_t;
-
 // FACTORIES
 DATADOG_AGENT_SIX_API six_t *make2();
 DATADOG_AGENT_SIX_API void destroy2(six_t *);

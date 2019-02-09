@@ -16,6 +16,11 @@ static six_pyobject_t *print_foo() {
     return get_none(six);
 }
 
+static six_pyobject_t *get_config(six_pyobject_t *self, six_pyobject_t *args) {
+    // stub method providing `get_config`
+    return get_none(six);
+}
+
 char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
     fseek(f, 0, SEEK_END);
@@ -71,6 +76,7 @@ int main(int argc, char *argv[]) {
 
     // add a new `print_foo` to the custom builtin module `datadog_agent`
     add_module_func(six, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
+    add_module_func(six, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_ARGS, "get_config", get_config);
 
     init(six, python_home);
     printf("Embedding Python version %s\n", get_py_version(six));
@@ -81,10 +87,10 @@ int main(int argc, char *argv[]) {
     run_simple_string(six, code);
 
     // import a module
-    // six_pyobject_t *klass = import_from(six, "datadog_checks.base.checks", "AgentCheck");
-    // if (klass == NULL) {
-    //     printf("Error: %s\n", get_error(six));
-    // }
+    six_pyobject_t *klass = import_from(six, "datadog_checks.base.checks", "AgentCheck");
+    if (klass == NULL) {
+        printf("Error: %s\n", get_error(six));
+    }
 
     return 0;
 }
