@@ -40,7 +40,7 @@ DATADOG_AGENT_SIX_API void destroy3(six_t *);
 DATADOG_AGENT_SIX_API void init(six_t *, char *);
 DATADOG_AGENT_SIX_API int add_module_func(six_t *, six_module_t module, six_module_func_t func_type, char *func_name,
                                           void *func);
-DATADOG_AGENT_SIX_API int add_module_int_const(six_t *, six_module_t module, long value);
+DATADOG_AGENT_SIX_API int add_module_int_const(six_t *, six_module_t module, char *name, long value);
 DATADOG_AGENT_SIX_API six_gilstate_t ensure_gil(six_t *);
 DATADOG_AGENT_SIX_API void release_gil(six_t *, six_gilstate_t);
 DATADOG_AGENT_SIX_API six_pyobject_t *import_from(six_t *, const char *module, const char *name);

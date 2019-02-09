@@ -108,9 +108,8 @@ int add_module_func(six_t *six, six_module_t module, six_module_func_t func_type
     return AS_TYPE(Six, six)->addModuleFunction(module, func_type, func_name, func);
 }
 
-int add_module_int_const(six_t *, six_module_t module, long value) {
-    // TODO
-    return 0;
+int add_module_int_const(six_t *six, six_module_t module, const char *name, long value) {
+    return AS_TYPE(Six, six)->addModuleIntConst(module, name, value);
 }
 
 six_gilstate_t ensure_gil(six_t *six) { return AS_TYPE(Six, six)->GILEnsure(); }

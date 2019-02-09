@@ -18,7 +18,14 @@ void Two::init(const char *pythonHome) {
 
     PyModules::iterator it;
     for (it = _modules.begin(); it != _modules.end(); ++it) {
-        Py_InitModule(getExtensionModuleName(it->first), &_modules[it->first][0]);
+        six_module_t module = it->first;
+        PyObject *m = Py_InitModule(getExtensionModuleName(module), &_modules[module][0]);
+        if (_module_constants.find(module) == _module_constants.end()) {
+            std::vector<PyModuleConst>::iterator cit;
+            for (cit = _module_constants[module].begin(); cit != _module_constants[module].begin(); ++cit) {
+                PyModule_AddIntConstant(m, cit->first.c_str(), cit->second);
+            }
+        }
     }
 
     // In recent versions of Python3 this is called from Py_Initialize already,
@@ -70,6 +77,15 @@ int Two::addModuleFunction(six_module_t module, six_module_func_t t, const char 
     return 0;
 }
 
+int Two::addModuleIntConst(six_module_t module, const char *name, long value) {
+    if (_module_constants.find(module) == _module_constants.end()) {
+        _module_constants[module] = std::vector<PyModuleConst>();
+    }
+
+    _module_constants[module].push_back(std::make_pair(std::string(name), value));
+    return 1; // ok
+}
+
 six_gilstate_t Two::GILEnsure() {
     PyGILState_STATE state = PyGILState_Ensure();
     if (state == PyGILState_LOCKED) {
@@ -84,4 +100,29 @@ void Two::GILRelease(six_gilstate_t state) {
     } else {
         PyGILState_Release(PyGILState_UNLOCKED);
     }
+}
+
+// return new reference
+SixPyObject *Two::importFrom(const char *module, const char *name) {
+    PyObject *obj_module, *obj_symbol;
+
+    obj_module = PyImport_ImportModule(module);
+    if (obj_module == NULL) {
+        PyErr_Print();
+        setError("Unable to import module");
+        goto error;
+    }
+
+    obj_symbol = PyObject_GetAttrString(obj_module, name);
+    if (obj_symbol == NULL) {
+        setError("Unable to load symbol");
+        goto error;
+    }
+
+    return reinterpret_cast<SixPyObject *>(obj_symbol);
+
+error:
+    Py_XDECREF(obj_module);
+    Py_XDECREF(obj_symbol);
+    return NULL;
 }
