@@ -7,7 +7,7 @@
 #include <mutex>
 #include <string>
 
-#include "builtins.h"
+#include "types.h"
 
 // Opaque type to wrap PyObject
 struct SixPyObject {};
@@ -22,11 +22,12 @@ public:
 
     // Public API
     virtual void init(const char *pythonHome) = 0;
-    virtual int addModuleFunction(builtins::ExtensionModule module, MethType t, const char *funcName, void *func) = 0;
+    virtual int addModuleFunction(six_module_t module, MethType t, const char *funcName, void *func) = 0;
     void setError(const std::string &msg);
     void clearError();
     virtual GILState GILEnsure() = 0;
     virtual void GILRelease(GILState) = 0;
+    virtual SixPyObject *importFrom(const char *module, const char *name) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;
@@ -35,6 +36,10 @@ public:
     virtual SixPyObject *getNone() const = 0;
     std::string getError() const;
     bool hasError() const;
+
+protected:
+    const char *getExtensionModuleName(six_module_t m);
+    const char *getUnknownModuleName();
 
 private:
     std::string _error;
