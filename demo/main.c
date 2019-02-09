@@ -2,21 +2,18 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <datadog_agent_six.h>
 
-static six_t *six2, *six3;
+static six_t *six;
 
 static six_pyobject_t *print_foo() {
-    printf("I'm extending Python2!\n\n");
-    return get_none(six2);
-}
-
-static six_pyobject_t *print_foo3() {
-    printf("I'm extending Python3!\n\n");
-    return get_none(six2);
+    printf("I'm extending Python!\n\n");
+    return get_none(six);
 }
 
 char *read_file(const char *path) {
@@ -38,42 +35,56 @@ char *read_file(const char *path) {
 }
 
 int main(int argc, char *argv[]) {
-    /************
-     * Python 2 *
-     ************/
-    six2 = make2();
-    if (!six2) {
+    if (argc < 2) {
+        printf("Please run: demo <2|3> [path_to_python_home]. For example:\n\n");
+        printf("demo 3 $VIRTUAL_ENV\n");
         return 1;
     }
 
+    // Python home
+    char *python_home = NULL;
+    if (argc == 3) {
+        python_home = argv[2];
+    }
+
+    // Embed Python2
+    if (strncmp(argv[1], "2", strlen(argv[1])) == 0) {
+        six = make2();
+        if (!six) {
+            printf("Unable to init Python2\n");
+            return 1;
+        }
+    }
+    // Embed Python3
+    else if (strncmp(argv[1], "3", strlen(argv[1])) == 0) {
+        six = make3();
+        if (!six) {
+            printf("Unable to init Python3\n");
+            return 1;
+        }
+    }
+    // Error
+    else {
+        printf("Unrecognized version: %s, %d\n", argv[1], strncmp(argv[1], "2", strlen(argv[1])));
+        return 2;
+    }
+
     // add a new `print_foo` to the custom builtin module `datadog_agent`
-    add_module_func(six2, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
-    init(six2, NULL);
-    printf("Embedding Python version %s\n", get_py_version(six2));
+    add_module_func(six, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
+
+    init(six, python_home);
+    printf("Embedding Python version %s\n", get_py_version(six));
     printf("\n");
 
+    // run a script from file
     char *code = read_file("./demo/main.py");
-    run_simple_string(six2, code);
+    run_simple_string(six, code);
 
-    /************
-     * Python 3 *
-     ************/
-    six3 = make3();
-    if (!six3) {
-        return 1;
-    }
+    // import a module
+    // six_pyobject_t *klass = import_from(six, "datadog_checks.base.checks", "AgentCheck");
+    // if (klass == NULL) {
+    //     printf("Error: %s\n", get_error(six));
+    // }
 
-    // add a new `print_foo` to the custom builtin module `datadog_agent`
-    add_module_func(six3, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo3);
-
-    init(six3, NULL);
-    printf("Embedding Python version %s\n", get_py_version(six3));
-    printf("\n");
-
-    run_simple_string(six3, code);
-
-    destroy2(six2);
-    destroy3(six3);
-    free(code);
-    printf("All cleaned up\n");
+    return 0;
 }

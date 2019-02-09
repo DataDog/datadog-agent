@@ -4,5 +4,5 @@
 # Copyright 2019 Datadog, Inc.
 from datadog_agent import print_foo
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print_foo()
