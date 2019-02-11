@@ -14,7 +14,8 @@ struct SixPyObject {};
 
 class Six {
 public:
-    Six() {};
+    Six()
+        : _error_mtx() {};
     virtual ~Six() {};
 
     // Public API

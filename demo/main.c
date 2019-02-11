@@ -86,10 +86,19 @@ int main(int argc, char *argv[]) {
     char *code = read_file("./demo/main.py");
     run_simple_string(six, code);
 
-    // import a module
-    six_pyobject_t *klass = import_from(six, "datadog_checks.base.checks", "AgentCheck");
+    // from sys import path
+    // six_pyobject_t *klass = import_from(six, "datadog_checks.base.checks", "AgentCheck");
+    six_pyobject_t *klass = import_from(six, "sys", "path");
     if (klass == NULL) {
         printf("Error: %s\n", get_error(six));
+    }
+
+    // load the NTP check if available
+    six_pyobject_t *check = load_check(six, "datadog_checks.ntp");
+    if (check == NULL) {
+        printf("Unable to load the 'ntp' check, is it installed in the Python env?\n");
+    } else {
+        printf("Successfully imported NTP integration.\n");
     }
 
     return 0;
