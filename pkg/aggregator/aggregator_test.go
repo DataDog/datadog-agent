@@ -57,14 +57,14 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	resetAggregator()
 	agg := InitAggregator(nil, "resolved-hostname", "agent")
 
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(&metrics.ServiceCheck{
 		// leave Host and Ts fields blank
 		CheckName: "my_service.can_connect",
 		Status:    metrics.ServiceCheckOK,
 		Tags:      []string{"bar", "foo", "bar"},
 		Message:   "message",
 	})
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(&metrics.ServiceCheck{
 		CheckName: "my_service.can_connect",
 		Status:    metrics.ServiceCheckOK,
 		Host:      "my-hostname",
@@ -86,12 +86,12 @@ func TestAddEventDefaultValues(t *testing.T) {
 	resetAggregator()
 	agg := InitAggregator(nil, "resolved-hostname", "agent")
 
-	agg.addEvent(metrics.Event{
+	agg.addEvent(&metrics.Event{
 		// only populate required fields
 		Title: "An event occurred",
 		Text:  "Event description",
 	})
-	agg.addEvent(metrics.Event{
+	agg.addEvent(&metrics.Event{
 		// populate all fields
 		Title:          "Another event occurred",
 		Text:           "Other event description",

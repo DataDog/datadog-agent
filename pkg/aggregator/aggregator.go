@@ -153,8 +153,8 @@ type BufferedAggregator struct {
 	bufferedEventIn        chan []*metrics.Event
 
 	metricIn       chan *metrics.MetricSample
-	eventIn        chan metrics.Event
-	serviceCheckIn chan metrics.ServiceCheck
+	eventIn        chan *metrics.Event
+	serviceCheckIn chan *metrics.ServiceCheck
 
 	checkMetricIn chan senderMetricSample
 
@@ -182,8 +182,8 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname, agentName string,
 		bufferedEventIn:        make(chan []*metrics.Event, 100),        // TODO make buffer size configurable
 
 		metricIn:       make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
-		serviceCheckIn: make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
-		eventIn:        make(chan metrics.Event, 100),         // TODO make buffer size configurable
+		serviceCheckIn: make(chan *metrics.ServiceCheck, 100), // TODO make buffer size configurable
+		eventIn:        make(chan *metrics.Event, 100),        // TODO make buffer size configurable
 
 		checkMetricIn: make(chan senderMetricSample, 100), // TODO make buffer size configurable
 
@@ -226,7 +226,7 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 }
 
 // GetChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
-func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan metrics.Event, chan metrics.ServiceCheck) {
+func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan *metrics.Event, chan *metrics.ServiceCheck) {
 	return agg.metricIn, agg.eventIn, agg.serviceCheckIn
 }
 
@@ -250,7 +250,7 @@ func (agg *BufferedAggregator) AddAgentStartupEvent(agentVersion string) {
 		Host:           agg.hostname,
 		EventType:      "Agent Startup",
 	}
-	agg.eventIn <- event
+	agg.eventIn <- &event
 }
 
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
@@ -286,23 +286,23 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
-func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
+func (agg *BufferedAggregator) addServiceCheck(sc *metrics.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
 	sc.Tags = deduplicateTags(sc.Tags)
 
-	agg.serviceChecks = append(agg.serviceChecks, &sc)
+	agg.serviceChecks = append(agg.serviceChecks, sc)
 }
 
 // addEvent adds the event to the slice of current events
-func (agg *BufferedAggregator) addEvent(e metrics.Event) {
+func (agg *BufferedAggregator) addEvent(e *metrics.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
 	e.Tags = deduplicateTags(e.Tags)
 
-	agg.events = append(agg.events, &e)
+	agg.events = append(agg.events, e)
 }
 
 // addSample adds the metric sample to either the sampler or distSampler
@@ -388,7 +388,7 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 func (agg *BufferedAggregator) flushServiceChecks() {
 	// Add a simple service check for the Agent status
 	start := time.Now()
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(&metrics.ServiceCheck{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
 		Host:      agg.hostname,
@@ -529,12 +529,12 @@ func (agg *BufferedAggregator) run() {
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			for _, serviceCheck := range serviceChecks {
-				agg.addServiceCheck(*serviceCheck)
+				agg.addServiceCheck(serviceCheck)
 			}
 		case events := <-agg.bufferedEventIn:
 			aggregatorEvent.Add(int64(len(events)))
 			for _, event := range events {
-				agg.addEvent(*event)
+				agg.addEvent(event)
 			}
 
 		case h := <-agg.hostnameUpdate:

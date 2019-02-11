@@ -60,8 +60,8 @@ type checkSender struct {
 	metricStats             metricStats
 	priormetricStats        metricStats
 	smsOut                  chan<- senderMetricSample
-	serviceCheckOut         chan<- metrics.ServiceCheck
-	eventOut                chan<- metrics.Event
+	serviceCheckOut         chan<- *metrics.ServiceCheck
+	eventOut                chan<- *metrics.Event
 	checkTags               []string
 }
 
@@ -82,7 +82,7 @@ func init() {
 	}
 }
 
-func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event) *checkSender {
+func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- *metrics.ServiceCheck, eventOut chan<- *metrics.Event) *checkSender {
 	return &checkSender{
 		id:               id,
 		defaultHostname:  defaultHostname,
@@ -266,13 +266,13 @@ func (s *checkSender) Historate(metric string, value float64, hostname string, t
 // SendRawServiceCheck sends the raw service check
 // Useful for testing - submitting precomputed service check.
 func (s *checkSender) SendRawServiceCheck(sc *metrics.ServiceCheck) {
-	s.serviceCheckOut <- *sc
+	s.serviceCheckOut <- sc
 }
 
 // ServiceCheck submits a service check
 func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
-	serviceCheck := metrics.ServiceCheck{
+	serviceCheck := &metrics.ServiceCheck{
 		CheckName: checkName,
 		Status:    status,
 		Host:      hostname,
@@ -302,7 +302,7 @@ func (s *checkSender) Event(e metrics.Event) {
 		e.Host = s.defaultHostname
 	}
 
-	s.eventOut <- e
+	s.eventOut <- &e
 
 	s.metricStats.Lock.Lock()
 	s.metricStats.Events++
