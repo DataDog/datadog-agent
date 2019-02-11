@@ -15,15 +15,15 @@ import (
 )
 
 func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
-	rule := config.ProcessingRule{
-		Type:                    ruleType,
-		Name:                    "test",
-		ReplacePlaceholder:      replacePlaceholder,
-		ReplacePlaceholderBytes: []byte(replacePlaceholder),
-		Pattern:                 pattern,
-		Reg:                     regexp.MustCompile(pattern),
+	rule := &config.ProcessingRule{
+		Type:               ruleType,
+		Name:               "test",
+		ReplacePlaceholder: replacePlaceholder,
+		Placeholder:        []byte(replacePlaceholder),
+		Pattern:            pattern,
+		Regex:              regexp.MustCompile(pattern),
 	}
-	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.ProcessingRule{rule}}}
+	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: config.ProcessingRules{Rules: []*config.ProcessingRule{rule}}}}
 }
 
 func newMessage(content []byte, source *config.LogSource, status string) *message.Message {
@@ -82,20 +82,20 @@ func TestExclusionWithInclusion(t *testing.T) {
 	var redactedMessage []byte
 
 	ePattern := "^bob"
-	eRule := config.ProcessingRule{
+	eRule := &config.ProcessingRule{
 		Type:    "exclude_at_match",
 		Name:    "exclude_bob",
 		Pattern: ePattern,
-		Reg:     regexp.MustCompile(ePattern),
+		Regex:   regexp.MustCompile(ePattern),
 	}
 	iPattern := ".*@datadoghq.com$"
-	iRule := config.ProcessingRule{
+	iRule := &config.ProcessingRule{
 		Type:    "include_at_match",
 		Name:    "include_datadoghq",
 		Pattern: iPattern,
-		Reg:     regexp.MustCompile(iPattern),
+		Regex:   regexp.MustCompile(iPattern),
 	}
-	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.ProcessingRule{eRule, iRule}}}
+	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: config.ProcessingRules{Rules: []*config.ProcessingRule{eRule, iRule}}}}
 
 	shouldProcess, redactedMessage = applyRedactingRules(newMessage([]byte("bob@datadoghq.com"), &source, ""))
 	assert.Equal(t, false, shouldProcess)

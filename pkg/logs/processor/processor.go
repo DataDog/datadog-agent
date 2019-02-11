@@ -70,18 +70,18 @@ func (p *Processor) run() {
 // and a copy of the message with some fields redacted, depending on config
 func applyRedactingRules(msg *message.Message) (bool, []byte) {
 	content := msg.Content
-	for _, rule := range msg.Origin.LogSource.Config.ProcessingRules {
+	for _, rule := range msg.Origin.LogSource.Config.ProcessingRules.Rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
-			if rule.Reg.Match(content) {
+			if rule.Regex.Match(content) {
 				return false, nil
 			}
 		case config.IncludeAtMatch:
-			if !rule.Reg.Match(content) {
+			if !rule.Regex.Match(content) {
 				return false, nil
 			}
 		case config.MaskSequences:
-			content = rule.Reg.ReplaceAllLiteral(content, rule.ReplacePlaceholderBytes)
+			content = rule.Regex.ReplaceAllLiteral(content, rule.Placeholder)
 		}
 	}
 	return true, content

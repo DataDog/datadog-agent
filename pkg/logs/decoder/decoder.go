@@ -41,9 +41,9 @@ func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder 
 	outputChan := make(chan *message.Message)
 
 	var lineHandler LineHandler
-	for _, rule := range source.Config.ProcessingRules {
+	for _, rule := range source.Config.ProcessingRules.Rules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, parser)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, parser)
 		}
 	}
 	if lineHandler == nil {
