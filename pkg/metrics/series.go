@@ -108,7 +108,7 @@ func populateDeviceField(series Series) {
 	}
 }
 
-// hasDeviceField check wehter or not a serie contains a device tag
+// hasDeviceTag checks whether a series contains a device tag
 func hasDeviceTag(serie *Serie) bool {
 	for _, tag := range serie.Tags {
 		if strings.HasPrefix(tag, "device:") {
