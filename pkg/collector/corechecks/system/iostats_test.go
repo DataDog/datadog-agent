@@ -98,10 +98,10 @@ func TestIOCheckDM(t *testing.T) {
 		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:C:"}).Return().Times(1)
 		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:C:"}).Return().Times(1)
 	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
-		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:dm0", "device-label:virtual-1"}).Return().Times(1)
-		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:dm0", "device-label:virtual-1"}).Return().Times(1)
-		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:dm0", "device-label:virtual-1"}).Return().Times(1)
-		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:dm0", "device-label:virtual-1"}).Return().Times(1)
+		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:dm0", "device_label:virtual-1"}).Return().Times(1)
+		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:dm0", "device_label:virtual-1"}).Return().Times(1)
+		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:dm0", "device_label:virtual-1"}).Return().Times(1)
+		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:dm0", "device_label:virtual-1"}).Return().Times(1)
 	}
 }
 
