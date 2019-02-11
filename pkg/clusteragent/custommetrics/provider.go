@@ -9,6 +9,7 @@ package custommetrics
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"strings"
 )
 
 type externalMetric struct {
