@@ -25,7 +25,7 @@ public:
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
     SixPyObject *importFrom(const char *module, const char *name);
-    SixPyObject *loadCheck(const char *module);
+    SixPyObject *getCheckClass(const char *module);
 
     // const API
     bool isInitialized() const;

@@ -133,7 +133,7 @@ SixPyObject *Two::importFrom(const char *module, const char *name) {
     return reinterpret_cast<SixPyObject *>(_importFrom(module, name));
 }
 
-SixPyObject *Two::loadCheck(const char *module) {
+SixPyObject *Two::getCheckClass(const char *module) {
     PyObject *base = NULL;
     PyObject *obj_module = NULL;
     PyObject *klass = NULL;

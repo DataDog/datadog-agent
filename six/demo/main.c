@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
     }
 
     // load the NTP check if available
-    six_pyobject_t *check = load_check(six, "datadog_checks.ntp");
+    six_pyobject_t *check = get_check_class(six, "datadog_checks.ntp");
     if (check == NULL) {
         printf("Unable to load the 'ntp' check, is it installed in the Python env?\n");
     } else {

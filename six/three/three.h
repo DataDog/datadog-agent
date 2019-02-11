@@ -28,7 +28,7 @@ public:
     void GILRelease(six_gilstate_t);
     SixPyObject *importFrom(const char *module, const char *name);
     /* FIXME */
-    virtual SixPyObject *loadCheck(const char *module) { return NULL; }
+    virtual SixPyObject *getCheckClass(const char *module) { return NULL; }
 
     // const API
     bool isInitialized() const;
