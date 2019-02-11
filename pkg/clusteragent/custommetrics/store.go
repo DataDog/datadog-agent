@@ -223,9 +223,9 @@ func (c *configMapStore) updateConfigMap() error {
 func externalMetricValueKeyFunc(val ExternalMetricValue) string {
 	parts := []string{
 		"external_metric",
-		strings.ToLower(val.HPA.Namespace),
-		strings.ToLower(val.HPA.Name),
-		strings.ToLower(val.MetricName),
+		val.HPA.Namespace,
+		val.HPA.Name,
+		val.MetricName,
 	}
 	return strings.Join(parts, keyDelimeter)
 }
