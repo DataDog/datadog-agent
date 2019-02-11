@@ -108,8 +108,8 @@ func TestGetAndSetSender(t *testing.T) {
 	InitAggregator(nil, "", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
+	serviceCheckChan := make(chan *metrics.ServiceCheck, 10)
+	eventChan := make(chan *metrics.Event, 10)
 	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
 
 	err := SetSender(testCheckSender, checkID1)
@@ -139,8 +139,8 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
+	serviceCheckChan := make(chan *metrics.ServiceCheck, 10)
+	eventChan := make(chan *metrics.Event, 10)
 	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
 
 	// no custom tags
@@ -175,8 +175,8 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
+	serviceCheckChan := make(chan *metrics.ServiceCheck, 10)
+	eventChan := make(chan *metrics.Event, 10)
 	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
 
 	// no custom tags
@@ -211,8 +211,8 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 	InitAggregator(nil, "testhostname", "")
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
+	serviceCheckChan := make(chan *metrics.ServiceCheck, 10)
+	eventChan := make(chan *metrics.Event, 10)
 	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan)
 
 	event := metrics.Event{
@@ -255,8 +255,8 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 
 func TestCheckSenderInterface(t *testing.T) {
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
+	serviceCheckChan := make(chan *metrics.ServiceCheck, 10)
+	eventChan := make(chan *metrics.Event, 10)
 	checkSender := newCheckSender(checkID1, "default-hostname", senderMetricSampleChan, serviceCheckChan, eventChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
@@ -322,7 +322,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.Equal(t, "message", serviceCheck.Message)
 
 	event := <-eventChan
-	assert.Equal(t, submittedEvent, event)
+	assert.Equal(t, submittedEvent, *event)
 }
 
 func TestCheckSenderHostname(t *testing.T) {
@@ -356,8 +356,8 @@ func TestCheckSenderHostname(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case %d: %q -> %q", nb, tc.submittedHostname, tc.expectedHostname), func(t *testing.T) {
 			senderMetricSampleChan := make(chan senderMetricSample, 10)
-			serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-			eventChan := make(chan metrics.Event, 10)
+			serviceCheckChan := make(chan *metrics.ServiceCheck, 10)
+			eventChan := make(chan *metrics.Event, 10)
 			checkSender := newCheckSender(checkID1, defaultHostname, senderMetricSampleChan, serviceCheckChan, eventChan)
 			checkSender.DisableDefaultHostname(tc.defaultHostnameDisabled)
 
@@ -401,8 +401,8 @@ func TestCheckSenderHostname(t *testing.T) {
 
 func TestChangeAllSendersDefaultHostname(t *testing.T) {
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
+	serviceCheckChan := make(chan *metrics.ServiceCheck, 10)
+	eventChan := make(chan *metrics.Event, 10)
 	checkSender := newCheckSender(checkID1, "hostname1", senderMetricSampleChan, serviceCheckChan, eventChan)
 	SetSender(checkSender, checkID1)
 
