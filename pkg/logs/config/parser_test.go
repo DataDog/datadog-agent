@@ -34,9 +34,9 @@ func TestParseJSONWithValidFormatShouldSucceed(t *testing.T) {
 	config = configs[0]
 	assert.Equal(t, "any_source", config.Source)
 	assert.Equal(t, "any_service", config.Service)
-	assert.Equal(t, 1, len(config.ProcessingRules.Rules))
+	assert.Equal(t, 1, len(config.ProcessingRules))
 
-	rule := config.ProcessingRules.Rules[0]
+	rule := config.ProcessingRules[0]
 	assert.Equal(t, "multi_line", rule.Type)
 	assert.Equal(t, "numbers", rule.Name)
 }
@@ -97,9 +97,9 @@ logs:
 
 	config = configs[2]
 	assert.Equal(t, DockerType, config.Type)
-	assert.Equal(t, 1, len(config.ProcessingRules.Rules))
+	assert.Equal(t, 1, len(config.ProcessingRules))
 
-	rule = config.ProcessingRules.Rules[0]
+	rule = config.ProcessingRules[0]
 	assert.Equal(t, IncludeAtMatch, rule.Type)
 	assert.Equal(t, "numbers", rule.Name)
 	assert.Equal(t, "^[0-9]+$", rule.Pattern)

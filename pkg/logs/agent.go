@@ -41,7 +41,7 @@ type Agent struct {
 }
 
 // NewAgent returns a new Agent
-func NewAgent(sources *config.LogSources, services *service.Services, global *config.ProcessingRules, endpoints *client.Endpoints) *Agent {
+func NewAgent(sources *config.LogSources, services *service.Services, global []*config.ProcessingRule, endpoints *client.Endpoints) *Agent {
 	health := health.Register("logs-agent")
 
 	// setup the auditor

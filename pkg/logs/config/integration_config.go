@@ -51,7 +51,7 @@ type LogsConfig struct {
 	Source          string
 	SourceCategory  string
 	Tags            []string
-	ProcessingRules ProcessingRules `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 }
 
 // Validate returns an error if the config is misconfigured
@@ -69,9 +69,9 @@ func (c *LogsConfig) Validate() error {
 	case c.Type == UDPType && c.Port == 0:
 		return fmt.Errorf("udp source must have a port")
 	}
-	err := c.ProcessingRules.Validate()
+	err := ValidateProcessingRules(c.ProcessingRules)
 	if err != nil {
 		return err
 	}
-	return c.ProcessingRules.Compile()
+	return CompileProcessingRules(c.ProcessingRules)
 }

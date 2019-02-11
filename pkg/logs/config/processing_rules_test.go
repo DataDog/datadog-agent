@@ -14,11 +14,11 @@ import (
 )
 
 func TestCompileShouldSucceedWithValidRules(t *testing.T) {
-	rules := ProcessingRules{[]*ProcessingRule{{Pattern: "[[:alnum:]]{5}", Type: IncludeAtMatch}}}
-	err := rules.Compile()
+	rules := []*ProcessingRule{{Pattern: "[[:alnum:]]{5}", Type: IncludeAtMatch}}
+	err := CompileProcessingRules(rules)
 	assert.Nil(t, err)
-	assert.NotNil(t, rules.Rules[0].Regex)
-	assert.True(t, rules.Rules[0].Regex.MatchString("abcde"))
+	assert.NotNil(t, rules[0].Regex)
+	assert.True(t, rules[0].Regex.MatchString("abcde"))
 }
 
 func TestCompileShouldFailWithInvalidRules(t *testing.T) {
@@ -27,8 +27,8 @@ func TestCompileShouldFailWithInvalidRules(t *testing.T) {
 	}
 
 	for _, rule := range invalidRules {
-		rules := ProcessingRules{[]*ProcessingRule{rule}}
-		err := rules.Compile()
+		rules := []*ProcessingRule{rule}
+		err := CompileProcessingRules(rules)
 		assert.NotNil(t, err)
 		assert.Nil(t, rule.Regex)
 	}

@@ -18,13 +18,13 @@ import (
 type Processor struct {
 	inputChan  chan *message.Message
 	outputChan chan *message.Message
-	global     *config.ProcessingRules
+	global     []*config.ProcessingRule
 	encoder    Encoder
 	done       chan struct{}
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, global *config.ProcessingRules, encoder Encoder) *Processor {
+func New(inputChan, outputChan chan *message.Message, global []*config.ProcessingRule, encoder Encoder) *Processor {
 	return &Processor{
 		inputChan:  inputChan,
 		outputChan: outputChan,
@@ -72,7 +72,7 @@ func (p *Processor) run() {
 // and a copy of the message with some fields redacted, depending on config
 func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 	content := msg.Content
-	rules := append(p.global.Rules, msg.Origin.LogSource.Config.ProcessingRules.Rules...)
+	rules := append(p.global, msg.Origin.LogSource.Config.ProcessingRules...)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:

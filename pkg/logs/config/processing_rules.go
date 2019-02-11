@@ -10,12 +10,6 @@ import (
 	"regexp"
 )
 
-// ProcessingRules defines at global level or integration level which apply
-// operations on logs.
-type ProcessingRules struct {
-	Rules []*ProcessingRule
-}
-
 // ProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
 type ProcessingRule struct {
@@ -28,13 +22,13 @@ type ProcessingRule struct {
 	Placeholder []byte
 }
 
-// Validate validates the rules and raises an error if one is misconfigured.
+// ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
 // Each processing rule must have:
 // - a valid name
 // - a valid type
 // - a valid pattern that compiles
-func (pr *ProcessingRules) Validate() error {
-	for _, rule := range pr.Rules {
+func ValidateProcessingRules(rules []*ProcessingRule) error {
+	for _, rule := range rules {
 		if rule.Name == "" {
 			return fmt.Errorf("all processing rules must have a name")
 		}
@@ -59,9 +53,9 @@ func (pr *ProcessingRules) Validate() error {
 	return nil
 }
 
-// Compile compiles all processing rule regular expressions.
-func (pr *ProcessingRules) Compile() error {
-	for _, rule := range pr.Rules {
+// CompileProcessingRules compiles all processing rule regular expressions.
+func CompileProcessingRules(rules []*ProcessingRule) error {
+	for _, rule := range rules {
 		re, err := regexp.Compile(rule.Pattern)
 		if err != nil {
 			return err

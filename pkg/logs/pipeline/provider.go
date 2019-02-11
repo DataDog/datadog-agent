@@ -27,7 +27,7 @@ type provider struct {
 	numberOfPipelines int
 	auditor           *auditor.Auditor
 	outputChan        chan *message.Message
-	global            *config.ProcessingRules
+	global            []*config.ProcessingRule
 	endpoints         *client.Endpoints
 
 	pipelines            []*Pipeline
@@ -36,7 +36,7 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, global *config.ProcessingRules, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, global []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
 		auditor:             auditor,
