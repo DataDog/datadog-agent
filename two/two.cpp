@@ -103,7 +103,7 @@ void Two::GILRelease(six_gilstate_t state) {
 }
 
 // return new reference
-SixPyObject *Two::importFrom(const char *module, const char *name) {
+PyObject *Two::_importFrom(const char *module, const char *name) {
     PyObject *obj_module, *obj_symbol;
 
     obj_module = PyImport_ImportModule(module);
@@ -119,10 +119,132 @@ SixPyObject *Two::importFrom(const char *module, const char *name) {
         goto error;
     }
 
-    return reinterpret_cast<SixPyObject *>(obj_symbol);
+    Py_XDECREF(obj_module);
+    return obj_symbol;
 
 error:
     Py_XDECREF(obj_module);
     Py_XDECREF(obj_symbol);
     return NULL;
+}
+
+SixPyObject *Two::importFrom(const char *module, const char *name) {
+    return reinterpret_cast<SixPyObject *>(_importFrom(module, name));
+}
+
+SixPyObject *Two::loadCheck(const char *module) {
+    PyObject *base, *obj_module, *klass;
+
+    // import the base class
+    base = _importFrom("datadog_checks.base.checks", "AgentCheck");
+    if (base == NULL) {
+        setError("Unable to import base class");
+        goto error;
+    }
+
+    // try to import python module containing the check
+    obj_module = PyImport_ImportModule(module);
+    if (obj_module == NULL) {
+        PyErr_Print();
+        setError("Unable to import module");
+        goto error;
+    }
+
+    // find a subclass of the base check
+    klass = _findSubclassOf(base, obj_module);
+    if (klass == NULL) {
+        goto error;
+    }
+
+    Py_XDECREF(base);
+    Py_XDECREF(obj_module);
+    return reinterpret_cast<SixPyObject *>(klass);
+
+error:
+    Py_XDECREF(base);
+    Py_XDECREF(obj_module);
+    Py_XDECREF(klass);
+    return NULL;
+}
+
+PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module) {
+    // baseClass is not a Class type
+    if (base == NULL || !PyType_Check(base)) {
+        setError("base class is not of type 'Class'");
+        return NULL;
+    }
+
+    // module is not a Module object
+    if (module == NULL || !PyModule_Check(module)) {
+        setError("module is not of type 'Module'");
+        return NULL;
+    }
+
+    PyObject *dir = PyObject_Dir(module);
+    if (dir == NULL) {
+        setError("there was an error calling dir() on module object");
+        return NULL;
+    }
+
+    PyObject *klass;
+    for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
+        // get symbol name
+        char *symbol_name;
+        PyObject *symbol = PyList_GetItem(dir, i);
+        if (symbol != NULL) {
+            symbol_name = PyString_AsString(symbol);
+        }
+
+        // get symbol instance. It's a new ref but in case of success we don't DecRef since we return it and the caller
+        // will be owner
+        klass = PyObject_GetAttrString(module, symbol_name);
+        if (klass == NULL) {
+            continue;
+        }
+
+        // not a class, ignore
+        if (!PyType_Check(klass)) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // this is an unrelated class, ignore
+        if (!PyClass_IsSubclass(klass, base)) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // `klass` is actually `base` itself, ignore
+        if (PyObject_RichCompareBool(klass, base, Py_EQ)) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // does `klass` have subclasses?
+        char func_name[] = "__subclasses__";
+        PyObject *children = PyObject_CallMethod(klass, func_name, NULL);
+        if (children == NULL) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // how many?
+        int children_count = PyList_GET_SIZE(children);
+        Py_XDECREF(children);
+
+        // Agent integrations are supposed to have no subclasses
+        if (children_count > 0) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // got it, return the check class
+        goto done;
+    }
+
+    setError("cannot find a subclass");
+
+done:
+    Py_XDECREF(dir);
+    return klass;
 }

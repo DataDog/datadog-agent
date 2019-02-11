@@ -20,10 +20,15 @@ public:
 
     void init(const char *pythonHome);
     int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
-    int addModuleIntConst(six_module_t module, const char *name, long value) { return 1; }
+    int addModuleIntConst(six_module_t module, const char *name, long value) {
+        /* FIXME */
+        return 1;
+    }
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
     SixPyObject *importFrom(const char *module, const char *name);
+    /* FIXME */
+    virtual SixPyObject *loadCheck(const char *module) { return NULL; }
 
     // const API
     bool isInitialized() const;
