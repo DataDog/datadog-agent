@@ -3,7 +3,7 @@ name 'datadog-agent-env-check'
 description "Execute pip check on the python environment of the agent to make sure everything is compatible"
 
 # Run the check after all the definitions touching the python environment of the agent.
-dependency "datadog-pip"
+dependency "pip"
 dependency "datadog-agent"
 dependency "datadog-agent-integrations"
 
