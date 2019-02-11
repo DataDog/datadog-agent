@@ -9,45 +9,23 @@
 package app
 
 import (
-	"os"
 	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
-	pythonBin = "python.exe"
+	pythonBin     = "python.exe"
+	downloaderBin = "datadog-checks-downloader.exe"
 )
 
 var (
 	relPyPath              = pythonBin
-	relTufConfigFilePath   = filepath.Join("..", tufConfigFile)
+	relDownloaderPath      = downloaderBin
 	relChecksPath          = filepath.Join("Lib", "site-packages", "datadog_checks")
 	relReqAgentReleasePath = filepath.Join("..", reqAgentReleaseFile)
 	relConstraintsPath     = filepath.Join("..", constraintsFile)
-	tufPipCachePath        = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
 )
 
-func init() {
-	pd, err := winutil.GetProgramDataDir()
-	if err == nil {
-		tufPipCachePath = filepath.Join(pd, "Datadog", "repositories", "cache")
-	} else {
-		winutil.LogEventViewer(config.ServiceName, 0x8000000F, tufPipCachePath)
-	}
-}
 func authorizedUser() bool {
 	// TODO: implement something useful
 	return true
-}
-
-func getTUFPipCachePath() (string, error) {
-	if _, err := os.Stat(tufPipCachePath); err != nil {
-		if os.IsNotExist(err) {
-			return tufPipCachePath, err
-		}
-	}
-
-	return tufPipCachePath, nil
 }
