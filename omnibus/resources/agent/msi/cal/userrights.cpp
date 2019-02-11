@@ -27,7 +27,7 @@ PSID GetSidForUser(LPCWSTR host, LPCWSTR user) {
 	ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
 
 	// try it again
-	bRet = LookupAccountName(host, user, newsid, &cbSid, refDomain, &cchRefDomain, &use);
+	bRet = LookupAccountName(NULL, user, newsid, &cbSid, refDomain, &cchRefDomain, &use);
 	if (!bRet) {
 		WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
 		goto cleanAndFail;
@@ -184,7 +184,7 @@ void BuildExplicitAccessWithSid(EXPLICIT_ACCESS_W &data, PSID pSID, DWORD perms,
 	data.Trustee.ptstrName = (LPTSTR)pSID;
 }
 
-int EnableServiceForUser(const std::wstring& service, const wchar_t* domain, const wchar_t* user)
+int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
 {
     int ret = 0;
     SC_HANDLE hscm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS | GENERIC_ALL | READ_CONTROL);
@@ -221,7 +221,7 @@ int EnableServiceForUser(const std::wstring& service, const wchar_t* domain, con
 		WcaLog(LOGMSG_STANDARD,"Failed to query security info %d\n", GetLastError());
 		goto cleanAndReturn;
 	}
-	if ((sid = GetSidForUser(domain, user)) == NULL) {
+	if ((sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str())) == NULL) {
 		WcaLog(LOGMSG_STANDARD,"Failed to get sid\n");
 		goto cleanAndReturn;
 	}

@@ -30,6 +30,9 @@ class CustomActionData
         const std::string& getFullUsernameMbcs() const {
             return this->fullusermbcs;
         }
+        const std::wstring& getQualifiedUsername() const {
+            return this->qualifieduser;
+        }
     private:
         MSIHANDLE hInstall;
         std::map< std::wstring, std::wstring> values;
@@ -37,6 +40,9 @@ class CustomActionData
         std::wstring userdomain;
         std::wstring fullusername; // userdomain\username
         std::string fullusermbcs;
+        // if it's a local account, it's just the username.
+        // otherwise, the full name.
+        std::wstring qualifieduser;
         const wchar_t * domainPtr;
         const wchar_t * userPtr;
 

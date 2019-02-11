@@ -86,7 +86,7 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
     //ExplicitAccess suser;
     //suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
 
-    PSID  usersid = GetSidForUser(data.getDomainPtr(), data.getUserPtr());
+    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
     ExplicitAccess dduser;
     dduser.BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,
         SUB_CONTAINERS_AND_OBJECTS_INHERIT);
@@ -128,7 +128,7 @@ DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
         return 0;
     }
     WcaLog(LOGMSG_STANDARD, "Changing file permissions on %s", shortfile.c_str());
-    PSID  usersid = GetSidForUser(data.getDomainPtr(), data.getUserPtr());
+    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
     ExplicitAccess dduser;
     dduser.BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,
                           SUB_CONTAINERS_AND_OBJECTS_INHERIT);
@@ -240,7 +240,7 @@ int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring&
     
 
     WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
-    ret = NetUserAdd(domain, // LOCAL_MACHINE
+    ret = NetUserAdd(NULL, // LOCAL_MACHINE
         1, // indicates we're using a USER_INFO_1
         (LPBYTE)&ui,
         NULL);
@@ -252,7 +252,7 @@ int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring&
 
 
 DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
-    NET_API_STATUS ret = NetUserDel(host, name);
+    NET_API_STATUS ret = NetUserDel(NULL, name);
     return (DWORD)ret;
 }
 
@@ -292,18 +292,58 @@ bool isDomainController(MSIHANDLE hInstall)
 
 int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
 {
-    LPUSER_INFO_0 pBuf = NULL;
-
-    NET_API_STATUS st = NetUserGetInfo(data.getDomainPtr(), data.getUserPtr(), 0, (LPBYTE*)&pBuf);
-    switch(st){
-        case NERR_Success:
-            WcaLog(LOGMSG_STANDARD, "Found user %s exists", data.getFullUsernameMbcs().c_str());
-            return 1;
-        case NERR_UserNotFound:
-            WcaLog(LOGMSG_STANDARD, "User %s not present on system", data.getFullUsernameMbcs().c_str());
-            return 0;
-        default:
-            WcaLog(LOGMSG_STANDARD, "Unexpected error %d looking for user %s", st, data.getFullUsernameMbcs().c_str());
+    int retval = 0;
+    SID *newsid = NULL;
+    DWORD cbSid = 0;
+    LPWSTR refDomain = NULL;
+    DWORD cchRefDomain = 0;
+    SID_NAME_USE use;
+    std::string narrowdomain;
+    DWORD err = 0;
+    BOOL bRet = LookupAccountName(NULL, data.getQualifiedUsername().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+    if (bRet) {
+        err = GetLastError();
+        // this should *never* happen, because we didn't pass in a buffer large enough for
+        // the sid or the domain name.
+        return -1;
     }
-    return -1;
+    err = GetLastError();
+    if (ERROR_NONE_MAPPED == err) {
+        // this user doesn't exist.  We're done
+        return 0;
+    }
+    if (ERROR_INSUFFICIENT_BUFFER != err) {
+        // we don't know what happened
+        return -1;
+    }
+    newsid = (SID *) new BYTE[cbSid];
+    ZeroMemory(newsid, cbSid);
+
+    refDomain = new wchar_t[cchRefDomain + 1];
+    ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
+
+    // try it again
+    bRet = LookupAccountName(NULL, data.getQualifiedUsername().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+    if (!bRet) {
+        err = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
+        retval = -1;
+    }
+    if (!IsValidSid(newsid)) {
+        WcaLog(LOGMSG_STANDARD, "New SID is invalid");
+        retval = -1;
+    }
+    retval = 1;
+    toMbcs(narrowdomain, refDomain);
+    WcaLog(LOGMSG_STANDARD, "Got SID from %s", narrowdomain.c_str());
+
+cleanAndFail:
+    if (newsid) {
+        delete[](BYTE*)newsid;
+    }
+    if (refDomain) {
+        delete[] refDomain;
+    }
+    return retval;
 }
+

@@ -721,17 +721,17 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
         }
     }
     WcaLog(LOGMSG_STANDARD, "done installing services");
-    UINT er = EnableServiceForUser(traceService, data.getDomainPtr(), data.getUserPtr());
+    UINT er = EnableServiceForUser(data, traceService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable trace service for dd user %d", er);
     }
-    er = EnableServiceForUser(processService, data.getDomainPtr(), data.getUserPtr());
+    er = EnableServiceForUser(data, processService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable process service for dd user %d", er);
     }
     // need to enable user rights for the datadogagent service (main service)
     // so that it can restart itself
-    er = EnableServiceForUser(agentService, data.getDomainPtr(), data.getUserPtr());
+    er = EnableServiceForUser(data, agentService);
     if (0 != er) {
         WcaLog(LOGMSG_STANDARD, "Warning, unable to enable agent service for dd user %d", er);
     }

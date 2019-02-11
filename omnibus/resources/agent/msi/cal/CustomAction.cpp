@@ -104,7 +104,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     //       ERROR why is user created but not service?
     //   if the user is NOT present
     //     if the service is present
-    //       ERROR how could service be present but not user?
+    //       This is OK if it's a domain user
     //     if the service is not present
     //       install service, create user
     //       use password if provided, otherwise generate
@@ -124,10 +124,24 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         }
     }
     else {
-        if (ddUserExists && !ddServiceExists) {
-            WcaLog(LOGMSG_STANDARD, "Invalid configuration; DD user exists, but no service exists");
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
+        if (ddUserExists)
+        {
+            if (data.getDomainPtr() != NULL) {
+                // if it's a domain user. We need the password if the service isn't here
+                if (!ddServiceExists && !data.present(propertyDDAgentUserPassword))
+                {
+                    WcaLog(LOGMSG_STANDARD, "Must supply the password to allow service registration");
+                    er = ERROR_INSTALL_FAILURE;
+                    goto LExit;
+                }
+            }
+            else {
+                if (!ddServiceExists) {
+                    WcaLog(LOGMSG_STANDARD, "Invalid configuration; DD user exists, but no service exists");
+                    er = ERROR_INSTALL_FAILURE;
+                    goto LExit;
+                }
+            }
         }
         if (!ddUserExists && ddServiceExists) {
             WcaLog(LOGMSG_STANDARD, "Invalid configuration; no DD user, but service exists");
@@ -142,7 +156,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
         // that was easy.  Need to create the user.  See if we have a password, or need to
         // generate one
         passbuflen = MAX_PASS_LEN + 2;
-        
+
         if (data.value(propertyDDAgentUserPassword, providedPassword)) {
             passToUse = providedPassword.c_str();
         }
@@ -155,8 +169,6 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
             passToUse = passbuf;
         }
-        LOCALGROUP_MEMBERS_INFO_0 lmi0;
-        memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
         DWORD nErr = 0;
         DWORD ret = doCreateUser(data.getUsername(), data.getDomainPtr(), ddAgentUserDescription, passToUse);
         if (ret != 0) {
@@ -172,9 +184,15 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
             keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
         }
+    }
+    if(!ddUserExists || !ddServiceExists)
+    {
+        LOCALGROUP_MEMBERS_INFO_0 lmi0;
+        memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
+        DWORD nErr  = 0;
         // since we just created the user, fix up all the rights we want
         hr = -1;
-        sid = GetSidForUser(data.getDomainPtr(), data.getUserPtr());
+        sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
         if (!sid) {
             WcaLog(LOGMSG_STANDARD, "Failed to get SID for %s", data.getFullUsernameMbcs().c_str());
             goto LExit;
@@ -386,7 +404,7 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
         regkey.createSubKey(strRollbackKeyName.c_str(), installState);
     }
     // check to see if we created the user, and if so, what the user's name was
-    std::wstring installedUser, installedDomain;
+    std::wstring installedUser, installedDomain, installedComplete;
     const wchar_t* installedUserPtr = NULL;
     const wchar_t* installedDomainPtr = NULL;
     if (installState.getStringValue(installCreatedDDUser.c_str(), installedUser))
@@ -399,13 +417,15 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
             installedDomainPtr = installedDomain.c_str();
             toMbcs(usershort, installedDomainPtr);
             WcaLog(LOGMSG_STANDARD, "Removing user from domain %s", usershort);
+            installedComplete = installedDomain + L"\\";
         }
+        installedComplete += installedUser;
         willDeleteUser = true;
     }
 
     if (willDeleteUser)
     {
-        sid = GetSidForUser(installedDomainPtr, installedUserPtr);
+        sid = GetSidForUser(NULL, installedComplete.c_str());
 
         // remove dd user from programdata root
         removeUserPermsFromFile(programdataroot, sid);
@@ -453,7 +473,7 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
             }
         }
         // delete the user
-        er = DeleteUser(installedDomainPtr, installedUserPtr);
+        er = DeleteUser(NULL, installedComplete.c_str());
         if (0 != er) {
             // don't actually fail on failure.  We're doing an uninstall,
             // and failing will just leave the system in a more confused state

@@ -82,5 +82,12 @@ bool CustomActionData::parseUsernameData()
     }
     this->userPtr = this->username.c_str();
     toMbcs(this->fullusermbcs, this->fullusername.c_str());
+
+    if (this->domainPtr == NULL) {
+        this->qualifieduser = this->username;
+    }
+    else {
+        this->qualifieduser = this->fullusername;
+    }
     return true;
 }
