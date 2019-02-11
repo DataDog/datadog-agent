@@ -20,14 +20,6 @@ const (
 	WindowsEventType = "windows_event"
 )
 
-// Logs rule types
-const (
-	ExcludeAtMatch = "exclude_at_match"
-	IncludeAtMatch = "include_at_match"
-	MaskSequences  = "mask_sequences"
-	MultiLine      = "multi_line"
-)
-
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
 type LogsConfig struct {

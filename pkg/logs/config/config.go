@@ -31,10 +31,18 @@ func DefaultSources() []*LogSource {
 
 // GlobalProcessingRules returns the global processing rules to apply to all logs.
 func GlobalProcessingRules() ([]*ProcessingRule, error) {
-	var global []*ProcessingRule
-	err := coreConfig.Datadog.UnmarshalKey("logs_config.processing_rules", global)
+	var rules []*ProcessingRule
+	err := coreConfig.Datadog.UnmarshalKey("logs_config.processing_rules", &rules)
 	if err != nil {
 		return nil, err
 	}
-	return global, nil
+	err = ValidateProcessingRules(rules)
+	if err != nil {
+		return nil, err
+	}
+	err = CompileProcessingRules(rules)
+	if err != nil {
+		return nil, err
+	}
+	return rules, nil
 }

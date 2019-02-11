@@ -10,6 +10,14 @@ import (
 	"regexp"
 )
 
+// Processing rule types
+const (
+	ExcludeAtMatch = "exclude_at_match"
+	IncludeAtMatch = "include_at_match"
+	MaskSequences  = "mask_sequences"
+	MultiLine      = "multi_line"
+)
+
 // ProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
 type ProcessingRule struct {

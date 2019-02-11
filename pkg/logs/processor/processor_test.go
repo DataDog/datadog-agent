@@ -79,11 +79,6 @@ func TestInclusion(t *testing.T) {
 }
 
 func TestExclusionWithInclusion(t *testing.T) {
-	p := &Processor{}
-
-	var shouldProcess bool
-	var redactedMessage []byte
-
 	ePattern := "^bob"
 	eRule := &config.ProcessingRule{
 		Type:    "exclude_at_match",
@@ -91,6 +86,7 @@ func TestExclusionWithInclusion(t *testing.T) {
 		Pattern: ePattern,
 		Regex:   regexp.MustCompile(ePattern),
 	}
+
 	iPattern := ".*@datadoghq.com$"
 	iRule := &config.ProcessingRule{
 		Type:    "include_at_match",
@@ -98,7 +94,13 @@ func TestExclusionWithInclusion(t *testing.T) {
 		Pattern: iPattern,
 		Regex:   regexp.MustCompile(iPattern),
 	}
-	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{eRule, iRule}}}
+
+	p := &Processor{global: []*config.ProcessingRule{eRule}}
+
+	var shouldProcess bool
+	var redactedMessage []byte
+
+	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{iRule}}}
 
 	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("bob@datadoghq.com"), &source, ""))
 	assert.Equal(t, false, shouldProcess)
