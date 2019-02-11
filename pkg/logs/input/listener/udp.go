@@ -98,6 +98,13 @@ func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
 			// Adding '\n' ensures that the message will correctly be decoded later on and not mixed the following message.
 			frame[l.frameSize] = '\n'
 		}
+		if l.source.Config.SplitPerDatagram {
+			// make sure all logs are separated by line feeds, otherwise they don't get properly split downstream
+			if n > 0 && frame[n-1] != '\n' {
+				frame[n] = '\n'
+				n++
+			}
+		}
 		return frame[:n], nil
 	}
 }

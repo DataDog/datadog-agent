@@ -23,7 +23,7 @@ import (
 func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	frameSize := 9000
+	frameSize := 100
 	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
 	listener.Start()
 
@@ -32,17 +32,17 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 
 	var msg *message.Message
 
-	fmt.Fprintf(conn, strings.Repeat("a", frameSize-100)+"\n")
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize-10)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize-100), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", frameSize-10), string(msg.Content))
 
 	fmt.Fprintf(conn, strings.Repeat("a", frameSize)+"\n")
 	msg = <-msgChan
 	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content))
 
-	fmt.Fprintf(conn, strings.Repeat("a", frameSize-200)+"\n")
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize+10)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize-200), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content))
 
 	listener.Stop()
 }
@@ -72,6 +72,52 @@ func TestUDPShoulDropTooBigMessages(t *testing.T) {
 	fmt.Fprintf(conn, strings.Repeat("a", maxUDPFrameLen-200)+"\n")
 	msg = <-msgChan
 	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-200), string(msg.Content))
+
+	listener.Stop()
+}
+
+func TestUDPShoulProperlyCollectLogSplitPerDatadgram(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	frameSize := 100
+	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort, SplitPerDatagram: true}), frameSize)
+	listener.Start()
+
+	conn, err := net.Dial("udp", fmt.Sprintf("%s", listener.tailer.conn.LocalAddr()))
+	assert.Nil(t, err)
+
+	var msg *message.Message
+
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize-10))
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", frameSize-10), string(msg.Content))
+
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize-10))
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", frameSize-10), string(msg.Content))
+
+	listener.Stop()
+}
+
+func TestUDPShoulProperlyCollectLogSplitPerLineFeed(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	frameSize := 100
+	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
+	listener.Start()
+
+	conn, err := net.Dial("udp", fmt.Sprintf("%s", listener.tailer.conn.LocalAddr()))
+	assert.Nil(t, err)
+
+	var msg *message.Message
+
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize-10))
+	fmt.Fprintf(conn, "\n"+strings.Repeat("a", frameSize-10)+"\n")
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", frameSize-10), string(msg.Content))
+
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", frameSize-10), string(msg.Content))
 
 	listener.Stop()
 }
