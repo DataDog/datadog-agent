@@ -46,8 +46,13 @@ func Start() error {
 	// setup the status
 	status.Initialize(sources)
 
+	global, err := config.GlobalProcessingRules()
+	if err != nil {
+		return err
+	}
+
 	// setup and start the agent
-	agent = NewAgent(sources, services, endpoints)
+	agent = NewAgent(sources, services, global, endpoints)
 	log.Info("Starting logs-agent...")
 	agent.Start()
 	isRunning = true
