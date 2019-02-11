@@ -104,7 +104,8 @@ void Two::GILRelease(six_gilstate_t state) {
 
 // return new reference
 PyObject *Two::_importFrom(const char *module, const char *name) {
-    PyObject *obj_module, *obj_symbol;
+    PyObject *obj_module = NULL;
+    PyObject *obj_symbol = NULL;
 
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
@@ -133,7 +134,9 @@ SixPyObject *Two::importFrom(const char *module, const char *name) {
 }
 
 SixPyObject *Two::loadCheck(const char *module) {
-    PyObject *base, *obj_module, *klass;
+    PyObject *base = NULL;
+    PyObject *obj_module = NULL;
+    PyObject *klass = NULL;
 
     // import the base class
     base = _importFrom("datadog_checks.base.checks", "AgentCheck");
@@ -186,7 +189,7 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module) {
         return NULL;
     }
 
-    PyObject *klass;
+    PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
         // get symbol name
         char *symbol_name;
