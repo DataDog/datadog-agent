@@ -473,7 +473,7 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
             }
         }
         // delete the user
-        er = DeleteUser(NULL, installedComplete.c_str());
+        er = DeleteUser(NULL, installedUser.c_str());
         if (0 != er) {
             // don't actually fail on failure.  We're doing an uninstall,
             // and failing will just leave the system in a more confused state
