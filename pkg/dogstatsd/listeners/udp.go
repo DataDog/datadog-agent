@@ -34,7 +34,6 @@ func init() {
 type UDPListener struct {
 	conn         net.PacketConn
 	packetPool   *PacketPool
-	packetOut    chan Packets
 	packetBuffer *packetBuffer
 }
 
@@ -64,7 +63,6 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 	}
 
 	listener := &UDPListener{
-		packetOut:  packetOut,
 		packetPool: packetPool,
 		conn:       conn,
 		packetBuffer: newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),

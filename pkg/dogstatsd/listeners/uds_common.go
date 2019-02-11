@@ -38,7 +38,6 @@ func init() {
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
 	conn            *net.UnixConn
-	packetOut       chan Packets
 	packetBuffer    *packetBuffer
 	packetPool      *PacketPool
 	oobPool         *sync.Pool // For origin detection ancilary data
@@ -95,7 +94,6 @@ func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListene
 
 	listener := &UDSListener{
 		OriginDetection: originDetection,
-		packetOut:       packetOut,
 		packetPool:      packetPool,
 		conn:            conn,
 		packetBuffer: newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
