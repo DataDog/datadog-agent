@@ -118,3 +118,23 @@ func TestGetVersionFromReqLine(t *testing.T) {
 	assert.Nil(t, version)
 	assert.NotNil(t, err)
 }
+
+func TestValidateArgs(t *testing.T) {
+	// No args
+	args := []string{}
+	err := validateArgs(args, false)
+	assert.NotNil(t, err)
+
+	// Too many args
+	args = []string{"arg1", "arg2"}
+	err = validateArgs(args, true)
+	assert.NotNil(t, err)
+
+	// Not local => name starts with datadog
+	args = []string{"foo"}
+	err = validateArgs(args, false)
+	assert.NotNil(t, err)
+	args = []string{"datadog-foo"}
+	err = validateArgs(args, false)
+	assert.Nil(t, err)
+}

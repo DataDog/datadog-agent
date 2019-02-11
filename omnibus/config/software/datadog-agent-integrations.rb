@@ -54,6 +54,7 @@ if suse?
 end
 
 core_constraints_file = 'core_constraints.txt'
+final_constraints_file = 'final_constraints.txt'
 agent_requirements_file = 'agent_requirements.txt'
 
 build do
@@ -173,6 +174,9 @@ build do
     else
       pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
+    # Create a constraint file after installing all the core dependencies and before any integration
+    # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
+    pip "freeze > #{install_dir}/#{final_constraints_file}"
 
     # Ship requirements-agent-release.txt file containing the versions of every check shipped with the agent
     # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
