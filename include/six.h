@@ -10,7 +10,7 @@
 #include "types.h"
 
 // Opaque type to wrap PyObject
-struct SixPyObject {};
+class SixPyObject {};
 
 class Six {
 public:
@@ -27,7 +27,7 @@ public:
     virtual six_gilstate_t GILEnsure() = 0;
     virtual void GILRelease(six_gilstate_t) = 0;
     virtual SixPyObject *importFrom(const char *module, const char *name) = 0;
-    virtual SixPyObject *loadCheck(const char *module) = 0;
+    virtual SixPyObject *getCheckClass(const char *module) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;
