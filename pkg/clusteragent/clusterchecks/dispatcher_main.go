@@ -112,6 +112,9 @@ func (d *dispatcher) run(ctx context.Context) {
 	healthProbe := health.Register("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe)
 
+	registerMetrics()
+	defer unregisterMetrics()
+
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
