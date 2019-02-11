@@ -25,6 +25,7 @@ public:
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
     SixPyObject *importFrom(const char *module, const char *name);
+    SixPyObject *loadCheck(const char *module);
 
     // const API
     bool isInitialized() const;
@@ -33,6 +34,9 @@ public:
     SixPyObject *getNone() const { return reinterpret_cast<SixPyObject *>(Py_None); }
 
 private:
+    PyObject *_importFrom(const char *module, const char *name);
+    PyObject *_findSubclassOf(PyObject *base, PyObject *moduleName);
+
     typedef std::vector<PyMethodDef> PyMethods;
     typedef std::map<six_module_t, PyMethods> PyModules;
     typedef std::pair<std::string, long> PyModuleConst;

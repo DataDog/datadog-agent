@@ -120,6 +120,10 @@ six_pyobject_t *import_from(six_t *six, const char *module_name, const char *sym
     return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->importFrom(module_name, symbol_name));
 }
 
+six_pyobject_t *load_check(six_t *six, const char *name) {
+    return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->loadCheck(name));
+}
+
 int has_error(const six_t *six) {
     if (AS_CTYPE(Six, six)->hasError()) {
         return 1;
