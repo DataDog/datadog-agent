@@ -64,7 +64,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	d.store.digestToNode[digest] = targetNodeName
 
 	// Remove config from previous node if found
-	if foundCurrent {
+	if foundCurrent && currentNode != targetNode {
 		currentNode.Lock()
 		currentNode.removeConfig(digest)
 		currentNode.Unlock()
@@ -75,11 +75,12 @@ func (d *dispatcher) removeConfig(digest string) {
 	d.store.Lock()
 	defer d.store.Unlock()
 
+	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
+	delete(d.store.digestToNode, digest)
 	delete(d.store.digestToConfig, digest)
 	delete(d.store.danglingConfigs, digest)
 
 	// Remove from node configs if assigned
-	node, found := d.store.getNodeStore(d.store.digestToNode[digest])
 	if found {
 		node.Lock()
 		node.removeConfig(digest)

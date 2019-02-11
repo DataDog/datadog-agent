@@ -101,6 +101,39 @@ func TestScheduleReschedule(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestDescheduleRescheduleSameNode(t *testing.T) {
+	dispatcher := newDispatcher()
+	config := generateIntegration("cluster-check")
+
+	// Schedule to node1
+	dispatcher.addConfig(config, "node1")
+	configs1, _, err := dispatcher.getNodeConfigs("node1")
+	assert.NoError(t, err)
+	assert.Len(t, configs1, 1)
+	assert.Contains(t, configs1, config)
+
+	// Deschedule
+	dispatcher.removeConfig(config.Digest())
+	stored, err := dispatcher.getAllConfigs()
+	assert.NoError(t, err)
+	assert.Len(t, stored, 0)
+
+	// Re-schedule to node1
+	dispatcher.addConfig(config, "node1")
+	configs2, _, err := dispatcher.getNodeConfigs("node1")
+	assert.NoError(t, err)
+	assert.Len(t, configs2, 1)
+	assert.Contains(t, configs2, config)
+
+	// Only registered once in global list
+	stored, err = dispatcher.getAllConfigs()
+	assert.NoError(t, err)
+	assert.Len(t, stored, 1)
+	assert.Contains(t, stored, config)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 func TestProcessNodeStatus(t *testing.T) {
 	dispatcher := newDispatcher()
 	status1 := types.NodeStatus{LastChange: 10}
