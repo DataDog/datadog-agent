@@ -75,7 +75,7 @@ if node['platform_family'] != 'windows'
       action :remove
     end
     package node['dd-agent-upgrade']['package_name'] do
-      action :add
+      action :install
       version node['dd-agent-upgrade']['version']
     end
   end
