@@ -48,8 +48,11 @@ blacklist = [
   'ntp',                           # provided as a go check by the core agent
 ]
 
+blacklist_req = []
+
 if suse?
-  blacklist.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
+  blacklist.push('aerospike')  # Temporarily blacklist Aerospike Datadog Integration until builder supports new dependency
+  blacklist_req.push(/^areospike==/)  # Temporarily blacklist Aerospike python client until builder supports new dependency
 end
 
 core_constraints_file = 'core_constraints.txt'
@@ -167,11 +170,34 @@ build do
       end
     end
 
+    if windows?
+      static_reqs_file = "#{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
+    else
+      static_reqs_file = "#{install_dir}/#{agent_requirements_file}"
+
+    # Remove any blacklisted requirements from the static-environment req file
+    tmp = []
+    File.open("#{static_reqs_file}", 'r+') do |f|
+      f.each_line do |line|
+        tmp.push(line)
+      end
+    end
+
+    File.open("#{static_reqs_file}", 'w+') do |f|
+      for line in tmp
+        for blacklist in blacklist_req
+          if not blacklist =~ line
+            f.puts(line)
+          end
+        end
+      end
+    end
+
     # install static-environment requirements
     if windows?
-      command("#{python_bin} -m #{python_pip_req} #{windows_safe_path(install_dir)}\\#{agent_requirements_file}")
+      command("#{python_bin} -m #{python_pip_req} #{static_reqs_file}")
     else
-      pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
+      pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{static_reqs_file}", :env => nix_build_env
     end
     # Create a constraint file after installing all the core dependencies and before any integration
     # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
