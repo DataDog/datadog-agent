@@ -238,8 +238,8 @@ func pip(args []string) error {
 	implicitFlags = append(implicitFlags, "--disable-pip-version-check")
 	args = append([]string{"-mpip"}, cmd)
 
-	for i := 0; i < verbose; i++ {
-		args = append(args, "-v")
+	if verbose > 0 {
+		args = append(args, "-"+strings.Repeat("v", verbose))
 	}
 
 	// Append implicit flags to the *pip* command
@@ -433,8 +433,8 @@ func downloadWheel(integration, version string) (string, error) {
 		integration,
 		"--version", version,
 	}
-	for i := 0; i < verbose; i++ {
-		args = append(args, "-v")
+	if verbose > 0 {
+		args = append(args, "-"+strings.Repeat("v", verbose))
 	}
 	downloaderCmd := exec.Command(downloaderPath, args...)
 	downloaderCmd.Env = os.Environ()
