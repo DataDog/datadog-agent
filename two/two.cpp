@@ -292,3 +292,37 @@ done:
     Py_XDECREF(dir);
     return klass;
 }
+
+const char *Two::runCheck(SixPyObject *check) {
+    if (check == NULL) {
+        return NULL;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret, *ret_copy = NULL;
+    char run[] = "run";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, run, NULL);
+    if (result == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+    // `ret` points to the Python string internal storage and will be eventually
+    // deallocated along with the corresponding Python object.
+    ret = PyString_AsString(result);
+    if (ret == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+    ret_copy = strdup(ret);
+
+done:
+    Py_XDECREF(result);
+    return ret_copy;
+}

@@ -29,6 +29,7 @@ public:
     virtual SixPyObject *importFrom(const char *module, const char *name) = 0;
     virtual SixPyObject *getCheckClass(const char *module) = 0;
     virtual SixPyObject *getCheck(const char *name, const char *init_config, const char *instances) = 0;
+    virtual const char *runCheck(SixPyObject *check) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;

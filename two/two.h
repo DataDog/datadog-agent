@@ -27,6 +27,7 @@ public:
     SixPyObject *importFrom(const char *module, const char *name);
     SixPyObject *getCheckClass(const char *module) { return NULL; }
     SixPyObject *getCheck(const char *module, const char *init_config, const char *instances);
+    const char *runCheck(SixPyObject *check);
 
     // const API
     bool isInitialized() const;
