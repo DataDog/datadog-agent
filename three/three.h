@@ -26,7 +26,6 @@ public:
     }
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
-    SixPyObject *importFrom(const char *module, const char *name);
     /* FIXME */
     SixPyObject *getCheckClass(const char *module) { return NULL; }
     /* FIXME */
@@ -41,6 +40,8 @@ public:
     SixPyObject *getNone() const { return reinterpret_cast<SixPyObject *>(Py_None); }
 
 private:
+    PyObject *_importFrom(const char *module, const char *name);
+
     typedef std::vector<PyMethodDef> PyMethods;
     typedef std::map<six_module_t, PyMethods> PyModules;
 

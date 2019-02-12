@@ -86,14 +86,7 @@ int main(int argc, char *argv[]) {
     char *code = read_file("./demo/main.py");
     run_simple_string(six, code);
 
-    // from sys import path
-    // six_pyobject_t *klass = import_from(six, "datadog_checks.base.checks", "AgentCheck");
-    six_pyobject_t *klass = import_from(six, "sys", "path");
-    if (klass == NULL) {
-        printf("Error: %s\n", get_error(six));
-    }
-
-    // load the NTP check if available
+    // load the Directory check if available
     six_pyobject_t *check = get_check(six, "datadog_checks.directory", "", "[{directory: \"/\"}]");
     if (check == NULL) {
         printf("Unable to load the 'directory' check, is it installed in the Python env?\n");
