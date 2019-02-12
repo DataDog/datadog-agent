@@ -147,7 +147,7 @@ void Three::GILRelease(six_gilstate_t state) {
 }
 
 // return new reference
-SixPyObject *Three::importFrom(const char *module, const char *name) {
+PyObject *Three::_importFrom(const char *module, const char *name) {
     PyObject *obj_module, *obj_symbol;
 
     obj_module = PyImport_ImportModule(module);
@@ -163,7 +163,7 @@ SixPyObject *Three::importFrom(const char *module, const char *name) {
         goto error;
     }
 
-    return reinterpret_cast<SixPyObject *>(obj_symbol);
+    return obj_symbol;
 
 error:
     Py_XDECREF(obj_module);

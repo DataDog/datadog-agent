@@ -129,10 +129,6 @@ error:
     return NULL;
 }
 
-SixPyObject *Two::importFrom(const char *module, const char *name) {
-    return reinterpret_cast<SixPyObject *>(_importFrom(module, name));
-}
-
 SixPyObject *Two::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
     PyObject *base = NULL;
     PyObject *obj_module = NULL;

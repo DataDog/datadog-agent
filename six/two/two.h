@@ -24,7 +24,6 @@ public:
     int addModuleIntConst(six_module_t module, const char *name, long value);
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
-    SixPyObject *importFrom(const char *module, const char *name);
     SixPyObject *getCheckClass(const char *module) { return NULL; }
     SixPyObject *getCheck(const char *module, const char *init_config, const char *instances);
     const char *runCheck(SixPyObject *check);

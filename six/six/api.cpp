@@ -116,10 +116,6 @@ six_gilstate_t ensure_gil(six_t *six) { return AS_TYPE(Six, six)->GILEnsure(); }
 
 void release_gil(six_t *six, six_gilstate_t state) { AS_TYPE(Six, six)->GILRelease(state); }
 
-six_pyobject_t *import_from(six_t *six, const char *module_name, const char *symbol_name) {
-    return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->importFrom(module_name, symbol_name));
-}
-
 six_pyobject_t *get_check_class(six_t *six, const char *name) {
     return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->getCheckClass(name));
 }
