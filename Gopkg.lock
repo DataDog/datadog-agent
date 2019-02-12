@@ -50,20 +50,20 @@
   revision = "2cfb68475274527a10701355c739f31dd404718c"
 
 [[projects]]
-  digest = "1:34d4c1b61fa208e523726ddb85d01b8caa8f2de0cd656d91c81b6b86daea485c"
-  name = "github.com/DataDog/zstd"
-  packages = ["."]
-  pruneopts = ""
-  revision = "aebefd9fcb99f22cd691ef778a12ed68f0e6a1ab"
-  version = "v1.3.4"
-
-[[projects]]
   digest = "1:b98ee2c3f1469ab3b494859d3a9c9e595ec2c63660dea130a5154cfcd427b608"
   name = "github.com/DataDog/viper"
   packages = ["."]
   pruneopts = ""
   revision = "6d33b5a963d922d182c91e8a1c88d81fd150cfd4"
   version = "v1.3.1"
+
+[[projects]]
+  digest = "1:34d4c1b61fa208e523726ddb85d01b8caa8f2de0cd656d91c81b6b86daea485c"
+  name = "github.com/DataDog/zstd"
+  packages = ["."]
+  pruneopts = ""
+  revision = "aebefd9fcb99f22cd691ef778a12ed68f0e6a1ab"
+  version = "v1.3.4"
 
 [[projects]]
   digest = "1:a45cafbc9101cf1a3ce81f08296af380ece9c05b4acc92831eeeb0f61a5a7ef5"
@@ -1939,8 +1939,8 @@
     "github.com/DataDog/gohai/platform",
     "github.com/DataDog/gohai/processes",
     "github.com/DataDog/mmh3",
+    "github.com/DataDog/viper",
     "github.com/DataDog/zstd",
-    "github.com/Datadog/viper",
     "github.com/Microsoft/go-winio",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/credentials",
