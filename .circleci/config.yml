@@ -90,7 +90,7 @@ jobs:
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: bash <(curl -s https://codecov.io/bash) -f profile.cov || true
+          command: bash <(curl -s https://codecov.io/bash) -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
