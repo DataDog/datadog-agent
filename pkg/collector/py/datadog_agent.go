@@ -17,11 +17,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -187,7 +186,8 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	for i := 1; i < length; i++ {
 		subprocessArgs[i-1] = C.GoString(cmdSlice[i])
 	}
-	cmd := exec.Command(subprocessCmd, subprocessArgs...)
+	ctx, _ := GetSubprocessContextCancel()
+	cmd := exec.CommandContext(ctx, subprocessCmd, subprocessArgs...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
