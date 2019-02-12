@@ -26,7 +26,7 @@ public:
     void clearError();
     virtual six_gilstate_t GILEnsure() = 0;
     virtual void GILRelease(six_gilstate_t) = 0;
-    virtual SixPyObject *getCheckClass(const char *module) = 0;
+    virtual SixPyObject *getCheckClass(const char *module) = 0; // FIXME: not sure we need this
     virtual SixPyObject *getCheck(const char *name, const char *init_config, const char *instances) = 0;
     virtual const char *runCheck(SixPyObject *check) = 0;
 
