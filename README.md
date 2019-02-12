@@ -44,7 +44,21 @@ Then just run `make` to build the project.
 
 ## Demo
 
-Examples about how to use Six are provided in form of a C application under `demo`.
+Examples about how to use Six are provided in form of a C application under `demo`. The application expects to find a
+few things installed in the Python env. To easy development, a virtualenv can be used: the base check
+and the Directory check have to be installed before running the demo, if you have a local clone of `integrations-core`
+that should be a matter of `pip install /path_to_integrations_core/datadog_checks_base` and
+`pip install /path_to_integrations_core/directory`. Then depending on which Python version your virtualenv provides, run:
+
+```
+DYLD_LIBRARY_PATH=./three:./two ./demo/demo 2 $VIRTUAL_ENV
+```
+
+or
+
+```
+DYLD_LIBRARY_PATH=./three:./two ./demo/demo 3 $VIRTUAL_ENV
+```
 
 ## Test
 
