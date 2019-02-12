@@ -227,22 +227,25 @@ shared_examples_for "an installed Agent" do
     end
   end
 
-  it 'is properly signed' do
+  # We retrieve the value defined in .kitchen.yml because there is no simple way
+  # to set env variables on the target machine or via parameters in Kitchen/Busser
+  # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
+  let(:skip_windows_signing_check) {
     if os == :windows
+      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+    else
+      dna_json_path = "/tmp/kitchen/dna.json"
+    end
+    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
+  }
+  
+  it 'is properly signed' do
+    puts "swsc is #{skip_windows_signing_check}"
+    if os == :windows and !skip_windows_signing_check
       # The user in the yaml file is "datadog", however the default test kitchen user is azure.
       # This allows either to be used without changing the test.
-      msi_path_base = 'C:\\Users\\'
-      msi_path_end = '\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi'
-      msi_path_azure = msi_path_base + 'azure' + msi_path_end
-      msi_path_datadog = msi_path_base + 'datadog' + msi_path_end
-      msi_path_admin = msi_path_base + 'administrator' + msi_path_end
-      if File.exist?(msi_path_azure)
-        msi_path = msi_path_azure
-      elsif File.exist?(msi_path_admin)
-        msi_path = msi_path_admin
-      else
-        msi_path = msi_path_datadog
-      end
+      msi_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi"
+      expect(File).to exist(msi_path)
       output = `powershell -command "get-authenticodesignature #{msi_path}"`
       signature_hash = "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C"
       expect(output).to include(signature_hash)

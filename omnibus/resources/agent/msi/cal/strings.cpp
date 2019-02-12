@@ -1,41 +1,156 @@
 #include "stdafx.h"
 
-std::wstring datadog_path = L"Datadog\\Datadog Agent";
-std::wstring datadog_key_root = L"SOFTWARE\\" + datadog_path;
-std::wstring datadog_acl_key_datadog = L"MACHINE\\SOFTWARE\\" + datadog_path;
-std::wstring installStepsKey = datadog_key_root + L"\\installSteps";
-std::wstring datadog_service_name(L"DataDog Agent");
 
-std::wstring ddAgentUserName(L".\\ddagentuser");
-std::wstring ddAgentUserNameUnqualified;
-std::wstring ddAgentUserDomain;
-const wchar_t *ddAgentUserDomainPtr = NULL;
-std::wstring ddAgentUserDescription(L"User context under which the DataDog Agent service runs");
+std::wstring datadog_path ;                             //IDS_DATADOG_PATH
+std::wstring datadog_key_root_base;                     // IDS_DATADOG_KEY_ROOT_BASE
+std::wstring datadog_acl_key_datadog_base;              // IDS_DATADOG_ACL_KEY_DATADOG_BASE
 
-std::wstring traceService(L"datadog-trace-agent");
-std::wstring processService(L"datadog-process-agent");
-std::wstring agentService(L"datadogagent");
+std::wstring datadog_service_name;                      //IDS_DATADOG_SERVICE_NAME
 
-std::wstring propertyDDUserCreated(L"DDUSERCREATED");
-std::wstring propertyDDAgentUserName(L"DDAGENTUSER_NAME");
-std::wstring propertyDDAgentUserPassword(L"DDAGENTUSER_PASSWORD");
-std::wstring propertyEnableServicesDeferredKey(L"enableservices");
-std::wstring propertyRollbackState(L"CustomActionData");
+std::wstring ddAgentUserName;                           // IDS_DATADOG_AGENT_USER_NAME
+
+std::wstring ddAgentUserDescription;                    // IDS_DATADOG_AGENT_USER_DESCRIPTION
+
+std::wstring traceService;                              // IDS_TRACE_SERVICE_NAME
+std::wstring processService;                            // IDS_PROCESS_SERVICE_NAME
+std::wstring agentService;                              // IDS_AGENT_SERVICE_NAME
+
+std::wstring propertyDDAgentUserName;                   // IDS_PROPERTY_DDAGENTUSER
+std::wstring propertyDDAgentUserPassword;               // IDS_PROPERTY_DDAGENTUSER_PASSWORD
+std::wstring propertyAppDataDir;                        // IDS_PROPERTY_PROGRAMDATA
+std::wstring propertyProgramFilesDir;                   // IDS_PROPERTY_PROGRAMFILESDIR
+
+//std::wstring propertyEnableServicesDeferredKey(L"enableservices");
+//std::wstring propertyRollbackState(L"CustomActionData");
+std::wstring logsSuffix;                        // IDS_LOGSSUFFIX
+std::wstring authTokenSuffix;                   // IDS_AUTHTOKENSUFFIX
+std::wstring datadogyaml;                       // IDS_DATADOGYAML
+std::wstring confdsuffix;                       // IDS_CONFSDSUFFIX
+std::wstring logsdirsuffix;                     // IDS_LOGSDIRSUFFIX
+std::wstring datadogdir;
+
+std::wstring strRollbackKeyName;                // IDS_REGKEY_ROLLBACK_KEY_NAME
+std::wstring strUninstallKeyName;               // IDS_REGKEY_UNINSTALL_KEY_NAME
+
+std::wstring programdataroot;
+std::wstring logfilename;
+std::wstring authtokenfilename;
+std::wstring datadogyamlfile;
+std::wstring confddir;
+std::wstring logdir;
+
 std::wstring propertyCustomActionData(L"CustomActionData");
+std::wstring datadog_key_root;
+std::wstring datadog_acl_key_datadog;
 
-std::wstring programdataroot(L"c:\\ProgramData\\DataDog\\");
-std::wstring logfilename(L"c:\\ProgramData\\DataDog\\logs\\agent.log");
-std::wstring authtokenfilename(L"c:\\ProgramData\\Datadog\\auth_token");
-std::wstring datadogyamlfile(L"c:\\ProgramData\\Datadog\\datadog.yaml");
-std::wstring confddir(L"c:\\ProgramData\\Datadog\\conf.d");
-std::wstring logdir(L"c:\\ProgramData\\Datadog\\logs");
 
-// installation steps
-std::wstring strDdUserCreated(L"00-ddUserCreated");
-std::wstring strDdUserPasswordChanged(L"01-ddUserPasswordChanged");
-std::wstring strFilePermissionsChanged(L"02-ddUserFilePermsChanged");
-std::wstring strAddDdUserToPerfmon(L"03-ddUserAddedToPerfmon");
-std::wstring strChangedRegistryPermissions(L"04-ddRegPermsChanged");
+std::wstring* loadStrings[] = {
+    &datadog_path,
+    &datadog_key_root_base,
+    &datadog_acl_key_datadog_base,
+    &datadog_key_root,
+    &datadog_service_name,
+    &ddAgentUserName,
+    &ddAgentUserDescription,
+    &traceService,
+    &processService,
+    &agentService,
+    &propertyDDAgentUserName,
+    &propertyDDAgentUserPassword,
+    &propertyAppDataDir,
+    &propertyProgramFilesDir,
+    &logsSuffix,
+    &authTokenSuffix,
+    &datadogyaml,
+    &confdsuffix,
+    &logsdirsuffix,
+    &datadogdir,
+    &strRollbackKeyName,
+    &strUninstallKeyName
+};
+
+// strings for tracking install state
+std::wstring installCreatedDDUser;
+std::wstring installCreatedDDDomain;
+std::wstring installInstalledServices;
+std::wstring *installStrings[] = {
+    &installCreatedDDUser,
+    &installCreatedDDDomain,
+    &installInstalledServices,
+};
+void loadStringToWstring(int id, std::wstring *target)
+{
+#define DEFAULT_BUFFER_SIZE 512
+    wchar_t defaultbuffer[DEFAULT_BUFFER_SIZE];
+    memset(defaultbuffer, 0, DEFAULT_BUFFER_SIZE * sizeof(wchar_t));
+    int nRc = LoadStringW(hDllModule, id, defaultbuffer, DEFAULT_BUFFER_SIZE);
+
+    if (nRc == 0) {
+        // string isn't present
+        return;
+    }
+    if (nRc < DEFAULT_BUFFER_SIZE - 1) {
+        // it fit in the buffer, just return it
+        *target = defaultbuffer;
+        return;
+    }
+    // ideally, we'll never get here.  The LoadString API is lame, and doesn't
+    // tell you how big a buffer you need.  So, keep trying until we don't use
+    // the whole buffer
+
+    nRc = DEFAULT_BUFFER_SIZE * 2; // initialize to get past the initial comparison in the for
+    for (int bufsz = DEFAULT_BUFFER_SIZE * 2; nRc >= (bufsz - 1); bufsz += DEFAULT_BUFFER_SIZE)
+    {
+        wchar_t * tgtbuffer = new wchar_t[bufsz];
+        memset(tgtbuffer, 0, bufsz * sizeof(wchar_t));
+        nRc = LoadStringW(hDllModule, id, tgtbuffer, bufsz);
+        if (nRc < bufsz - 1) {
+            *target = tgtbuffer;
+        }
+        delete[] tgtbuffer;
+    }
+}
+static bool initialized = false;
+
+void getOsStrings()
+{
+    PWSTR outstr = NULL;
+    // build up all the path-based strings
+    std::wstring programfiles;
+
+    if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
+    {
+        programdataroot = outstr;
+        programdataroot += datadogdir;
+    }
+    if(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, 0, &outstr) == S_OK)
+    {
+        programfiles = outstr;
+    }
+    logfilename = programdataroot + logsSuffix;
+    authtokenfilename = programdataroot + authTokenSuffix;
+    datadogyamlfile = programdataroot + datadogyaml;
+    confddir = programdataroot + confdsuffix;
+    logdir = programdataroot + logsdirsuffix;
+
+    datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
+
+}
+void initializeStringsFromStringTable()
+{
+    if (initialized) {
+        return;
+    }
+    for (int i = 0; i < sizeof(loadStrings) / sizeof(std::wstring*); i++)
+    {
+        loadStringToWstring(STRINGTABLE_BASE + i, loadStrings[i]);
+    }
+    for (int i = 0; i < sizeof(installStrings) / sizeof(std::wstring*); i++) {
+        loadStringToWstring(INSTALLTABLE_BASE + i, installStrings[i]);
+    }
+    getOsStrings();
+    initialized = true;
+}
 
 void toMbcs(std::string& target, LPCWSTR src) {
     size_t len = wcslen(src);
@@ -99,32 +214,6 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
     return true;
 }
 
-bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName ) {
-    std::wstring tmpName;
-    if(loadPropertyString(hInstall, propertyName ? propertyName : propertyDDAgentUserName.c_str(), tmpName)){
-        if(std::wstring::npos == tmpName.find(L'\\')) {
-            WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
-            ddAgentUserName = L".\\" + tmpName;
-        } else {
-            ddAgentUserName = tmpName;
-        }
-        // now create the splits between the domain and user for all to use, too
-        std::wstring domain, user;
-        std::wistringstream asStream(tmpName);
-        // username is going to be of the form <domain>\<username>
-        // if the <domain> is ".", then just do local machine
-        getline(asStream, ddAgentUserDomain, L'\\');
-        getline(asStream, ddAgentUserNameUnqualified, L'\\');
-        if(domain == L"."){
-            ddAgentUserDomainPtr = NULL;
-        } else {
-            ddAgentUserDomainPtr = ddAgentUserDomain.c_str();
-        }
-
-        return true;
-    }
-    return false;
-}
 
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **pass, DWORD *len) {
     return loadPropertyString(hInstall, propertyDDAgentUserPassword.c_str(), pass, len);

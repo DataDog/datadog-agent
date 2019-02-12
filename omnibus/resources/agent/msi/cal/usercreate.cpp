@@ -1,8 +1,7 @@
 #include "stdafx.h"
 
 #pragma comment(lib, "shlwapi.lib")
-#define MIN_PASS_LEN 12
-#define MAX_PASS_LEN 18
+
 
 bool generatePassword(wchar_t* passbuf, int passbuflen) {
     if (passbuflen < MAX_PASS_LEN + 1) {
@@ -73,8 +72,11 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
     return true;
 
 }
-DWORD changeRegistryAcls(const wchar_t* name) {
+DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 
+    std::string namestr;
+    toMbcs(namestr, name);
+    WcaLog(LOGMSG_STANDARD, "Changing registry ACL on %s", namestr.c_str());
     ExplicitAccess localsystem;
     localsystem.BuildGrantSid(TRUSTEE_IS_USER, GENERIC_ALL | KEY_ALL_ACCESS, SECURITY_LOCAL_SYSTEM_RID, 0);
 
@@ -84,8 +86,10 @@ DWORD changeRegistryAcls(const wchar_t* name) {
     //ExplicitAccess suser;
     //suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
 
+    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
     ExplicitAccess dduser;
-    dduser.BuildGrantUser(ddAgentUserName.c_str(), GENERIC_ALL | KEY_ALL_ACCESS);
+    dduser.BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,
+        SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
 
     WinAcl acl;
@@ -112,16 +116,21 @@ DWORD changeRegistryAcls(const wchar_t* name) {
 
 }
 
-DWORD addDdUserPermsToFile(std::wstring &filename)
+DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
 {
+    std::string shortfile;
+    toMbcs(shortfile, (LPCWSTR)filename.c_str());
+
     if(!PathFileExistsW((LPCWSTR) filename.c_str()))
     {
         // return success; we don't need to do anything
-        WcaLog(LOGMSG_STANDARD, "file doesn't exist, not doing anything");
+        WcaLog(LOGMSG_STANDARD, "file %s doesn't exist, not doing anything", shortfile.c_str());
         return 0;
     }
+    WcaLog(LOGMSG_STANDARD, "Changing file permissions on %s", shortfile.c_str());
+    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
     ExplicitAccess dduser;
-    dduser.BuildGrantUser(ddAgentUserName.c_str(), FILE_ALL_ACCESS, 
+    dduser.BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,
                           SUB_CONTAINERS_AND_OBJECTS_INHERIT);
 
     // get the current ACLs and append, rather than just set; if the file exists,
@@ -216,7 +225,7 @@ doneRemove:
     return ;
 }
 
-int doCreateUser(std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf)
+int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf)
 {
     
     USER_INFO_1 ui;
@@ -231,7 +240,7 @@ int doCreateUser(std::wstring& name, const wchar_t * domain, std::wstring& comme
     
 
     WcaLog(LOGMSG_STANDARD, "Calling NetUserAdd.");
-    ret = NetUserAdd(domain, // LOCAL_MACHINE
+    ret = NetUserAdd(NULL, // LOCAL_MACHINE
         1, // indicates we're using a USER_INFO_1
         (LPBYTE)&ui,
         NULL);
@@ -240,162 +249,13 @@ int doCreateUser(std::wstring& name, const wchar_t * domain, std::wstring& comme
 
 }
 
-int CreateDDUser(MSIHANDLE hInstall)
-{
-    int ret = 0;
-    bool ddAgentPropertySet = false;
-    bool ddAgentPasswordSet = false;
-    wchar_t *passbuf = NULL;
-    DWORD passbuflen = 0;
-    if(false == (ddAgentPropertySet = loadDdAgentUserName(hInstall))){
-        WcaLog(LOGMSG_STANDARD, "DDAGENT username not supplied, using default");
-    }
-    if(false == (ddAgentPasswordSet = loadDdAgentPassword(hInstall, &passbuf, &passbuflen))) {
-        WcaLog(LOGMSG_STANDARD, "Password not provided, will generate password");
-    }
-   
-    if(isDomainController(hInstall)) {
-        if(!ddAgentPropertySet || !ddAgentPasswordSet) {
-            WcaLog(LOGMSG_STANDARD, "Detected domain server, but username/password not provided.  Can't install");
-            ret = -1; 
-            goto ddUserReturn;
-        } 
-    }
-    
-
-    if (!ddAgentPasswordSet) {
-        passbuflen = MAX_PASS_LEN + 2;
-        passbuf = new wchar_t[passbuflen];
-        
-        if (!generatePassword(passbuf, passbuflen)) {
-
-            WcaLog(LOGMSG_STANDARD, "Failed to generate password");
-            ret = -1; 
-            goto ddUserReturn;
-        }
-    }
-    ret = doCreateUser(ddAgentUserNameUnqualified, ddAgentUserDomainPtr, ddAgentUserDescription, passbuf);
-    if (ret == NERR_UserExists) {
-        WcaLog(LOGMSG_STANDARD, "Attempting to reset password of existing user");
-        // if the user exists, update the password with the newly generated
-        // password.  We need to update the password on every install, b/c the
-        // service registration code runs on every upgrade, and we need to know
-        // the password.  Rather than store the password, just generate a new
-        // one and use that
-        USER_INFO_1003 newPassword;
-        newPassword.usri1003_password = passbuf;
-        ret = NetUserSetInfo(NULL, // always local server
-            ddAgentUserName.c_str(),
-            1003, // according to the docs there's no constant
-            (LPBYTE)&newPassword,
-            NULL);
-        if (0 == ret) {
-            MarkInstallStepComplete(strDdUserPasswordChanged);
-        } else {
-            WcaLog(LOGMSG_STANDARD, "Failed to reset password for user %d", ret);
-        }
-    } else if (ret != 0) {
-        // failed with some unexpected reason
-        WcaLog(LOGMSG_STANDARD, "Failed to create dd agent user");
-        goto ddUserReturn;
-    }
-    else {
-        // user was successfully create.  Store that in case we need to rollback
-        WcaLog(LOGMSG_STANDARD, "Created DD agent user");
-        MarkInstallStepComplete(strDdUserCreated);
-    }
-    if(!ddAgentPropertySet){
-        MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserName.c_str(), (LPCWSTR)ddAgentUserName.c_str());
-    }
-    if(!ddAgentPasswordSet){
-        // now store the password in the property so the installer can use it
-        MsiSetProperty(hInstall, (LPCWSTR)propertyDDAgentUserPassword.c_str(), (LPCWSTR)passbuf);
-    }
-    // write the user naem we used to the `enableservices` key, so that it can be retrieved during the 
-    // deferred custom action
-    MsiSetProperty(hInstall, (LPCWSTR) propertyEnableServicesDeferredKey.c_str(), (LPCWSTR)ddAgentUserName.c_str());
-    
-ddUserReturn:
-    if(passbuf) {
-        memset(passbuf, 0, (MAX_PASS_LEN + 2) * sizeof(wchar_t));
-        delete [] passbuf;
-    }
-    return ret;
-}
 
 
-DWORD DeleteUser(std::wstring& name) {
-    NET_API_STATUS ret = NetUserDel(NULL, name.c_str());
+DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
+    NET_API_STATUS ret = NetUserDel(NULL, name);
     return (DWORD)ret;
 }
 
-UINT doRemoveDDUser()
-{
-    UINT er = 0;
-    LOCALGROUP_MEMBERS_INFO_0 lmi0;
-    memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_3));
-    PSID sid = NULL;
-    LSA_HANDLE hLsa = NULL;
-    DWORD nErr;
-    // change the rights on this user
-    sid = GetSidForUser(NULL, (LPCWSTR)ddAgentUserName.c_str());
-    if (!sid) {
-        goto LExit;
-    }
-    if ((hLsa = GetPolicyHandle()) == NULL) {
-        goto LExit;
-    }
-
-    // remove it from the "performance monitor users" group
-    lmi0.lgrmi0_sid = sid;
-    nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
-    if(nErr == NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to Performance Monitor Users");
-    } else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS ) {
-        WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);
-    } else {
-        WcaLog(LOGMSG_STANDARD, "Unexpected error removing user from group %d", nErr);
-    }
-
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny interactive login right");
-    }
-
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_NETWORK_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny network login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove deny remote interactive login right");
-    }
-    if (!RemovePrivileges(sid, hLsa, SE_SERVICE_LOGON_NAME)) {
-        WcaLog(LOGMSG_STANDARD, "failed to remove service login right");
-    }
-
-    // remove the dd user from the \programdata\ file permissions 
-    removeUserPermsFromFile(logfilename, sid);
-    removeUserPermsFromFile(datadogyamlfile, sid);
-    removeUserPermsFromFile(confddir, sid);
-    removeUserPermsFromFile(programdataroot, sid);
-    
-    // delete the auth token file entirely
-    DeleteFile(authtokenfilename.c_str());
-
-    er = DeleteUser(ddAgentUserName);
-    if (0 != er) {
-        // don't actually fail on failure.  We're doing an uninstall,
-        // and failing will just leave the system in a more confused state
-        WcaLog(LOGMSG_STANDARD, "Didn't delete the datadog user %d", er);
-    } 
-    
-LExit:
-    if (sid) {
-        delete[](BYTE *) sid;
-    }
-    if (hLsa) {
-        LsaClose(hLsa);
-    }
-    return er;
-}
 
 
 bool isDomainController(MSIHANDLE hInstall)
@@ -429,3 +289,61 @@ bool isDomainController(MSIHANDLE hInstall)
     }
     return ret;
 }
+
+int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data)
+{
+    int retval = 0;
+    SID *newsid = NULL;
+    DWORD cbSid = 0;
+    LPWSTR refDomain = NULL;
+    DWORD cchRefDomain = 0;
+    SID_NAME_USE use;
+    std::string narrowdomain;
+    DWORD err = 0;
+    BOOL bRet = LookupAccountName(NULL, data.getQualifiedUsername().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+    if (bRet) {
+        err = GetLastError();
+        // this should *never* happen, because we didn't pass in a buffer large enough for
+        // the sid or the domain name.
+        return -1;
+    }
+    err = GetLastError();
+    if (ERROR_NONE_MAPPED == err) {
+        // this user doesn't exist.  We're done
+        return 0;
+    }
+    if (ERROR_INSUFFICIENT_BUFFER != err) {
+        // we don't know what happened
+        return -1;
+    }
+    newsid = (SID *) new BYTE[cbSid];
+    ZeroMemory(newsid, cbSid);
+
+    refDomain = new wchar_t[cchRefDomain + 1];
+    ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
+
+    // try it again
+    bRet = LookupAccountName(NULL, data.getQualifiedUsername().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+    if (!bRet) {
+        err = GetLastError();
+        WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
+        retval = -1;
+    }
+    if (!IsValidSid(newsid)) {
+        WcaLog(LOGMSG_STANDARD, "New SID is invalid");
+        retval = -1;
+    }
+    retval = 1;
+    toMbcs(narrowdomain, refDomain);
+    WcaLog(LOGMSG_STANDARD, "Got SID from %s", narrowdomain.c_str());
+
+cleanAndFail:
+    if (newsid) {
+        delete[](BYTE*)newsid;
+    }
+    if (refDomain) {
+        delete[] refDomain;
+    }
+    return retval;
+}
+

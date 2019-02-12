@@ -2,10 +2,9 @@ LIBRARY customaction
 
 EXPORTS
 	DllMain
-	CreateOrUpdateDDUser
-    EnableServicesForDDUser
-    VerifyDatadogRegistryPerms
-	RemoveDDUser
-	RollbackInstallation
+    FinalizeInstall
 	PreStopServices
-    AdjustDDRights
+	PostStartServices
+	DoUninstall
+    DoRollback
+	
