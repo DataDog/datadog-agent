@@ -133,16 +133,24 @@ SixPyObject *Two::importFrom(const char *module, const char *name) {
     return reinterpret_cast<SixPyObject *>(_importFrom(module, name));
 }
 
-SixPyObject *Two::getCheckClass(const char *module) {
+SixPyObject *Two::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
     PyObject *base = NULL;
     PyObject *obj_module = NULL;
     PyObject *klass = NULL;
+    PyObject *init_config = NULL;
+    PyObject *instances = NULL;
+    PyObject *check = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+
+    char load_config[] = "load_config";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
 
     // import the base class
     base = _importFrom("datadog_checks.base.checks", "AgentCheck");
     if (base == NULL) {
         setError("Unable to import base class");
-        goto error;
+        goto done;
     }
 
     // try to import python module containing the check
@@ -150,24 +158,57 @@ SixPyObject *Two::getCheckClass(const char *module) {
     if (obj_module == NULL) {
         PyErr_Print();
         setError("Unable to import module");
-        goto error;
+        goto done;
     }
 
     // find a subclass of the base check
     klass = _findSubclassOf(base, obj_module);
     if (klass == NULL) {
-        goto error;
+        PyErr_Print();
+        goto done;
     }
 
-    Py_XDECREF(base);
-    Py_XDECREF(obj_module);
-    return reinterpret_cast<SixPyObject *>(klass);
+    // call `AgentCheck.load_config(init_config)`
+    init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
+    if (init_config == NULL) {
+        PyErr_Print();
+        goto done;
+    }
 
-error:
+    // call `AgentCheck.load_config(instances)`
+    instances = PyObject_CallMethod(klass, load_config, format, instances_str);
+    if (instances == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+    // create `args` and `kwargs` to invoke `AgentCheck` constructor
+    args = PyTuple_New(0);
+    kwargs = PyDict_New();
+    PyDict_SetItemString(kwargs, "init_config", init_config);
+    PyDict_SetItemString(kwargs, "instances", instances);
+
+    // call `AgentCheck` constructor
+    check = PyObject_Call(klass, args, kwargs);
+    if (check == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+done:
     Py_XDECREF(base);
     Py_XDECREF(obj_module);
     Py_XDECREF(klass);
-    return NULL;
+    Py_XDECREF(init_config);
+    Py_XDECREF(instances);
+    Py_XDECREF(args);
+    Py_XDECREF(kwargs);
+
+    if (check == NULL) {
+        return NULL;
+    }
+
+    return reinterpret_cast<SixPyObject *>(check);
 }
 
 PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module) {
@@ -212,7 +253,7 @@ PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module) {
         }
 
         // this is an unrelated class, ignore
-        if (!PyClass_IsSubclass(klass, base)) {
+        if (!PyType_IsSubtype((PyTypeObject *)klass, (PyTypeObject *)base)) {
             Py_XDECREF(klass);
             continue;
         }
