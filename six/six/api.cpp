@@ -124,6 +124,10 @@ six_pyobject_t *get_check_class(six_t *six, const char *name) {
     return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->getCheckClass(name));
 }
 
+six_pyobject_t *get_check(six_t *six, const char *name, const char *init_config, const char *instances) {
+    return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->getCheck(name, init_config, instances));
+}
+
 int has_error(const six_t *six) {
     if (AS_CTYPE(Six, six)->hasError()) {
         return 1;

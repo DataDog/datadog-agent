@@ -75,8 +75,8 @@ int main(int argc, char *argv[]) {
     }
 
     // add a new `print_foo` to the custom builtin module `datadog_agent`
-    add_module_func(six, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
-    add_module_func(six, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_ARGS, "get_config", get_config);
+    add_module_func(six, DATADOG_AGENT_SIX__UTIL, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
+    add_module_func(six, DATADOG_AGENT_SIX__UTIL, DATADOG_AGENT_SIX_ARGS, "get_config", get_config);
 
     init(six, python_home);
     printf("Embedding Python version %s\n", get_py_version(six));
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
     }
 
     // load the NTP check if available
-    six_pyobject_t *check = get_check_class(six, "datadog_checks.ntp");
+    six_pyobject_t *check = get_check(six, "datadog_checks.ntp", "", "[]");
     if (check == NULL) {
         printf("Unable to load the 'ntp' check, is it installed in the Python env?\n");
     } else {
