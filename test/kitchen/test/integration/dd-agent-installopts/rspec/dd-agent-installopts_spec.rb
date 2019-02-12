@@ -4,8 +4,8 @@ def read_conf_file
     conf_path = ""
     if os == :windows
       conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-      ddpath_exists = File.exist("#{ENV['ProgramData']}\\Datadog")
-      ddfile_exists = File.exist(conf_path)
+      ddpath_exists = File.exist?("#{ENV['ProgramData']}\\Datadog")
+      ddfile_exists = File.exist?(conf_path)
       puts "path exists #{ddpath_exists} file exists #{ddfile_exists}"
     else
       conf_path = '/etc/datadog-agent/datadog.yaml'
