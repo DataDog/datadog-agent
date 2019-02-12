@@ -29,8 +29,7 @@ import (
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
 	constraintsFile     = "final_constraints.txt"
-	tufPkgPattern       = "datadog(-|_).*"
-	tufIndex            = "https://dd-integrations-core-wheels-build-stable.s3.amazonaws.com/targets/simple/"
+	tufPkgPattern       = "datadog-.*"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	yamlFilePattern     = "[\\w_]+\\.yaml.*"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
@@ -39,7 +38,7 @@ const (
 
 var (
 	allowRoot    bool
-	verbose      bool
+	verbose      int
 	useSysPython bool
 	versionOnly  bool
 	localWheel   bool
@@ -107,10 +106,9 @@ func init() {
 	AgentCmd.AddCommand(integrationCmd)
 	integrationCmd.AddCommand(installCmd)
 	integrationCmd.AddCommand(removeCmd)
-	integrationCmd.AddCommand(searchCmd)
 	integrationCmd.AddCommand(freezeCmd)
 	integrationCmd.AddCommand(showCmd)
-	integrationCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging on pip and TUF")
+	integrationCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "enable verbose logging on pip and TUF")
 	integrationCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
 
@@ -144,14 +142,6 @@ var removeCmd = &cobra.Command{
 	Short: "Remove Datadog integration core/extra packages",
 	Long:  ``,
 	RunE:  remove,
-}
-
-var searchCmd = &cobra.Command{
-	Use:    "search [package]",
-	Short:  "Search Datadog integration core/extra packages",
-	Long:   ``,
-	RunE:   search,
-	Hidden: true,
 }
 
 var freezeCmd = &cobra.Command{
@@ -248,8 +238,8 @@ func pip(args []string) error {
 	implicitFlags = append(implicitFlags, "--disable-pip-version-check")
 	args = append([]string{"-mpip"}, cmd)
 
-	if verbose {
-		args = append(args, "-vvv")
+	for i := 0; i < verbose; i++ {
+		args = append(args, "-v")
 	}
 
 	// Append implicit flags to the *pip* command
@@ -306,10 +296,8 @@ func install(cmd *cobra.Command, args []string) error {
 		"--constraint", constraintsPath,
 		// We don't use pip to download wheels, so we don't need a cache
 		"--no-cache-dir",
-		// We replace the PyPI index with our own by default, in order to prevent
-		// accidental installation of Datadog or even third-party packages from
-		// PyPI.
-		"--index-url", tufIndex,
+		// Specify to not use any index since we won't/shouldn't download anything with pip anyway
+		"--no-index",
 		// Do *not* install dependencies by default. This is partly to prevent
 		// accidental installation / updates of third-party dependencies from PyPI.
 		"--no-deps",
@@ -445,8 +433,8 @@ func downloadWheel(integration, version string) (string, error) {
 		integration,
 		"--version", version,
 	}
-	if verbose {
-		args = append(args, "-vvvv")
+	for i := 0; i < verbose; i++ {
+		args = append(args, "-v")
 	}
 	downloaderCmd := exec.Command(downloaderPath, args...)
 	downloaderCmd.Env = os.Environ()
@@ -489,6 +477,13 @@ func downloadWheel(integration, version string) (string, error) {
 	// The path to the wheel will be at the last line of the output
 	splitOutput := strings.Split(strOutput, "\n")
 	wheelPath := strings.TrimSpace(splitOutput[len(splitOutput)-1])
+
+	// Verify the availability of the wheel file
+	if _, err := os.Stat(wheelPath); err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("wheel %s does not exist", wheelPath)
+		}
+	}
 	return wheelPath, nil
 }
 
@@ -674,22 +669,6 @@ func remove(cmd *cobra.Command, args []string) error {
 	}
 	pipArgs = append(pipArgs, args...)
 	pipArgs = append(pipArgs, "-y")
-
-	return pip(pipArgs)
-}
-
-func search(cmd *cobra.Command, args []string) error {
-
-	// NOTE: search will always go to our TUF repository, which doesn't
-	//       support searching currently.
-	pipArgs := []string{
-		"search",
-		// We replace the PyPI index with our own by default, in order to prevent
-		// accidental installation of Datadog or even third-party packages from
-		// PyPI.
-		"--index", tufIndex,
-	}
-	pipArgs = append(pipArgs, args...)
 
 	return pip(pipArgs)
 }
