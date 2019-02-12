@@ -69,6 +69,16 @@ if node['platform_family'] != 'windows'
     action :upgrade
     version node['dd-agent-upgrade']['version']
   end
+  # the :upgrade method seems broken for sles: https://github.com/chef/chef/issues/4863
+  if node['platform_family'] == 'suse'
+    package node['dd-agent-upgrade']['package_name'] do
+      action :remove
+    end
+    package node['dd-agent-upgrade']['package_name'] do
+      action :add
+      version node['dd-agent-upgrade']['version']
+    end
+  end
 end
 
 if node['platform_family'] == 'windows'
