@@ -370,6 +370,13 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
     ExitOnFailure(hr, "Failed to initialize");
 
     WcaLog(LOGMSG_STANDARD, "Initialized.");
+
+#ifdef _DEBUG
+    MessageBoxA(NULL, "DoRollback", "DoRollback", MB_OK);
+#endif
+    WcaLog(LOGMSG_STANDARD, "Giving services a chance to settle...");
+    Sleep(10000);
+    WcaLog(LOGMSG_STANDARD, "Proceeding with rollback");
     initializeStringsFromStringTable();
     // we'll need to stop the services manually if we got far enough to start
     // them before installation failed.
