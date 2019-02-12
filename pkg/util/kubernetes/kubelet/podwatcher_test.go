@@ -46,7 +46,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	remainingPods := sourcePods[3:]
 
 	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
+		lastSeen:       make(map[string]PodSighting),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -85,7 +85,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.Len(suite.T(), sourcePods, 6)
 
 	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
+		lastSeen:       make(map[string]PodSighting),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -114,13 +114,38 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.True(suite.T(), IsPodReady(changes[0]))
 }
 
+func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInPhase() {
+	func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
+		sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
+		require.Nil(suite.T(), err)
+		pod := sourcePods[1]
+		pod.Status.Phase = "Pending"
+
+		watcher := &PodWatcher{
+			lastSeen:       make(map[string]PodSighting),
+			expiryDuration: 5 * time.Minute,
+		}
+
+		// pod is in pending phase and not static, it shouldn't be found
+		changes, err := watcher.computeChanges(pod)
+		require.Nil(suite.T(), err)
+		// The first pod is a static pod but should be found
+		require.Len(suite.T(), changes, 0)
+
+		pod.Status.Phase = "Running"
+		// Pod changed phase, it should now be seen
+		changes, err = watcher.computeChanges(pod)
+		require.Nil(suite.T(), err)
+		require.Len(suite.T(), changes, 1)
+}
+
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	sourcePods, err := loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 7)
 
 	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
+		lastSeen:       make(map[string]PodSighting),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -157,7 +182,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	require.Len(suite.T(), sourcePods, 7)
 
 	watcher := &PodWatcher{
-		lastSeen:       make(map[string]time.Time),
+		lastSeen:       make(map[string]PodSighting),
 		expiryDuration: 5 * time.Minute,
 	}
 
