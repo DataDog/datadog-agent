@@ -18,7 +18,7 @@ from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
-from .trace import integration_tests as trace_integration_tests
+from .trace_agent import integration_tests as trace_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
 
 PROFILE_COV = "profile.cov"
