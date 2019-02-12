@@ -47,6 +47,7 @@ DATADOG_AGENT_SIX_API six_pyobject_t *import_from(six_t *, const char *module, c
 DATADOG_AGENT_SIX_API six_pyobject_t *get_check_class(six_t *, const char *name);
 DATADOG_AGENT_SIX_API six_pyobject_t *get_check(six_t *, const char *name, const char *init_config,
                                                 const char *instances);
+DATADOG_AGENT_SIX_API const char *run_check(six_t *, six_pyobject_t *check);
 
 // C CONST API
 DATADOG_AGENT_SIX_API int is_initialized(six_t *);

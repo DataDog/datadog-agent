@@ -128,6 +128,10 @@ six_pyobject_t *get_check(six_t *six, const char *name, const char *init_config,
     return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->getCheck(name, init_config, instances));
 }
 
+const char *run_check(six_t *six, six_pyobject_t *check) {
+    return AS_TYPE(Six, six)->runCheck(AS_TYPE(SixPyObject, check));
+}
+
 int has_error(const six_t *six) {
     if (AS_CTYPE(Six, six)->hasError()) {
         return 1;

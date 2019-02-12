@@ -94,11 +94,25 @@ int main(int argc, char *argv[]) {
     }
 
     // load the NTP check if available
-    six_pyobject_t *check = get_check(six, "datadog_checks.ntp", "", "[]");
+    six_pyobject_t *check = get_check(six, "datadog_checks.directory", "", "[{directory: \"/\"}]");
     if (check == NULL) {
-        printf("Unable to load the 'ntp' check, is it installed in the Python env?\n");
+        printf("Unable to load the 'directory' check, is it installed in the Python env?\n");
+        return 1;
+    }
+
+    printf("Successfully imported Directory integration.\n");
+
+    const char *result = run_check(six, check);
+
+    if (result == NULL) {
+        printf("Unable to run the check!\n");
+        return 1;
+    }
+
+    if (strlen(result) == 0) {
+        printf("Successfully run the check\n");
     } else {
-        printf("Successfully imported NTP integration.\n");
+        printf("Error running the check, output:\n %s\n", result);
     }
 
     return 0;

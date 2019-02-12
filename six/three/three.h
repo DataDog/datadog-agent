@@ -31,6 +31,8 @@ public:
     SixPyObject *getCheckClass(const char *module) { return NULL; }
     /* FIXME */
     SixPyObject *getCheck(const char *name, const char *init_config, const char *instances) { return NULL; }
+    /* FIXME */
+    const char *runCheck(SixPyObject *check) { return ""; }
 
     // const API
     bool isInitialized() const;
