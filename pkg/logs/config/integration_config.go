@@ -46,9 +46,7 @@ type ProcessingRule struct {
 type LogsConfig struct {
 	Type string
 
-	Port             int  // Network
-	SplitPerDatagram bool `mapstructure:"split_per_datagram" json:"split_per_datagram"` // Network
-
+	Port int    // Network
 	Path string // File, Journald
 
 	IncludeUnits []string `mapstructure:"include_units" json:"include_units"` // Journald

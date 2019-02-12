@@ -8,4 +8,5 @@
 ---
 fixes:
   - |
-    Fixed bug where logs forwarded by UDP would not be splitted because of missing line feed character.
+    Fixed a bug where logs forwarded by UDP would not be split because of missing line feed character at the end of a datagram.
+    Now adding a line feed character at the end of each frame is deprecated because it is automacilly added by the agent on read operations.
