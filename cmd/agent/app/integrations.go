@@ -31,8 +31,10 @@ const (
 	constraintsFile     = "final_constraints.txt"
 	tufPkgPattern       = "datadog-.*"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
-	yamlFilePattern     = "[\\w_]+\\.yaml.*"
-	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
+	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
+	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
+	yamlFilePattern          = "[\\w_]+\\.yaml.*"
+	disclaimer               = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
 )
 
@@ -295,7 +297,7 @@ func install(cmd *cobra.Command, args []string) error {
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
 		// Verify that the wheel depends on `datadog_checks_base` to decide if it's an agent check or not
 		fmt.Println(disclaimer)
-		if ok, err := validateBaseDependency(args[0]); err != nil {
+		if ok, err := validateBaseDependency(args[0], nil); err != nil {
 			return fmt.Errorf("error while reading the wheel %s: %v", args[0], err)
 		} else if !ok {
 			return fmt.Errorf("the wheel %s is not an agent check, it will not be installed", args[0])
@@ -338,18 +340,24 @@ func install(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Run pip check first to see if the python environment is clean
-	if err := pipCheck(); err != nil {
-		return fmt.Errorf(
-			"error when validating the agent's python environment, won't install %s: %v",
-			integration, err,
-		)
-	}
-
 	// Download the wheel
 	wheelPath, err := downloadWheel(integration, versionToInstall.String())
 	if err != nil {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
+	}
+
+	// Verify datadog_checks_base is compatible with the requirements
+	shippedBaseVersion, err := installedVersion("datadog-checks-base")
+	if err != nil {
+		return fmt.Errorf("unable to get the version of datadog_checks_base: %v", err)
+	}
+	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); err != nil {
+		return fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err)
+	} else if !ok {
+		return fmt.Errorf(
+			"%s %s is not compatible with datadog_checks_base %s shipped in the agent",
+			integration, versionToInstall, shippedBaseVersion,
+		)
 	}
 
 	// Install the wheel
@@ -357,58 +365,7 @@ func install(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
-	// Run pip check to determine if the installed integration is compatible with the base check version
-	pipCheckErr := pipCheck()
-	if pipCheckErr == nil {
-		err := moveConfigurationFilesOf(integration)
-		if err == nil {
-			fmt.Println(color.GreenString(fmt.Sprintf(
-				"Successfully installed %s %s", integration, versionToInstall,
-			)))
-			return nil
-		}
-
-		fmt.Printf("Installed %s %s", integration, versionToInstall)
-		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
-	}
-
-	// We either detected a mismatch, or we failed to run pip check
-	// Either way, roll back the install and return the error
-	if currentVersion == nil {
-		// Special case where we tried to install a new integration, not yet released with the agent
-		pipArgs = []string{
-			"uninstall",
-			integration,
-			"-y",
-		}
-	} else {
-		// Download the wheel
-		wheelPath, err := downloadWheel(integration, currentVersion.String())
-		if err != nil {
-			// Rollback failed, mention that the integration could be broken
-			return fmt.Errorf(
-				"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken:\n - %v\n- %v",
-				integration, versionToInstall, pipCheckErr, err,
-			)
-		}
-		pipArgs = append(pipArgs, wheelPath)
-	}
-
-	// Perform the rollback
-	pipErr := pip(pipArgs)
-	if pipErr == nil {
-		// Rollback successful, return error encountered during `pip check`
-		return fmt.Errorf(
-			"error when validating the agent's python environment, %s wasn't installed: %v",
-			integration, pipCheckErr,
-		)
-	}
-
-	// Rollback failed, mention that the integration could be broken
-	return fmt.Errorf(
-		"error when validating the agent's python environment, and the rollback failed, so %s %s was installed and might be broken:\n - %v\n- %v",
-		integration, versionToInstall, pipCheckErr, pipErr,
-	)
+	return nil
 }
 
 func downloadWheel(integration, version string) (string, error) {
@@ -475,7 +432,7 @@ func downloadWheel(integration, version string) (string, error) {
 	return wheelPath, nil
 }
 
-func validateBaseDependency(wheelPath string) (bool, error) {
+func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (bool, error) {
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return false, err
@@ -491,8 +448,33 @@ func validateBaseDependency(wheelPath string) (bool, error) {
 			defer fileReader.Close()
 			scanner := bufio.NewScanner(fileReader)
 			for scanner.Scan() {
-				if strings.Contains(scanner.Text(), "Requires-Dist: datadog-checks-base") {
-					return true, nil
+				line := scanner.Text()
+				if strings.Contains(line, "Requires-Dist: datadog-checks-base") {
+					exp, err := regexp.Compile(versionSpecifiersPattern)
+					if err != nil {
+						return false, fmt.Errorf("internal error: %v", err)
+					}
+					if baseVersion == nil {
+						// Simply trying to verify that the base package is a dependency
+						return true, nil
+					}
+					matches := exp.FindAllStringSubmatch(line, -1)
+
+					if matches == nil {
+						// base check not pinned, so it is compatible with whatever version we pass
+						return true, nil
+					}
+
+					compatible := true
+					for _, groups := range matches {
+						comp := groups[1]
+						version, err := parseVersion(groups[2])
+						if err != nil {
+							return false, fmt.Errorf("unable to parse version specifier %s in %s: %v", groups[0], line, err)
+						}
+						compatible = compatible && validateRequirement(baseVersion, comp, version)
+					}
+					return compatible, nil
 				}
 			}
 			if err := scanner.Err(); err != nil {
@@ -501,6 +483,26 @@ func validateBaseDependency(wheelPath string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func validateRequirement(version *integrationVersion, comp string, versionReq *integrationVersion) bool {
+	// Check for cases defined here: https://www.python.org/dev/peps/pep-0345/#version-specifiers
+	switch comp {
+	case "<": // version < versionReq
+		return !version.isAboveOrEqualTo(versionReq)
+	case "<=": // version <= versionReq
+		return versionReq.isAboveOrEqualTo(version)
+	case ">": // version > versionReq
+		return !versionReq.isAboveOrEqualTo(version)
+	case ">=": // version >= versionReq
+		return version.isAboveOrEqualTo(versionReq)
+	case "==": // version == versionReq
+		return version.equals(versionReq)
+	case "!=": // version != versionReq
+		return !version.equals(versionReq)
+	default:
+		return false
+	}
 }
 
 func minAllowedVersion(integration string) (*integrationVersion, error) {
