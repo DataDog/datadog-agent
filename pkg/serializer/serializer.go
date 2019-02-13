@@ -207,7 +207,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendSeries(series metrics.Series) error {
+func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
@@ -220,7 +220,7 @@ func (s *Serializer) SendSeries(series metrics.Series) error {
 	var err error
 
 	if useV1API && s.enableJSONStream {
-		groups := metrics.SortAndGroupSeries(series)
+		groups := metrics.SortAndGroupSeries(testSeries)
 		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(groups)
 	} else {
 		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
