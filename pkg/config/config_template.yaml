@@ -334,6 +334,9 @@ api_key:
 # collection_timeout: the maximum waiting period before timing up on metric collection
 # jmx_collection_timeout: 60
 #
+# reconnection_thread_pool_size: determines the maximum level of concurrency in the reconnection pool.
+# jmx_reconnection_thread_pool_size: 3
+#
 # reconnection_timeout: the maximum waiting period before timing up on instance reconnection
 # jmx_reconnection_timeout: 10
 #
