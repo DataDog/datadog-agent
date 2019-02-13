@@ -14,6 +14,7 @@ target_include_directories(datadog-agent-two PUBLIC
     ${Python2_INCLUDE_DIRS}
 )
 target_link_libraries(datadog-agent-two ${Python2_LIBRARIES} datadog-agent-six)
+target_compile_options(datadog-agent-two PRIVATE "-Wno-deprecated-register")
 install(TARGETS datadog-agent-two
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
