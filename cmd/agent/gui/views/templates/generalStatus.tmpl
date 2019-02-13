@@ -187,17 +187,22 @@
     <span class="stat_title">Logs Agent</span>
     <span class="stat_data">
     {{- with .logsStats -}}
-      {{ if (not .is_running) }}
+      {{- if (not .is_running) }}
+
         Logs Agent is not running </br>
-      {{ else }}
-      {{- if .messages }}
+      {{- end }}
+      {{- if .warnings }}
+
         <span class="warning stat_subtitle">Warnings</span>
         <span class="stat_subdata">
-          {{ range $warning := .messages }}{{ $warning }}</br>{{ end }}
+        {{- range $warning := .warnings }}
+          {{ $warning }}</br>
+        {{- end }}
         </span>
       {{- end}}
-      {{- range .integrations -}}
-        <span class="stat_subtitle">{{- .name }}</span>
+      {{- range .integrations }}
+
+        <span class="stat_subtitle">{{ .name }}</span>
         <span class="stat_subdata">
           {{- range .sources }}
             Type: {{ .type }}</br>
@@ -206,16 +211,16 @@
             {{- end }}
             {{- if .status }}
             Status: {{ .status }}</br>
-              {{- if .messages }}
-              &nbsp&nbsp{{range $message := .messages }}{{ $message }}</br>{{end}}
-              {{- end }}
+            {{- range $message := .messages }}
+              {{ $message }}</br>
+            {{- end }}
             {{- end }}
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
             {{- end }}
           {{- end }}
         </span>
-        {{ end }}
+        {{- end }}
       {{- end }}
     {{- end -}}
     </span>

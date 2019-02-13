@@ -6,6 +6,9 @@
 package logs
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -15,9 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
+const (
+	// key used to display a warning message on the agent status
+	invalidProcessingRules = "invalid_global_processing_rules"
+	invalidEndpoints       = "invalid_endpoints"
+)
+
 var (
 	// isRunning indicates whether logs-agent is running or not
-	isRunning bool
+	isRunning *bool
 	// logs-agent
 	agent *Agent
 	// scheduler is plugged to autodiscovery to collect integration configs
@@ -25,37 +34,48 @@ var (
 	adScheduler *scheduler.Scheduler
 )
 
+func init() {
+	running := false
+	isRunning = &running
+}
+
 // Start starts logs-agent
 func Start() error {
 	if IsAgentRunning() {
 		return nil
-	}
-	// setup the server config
-	endpoints, err := sender.BuildEndpoints()
-	if err != nil {
-		return err
 	}
 
 	// setup the sources and the services
 	sources := config.NewLogSources()
 	services := service.NewServices()
 
-	// initialize the config scheduler
+	// setup the config scheduler
 	adScheduler = scheduler.NewScheduler(sources, services)
 
 	// setup the status
-	status.Initialize(sources)
+	status.Initialize(isRunning, sources)
 
+	// setup the server config
+	endpoints, err := sender.BuildEndpoints()
+	if err != nil {
+		message := fmt.Sprintf("Invalid endpoints: %v", err)
+		status.AddGlobalWarning(invalidEndpoints, message)
+		return errors.New(message)
+	}
+
+	// setup global processing rules
 	global, err := config.GlobalProcessingRules()
 	if err != nil {
-		return err
+		message := fmt.Sprintf("Invalid processing rules: %v", err)
+		status.AddGlobalWarning(invalidProcessingRules, message)
+		return errors.New(message)
 	}
 
 	// setup and start the agent
 	agent = NewAgent(sources, services, global, endpoints)
 	log.Info("Starting logs-agent...")
 	agent.Start()
-	isRunning = true
+	*isRunning = true
 	log.Info("logs-agent started")
 
 	// add the default sources
@@ -70,7 +90,7 @@ func Start() error {
 // it only returns when the whole pipeline is flushed.
 func Stop() {
 	log.Info("Stopping logs-agent")
-	if isRunning {
+	if *isRunning {
 		if agent != nil {
 			agent.Stop()
 			agent = nil
@@ -80,21 +100,18 @@ func Stop() {
 			adScheduler = nil
 		}
 		status.Clear()
-		isRunning = false
+		*isRunning = false
 	}
 	log.Info("logs-agent stopped")
 }
 
 // IsAgentRunning returns true if the logs-agent is running.
 func IsAgentRunning() bool {
-	return isRunning
+	return *isRunning
 }
 
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
-	if !IsAgentRunning() {
-		return status.Status{IsRunning: false}
-	}
 	return status.Get()
 }
 

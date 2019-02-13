@@ -36,20 +36,22 @@ type Integration struct {
 type Status struct {
 	IsRunning    bool          `json:"is_running"`
 	Integrations []Integration `json:"integrations"`
-	Messages     []string      `json:"messages"`
+	Warnings     []string      `json:"warnings"`
 }
 
 // Builder is used to build the status.
 type Builder struct {
-	sources  *config.LogSources
-	warnings *config.Messages
+	isRunning *bool
+	sources   *config.LogSources
+	warnings  *config.Messages
 }
 
 // Initialize instantiates a builder that holds the sources required to build the current status later on.
-func Initialize(sources *config.LogSources) {
+func Initialize(isRunning *bool, sources *config.LogSources) {
 	builder = &Builder{
-		sources:  sources,
-		warnings: config.NewMessages(),
+		isRunning: isRunning,
+		sources:   sources,
+		warnings:  config.NewMessages(),
 	}
 }
 
@@ -75,7 +77,6 @@ func Get() Status {
 	}
 	// Convert to json
 	var integrations []Integration
-	warningsDeduplicator := make(map[string]struct{})
 	for name, sourceList := range sources {
 		var sources []Source
 		for _, source := range sourceList {
@@ -96,36 +97,28 @@ func Get() Status {
 				Messages:      source.Messages.GetMessages(),
 			})
 
-			for _, warning := range builder.warnings.GetWarnings() {
-				warningsDeduplicator[warning] = struct{}{}
-			}
 		}
 		integrations = append(integrations, Integration{Name: name, Sources: sources})
 	}
 
-	var warnings []string
-	for warning := range warningsDeduplicator {
-		warnings = append(warnings, warning)
-	}
-
 	return Status{
-		IsRunning:    true,
+		IsRunning:    *builder.isRunning,
 		Integrations: integrations,
-		Messages:     warnings,
+		Warnings:     builder.warnings.GetMessages(),
 	}
 }
 
 // AddGlobalWarning create a warning
 func AddGlobalWarning(key string, warning string) {
 	if builder != nil {
-		builder.warnings.AddWarning(key, warning)
+		builder.warnings.AddMessage(key, warning)
 	}
 }
 
 // RemoveGlobalWarning removes a warning
 func RemoveGlobalWarning(key string) {
 	if builder != nil {
-		builder.warnings.RemoveWarning(key)
+		builder.warnings.RemoveMessage(key)
 	}
 }
 
@@ -158,7 +151,7 @@ func toDictionary(c *config.LogsConfig) map[string]interface{} {
 
 func init() {
 	metrics.LogsExpvars.Set("Warnings", expvar.Func(func() interface{} {
-		return strings.Join(Get().Messages, ", ")
+		return strings.Join(Get().Warnings, ", ")
 	}))
 	metrics.LogsExpvars.Set("IsRunning", expvar.Func(func() interface{} {
 		return Get().IsRunning
