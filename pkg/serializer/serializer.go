@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -206,7 +207,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendSeries(m marshaler.StreamJSONMarshaler) error {
+func (s *Serializer) SendSeries(series metrics.Series) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
@@ -219,9 +220,10 @@ func (s *Serializer) SendSeries(m marshaler.StreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(m)
+		groups := metrics.SortAndGroupSeries(series)
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(groups)
 	} else {
-		seriesPayloads, extraHeaders, err = s.serializePayload(m, true, useV1API)
+		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
 	}
 
 	if err != nil {

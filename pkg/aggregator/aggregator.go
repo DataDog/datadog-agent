@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -409,16 +407,7 @@ func (agg *BufferedAggregator) flushSeries(start time.Time) {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(series), " series to the forwarder")
-		var m marshaler.StreamJSONMarshaler
-
-		// TODO: Remove this once spliting is removed
-		if config.Datadog.GetBool("enable_stream_payload_serialization") {
-			m = metrics.SortAndGroupSeries(series)
-		} else {
-			m = series
-		}
-
-		err := agg.serializer.SendSeries(m)
+		err := agg.serializer.SendSeries(series)
 		if err != nil {
 			log.Warnf("Error flushing series: %v", err)
 			aggregatorSeriesFlushErrors.Add(1)
