@@ -51,7 +51,7 @@ DATADOG_AGENT_SIX_API const char *run_check(six_t *, six_pyobject_t *check);
 DATADOG_AGENT_SIX_API int is_initialized(six_t *);
 DATADOG_AGENT_SIX_API six_pyobject_t *get_none(const six_t *);
 DATADOG_AGENT_SIX_API const char *get_py_version(const six_t *);
-DATADOG_AGENT_SIX_API int run_simple_string(const six_t *, const char *path);
+DATADOG_AGENT_SIX_API int run_simple_string(const six_t *, const char *code);
 DATADOG_AGENT_SIX_API int has_error(const six_t *);
 DATADOG_AGENT_SIX_API const char *get_error(const six_t *);
 

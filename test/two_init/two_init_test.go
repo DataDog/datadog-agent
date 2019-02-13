@@ -1,4 +1,4 @@
-package two
+package two_init
 
 import "testing"
 
