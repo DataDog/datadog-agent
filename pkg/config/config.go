@@ -149,6 +149,9 @@ func initConfig(config Config) {
 	// Use to force client side TLS version to 1.2
 	config.BindEnvAndSetDefault("force_tls_12", false)
 
+	// Defaults to safe YAML methods in base and custom checks.
+	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
+
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
