@@ -366,23 +366,3 @@ func TestDescribeItem(t *testing.T) {
 	desc2 := series.DescribeItem(2)
 	assert.Equal(t, "out of range", desc2)
 }
-
-func BenchmarkPopulateDeviceFieldNoDevice(b *testing.B) {
-	tags := []string{"tag1", "tag2:yes", "tag3", "tag4:yes", "tag5", "tag6:yes", "tag7", "tag8:yes"}
-	for n := 0; n < b.N; n++ {
-		s := &Serie{
-			Tags: tags,
-		}
-		populateDeviceField(s)
-	}
-}
-
-func BenchmarkPopulateDeviceFieldWithDevice(b *testing.B) {
-	tags := []string{"tag1", "tag2:yes", "tag3", "device:/dev/sda1", "tag5", "tag6:yes", "tag7", "tag8:yes"}
-	for n := 0; n < b.N; n++ {
-		s := &Serie{
-			Tags: tags,
-		}
-		populateDeviceField(s)
-	}
-}
