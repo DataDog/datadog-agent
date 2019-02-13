@@ -26,7 +26,7 @@ func setUp() error {
 }
 
 func tearDown() {
-	C.destroy3(six)
+	C.destroy(six)
 	six = nil
 }
 

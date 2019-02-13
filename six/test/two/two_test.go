@@ -1,9 +1,24 @@
 package two
 
 import (
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	err := setUp()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error setting up tests: %v", err)
+		os.Exit(-1)
+	}
+
+	ret := m.Run()
+
+	tearDown()
+	os.Exit(ret)
+}
 
 func TestGetVersion(t *testing.T) {
 	ver := getVersion()
@@ -20,18 +35,6 @@ func TestRunSimpleString(t *testing.T) {
 	}
 
 	if output != "Hello, World!" {
-		t.Errorf("Unexpected printed value: '%s'", output)
-	}
-}
-
-func TestExtend(t *testing.T) {
-	output, err := extend()
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if output != "I'm extending Python!\n" {
 		t.Errorf("Unexpected printed value: '%s'", output)
 	}
 }
