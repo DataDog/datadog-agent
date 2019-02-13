@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -220,8 +219,9 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableJSONStream {
-		groups := metrics.SortAndGroupSeries(testSeries)
-		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(groups)
+		// FIXME: we need to aggregate series per metric name in order to
+		// ensure they are serialised in the same payload.
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series)
 	} else {
 		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
 	}
