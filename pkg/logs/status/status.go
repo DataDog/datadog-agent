@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	builder *Builder
+	builder  *Builder
+	warnings *config.Messages
 )
 
 // Source provides some information about a logs source.
@@ -41,12 +42,14 @@ type Status struct {
 
 // Init instantiates the builder that builds the status on the fly.
 func Init(isRunning *int32, sources *config.LogSources) {
-	builder = NewBuilder(isRunning, sources)
+	warnings = config.NewMessages()
+	builder = NewBuilder(isRunning, sources, warnings)
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.
 func Clear() {
 	builder = nil
+	warnings = nil
 }
 
 // Get returns the status of the logs-agent computed on the fly.
@@ -56,21 +59,21 @@ func Get() Status {
 			IsRunning: false,
 		}
 	}
-	return builder.buildStatus()
+	return builder.BuildStatus()
 }
 
 // AddGlobalWarning keeps track of a warning message to display on the status.
 func AddGlobalWarning(key string, warning string) {
-	if builder != nil {
-		builder.AddWarning(key, warning)
+	if warnings != nil {
+		warnings.AddMessage(key, warning)
 	}
 }
 
 // RemoveGlobalWarning loses track of a warning message
 // that does not need to be displayed on the status anymore.
 func RemoveGlobalWarning(key string) {
-	if builder != nil {
-		builder.RemoveWarning(key)
+	if warnings != nil {
+		warnings.RemoveMessage(key)
 	}
 }
 

@@ -20,31 +20,21 @@ type Builder struct {
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *int32, sources *config.LogSources) *Builder {
+func NewBuilder(isRunning *int32, sources *config.LogSources, warnings *config.Messages) *Builder {
 	return &Builder{
 		isRunning: isRunning,
 		sources:   sources,
-		warnings:  config.NewMessages(),
+		warnings:  warnings,
 	}
 }
 
-// buildStatus returns the status of the logs-agent.
-func (b *Builder) buildStatus() Status {
+// BuildStatus returns the status of the logs-agent.
+func (b *Builder) BuildStatus() Status {
 	return Status{
 		IsRunning:    b.getIsRunning(),
 		Integrations: b.getIntegrations(),
 		Warnings:     b.getWarnings(),
 	}
-}
-
-// AddWarning adds a warning to the list of warnings.
-func (b *Builder) AddWarning(key string, warning string) {
-	b.warnings.AddMessage(key, warning)
-}
-
-// RemoveWarning removes a warning from the list of warnings.
-func (b *Builder) RemoveWarning(key string) {
-	b.warnings.RemoveMessage(key)
 }
 
 // getIsRunning returns true if the agent is running,
