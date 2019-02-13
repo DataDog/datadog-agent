@@ -332,13 +332,13 @@ api_key:
 # utilization during metric collection. Lower concurrency will result in lower CPU
 # usage but also fewer workers in the event of timeouts to continue work - a value of
 # 1 will process instances serially, each taking up to `jmx_collection_timeout`
-# seconds. 
+# seconds.
 # jmx_thread_pool_size: 3
 #
-# Defines the maximum waiting period in seconds before timing up on metric collection. 
+# Defines the maximum waiting period in seconds before timing up on metric collection.
 # jmx_collection_timeout: 60
 #
-# Defines the maximum level of concurrency in the reconnection pool. Higher concurrency 
+# Defines the maximum level of concurrency in the reconnection pool. Higher concurrency
 # will increase CPU utilization during instance recovery/reconnection. Lower concurrency
 # will result in lower CPU usage but also fewer workers in the event of timeouts to continue
 # work - a value of 1 will process instances serially, each taking up to `jmx_reconnection_timeout`
