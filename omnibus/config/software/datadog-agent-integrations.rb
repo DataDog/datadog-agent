@@ -152,7 +152,7 @@ build do
     python_pip_uninstall = "pip uninstall -y"
 
     if windows?
-      static_reqs_in_file = "#{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\agent_requirements.in"
+      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\agent_requirements.in"
       static_reqs_filtered_file = "#{windows_safe_path(install_dir)}\\#{static_reqs_in_file_filtered}"
     else
       static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/agent_requirements.in"
@@ -164,8 +164,8 @@ build do
 
     File.open("#{static_reqs_filtered_file}", 'w+') do |f|
       for line in tmp
-        for blacklist in blacklist_req
-          if not blacklist =~ line
+        for blacklist_regex in blacklist_req
+          if not blacklist_regex =~ line
             f.puts(line)
           end
         end
@@ -175,10 +175,10 @@ build do
     # Install the static environment requirements that the Agent and all checks will use
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
-      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_filtered_file})
+      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_filtered_file}")
     else
       pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_filtered_file})
+      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_filtered_file}")
     end
 
     # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
