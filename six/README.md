@@ -37,7 +37,7 @@ different versions of the CPython library.
 Six can be built using CMake. Run the configurator/generator first:
 
 ```sh
-ccmake .
+cmake .
 ```
 
 Then just run `make` to build the project.
@@ -50,15 +50,28 @@ and the Directory check have to be installed before running the demo, if you hav
 that should be a matter of `pip install /path_to_integrations_core/datadog_checks_base` and
 `pip install /path_to_integrations_core/directory`. Then depending on which Python version your virtualenv provides, run:
 
+OSX:
 ```
 DYLD_LIBRARY_PATH=./three:./two ./demo/demo 2 $VIRTUAL_ENV
 ```
 
+Unix
+```
+LD_LIBRARY_PATH=./three:./two ./demo/demo 2 $VIRTUAL_ENV
+```
+
 or
 
+OSX
 ```
 DYLD_LIBRARY_PATH=./three:./two ./demo/demo 3 $VIRTUAL_ENV
 ```
+
+Unix
+```
+LD_LIBRARY_PATH=./three:./two ./demo/demo 3 $VIRTUAL_ENV
+```
+
 
 ## Test
 

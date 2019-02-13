@@ -34,7 +34,7 @@ six_t *make2() {
     six_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY);
     if (!six_backend) {
         std::cerr << "Unable to open 'two' library: " << dlerror() << std::endl;
-        return 0;
+        return NULL;
     }
 
     // reset dl errors
@@ -45,7 +45,7 @@ six_t *make2() {
     const char *dlsym_error = dlerror();
     if (dlsym_error) {
         std::cerr << "Unable to open 'two' factory: " << dlsym_error << std::endl;
-        return 0;
+        return NULL;
     }
 
     return AS_TYPE(six_t, create());
@@ -61,7 +61,7 @@ six_t *make3() {
     six_backend = dlopen(DATADOG_AGENT_THREE, RTLD_LAZY);
     if (!six_backend) {
         std::cerr << "Unable to open 'three' library: " << dlerror() << std::endl;
-        return 0;
+        return NULL;
     }
 
     // reset dl errors
@@ -72,7 +72,7 @@ six_t *make3() {
     const char *dlsym_error = dlerror();
     if (dlsym_error) {
         std::cerr << "Unable to open 'three' factory: " << dlsym_error << std::endl;
-        return 0;
+        return NULL;
     }
 
     return AS_TYPE(six_t, create_three());
