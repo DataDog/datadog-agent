@@ -79,10 +79,10 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 
 	require.Len(t, agg.serviceChecks, 2)
 	assert.Equal(t, "", agg.serviceChecks[0].Host)
-	assert.Equal(t, []string{"bar", "foo"}, agg.serviceChecks[0].Tags)
+	assert.ElementsMatch(t, []string{"bar", "foo"}, agg.serviceChecks[0].Tags)
 	assert.NotZero(t, agg.serviceChecks[0].Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Equal(t, "my-hostname", agg.serviceChecks[1].Host)
-	assert.Equal(t, []string{"foo", "bar"}, agg.serviceChecks[1].Tags)
+	assert.ElementsMatch(t, []string{"foo", "bar"}, agg.serviceChecks[1].Tags)
 	assert.Equal(t, int64(12345), agg.serviceChecks[1].Ts)
 }
 
@@ -126,7 +126,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "my-hostname", event2.Host)
 	assert.Equal(t, int64(12345), event2.Ts)
 	assert.Equal(t, metrics.EventPriorityNormal, event2.Priority)
-	assert.Equal(t, []string{"foo", "bar"}, event2.Tags)
+	assert.ElementsMatch(t, []string{"foo", "bar"}, event2.Tags)
 	assert.Equal(t, metrics.EventAlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)

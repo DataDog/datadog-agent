@@ -8,6 +8,7 @@ package aggregator
 import (
 	"expvar"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -207,17 +208,20 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 }
 
 func deduplicateTags(tags []string) []string {
-	seen := make(map[string]bool, len(tags))
-	idx := 0
-	for _, v := range tags {
-		if _, ok := seen[v]; ok {
+	if len(tags) == 0 {
+		return tags
+	}
+	sort.Strings(tags)
+
+	j := 0
+	for i := 1; i < len(tags); i++ {
+		if tags[j] == tags[i] {
 			continue
 		}
-		seen[v] = true
-		tags[idx] = v
-		idx++
+		j++
+		tags[j] = tags[i]
 	}
-	return tags[:idx]
+	return tags[:j+1]
 }
 
 // AddRecurrentSeries adds a serie to the series that are sent at every flush
