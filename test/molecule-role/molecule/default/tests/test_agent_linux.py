@@ -33,13 +33,11 @@ def test_stackstate_agent_log(host):
     def wait_for_check_successes():
         agent_log = host.file(agent_log_path).content_string
         print agent_log
-
         assert re.search("Sent host metadata payload", agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
 
     agent_log = host.file(agent_log_path).content_string
-
     # Check for errors
     for line in agent_log.splitlines():
         print("Considering: %s" % line)
@@ -52,7 +50,7 @@ def test_stackstate_agent_log(host):
             continue
 
         # https://stackstate.atlassian.net/browse/STAC-3202 first
-        assert not re.search("\| error \|", line, re.IGNORECASE)
+        assert not re.search("\\| error \\|", line, re.IGNORECASE)
 
 
 def test_stackstate_process_agent_no_log_errors(host):

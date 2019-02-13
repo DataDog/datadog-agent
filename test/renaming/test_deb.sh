@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-# Script to test whether the StackState egnt contains no visible references to DataDog
+# Script to test whether the StackState agent contains no visible references to DataDog
 # (only to StackState)
 #
 # Arguments:

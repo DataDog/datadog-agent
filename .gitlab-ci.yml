@@ -329,7 +329,16 @@ test_deb_renaming:
     - build_deb
   before_script: []
   script:
-    ./test/renaming/test.sh $CI_PROJECT_DIR/outcomes/pkg/*.deb
+    ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/*.deb
+
+test_rpm_renaming:
+  stage: pre_release
+  image: stackstate/stackstate-agent-runner-gitlab:rpm.latest
+  dependencies:
+    - build_rpm
+  before_script: []
+  script:
+    ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/*.rpm
 
 pre_release_deb:
   stage: pre_release

@@ -1,6 +1,6 @@
 import os
 import re
-
+import util
 import testinfra.utils.ansible_runner
 
 testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
@@ -8,7 +8,7 @@ testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
 
 
 def test_stackstate_agent_is_installed(host):
-    pkg = "Datadog Agent"  # TODO
+    pkg = "StackState Agent"
     res = host.ansible("win_shell", "Get-Package \"{}\"".format(pkg), check=False)
     print res
     # Name             Version
@@ -19,13 +19,32 @@ def test_stackstate_agent_is_installed(host):
 
 def test_stackstate_agent_running_and_enabled(host):
     def check(name, deps, depended_by):
-        service = host.ansible("win_service", "name={} state=started".format(name))
+        service = host.ansible("win_service", "name={}".format(name))
         print service
         assert service["exists"]
-        # assert not service["changed"]  # TODO
-        # assert service["state"] == "running"  # TODO
+        assert not service["changed"]
+        assert service["state"] == "running"
         assert service["dependencies"] == deps
         assert service["depended_by"] == depended_by
 
-    check("datadogagent", ["winmgmt"], ["datadog-process-agent", "datadog-trace-agent"])
-    check("datadog-process-agent", ["datadogagent"], [])
+    check("stackstateagent", ["winmgmt"], ["stackstate-process-agent", "stackstate-trace-agent"])
+    check("stackstate-trace-agent", ["stackstateagent"], [])
+    check("stackstate-process-agent", ["stackstateagent"], [])
+
+
+def test_stackstate_agent_log(host):
+    agent_log_path = "c:\\programdata\\stackstate\\logs\\agent.log"
+
+    # Check for presence of success
+    def wait_for_check_successes():
+        agent_log = host.ansible("win_shell", "cat \"{}\"".format(agent_log_path), check=False)["stdout"]
+        print agent_log
+        assert re.search("Sent host metadata payload", agent_log)
+
+    util.wait_until(wait_for_check_successes, 30, 3)
+
+    agent_log = host.ansible("win_shell", "cat \"{}\"".format(agent_log_path), check=False)["stdout"]
+    # Check for errors
+    for line in agent_log.splitlines():
+        print("Considering: %s" % line)
+        assert not re.search("\\| error \\|", line, re.IGNORECASE)

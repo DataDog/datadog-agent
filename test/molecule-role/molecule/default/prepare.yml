@@ -1,35 +1,4 @@
 ---
-- name: Prepare Windows Agents (pre)
-  hosts: agent_win_vm
-  gather_facts: false
-  vars_files:
-    - common_vars.yml
-  tasks:
-    # - debug: msg={{ ansible_facts }}
-
-    - name: Add test-stackstate-agent.sts to /etc/hosts
-      win_lineinfile:
-        path: C:\\Windows\\System32\\drivers\\etc\\hosts
-        line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
-        state: present
-
-    - name: Install stackstate-agent
-      win_shell: ". { iwr -useb {{ agent_repo_url }}/install.ps1 } | iex; install -stsApiKey API_KEY -stsUrl https://test-stackstate-agent.sts/stsAgent -stsHostname {{ inventory_hostname }} -stsCodeName {{ agent_current_branch }} -stsSkipSSLValidation true"
-      register: install_result
-
-    # - name: Install stackstate-agent (1/2)
-    #   win_get_url:
-    #     url: https://s3-eu-west-1.amazonaws.com/stackstate-agent-2-test/windows/master/stackstate-agent-2.0.0.git.443.ef0c11ef-1-x86_64.msi
-    #     dest: C:\stackstate-agent.msi
-    #
-    # - debug: msg="STS_API_KEY=API_KEY STS_URL=https://test-stackstate-agent.sts/stsAgent STS_HOSTNAME={{ inventory_hostname }} SKIP_SSL_VALIDATION=true"
-    #
-    # - name: Install stackstate-agent (2/2)
-    #   win_shell: Start-Process -FilePath "$env:systemroot\system32\msiexec.exe" -ArgumentList "/i C:\stackstate-agent.msi /qn /passive STS_API_KEY=API_KEY STS_URL=https://test-stackstate-agent.sts/stsAgent STS_HOSTNAME=agent-win SKIP_SSL_VALIDATION=true" -Wait
-    #   register: install_result
-
-    - debug: var="install_result"
-
 - name: Prepare Receiver
   hosts: receiver_vm
   gather_facts: false
@@ -160,6 +129,7 @@
     - name: Open listening port on Ubuntu Agent
       shell: "nohup ncat --broker --listen -p {{ test_connection_port_before_start }} &"
       become: true
+
 - name: Prepare Fedora Agent connecting before start
   hosts: agent-fedora
   gather_facts: false
@@ -176,6 +146,23 @@
         path: /etc/hosts
         line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
 
+- name: Prepare Windows Agents (post)
+  hosts: agent_win_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Add test-stackstate-agent.sts to /etc/hosts
+      win_lineinfile:
+        path: C:\\Windows\\System32\\drivers\\etc\\hosts
+        line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
+        state: present
+
+    - name: Install stackstate-agent
+      win_shell: ". { iwr -useb {{ agent_repo_url }}/install.ps1 } | iex; install -stsApiKey API_KEY -stsUrl https://test-stackstate-agent.sts/stsAgent -stsHostname {{ inventory_hostname }} -stsCodeName {{ agent_current_branch }} -stsSkipSSLValidation true"
+      register: install_result
+
+    - debug: var="install_result"
 
 - name: Prepare Linux Agents (post)
   hosts: agent_linux_vm

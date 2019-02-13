@@ -47,18 +47,17 @@ new-module -name StsAgentInstaller -scriptblock {
                 "/norestart"
                 "/L*v"
                 $logFile
-                " STS_API_KEY=$stsApiKey STS_URL=$stsUrl STS_HOSTNAME=$stsHostname SKIP_SSL_VALIDATION=$stsSkipSSLValidation "
+                " APIKEY=$stsApiKey STS_URL=$stsUrl HOSTNAME=$stsHostname SKIP_SSL_VALIDATION=$stsSkipSSLValidation "
             )
             write-host "About to install $msifile with arguments "$MSIArguments
             If ($FileExists -eq $True) {
                 Start-Process "msiexec.exe" -ArgumentList $MSIArguments -passthru | wait-process
                 Write-Host "Finished msi "$msifile
             }
-
             Else {                
                 Write-Host "File $out doesn't exists - failed to download or corrupted. Please check."
                 exit 1
-                }
+            }
         }
 
         Download_MSI_STS_Installer
@@ -68,5 +67,4 @@ new-module -name StsAgentInstaller -scriptblock {
     set-alias install -value Install-Project
 
     export-modulemember -function 'Install-Project' -alias 'install'
-
 }

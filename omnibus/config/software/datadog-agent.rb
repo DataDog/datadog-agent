@@ -69,7 +69,7 @@ build do
 
   ## build the custom action library required for the install
   if windows?
-#    command "invoke customaction.build"  # [VS] TODO: fix building
+    command "invoke customaction.build"
   end
 
   # move around bin and config files

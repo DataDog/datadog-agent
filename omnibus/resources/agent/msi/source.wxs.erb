@@ -170,6 +170,9 @@
           <RegistryValue Name="trace_dd_url"
                          Type="string"
                          Value="[TRACE_DD_URL]" />
+          <RegistryValue Name="skip_ssl_validation"
+                         Type="string"
+                         Value="[SKIP_SSL_VALIDATION]" />
         </RegistryKey>
 
       </Component>
@@ -484,6 +487,7 @@
           WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed
       </Publish>
       <?include Resources\assets\apikeydlg.wxi ?>
+      <?include Resources\assets\stsurldlg.wxi ?>
       <DialogRef Id="ErrorDlg" />
       <DialogRef Id="FatalError" />
       <DialogRef Id="FilesInUse" />
@@ -494,6 +498,7 @@
       <DialogRef Id="UserExit" />
       <DialogRef Id="WelcomeDlg" />
       <DialogRef Id="ApiKeyDlg"/>
+      <DialogRef Id="StsUrlDlg"/>
       <DialogRef Id="LicenseAgreementDlg"/>
 
       <DialogRef Id="MaintenanceWelcomeDlg"/>
@@ -510,7 +515,8 @@
       <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">NOT Installed</Publish>
 
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="StsUrlDlg">NOT PREVIOUSFOUND</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">PREVIOUSFOUND</Publish>
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
@@ -518,6 +524,7 @@
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="StsUrlDlg">NOT STS_URL</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>

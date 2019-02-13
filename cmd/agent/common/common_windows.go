@@ -266,6 +266,10 @@ func ImportRegistryConfig() error {
 		config.Datadog.Set("apm_config.apm_dd_url", val)
 		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
 	}
+	if val, _, err = k.GetStringValue("skip_ssl_validation"); err == nil && val != "" {
+		config.Datadog.Set("skip_ssl_validation", val)
+		log.Debugf("Setting skip_ssl_validation to %s", val)
+	}
 
 	// dump the current configuration to datadog.yaml
 	b, err := yaml.Marshal(config.Datadog.AllSettings())

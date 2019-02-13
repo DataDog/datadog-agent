@@ -38,6 +38,7 @@ def test_generic_events(host):
         print events
         assert events["agent-ubuntu"] == {"System.Agent Startup", "processStateEvent"}
         assert events["agent-fedora"] == {"System.Agent Startup", "processStateEvent"}
+        assert events["agent-win"] == {"System.Agent Startup"}
 
     util.wait_until(wait_for_metrics, 30, 3)
 

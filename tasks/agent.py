@@ -74,7 +74,7 @@ def do_go_rename(ctx, rename, at):
 
 
 def do_sed_rename(ctx, rename, at):
-    ctx.run("sed -i {} {}".format(rename, at))
+    ctx.run("sed -i '{}' {}".format(rename, at))
 
 
 @task
@@ -82,7 +82,7 @@ def apply_branding(ctx):
     """
     Apply stackstate branding
     """
-    # Pkg config
+    # Linux Pkg config
     do_go_rename(ctx, '"\\"dd_url\\" -> \\"sts_url\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"https://app.datadoghq.com\\" -> \\"http://localhost:7077\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"DD_PROXY_HTTP\\" -> \\"STS_PROXY_HTTP\\""', "./pkg/config")
@@ -95,7 +95,7 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"/etc/datadog-agent/checks.d\\" -> \\"/etc/stackstate-agent/checks.d\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"/opt/datadog-agent/run\\" -> \\"/op/stackstate-agent/run\\""', "./pkg/config")
 
-    # Defaults
+    # Linux Defaults
     do_go_rename(ctx, '"\\"/etc/datadog-agent\\" -> \\"/etc/stackstate-agent\\""', "./cmd/agent/common")
     do_go_rename(ctx, '"\\"/var/log/datadog/agent.log\\" -> \\"/var/log/stackstate-agent/agent.log\\""', "./cmd/agent/common")
     do_go_rename(ctx, '"\\"/var/log/datadog/cluster-agent.log\\" -> \\"/var/log/stackstate-agent/cluster-agent.log\\""', "./cmd/agent/common")
@@ -105,15 +105,47 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"unable to load Datadog config file: %s\\" -> \\"unable to load StackState config file: %s\\""', "./cmd/agent/common")
     do_go_rename(ctx, '"\\"Starting Datadog Agent v%v\\" -> \\"Starting StackState Agent v%v\\""', "./cmd/agent/app")
 
-    # Windows MSI
+    # Windows defaults
+    camel_replace = 's/Data[dD]og/StackState/g'
+    lower_replace = 's/datadog/stackstate/g'
+    do_sed_rename(ctx, camel_replace, "./cmd/agent/agent.rc")
+    do_sed_rename(ctx, camel_replace, "./cmd/agent/app/install_service_windows.go")
+    do_sed_rename(ctx, lower_replace, "./cmd/agent/app/dependent_services_windows.go")
+    # replace strings NOT containing certain pattern
+    do_sed_rename(ctx, '/config/! s/Data[dD]og/StackState/g', "./cmd/agent/common/common_windows.go")
+    do_sed_rename(ctx, lower_replace, "./cmd/agent/common/common_windows.go")
+    do_sed_rename(ctx, 's/dd_url/sts_url/', "./cmd/agent/common/common_windows.go")
+    do_sed_rename(ctx, lower_replace, "./cmd/dogstatsd/main_windows.go")
+    do_sed_rename(ctx, lower_replace, "./pkg/config/config_windows.go")
+
+    # Windows MSI installation
+    do_sed_rename(ctx, camel_replace, "./omnibus/resources/agent/msi/cal/CustomAction.cpp")
+    do_sed_rename(ctx, lower_replace, "./omnibus/resources/agent/msi/cal/CustomAction.cpp")
+    do_sed_rename(ctx, camel_replace, "./omnibus/resources/agent/msi/cal/CustomAction.def")
+    do_sed_rename(ctx, camel_replace, "./omnibus/resources/agent/msi/localization-en-us.wxl.erb")
     do_sed_rename(ctx, 's/"datadog\.yaml\.example"/"stackstate\.yaml\.example"/', "./omnibus/resources/agent/msi/source.wxs.erb")
-    do_sed_rename(ctx, 's/ddtray/ststray/', "./cmd/systray/systray.rc")
-    do_sed_rename(ctx, 's/ddtray/ststray/', "./omnibus/resources/agent/msi/source.wxs.erb")
-    do_sed_rename(ctx, 's/ddtray/ststray/', "./tasks/systray.py")
-    do_sed_rename(ctx, 's/datadog/stackstate/', "./cmd/agent/gui/views/templates/index.tmpl")
-    do_sed_rename(ctx, 's/"DataDog Agent 6"/"StackState Agent 2"/', "./cmd/agent/gui/views/templates/index.tmpl")
-    do_sed_rename(ctx, 's/Datadog/StackState/', "./cmd/agent/gui/views/templates/index.tmpl")
+    do_sed_rename(ctx, 's/datadoghq\.com/www\.stackstate\.com/', "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, camel_replace, "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, lower_replace, "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/DATADOG/STACKSTATE/', "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/dd_url/sts_url/', "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/\[.*DD_URL\]/\[STS_URL\]/', "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, camel_replace, "./omnibus/resources/agent/msi/bundle.wxs.erb")
     do_sed_rename(ctx, 's/dd_logo_side\\.png/sts_logo_side\\.png/', "./omnibus/resources/agent/msi/bundle.wxs.erb")
+
+    # Windows SysTray and GUI
+    tray_replace = 's/ddtray/ststray/'
+    do_sed_rename(ctx, lower_replace, "./cmd/systray/doservicecontrol.go")
+    do_sed_rename(ctx, camel_replace, "./cmd/systray/systray.go")
+    do_sed_rename(ctx, tray_replace, "./cmd/systray/systray.go")
+    do_sed_rename(ctx, camel_replace, "./cmd/systray/systray.rc")
+    do_sed_rename(ctx, tray_replace, "./cmd/systray/systray.rc")
+    do_sed_rename(ctx, tray_replace, "./omnibus/resources/agent/msi/source.wxs.erb")
+    do_sed_rename(ctx, tray_replace, "./tasks/systray.py")
+    do_sed_rename(ctx, lower_replace, "./cmd/agent/gui/views/templates/index.tmpl")
+    do_sed_rename(ctx, 's/"DataDog Agent 6"/"StackState Agent 2"/', "./cmd/agent/gui/views/templates/index.tmpl")
+    do_sed_rename(ctx, camel_replace, "./cmd/agent/gui/views/templates/index.tmpl")
+    do_sed_rename(ctx, camel_replace, "./cmd/agent/gui/views/private/js/javascript.js")
 
 
 @task
