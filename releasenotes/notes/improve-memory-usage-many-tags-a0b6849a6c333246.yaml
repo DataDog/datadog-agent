@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-  Improve memory usage when metrics, service checks or events contain many tags.
+    Improve memory usage when metrics, service checks or events contain many tags.
