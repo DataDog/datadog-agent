@@ -22,14 +22,17 @@
 #define AS_TYPE(Type, Obj) reinterpret_cast<Type *>(Obj)
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
 
-static void *two, *three;
-
-void init(six_t *six, char *pythonHome) { AS_TYPE(Six, six)->init(pythonHome); }
+static void *six_backend = NULL;
 
 six_t *make2() {
+    if (six_backend != NULL) {
+        std::cerr << "Six alrady initialized!" << std::endl;
+        return NULL;
+    }
+
     // load library
-    two = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY);
-    if (!two) {
+    six_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY);
+    if (!six_backend) {
         std::cerr << "Unable to open 'two' library: " << dlerror() << std::endl;
         return 0;
     }
@@ -38,7 +41,7 @@ six_t *make2() {
     dlerror();
 
     // dlsym class factory
-    create_t *create = (create_t *)dlsym(two, "create");
+    create_t *create = (create_t *)dlsym(six_backend, "create");
     const char *dlsym_error = dlerror();
     if (dlsym_error) {
         std::cerr << "Unable to open 'two' factory: " << dlsym_error << std::endl;
@@ -48,23 +51,15 @@ six_t *make2() {
     return AS_TYPE(six_t, create());
 }
 
-void destroy2(six_t *six) {
-    if (two) {
-        // dlsym object destructor
-        destroy_t *destroy = (destroy_t *)dlsym(two, "destroy");
-        const char *dlsym_error = dlerror();
-        if (dlsym_error) {
-            std::cerr << "Unable to open 'two' destructor: " << dlsym_error << std::endl;
-            return;
-        }
-        destroy(AS_TYPE(Six, six));
-    }
-}
-
 six_t *make3() {
+    if (six_backend != NULL) {
+        std::cerr << "Six alrady initialized!" << std::endl;
+        return NULL;
+    }
+
     // load the library
-    three = dlopen(DATADOG_AGENT_THREE, RTLD_LAZY);
-    if (!three) {
+    six_backend = dlopen(DATADOG_AGENT_THREE, RTLD_LAZY);
+    if (!six_backend) {
         std::cerr << "Unable to open 'three' library: " << dlerror() << std::endl;
         return 0;
     }
@@ -73,7 +68,7 @@ six_t *make3() {
     dlerror();
 
     // dlsym class factory
-    create_t *create_three = (create_t *)dlsym(three, "create");
+    create_t *create_three = (create_t *)dlsym(six_backend, "create");
     const char *dlsym_error = dlerror();
     if (dlsym_error) {
         std::cerr << "Unable to open 'three' factory: " << dlsym_error << std::endl;
@@ -83,18 +78,20 @@ six_t *make3() {
     return AS_TYPE(six_t, create_three());
 }
 
-void destroy3(six_t *six) {
-    if (three) {
+void destroy(six_t *six) {
+    if (six_backend) {
         // dlsym object destructor
-        destroy_t *destroy = (destroy_t *)dlsym(three, "destroy");
+        destroy_t *destroy = (destroy_t *)dlsym(six_backend, "destroy");
         const char *dlsym_error = dlerror();
         if (dlsym_error) {
-            std::cerr << "Unable to open 'three' destructor: " << dlsym_error << std::endl;
+            std::cerr << "Unable to dlopen backend destructor: " << dlsym_error << std::endl;
             return;
         }
         destroy(AS_TYPE(Six, six));
     }
 }
+
+void init(six_t *six, char *pythonHome) { AS_TYPE(Six, six)->init(pythonHome); }
 
 int is_initialized(six_t *six) { return AS_CTYPE(Six, six)->isInitialized(); }
 

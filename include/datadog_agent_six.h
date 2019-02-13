@@ -32,11 +32,10 @@ typedef struct six_pyobject_s six_pyobject_t;
 
 // FACTORIES
 DATADOG_AGENT_SIX_API six_t *make2();
-DATADOG_AGENT_SIX_API void destroy2(six_t *);
 DATADOG_AGENT_SIX_API six_t *make3();
-DATADOG_AGENT_SIX_API void destroy3(six_t *);
 
 // C API
+DATADOG_AGENT_SIX_API void destroy(six_t *);
 DATADOG_AGENT_SIX_API void init(six_t *, char *);
 DATADOG_AGENT_SIX_API int add_module_func(six_t *, six_module_t module, six_module_func_t func_type, char *func_name,
                                           void *func);
