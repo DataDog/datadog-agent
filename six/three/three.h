@@ -28,10 +28,8 @@ public:
     void GILRelease(six_gilstate_t);
     /* FIXME */
     SixPyObject *getCheckClass(const char *module) { return NULL; }
-    /* FIXME */
-    SixPyObject *getCheck(const char *name, const char *init_config, const char *instances) { return NULL; }
-    /* FIXME */
-    const char *runCheck(SixPyObject *check) { return ""; }
+    SixPyObject *getCheck(const char *module, const char *init_config_str, const char *instances_str);
+    const char *runCheck(SixPyObject *check);
 
     // const API
     bool isInitialized() const;
@@ -41,6 +39,7 @@ public:
 
 private:
     PyObject *_importFrom(const char *module, const char *name);
+    PyObject *_findSubclassOf(PyObject *base, PyObject *module);
     std::string _fetchPythonError();
 
     typedef std::vector<PyMethodDef> PyMethods;

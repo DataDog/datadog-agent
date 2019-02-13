@@ -146,6 +146,118 @@ void Three::GILRelease(six_gilstate_t state) {
     }
 }
 
+SixPyObject *Three::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
+    PyObject *base = NULL;
+    PyObject *obj_module = NULL;
+    PyObject *klass = NULL;
+    PyObject *init_config = NULL;
+    PyObject *instances = NULL;
+    PyObject *check = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+
+    char load_config[] = "load_config";
+    char format[] = "(s)";
+
+    base = _importFrom("datadog_checks.base.checks", "AgentCheck");
+    if (base == NULL) {
+        setError("Unable to import base class");
+        goto done;
+    }
+
+    obj_module = PyImport_ImportModule(module);
+    if (obj_module == NULL) {
+        PyErr_Print();
+        setError("Unable to import module");
+        goto done;
+    }
+
+    // find a subclass of the base check
+    klass = _findSubclassOf(base, obj_module);
+    if (klass == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+    // call `AgentCheck.load_config(init_config)`
+    init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
+    if (init_config == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+    // call `AgentCheck.load_config(instances)`
+    instances = PyObject_CallMethod(klass, load_config, format, instances_str);
+    if (instances == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+    // create `args` and `kwargs` to invoke `AgentCheck` constructor
+    args = PyTuple_New(0);
+    kwargs = PyDict_New();
+    PyDict_SetItemString(kwargs, "init_config", init_config);
+    PyDict_SetItemString(kwargs, "instances", instances);
+
+    // call `AgentCheck` constructor
+    check = PyObject_Call(klass, args, kwargs);
+    if (check == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+done:
+    Py_XDECREF(base);
+    Py_XDECREF(obj_module);
+    Py_XDECREF(klass);
+    Py_XDECREF(init_config);
+    Py_XDECREF(instances);
+    Py_XDECREF(args);
+    Py_XDECREF(kwargs);
+
+    if (check == NULL) {
+        return NULL;
+    }
+
+    return reinterpret_cast<SixPyObject *>(check);
+}
+
+const char *Three::runCheck(SixPyObject *check) {
+    if (check == NULL) {
+        return NULL;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret, *ret_copy = NULL;
+    char run[] = "run";
+    PyObject *result, *bytes = NULL;
+
+    result = PyObject_CallMethod(py_check, run, NULL);
+    if (result == NULL || !PyUnicode_Check(result)) {
+        PyErr_Print();
+        goto done;
+    }
+
+    bytes = PyUnicode_AsEncodedString(result, "UTF-8", "strict");
+    if (bytes == NULL) {
+        PyErr_Print();
+        goto done;
+    }
+
+    // `ret` points to the Python string internal storage and will be eventually
+    // deallocated along with the corresponding Python object.
+    ret = PyBytes_AsString(bytes);
+    ret_copy = strdup(ret);
+    Py_XDECREF(bytes);
+
+done:
+    Py_XDECREF(result);
+    return ret_copy;
+}
+
 // return new reference
 PyObject *Three::_importFrom(const char *module, const char *name) {
     PyObject *obj_module, *obj_symbol;
@@ -168,6 +280,91 @@ error:
     Py_XDECREF(obj_module);
     Py_XDECREF(obj_symbol);
     return NULL;
+}
+
+PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
+    if (base == NULL || !PyType_Check(base)) {
+        setError("base class is not of type 'Class'");
+        return NULL;
+    }
+
+    if (module == NULL || !PyModule_Check(module)) {
+        setError("module is not of type 'Module'");
+        return NULL;
+    }
+
+    PyObject *dir = PyObject_Dir(module);
+    if (dir == NULL) {
+        setError("there was an error calling dir() on module object");
+        return NULL;
+    }
+
+    PyObject *klass = NULL;
+    for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
+        // get symbol name
+        char *symbol_name;
+        PyObject *symbol = PyList_GetItem(dir, i);
+        if (symbol != NULL || !PyUnicode_Check(symbol)) {
+            PyObject *bytes = PyUnicode_AsEncodedString(symbol, "UTF-8", "strict");
+
+            if (bytes != NULL) {
+                symbol_name = strdup(PyBytes_AsString(bytes));
+                Py_XDECREF(bytes);
+            } else {
+                continue;
+            }
+        }
+
+        klass = PyObject_GetAttrString(module, symbol_name);
+        if (klass == NULL) {
+            continue;
+        }
+
+        // Not a class, ignore
+        if (!PyType_Check(klass)) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // Unrelated class, ignore
+        if (!PyType_IsSubtype((PyTypeObject *)klass, (PyTypeObject *)base)) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // `klass` is actually `base` itself, ignore
+        if (PyObject_RichCompareBool(klass, base, Py_EQ)) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // does `klass` have subclasses?
+        char func_name[] = "__subclasses__";
+        PyObject *children = PyObject_CallMethod(klass, func_name, NULL);
+        if (children == NULL) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // how many?
+        int children_count = PyList_GET_SIZE(children);
+        Py_XDECREF(children);
+
+        // Agent integrations are supposed to have no subclasses
+        if (children_count > 0) {
+            Py_XDECREF(klass);
+            continue;
+        }
+
+        // got it, return the check class
+        goto done;
+    }
+
+    setError("cannot find a subclass");
+
+done:
+    Py_DECREF(dir);
+    return klass;
 }
 
 std::string Three::_fetchPythonError() {
