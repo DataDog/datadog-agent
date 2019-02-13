@@ -160,13 +160,7 @@ build do
     end
 
     # Remove any blacklisted requirements from the static-environment req file
-    tmp = []
-    File.open("#{static_reqs_in_file}", 'r+').readlines()
-    File.open("#{static_reqs_in_file}", 'r+') do |f|
-      f.each_line do |line|
-        tmp.push(line)
-      end
-    end
+    tmp = File.open("#{static_reqs_in_file}", 'r+').readlines()
 
     File.open("#{static_reqs_filtered_file}", 'w+') do |f|
       for line in tmp
