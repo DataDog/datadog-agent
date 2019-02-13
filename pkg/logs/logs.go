@@ -8,6 +8,7 @@ package logs
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,18 +27,13 @@ const (
 
 var (
 	// isRunning indicates whether logs-agent is running or not
-	isRunning *bool
+	isRunning int32
 	// logs-agent
 	agent *Agent
 	// scheduler is plugged to autodiscovery to collect integration configs
 	// and schedule log collection for different kind of inputs
 	adScheduler *scheduler.Scheduler
 )
-
-func init() {
-	running := false
-	isRunning = &running
-}
 
 // Start starts logs-agent
 func Start() error {
@@ -53,7 +49,7 @@ func Start() error {
 	adScheduler = scheduler.NewScheduler(sources, services)
 
 	// setup the status
-	status.Initialize(isRunning, sources)
+	status.Init(&isRunning, sources)
 
 	// setup the server config
 	endpoints, err := sender.BuildEndpoints()
@@ -64,7 +60,7 @@ func Start() error {
 	}
 
 	// setup global processing rules
-	global, err := config.GlobalProcessingRules()
+	processingRules, err := config.GlobalProcessingRules()
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalWarning(invalidProcessingRules, message)
@@ -72,10 +68,10 @@ func Start() error {
 	}
 
 	// setup and start the agent
-	agent = NewAgent(sources, services, global, endpoints)
+	agent = NewAgent(sources, services, processingRules, endpoints)
 	log.Info("Starting logs-agent...")
 	agent.Start()
-	*isRunning = true
+	atomic.StoreInt32(&isRunning, 1)
 	log.Info("logs-agent started")
 
 	// add the default sources
@@ -90,7 +86,7 @@ func Start() error {
 // it only returns when the whole pipeline is flushed.
 func Stop() {
 	log.Info("Stopping logs-agent")
-	if *isRunning {
+	if IsAgentRunning() {
 		if agent != nil {
 			agent.Stop()
 			agent = nil
@@ -100,14 +96,14 @@ func Stop() {
 			adScheduler = nil
 		}
 		status.Clear()
-		*isRunning = false
+		atomic.StoreInt32(&isRunning, 0)
 	}
 	log.Info("logs-agent stopped")
 }
 
 // IsAgentRunning returns true if the logs-agent is running.
 func IsAgentRunning() bool {
-	return *isRunning
+	return status.Get().IsRunning
 }
 
 // GetStatus returns logs-agent status

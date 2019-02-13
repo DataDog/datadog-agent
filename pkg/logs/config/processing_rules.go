@@ -25,7 +25,7 @@ type ProcessingRule struct {
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
 	Pattern            string
-	// computed properties
+	// TODO: should be moved out
 	Regex       *regexp.Regexp
 	Placeholder []byte
 }

@@ -37,7 +37,7 @@ func TestExclusion(t *testing.T) {
 }
 
 func TestInclusion(t *testing.T) {
-	p := &Processor{global: []*config.ProcessingRule{newProcessingRule("include_at_match", "", "world")}}
+	p := &Processor{processingRules: []*config.ProcessingRule{newProcessingRule("include_at_match", "", "world")}}
 
 	var shouldProcess bool
 	var redactedMessage []byte
@@ -65,7 +65,7 @@ func TestExclusionWithInclusion(t *testing.T) {
 	eRule := newProcessingRule("exclude_at_match", "", "^bob")
 	iRule := newProcessingRule("include_at_match", "", ".*@datadoghq.com$")
 
-	p := &Processor{global: []*config.ProcessingRule{eRule}}
+	p := &Processor{processingRules: []*config.ProcessingRule{eRule}}
 
 	var shouldProcess bool
 	var redactedMessage []byte

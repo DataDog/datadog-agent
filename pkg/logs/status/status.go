@@ -39,23 +39,12 @@ type Status struct {
 	Warnings     []string      `json:"warnings"`
 }
 
-// Builder is used to build the status.
-type Builder struct {
-	isRunning *bool
-	sources   *config.LogSources
-	warnings  *config.Messages
+// Init instantiates the builder that builds the status on the fly.
+func Init(isRunning *int32, sources *config.LogSources) {
+	builder = NewBuilder(isRunning, sources)
 }
 
-// Initialize instantiates a builder that holds the sources required to build the current status later on.
-func Initialize(isRunning *bool, sources *config.LogSources) {
-	builder = &Builder{
-		isRunning: isRunning,
-		sources:   sources,
-		warnings:  config.NewMessages(),
-	}
-}
-
-// Clear clears the status (which means it needs to be initialized again to be used).
+// Clear clears the status which means it needs to be initialized again to be used.
 func Clear() {
 	builder = nil
 }
@@ -67,86 +56,22 @@ func Get() Status {
 			IsRunning: false,
 		}
 	}
-	// Sort sources by name (ie. by integration name ~= file name)
-	sources := make(map[string][]*config.LogSource)
-	for _, source := range builder.sources.GetSources() {
-		if _, exists := sources[source.Name]; !exists {
-			sources[source.Name] = []*config.LogSource{}
-		}
-		sources[source.Name] = append(sources[source.Name], source)
-	}
-	// Convert to json
-	var integrations []Integration
-	for name, sourceList := range sources {
-		var sources []Source
-		for _, source := range sourceList {
-			var status string
-			if source.Status.IsPending() {
-				status = "Pending"
-			} else if source.Status.IsSuccess() {
-				status = "OK"
-			} else if source.Status.IsError() {
-				status = source.Status.GetError()
-			}
-
-			sources = append(sources, Source{
-				Type:          source.Config.Type,
-				Configuration: toDictionary(source.Config),
-				Status:        status,
-				Inputs:        source.GetInputs(),
-				Messages:      source.Messages.GetMessages(),
-			})
-
-		}
-		integrations = append(integrations, Integration{Name: name, Sources: sources})
-	}
-
-	return Status{
-		IsRunning:    *builder.isRunning,
-		Integrations: integrations,
-		Warnings:     builder.warnings.GetMessages(),
-	}
+	return builder.buildStatus()
 }
 
-// AddGlobalWarning create a warning
+// AddGlobalWarning keeps track of a warning message to display on the status.
 func AddGlobalWarning(key string, warning string) {
 	if builder != nil {
-		builder.warnings.AddMessage(key, warning)
+		builder.AddWarning(key, warning)
 	}
 }
 
-// RemoveGlobalWarning removes a warning
+// RemoveGlobalWarning loses track of a warning message
+// that does not need to be displayed on the status anymore.
 func RemoveGlobalWarning(key string) {
 	if builder != nil {
-		builder.warnings.RemoveMessage(key)
+		builder.RemoveWarning(key)
 	}
-}
-
-// toDictionary returns a representation of the configuration
-func toDictionary(c *config.LogsConfig) map[string]interface{} {
-	dictionary := make(map[string]interface{})
-	switch c.Type {
-	case config.TCPType, config.UDPType:
-		dictionary["Port"] = c.Port
-	case config.FileType:
-		dictionary["Path"] = c.Path
-	case config.DockerType:
-		dictionary["Image"] = c.Image
-		dictionary["Label"] = c.Label
-		dictionary["Name"] = c.Name
-	case config.JournaldType:
-		dictionary["IncludeUnits"] = strings.Join(c.IncludeUnits, ", ")
-		dictionary["ExcludeUnits"] = strings.Join(c.ExcludeUnits, ", ")
-	case config.WindowsEventType:
-		dictionary["ChannelPath"] = c.ChannelPath
-		dictionary["Query"] = c.Query
-	}
-	for k, v := range dictionary {
-		if v == "" {
-			delete(dictionary, k)
-		}
-	}
-	return dictionary
 }
 
 func init() {

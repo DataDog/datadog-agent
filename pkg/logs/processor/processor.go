@@ -16,21 +16,21 @@ import (
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
-	inputChan  chan *message.Message
-	outputChan chan *message.Message
-	global     []*config.ProcessingRule
-	encoder    Encoder
-	done       chan struct{}
+	inputChan       chan *message.Message
+	outputChan      chan *message.Message
+	processingRules []*config.ProcessingRule
+	encoder         Encoder
+	done            chan struct{}
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, global []*config.ProcessingRule, encoder Encoder) *Processor {
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder) *Processor {
 	return &Processor{
-		inputChan:  inputChan,
-		outputChan: outputChan,
-		global:     global,
-		encoder:    encoder,
-		done:       make(chan struct{}),
+		inputChan:       inputChan,
+		outputChan:      outputChan,
+		processingRules: processingRules,
+		encoder:         encoder,
+		done:            make(chan struct{}),
 	}
 }
 
@@ -72,7 +72,7 @@ func (p *Processor) run() {
 // and a copy of the message with some fields redacted, depending on config
 func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 	content := msg.Content
-	rules := append(p.global, msg.Origin.LogSource.Config.ProcessingRules...)
+	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
