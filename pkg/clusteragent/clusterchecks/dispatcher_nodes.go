@@ -105,6 +105,8 @@ func (d *dispatcher) expireNodes() {
 			}
 			for digest, config := range node.digestToConfig {
 				delete(d.store.digestToNode, digest)
+				// Dangling configs are meant to be rescheduled, ensure they re-enter the pool of schedulable Cluster Checks.
+				config.ClusterCheck = true
 				d.store.danglingConfigs[digest] = config
 				danglingConfigs.Inc()
 			}
