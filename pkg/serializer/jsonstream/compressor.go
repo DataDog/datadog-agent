@@ -49,7 +49,7 @@ func init() {
 // the backend accepts payloads up to 3MB/50MB, but being conservative is okay
 var (
 	megaByte            = 1024 * 1024
-	maxPayloadSize      = 2*megaByte + megaByte/2
+	maxPayloadSize      = 2*megaByte + megaByte/2 // `2.5*megaByte` won't work with strong typing
 	maxUncompressedSize = 45 * megaByte
 	maxRepacks          = 40 // CPU time vs tighter payload tradeoff
 )
