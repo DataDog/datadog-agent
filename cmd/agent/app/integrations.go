@@ -169,24 +169,11 @@ func getCommandPython() (string, error) {
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
-			return pyPath, errors.New("unable to find pip executable")
+			return pyPath, errors.New("unable to find python executable")
 		}
 	}
 
 	return pyPath, nil
-}
-
-func getCommandDownloader() (string, error) {
-	here, _ := executable.Folder()
-	downloaderPath := filepath.Join(here, relDownloaderPath)
-
-	if _, err := os.Stat(downloaderPath); err != nil {
-		if os.IsNotExist(err) {
-			return downloaderPath, errors.New("unable to find downloader executable")
-		}
-	}
-
-	return downloaderPath, nil
 }
 
 func validateArgs(args []string, local bool) error {
@@ -425,18 +412,19 @@ func install(cmd *cobra.Command, args []string) error {
 }
 
 func downloadWheel(integration, version string) (string, error) {
-	downloaderPath, err := getCommandDownloader()
+	pyPath, err := getCommandPython()
 	if err != nil {
 		return "", err
 	}
 	args := []string{
+		"-m", "datadog_checks.downloader",
 		integration,
 		"--version", version,
 	}
 	if verbose > 0 {
 		args = append(args, "-"+strings.Repeat("v", verbose))
 	}
-	downloaderCmd := exec.Command(downloaderPath, args...)
+	downloaderCmd := exec.Command(pyPath, args...)
 	downloaderCmd.Env = os.Environ()
 
 	// Proxy support

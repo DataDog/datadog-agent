@@ -19,7 +19,6 @@ const (
 
 var (
 	relPyPath              = pythonBin
-	relDownloaderPath      = downloaderBin
 	relChecksPath          = filepath.Join("Lib", "site-packages", "datadog_checks")
 	relReqAgentReleasePath = filepath.Join("..", reqAgentReleaseFile)
 	relConstraintsPath     = filepath.Join("..", constraintsFile)
