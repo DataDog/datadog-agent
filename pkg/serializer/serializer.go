@@ -74,7 +74,7 @@ func initExtraHeaders() {
 type MetricSerializer interface {
 	SendEvents(e marshaler.Marshaler) error
 	SendServiceChecks(sc marshaler.Marshaler) error
-	SendSeries(series marshaler.Marshaler) error
+	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
