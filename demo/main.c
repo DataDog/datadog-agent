@@ -16,11 +16,6 @@ static six_pyobject_t *print_foo() {
     return get_none(six);
 }
 
-static six_pyobject_t *get_config(six_pyobject_t *self, six_pyobject_t *args) {
-    // stub method providing `get_config`
-    return get_none(six);
-}
-
 char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
     fseek(f, 0, SEEK_END);
@@ -76,7 +71,6 @@ int main(int argc, char *argv[]) {
 
     // add a new `print_foo` to the custom builtin module `datadog_agent`
     add_module_func(six, DATADOG_AGENT_SIX__UTIL, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
-    add_module_func(six, DATADOG_AGENT_SIX__UTIL, DATADOG_AGENT_SIX_ARGS, "get_config", get_config);
 
     init(six, python_home);
     printf("Embedding Python version %s\n", get_py_version(six));
@@ -87,8 +81,11 @@ int main(int argc, char *argv[]) {
     run_simple_string(six, code);
 
     // load the Directory check if available
-    six_pyobject_t *check = get_check(six, "datadog_checks.directory", "", "[{directory: \"/\"}]");
+    six_pyobject_t *check = get_check(six, "datadog_checks.directory", "", "[[{directory: \"/\"}]");
     if (check == NULL) {
+        if (has_error(six)) {
+            printf("%s\n", get_error(six));
+        }
         printf("Unable to load the 'directory' check, is it installed in the Python env?\n");
         return 1;
     }
