@@ -7,13 +7,13 @@
 package pdhutil
 
 import (
-	"syscall"
 	"unsafe"
+	"golang.org/x/sys/windows"
 )
 
 type (
-	PDH_HQUERY   syscall.Handle
-	PDH_HCOUNTER syscall.Handle
+	PDH_HQUERY   windows.Handle
+	PDH_HCOUNTER windows.Handle
 )
 
 // PDH error codes.  Taken from latest PDHMSH.h in Windows SDK
@@ -187,7 +187,7 @@ phCounter [out]
 Handle to the counter that was added to the query. You may need to reference this handle in subsequent calls.
 */
 func PdhAddCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
-	ptxt, _ := syscall.UTF16PtrFromString(szFullCounterPath)
+	ptxt, _ := windows.UTF16PtrFromString(szFullCounterPath)
 	ret, _, _ := procPdhAddCounterW.Call(
 		uintptr(hQuery),
 		uintptr(unsafe.Pointer(ptxt)),

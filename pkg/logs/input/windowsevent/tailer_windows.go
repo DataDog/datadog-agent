@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows"
 )
 
 // Start starts tailing the event log.
@@ -95,7 +96,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 }
 
 var (
-	modWinEvtAPI = syscall.NewLazyDLL("wevtapi.dll")
+	modWinEvtAPI = windows.NewLazyDLL("wevtapi.dll")
 
 	procEvtSubscribe       = modWinEvtAPI.NewProc("EvtSubscribe")
 	procEvtClose           = modWinEvtAPI.NewProc("EvtClose")
@@ -117,7 +118,7 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 		uintptr(0),                        // no buffer for now, just getting necessary size
 		uintptr(unsafe.Pointer(&bufUsed)), // filled in with necessary buffer size
 		uintptr(0))                        // not used but must be provided
-	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
+	if err != error(windows.ERROR_INSUFFICIENT_BUFFER) {
 		log.Warnf("Couldn't render xml event: %s", err)
 		return
 	}

@@ -8,15 +8,14 @@
 package winutil
 
 import (
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
 var (
-	modkernel32 = syscall.NewLazyDLL("kernel32.dll")
-	modPsapi    = syscall.NewLazyDLL("psapi.dll")
+	modkernel32 = windows.NewLazyDLL("kernel32.dll")
+	modPsapi    = windows.NewLazyDLL("psapi.dll")
 
 	procGlobalMemoryStatusEx = modkernel32.NewProc("GlobalMemoryStatusEx")
 	procGetPerformanceInfo   = modPsapi.NewProc("GetPerformanceInfo")

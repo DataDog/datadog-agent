@@ -7,7 +7,7 @@
 package system
 
 import (
-	"syscall"
+	"golang.org/x/sys/windows"
 	"time"
 )
 
@@ -15,7 +15,7 @@ import (
 var uptime = calcUptime
 
 var (
-	modkernel = syscall.NewLazyDLL("kernel32.dll")
+	modkernel = windows.NewLazyDLL("kernel32.dll")
 
 	procGetTickCount64 = modkernel.NewProc("GetTickCount64")
 )

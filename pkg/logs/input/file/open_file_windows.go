@@ -9,7 +9,7 @@ package file
 
 import (
 	"os"
-	"syscall"
+	"golang.org/x/sys/windows"
 )
 
 // openFile reimplements the os.Open function for Windows because the default
@@ -17,18 +17,18 @@ import (
 // cf: https://github.com/golang/go/blob/release-branch.go1.11/src/syscall/syscall_windows.go#L271
 // This prevents users from moving/removing files when the tailer is reading the file.
 func openFile(path string) (*os.File, error) {
-	pathp, err := syscall.UTF16PtrFromString(path)
+	pathp, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, err
 	}
 
-	access := uint32(syscall.GENERIC_READ)
+	access := uint32(windows.GENERIC_READ)
 	// add FILE_SHARE_DELETE that is missing from os.Open implementation
-	sharemode := uint32(syscall.FILE_SHARE_READ | syscall.FILE_SHARE_WRITE | syscall.FILE_SHARE_DELETE)
-	createmode := uint32(syscall.OPEN_EXISTING)
-	var sa *syscall.SecurityAttributes
+	sharemode := uint32(windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE | windows.FILE_SHARE_DELETE)
+	createmode := uint32(windows.OPEN_EXISTING)
+	var sa *windows.SecurityAttributes
 
-	r, err := syscall.CreateFile(pathp, access, sharemode, sa, createmode, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+	r, err := windows.CreateFile(pathp, access, sharemode, sa, createmode, windows.FILE_ATTRIBUTE_NORMAL, 0)
 	if err != nil {
 		return nil, err
 	}
