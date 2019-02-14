@@ -365,6 +365,15 @@ func install(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
+	// Move configuration files
+	if err := moveConfigurationFilesOf(integration); err != nil {
+		fmt.Printf("Installed %s %s", integration, versionToInstall)
+		return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
+	}
+
+	fmt.Println(color.GreenString(fmt.Sprintf(
+		"Successfully installed %s %s", integration, versionToInstall,
+	)))
 	return nil
 }
 
