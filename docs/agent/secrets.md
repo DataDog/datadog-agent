@@ -37,7 +37,8 @@ in your configuration (not the key), in any section (`init_config`, `instances`,
 `logs`, ...).
 
 Secrets are supported in every configuration backend: file, etcd, consul ...
-But for now, secrets are **NOT** supported in environment variables.
+
+Starting version `6.10.0`, secrets are supported in environment variables.
 
 Secrets are also supported in `datadog.yaml`. The agent will first load the
 main configuration and reload it after decrypting the secrets. This means the

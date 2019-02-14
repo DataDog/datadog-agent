@@ -54,6 +54,7 @@ type Config interface {
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
+	MergeConfigOverride(in io.Reader) error
 
 	AllSettings() map[string]interface{}
 

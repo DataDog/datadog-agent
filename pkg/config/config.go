@@ -487,7 +487,7 @@ func load(config Config, origin string) error {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
 		r := bytes.NewReader(finalYamlConf)
-		if err = config.MergeConfig(r); err != nil {
+		if err = config.MergeConfigOverride(r); err != nil {
 			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
 		}
 	}
