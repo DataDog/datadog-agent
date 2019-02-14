@@ -25,7 +25,7 @@ const (
 // tags. It is to be supplemented by the cluster agent collector for tags from
 // the apiserver.
 type KubeletCollector struct {
-	kubeUtil 		  *KubeUtil
+	watcher           *kubelet.PodWatcher
 	infoOut           chan<- []*TagInfo
 	lastExpire        time.Time
 	expireFreq        time.Duration
@@ -35,11 +35,11 @@ type KubeletCollector struct {
 
 // Detect tries to connect to the kubelet
 func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	k, err := GetKubeUtil()
+	watcher, err := kubelet.NewPodWatcher(5 * time.Minute)
 	if err != nil {
 		return NoCollection, err
 	}
-	c.kubeUtil = k
+	c.watcher = watcher
 	c.infoOut = out
 	c.lastExpire = time.Now()
 	c.expireFreq = kubeletExpireFreq
@@ -65,7 +65,7 @@ func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error)
 // container deletion computation every 'expireFreq'
 func (c *KubeletCollector) Pull() error {
 	// Compute new/updated pods
-	updatedPods, err := c.kubeUtil.GetLocalPodList()
+	updatedPods, err := c.watcher.PullChanges()
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (c *KubeletCollector) Pull() error {
 	}
 
 	// Compute deleted pods
-	expireList, err := c....
+	expireList, err := c.watcher.Expire()
 	if err != nil {
 		return err
 	}
