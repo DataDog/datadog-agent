@@ -56,5 +56,6 @@ end
 
 execute "install-agent" do
   command "start /wait msiexec /log install.log /q /i #{temp_file} #{install_options}"
+  `sc qc datadogagent`
   action :run
 end
