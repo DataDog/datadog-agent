@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	pythonBin     = "python.exe"
-	downloaderBin = "datadog-checks-downloader.exe"
+	pythonBin = "python.exe"
 )
 
 var (

@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	pythonBin     = "python"
-	downloaderBin = "datadog-checks-downloader"
+	pythonBin = "python"
 )
 
 var (

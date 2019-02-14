@@ -34,6 +34,7 @@ const (
 	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
 	yamlFilePattern          = "[\\w_]+\\.yaml.*"
+	downloaderModule         = "datadog_checks.downloader"
 	disclaimer               = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
 )
@@ -228,7 +229,7 @@ func pip(args []string) error {
 	args = append([]string{"-mpip"}, cmd)
 
 	if verbose > 0 {
-		args = append(args, "-"+strings.Repeat("v", verbose))
+		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
 	}
 
 	// Append implicit flags to the *pip* command
@@ -236,7 +237,7 @@ func pip(args []string) error {
 
 	pipCmd := exec.Command(pythonPath, args...)
 
-	// forward the standard output to the Agent logger
+	// forward the standard output to stdout
 	stdout, err := pipCmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -248,7 +249,7 @@ func pip(args []string) error {
 		}
 	}()
 
-	// forward the standard error to the Agent logger
+	// forward the standard error to stderr
 	stderr, err := pipCmd.StderrPipe()
 	if err != nil {
 		return err
@@ -256,17 +257,16 @@ func pip(args []string) error {
 	go func() {
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
-			fmt.Println(color.RedString(in.Text()))
+			fmt.Fprintf(os.Stderr, "%s\n", color.RedString(in.Text()))
 		}
 	}()
 
 	err = pipCmd.Run()
 	if err != nil {
-		fmt.Printf(color.RedString(
-			fmt.Sprintf("error running command: %v", err)))
+		fmt.Errorf("error running command: %v", err)
 	}
 
-	return err
+	return nil
 }
 
 func install(cmd *cobra.Command, args []string) error {
@@ -383,12 +383,12 @@ func downloadWheel(integration, version string) (string, error) {
 		return "", err
 	}
 	args := []string{
-		"-m", "datadog_checks.downloader",
+		"-m", downloaderModule,
 		integration,
 		"--version", version,
 	}
 	if verbose > 0 {
-		args = append(args, "-"+strings.Repeat("v", verbose))
+		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
 	}
 	downloaderCmd := exec.Command(pyPath, args...)
 	downloaderCmd.Env = os.Environ()
@@ -407,7 +407,7 @@ func downloadWheel(integration, version string) (string, error) {
 		)
 	}
 
-	// forward the standard error to the Agent logger
+	// forward the standard error to stderr
 	stderr, err := downloaderCmd.StderrPipe()
 	if err != nil {
 		return "", err
@@ -415,22 +415,32 @@ func downloadWheel(integration, version string) (string, error) {
 	go func() {
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
-			fmt.Println(color.RedString(in.Text()))
+			fmt.Fprintf(os.Stderr, "%s\n", color.RedString(in.Text()))
 		}
 	}()
 
-	output, err := downloaderCmd.Output()
+	stdout, err := downloaderCmd.StdoutPipe()
 	if err != nil {
-		fmt.Println(color.RedString(fmt.Sprintf("error running command: %v", err)))
 		return "", err
 	}
-	strOutput := strings.TrimSpace(string(output))
-	// Print command output
-	fmt.Println(strOutput)
+	if err := downloaderCmd.Start(); err != nil {
+		return "", fmt.Errorf("error running command: %v", err)
+	}
+	lastLine := ""
+	go func() {
+		in := bufio.NewScanner(stdout)
+		for in.Scan() {
+			lastLine = in.Text()
+			fmt.Println(lastLine)
+		}
+	}()
+
+	if err := downloaderCmd.Wait(); err != nil {
+		return "", fmt.Errorf("error running command: %v", err)
+	}
 
 	// The path to the wheel will be at the last line of the output
-	splitOutput := strings.Split(strOutput, "\n")
-	wheelPath := strings.TrimSpace(splitOutput[len(splitOutput)-1])
+	wheelPath := lastLine
 
 	// Verify the availability of the wheel file
 	if _, err := os.Stat(wheelPath); err != nil {
