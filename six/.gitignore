@@ -55,3 +55,6 @@ demo/demo
 __pycache__/
 *.py[cod]
 *$py.class
+
+# vim
+*.swp
