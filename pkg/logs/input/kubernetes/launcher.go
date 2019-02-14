@@ -206,9 +206,6 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
 	}
-	if err := cfg.Compile(); err != nil {
-		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
-	}
 
 	return config.NewLogSource(l.getSourceName(pod, container), cfg), nil
 }
