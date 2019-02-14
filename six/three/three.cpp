@@ -56,32 +56,45 @@ void Three::init(const char *pythonHome) {
     // init builtin modules one by one
 
     // _util
-    def__util.m_methods = &_modules[DATADOG_AGENT_SIX__UTIL][0];
-    PyImport_AppendInittab(datadog_agent_six__util, &PyInit__util);
+    if (_modules[DATADOG_AGENT_SIX__UTIL].size() > 0) {
+        def__util.m_methods = &_modules[DATADOG_AGENT_SIX__UTIL][0];
+        PyImport_AppendInittab(datadog_agent_six__util, &PyInit__util);
+    }
 
     // aggregator
-    def_aggregator.m_methods = &_modules[DATADOG_AGENT_SIX_AGGREGATOR][0];
-    PyImport_AppendInittab(datadog_agent_six_aggregator, &PyInit_aggregator);
+    if (_modules[DATADOG_AGENT_SIX_AGGREGATOR].size() > 0) {
+        def_aggregator.m_methods = &_modules[DATADOG_AGENT_SIX_AGGREGATOR][0];
+        PyImport_AppendInittab(datadog_agent_six_aggregator, &PyInit_aggregator);
+    }
 
     // containers
-    def_containers.m_methods = &_modules[DATADOG_AGENT_SIX_CONTAINERS][0];
-    PyImport_AppendInittab(datadog_agent_six_containers, &PyInit_containers);
+    if (_modules[DATADOG_AGENT_SIX_CONTAINERS].size() > 0) {
+        def_containers.m_methods = &_modules[DATADOG_AGENT_SIX_CONTAINERS][0];
+        PyImport_AppendInittab(datadog_agent_six_containers, &PyInit_containers);
+    }
 
     // datadog_agent
-    def_datadog_agent.m_methods = &_modules[DATADOG_AGENT_SIX_DATADOG_AGENT][0];
-    PyImport_AppendInittab(datadog_agent_six_datadog_agent, &PyInit_datadog_agent);
+    if (_modules[DATADOG_AGENT_SIX_DATADOG_AGENT].size() > 0) {
+        def_datadog_agent.m_methods = &_modules[DATADOG_AGENT_SIX_DATADOG_AGENT][0];
+        PyImport_AppendInittab(datadog_agent_six_datadog_agent, &PyInit_datadog_agent);
+    }
 
     // kubeutil
-    def_kubeutil.m_methods = &_modules[DATADOG_AGENT_SIX_KUBEUTIL][0];
-    PyImport_AppendInittab(datadog_agent_six_kubeutil, &PyInit_kubeutil);
+    if (_modules[DATADOG_AGENT_SIX_KUBEUTIL].size() > 0) {
+        def_kubeutil.m_methods = &_modules[DATADOG_AGENT_SIX_KUBEUTIL][0];
+        PyImport_AppendInittab(datadog_agent_six_kubeutil, &PyInit_kubeutil);
+    }
 
     // tagger
-    def_tagger.m_methods = &_modules[DATADOG_AGENT_SIX_TAGGER][0];
-    PyImport_AppendInittab(datadog_agent_six_tagger, &PyInit_tagger);
-
+    if (_modules[DATADOG_AGENT_SIX_TAGGER].size() > 0) {
+        def_tagger.m_methods = &_modules[DATADOG_AGENT_SIX_TAGGER][0];
+        PyImport_AppendInittab(datadog_agent_six_tagger, &PyInit_tagger);
+    }
     // util
-    def_util.m_methods = &_modules[DATADOG_AGENT_SIX_UTIL][0];
-    PyImport_AppendInittab(datadog_agent_six_util, &PyInit_util);
+    if (_modules[DATADOG_AGENT_SIX_UTIL].size() > 0) {
+        def_util.m_methods = &_modules[DATADOG_AGENT_SIX_UTIL][0];
+        PyImport_AppendInittab(datadog_agent_six_util, &PyInit_util);
+    }
 
     Py_SetPythonHome(_pythonHome);
     Py_Initialize();
