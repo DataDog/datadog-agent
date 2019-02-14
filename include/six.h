@@ -4,8 +4,10 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_SIX_H
 #define DATADOG_AGENT_SIX_SIX_H
+#include <map>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "types.h"
 
@@ -19,7 +21,7 @@ public:
     virtual ~Six() {};
 
     // Public API
-    virtual void init(const char *pythonHome) = 0;
+    virtual int init(const char *pythonHome) = 0;
     virtual int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) = 0;
     virtual int addModuleIntConst(six_module_t module, const char *name, long value) = 0;
     void setError(const std::string &msg);
@@ -49,5 +51,8 @@ private:
 
 typedef Six *create_t();
 typedef void destroy_t(Six *);
+
+typedef std::pair<std::string, long> PyModuleConst;
+typedef std::map<six_module_t, std::vector<PyModuleConst> > PyModuleConstants;
 
 #endif

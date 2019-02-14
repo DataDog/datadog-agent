@@ -91,7 +91,7 @@ void destroy(six_t *six) {
     }
 }
 
-void init(six_t *six, char *pythonHome) { AS_TYPE(Six, six)->init(pythonHome); }
+int init(six_t *six, char *pythonHome) { return AS_TYPE(Six, six)->init(pythonHome); }
 
 int is_initialized(six_t *six) { return AS_CTYPE(Six, six)->isInitialized(); }
 

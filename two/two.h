@@ -19,7 +19,7 @@ public:
         , _module_constants() {};
     ~Two();
 
-    void init(const char *pythonHome);
+    int init(const char *pythonHome);
     int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
     int addModuleIntConst(six_module_t module, const char *name, long value);
     six_gilstate_t GILEnsure();
@@ -42,8 +42,6 @@ private:
 
     typedef std::vector<PyMethodDef> PyMethods;
     typedef std::map<six_module_t, PyMethods> PyModules;
-    typedef std::pair<std::string, long> PyModuleConst;
-    typedef std::map<six_module_t, std::vector<PyModuleConst> > PyModuleConstants;
 
     PyModules _modules;
     PyModuleConstants _module_constants;

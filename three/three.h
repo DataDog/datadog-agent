@@ -5,6 +5,7 @@
 #ifndef DATADOG_AGENT_SIX_THREE_H
 #define DATADOG_AGENT_SIX_THREE_H
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -13,19 +14,23 @@
 
 class Three : public Six {
 public:
+    // Python module constants need to be added in the init callback after calling
+    // "PyModule_Create". The constants need to be globally available.
+    static PyModuleConstants ModuleConstants;
+    static std::mutex ModuleConstantsMtx;
+
     Three()
         : _modules()
         , _pythonHome(NULL) {};
     ~Three();
 
-    void init(const char *pythonHome);
+    int init(const char *pythonHome);
     int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
-    int addModuleIntConst(six_module_t module, const char *name, long value) {
-        /* FIXME */
-        return 1;
-    }
+    int addModuleIntConst(six_module_t module, const char *name, long value);
+
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
+
     /* FIXME */
     SixPyObject *getCheckClass(const char *module) { return NULL; }
     SixPyObject *getCheck(const char *module, const char *init_config_str, const char *instances_str);
