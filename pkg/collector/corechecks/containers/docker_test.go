@@ -53,3 +53,43 @@ func TestReportIOMetrics(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", float64(1130496), "", sdbTags)
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(0), "", sdbTags)
 }
+
+func TestReportMemFailCountMetric(t *testing.T) {
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+	mockSender.SetupAcceptAll()
+
+	tags := []string{"constant:tags", "container_name:dummy"}
+
+	// Test fallback to sums when per-device is not available
+	failedCount := &cmetrics.FailedMemoryCount{
+		failedCount:  uint64(5),
+	}
+	dockerCheck.reportIOMetrics(ioSum, tags, mockSender)
+	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", float64(38989367), "", tags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(671846455), "", tags)
+
+	
+	// Test per-device when available
+	ioPerDevice := &cmetrics.CgroupIOStat{
+		ReadBytes:  uint64(38989367),
+		WriteBytes: uint64(671846455),
+		DeviceReadBytes: map[string]uint64{
+			"sda": 37858816,
+			"sdb": 1130496,
+		},
+		DeviceWriteBytes: map[string]uint64{
+			"sda": 671846400,
+			"sdb": 0,
+		},
+	}
+	sdaTags := append(tags, "device:sda")
+	sdbTags := append(tags, "device:sdb")
+	dockerCheck.reportIOMetrics(ioPerDevice, tags, mockSender)
+	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", float64(37858816), "", sdaTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(671846400), "", sdaTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", float64(1130496), "", sdbTags)
+	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(0), "", sdbTags)
+}
