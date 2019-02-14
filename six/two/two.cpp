@@ -6,6 +6,8 @@
 
 #include "constants.h"
 
+#include <sstream>
+
 Two::~Two() { Py_Finalize(); }
 
 void Two::init(const char *pythonHome) {
@@ -109,14 +111,13 @@ PyObject *Two::_importFrom(const char *module, const char *name) {
 
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
-        PyErr_Print();
-        setError("Unable to import module");
+        setError(_fetchPythonError());
         goto error;
     }
 
     obj_symbol = PyObject_GetAttrString(obj_module, name);
     if (obj_symbol == NULL) {
-        setError("Unable to load symbol");
+        setError(_fetchPythonError());
         goto error;
     }
 
@@ -145,36 +146,40 @@ SixPyObject *Two::getCheck(const char *module, const char *init_config_str, cons
     // import the base class
     base = _importFrom("datadog_checks.base.checks", "AgentCheck");
     if (base == NULL) {
-        setError("Unable to import base class");
+        std::string old_err = getError();
+        setError("Unable to import the base class: " + old_err);
         goto done;
     }
 
     // try to import python module containing the check
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
-        PyErr_Print();
-        setError("Unable to import module");
+        std::ostringstream err;
+        err << "unable to import module '" << module << "': " + _fetchPythonError();
+        setError(err.str());
         goto done;
     }
 
     // find a subclass of the base check
     klass = _findSubclassOf(base, obj_module);
     if (klass == NULL) {
-        PyErr_Print();
+        std::ostringstream err;
+        err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
+        setError(err.str());
         goto done;
     }
 
     // call `AgentCheck.load_config(init_config)`
     init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
     if (init_config == NULL) {
-        PyErr_Print();
+        setError("error parsing init_config: " + _fetchPythonError());
         goto done;
     }
 
     // call `AgentCheck.load_config(instances)`
     instances = PyObject_CallMethod(klass, load_config, format, instances_str);
     if (instances == NULL) {
-        PyErr_Print();
+        setError("error parsing instances: " + _fetchPythonError());
         goto done;
     }
 
@@ -187,7 +192,7 @@ SixPyObject *Two::getCheck(const char *module, const char *init_config_str, cons
     // call `AgentCheck` constructor
     check = PyObject_Call(klass, args, kwargs);
     if (check == NULL) {
-        PyErr_Print();
+        setError("error creating check instance: " + _fetchPythonError());
         goto done;
     }
 
@@ -304,7 +309,7 @@ const char *Two::runCheck(SixPyObject *check) {
 
     result = PyObject_CallMethod(py_check, run, NULL);
     if (result == NULL) {
-        PyErr_Print();
+        setError("error invoking 'run' method: " + _fetchPythonError());
         goto done;
     }
 
@@ -312,7 +317,7 @@ const char *Two::runCheck(SixPyObject *check) {
     // deallocated along with the corresponding Python object.
     ret = PyString_AsString(result);
     if (ret == NULL) {
-        PyErr_Print();
+        setError("error converting result to string: " + _fetchPythonError());
         goto done;
     }
 
@@ -321,4 +326,69 @@ const char *Two::runCheck(SixPyObject *check) {
 done:
     Py_XDECREF(result);
     return ret_copy;
+}
+
+std::string Two::_fetchPythonError() {
+    std::string ret_val = "";
+
+    if (PyErr_Occurred() == NULL) {
+        return ret_val;
+    }
+
+    PyObject *ptype = NULL;
+    PyObject *pvalue = NULL;
+    PyObject *ptraceback = NULL;
+
+    // Fetch error and make sure exception values are normalized, as per python C API docs.
+    PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+    PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
+
+    // There's a traceback, try to format it nicely
+    if (ptraceback != NULL) {
+        PyObject *traceback = PyImport_ImportModule("traceback");
+        if (traceback != NULL) {
+            char fname[] = "format_exception";
+            PyObject *format_exception = PyObject_GetAttrString(traceback, fname);
+            if (format_exception != NULL) {
+                PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
+                if (fmt_exc != NULL) {
+                    // "format_exception" returns a list of strings (one per line)
+                    for (int i = 0; i < PyList_Size(fmt_exc); i++) {
+                        ret_val += PyString_AsString(PyList_GetItem(fmt_exc, i));
+                    }
+                }
+                Py_XDECREF(fmt_exc);
+                Py_XDECREF(format_exception);
+            }
+            Py_XDECREF(traceback);
+        } else {
+            // If we reach this point, there was an error while formatting the exception
+            ret_val = "can't format exception";
+        }
+    }
+    // we sometimes do not get a traceback but an error in pvalue
+    else if (pvalue != NULL) {
+        PyObject *pvalue_obj = PyObject_Str(pvalue);
+        if (pvalue_obj != NULL) {
+            ret_val = PyString_AsString(pvalue_obj);
+            Py_XDECREF(pvalue_obj);
+        }
+    } else if (ptype != NULL) {
+        PyObject *ptype_obj = PyObject_Str(ptype);
+        if (ptype_obj != NULL) {
+            ret_val = PyString_AsString(ptype_obj);
+            Py_XDECREF(ptype_obj);
+        }
+    }
+
+    if (ret_val == "") {
+        ret_val = "unknown error";
+    }
+
+    // clean up and return the string
+    PyErr_Clear();
+    Py_XDECREF(ptype);
+    Py_XDECREF(pvalue);
+    Py_XDECREF(ptraceback);
+    return ret_val;
 }

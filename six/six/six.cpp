@@ -40,12 +40,9 @@ void Six::clearError() {
 }
 
 std::string Six::getError() const {
-    std::string ret;
-
     _error_mtx.lock();
-    ret = _error;
+    std::string ret = _error;
     _error_mtx.unlock();
-
     return ret;
 }
 
