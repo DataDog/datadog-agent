@@ -217,6 +217,13 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 	return c.Viper.MergeConfig(in)
 }
 
+// MergeConfigOverride wraps Viper for concurrent access
+func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.MergeConfigOverride(in)
+}
+
 // AllSettings wraps Viper for concurrent access
 func (c *safeConfig) AllSettings() map[string]interface{} {
 	c.Lock()
