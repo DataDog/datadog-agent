@@ -29,7 +29,7 @@ import (
 const (
 	reqAgentReleaseFile = "requirements-agent-release.txt"
 	constraintsFile     = "final_constraints.txt"
-	tufPkgPattern       = "datadog-.*"
+	datadogPkgPattern   = "datadog-.*"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	// Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
 	versionSpecifiersPattern = "([><=!]{1,2})([0-9.]*)"
@@ -111,7 +111,7 @@ func init() {
 	integrationCmd.AddCommand(removeCmd)
 	integrationCmd.AddCommand(freezeCmd)
 	integrationCmd.AddCommand(showCmd)
-	integrationCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "enable verbose logging on pip and TUF")
+	integrationCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
 
@@ -187,7 +187,7 @@ func validateArgs(args []string, local bool) error {
 	}
 
 	if !local {
-		exp, err := regexp.Compile(tufPkgPattern)
+		exp, err := regexp.Compile(datadogPkgPattern)
 		if err != nil {
 			return fmt.Errorf("internal error: %v", err)
 		}
