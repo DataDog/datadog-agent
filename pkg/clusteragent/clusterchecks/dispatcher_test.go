@@ -266,7 +266,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	assert.True(t, dispatcher.shouldDispatchDanling())
 	configs := dispatcher.retrieveAndClearDangling()
 	// Assert the check is scheduled
-	dispatcher.Schedule(configs)
+	dispatcher.reschedule(configs)
 	danglingConfig, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(danglingConfig))
