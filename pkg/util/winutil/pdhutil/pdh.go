@@ -7,8 +7,8 @@
 package pdhutil
 
 import (
-	"unsafe"
 	"golang.org/x/sys/windows"
+	"unsafe"
 )
 
 type (
