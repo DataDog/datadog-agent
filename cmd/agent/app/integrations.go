@@ -450,13 +450,13 @@ func validateBaseDependency(wheelPath string, baseVersion *integrationVersion) (
 			for scanner.Scan() {
 				line := scanner.Text()
 				if strings.Contains(line, "Requires-Dist: datadog-checks-base") {
-					exp, err := regexp.Compile(versionSpecifiersPattern)
-					if err != nil {
-						return false, fmt.Errorf("internal error: %v", err)
-					}
 					if baseVersion == nil {
 						// Simply trying to verify that the base package is a dependency
 						return true, nil
+					}
+					exp, err := regexp.Compile(versionSpecifiersPattern)
+					if err != nil {
+						return false, fmt.Errorf("internal error: %v", err)
 					}
 					matches := exp.FindAllStringSubmatch(line, -1)
 

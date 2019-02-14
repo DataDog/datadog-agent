@@ -138,3 +138,39 @@ func TestValidateArgs(t *testing.T) {
 	err = validateArgs(args, false)
 	assert.Nil(t, err)
 }
+
+func TestValidateRequirement(t *testing.T) {
+	// Case baseVersion < versionReq
+	baseVersion, _ := parseVersion("4.1.0")
+	versionReq, _ := parseVersion("4.2.0")
+	assert.True(t, validateRequirement(baseVersion, "<", versionReq))
+	assert.True(t, validateRequirement(baseVersion, "<=", versionReq))
+	assert.False(t, validateRequirement(baseVersion, "==", versionReq))
+	assert.True(t, validateRequirement(baseVersion, "!=", versionReq))
+	assert.False(t, validateRequirement(baseVersion, ">=", versionReq))
+	assert.False(t, validateRequirement(baseVersion, ">", versionReq))
+	assert.False(t, validateRequirement(baseVersion, "anythingElse", versionReq))
+
+	// Case baseVersion == versionReq
+	baseVersion, _ = parseVersion("4.2.0")
+	versionReq, _ = parseVersion("4.2.0")
+	assert.False(t, validateRequirement(baseVersion, "<", versionReq))
+	assert.True(t, validateRequirement(baseVersion, "<=", versionReq))
+	assert.True(t, validateRequirement(baseVersion, "==", versionReq))
+	assert.False(t, validateRequirement(baseVersion, "!=", versionReq))
+	assert.True(t, validateRequirement(baseVersion, ">=", versionReq))
+	assert.False(t, validateRequirement(baseVersion, ">", versionReq))
+	assert.False(t, validateRequirement(baseVersion, "anythingElse", versionReq))
+
+	// Case baseVersion > versionReq
+	baseVersion, _ = parseVersion("4.2.1")
+	versionReq, _ = parseVersion("4.2.0")
+	assert.False(t, validateRequirement(baseVersion, "<", versionReq))
+	assert.False(t, validateRequirement(baseVersion, "<=", versionReq))
+	assert.False(t, validateRequirement(baseVersion, "==", versionReq))
+	assert.True(t, validateRequirement(baseVersion, "!=", versionReq))
+	assert.True(t, validateRequirement(baseVersion, ">=", versionReq))
+	assert.True(t, validateRequirement(baseVersion, ">", versionReq))
+	assert.False(t, validateRequirement(baseVersion, "anythingElse", versionReq))
+
+}
