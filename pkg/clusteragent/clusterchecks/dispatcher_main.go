@@ -79,7 +79,7 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 // reschdule sends configurations to dispatching without checking or patching them as Schedule does.
 func (d *dispatcher) reschedule(configs []integration.Config) {
 	for _, c := range configs {
-		log.Debugf("Rescheduling the check %s from %s", c.Name, c.Entity)
+		log.Debugf("Rescheduling the check %s:%s", c.Name, c.Digest())
 		d.add(c)
 	}
 }
