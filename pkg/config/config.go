@@ -149,6 +149,9 @@ func initConfig(config Config) {
 	// Use to force client side TLS version to 1.2
 	config.BindEnvAndSetDefault("force_tls_12", false)
 
+	// Defaults to safe YAML methods in base and custom checks.
+	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
+
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
@@ -190,8 +193,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125)          // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125)                                        // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)                               // 8KB buffer
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 4096)                          // Number of packets to buffer at dogstatsd intake before flushing them to parsing/aggregation
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond) // Timeout after which we force dogstatsd intake buffer to be flushed
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -281,6 +286,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_max_restarts", int64(3))
 	config.BindEnvAndSetDefault("jmx_restart_interval", int64(5))
+	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)
+	config.BindEnvAndSetDefault("jmx_reconnection_thread_pool_size", 3)
+	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
+	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -443,8 +452,12 @@ func loadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() error {
+	return load(Datadog, "datadog.yaml")
+}
+
+func load(config Config, origin string) error {
 	log.Infof("config.Load()")
-	if err := Datadog.ReadInConfig(); err != nil {
+	if err := config.ReadInConfig(); err != nil {
 		log.Warnf("config.load() error %v", err)
 		return err
 	}
@@ -453,36 +466,35 @@ func Load() error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secrets.Init(
-		Datadog.GetString("secret_backend_command"),
-		Datadog.GetStringSlice("secret_backend_arguments"),
-		Datadog.GetInt("secret_backend_timeout"),
-		Datadog.GetInt("secret_backend_output_max_size"),
+		config.GetString("secret_backend_command"),
+		config.GetStringSlice("secret_backend_arguments"),
+		config.GetInt("secret_backend_timeout"),
+		config.GetInt("secret_backend_output_max_size"),
 	)
 
-	if Datadog.IsSet("secret_backend_command") {
+	if config.IsSet("secret_backend_command") {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
-		// localtions we let viper determine the one to use before
+		// locations we let viper determine the one to use before
 		// updating it.
-		conf, err := yaml.Marshal(Datadog.AllSettings())
+		yamlConf, err := yaml.Marshal(config.AllSettings())
 		if err != nil {
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		finalConfig, err := secrets.Decrypt(conf, "datadog.yaml")
+		finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
-		r := bytes.NewReader(finalConfig)
-		if err = Datadog.MergeConfig(r); err != nil {
+		r := bytes.NewReader(finalYamlConf)
+		if err = config.MergeConfigOverride(r); err != nil {
 			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
 		}
 	}
 
-	loadProxyFromEnv(Datadog)
-	sanitizeAPIKey(Datadog)
-	applyOverrides(Datadog)
-
+	loadProxyFromEnv(config)
+	sanitizeAPIKey(config)
+	applyOverrides(config)
 	return nil
 }
 

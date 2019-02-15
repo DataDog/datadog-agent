@@ -355,9 +355,11 @@ func TestParsePods(t *testing.T) {
 						"pod-template-hash": "490794276",
 					},
 					Annotations: map[string]string{
-						"noTag":     "don't collect",
-						"GitCommit": "ea38b55f07e40b68177111a2bff1e918132fd5fb",
-						"OwnerTeam": "Kenafeh",
+						"noTag":                          "don't collect",
+						"GitCommit":                      "ea38b55f07e40b68177111a2bff1e918132fd5fb",
+						"OwnerTeam":                      "Kenafeh",
+						"ad.datadoghq.com/tags":          `{"pod_template_version": "1.0.0"}`,
+						"ad.datadoghq.com/dd-agent.tags": `{"agent_version": "6.9.0"}`,
 					},
 				},
 				Status: dockerContainerStatus,
@@ -382,6 +384,8 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_template_version:1.0.0",
+					"agent_version:6.9.0",
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags: []string{

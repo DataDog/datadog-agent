@@ -56,6 +56,38 @@ func (suite *ConfigTestSuite) TestDefaultSources() {
 	suite.Equal("docker", source.Config.Service)
 }
 
+func (suite *ConfigTestSuite) TestGlobalProcessingRules() {
+	var (
+		rules []*ProcessingRule
+		rule  *ProcessingRule
+		err   error
+	)
+
+	suite.config.Set("logs_config.processing_rules", nil)
+
+	rules, err = GlobalProcessingRules()
+	suite.Nil(err)
+	suite.Equal(0, len(rules))
+
+	suite.config.Set("logs_config.processing_rules", []map[string]interface{}{
+		{
+			"type":    "exclude_at_match",
+			"name":    "exclude_foo",
+			"pattern": "foo",
+		},
+	})
+
+	rules, err = GlobalProcessingRules()
+	suite.Nil(err)
+	suite.Equal(1, len(rules))
+
+	rule = rules[0]
+	suite.Equal(ExcludeAtMatch, rule.Type)
+	suite.Equal("exclude_foo", rule.Name)
+	suite.Equal("foo", rule.Pattern)
+	suite.NotNil(rule.Regex)
+}
+
 func TestConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
 }

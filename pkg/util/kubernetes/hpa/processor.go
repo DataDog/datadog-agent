@@ -128,7 +128,6 @@ func invalidate(emList []custommetrics.ExternalMetricValue) (invList []custommet
 }
 
 func getKey(name string, labels map[string]string) string {
-	name = strings.ToLower(name)
 	// Support queries with no tags
 	if len(labels) == 0 {
 		return fmt.Sprintf("%s{*}", name)
@@ -136,7 +135,7 @@ func getKey(name string, labels map[string]string) string {
 
 	datadogTags := []string{}
 	for key, val := range labels {
-		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", strings.ToLower(key), strings.ToLower(val)))
+		datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
 	}
 	sort.Strings(datadogTags)
 	tags := strings.Join(datadogTags, ",")

@@ -56,9 +56,9 @@ func testUDSOriginDetection(t *testing.T) {
 	mockConfig.Set("dogstatsd_origin_detection", true)
 
 	// Start DSD
-	packetChannel := make(chan *listeners.Packet)
+	packetsChannel := make(chan listeners.Packets)
 	packetPool := listeners.NewPacketPool(mockConfig.GetInt("dogstatsd_buffer_size"))
-	s, err := listeners.NewUDSListener(packetChannel, packetPool)
+	s, err := listeners.NewUDSListener(packetsChannel, packetPool)
 	require.Nil(t, err)
 
 	go s.Listen()
@@ -85,7 +85,8 @@ func testUDSOriginDetection(t *testing.T) {
 	defer stopCmd.Run()
 
 	select {
-	case packet := <-packetChannel:
+	case packets := <-packetsChannel:
+		packet := packets[0]
 		require.NotNil(t, packet)
 		require.Equal(t, "custom_counter1:1|c", string(packet.Contents))
 		require.Equal(t, fmt.Sprintf("docker://%s", containerId), packet.Origin)

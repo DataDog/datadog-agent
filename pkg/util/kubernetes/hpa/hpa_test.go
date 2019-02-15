@@ -193,6 +193,7 @@ func TestDiffAutoscalter(t *testing.T) {
 func TestInspect(t *testing.T) {
 	metricName := "requests_per_s"
 	metricNameUpper := "ReQuesTs_Per_S"
+
 	testCases := map[string]struct {
 		hpa      *autoscalingv2.HorizontalPodAutoscaler
 		expected []custommetrics.ExternalMetricValue
@@ -275,7 +276,7 @@ func TestInspect(t *testing.T) {
 			[]custommetrics.ExternalMetricValue{
 				{
 					MetricName: "foo",
-					Labels:     map[string]string{},
+					Labels:     nil,
 					Timestamp:  0,
 					Value:      0,
 					Valid:      false,
@@ -305,7 +306,8 @@ func TestInspect(t *testing.T) {
 								MetricName: metricNameUpper,
 								MetricSelector: &metav1.LabelSelector{
 									MatchLabels: map[string]string{
-										"DcoS_vErsIoN": "1.9.4",
+										// No need to try test upper cased labels/tags as they are not supported in Datadog
+										"dcos_version": "1.9.4",
 									},
 								},
 							},
@@ -315,7 +317,7 @@ func TestInspect(t *testing.T) {
 			},
 			[]custommetrics.ExternalMetricValue{
 				{
-					MetricName: "requests_per_s",
+					MetricName: metricNameUpper,
 					Labels:     map[string]string{"dcos_version": "1.9.4"},
 					Timestamp:  0,
 					Value:      0,

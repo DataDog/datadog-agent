@@ -93,10 +93,14 @@ func (l *UDPListener) read(tailer *Tailer) ([]byte, error) {
 		go l.resetTailer()
 		return nil, err
 	default:
-		if n == l.frameSize+1 {
-			// The message is bigger than the length of the read buffer, the trailing part of the content will be dropped.
-			// Adding '\n' ensures that the message will correctly be decoded later on and not mixed the following message.
+		// make sure all logs are separated by line feeds, otherwise they don't get properly split downstream
+		if n > l.frameSize {
+			// the message is bigger than the length of the read buffer,
+			// the trailing part of the content will be dropped.
 			frame[l.frameSize] = '\n'
+		} else if n > 0 && frame[n-1] != '\n' {
+			frame[n] = '\n'
+			n++
 		}
 		return frame[:n], nil
 	}
