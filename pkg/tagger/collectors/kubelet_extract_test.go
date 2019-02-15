@@ -420,11 +420,11 @@ func TestParsePods(t *testing.T) {
 			},
 			labelsAsTags: map[string]string{},
 			expectedInfo: []*TagInfo{{
-				Source:      "kubelet",
-				Entity:      dockerEntityID,
+				Source: "kubelet",
+				Entity: dockerEntityID,
 				LowCardTags: []string{
 					"kube_container_name:dd-agent",
-					"oshift_deployment_config:gitlab-ce"},
+					"oshift_deployment_config:gitlab-ce",
 					"pod_phase:running",
 				},
 				OrchestratorCardTags: []string{

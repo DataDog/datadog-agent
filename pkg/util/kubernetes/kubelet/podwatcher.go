@@ -81,10 +81,10 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			} else if prevSighting.phase != pod.Status.Phase {
 				phaseChange = true
 			}
-		} else {
-			// Refresh last pod seen time & phase
-			w.lastSeen[podEntity] = PodSighting{ts: now, phase: pod.Status.Phase}
 		}
+
+		// Refresh last pod seen time & phase
+		w.lastSeen[podEntity] = PodSighting{ts: now, phase: pod.Status.Phase}
 
 		// Detect new containers
 		newContainer := false

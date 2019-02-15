@@ -366,6 +366,7 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_cache_pods_duration", 3000)
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)

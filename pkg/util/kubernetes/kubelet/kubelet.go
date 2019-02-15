@@ -189,7 +189,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	}
 
 	// cache the podList to reduce pressure on the kubelet
-	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration*time.Second)
 
 	return pods.Items, nil
 }
