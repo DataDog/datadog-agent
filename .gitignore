@@ -79,3 +79,4 @@ cmd/trace-agent/windows_resources/trace-agent-msg.rc
 cmd/trace-agent/windows_resources/*.bin
 pkg/trace/info/git_version.go
 trace-agent-msg.h
+*.aps

@@ -8,8 +8,9 @@ package util
 import (
 	"C"
 	"os"
-	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 func getSystemFQDN() (string, error) {
@@ -18,7 +19,7 @@ func getSystemFQDN() (string, error) {
 		return "", err
 	}
 
-	he, err := syscall.GetHostByName(hn)
+	he, err := windows.GetHostByName(hn)
 	if err != nil {
 		return "", err
 	}

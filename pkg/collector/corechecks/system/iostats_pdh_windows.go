@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
-	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+
+	"golang.org/x/sys/windows"
 )
 
 var (
@@ -47,7 +48,7 @@ type IOCheck struct {
 var pfnGetDriveType = getDriveType
 
 func getDriveType(drive string) uintptr {
-	r, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive))))
+	r, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(drive))))
 	return r
 }
 func isDrive(instance string) bool {
