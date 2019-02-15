@@ -7,8 +7,9 @@
 package system
 
 import (
-	"golang.org/x/sys/windows"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 // For testing purpose

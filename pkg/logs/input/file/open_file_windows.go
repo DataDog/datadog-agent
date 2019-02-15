@@ -8,8 +8,9 @@
 package file
 
 import (
-	"golang.org/x/sys/windows"
 	"os"
+
+	"golang.org/x/sys/windows"
 )
 
 // openFile reimplements the os.Open function for Windows because the default
