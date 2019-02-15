@@ -208,6 +208,7 @@ func (d *DockerCheck) Run() error {
 				}
 			}
 
+			sender.Gauge("docker.mem.failed_count", float64(c.MemFailCnt), "", tags)
 			if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
 				if c.Memory.HierarchicalMemSWLimit != 0 {
