@@ -7,7 +7,9 @@
 
 package compression
 
-import "github.com/DataDog/zstd"
+import (
+	"github.com/DataDog/zstd"
+)
 
 // TODO: the intake still uses a pre-v1 (unstable) version of the zstd compression format.
 // The agent shouldn't use zstd compression until the intake supports a stable v1 format.
@@ -24,4 +26,9 @@ func Compress(dst []byte, src []byte) ([]byte, error) {
 // Decompress will decompress the data with zstd
 func Decompress(dst []byte, src []byte) ([]byte, error) {
 	return zstd.Decompress(dst, src)
+}
+
+// CompressBound returns the worst case size needed for a destination buffer
+func CompressBound(sourceLen int) int {
+	return zstd.CompressBound(sourceLen)
 }

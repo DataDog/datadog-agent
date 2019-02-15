@@ -13,10 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,7 +74,7 @@ func initExtraHeaders() {
 type MetricSerializer interface {
 	SendEvents(e marshaler.Marshaler) error
 	SendServiceChecks(sc marshaler.Marshaler) error
-	SendSeries(series marshaler.Marshaler) error
+	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.Marshaler) error
 	SendJSONToV1Intake(data interface{}) error
@@ -95,6 +95,7 @@ type Serializer struct {
 	enableServiceChecks  bool
 	enableSketches       bool
 	enableJSONToV1Intake bool
+	enableJSONStream     bool
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -106,6 +107,7 @@ func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 		enableServiceChecks:  config.Datadog.GetBool("enable_payloads.service_checks"),
 		enableSketches:       config.Datadog.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake: config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
+		enableJSONStream:     jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
 	}
 
 	if !s.enableEvents {
@@ -156,6 +158,11 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 	return payloads, extraHeaders, nil
 }
 
+func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler) (forwarder.Payloads, http.Header, error) {
+	payloads, err := jsonstream.Payloads(payload)
+	return payloads, jsonExtraHeadersWithCompression, err
+}
+
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 	if !s.enableEvents {
@@ -199,7 +206,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
+func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	if !s.enableSeries {
 		log.Debug("series payloads are disabled: dropping it")
 		return nil
@@ -207,8 +214,16 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
-	compress := true
-	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1API)
+	var seriesPayloads forwarder.Payloads
+	var extraHeaders http.Header
+	var err error
+
+	if useV1API && s.enableJSONStream {
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series)
+	} else {
+		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
+	}
+
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
