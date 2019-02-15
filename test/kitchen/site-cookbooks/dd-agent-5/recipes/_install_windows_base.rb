@@ -55,6 +55,8 @@ end
   
 execute "install-agent" do
   command "start /wait msiexec /log install.log /q /i #{temp_file} #{install_options}"
+  status_out = `sc interrogate datadogagent 2>&1`
+  puts status_out
   action :run
 end
 
