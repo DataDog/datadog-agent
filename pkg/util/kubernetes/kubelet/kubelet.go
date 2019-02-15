@@ -10,6 +10,7 @@ package kubelet
 import (
 	"crypto/tls"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -37,7 +38,10 @@ const (
 	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
-var globalKubeUtil *KubeUtil
+var (
+	globalKubeUtil *KubeUtil
+	kubeletExpVar  = expvar.NewInt("kubeletQueries")
+)
 
 // KubeUtil is a struct to hold the kubelet api url
 // Instantiate with GetKubeUtil
@@ -71,7 +75,7 @@ func newKubeUtil() *KubeUtil {
 		kubeletApiClient:         &http.Client{Timeout: time.Second},
 		kubeletApiRequestHeaders: &http.Header{},
 		rawConnectionInfo:        make(map[string]string),
-		podListCacheDuration:     10 * time.Second,
+		podListCacheDuration:     config.Datadog.GetDuration("kubelet_cache_pods_duration") * time.Second,
 	}
 
 	waitOnMissingContainer := config.Datadog.GetDuration("kubelet_wait_on_missing_container")
@@ -192,11 +196,6 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
 	return pods.Items, nil
-}
-
-// SetPodListCacheDuration sets the podlist cache duration
-func (ku *KubeUtil) SetPodListCacheDuration(duration time.Duration) {
-	ku.podListCacheDuration = duration
 }
 
 // ForceGetLocalPodList reset podList cache and call GetLocalPodList
@@ -415,6 +414,7 @@ func (ku *KubeUtil) QueryKubelet(path string) ([]byte, int, error) {
 	}
 
 	response, err := ku.kubeletApiClient.Do(req)
+	kubeletExpVar.Add(1)
 	if err != nil {
 		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
 		return nil, 0, err

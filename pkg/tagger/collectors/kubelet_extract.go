@@ -65,6 +65,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 		}
 
+		// Pod phase
+		tags.AddLow("pod_phase", strings.ToLower(pod.Status.Phase))
+
 		// OpenShift pod annotations
 		if dc_name, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
 			tags.AddLow("oshift_deployment_config", dc_name)
