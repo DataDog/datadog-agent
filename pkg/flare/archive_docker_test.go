@@ -16,8 +16,8 @@ import (
 
 func TestTrimCommand(t *testing.T) {
 	for in, out := range map[string]string{
-		"/pause":                                     "/pause",
-		"nginx -g 'daemon off;'":                     "nginx …",
+		"/pause":                 "/pause",
+		"nginx -g 'daemon off;'": "nginx …",
 		"/entrypoint.sh datadog-cluster-agent start": "/entrypoint.sh …",
 		"/coredns -conf /etc/coredns/Corefile":       "/coredns …",
 		"/my/very/long/command":                      "/my/very/long/command",

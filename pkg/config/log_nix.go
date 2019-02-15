@@ -7,15 +7,18 @@
 
 package config
 
-// GetSyslogURI returns the configured/default syslog uri
+// GetSyslogURI returns the configured/default syslog uri.
+// Returns an empty string when syslog is disabled.
 func GetSyslogURI() string {
 	enabled := Datadog.GetBool("log_to_syslog")
 	uri := Datadog.GetString("syslog_uri")
 
-	if enabled {
-		if uri == "" {
-			uri = defaultSyslogURI
-		}
+	if !enabled {
+		return ""
+	}
+
+	if uri == "" {
+		return defaultSyslogURI
 	}
 
 	return uri

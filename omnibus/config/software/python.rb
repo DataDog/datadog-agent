@@ -80,24 +80,14 @@ else
   default_version "2.7.15"
 
   dependency "vc_redist"
-  dependency "vc_python"
-
-  msi_name = "python-#{version}.amd64.msi"
-  source :url => "https://www.python.org/ftp/python/#{version}/#{msi_name}",
-         :sha256 => "5e85f3c4c209de98480acbf2ba2e71a907fd5567a838ad4b6748c76deb286ad7"
+  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
+         :sha256 => "e3b099206e61b1b4bf70b89c5fe5a698ba2ac465133c6b00ed998227a19c4b83",
+         :extract => :seven_zip
 
   build do
-    # In case Python is already installed on the build machine well... let's uninstall it
-    # (fortunately we're building in a VM :) )
-    command "start /wait msiexec /x #{msi_name} /L uninstallation_logs.txt ADDLOCAL=DefaultFeature /qn"
-
-    mkdir "#{windows_safe_path(install_dir)}\\embedded"
-
-    # Installs Python with all the components we need (pip..) under C:\python-omnibus
-    command "start /wait msiexec /i #{msi_name} TARGETDIR="\
-            "\"#{windows_safe_path(install_dir)}\\embedded\" /L uninstallation_logs.txt "\
-            "ADDLOCAL=DefaultFeature  /qn"
-
+    #
+    # expand python zip into the embedded directory
+    command "XCOPY /YEHIR *.* \"#{windows_safe_path(install_dir)}\\embedded\""
     command "SETX PYTHONPATH \"#{windows_safe_path(install_dir)}\\embedded\""
   end
 end

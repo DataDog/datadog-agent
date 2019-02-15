@@ -14,13 +14,22 @@ stages:
   - e2e
 
 variables:
-  SRC_PATH: /src/github.com/DataDog/datadog-agent
-  DEPPROJECTROOT: /src/github.com/DataDog/datadog-agent
-  OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
+  # The SRC_PATH is in the GOPATH of the builders which
+  # currently is /go
+  SRC_PATH: /go/src/github.com/DataDog/datadog-agent
+  # Directory in which we execute the omnibus build.
+  # For an unknown reason, it does not go well with
+  # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
+  OMNIBUS_BASE_DIR: /.omnibus
+  # Directory in which we put the artifacts after the build
+  # Must be in $CI_PROJECT_DIR
   OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
-  # make sure the types of RPM packages are kept separate
-  OMNIBUS_BASE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/
-  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg/
+  # Directory in which we execute the omnibus build for SUSE
+  # as we want to separate the RPM built for this distro.
+  OMNIBUS_BASE_DIR_SUSE: /.omnibus/suse
+  # Directory in which we put the artifacts after the build
+  # Must be in $CI_PROJECT_DIR
+  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg
   OMNIBUS_BASE_DIR_WIN: c:\omni-base\$CI_RUNNER_ID
   OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omni-base/$CI_RUNNER_ID
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
@@ -51,11 +60,7 @@ variables:
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
 # you NEED to overwrite it.
 before_script:
-  # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
-  # GOPATH to the project folder would be too complex (we'd need to replicate the `src/github/project` scheme).
-  # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
   - echo running default before_script
-  - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
   - pip install --upgrade --ignore-installed pip setuptools
   - pip install -r requirements.txt
@@ -283,12 +288,12 @@ agent_deb-x64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Artifacts and cache must live within project directory but we run omnibus
-    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
-    # pointing to a gitlab-friendly location.
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
-    - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent_amd64.deb
+    - dpkg -c $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb $S3_ARTEFACTS_URI/datadog-agent_amd64.deb
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -310,12 +315,12 @@ puppy_deb-x64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Artifacts and cache must live within project directory but we run omnibus
-    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
-    # pointing to a gitlab-friendly location.
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR
-    - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-puppy*_amd64.deb
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-puppy*_amd64.deb $S3_ARTEFACTS_URI/datadog-puppy_amd64.deb
+    - dpkg -c $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb $S3_ARTEFACTS_URI/datadog-puppy_amd64.deb
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -337,16 +342,16 @@ agent_rpm-x64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Artifacts and cache must live within project directory but we run omnibus
-    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
-    # pointing to a gitlab-friendly location.
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - set +x
     - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
-    - rpm -i $OMNIBUS_PACKAGE_DIR/*.rpm
+    - rpm -i $OMNIBUS_BASE_DIR/pkg/*.rpm
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -358,7 +363,7 @@ agent_rpm-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Agent package for rpm-x64
+# build Agent package for suse-x64
 agent_suse-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
@@ -367,16 +372,16 @@ agent_suse-x64:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   script:
     # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Artifacts and cache must live within project directory but we run omnibus
-    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
-    # pointing to a gitlab-friendly location.
+    - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - set +x
     - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
     # FIXME: skip the installation step until we fix the preinst/postinst scripts in the rpm package
     # to also work with SUSE11
     # - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
@@ -431,11 +436,7 @@ agent_android_apk:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
-    # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
-    # GOPATH to the project folder would be too complex (we'd need to replicate the `src/github/project` scheme).
-    # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
-    - echo running default before_script
-    - rsync -azr --delete ./ $SRC_PATH
+    - echo running android before_script
     - cd $SRC_PATH
     - pip install -U pip
     - pip install -r requirements.txt
@@ -469,12 +470,12 @@ dogstatsd_deb-x64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Artifacts and cache must live within project directory but we run omnibus
-    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
-    # pointing to a gitlab-friendly location.
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
-    - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_amd64.deb
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_amd64.deb $S3_ARTEFACTS_URI/datadog-dogstatsd_amd64.deb
+    - dpkg -c $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb $S3_ARTEFACTS_URI/datadog-dogstatsd_amd64.deb
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -505,7 +506,8 @@ dogstatsd_rpm-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --omnibus-s3-cache
-    - rpm -i $OMNIBUS_PACKAGE_DIR/*.rpm
+    - rpm -i $OMNIBUS_BASE_DIR/pkg/*.rpm
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -537,7 +539,8 @@ dogstatsd_suse-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE --omnibus-s3-cache
-    - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
+    - rpm -i $OMNIBUS_BASE_DIR_SUSE/pkg/*.rpm
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -792,19 +795,21 @@ testkitchen_cleanup_azure:
 #
 # image_build
 #
+# docker build must run with DOCKER_CONTENT_TRUST to
+# enable signature check of the base images
+#
 
 .docker_build_job_definition: &docker_build_job_definition
   stage: image_build
   tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artifacts
   script:
-    - apt-get update && apt-get install -y python-pip && pip install awscli
     - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
-    - docker build $BUILD_ARG --pull --tag $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $BUILD_CONTEXT
+    - DOCKER_CONTENT_TRUST=1 docker build $BUILD_ARG --pull --tag $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $BUILD_CONTEXT
     - docker push $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
 
 # build the agent6 image
@@ -865,18 +870,24 @@ twistlock_scan:
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
-    - apt-get update && apt-get install -y python-pip && pip install awscli
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     - pip install -r requirements.txt
+    - if [[ -z "$DELEGATION_PASS_SSM_KEY" ]]; then echo "No signing key set"; exit 0; fi
+    - echo "Importing delegation signing key"
+    - export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_PASS_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_KEY_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/docker.key
+    - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
   dependencies: [] # Don't download Gitlab artefacts
 
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
+  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
   DOCKER_REGISTRY_URL: docker.io
   SRC_AGENT: *agent_ecr
   SRC_DSD: *dogstatsd_ecr
@@ -896,9 +907,9 @@ dev_branch_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
 dev_master_docker_hub:
   <<: *docker_tag_job_definition
@@ -907,9 +918,9 @@ dev_master_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent-dev:master
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent-dev:master-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd-dev:master
 
 dca_dev_branch_docker_hub:
   <<: *docker_tag_job_definition
@@ -919,7 +930,7 @@ dca_dev_branch_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
@@ -928,7 +939,7 @@ dca_dev_master_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
+    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent-dev:master
 
 # deploys to quay
 # docker images are mirrored on quay.io
@@ -1125,9 +1136,9 @@ tag_release:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent:${CI_COMMIT_TAG}
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent:${CI_COMMIT_TAG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:${CI_COMMIT_TAG}-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${CI_COMMIT_TAG}
 
 latest_release:
   <<: *docker_tag_job_definition
@@ -1137,9 +1148,30 @@ latest_release:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG} datadog/agent:latest
-    - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:latest-jmx
-    - inv -e docker.publish ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG} datadog/agent:latest
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
+
+#
+# Use this step to revert the latest tag to a previous release
+# while maintaining content trust signatures
+# - remove the leading dot from the name
+# - set the RELEASE envvar
+# - in the gitlab pipeline view, trigger the step (in the first column)
+#
+.latest_revert_to_previous_release:
+  <<: *docker_tag_job_definition
+  stage: source_test
+  when: manual
+  variables:
+    <<: *docker_hub_variables
+    RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
+  script:
+    - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
+
 
 dca_tag_release:
   <<: *docker_tag_job_definition
@@ -1149,7 +1181,7 @@ dca_tag_release:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:${CI_COMMIT_TAG#$(echo "dca-")}
+    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:${CI_COMMIT_TAG#$(echo "dca-")}
 
 dca_latest_release:
   <<: *docker_tag_job_definition
@@ -1159,7 +1191,7 @@ dca_latest_release:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:latest
+    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG} datadog/cluster-agent:latest
 
 # invalidate cloudfront cache
 deploy_cloudfront_invalidate:

@@ -81,12 +81,8 @@ func isIntegrationAvailable() bool {
 
 // setup initializes the pod watcher and the tagger.
 func (l *Launcher) setup() error {
-	var err error
 	// initialize the tagger to collect container tags
-	err = tagger.Init()
-	if err != nil {
-		return err
-	}
+	tagger.Init()
 	return nil
 }
 
@@ -209,9 +205,6 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 	cfg.Tags = append(cfg.Tags, l.getTags(container)...)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
-	}
-	if err := cfg.Compile(); err != nil {
-		return nil, fmt.Errorf("could not compile kubernetes annotation: %v", err)
 	}
 
 	return config.NewLogSource(l.getSourceName(pod, container), cfg), nil

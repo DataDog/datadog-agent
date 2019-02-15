@@ -50,6 +50,14 @@
   revision = "2cfb68475274527a10701355c739f31dd404718c"
 
 [[projects]]
+  digest = "1:e9ca79fa28ff0fe0271b63d2d30f4118643746610cd0d75603c7b4255a44f161"
+  name = "github.com/DataDog/viper"
+  packages = ["."]
+  pruneopts = ""
+  revision = "23ced3bc6b3751855704445e48da2c53075ade86"
+  version = "v1.4.0"
+
+[[projects]]
   digest = "1:34d4c1b61fa208e523726ddb85d01b8caa8f2de0cd656d91c81b6b86daea485c"
   name = "github.com/DataDog/zstd"
   packages = ["."]
@@ -1108,7 +1116,7 @@
   revision = "f976f61134dc6f5b4920941eb1b0e7cec7e4ef4c"
 
 [[projects]]
-  digest = "1:5e9a035ad95373cc44be4e0682e30923d02cdc238e280b8937073092dba8e68e"
+  digest = "1:02135a4151567d48ebff6cf36f73b5d8dee566855df84ffd96111d5225848bb7"
   name = "github.com/shirou/gopsutil"
   packages = [
     "cpu",
@@ -1121,8 +1129,8 @@
     "process",
   ]
   pruneopts = ""
-  revision = "eeb1d38d69593f121e060d24d17f7b1f0936b203"
-  version = "v2.18.05"
+  revision = "ccc1c1016bc5d10e803189ee43417c50cdde7f1b"
+  version = "v2.18.12"
 
 [[projects]]
   branch = "master"
@@ -1182,14 +1190,6 @@
   pruneopts = ""
   revision = "583c0c0531f06d5278b7d917446061adc344b5cd"
   version = "v1.0.1"
-
-[[projects]]
-  digest = "1:3dab237cd3263a290d771d133fed777bb56c22e380b00ebe92e6531d5c8d3d0c"
-  name = "github.com/spf13/viper"
-  packages = ["."]
-  pruneopts = ""
-  revision = "b5e8006cbee93ec955a89ab31e0e3ce3204f3736"
-  version = "v1.0.2"
 
 [[projects]]
   digest = "1:711eebe744c0151a9d09af2315f0bb729b2ec7637ef4c410fa90a18ef74b65b6"
@@ -1939,6 +1939,7 @@
     "github.com/DataDog/gohai/platform",
     "github.com/DataDog/gohai/processes",
     "github.com/DataDog/mmh3",
+    "github.com/DataDog/viper",
     "github.com/DataDog/zstd",
     "github.com/Microsoft/go-winio",
     "github.com/aws/aws-sdk-go/aws",
@@ -2008,7 +2009,6 @@
     "github.com/spf13/afero",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
-    "github.com/spf13/viper",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/mock",
     "github.com/stretchr/testify/require",

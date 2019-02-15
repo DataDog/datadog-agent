@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
@@ -26,6 +27,7 @@ type provider struct {
 	numberOfPipelines int
 	auditor           *auditor.Auditor
 	outputChan        chan *message.Message
+	processingRules   []*config.ProcessingRule
 	endpoints         *client.Endpoints
 
 	pipelines            []*Pipeline
@@ -34,10 +36,11 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
+func NewProvider(numberOfPipelines int, auditor *auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *client.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return &provider{
 		numberOfPipelines:   numberOfPipelines,
 		auditor:             auditor,
+		processingRules:     processingRules,
 		endpoints:           endpoints,
 		pipelines:           []*Pipeline{},
 		destinationsContext: destinationsContext,
@@ -50,7 +53,7 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.endpoints, p.destinationsContext)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

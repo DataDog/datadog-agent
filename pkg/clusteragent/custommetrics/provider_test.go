@@ -143,6 +143,32 @@ func TestGetExternalMetric(t *testing.T) {
 			},
 			[]external_metrics.ExternalMetricValue{},
 		},
+		{
+			"one matching metric with capital letterstored",
+			[]ExternalMetricValue{
+				{
+					MetricName: "CapitalMetric",
+					Labels:     goodLabel,
+					HPA:        ObjectReference{Namespace: ns},
+					Valid:      true,
+				}, {
+					MetricName: metricName,
+					Labels:     badLabel,
+					HPA:        ObjectReference{Namespace: ns},
+					Valid:      true,
+				}},
+			metricCompare{
+				provider.ExternalMetricInfo{Metric: "capitalmetric"},
+				ns,
+				goodLabel,
+			},
+			[]external_metrics.ExternalMetricValue{
+				{
+					MetricName:   "CapitalMetric",
+					MetricLabels: goodLabel,
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -76,6 +76,14 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	}
 }
 
+// reschdule sends configurations to dispatching without checking or patching them as Schedule does.
+func (d *dispatcher) reschedule(configs []integration.Config) {
+	for _, c := range configs {
+		log.Debugf("Rescheduling the check %s:%s", c.Name, c.Digest())
+		d.add(c)
+	}
+}
+
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) {
 	target := d.getLeastBusyNode()
@@ -112,6 +120,9 @@ func (d *dispatcher) run(ctx context.Context) {
 	healthProbe := health.Register("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe)
 
+	registerMetrics()
+	defer unregisterMetrics()
+
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
 
@@ -127,7 +138,8 @@ func (d *dispatcher) run(ctx context.Context) {
 
 			// Re-dispatch dangling configs
 			if d.shouldDispatchDanling() {
-				d.Schedule(d.retrieveAndClearDangling())
+				danglingConfs := d.retrieveAndClearDangling()
+				d.reschedule(danglingConfs)
 			}
 		}
 	}

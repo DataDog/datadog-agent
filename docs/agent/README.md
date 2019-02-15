@@ -6,6 +6,7 @@
  * [Configuration options][config]
  * [Downgrade][downgrade]
  * [GUI](gui.md)
+ * [Integrations Management][integration]
  * [Missing features][missing-features]
  * [Upgrade][upgrade]
 
@@ -54,3 +55,4 @@ Agent 6 is currently available on these platforms:
 [missing-features]: missing_features.md
 [upgrade]: upgrade.md
 [secrets]: secrets.md
+[integration]: integration.md

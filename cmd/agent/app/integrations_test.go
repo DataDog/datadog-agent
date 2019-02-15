@@ -39,10 +39,9 @@ func TestMoveConfigurationsFiles(t *testing.T) {
 	assert.Equal(t, 4, len(filesMoved))
 	for _, file := range filesMoved {
 		assert.Contains(t, yamlFiles, file.Name())
+		// Check that we didn't move the txt file
+		assert.NotEqual(t, otherFile, file.Name())
 	}
-	filesNotMoved, _ := ioutil.ReadDir(srcFolder)
-	assert.Equal(t, 1, len(filesNotMoved))
-	assert.Equal(t, otherFile, filesNotMoved[0].Name())
 }
 
 func TestParseVersion(t *testing.T) {
@@ -118,4 +117,24 @@ func TestGetVersionFromReqLine(t *testing.T) {
 	version, err := getVersionFromReqLine("package2", reqLines)
 	assert.Nil(t, version)
 	assert.NotNil(t, err)
+}
+
+func TestValidateArgs(t *testing.T) {
+	// No args
+	args := []string{}
+	err := validateArgs(args, false)
+	assert.NotNil(t, err)
+
+	// Too many args
+	args = []string{"arg1", "arg2"}
+	err = validateArgs(args, true)
+	assert.NotNil(t, err)
+
+	// Not local => name starts with datadog
+	args = []string{"foo"}
+	err = validateArgs(args, false)
+	assert.NotNil(t, err)
+	args = []string{"datadog-foo"}
+	err = validateArgs(args, false)
+	assert.Nil(t, err)
 }

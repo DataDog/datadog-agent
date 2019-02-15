@@ -446,27 +446,27 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	var err error
 
 	// init_config
-	conf.InitConfig, err = secrets.Decrypt(conf.InitConfig)
+	conf.InitConfig, err = secrets.Decrypt(conf.InitConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
 
 	// instances
 	for idx := range conf.Instances {
-		conf.Instances[idx], err = secrets.Decrypt(conf.Instances[idx])
+		conf.Instances[idx], err = secrets.Decrypt(conf.Instances[idx], conf.Name)
 		if err != nil {
 			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
 	}
 
 	// metrics
-	conf.MetricConfig, err = secrets.Decrypt(conf.MetricConfig)
+	conf.MetricConfig, err = secrets.Decrypt(conf.MetricConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
-	conf.LogsConfig, err = secrets.Decrypt(conf.LogsConfig)
+	conf.LogsConfig, err = secrets.Decrypt(conf.LogsConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
 	}
@@ -478,9 +478,23 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.unschedule(configs)
 	for _, c := range configs {
 		ac.store.removeLoadedConfig(c)
-		// if the config is a template, remove it from the cache
+	}
+}
+
+func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
+	for _, c := range configs {
 		if c.IsTemplate() {
-			ac.store.templateCache.Del(c)
+			// Remove the resolved configurations
+			tplDigest := c.Digest()
+			configs := ac.store.getConfigsForTemplate(tplDigest)
+			ac.store.removeConfigsForTemplate(tplDigest)
+			ac.processRemovedConfigs(configs)
+
+			// Remove template from the cache
+			err := ac.store.templateCache.Del(c)
+			if err != nil {
+				log.Debugf("Could not delete template: %v", err)
+			}
 		}
 	}
 }
@@ -545,6 +559,7 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	}
 	ac.store.setLoadedConfig(resolvedConfig)
 	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
+	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
 		svc.GetEntity(),
 		tagger.GetEntityHash(svc.GetEntity()),
@@ -559,7 +574,7 @@ func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
-func (ac *AutoConfig) GetUnresolvedTemplates() map[string]integration.Config {
+func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.GetUnresolvedTemplates()
 }
 

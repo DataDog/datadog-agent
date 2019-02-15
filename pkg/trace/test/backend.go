@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -96,7 +96,7 @@ func (s *fakeBackend) handleHealth(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
-	var payload agent.StatsPayload
+	var payload stats.Payload
 	if err := readJSONRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
 	}

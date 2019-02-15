@@ -28,7 +28,7 @@ binaries:
 	mkdir -p ./bin
 	TRACE_AGENT_VERSION=$(V) go generate ./internal/info
 	go get -u github.com/karalabe/xgo
-	xgo -dest=bin -go=1.10 -out=trace-agent-$(V) -targets=windows-6.1/amd64,linux/amd64,darwin-10.11/amd64 ./cmd/trace-agent
+	xgo -dest=bin -go=1.11 -out=trace-agent-$(V) -targets=windows-6.1/amd64,linux/amd64,darwin-10.11/amd64 ./cmd/trace-agent
 	mv ./bin/trace-agent-$(V)-windows-6.1-amd64.exe ./bin/trace-agent-$(V)-windows-amd64.exe
 	mv ./bin/trace-agent-$(V)-darwin-10.11-amd64 ./bin/trace-agent-$(V)-darwin-amd64 
 	git reset --hard head && git checkout -

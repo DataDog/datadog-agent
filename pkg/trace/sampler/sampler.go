@@ -59,20 +59,6 @@ const (
 	PriorityUserKeep SamplingPriority = 2
 )
 
-// Weight returns the weight of the span as defined for sampling, i.e. the
-// inverse of the sampling rate.
-func Weight(s *pb.Span) float64 {
-	if s == nil {
-		return 1.0
-	}
-	sampleRate, ok := s.Metrics[KeySamplingRateGlobal]
-	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
-		return 1.0
-	}
-
-	return 1.0 / sampleRate
-}
-
 // GetSamplingPriority returns the value of the sampling priority metric set on this span and a boolean indicating if
 // such a metric was actually found or not.
 func GetSamplingPriority(s *pb.Span) (SamplingPriority, bool) {

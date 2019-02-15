@@ -93,7 +93,7 @@ func (s *nodeStore) addConfig(config integration.Config) {
 func (s *nodeStore) removeConfig(digest string) {
 	_, found := s.digestToConfig[digest]
 	if !found {
-		log.Debug("unknown digest %s, skipping", digest)
+		log.Debugf("unknown digest %s, skipping", digest)
 		return
 	}
 	s.lastConfigChange = timestampNow()

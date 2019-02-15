@@ -46,11 +46,20 @@ blacklist = [
   'docker_daemon',
   'kubernetes',
   'ntp',                           # provided as a go check by the core agent
-  'openstack_controller',          # Check currently under active development and in beta
 ]
 
+blacklist_req = []
+
+if suse?
+  blacklist.push('aerospike')  # Temporarily blacklist Aerospike Datadog Integration until builder supports new dependency
+  blacklist_req.push(/^aerospike==/)  # Temporarily blacklist Aerospike python client until builder supports new dependency
+end
+
 core_constraints_file = 'core_constraints.txt'
+final_constraints_file = 'final_constraints.txt'
 agent_requirements_file = 'agent_requirements.txt'
+agent_requirements_file_in = 'agent_requirements.in'
+static_reqs_in_file_filtered = 'agent_filtered_reqs.in'
 
 build do
   # The dir for the confs
@@ -142,13 +151,34 @@ build do
     python_pip_req = "pip install -c #{windows_safe_path(project_dir)}\\#{core_constraints_file} --no-deps --require-hashes -r"
     python_pip_uninstall = "pip uninstall -y"
 
+    if windows?
+      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\agent_requirements.in"
+      static_reqs_filtered_file = "#{windows_safe_path(install_dir)}\\#{static_reqs_in_file_filtered}"
+    else
+      static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/agent_requirements.in"
+      static_reqs_filtered_file = "#{project_dir}/#{static_reqs_in_file_filtered}"
+    end
+
+    # Remove any blacklisted requirements from the static-environment req file
+    tmp = File.open("#{static_reqs_in_file}", 'r+').readlines()
+
+    File.open("#{static_reqs_filtered_file}", 'w+') do |f|
+      for line in tmp
+        for blacklist_regex in blacklist_req
+          if not blacklist_regex =~ line
+            f.puts(line)
+          end
+        end
+      end
+    end
+
     # Install the static environment requirements that the Agent and all checks will use
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
-      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\agent_requirements.in")
+      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_filtered_file}")
     else
       pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{project_dir}/datadog_checks_base/datadog_checks/base/data/agent_requirements.in")
+      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_filtered_file}")
     end
 
     # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
@@ -169,6 +199,9 @@ build do
     else
       pip "install -c #{project_dir}/#{core_constraints_file} --require-hashes --no-deps -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
+    # Create a constraint file after installing all the core dependencies and before any integration
+    # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
+    pip "freeze > #{install_dir}/#{final_constraints_file}"
 
     # Ship requirements-agent-release.txt file containing the versions of every check shipped with the agent
     # Used by the `datadog-agent integration` command to prevent downgrading a check to a version

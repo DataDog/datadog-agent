@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // safeConfig implements Config:
@@ -215,6 +215,13 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.Viper.MergeConfig(in)
+}
+
+// MergeConfigOverride wraps Viper for concurrent access
+func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.MergeConfigOverride(in)
 }
 
 // AllSettings wraps Viper for concurrent access

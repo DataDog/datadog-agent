@@ -16,14 +16,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mholt/archiver"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CreateDCAArchive packages up the files
@@ -112,6 +112,11 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		return "", err
 	}
 
+	err = zipClusterAgentClusterChecks(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip clustercheck status: %s", err)
+	}
+
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		err = zipHPAStatus(tempDir, hostname)
 		if err != nil {
@@ -193,6 +198,29 @@ func zipMetadataMap(tempDir, hostname string) error {
 	}
 
 	return ioutil.WriteFile(f, sByte, os.ModePerm)
+}
+
+func zipClusterAgentClusterChecks(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	GetClusterChecks(writer)
+	writer.Flush()
+
+	f := filepath.Join(tempDir, hostname, "clusterchecks.log")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	_, err = w.Write(b.Bytes())
+	return err
 }
 
 func zipHPAStatus(tempDir, hostname string) error {

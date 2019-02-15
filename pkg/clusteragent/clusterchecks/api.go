@@ -35,13 +35,19 @@ func (h *Handler) ShouldHandle() (int, string) {
 	}
 }
 
-// GetAllConfigs returns all configurations known to the store, for reporting
-func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
-	configs, err := h.dispatcher.getAllConfigs()
-	response := types.ConfigResponse{
-		Configs: configs,
+// GetState returns the state of the dispatching, for the clusterchecks cmd
+func (h *Handler) GetState() (types.StateResponse, error) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+
+	switch h.state {
+	case leader:
+		return h.dispatcher.getState()
+	case follower:
+		return types.StateResponse{NotRunning: "currently follower"}, nil
+	default:
+		return types.StateResponse{NotRunning: notReadyReason}, nil
 	}
-	return response, err
 }
 
 // GetConfigs returns configurations dispatched to a given node

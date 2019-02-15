@@ -23,10 +23,7 @@ import (
 //   2. add the check loaders
 func SetupAutoConfig(confdPath string) {
 	// start tagging system
-	err := tagger.Init()
-	if err != nil {
-		log.Errorf("Unable to start tagging system: %s", err)
-	}
+	tagger.Init()
 
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment, if available
@@ -57,7 +54,7 @@ func SetupAutoConfig(confdPath string) {
 
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders
-	err = config.Datadog.UnmarshalKey("config_providers", &CP)
+	err := config.Datadog.UnmarshalKey("config_providers", &CP)
 
 	if err == nil {
 		// Add extra config providers

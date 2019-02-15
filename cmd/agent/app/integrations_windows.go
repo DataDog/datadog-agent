@@ -25,6 +25,7 @@ var (
 	relTufConfigFilePath   = filepath.Join("..", tufConfigFile)
 	relChecksPath          = filepath.Join("Lib", "site-packages", "datadog_checks")
 	relReqAgentReleasePath = filepath.Join("..", reqAgentReleaseFile)
+	relConstraintsPath     = filepath.Join("..", constraintsFile)
 	tufPipCachePath        = filepath.Join("c:\\", "ProgramData", "Datadog", "repositories", "cache")
 )
 

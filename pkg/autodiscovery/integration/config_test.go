@@ -65,10 +65,12 @@ func TestString(t *testing.T) {
 	config.InitConfig = Data("fooBarBaz: test")
 	config.Instances = []Data{Data("justFoo")}
 
-	expected := `init_config:
+	expected := `check_name: foo
+init_config:
   fooBarBaz: test
 instances:
 - justFoo
+logs_config: null
 `
 	assert.Equal(t, config.String(), expected)
 }

@@ -22,6 +22,7 @@ import (
 )
 
 func resetAggregator() {
+	recurrentSeries = metrics.Series{}
 	aggregatorInstance = nil
 	aggregatorInit = sync.Once{}
 	senderInstance = nil
