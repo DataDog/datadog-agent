@@ -10,6 +10,7 @@ package kubelet
 import (
 	"crypto/tls"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -37,7 +38,10 @@ const (
 	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
-var globalKubeUtil *KubeUtil
+var (
+	globalKubeUtil *KubeUtil
+	kubeletExpVar  = expvar.NewInt("kubeletQueries")
+)
 
 // KubeUtil is a struct to hold the kubelet api url
 // Instantiate with GetKubeUtil
@@ -410,6 +414,7 @@ func (ku *KubeUtil) QueryKubelet(path string) ([]byte, int, error) {
 	}
 
 	response, err := ku.kubeletApiClient.Do(req)
+	kubeletExpVar.Add(1)
 	if err != nil {
 		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
 		return nil, 0, err
