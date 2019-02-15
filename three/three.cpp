@@ -317,7 +317,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
         // get symbol name
         char *symbol_name;
         PyObject *symbol = PyList_GetItem(dir, i);
-        if (symbol != NULL || !PyUnicode_Check(symbol)) {
+        if (symbol != NULL) {
             PyObject *bytes = PyUnicode_AsEncodedString(symbol, "UTF-8", "strict");
 
             if (bytes != NULL) {
@@ -326,6 +326,14 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
             } else {
                 continue;
             }
+        } else {
+            // Gets exception reason
+            PyObject *reason = PyUnicodeDecodeError_GetReason(PyExc_IndexError);
+
+            // Clears exception and sets error
+            PyException_SetTraceback(PyExc_IndexError, Py_None);
+            setError(strdup(PyBytes_AsString(reason)));
+            goto done;
         }
 
         klass = PyObject_GetAttrString(module, symbol_name);
@@ -346,7 +354,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
         }
 
         // `klass` is actually `base` itself, ignore
-        if (PyObject_RichCompareBool(klass, base, Py_EQ)) {
+        if (PyObject_RichCompareBool(klass, base, Py_EQ) == 1) {
             Py_XDECREF(klass);
             continue;
         }
