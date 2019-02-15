@@ -51,6 +51,13 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
     fi
 
+    # For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
+    # We need to clean that up on upgrade now, since it was only removed on uninstall.
+    TUF_REPO_DIR=/etc/datadog-agent/repositories
+    if [ -d $TUF_REPO_DIR ]; then
+        rm -rf $TUF_REPO_DIR
+    fi
+
     if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
         # Nothing specific on Debian
         :
