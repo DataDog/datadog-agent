@@ -152,14 +152,13 @@ PyObject *Three::_importFrom(const char *module, const char *name) {
 
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
-        PyErr_Print();
-        setError("Unable to import module");
+        setError(_fetchPythonError());
         goto error;
     }
 
     obj_symbol = PyObject_GetAttrString(obj_module, name);
     if (obj_symbol == NULL) {
-        setError("Unable to load symbol");
+        setError(_fetchPythonError());
         goto error;
     }
 
@@ -169,4 +168,75 @@ error:
     Py_XDECREF(obj_module);
     Py_XDECREF(obj_symbol);
     return NULL;
+}
+
+std::string Three::_fetchPythonError() {
+    std::string ret_val = "";
+
+    if (PyErr_Occurred() == NULL) {
+        return ret_val;
+    }
+
+    PyObject *ptype = NULL;
+    PyObject *pvalue = NULL;
+    PyObject *ptraceback = NULL;
+
+    // Fetch error and make sure exception values are normalized, as per python C API docs.
+    PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+    PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
+
+    // There's a traceback, try to format it nicely
+    if (ptraceback != NULL) {
+        PyObject *traceback = PyImport_ImportModule("traceback");
+        if (traceback != NULL) {
+            char fname[] = "format_exception";
+            PyObject *format_exception = PyObject_GetAttrString(traceback, fname);
+            if (format_exception != NULL) {
+                PyObject *fmt_exc = PyObject_CallFunctionObjArgs(format_exception, ptype, pvalue, ptraceback, NULL);
+                if (fmt_exc != NULL) {
+                    // "format_exception" returns a list of strings (one per line)
+                    for (int i = 0; i < PyList_Size(fmt_exc); i++) {
+                        PyObject *temp_bytes = PyUnicode_AsEncodedString(PyList_GetItem(fmt_exc, i), "UTF-8", "strict");
+                        ret_val += PyBytes_AS_STRING(temp_bytes);
+                        Py_XDECREF(temp_bytes);
+                    }
+                }
+                Py_XDECREF(fmt_exc);
+                Py_XDECREF(format_exception);
+            }
+            Py_XDECREF(traceback);
+        } else {
+            // If we reach this point, there was an error while formatting the exception
+            ret_val = "can't format exception";
+        }
+    }
+    // we sometimes do not get a traceback but an error in pvalue
+    else if (pvalue != NULL) {
+        PyObject *pvalue_obj = PyObject_Str(pvalue);
+        if (pvalue_obj != NULL) {
+            PyObject *temp_bytes = PyUnicode_AsEncodedString(pvalue_obj, "UTF-8", "strict");
+            ret_val = PyBytes_AS_STRING(temp_bytes);
+            Py_XDECREF(pvalue_obj);
+            Py_XDECREF(temp_bytes);
+        }
+    } else if (ptype != NULL) {
+        PyObject *ptype_obj = PyObject_Str(ptype);
+        if (ptype_obj != NULL) {
+            PyObject *temp_bytes = PyUnicode_AsEncodedString(ptype_obj, "UTF-8", "strict");
+            ret_val = PyBytes_AS_STRING(temp_bytes);
+            Py_XDECREF(ptype_obj);
+            Py_XDECREF(temp_bytes);
+        }
+    }
+
+    if (ret_val == "") {
+        ret_val = "unknown error";
+    }
+
+    // clean up and return the string
+    PyErr_Clear();
+    Py_XDECREF(ptype);
+    Py_XDECREF(pvalue);
+    Py_XDECREF(ptraceback);
+    return ret_val;
 }
