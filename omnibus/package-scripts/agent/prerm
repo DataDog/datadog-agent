@@ -79,10 +79,20 @@ remove_py_compiled_files()
     fi
 }
 
+remove_downloader_data()
+{
+    # Remove all the data that was downloaded using the integration command
+    DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
+    if [ -f $DOWNLOADER_DATA ]; then
+        rm -rf $DOWNLOADER_DATA
+    fi
+}
+
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     stop_agent
     deregister_agent
     remove_py_compiled_files
+    remove_downloader_data
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
     stop_agent
     deregister_agent
@@ -91,6 +101,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         0)
             # We're uninstalling.
             remove_py_compiled_files
+            remove_downloader_data
         ;;
         1)
             # We're upgrading.
