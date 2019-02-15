@@ -677,6 +677,9 @@ api_key:
 # number of seconds (in 250ms chunks) when a container does not exist in the podlist.
 # kubelet_wait_on_missing_container: 0
 #
+# Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
+# kubelet_cache_pods_duration: 5
+#
 {{ end -}}
 {{- if .KubeApiServer }}
 # Kubernetes apiserver integration

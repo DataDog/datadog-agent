@@ -14,19 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PodSighting represents when and in which phase a pod was seen
-type PodSighting struct {
-	ts    time.Time
-	phase string
-}
-
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.
 // It keeps an internal state to only send the updated pods.
 type PodWatcher struct {
 	sync.Mutex
 	kubeUtil       *KubeUtil
 	expiryDuration time.Duration
-	lastSeen       map[string]PodSighting
+	lastSeen       map[string]time.Time
 }
 
 // NewPodWatcher creates a new watcher. User call must then trigger PullChanges
@@ -38,7 +32,7 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	}
 	watcher := &PodWatcher{
 		kubeUtil:       kubeutil,
-		lastSeen:       make(map[string]PodSighting),
+		lastSeen:       make(map[string]time.Time),
 		expiryDuration: expiryDuration,
 	}
 	return watcher, nil
@@ -69,32 +63,28 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			continue
 		}
 
-		var newStaticPod, phaseChange bool
 		podEntity := PodUIDToEntityName(pod.Metadata.UID)
-		prevSighting, found := w.lastSeen[podEntity]
+		newStaticPod := false
+		_, found := w.lastSeen[podEntity]
 
 		// static pods are included specifically because they won't have any container
 		// as they're not updated in the pod list after creation
-		if found == false {
-			if isPodStatic(pod) == true {
-				newStaticPod = true
-			} else if prevSighting.phase != pod.Status.Phase {
-				phaseChange = true
-			}
+		if isPodStatic(pod) == true && found == false {
+			newStaticPod = true
 		}
 
-		// Refresh last pod seen time & phase
-		w.lastSeen[podEntity] = PodSighting{ts: now, phase: pod.Status.Phase}
+		// Refresh last pod seen time
+		w.lastSeen[podEntity] = now
 
 		// Detect new containers
 		newContainer := false
 		for _, container := range pod.Status.Containers {
-			if prevSighting, found := w.lastSeen[container.ID]; found == false || prevSighting.phase != pod.Status.Phase {
+			if _, found := w.lastSeen[container.ID]; found == false {
 				newContainer = true
 			}
-			w.lastSeen[container.ID] = PodSighting{ts: now, phase: pod.Status.Phase}
+			w.lastSeen[container.ID] = now
 		}
-		if newStaticPod || newContainer || phaseChange {
+		if newStaticPod || newContainer {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
@@ -114,7 +104,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 	var expiredContainers []string
 
 	for id, lastSeen := range w.lastSeen {
-		if now.Sub(lastSeen.ts) > w.expiryDuration {
+		if now.Sub(lastSeen) > w.expiryDuration {
 			expiredContainers = append(expiredContainers, id)
 		}
 	}

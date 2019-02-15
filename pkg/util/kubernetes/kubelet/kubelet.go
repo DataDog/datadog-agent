@@ -75,7 +75,7 @@ func newKubeUtil() *KubeUtil {
 		kubeletApiClient:         &http.Client{Timeout: time.Second},
 		kubeletApiRequestHeaders: &http.Header{},
 		rawConnectionInfo:        make(map[string]string),
-		podListCacheDuration:     config.Datadog.GetDuration("kubelet_cache_pods_duration"),
+		podListCacheDuration:     config.Datadog.GetDuration("kubelet_cache_pods_duration") * time.Second,
 	}
 
 	waitOnMissingContainer := config.Datadog.GetDuration("kubelet_wait_on_missing_container")
@@ -193,7 +193,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	}
 
 	// cache the podList to reduce pressure on the kubelet
-	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration*time.Second)
+	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
 	return pods.Items, nil
 }
