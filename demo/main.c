@@ -71,6 +71,7 @@ int main(int argc, char *argv[]) {
 
     // add a new `print_foo` to the custom builtin module `datadog_agent`
     add_module_func(six, DATADOG_AGENT_SIX__UTIL, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
+    add_module_int_const(six, DATADOG_AGENT_SIX__UTIL, "constant_number", 21);
 
     init(six, python_home);
     printf("Embedding Python version %s\n", get_py_version(six));

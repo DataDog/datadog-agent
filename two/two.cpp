@@ -22,9 +22,9 @@ void Two::init(const char *pythonHome) {
     for (it = _modules.begin(); it != _modules.end(); ++it) {
         six_module_t module = it->first;
         PyObject *m = Py_InitModule(getExtensionModuleName(module), &_modules[module][0]);
-        if (_module_constants.find(module) == _module_constants.end()) {
+        if (_module_constants.find(module) != _module_constants.end()) {
             std::vector<PyModuleConst>::iterator cit;
-            for (cit = _module_constants[module].begin(); cit != _module_constants[module].begin(); ++cit) {
+            for (cit = _module_constants[module].begin(); cit != _module_constants[module].end(); ++cit) {
                 PyModule_AddIntConstant(m, cit->first.c_str(), cit->second);
             }
         }
