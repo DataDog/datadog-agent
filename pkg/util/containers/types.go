@@ -55,7 +55,7 @@ type Container struct {
 	CPULimit       float64
 	SoftMemLimit   uint64
 	MemLimit       uint64
-	MemFailCnt	   uint64
+	MemFailCnt     uint64
 	CPUNrThrottled uint64
 	CPU            *metrics.CgroupTimesStat
 	Memory         *metrics.CgroupMemStat

@@ -229,7 +229,7 @@ func (d *DockerCheck) Run() error {
 		} else {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
-		
+
 		if c.Network != nil {
 			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {

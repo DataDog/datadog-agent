@@ -133,7 +133,7 @@ func (c ContainerCgroup) MemLimit() (uint64, error) {
 
 // FailedMemoryCount returns the number of times this cgroup reached its memory limit, if it exists.
 // If the file does not exist or there is no limit, then this will default to 0
-func (c ContainerCgroup) FailedMemoryCount() (uint64, error){
+func (c ContainerCgroup) FailedMemoryCount() (uint64, error) {
 	v, err := c.ParseSingleStat("memory", "memory.failcnt")
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s",
