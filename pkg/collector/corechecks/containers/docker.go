@@ -217,7 +217,7 @@ func (d *DockerCheck) Run() error {
 				sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
 			}
 			if c.MemFailCnt > 0 {
-				sender.Gauge("docker.mem.failed_count", float64(c.MemFailCnt),"",tags)
+				sender.Gauge("docker.mem.failed_count", float64(c.MemFailCnt),"", tags)
 			}
 		} else {
 			log.Debugf("Empty memory metrics for container %s", c.ID[:12])
