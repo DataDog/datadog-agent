@@ -82,7 +82,7 @@ remove_py_compiled_files()
 remove_downloader_data()
 {
     # Remove all the data that was downloaded using the integration command
-    $DOWNLOADER_DATA = "$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
+    $DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
     if [ -f $DOWNLOADER_DATA ]; then
         rm -rf $DOWNLOADER_DATA
     fi
