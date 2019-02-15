@@ -29,7 +29,6 @@ func init() {
 	udsExpvars.Set("OriginDetectionErrors", &udsOriginDetectionErrors)
 	udsExpvars.Set("PacketReadingErrors", &udsPacketReadingErrors)
 	udsExpvars.Set("Packets", &udsPackets)
-
 }
 
 // UDSListener implements the StatsdListener interface for Unix Domain
