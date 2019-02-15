@@ -31,7 +31,7 @@ six_t *make2() {
     }
 
     // load library
-    six_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY);
+    six_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY | RTLD_GLOBAL);
     if (!six_backend) {
         std::cerr << "Unable to open 'two' library: " << dlerror() << std::endl;
         return NULL;
@@ -58,7 +58,7 @@ six_t *make3() {
     }
 
     // load the library
-    six_backend = dlopen(DATADOG_AGENT_THREE, RTLD_LAZY);
+    six_backend = dlopen(DATADOG_AGENT_THREE, RTLD_LAZY | RTLD_GLOBAL);
     if (!six_backend) {
         std::cerr << "Unable to open 'three' library: " << dlerror() << std::endl;
         return NULL;
