@@ -8,7 +8,7 @@ import "C"
 
 var six *C.six_t
 
-func getFakeAgentCheck() *C.six_pyobject_t {
+func getFakeCheck() *C.six_pyobject_t {
 	if six == nil {
 		six = C.make2()
 	}
@@ -17,17 +17,17 @@ func getFakeAgentCheck() *C.six_pyobject_t {
 		C.init(six, nil)
 	}
 
-	// Updates sys.path so testing Agent can be found
+	// Updates sys.path so testing Check can be found
 	code := C.CString("import sys; sys.path.insert(0, '../python/')")
 	success := C.run_simple_string(six, code)
 	if success != 0 {
 		return nil
 	}
 
-	return C.get_check(six, C.CString("fake_agent"), C.CString(""), C.CString("[{fake_agent: \"/\"}]"))
+	return C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"))
 }
 
-func runFakeAgentCheck() string {
+func runFakeCheck() string {
 	if six == nil {
 		six = C.make2()
 	}
@@ -36,14 +36,14 @@ func runFakeAgentCheck() string {
 		C.init(six, nil)
 	}
 
-	// Updates sys.path so testing Agent can be found
+	// Updates sys.path so testing Check can be found
 	code := C.CString("import sys; sys.path.insert(0, '../python/')")
 	success := C.run_simple_string(six, code)
 	if success != 0 {
 		return ""
 	}
 
-	check := C.get_check(six, C.CString("fake_agent"), C.CString(""), C.CString("[{fake_agent: \"/\"}]"))
+	check := C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"))
 
 	return C.GoString(C.run_check(six, check))
 }
