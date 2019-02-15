@@ -44,7 +44,7 @@ Besides this token, you need to set the `DD_CLUSTER_AGENT_ENABLED=true` in the m
 <a name="security-premise"></a>
 
 We strongly recommend using a secret to authenticate communication between Agents with the Datadog Cluster Agent.
-You must modify the value of the secret in [the dca-secret.yaml](/manifests/cluster-agent/dca-secret.yaml) then create it:
+You must modify the value of the secret in [the dca-secret.yaml](../../Dockerfiles/manifests/cluster-agent/dca-secret.yaml) then create it:
 
 `kubectl create -f Dockerfiles/manifests/cluster-agent/dca-secret.yaml`
 

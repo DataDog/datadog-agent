@@ -78,7 +78,7 @@ func createAgent(endpoints *client.Endpoints) (*Agent, *config.LogSources, *serv
 	services := service.NewServices()
 
 	// setup and start the agent
-	agent = NewAgent(sources, services, endpoints)
+	agent = NewAgent(sources, services, nil, endpoints)
 	return agent, sources, services
 }
 

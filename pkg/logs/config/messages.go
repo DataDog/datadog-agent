@@ -6,7 +6,6 @@
 package config
 
 import (
-	"strings"
 	"sync"
 )
 
@@ -33,37 +32,15 @@ func (m *Messages) AddMessage(key string, message string) {
 	m.messages[key] = message
 }
 
-// AddWarning create a warning
-func (m *Messages) AddWarning(key string, warning string) {
-	m.AddMessage("warning_"+key, warning)
-}
-
 // GetMessages returns all the messages
 func (m *Messages) GetMessages() []string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-
 	messages := make([]string, 0)
-	for key, message := range m.messages {
-		if !strings.HasPrefix(key, "warning_") {
-			messages = append(messages, message)
-		}
+	for _, message := range m.messages {
+		messages = append(messages, message)
 	}
 	return messages
-}
-
-// GetWarnings returns all the warnings
-func (m *Messages) GetWarnings() []string {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	warnings := make([]string, 0)
-	for key, warning := range m.messages {
-		if strings.HasPrefix(key, "warning_") {
-			warnings = append(warnings, warning)
-		}
-	}
-	return warnings
 }
 
 // RemoveMessage removes a message
@@ -71,9 +48,4 @@ func (m *Messages) RemoveMessage(key string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	delete(m.messages, key)
-}
-
-// RemoveWarning removes a warning
-func (m *Messages) RemoveWarning(key string) {
-	m.RemoveMessage("warning_" + key)
 }

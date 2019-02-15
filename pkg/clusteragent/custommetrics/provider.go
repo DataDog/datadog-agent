@@ -9,6 +9,7 @@ package custommetrics
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -133,7 +134,11 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector lab
 			MetricLabels: metric.value.MetricLabels,
 			Value:        metric.value.Value,
 		}
-		if info.Metric == metric.info.Metric &&
+		// Datadog metrics are not case sensitive but the HPA Controller lower cases the metric name as it queries the metrics provider.
+		// Lowering the metric name retrieved by the HPA Informer here, allows for users to use metrics with capital letters.
+		// Datadog tags are lower cased, but metrics labels are not case sensitive.
+		// If tags with capital letters are used (as the label selector in the HPA), no metrics will be retrieved from Datadog.
+		if info.Metric == strings.ToLower(metric.info.Metric) &&
 			metricSelector.Matches(labels.Set(metric.value.MetricLabels)) {
 			metricValue := metricFromDatadog
 			metricValue.Timestamp = metav1.Now()

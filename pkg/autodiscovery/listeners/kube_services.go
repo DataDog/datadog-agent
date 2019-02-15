@@ -137,6 +137,10 @@ func servicesDiffer(first, second *v1.Service) bool {
 	if first.ResourceVersion == second.ResourceVersion {
 		return false
 	}
+	// AD annotations
+	if isServiceAnnotated(first) != isServiceAnnotated(second) {
+		return true
+	}
 	// Cluster IP
 	if first.Spec.ClusterIP != second.Spec.ClusterIP {
 		return true
@@ -161,8 +165,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
-	_, found := ksvc.Annotations[kubeServiceAnnotationFormat]
-	if !found {
+	if !isServiceAnnotated(ksvc) {
 		// Ignore services with no AD annotation
 		return
 	}
@@ -269,4 +272,9 @@ func (s *KubeServiceService) GetHostname() (string, error) {
 // GetCreationTime returns the creation time of the service compare to the agent start.
 func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
+}
+
+func isServiceAnnotated(ksvc *v1.Service) bool {
+	_, found := ksvc.Annotations[kubeServiceAnnotationFormat]
+	return found
 }

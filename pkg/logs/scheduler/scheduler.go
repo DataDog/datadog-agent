@@ -187,11 +187,6 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 			source.Status.Error(err)
 			continue
 		}
-		if err := cfg.Compile(); err != nil {
-			log.Warnf("Could not compile logs configuration: %v", err)
-			source.Status.Error(err)
-			continue
-		}
 	}
 
 	return sources, nil

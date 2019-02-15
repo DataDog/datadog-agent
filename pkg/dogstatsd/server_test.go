@@ -80,9 +80,9 @@ func TestUPDReceive(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan *metrics.MetricSample)
-	eventOut := make(chan metrics.Event)
-	serviceOut := make(chan metrics.ServiceCheck)
+	metricOut := make(chan []*metrics.MetricSample)
+	eventOut := make(chan []*metrics.Event)
+	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -96,47 +96,55 @@ func TestUPDReceive(t *testing.T) {
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
 	case res := <-metricOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.Name, "daemon")
-		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, res.Mtype, metrics.GaugeType)
-		assert.ElementsMatch(t, res.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
-	case <-time.After(2 * time.Second):
+		assert.Equal(t, 1, len(res))
+		sample := res[0]
+		assert.NotNil(t, sample)
+		assert.Equal(t, sample.Name, "daemon")
+		assert.EqualValues(t, sample.Value, 666.0)
+		assert.Equal(t, sample.Mtype, metrics.GaugeType)
+		assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
+	case <-time.After(100 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
 	conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
 	case res := <-metricOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.Name, "daemon")
-		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, metrics.CounterType, res.Mtype)
-		assert.Equal(t, 0.5, res.SampleRate)
-	case <-time.After(2 * time.Second):
+		assert.Equal(t, 1, len(res))
+		sample := res[0]
+		assert.NotNil(t, sample)
+		assert.Equal(t, sample.Name, "daemon")
+		assert.EqualValues(t, sample.Value, 666.0)
+		assert.Equal(t, metrics.CounterType, sample.Mtype)
+		assert.Equal(t, 0.5, sample.SampleRate)
+	case <-time.After(100 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
 	conn.Write([]byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
 	case res := <-metricOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.Name, "daemon")
-		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, metrics.HistogramType, res.Mtype)
-		assert.Equal(t, 0.5, res.SampleRate)
-	case <-time.After(2 * time.Second):
+		assert.Equal(t, 1, len(res))
+		sample := res[0]
+		assert.NotNil(t, sample)
+		assert.Equal(t, sample.Name, "daemon")
+		assert.EqualValues(t, sample.Value, 666.0)
+		assert.Equal(t, metrics.HistogramType, sample.Mtype)
+		assert.Equal(t, 0.5, sample.SampleRate)
+	case <-time.After(100 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
 	conn.Write([]byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
 	case res := <-metricOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.Name, "daemon")
-		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, metrics.HistogramType, res.Mtype)
-		assert.Equal(t, 0.5, res.SampleRate)
+		assert.Equal(t, 1, len(res))
+		sample := res[0]
+		assert.NotNil(t, sample)
+		assert.Equal(t, sample.Name, "daemon")
+		assert.EqualValues(t, sample.Value, 666.0)
+		assert.Equal(t, metrics.HistogramType, sample.Mtype)
+		assert.Equal(t, 0.5, sample.SampleRate)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -144,10 +152,12 @@ func TestUPDReceive(t *testing.T) {
 	conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
 	case res := <-metricOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.Name, "daemon_set")
-		assert.Equal(t, res.RawValue, "abc")
-		assert.Equal(t, res.Mtype, metrics.SetType)
+		assert.Equal(t, 1, len(res))
+		sample := res[0]
+		assert.NotNil(t, sample)
+		assert.Equal(t, sample.Name, "daemon_set")
+		assert.Equal(t, sample.RawValue, "abc")
+		assert.Equal(t, sample.Mtype, metrics.SetType)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -156,8 +166,11 @@ func TestUPDReceive(t *testing.T) {
 	conn.Write([]byte("daemon1:666:777|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
 	case res := <-metricOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.Name, "daemon2")
+		assert.Equal(t, 1, len(res))
+		sample := res[0]
+
+		assert.NotNil(t, sample)
+		assert.Equal(t, sample.Name, "daemon2")
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -175,8 +188,10 @@ func TestUPDReceive(t *testing.T) {
 	conn.Write([]byte("_sc|agen.down\n_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
 	select {
 	case res := <-serviceOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.CheckName, "agent.up")
+		assert.Equal(t, 1, len(res))
+		serviceCheck := res[0]
+		assert.NotNil(t, serviceCheck)
+		assert.Equal(t, serviceCheck.CheckName, "agent.up")
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -185,8 +200,9 @@ func TestUPDReceive(t *testing.T) {
 	conn.Write([]byte("_e{10,10}:test title|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
 	select {
 	case res := <-eventOut:
-		assert.NotNil(t, res)
-		assert.ElementsMatch(t, res.Tags, []string{"tag1", "tag2:test"})
+		event := res[0]
+		assert.NotNil(t, event)
+		assert.ElementsMatch(t, event.Tags, []string{"tag1", "tag2:test"})
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -195,8 +211,10 @@ func TestUPDReceive(t *testing.T) {
 	conn.Write([]byte("_e{10,0}:test title|\n_e{11,10}:test title2|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
 	select {
 	case res := <-eventOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.Title, "test title2")
+		assert.Equal(t, 1, len(res))
+		event := res[0]
+		assert.NotNil(t, event)
+		assert.Equal(t, event.Title, "test title2")
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -221,9 +239,9 @@ func TestUDPForward(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan *metrics.MetricSample)
-	eventOut := make(chan metrics.Event)
-	serviceOut := make(chan metrics.ServiceCheck)
+	metricOut := make(chan []*metrics.MetricSample)
+	eventOut := make(chan []*metrics.Event)
+	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -258,9 +276,9 @@ func TestHistToDist(t *testing.T) {
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
-	metricOut := make(chan *metrics.MetricSample)
-	eventOut := make(chan metrics.Event)
-	serviceOut := make(chan metrics.ServiceCheck)
+	metricOut := make(chan []*metrics.MetricSample)
+	eventOut := make(chan []*metrics.Event)
+	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -273,17 +291,15 @@ func TestHistToDist(t *testing.T) {
 	// Test metric
 	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
-	case histMetric := <-metricOut:
+	case histMetrics := <-metricOut:
+		assert.Equal(t, 2, len(histMetrics))
+		histMetric := histMetrics[0]
+		distMetric := histMetrics[1]
 		assert.NotNil(t, histMetric)
 		assert.Equal(t, histMetric.Name, "daemon")
 		assert.EqualValues(t, histMetric.Value, 666.0)
 		assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
 
-	select {
-	case distMetric := <-metricOut:
 		assert.NotNil(t, distMetric)
 		assert.Equal(t, distMetric.Name, "dist.daemon")
 		assert.EqualValues(t, distMetric.Value, 666.0)
@@ -300,9 +316,9 @@ func TestExtraTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 
-	metricOut := make(chan *metrics.MetricSample)
-	eventOut := make(chan metrics.Event)
-	serviceOut := make(chan metrics.ServiceCheck)
+	metricOut := make(chan []*metrics.MetricSample)
+	eventOut := make(chan []*metrics.Event)
+	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -316,11 +332,13 @@ func TestExtraTags(t *testing.T) {
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	select {
 	case res := <-metricOut:
-		assert.NotNil(t, res)
-		assert.Equal(t, res.Name, "daemon")
-		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, res.Mtype, metrics.GaugeType)
-		assert.ElementsMatch(t, res.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
+		assert.Equal(t, 1, len(res))
+		sample := res[0]
+		assert.NotNil(t, sample)
+		assert.Equal(t, sample.Name, "daemon")
+		assert.EqualValues(t, sample.Value, 666.0)
+		assert.Equal(t, sample.Mtype, metrics.GaugeType)
+		assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
