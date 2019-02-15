@@ -263,7 +263,7 @@ func pip(args []string) error {
 
 	err = pipCmd.Run()
 	if err != nil {
-		fmt.Errorf("error running command: %v", err)
+		return fmt.Errorf("error running command: %v", err)
 	}
 
 	return nil
