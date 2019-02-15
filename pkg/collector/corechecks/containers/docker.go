@@ -200,12 +200,15 @@ func (d *DockerCheck) Run() error {
 			if c.Memory.SwapPresent == true {
 				sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
 			}
+
 			if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
 				if c.Memory.HierarchicalMemoryLimit != 0 {
 					sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
 				}
 			}
+
+			sender.Gauge("docker.mem.failed_count", float64(c.MemFailCnt), "", tags)
 			if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
 				if c.Memory.HierarchicalMemSWLimit != 0 {
@@ -213,20 +216,20 @@ func (d *DockerCheck) Run() error {
 						float64(c.Memory.Swap+c.Memory.RSS)/float64(c.Memory.HierarchicalMemSWLimit), "", tags)
 				}
 			}
+
 			if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
-			}
-			if c.MemFailCnt > 0 {
-				sender.Gauge("docker.mem.failed_count", float64(c.MemFailCnt),"", tags)
 			}
 		} else {
 			log.Debugf("Empty memory metrics for container %s", c.ID[:12])
 		}
+
 		if c.IO != nil {
 			d.reportIOMetrics(c.IO, tags, sender)
 		} else {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
+		
 		if c.Network != nil {
 			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {
