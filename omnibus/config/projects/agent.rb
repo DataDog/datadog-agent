@@ -121,7 +121,7 @@ end
 dependency 'datadog-agent'
 
 # Additional software
-dependency 'datadog-pip'
+dependency 'pip'
 dependency 'datadog-agent-integrations'
 dependency 'jmxfetch'
 
