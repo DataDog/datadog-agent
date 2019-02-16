@@ -8,7 +8,7 @@ require 'json'
 
 name 'datadog-agent-integrations'
 
-dependency 'datadog-pip'
+dependency 'pip'
 dependency 'datadog-agent'
 dependency 'protobuf-py'
 
