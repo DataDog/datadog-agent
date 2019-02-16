@@ -47,14 +47,17 @@ blacklist = [
   'kubernetes',
   'ntp',                           # provided as a go check by the core agent
 ]
+blacklist_req = Array.new
 
 if suse?
   blacklist.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
+  blacklist_req.push(/^aerospike==/)  # Temporarily blacklist Aerospike until builder supports new dependency
 end
 
 core_constraints_file = 'core_constraints.txt'
 final_constraints_file = 'final_constraints.txt'
 agent_requirements_file = 'agent_requirements.txt'
+agent_requirements_in = 'agent_requirements.in'
 
 build do
   # The dir for the confs
@@ -118,15 +121,44 @@ build do
     python_pip_req = "pip install -c #{windows_safe_path(project_dir)}\\#{core_constraints_file} --no-deps --require-hashes -r"
     python_pip_uninstall = "pip uninstall -y"
 
+    if windows?
+      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
+      static_reqs_filtered_file = "#{windows_safe_path(project_dir)}\\#{agent_requirements_in}"
+    else
+      static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
+      static_reqs_filtered_file = "#{project_dir}/#{agent_requirements_in}"
+    end
+
+    # Remove any blacklisted requirements from the static-environment req file
+    requirements = Array.new
+    File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
+      blacklist_flag = false
+      blacklist_req.each do |blacklist_regex|
+        re = Regexp.new(blacklist_regex).freeze
+        if re.match line
+          blacklist_flag = true
+        end
+      end
+
+      if !blacklist_flag
+        requirements.push(line)
+      end
+    end
+
+    erb source: "static_requirements.txt.erb",
+        dest: "#{static_reqs_filtered_file}",
+        mode: 0640,
+        vars: { requirements: requirements }
+
     # Install the static environment requirements that the Agent and all checks will use
     if windows?
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_base")
       command("#{python_bin} -m #{python_pip_no_deps}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\"")
-      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\agent_requirements.in")
-    else      
+      command("#{python_bin} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_filtered_file}")
+    else
       pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :cwd => "#{project_dir}/datadog_checks_downloader"
       pip "install -c #{project_dir}/#{core_constraints_file} --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{project_dir}/datadog_checks_base/datadog_checks/base/data/agent_requirements.in")
+      command("#{install_dir}/embedded/bin/python -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_filtered_file}")
     end
 
     # Uninstall the deps that pip-compile installs so we don't include them in the final artifact
