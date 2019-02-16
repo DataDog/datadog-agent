@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixing a sampling issue where distributed traces could only be partially sent.

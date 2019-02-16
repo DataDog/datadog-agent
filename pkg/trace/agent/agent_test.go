@@ -277,16 +277,22 @@ func TestSampling(t *testing.T) {
 			scoreSampled: true,
 			wantSampled:  true,
 		},
+		"score not sampled priority not sampled": {
+			hasPriority:     true,
+			scoreSampled:    false,
+			prioritySampled: false,
+			wantSampled:     false,
+		},
 		"score sampled priority not sampled": {
 			hasPriority:     true,
 			scoreSampled:    true,
 			prioritySampled: false,
-			wantSampled:     true,
+			wantSampled:     false,
 		},
-		"score not sampled priority sampled": {
-			hasPriority:     true,
-			scoreSampled:    false,
-			prioritySampled: true,
+		"score sampled priority not enabled": {
+			hasPriority:     false,
+			scoreSampled:    true,
+			prioritySampled: false,
 			wantSampled:     true,
 		},
 		"score sampled priority sampled": {
@@ -314,7 +320,7 @@ func TestSampling(t *testing.T) {
 		"error sampled priority not sampled": {
 			hasErrors:         true,
 			hasPriority:       true,
-			scoreErrorSampled: true,
+			scoreErrorSampled: false,
 			prioritySampled:   false,
 			wantSampled:       true,
 		},

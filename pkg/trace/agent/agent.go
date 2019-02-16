@@ -287,17 +287,19 @@ func (a *Agent) sample(pt ProcessedTrace) (sampled bool, rate float64) {
 	var sampledPriority, sampledScore bool
 	var ratePriority, rateScore float64
 
-	if _, ok := pt.GetSamplingPriority(); ok {
-		sampledPriority, ratePriority = a.PrioritySampler.Add(pt)
-	}
-
 	if traceContainsError(pt.Trace) {
 		sampledScore, rateScore = a.ErrorsScoreSampler.Add(pt)
 	} else {
 		sampledScore, rateScore = a.ScoreSampler.Add(pt)
 	}
 
-	return sampledScore || sampledPriority, sampler.CombineRates(ratePriority, rateScore)
+	if _, ok := pt.GetSamplingPriority(); ok {
+		// If sampling priority is set, it takes precedence over sampledScore
+		sampledPriority, ratePriority = a.PrioritySampler.Add(pt)
+		return sampledPriority, sampler.CombineRates(ratePriority, rateScore)
+	}
+
+	return sampledScore, sampler.CombineRates(ratePriority, rateScore)
 }
 
 // dieFunc is used by watchdog to kill the agent; replaced in tests.
