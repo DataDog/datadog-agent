@@ -131,18 +131,10 @@ error:
     return NULL;
 }
 
-SixPyObject *Two::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
+SixPyObject *Two::getCheckClass(const char *module) {
     PyObject *base = NULL;
     PyObject *obj_module = NULL;
     PyObject *klass = NULL;
-    PyObject *init_config = NULL;
-    PyObject *instances = NULL;
-    PyObject *check = NULL;
-    PyObject *args = NULL;
-    PyObject *kwargs = NULL;
-
-    char load_config[] = "load_config";
-    char format[] = "(s)"; // use parentheses to force Tuple creation
 
     // import the base class
     base = _importFrom("datadog_checks.base.checks", "AgentCheck");
@@ -167,6 +159,36 @@ SixPyObject *Two::getCheck(const char *module, const char *init_config_str, cons
         std::ostringstream err;
         err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
         setError(err.str());
+        goto done;
+    }
+
+done:
+    Py_XDECREF(base);
+    Py_XDECREF(obj_module);
+    Py_XDECREF(klass);
+
+    if (klass == NULL) {
+        return NULL;
+    }
+
+    return reinterpret_cast<SixPyObject *>(klass);
+}
+
+SixPyObject *Two::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
+    PyObject *klass = NULL;
+    PyObject *init_config = NULL;
+    PyObject *instances = NULL;
+    PyObject *check = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+
+    char load_config[] = "load_config";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
+
+    // Gets Check class from module
+    klass = reinterpret_cast<PyObject *>(getCheckClass(module));
+    if (klass == NULL) {
+        // Error is already set by getCheckClass if class is not found
         goto done;
     }
 
@@ -198,8 +220,6 @@ SixPyObject *Two::getCheck(const char *module, const char *init_config_str, cons
     }
 
 done:
-    Py_XDECREF(base);
-    Py_XDECREF(obj_module);
     Py_XDECREF(klass);
     Py_XDECREF(init_config);
     Py_XDECREF(instances);
