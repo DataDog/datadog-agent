@@ -30,9 +30,7 @@ public:
 
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
-
-    /* FIXME */
-    SixPyObject *getCheckClass(const char *module) { return NULL; }
+    SixPyObject *getCheckClass(const char *module);
     SixPyObject *getCheck(const char *module, const char *init_config_str, const char *instances_str);
     const char *runCheck(SixPyObject *check);
 
