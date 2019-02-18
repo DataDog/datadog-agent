@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
     run_simple_string(six, code);
 
     // load the Directory check if available
-    six_pyobject_t *check = get_check(six, "datadog_checks.directory", "", "[[{directory: \"/\"}]");
+    six_pyobject_t *check = get_check(six, "datadog_checks.directory", "", "[{directory: \"/\"}]");
     if (check == NULL) {
         if (has_error(six)) {
             printf("%s\n", get_error(six));
