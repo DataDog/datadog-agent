@@ -23,17 +23,19 @@ func printFoo() *C.six_pyobject_t {
 
 func extend() (string, error) {
 	var err error
-	six = C.make3()
+	six = C.make2()
 
 	C.goSetupMyModule(six)
+	C.add_module_int_const(six, C.DATADOG_AGENT_SIX_DATADOG_AGENT, C.CString("my_const"), 42)
 	C.init(six, nil)
 
 	code := C.CString(`
 try:
-	import datadog_agent
-	datadog_agent.print_foo()
+	from datadog_agent import print_foo, my_const
+	print_foo()
+	print(my_const)
 except Exception as e:
-	print(e, flush=True)
+	print(e)
 	`)
 	var ret bool
 	var output []byte
