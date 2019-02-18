@@ -210,7 +210,7 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	if !r.PreSampler.Sample(req) {
 		io.Copy(ioutil.Discard, req.Body)
-		HTTPOK(w)
+		r.replyTraces(v, w)
 		return
 	}
 
