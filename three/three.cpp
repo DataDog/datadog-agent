@@ -2,48 +2,76 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#include "three.h"
 
+#include "three.h"
 #include "constants.h"
 
-// we only populate the fields `m_base` and `m_name`, we don't need any of the rest since we're doing Single-phase
-// initialization
-static struct PyModuleDef def__util
-    = { PyModuleDef_HEAD_INIT, datadog_agent_six__util, NULL, -1, NULL, NULL, NULL, NULL, NULL };
-PyMODINIT_FUNC PyInit__util(void) { return PyModule_Create(&def__util); }
+PyModuleConstants Three::ModuleConstants;
+std::mutex Three::ModuleConstantsMtx;
 
-static struct PyModuleDef def_aggregator
-    = { PyModuleDef_HEAD_INIT, datadog_agent_six_aggregator, NULL, -1, NULL, NULL, NULL, NULL, NULL };
-PyMODINIT_FUNC PyInit_aggregator(void) { return PyModule_Create(&def_aggregator); }
+// we only populate the fields `m_base` and `m_name`, we don't need any of the
+// rest since we're doing Single-phase initialization
+//
+// INIT_PYTHON_MODULE creates the def_<moduleName> (a PyModuleDef struct) and
+// the needed PyInit_<moduleName> callback.
+#define INIT_PYTHON_MODULE(moduleID, moduleName)                                                                       \
+    static struct PyModuleDef def_##moduleName                                                                         \
+        = { PyModuleDef_HEAD_INIT, datadog_agent_six_##moduleName, NULL, -1, NULL, NULL, NULL, NULL, NULL };           \
+    PyMODINIT_FUNC PyInit_##moduleName(void) {                                                                         \
+        PyObject *m = PyModule_Create(&def_##moduleName);                                                              \
+        std::lock_guard<std::mutex> lock(Three::ModuleConstantsMtx);                                                   \
+        PyModuleConstants::iterator it = Three::ModuleConstants.find(moduleID);                                        \
+        if (it != Three::ModuleConstants.end()) {                                                                      \
+            std::vector<PyModuleConst>::iterator cit;                                                                  \
+            for (cit = it->second.begin(); cit != it->second.end(); ++cit) {                                           \
+                PyModule_AddIntConstant(m, cit->first.c_str(), cit->second);                                           \
+            }                                                                                                          \
+        }                                                                                                              \
+        return m;                                                                                                      \
+    }
 
-static struct PyModuleDef def_containers
-    = { PyModuleDef_HEAD_INIT, datadog_agent_six_containers, NULL, -1, NULL, NULL, NULL, NULL, NULL };
-PyMODINIT_FUNC PyInit_containers(void) { return PyModule_Create(&def_containers); }
+// APPEND_TO_PYTHON_INITTAB set the module methods and call
+// PyImport_AppendInittab with it, allowing Python to import it
+#define APPEND_TO_PYTHON_INITTAB(moduleID, moduleName)                                                                 \
+    {                                                                                                                  \
+        if (_modules[moduleID].size() > 0) {                                                                           \
+            def_##moduleName.m_methods = &_modules[moduleID][0];                                                       \
+            if (PyImport_AppendInittab(getExtensionModuleName(moduleID), &PyInit_##moduleName) == -1) {                \
+                setError("PyImport_AppendInittab failed to append " #moduleName);                                      \
+                return 1;                                                                                              \
+            }                                                                                                          \
+        }                                                                                                              \
+    }
 
-static struct PyModuleDef def_datadog_agent
-    = { PyModuleDef_HEAD_INIT, datadog_agent_six_datadog_agent, NULL, -1, NULL, NULL, NULL, NULL, NULL };
-PyMODINIT_FUNC PyInit_datadog_agent(void) { return PyModule_Create(&def_datadog_agent); }
-
-static struct PyModuleDef def_kubeutil
-    = { PyModuleDef_HEAD_INIT, datadog_agent_six_kubeutil, NULL, -1, NULL, NULL, NULL, NULL, NULL };
-PyMODINIT_FUNC PyInit_kubeutil(void) { return PyModule_Create(&def_kubeutil); }
-
-static struct PyModuleDef def_tagger
-    = { PyModuleDef_HEAD_INIT, datadog_agent_six_tagger, NULL, -1, NULL, NULL, NULL, NULL, NULL };
-PyMODINIT_FUNC PyInit_tagger(void) { return PyModule_Create(&def_tagger); }
-
-static struct PyModuleDef def_util
-    = { PyModuleDef_HEAD_INIT, datadog_agent_six_util, NULL, -1, NULL, NULL, NULL, NULL, NULL };
-PyMODINIT_FUNC PyInit_util(void) { return PyModule_Create(&def_util); }
+// initializing all Python C module
+INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_DATADOG_AGENT, datadog_agent)
+INIT_PYTHON_MODULE(DATADOG_AGENT_SIX__UTIL, _util)
+INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_UTIL, util)
+INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_AGGREGATOR, aggregator)
+INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_CONTAINERS, containers)
+INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_KUBEUTIL, kubeutil)
+INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_TAGGER, tagger)
 
 Three::~Three() {
     if (_pythonHome) {
         PyMem_RawFree((void *)_pythonHome);
     }
     Py_Finalize();
+    ModuleConstants.clear();
 }
 
-void Three::init(const char *pythonHome) {
+int Three::init(const char *pythonHome) {
+    // insert module to Python inittab one by one
+    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_DATADOG_AGENT, datadog_agent)
+    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX__UTIL, _util)
+    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_UTIL, util)
+    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_AGGREGATOR, aggregator)
+    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_CONTAINERS, containers)
+    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_KUBEUTIL, kubeutil)
+    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_TAGGER, tagger)
+
+    // We need to initialize python before we can call Py_DecodeLocale
+    Py_Initialize();
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
@@ -53,56 +81,13 @@ void Three::init(const char *pythonHome) {
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
-    // init builtin modules one by one
-
-    // _util
-    if (_modules[DATADOG_AGENT_SIX__UTIL].size() > 0) {
-        def__util.m_methods = &_modules[DATADOG_AGENT_SIX__UTIL][0];
-        PyImport_AppendInittab(datadog_agent_six__util, &PyInit__util);
-    }
-
-    // aggregator
-    if (_modules[DATADOG_AGENT_SIX_AGGREGATOR].size() > 0) {
-        def_aggregator.m_methods = &_modules[DATADOG_AGENT_SIX_AGGREGATOR][0];
-        PyImport_AppendInittab(datadog_agent_six_aggregator, &PyInit_aggregator);
-    }
-
-    // containers
-    if (_modules[DATADOG_AGENT_SIX_CONTAINERS].size() > 0) {
-        def_containers.m_methods = &_modules[DATADOG_AGENT_SIX_CONTAINERS][0];
-        PyImport_AppendInittab(datadog_agent_six_containers, &PyInit_containers);
-    }
-
-    // datadog_agent
-    if (_modules[DATADOG_AGENT_SIX_DATADOG_AGENT].size() > 0) {
-        def_datadog_agent.m_methods = &_modules[DATADOG_AGENT_SIX_DATADOG_AGENT][0];
-        PyImport_AppendInittab(datadog_agent_six_datadog_agent, &PyInit_datadog_agent);
-    }
-
-    // kubeutil
-    if (_modules[DATADOG_AGENT_SIX_KUBEUTIL].size() > 0) {
-        def_kubeutil.m_methods = &_modules[DATADOG_AGENT_SIX_KUBEUTIL][0];
-        PyImport_AppendInittab(datadog_agent_six_kubeutil, &PyInit_kubeutil);
-    }
-
-    // tagger
-    if (_modules[DATADOG_AGENT_SIX_TAGGER].size() > 0) {
-        def_tagger.m_methods = &_modules[DATADOG_AGENT_SIX_TAGGER][0];
-        PyImport_AppendInittab(datadog_agent_six_tagger, &PyInit_tagger);
-    }
-    // util
-    if (_modules[DATADOG_AGENT_SIX_UTIL].size() > 0) {
-        def_util.m_methods = &_modules[DATADOG_AGENT_SIX_UTIL][0];
-        PyImport_AppendInittab(datadog_agent_six_util, &PyInit_util);
-    }
-
     Py_SetPythonHome(_pythonHome);
-    Py_Initialize();
+    return 0;
 }
 
 bool Three::isInitialized() const { return Py_IsInitialized(); }
-
 const char *Three::getPyVersion() const { return Py_GetVersion(); }
+int Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
 
 int Three::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getUnknownModuleName()) {
@@ -138,10 +123,18 @@ int Three::addModuleFunction(six_module_t module, six_module_func_t t, const cha
     // insert at beginning so we keep guard at the end
     _modules[module].insert(_modules[module].begin(), def);
 
-    return 1;
+    return 0;
 }
 
-int Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
+int Three::addModuleIntConst(six_module_t moduleID, const char *name, long value) {
+    std::lock_guard<std::mutex> lock(Three::ModuleConstantsMtx);
+    if (ModuleConstants.find(moduleID) == ModuleConstants.end()) {
+        ModuleConstants[moduleID] = std::vector<PyModuleConst>();
+    }
+
+    ModuleConstants[moduleID].push_back(std::make_pair(std::string(name), value));
+    return 0;
+}
 
 six_gilstate_t Three::GILEnsure() {
     PyGILState_STATE state = PyGILState_Ensure();

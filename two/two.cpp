@@ -10,7 +10,7 @@
 
 Two::~Two() { Py_Finalize(); }
 
-void Two::init(const char *pythonHome) {
+int Two::init(const char *pythonHome) {
     if (pythonHome != NULL) {
         _pythonHome = pythonHome;
     }
@@ -33,6 +33,7 @@ void Two::init(const char *pythonHome) {
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
     PyEval_InitThreads();
+    return 0;
 }
 
 bool Two::isInitialized() const { return Py_IsInitialized(); }
