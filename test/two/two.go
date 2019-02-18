@@ -52,9 +52,3 @@ func runString(code string) (string, error) {
 
 	return string(output), err
 }
-
-//export printFoo
-func printFoo() *C.six_pyobject_t {
-	fmt.Println("I'm extending Python!")
-	return C.get_none(six)
-}
