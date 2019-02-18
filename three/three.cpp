@@ -6,6 +6,8 @@
 #include "three.h"
 #include "constants.h"
 
+#include <sstream>
+
 PyModuleConstants Three::ModuleConstants;
 std::mutex Three::ModuleConstantsMtx;
 
@@ -152,9 +154,49 @@ void Three::GILRelease(six_gilstate_t state) {
     }
 }
 
-SixPyObject *Three::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
+SixPyObject *Three::getCheckClass(const char *module) {
     PyObject *base = NULL;
     PyObject *obj_module = NULL;
+    PyObject *klass = NULL;
+
+    base = _importFrom("datadog_checks.base.checks", "AgentCheck");
+    if (base == NULL) {
+        std::string old_err = getError();
+        setError("Unable to import the base class: " + old_err);
+        goto done;
+    }
+
+    obj_module = PyImport_ImportModule(module);
+    if (obj_module == NULL) {
+        PyErr_Print();
+        std::ostringstream err;
+        err << "unable to import module '" << module << "': " + _fetchPythonError();
+        setError(err.str());
+        goto done;
+    }
+
+    // find a subclass of the base check
+    klass = _findSubclassOf(base, obj_module);
+    if (klass == NULL) {
+        std::ostringstream err;
+        err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
+        setError(err.str());
+        goto done;
+    }
+
+done:
+    Py_XDECREF(base);
+    Py_XDECREF(obj_module);
+    Py_XDECREF(klass);
+
+    if (klass == NULL) {
+        return NULL;
+    }
+
+    return reinterpret_cast<SixPyObject *>(klass);
+}
+
+SixPyObject *Three::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
     PyObject *klass = NULL;
     PyObject *init_config = NULL;
     PyObject *instances = NULL;
@@ -165,23 +207,10 @@ SixPyObject *Three::getCheck(const char *module, const char *init_config_str, co
     char load_config[] = "load_config";
     char format[] = "(s)";
 
-    base = _importFrom("datadog_checks.base.checks", "AgentCheck");
-    if (base == NULL) {
-        setError("Unable to import base class");
-        goto done;
-    }
-
-    obj_module = PyImport_ImportModule(module);
-    if (obj_module == NULL) {
-        PyErr_Print();
-        setError("Unable to import module");
-        goto done;
-    }
-
-    // find a subclass of the base check
-    klass = _findSubclassOf(base, obj_module);
+    // Gets Check class from module
+    klass = reinterpret_cast<PyObject *>(getCheckClass(module));
     if (klass == NULL) {
-        PyErr_Print();
+        // Error is already set by getCheckClass if class is not found
         goto done;
     }
 
@@ -213,8 +242,6 @@ SixPyObject *Three::getCheck(const char *module, const char *init_config_str, co
     }
 
 done:
-    Py_XDECREF(base);
-    Py_XDECREF(obj_module);
     Py_XDECREF(klass);
     Py_XDECREF(init_config);
     Py_XDECREF(instances);
