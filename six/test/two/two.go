@@ -52,3 +52,15 @@ func runString(code string) (string, error) {
 
 	return string(output), err
 }
+
+func getError() string {
+	// following is supposed to raise an error
+	C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"))
+	return C.GoString(C.get_error(six))
+}
+
+func hasError() bool {
+	// following is supposed to raise an error
+	C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"))
+	return C.has_error(six) == 1
+}

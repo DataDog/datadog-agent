@@ -38,3 +38,16 @@ func TestRunSimpleString(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", output)
 	}
 }
+
+func TestGetError(t *testing.T) {
+	errorStr := getError()
+	if errorStr != "Unable to import the base class: No module named datadog_checks.base.checks" {
+		t.Fatalf("Wrong error string returned: %s", errorStr)
+	}
+}
+
+func TestHasError(t *testing.T) {
+	if !hasError() {
+		t.Fatal("has_error should return true, got false")
+	}
+}
