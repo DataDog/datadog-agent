@@ -9,7 +9,7 @@ func TestExtend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if output != "I'm extending Python!\n" {
+	if output != "I'm extending Python!\n42\n" {
 		t.Errorf("Unexpected printed value: '%s'", output)
 	}
 }
