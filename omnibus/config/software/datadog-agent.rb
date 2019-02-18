@@ -65,12 +65,17 @@ build do
   copy 'bin', install_dir
 
 
-  command "invoke trace-agent.build", :env => env
+  block do
+    # defer compilation step in a block to allow getting the project's build version, which is populated
+    # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
+    env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
+    command "invoke trace-agent.build", :env => env
 
-  if windows?
-    copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-  else
-    copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
+    if windows?
+      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+    else
+      copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
+    end
   end
 
   if linux?
