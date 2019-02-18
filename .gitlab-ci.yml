@@ -366,12 +366,11 @@ pre_release_win:
     - call ridk enable
     - set /P VERSION=< version.txt
     - copy stackstate-agent-%VERSION%-1-x86_64.msi stackstate-agent-latest-1-x86_64.msi
-    - aws.exe s3 cp . s3://stackstate-agent-2-test/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read
+    - aws.exe s3 cp . s3://%STS_AWS_TEST_BUCKET_WIN%/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read
     - cd %WIN_CI_PROJECT_DIR% && inv release.generate-install -t
     - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET_WIN']).object('install.ps1').upload_file('./install.ps1', acl:'public-read')"
   tags:
     - sts_windows
-
 
 pre_release_rpm:
   stage: pre_release
@@ -419,6 +418,45 @@ release_deb:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_RELEASE_BUCKET stable
     - cd $CI_PROJECT_DIR && inv release.generate-install
     - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_RELEASE_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
+  when: manual
+  only:
+    - tags
+    - triggers
+
+release_rpm:
+  stage: release
+  dependencies:
+    - deps-rpm
+    - build_rpm
+  before_script:
+    - mkdir -p /go/src/github.com/StackVista
+    - ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
+  script:
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_rpm_package.sh
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package_rpm.sh $STS_AWS_RELEASE_BUCKET_YUM
+  when: manual
+  only:
+    - tags
+    - triggers
+
+release_win:
+  stage: release
+  dependencies:
+    - deps-windows
+    - build_win
+  before_script: []
+  script:
+    - set WIN_CI_PROJECT_DIR=%CD%
+    - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
+    - call %WORKON_HOME%\venv\Scripts\activate.bat
+    - call ridk enable
+    - set /P VERSION=< version.txt
+    - copy stackstate-agent-%VERSION%-1-x86_64.msi stackstate-agent-latest-1-x86_64.msi
+    - cd %WIN_CI_PROJECT_DIR% && inv release.generate-install -t
+    - aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN%/windows/stable --recursive --exclude "*" --include "*.msi" --acl public-read
+    - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN%/windows/stable --recursive --exclude "*" --include "install.ps1" --acl public-read
+  tags:
+    - sts_windows
   when: manual
   only:
     - tags

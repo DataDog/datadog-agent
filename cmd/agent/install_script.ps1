@@ -54,11 +54,15 @@ new-module -name StsAgentInstaller -scriptblock {
                 Start-Process "msiexec.exe" -ArgumentList $MSIArguments -passthru | wait-process
                 Write-Host "Finished msi "$msifile
             }
-            Else {                
-                Write-Host "File $out doesn't exists - failed to download or corrupted. Please check."
+            Else {
+                Write-Error "File $out doesn't exists - failed to download or corrupted. Please check." -ErrorAction Stop
                 exit 1
             }
         }
+
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = "Stop"
+        $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
         Download_MSI_STS_Installer
         Install_STS
