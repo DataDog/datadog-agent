@@ -4,7 +4,7 @@ class AgentCheck(object):
         pass
 
     def run(self):
-        return "result"
+        return ""  # empty string means success
 
     @staticmethod
     def load_config(yaml_str):
