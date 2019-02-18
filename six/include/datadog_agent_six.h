@@ -36,7 +36,7 @@ DATADOG_AGENT_SIX_API six_t *make3();
 
 // C API
 DATADOG_AGENT_SIX_API void destroy(six_t *);
-DATADOG_AGENT_SIX_API void init(six_t *, char *);
+DATADOG_AGENT_SIX_API int init(six_t *, char *);
 DATADOG_AGENT_SIX_API int add_module_func(six_t *, six_module_t module, six_module_func_t func_type, char *func_name,
                                           void *func);
 DATADOG_AGENT_SIX_API int add_module_int_const(six_t *, six_module_t module, char *name, long value);
