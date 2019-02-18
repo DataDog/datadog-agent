@@ -41,7 +41,7 @@ func TestRunSimpleString(t *testing.T) {
 
 func TestGetError(t *testing.T) {
 	errorStr := getError()
-	if errorStr != "Unable to import the base class: No module named datadog_checks.base.checks" {
+	if errorStr != "unable to import module 'foo': No module named foo" {
 		t.Fatalf("Wrong error string returned: %s", errorStr)
 	}
 }
@@ -49,5 +49,41 @@ func TestGetError(t *testing.T) {
 func TestHasError(t *testing.T) {
 	if !hasError() {
 		t.Fatal("has_error should return true, got false")
+	}
+}
+
+func TestGetCheckAgent(t *testing.T) {
+	err := getFakeCheck()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunCheck(t *testing.T) {
+	res, err := runFakeCheck()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res != "" {
+		t.Fatal(res)
+	}
+}
+
+func TestGetCheckClassOk(t *testing.T) {
+	err := getCheckClass("fake_check")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetCheckClassKo(t *testing.T) {
+	err := getCheckClass("unexisting_module")
+
+	if err == nil {
+		t.Fatal("Module was expected not to exist")
 	}
 }

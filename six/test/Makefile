@@ -2,8 +2,7 @@ LIB_PATH = ../../six/:../../two/:../../three/
 TWO_PKGS = \
 	./two/... \
 	./two_extend/... \
-	./two_init/... \
-	./two_check
+	./two_init/...
 
 THREE_PKGS = \
 	./three/... \
