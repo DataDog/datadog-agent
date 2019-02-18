@@ -1,4 +1,4 @@
-package two_extend
+package twoextend
 
 import "fmt"
 import common "../common"
