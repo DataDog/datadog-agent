@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 
-#include "three.h"
 #include "constants.h"
+#include "three.h"
 
 #include <sstream>
 
@@ -168,7 +168,6 @@ SixPyObject *Three::getCheckClass(const char *module) {
 
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
-        PyErr_Print();
         std::ostringstream err;
         err << "unable to import module '" << module << "': " + _fetchPythonError();
         setError(err.str());
@@ -217,14 +216,14 @@ SixPyObject *Three::getCheck(const char *module, const char *init_config_str, co
     // call `AgentCheck.load_config(init_config)`
     init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
     if (init_config == NULL) {
-        PyErr_Print();
+        setError("error parsing init_config: " + _fetchPythonError());
         goto done;
     }
 
     // call `AgentCheck.load_config(instances)`
     instances = PyObject_CallMethod(klass, load_config, format, instances_str);
     if (instances == NULL) {
-        PyErr_Print();
+        setError("error parsing instances: " + _fetchPythonError());
         goto done;
     }
 
@@ -237,7 +236,7 @@ SixPyObject *Three::getCheck(const char *module, const char *init_config_str, co
     // call `AgentCheck` constructor
     check = PyObject_Call(klass, args, kwargs);
     if (check == NULL) {
-        PyErr_Print();
+        setError("error creating check instance: " + _fetchPythonError());
         goto done;
     }
 
@@ -270,13 +269,13 @@ const char *Three::runCheck(SixPyObject *check) {
 
     result = PyObject_CallMethod(py_check, run, NULL);
     if (result == NULL || !PyUnicode_Check(result)) {
-        PyErr_Print();
+        setError("error invoking 'run' method: " + _fetchPythonError());
         goto done;
     }
 
     bytes = PyUnicode_AsEncodedString(result, "UTF-8", "strict");
     if (bytes == NULL) {
-        PyErr_Print();
+        setError("error converting result to string: " + _fetchPythonError());
         goto done;
     }
 
