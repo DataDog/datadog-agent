@@ -1,4 +1,4 @@
-package three_extend
+package threeextend
 
 import "testing"
 
