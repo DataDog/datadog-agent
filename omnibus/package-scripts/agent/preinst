@@ -53,7 +53,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
 
     # For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
     # We need to clean that up on upgrade now, since it was only removed on uninstall.
-    TUF_REPO_DIR=/etc/datadog-agent/repositories
+    TUF_REPO_DIR=$INSTALL_DIR/repositories
     if [ -d $TUF_REPO_DIR ]; then
         rm -rf $TUF_REPO_DIR
     fi
