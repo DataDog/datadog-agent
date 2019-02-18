@@ -1,6 +1,9 @@
 ---
+molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
 agent_repo_url: "https://stackstate-agent-2-test.s3.amazonaws.com"
 agent_current_branch: "{{ lookup('env', 'AGENT_GITLAB_BRANCH') }}"
-test_connection_port_after_start: 125
-test_connection_port_before_start: 126
-molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
+connection_port_before_start_fedora: 125
+connection_port_after_start_fedora: 126
+connection_port_before_start_windows: 127
+connection_port_after_start_windows: 128
+max_test_time: 2000  # in seconds

@@ -1,18 +1,17 @@
 import os
 import re
 import util
-import testinfra.utils.ansible_runner
+from testinfra.utils.ansible_runner import AnsibleRunner
 
-testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
-    os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent_linux_vm')
+testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent_linux_vm')
 
 
-def test_stackstate_agent_is_installed(host, Ansible):
+def test_stackstate_agent_is_installed(host):
     agent = host.package("stackstate-agent")
     print agent.version
     assert agent.is_installed
 
-    agent_current_branch = Ansible("include_vars", "./common_vars.yml")["ansible_facts"]["agent_current_branch"]
+    agent_current_branch = host.ansible("include_vars", "./common_vars.yml")["ansible_facts"]["agent_current_branch"]
     if agent_current_branch is "master":
         assert agent.version.startswith("2")
 

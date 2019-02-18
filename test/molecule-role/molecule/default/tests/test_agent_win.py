@@ -1,10 +1,9 @@
 import os
 import re
 import util
-import testinfra.utils.ansible_runner
+from testinfra.utils.ansible_runner import AnsibleRunner
 
-testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
-    os.environ["MOLECULE_INVENTORY_FILE"]).get_hosts("agent_win_vm")
+testinfra_hosts = AnsibleRunner(os.environ["MOLECULE_INVENTORY_FILE"]).get_hosts("agent_win_vm")
 
 
 def test_stackstate_agent_is_installed(host):

@@ -106,18 +106,23 @@
         name: nmap
         state: present
       when: ansible_distribution == "Ubuntu"
-    - name: Install nc (for ncat binary) in Fedora
+    - name: Install nc (for ncat binary) and libselinux-python in Fedora
       become: true
       yum:
-        name: nc
+        name: [nc, libselinux-python]
         state: present
       when: ansible_distribution == "Fedora"
-    - name: Install libselinux-python in Fedora
-      become: true
-      yum:
-        name: libselinux-python
+
+- name: Prepare Windows Agent (pre)
+  hosts: agent_win_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Install netcat
+      win_chocolatey:
+        name: netcat
         state: present
-      when: ansible_distribution == "Fedora"
 
 - name: Prepare Ubuntu Agent listening before start
   hosts: agent-ubuntu
@@ -126,8 +131,11 @@
     - common_vars.yml
   tasks:
     # We use ncat to keep a listening port open and get a direction
-    - name: Open listening port on Ubuntu Agent
-      shell: "nohup ncat --broker --listen -p {{ test_connection_port_before_start }} &"
+    - name: Open listening port for fedora {{ connection_port_before_start_fedora }}
+      shell: "nohup ncat --broker --listen -p {{ connection_port_before_start_fedora }} &"
+      become: true
+    - name: Open listening port for windows {{ connection_port_before_start_windows }}
+      shell: "nohup ncat --broker --listen -p {{ connection_port_before_start_windows }} &"
       become: true
 
 - name: Prepare Fedora Agent connecting before start
@@ -137,14 +145,20 @@
     - common_vars.yml
   tasks:
     - name: Connect to Ubuntu Agent
-      shell: nohup bash -c "yes | ncat {{ hostvars['agent-ubuntu']['ansible_host'] }} {{ test_connection_port_before_start }}" &
-      become: true
+      shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_host'] }} {{ connection_port_before_start_fedora }}
+      async: "{{ max_test_time }}"
+      poll: 0
 
-    - name: Add test-stackstate-agent.sts to /etc/hosts
-      become: true
-      lineinfile:
-        path: /etc/hosts
-        line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
+- name: Prepare Windows Agent connecting before start
+  hosts: agent-win
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Connect to Ubuntu Agent
+      win_command: nc -w {{ max_test_time }} {{ hostvars['agent-ubuntu']['ansible_host'] }} {{ connection_port_before_start_windows }}
+      async: "{{ max_test_time }}"
+      poll: 0
 
 - name: Prepare Windows Agents (post)
   hosts: agent_win_vm
@@ -162,7 +176,7 @@
       win_shell: ". { iwr -useb {{ agent_repo_url }}/install.ps1 } | iex; install -stsApiKey API_KEY -stsUrl https://test-stackstate-agent.sts/stsAgent -stsHostname {{ inventory_hostname }} -stsCodeName {{ agent_current_branch }} -stsSkipSSLValidation true"
       register: install_result
 
-    - debug: var="install_result"
+# - debug: var="install_result"
 
 - name: Prepare Linux Agents (post)
   hosts: agent_linux_vm
@@ -175,6 +189,7 @@
       lineinfile:
         path: /etc/hosts
         line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
+
     - name: Install stackstate-agent
       shell: "curl -o- {{ agent_repo_url }}/install.sh | bash"
       environment:
@@ -193,8 +208,12 @@
     - name: Wait a bit for the process agent to start
       pause:
         seconds: 10
-    - name: Open listening port {{ test_connection_port_after_start }}
-      shell: "nohup nc -l -p {{ test_connection_port_after_start }} > /dev/null &"
+    # We use ncat to keep a listening port open and get a direction
+    - name: Open listening port for fedora {{ connection_port_after_start_fedora }}
+      shell: "nohup ncat --broker --listen -p {{ connection_port_after_start_fedora }} &"
+      become: true
+    - name: Open listening port for windows {{ connection_port_after_start_windows }}
+      shell: "nohup ncat --broker --listen -p {{ connection_port_after_start_windows }} &"
       become: true
 
 - name: Prepare Fedora Agent connecting after start
@@ -204,5 +223,17 @@
     - common_vars.yml
   tasks:
     - name: Connect to Ubuntu agent
-      shell: nohup bash -c "yes | ncat {{ hostvars['agent-ubuntu']['ansible_host'] }} {{ test_connection_port_after_start }}" &
-      become: true
+      shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_host'] }} {{ connection_port_after_start_fedora }}
+      async: "{{ max_test_time }}"
+      poll: 0
+
+- name: Prepare Windows Agent connecting after start
+  hosts: agent-win
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Connect to Ubuntu agent
+      win_command: nc -w {{ max_test_time }} {{ hostvars['agent-ubuntu']['ansible_host'] }} {{ connection_port_after_start_windows }}
+      async: "{{ max_test_time }}"
+      poll: 0

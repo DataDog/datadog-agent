@@ -39,12 +39,20 @@
         to_port: 443
         cidr_ip: '0.0.0.0/0'
       - proto: tcp
-        from_port: "{{ test_connection_port_before_start }}"
-        to_port: "{{ test_connection_port_before_start }}"
+        from_port: "{{ connection_port_before_start_fedora }}"
+        to_port: "{{ connection_port_before_start_fedora }}"
         cidr_ip: '0.0.0.0/0'
       - proto: tcp
-        from_port: "{{ test_connection_port_after_start }}"
-        to_port: "{{ test_connection_port_after_start }}"
+        from_port: "{{ connection_port_after_start_fedora }}"
+        to_port: "{{ connection_port_after_start_fedora }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ connection_port_before_start_windows }}"
+        to_port: "{{ connection_port_before_start_windows }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ connection_port_after_start_windows }}"
+        to_port: "{{ connection_port_after_start_windows }}"
         cidr_ip: '0.0.0.0/0'
       - proto: icmp
         from_port: 8
@@ -129,6 +137,7 @@
         instance_conf_dict: {
           'instance': "{{ item.tagged_instances[0].tags.instance }}",
           'address': "{{ item.tagged_instances[0].public_ip }}",
+          'private_address': "{{ item.tagged_instances[0].private_ip }}",
           'user': "{{ item.item.item.ssh_user }}",
           'port': "{{ ssh_port }}",
           'identity_file': "{{ keypair_path }}",
