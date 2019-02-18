@@ -22,6 +22,13 @@ func setUp() error {
 
 	C.init(six, nil)
 
+	// Updates sys.path so Agent for testing can be found
+	code := C.CString("import sys; sys.path.insert(0, '../python/')")
+	success := C.run_simple_string(six, code)
+	if success != 0 {
+		return fmt.Errorf("setUp test failed")
+	}
+
 	return nil
 }
 
@@ -52,4 +59,42 @@ func runString(code string) (string, error) {
 	}
 
 	return string(output), err
+}
+
+func getError() string {
+	// following is supposed to raise an error
+	C.get_check(six, C.CString("foo"), C.CString(""), C.CString("[{foo: \"/\"}]"))
+	return C.GoString(C.get_error(six))
+}
+
+func hasError() bool {
+	// following is supposed to raise an error
+	C.get_check(six, C.CString("foo"), C.CString(""), C.CString("[{foo: \"/\"}]"))
+	return C.has_error(six) == 1
+}
+
+func getFakeCheck() error {
+	ret := C.get_check(six, C.CString("fake_agent"), C.CString(""), C.CString("[{fake_agent: \"/\"}]"))
+
+	if ret == nil {
+		return fmt.Errorf(C.GoString(C.get_error(six)))
+	}
+	return nil
+}
+
+func runFakeCheck() (string, error) {
+	check := C.get_check(six, C.CString("fake_agent"), C.CString(""), C.CString("[{fake_agent: \"/\"}]"))
+	if check == nil {
+		return "", fmt.Errorf(C.GoString(C.get_error(six)))
+	}
+
+	return C.GoString(C.run_check(six, check)), nil
+}
+
+func getCheckClass(moduleName string) error {
+	ret := C.get_check_class(six, C.CString(moduleName))
+	if ret == nil {
+		return fmt.Errorf(C.GoString(C.get_error(six)))
+	}
+	return nil
 }
