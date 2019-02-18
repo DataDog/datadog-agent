@@ -256,7 +256,7 @@ func (w *StatsWriter) monitor() {
 		select {
 		case e, ok := <-monC:
 			if !ok {
-				break
+				return
 			}
 
 			switch e.typ {
