@@ -88,9 +88,8 @@ int main(int argc, char *argv[]) {
     six_pyobject_t *check = get_check(six, "datadog_checks.directory", "", "[{directory: \"/\"}]");
     if (check == NULL) {
         if (has_error(six)) {
-            printf("%s\n", get_error(six));
+            printf("error loading check: %s\n", get_error(six));
         }
-        printf("Unable to load the 'directory' check, is it installed in the Python env?\n");
         return 1;
     }
 
