@@ -33,7 +33,9 @@ func extend() (string, error) {
 		return "", fmt.Errorf("`add_module_int_const` errored")
 	}
 
-	C.init(six, nil)
+	if ok := C.init(six, nil); ok != 1 {
+		return "", fmt.Errorf("`init` errored")
+	}
 
 	code := C.CString(`
 try:
