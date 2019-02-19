@@ -80,13 +80,13 @@ bool Two::addModuleFunction(six_module_t module, six_module_func_t t, const char
     return true;
 }
 
-int Two::addModuleIntConst(six_module_t module, const char *name, long value) {
+bool Two::addModuleIntConst(six_module_t module, const char *name, long value) {
     if (_module_constants.find(module) == _module_constants.end()) {
         _module_constants[module] = std::vector<PyModuleConst>();
     }
 
     _module_constants[module].push_back(std::make_pair(std::string(name), value));
-    return 1; // ok
+    return true;
 }
 
 six_gilstate_t Two::GILEnsure() {

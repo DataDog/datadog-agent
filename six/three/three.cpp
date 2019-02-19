@@ -124,13 +124,13 @@ bool Three::addModuleFunction(six_module_t module, six_module_func_t t, const ch
     return true;
 }
 
-int Three::addModuleIntConst(six_module_t moduleID, const char *name, long value) {
+bool Three::addModuleIntConst(six_module_t moduleID, const char *name, long value) {
     if (ModuleConstants.find(moduleID) == ModuleConstants.end()) {
         ModuleConstants[moduleID] = std::vector<PyModuleConst>();
     }
 
     ModuleConstants[moduleID].push_back(std::make_pair(std::string(name), value));
-    return 0;
+    return true;
 }
 
 six_gilstate_t Three::GILEnsure() {

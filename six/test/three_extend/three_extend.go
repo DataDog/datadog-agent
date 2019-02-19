@@ -29,7 +29,10 @@ func extend() (string, error) {
 		return "", fmt.Errorf("`add_module_func` errored")
 	}
 
-	C.add_module_int_const(six, C.DATADOG_AGENT_SIX_DATADOG_AGENT, C.CString("my_const"), 42)
+	if ok := C.add_module_int_const(six, C.DATADOG_AGENT_SIX_DATADOG_AGENT, C.CString("my_const"), 42); ok != 1 {
+		return "", fmt.Errorf("`add_module_int_const` errored")
+	}
+
 	C.init(six, nil)
 
 	code := C.CString(`
