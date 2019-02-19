@@ -107,7 +107,8 @@ int run_simple_string(const six_t *six, const char *code) { return AS_CTYPE(Six,
 six_pyobject_t *get_none(const six_t *six) { return AS_TYPE(six_pyobject_t, AS_CTYPE(Six, six)->getNone()); }
 
 int add_module_func(six_t *six, six_module_t module, six_module_func_t func_type, char *func_name, void *func) {
-    return AS_TYPE(Six, six)->addModuleFunction(module, func_type, func_name, func);
+    bool ret = AS_TYPE(Six, six)->addModuleFunction(module, func_type, func_name, func);
+    return ret ? 1 : 0;
 }
 
 int add_module_int_const(six_t *six, six_module_t module, const char *name, long value) {

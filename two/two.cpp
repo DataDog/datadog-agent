@@ -42,10 +42,10 @@ const char *Two::getPyVersion() const { return Py_GetVersion(); }
 
 int Two::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
 
-int Two::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
+bool Two::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getUnknownModuleName()) {
         setError("Unknown ExtensionModule value");
-        return -1;
+        return false;
     }
 
     int ml_flags;
@@ -61,7 +61,7 @@ int Two::addModuleFunction(six_module_t module, six_module_func_t t, const char 
         break;
     default:
         setError("Unknown MethType value");
-        return -1;
+        return false;
     }
 
     PyMethodDef def = { funcName, (PyCFunction)func, ml_flags, "" };
@@ -77,7 +77,7 @@ int Two::addModuleFunction(six_module_t module, six_module_func_t t, const char 
     _modules[module].insert(_modules[module].begin(), def);
 
     // success
-    return 0;
+    return true;
 }
 
 int Two::addModuleIntConst(six_module_t module, const char *name, long value) {

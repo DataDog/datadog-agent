@@ -87,10 +87,10 @@ bool Three::isInitialized() const { return Py_IsInitialized(); }
 const char *Three::getPyVersion() const { return Py_GetVersion(); }
 int Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
 
-int Three::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
+bool Three::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getUnknownModuleName()) {
         setError("Unknown ExtensionModule value");
-        return -1;
+        return false;
     }
 
     int ml_flags;
@@ -106,7 +106,7 @@ int Three::addModuleFunction(six_module_t module, six_module_func_t t, const cha
         break;
     default:
         setError("Unknown MethType value");
-        return -1;
+        return false;
     }
 
     PyMethodDef def = { funcName, (PyCFunction)func, ml_flags, "" };
@@ -121,7 +121,7 @@ int Three::addModuleFunction(six_module_t module, six_module_func_t t, const cha
     // insert at beginning so we keep guard at the end
     _modules[module].insert(_modules[module].begin(), def);
 
-    return 0;
+    return true;
 }
 
 int Three::addModuleIntConst(six_module_t moduleID, const char *name, long value) {
