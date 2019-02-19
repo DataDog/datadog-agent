@@ -43,6 +43,7 @@ public:
 private:
     PyObject *_importFrom(const char *module, const char *name);
     PyObject *_findSubclassOf(PyObject *base, PyObject *module);
+    PyObject *_getCheckClass(const char *module);
     std::string _fetchPythonError();
 
     typedef std::vector<PyMethodDef> PyMethods;
