@@ -1,4 +1,4 @@
-package three_init
+package threeinit
 
 import "testing"
 
