@@ -17,7 +17,6 @@ public:
     // Python module constants need to be added in the init callback after calling
     // "PyModule_Create". The constants need to be globally available.
     static PyModuleConstants ModuleConstants;
-    static std::mutex ModuleConstantsMtx;
 
     Three()
         : _modules()
