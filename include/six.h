@@ -16,7 +16,8 @@ class SixPyObject {};
 
 class Six {
 public:
-    Six() {};
+    Six()
+        : _error() {};
     virtual ~Six() {};
 
     // Public API
@@ -35,7 +36,7 @@ public:
     virtual const char *getPyVersion() const = 0;
     virtual int runSimpleString(const char *code) const = 0;
     virtual SixPyObject *getNone() const = 0;
-    const std::string &getError() const;
+    std::string getError() const;
     bool hasError() const;
 
 protected:
