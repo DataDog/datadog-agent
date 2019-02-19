@@ -21,7 +21,7 @@ public:
     virtual ~Six() {};
 
     // Public API
-    virtual int init(const char *pythonHome) = 0;
+    virtual bool init(const char *pythonHome) = 0;
     virtual int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) = 0;
     virtual int addModuleIntConst(six_module_t module, const char *name, long value) = 0;
     void setError(const std::string &msg);

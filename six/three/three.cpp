@@ -36,7 +36,7 @@ PyModuleConstants Three::ModuleConstants;
             def_##moduleName.m_methods = &_modules[moduleID][0];                                                       \
             if (PyImport_AppendInittab(getExtensionModuleName(moduleID), &PyInit_##moduleName) == -1) {                \
                 setError("PyImport_AppendInittab failed to append " #moduleName);                                      \
-                return 1;                                                                                              \
+                return false;                                                                                          \
             }                                                                                                          \
         }                                                                                                              \
     }
@@ -58,7 +58,7 @@ Three::~Three() {
     ModuleConstants.clear();
 }
 
-int Three::init(const char *pythonHome) {
+bool Three::init(const char *pythonHome) {
     // insert module to Python inittab one by one
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_DATADOG_AGENT, datadog_agent)
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX__UTIL, _util)
@@ -80,7 +80,7 @@ int Three::init(const char *pythonHome) {
     Py_SetPythonHome(_pythonHome);
     Py_Initialize();
 
-    return 0;
+    return true;
 }
 
 bool Three::isInitialized() const { return Py_IsInitialized(); }
