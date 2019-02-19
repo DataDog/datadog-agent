@@ -45,6 +45,9 @@ main configuration and reload it after decrypting the secrets. This means the
 only place where secrets can't be used is the `secret_*` settings (see
 Configuration section).
 
+Secrets are always strings, this means you can't use this feature to set the
+value of a setting of type integer or boolean (such as `GUI_port` for example).
+
 Example:
 
 ```yaml
