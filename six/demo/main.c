@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     add_module_func(six, DATADOG_AGENT_SIX__UTIL, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
     add_module_int_const(six, DATADOG_AGENT_SIX__UTIL, "constant_number", 21);
 
-    if (init(six, python_home) != 0) {
+    if (!init(six, python_home)) {
         printf("Error initializing six");
         return 1;
     }
