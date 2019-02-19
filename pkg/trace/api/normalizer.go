@@ -97,11 +97,7 @@ func normalize(s *pb.Span) error {
 	// ParentID set on the client side, no way of checking
 
 	// Type
-	typ := toUTF8(s.Type)
-	if typ == "" {
-		return fmt.Errorf("`Type` is invalid UTF-8: %q", typ)
-	}
-	s.Type = typ
+	s.Type = toUTF8(s.Type)
 	if len(s.Type) > MaxTypeLen {
 		return fmt.Errorf("`Type` too long (%d chars max): %s", MaxTypeLen, s.Type)
 	}
