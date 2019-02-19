@@ -8,8 +8,8 @@ import common "../common"
 // #include <datadog_agent_six.h>
 //
 // extern six_pyobject_t *printFoo();
-// static void goSetupMyModule(six_t *six) {
-//    add_module_func(six, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", printFoo);
+// static int goSetupMyModule(six_t *six) {
+//    return add_module_func(six, DATADOG_AGENT_SIX_DATADOG_AGENT, DATADOG_AGENT_SIX_NOARGS, "print_foo", printFoo);
 // }
 import "C"
 
@@ -25,7 +25,10 @@ func extend() (string, error) {
 	var err error
 	six = C.make2()
 
-	C.goSetupMyModule(six)
+	if ok := C.goSetupMyModule(six); ok != 1 {
+		return "", fmt.Errorf("`add_module_func` errored")
+	}
+
 	C.add_module_int_const(six, C.DATADOG_AGENT_SIX_DATADOG_AGENT, C.CString("my_const"), 42)
 	C.init(six, nil)
 

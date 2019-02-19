@@ -24,7 +24,7 @@ public:
     ~Three();
 
     bool init(const char *pythonHome);
-    int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
+    bool addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
     int addModuleIntConst(six_module_t module, const char *name, long value);
 
     six_gilstate_t GILEnsure();
