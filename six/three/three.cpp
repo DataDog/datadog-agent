@@ -7,7 +7,6 @@
 
 #include <sstream>
 PyModuleConstants Three::ModuleConstants;
-std::mutex Three::ModuleConstantsMtx;
 
 // we only populate the fields `m_base` and `m_name`, we don't need any of the
 // rest since we're doing Single-phase initialization
@@ -19,7 +18,6 @@ std::mutex Three::ModuleConstantsMtx;
         = { PyModuleDef_HEAD_INIT, datadog_agent_six_##moduleName, NULL, -1, NULL, NULL, NULL, NULL, NULL };           \
     PyMODINIT_FUNC PyInit_##moduleName(void) {                                                                         \
         PyObject *m = PyModule_Create(&def_##moduleName);                                                              \
-        std::lock_guard<std::mutex> lock(Three::ModuleConstantsMtx);                                                   \
         PyModuleConstants::iterator it = Three::ModuleConstants.find(moduleID);                                        \
         if (it != Three::ModuleConstants.end()) {                                                                      \
             std::vector<PyModuleConst>::iterator cit;                                                                  \
@@ -127,7 +125,6 @@ int Three::addModuleFunction(six_module_t module, six_module_func_t t, const cha
 }
 
 int Three::addModuleIntConst(six_module_t moduleID, const char *name, long value) {
-    std::lock_guard<std::mutex> lock(Three::ModuleConstantsMtx);
     if (ModuleConstants.find(moduleID) == ModuleConstants.end()) {
         ModuleConstants[moduleID] = std::vector<PyModuleConst>();
     }
