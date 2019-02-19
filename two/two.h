@@ -31,7 +31,7 @@ public:
     // const API
     bool isInitialized() const;
     const char *getPyVersion() const;
-    int runSimpleString(const char *code) const;
+    bool runSimpleString(const char *code) const;
     SixPyObject *getNone() const { return reinterpret_cast<SixPyObject *>(Py_None); }
 
 private:

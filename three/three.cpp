@@ -85,7 +85,7 @@ bool Three::init(const char *pythonHome) {
 
 bool Three::isInitialized() const { return Py_IsInitialized(); }
 const char *Three::getPyVersion() const { return Py_GetVersion(); }
-int Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
+bool Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code) == 0; }
 
 bool Three::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getUnknownModuleName()) {

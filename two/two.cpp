@@ -40,7 +40,7 @@ bool Two::isInitialized() const { return Py_IsInitialized(); }
 
 const char *Two::getPyVersion() const { return Py_GetVersion(); }
 
-int Two::runSimpleString(const char *code) const { return PyRun_SimpleString(code); }
+bool Two::runSimpleString(const char *code) const { return PyRun_SimpleString(code) == 0; }
 
 bool Two::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getUnknownModuleName()) {

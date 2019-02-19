@@ -93,27 +93,22 @@ void destroy(six_t *six) {
     }
 }
 
-int init(six_t *six, char *pythonHome) {
-    bool ret = AS_TYPE(Six, six)->init(pythonHome);
-    return ret ? 1 : 0;
-}
+int init(six_t *six, char *pythonHome) { return AS_TYPE(Six, six)->init(pythonHome) ? 1 : 0; }
 
 int is_initialized(six_t *six) { return AS_CTYPE(Six, six)->isInitialized(); }
 
 const char *get_py_version(const six_t *six) { return AS_CTYPE(Six, six)->getPyVersion(); }
 
-int run_simple_string(const six_t *six, const char *code) { return AS_CTYPE(Six, six)->runSimpleString(code); }
+int run_simple_string(const six_t *six, const char *code) { return AS_CTYPE(Six, six)->runSimpleString(code) ? 1 : 0; }
 
 six_pyobject_t *get_none(const six_t *six) { return AS_TYPE(six_pyobject_t, AS_CTYPE(Six, six)->getNone()); }
 
 int add_module_func(six_t *six, six_module_t module, six_module_func_t func_type, char *func_name, void *func) {
-    bool ret = AS_TYPE(Six, six)->addModuleFunction(module, func_type, func_name, func);
-    return ret ? 1 : 0;
+    return AS_TYPE(Six, six)->addModuleFunction(module, func_type, func_name, func) ? 1 : 0;
 }
 
 int add_module_int_const(six_t *six, six_module_t module, const char *name, long value) {
-    bool ret = AS_TYPE(Six, six)->addModuleIntConst(module, name, value);
-    return ret ? 1 : 0;
+    return AS_TYPE(Six, six)->addModuleIntConst(module, name, value) ? 1 : 0;
 }
 
 six_gilstate_t ensure_gil(six_t *six) { return AS_TYPE(Six, six)->GILEnsure(); }
@@ -132,13 +127,7 @@ const char *run_check(six_t *six, six_pyobject_t *check) {
     return AS_TYPE(Six, six)->runCheck(AS_TYPE(SixPyObject, check));
 }
 
-int has_error(const six_t *six) {
-    if (AS_CTYPE(Six, six)->hasError()) {
-        return 1;
-    }
-
-    return 0;
-}
+int has_error(const six_t *six) { return AS_CTYPE(Six, six)->hasError() ? 1 : 0; }
 
 const char *get_error(const six_t *six) {
     last_error = AS_CTYPE(Six, six)->getError();
