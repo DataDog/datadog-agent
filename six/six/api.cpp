@@ -23,6 +23,8 @@
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
 
 static void *six_backend = NULL;
+// public API will return a const char* pointing to the storage of this string
+static std::string last_error;
 
 six_t *make2() {
     if (six_backend != NULL) {
@@ -133,4 +135,7 @@ int has_error(const six_t *six) {
     return 0;
 }
 
-const char *get_error(const six_t *six) { return AS_CTYPE(Six, six)->getError().c_str(); }
+const char *get_error(const six_t *six) {
+    last_error = AS_CTYPE(Six, six)->getError();
+    return last_error.c_str();
+}
