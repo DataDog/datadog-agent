@@ -16,8 +16,7 @@ class SixPyObject {};
 
 class Six {
 public:
-    Six()
-        : _error_mtx() {};
+    Six() {};
     virtual ~Six() {};
 
     // Public API
@@ -25,7 +24,6 @@ public:
     virtual int addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) = 0;
     virtual int addModuleIntConst(six_module_t module, const char *name, long value) = 0;
     void setError(const std::string &msg);
-    void clearError();
     virtual six_gilstate_t GILEnsure() = 0;
     virtual void GILRelease(six_gilstate_t) = 0;
     virtual SixPyObject *getCheckClass(const char *module) = 0; // FIXME: not sure we need this
@@ -37,7 +35,7 @@ public:
     virtual const char *getPyVersion() const = 0;
     virtual int runSimpleString(const char *code) const = 0;
     virtual SixPyObject *getNone() const = 0;
-    std::string getError() const;
+    const std::string &getError() const;
     bool hasError() const;
 
 protected:
@@ -46,7 +44,6 @@ protected:
 
 private:
     std::string _error;
-    mutable std::mutex _error_mtx;
 };
 
 typedef Six *create_t();

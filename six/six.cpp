@@ -27,31 +27,8 @@ const char *Six::getExtensionModuleName(six_module_t m) {
 
 const char *Six::getUnknownModuleName() { return datadog_agent_six_unknown; }
 
-void Six::setError(const std::string &msg) {
-    _error_mtx.lock();
-    _error = msg;
-    _error_mtx.unlock();
-}
+void Six::setError(const std::string &msg) { _error = msg; }
 
-void Six::clearError() {
-    _error_mtx.lock();
-    _error = "";
-    _error_mtx.unlock();
-}
+const std::string &Six::getError() const { return _error; }
 
-std::string Six::getError() const {
-    _error_mtx.lock();
-    std::string ret = _error;
-    _error_mtx.unlock();
-    return ret;
-}
-
-bool Six::hasError() const {
-    bool ret;
-
-    _error_mtx.lock();
-    ret = _error != "";
-    _error_mtx.unlock();
-
-    return ret;
-}
+bool Six::hasError() const { return _error != ""; }
