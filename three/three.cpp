@@ -68,8 +68,6 @@ int Three::init(const char *pythonHome) {
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_KUBEUTIL, kubeutil)
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_TAGGER, tagger)
 
-    // We need to initialize python before we can call Py_DecodeLocale
-    Py_Initialize();
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
     } else {
@@ -80,6 +78,8 @@ int Three::init(const char *pythonHome) {
     }
 
     Py_SetPythonHome(_pythonHome);
+    Py_Initialize();
+
     return 0;
 }
 
