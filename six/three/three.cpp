@@ -165,7 +165,9 @@ PyObject *Three::_getCheckClass(const char *module) {
 
     base = _importFrom("datadog_checks.base.checks", "AgentCheck");
     if (base == NULL) {
-        setError("unable to import the base class: " + getError());
+        std::ostringstream err;
+        err << "unable to import the base class: " << getError();
+        setError(err.str());
         goto done;
     }
 

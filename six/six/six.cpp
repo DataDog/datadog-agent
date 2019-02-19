@@ -29,6 +29,6 @@ const char *Six::getUnknownModuleName() { return datadog_agent_six_unknown; }
 
 void Six::setError(const std::string &msg) { _error = msg; }
 
-std::string Six::getError() const { return _error; }
+const char *Six::getError() const { return _error.c_str(); }
 
 bool Six::hasError() const { return _error != ""; }
