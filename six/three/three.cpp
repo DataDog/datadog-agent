@@ -2,12 +2,10 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-
 #include "constants.h"
 #include "three.h"
 
 #include <sstream>
-
 PyModuleConstants Three::ModuleConstants;
 std::mutex Three::ModuleConstantsMtx;
 
@@ -155,6 +153,15 @@ void Three::GILRelease(six_gilstate_t state) {
 }
 
 SixPyObject *Three::getCheckClass(const char *module) {
+    PyObject *klass = _getCheckClass(module);
+    if (klass != NULL) {
+        return reinterpret_cast<SixPyObject *>(klass);
+    }
+
+    return NULL;
+}
+
+PyObject *Three::_getCheckClass(const char *module) {
     PyObject *base = NULL;
     PyObject *obj_module = NULL;
     PyObject *klass = NULL;
@@ -188,11 +195,7 @@ done:
     Py_XDECREF(obj_module);
     Py_XDECREF(klass);
 
-    if (klass == NULL) {
-        return NULL;
-    }
-
-    return reinterpret_cast<SixPyObject *>(klass);
+    return klass;
 }
 
 SixPyObject *Three::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
@@ -207,7 +210,7 @@ SixPyObject *Three::getCheck(const char *module, const char *init_config_str, co
     char format[] = "(s)";
 
     // Gets Check class from module
-    klass = reinterpret_cast<PyObject *>(getCheckClass(module));
+    klass = _getCheckClass(module);
     if (klass == NULL) {
         // Error is already set by getCheckClass if class is not found
         goto done;
