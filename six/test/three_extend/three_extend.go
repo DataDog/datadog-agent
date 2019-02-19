@@ -48,7 +48,7 @@ except Exception as e:
 	var ret bool
 	var output []byte
 	output, err = common.Capture(func() {
-		ret = C.run_simple_string(six, code) == 0
+		ret = C.run_simple_string(six, code) == 1
 	})
 
 	if err != nil {

@@ -34,7 +34,7 @@ public:
     // Public Const API
     virtual bool isInitialized() const = 0;
     virtual const char *getPyVersion() const = 0;
-    virtual int runSimpleString(const char *code) const = 0;
+    virtual bool runSimpleString(const char *code) const = 0;
     virtual SixPyObject *getNone() const = 0;
     std::string getError() const;
     bool hasError() const;
