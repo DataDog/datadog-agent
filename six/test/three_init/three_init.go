@@ -1,4 +1,4 @@
-package three_init
+package threeinit
 
 import "fmt"
 
@@ -14,7 +14,11 @@ func init3() error {
 		return fmt.Errorf("`make3` failed")
 	}
 
-	C.init(six, nil)
+	ok := C.init(six, nil)
+	if ok != 1 {
+		return fmt.Errorf("`init` failed")
+	}
+
 	if C.is_initialized(six) != 1 {
 		return fmt.Errorf("Six not initialized")
 	}
