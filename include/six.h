@@ -24,6 +24,7 @@ public:
     virtual bool init(const char *pythonHome) = 0;
     virtual bool addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) = 0;
     virtual bool addModuleIntConst(six_module_t module, const char *name, long value) = 0;
+    virtual bool addPythonPath(const char *path) = 0;
     virtual six_gilstate_t GILEnsure() = 0;
     virtual void GILRelease(six_gilstate_t) = 0;
     virtual bool getCheck(const char *name, const char *init_config, const char *instances, SixPyObject *&check,
