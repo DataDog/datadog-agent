@@ -24,7 +24,6 @@ public:
     virtual bool init(const char *pythonHome) = 0;
     virtual bool addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) = 0;
     virtual bool addModuleIntConst(six_module_t module, const char *name, long value) = 0;
-    void setError(const std::string &msg);
     virtual six_gilstate_t GILEnsure() = 0;
     virtual void GILRelease(six_gilstate_t) = 0;
     virtual SixPyObject *getCheckClass(const char *module) = 0; // FIXME: not sure we need this
@@ -38,13 +37,14 @@ public:
     virtual SixPyObject *getNone() const = 0;
     const char *getError() const;
     bool hasError() const;
+    void setError(const std::string &msg) const; // let const methods set errors
 
 protected:
     const char *getExtensionModuleName(six_module_t m);
     const char *getUnknownModuleName();
 
 private:
-    std::string _error;
+    mutable std::string _error;
 };
 
 typedef Six *create_t();
