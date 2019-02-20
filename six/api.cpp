@@ -4,10 +4,11 @@
 // Copyright 2019 Datadog, Inc.
 #ifdef _WIN32
 #include <Windows.h>
-#endif
-#include <dlfcn.h>
 #include <iostream>
+#else
+#include <dlfcn.h>
 
+#endif
 
 #include <datadog_agent_six.h>
 #include <six.h>
@@ -38,10 +39,6 @@ static HMODULE six_backend = NULL;
 static void *six_backend = NULL;
 #endif
 
-void init(six_t* six, char* pythonHome)
-{
-    AS_TYPE(Six, six)->init(pythonHome);
-}
 #ifdef _WIN32
 
 six_t *make2()
@@ -81,7 +78,7 @@ six_t *make3()
 {
     // load the library
     six_backend = LoadLibraryA(DATADOG_AGENT_THREE);
-    if (!three) {
+    if (!six_backend) {
         std::cerr << "Unable to open 'three' library: " << GetLastError() << std::endl;
         return 0;
     }
@@ -99,7 +96,7 @@ six_t *make3()
 
 void destroy3(six_t* six)
 {
-    if (three) {
+    if (six_backend) {
         // dlsym object destructor
         destroy_t* destroy = (destroy_t*)GetProcAddress(six_backend, "destroy");
         

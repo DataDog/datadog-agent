@@ -1,5 +1,5 @@
 #if _WIN32
-static const char *_defaultPythonHome = "@Python3_STDLIB@/..";
+static const char *_defaultPythonHome = "@Python3_STDLIB@\\..";
 #else
 static const char *_defaultPythonHome = "@Python3_STDLIB@/../..";
 #endif

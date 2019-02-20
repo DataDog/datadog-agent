@@ -5,7 +5,7 @@
 #include "two.h"
 
 #include "constants.h"
-
+#include <winerror.h>
 #include <sstream>
 
 Two::~Two() { Py_Finalize(); }
@@ -342,7 +342,7 @@ const char *Two::runCheck(SixPyObject *check) {
         goto done;
     }
 
-    ret_copy = strdup(ret);
+    ret_copy = _strdup(ret);
 
 done:
     Py_XDECREF(result);

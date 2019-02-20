@@ -12,6 +12,21 @@
 #include <Python.h>
 #include <six.h>
 
+#ifndef DATADOG_AGENT_SIX_API
+#    ifdef DATADOG_AGENT_SIX_TEST
+#        define DATADOG_AGENT_SIX_API
+#    elif _WIN32
+#        define DATADOG_AGENT_SIX_API __declspec(dllexport)
+#    else
+#        if __GNUC__ >= 4
+#            define DATADOG_AGENT_SIX_API __attribute__((visibility("default")))
+#        else
+#            define DATADOG_AGENT_SIX_API
+#        endif
+#    endif
+#endif
+
+
 class Three : public Six {
 public:
     // Python module constants need to be added in the init callback after calling
@@ -56,9 +71,9 @@ private:
 extern "C" {
 #endif
 
-extern Six *create() { return new Three(); }
+extern  DATADOG_AGENT_SIX_API Six *  create() { return new Three(); }
 
-extern void destroy(Six *p) { delete p; }
+extern  DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
 
 #ifdef __cplusplus
 }
