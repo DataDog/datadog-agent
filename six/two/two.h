@@ -11,19 +11,6 @@
 #include <Python.h>
 #include <six.h>
 
-#ifndef DATADOG_AGENT_SIX_API
-#    ifdef DATADOG_AGENT_SIX_TEST
-#        define DATADOG_AGENT_SIX_API
-#    elif _WIN32
-#        define DATADOG_AGENT_SIX_API __declspec(dllexport)
-#    else
-#        if __GNUC__ >= 4
-#            define DATADOG_AGENT_SIX_API __attribute__((visibility("default")))
-#        else
-#            define DATADOG_AGENT_SIX_API
-#        endif
-#    endif
-#endif
 
 class Two : public Six {
 public:
@@ -69,15 +56,4 @@ private:
     PyPaths _pythonPaths;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
- DATADOG_AGENT_SIX_API Six *create() { return new Two(); }
-
- DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
-
-#ifdef __cplusplus
-}
-#endif
 #endif

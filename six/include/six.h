@@ -8,7 +8,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
-#include "types.h"
+#include "six_types.h"
 
 // Opaque type to wrap PyObject
 class SixPyObject {};
@@ -41,6 +41,7 @@ public:
     const char *getError() const;
     bool hasError() const;
     void setError(const std::string &msg) const; // let const methods set errors
+    void setError(const char *msg) const; 
 
 protected:
     const char *getExtensionModuleName(six_module_t m);

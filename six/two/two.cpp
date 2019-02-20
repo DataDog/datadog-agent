@@ -10,6 +10,9 @@
 #include <iostream>
 #include <sstream>
 
+extern "C" DATADOG_AGENT_SIX_API Six *create() { return new Two(); }
+extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
+
 Two::~Two() {
     Py_XDECREF(_baseClass);
     Py_Finalize();
@@ -57,11 +60,17 @@ bool Two::init(const char *pythonHome) {
     return true;
 }
 
-bool Two::isInitialized() const { return Py_IsInitialized(); }
+bool Two::isInitialized() const { 
+    return Py_IsInitialized(); 
+}
 
-const char *Two::getPyVersion() const { return Py_GetVersion(); }
+const char *Two::getPyVersion() const { 
+    return Py_GetVersion(); 
+}
 
-bool Two::runSimpleString(const char *code) const { return PyRun_SimpleString(code) == 0; }
+bool Two::runSimpleString(const char *code) const { 
+    return PyRun_SimpleString(code) == 0; 
+}
 
 bool Two::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getUnknownModuleName()) {
@@ -445,7 +454,7 @@ char *Two::_getCheckVersion(PyObject *module) const {
     // try getting module.__version__
     py_version = PyObject_GetAttrString(module, version_field);
     if (py_version != NULL && PyString_Check(py_version)) {
-        ret = strdup(PyString_AS_STRING(py_version));
+        ret = _strdup(PyString_AS_STRING(py_version));
         goto done;
     } else {
         // we expect __version__ might not be there, don't clutter the error stream
