@@ -6,6 +6,7 @@
 
 #include "constants.h"
 
+#include <algorithm>
 #include <sstream>
 
 Two::~Two() {
@@ -36,6 +37,17 @@ bool Two::init(const char *pythonHome) {
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
     PyEval_InitThreads();
+
+    // Set PYTHONPATH
+    if (_pythonPaths.size()) {
+        char pathchr[] = "path";
+        PyObject *path = PySys_GetObject(pathchr); // borrowed
+        for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
+            PyObject *p = PyString_FromString((*pit).c_str());
+            PyList_Append(path, p);
+            Py_XDECREF(p);
+        }
+    }
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.base.checks", "AgentCheck");
@@ -95,6 +107,14 @@ bool Two::addModuleIntConst(six_module_t module, const char *name, long value) {
 
     _module_constants[module].push_back(std::make_pair(std::string(name), value));
     return true;
+}
+
+bool Two::addPythonPath(const char *path) {
+    if (std::find(_pythonPaths.begin(), _pythonPaths.end(), path) == _pythonPaths.end()) {
+        _pythonPaths.push_back(path);
+        return true;
+    }
+    return false;
 }
 
 six_gilstate_t Two::GILEnsure() {

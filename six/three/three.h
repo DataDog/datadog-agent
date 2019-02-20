@@ -27,7 +27,7 @@ public:
     bool init(const char *pythonHome);
     bool addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
     bool addModuleIntConst(six_module_t module, const char *name, long value);
-
+    bool addPythonPath(const char *path) { return false; }
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
     bool getCheck(const char *module, const char *init_config, const char *instances, SixPyObject *&check,

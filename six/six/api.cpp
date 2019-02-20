@@ -110,6 +110,8 @@ int add_module_int_const(six_t *six, six_module_t module, const char *name, long
     return AS_TYPE(Six, six)->addModuleIntConst(module, name, value) ? 1 : 0;
 }
 
+int add_python_path(six_t *six, const char *path) { return AS_TYPE(Six, six)->addPythonPath(path) ? 1 : 0; }
+
 six_gilstate_t ensure_gil(six_t *six) { return AS_TYPE(Six, six)->GILEnsure(); }
 
 void release_gil(six_t *six, six_gilstate_t state) { AS_TYPE(Six, six)->GILRelease(state); }
