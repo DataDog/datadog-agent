@@ -27,8 +27,25 @@ const char *Six::getExtensionModuleName(six_module_t m) {
 
 const char *Six::getUnknownModuleName() { return datadog_agent_six_unknown; }
 
-void Six::setError(const std::string &msg) { _error = msg; }
+void Six::setError(const std::string &msg) const {
+    _errorFlag = true;
+    _error = msg;
+}
 
-const char *Six::getError() const { return _error.c_str(); }
+const char *Six::getError() const {
+    if (!_errorFlag) {
+        // error was already fetched, cleanup
+        _error = "";
+    } else {
+        _errorFlag = false;
+    }
 
-bool Six::hasError() const { return _error != ""; }
+    return _error.c_str();
+}
+
+bool Six::hasError() const { return _errorFlag; }
+
+void Six::clearError() {
+    _errorFlag = false;
+    _error = "";
+}
