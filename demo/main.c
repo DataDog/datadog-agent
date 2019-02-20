@@ -74,11 +74,11 @@ int main(int argc, char *argv[]) {
     add_module_int_const(six, DATADOG_AGENT_SIX__UTIL, "constant_number", 21);
 
     if (!init(six, python_home)) {
-        printf("Error initializing six");
+        printf("Error initializing six: %s\n", get_error(six));
         return 1;
     }
-    printf("Embedding Python version %s\n", get_py_version(six));
-    printf("\n");
+
+    printf("Embedding Python version %s\n\n", get_py_version(six));
 
     // run a script from file
     char *code = read_file("./demo/main.py");
