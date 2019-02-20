@@ -81,8 +81,8 @@ fi
 
 keyserver="hkp://keyserver.ubuntu.com:80"
 # the user specifies a custom key servers.
-if [ -n "$KEYSERVER" ]; then
-  keyserver=$KEYSERVER
+if [ -n "$DD_KEYSERVER" ]; then
+  keyserver=$DD_KEYSERVER
 fi
 # the user wants to use the backup keys server we've chosen,
 # overrides keyserver value.
