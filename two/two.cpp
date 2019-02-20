@@ -174,7 +174,8 @@ done:
     return reinterpret_cast<SixPyObject *>(klass);
 }
 
-SixPyObject *Two::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
+bool Two::getCheck(const char *module, const char *init_config_str, const char *instances_str, SixPyObject *&pycheck,
+                   char *&version) {
     PyObject *klass = NULL;
     PyObject *init_config = NULL;
     PyObject *instances = NULL;
@@ -227,10 +228,11 @@ done:
     Py_XDECREF(kwargs);
 
     if (check == NULL) {
-        return NULL;
+        return false;
     }
 
-    return reinterpret_cast<SixPyObject *>(check);
+    pycheck = reinterpret_cast<SixPyObject *>(check);
+    return true;
 }
 
 PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module) {

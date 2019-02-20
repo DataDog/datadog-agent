@@ -85,15 +85,22 @@ int main(int argc, char *argv[]) {
     run_simple_string(six, code);
 
     // load the Directory check if available
-    six_pyobject_t *check = get_check(six, "datadog_checks.directory", "", "[{directory: \"/\"}]");
-    if (check == NULL) {
+    char *version = NULL;
+    six_pyobject_t *check;
+
+    int ok = get_check(six, "datadog_checks.directory", "", "[{directory: \"/\"}]", &check, &version);
+    if (!ok) {
         if (has_error(six)) {
             printf("error loading check: %s\n", get_error(six));
         }
         return 1;
     }
 
-    printf("Successfully imported Directory integration.\n");
+    if (version != NULL) {
+        printf("Successfully imported Directory integration v%s.\n", version);
+    } else {
+        printf("Successfully imported Directory integration.\n");
+    }
 
     const char *result = run_check(six, check);
 

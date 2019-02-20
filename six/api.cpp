@@ -20,6 +20,7 @@
 #endif
 
 #define AS_TYPE(Type, Obj) reinterpret_cast<Type *>(Obj)
+#define AS_PTYPE(Type, Obj) reinterpret_cast<Type **>(Obj)
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
 
 static void *six_backend = NULL;
@@ -113,12 +114,9 @@ six_gilstate_t ensure_gil(six_t *six) { return AS_TYPE(Six, six)->GILEnsure(); }
 
 void release_gil(six_t *six, six_gilstate_t state) { AS_TYPE(Six, six)->GILRelease(state); }
 
-six_pyobject_t *get_check_class(six_t *six, const char *name) {
-    return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->getCheckClass(name));
-}
-
-six_pyobject_t *get_check(six_t *six, const char *name, const char *init_config, const char *instances) {
-    return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->getCheck(name, init_config, instances));
+int get_check(six_t *six, const char *name, const char *init_config, const char *instances, six_pyobject_t **check,
+              char **version) {
+    return AS_TYPE(Six, six)->getCheck(name, init_config, instances, *AS_PTYPE(SixPyObject, check), *version) ? 1 : 0;
 }
 
 const char *run_check(six_t *six, six_pyobject_t *check) {

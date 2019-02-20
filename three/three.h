@@ -20,7 +20,8 @@ public:
 
     Three()
         : _modules()
-        , _pythonHome(NULL) {};
+        , _pythonHome(NULL)
+        , _baseClass(NULL) {};
     ~Three();
 
     bool init(const char *pythonHome);
@@ -29,8 +30,8 @@ public:
 
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
-    SixPyObject *getCheckClass(const char *module);
-    SixPyObject *getCheck(const char *module, const char *init_config_str, const char *instances_str);
+    bool getCheck(const char *module, const char *init_config, const char *instances, SixPyObject *&check,
+                  char *&version);
     const char *runCheck(SixPyObject *check);
 
     // const API
@@ -42,14 +43,15 @@ public:
 private:
     PyObject *_importFrom(const char *module, const char *name);
     PyObject *_findSubclassOf(PyObject *base, PyObject *module);
-    PyObject *_getCheckClass(const char *module);
     std::string _fetchPythonError() const;
+    char *_getCheckVersion(PyObject *module) const;
 
     typedef std::vector<PyMethodDef> PyMethods;
     typedef std::map<six_module_t, PyMethods> PyModules;
 
     PyModules _modules;
     wchar_t *_pythonHome;
+    PyObject *_baseClass;
 };
 
 #ifdef __cplusplus
