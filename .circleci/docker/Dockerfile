@@ -11,7 +11,7 @@ RUN set -ex \
         gnupg ca-certificates \
         gcc g++ make git \
         wget \
-        python-dev python3.7-dev \
+        python-dev python3.7-dev python3-distutils \
         golang
 
 # Project dependencies
