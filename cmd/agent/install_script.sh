@@ -80,14 +80,10 @@ if [ -n "$DD_UPGRADE" ]; then
 fi
 
 keyserver="hkp://keyserver.ubuntu.com:80"
-# the user specifies a custom key servers.
+# use this env var to specify another keys server, such as
+# hkp://p80.pool.sks-keyservers.net:80 for example.
 if [ -n "$DD_KEYSERVER" ]; then
-  keyserver=$DD_KEYSERVER
-fi
-# the user wants to use the backup keys server we've chosen,
-# overrides keyserver value.
-if [ -n "$USE_APT_BACKUP_KEYSERVER" ]; then
-  keyserver="hkp://keyserver.cns.vt.edu:80"
+  keyserver="$DD_KEYSERVER"
 fi
 
 if [ ! $apikey ]; then
