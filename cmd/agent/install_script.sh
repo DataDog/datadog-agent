@@ -80,7 +80,7 @@ if [ -n "$DD_UPGRADE" ]; then
 fi
 
 keyserver="hkp://keyserver.ubuntu.com:80"
-# use this env var to specify another keys server, such as
+# use this env var to specify another key server, such as
 # hkp://p80.pool.sks-keyservers.net:80 for example.
 if [ -n "$DD_KEYSERVER" ]; then
   keyserver="$DD_KEYSERVER"
