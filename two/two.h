@@ -16,7 +16,8 @@ public:
     Two()
         : Six()
         , _modules()
-        , _module_constants() {};
+        , _module_constants()
+        , _baseClass(NULL) {};
     ~Two();
 
     bool init(const char *pythonHome);
@@ -46,6 +47,7 @@ private:
 
     PyModules _modules;
     PyModuleConstants _module_constants;
+    PyObject *_baseClass;
 };
 
 #ifdef __cplusplus

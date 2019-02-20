@@ -8,7 +8,10 @@
 
 #include <sstream>
 
-Two::~Two() { Py_Finalize(); }
+Two::~Two() {
+    Py_XDECREF(_baseClass);
+    Py_Finalize();
+}
 
 bool Two::init(const char *pythonHome) {
     if (pythonHome != NULL) {
@@ -33,6 +36,11 @@ bool Two::init(const char *pythonHome) {
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
     PyEval_InitThreads();
+
+    // import the base class
+    _baseClass = _importFrom("datadog_checks.base.checks", "AgentCheck");
+    return _baseClass != NULL;
+
     return true;
 }
 
@@ -132,17 +140,8 @@ error:
 }
 
 SixPyObject *Two::getCheckClass(const char *module) {
-    PyObject *base = NULL;
     PyObject *obj_module = NULL;
     PyObject *klass = NULL;
-
-    // import the base class
-    base = _importFrom("datadog_checks.base.checks", "AgentCheck");
-    if (base == NULL) {
-        std::string old_err = getError();
-        setError("Unable to import the base class: " + old_err);
-        goto done;
-    }
 
     // try to import python module containing the check
     obj_module = PyImport_ImportModule(module);
@@ -154,7 +153,7 @@ SixPyObject *Two::getCheckClass(const char *module) {
     }
 
     // find a subclass of the base check
-    klass = _findSubclassOf(base, obj_module);
+    klass = _findSubclassOf(_baseClass, obj_module);
     if (klass == NULL) {
         std::ostringstream err;
         err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
@@ -163,7 +162,6 @@ SixPyObject *Two::getCheckClass(const char *module) {
     }
 
 done:
-    Py_XDECREF(base);
     Py_XDECREF(obj_module);
     Py_XDECREF(klass);
 
