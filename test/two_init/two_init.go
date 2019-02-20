@@ -14,6 +14,9 @@ func init2() error {
 		return fmt.Errorf("`make2` failed")
 	}
 
+	// Updates sys.path so testing Check can be found
+	C.add_python_path(six, C.CString("../python"))
+
 	ok := C.init(six, nil)
 	if ok != 1 {
 		return fmt.Errorf("`init` failed")
