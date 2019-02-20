@@ -27,6 +27,7 @@
 #endif
 
 #define AS_TYPE(Type, Obj) reinterpret_cast<Type *>(Obj)
+#define AS_PTYPE(Type, Obj) reinterpret_cast<Type **>(Obj)
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
 
 
@@ -195,16 +196,15 @@ int add_module_int_const(six_t *six, six_module_t module, const char *name, long
     return AS_TYPE(Six, six)->addModuleIntConst(module, name, value) ? 1 : 0;
 }
 
+int add_python_path(six_t *six, const char *path) { return AS_TYPE(Six, six)->addPythonPath(path) ? 1 : 0; }
+
 six_gilstate_t ensure_gil(six_t *six) { return AS_TYPE(Six, six)->GILEnsure(); }
 
 void release_gil(six_t *six, six_gilstate_t state) { AS_TYPE(Six, six)->GILRelease(state); }
 
-six_pyobject_t *get_check_class(six_t *six, const char *name) {
-    return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->getCheckClass(name));
-}
-
-six_pyobject_t *get_check(six_t *six, const char *name, const char *init_config, const char *instances) {
-    return AS_TYPE(six_pyobject_t, AS_TYPE(Six, six)->getCheck(name, init_config, instances));
+int get_check(six_t *six, const char *name, const char *init_config, const char *instances, six_pyobject_t **check,
+              char **version) {
+    return AS_TYPE(Six, six)->getCheck(name, init_config, instances, *AS_PTYPE(SixPyObject, check), *version) ? 1 : 0;
 }
 
 const char *run_check(six_t *six, six_pyobject_t *check) {
@@ -214,3 +214,5 @@ const char *run_check(six_t *six, six_pyobject_t *check) {
 int has_error(const six_t *six) { return AS_CTYPE(Six, six)->hasError() ? 1 : 0; }
 
 const char *get_error(const six_t *six) { return AS_CTYPE(Six, six)->getError(); }
+
+void clear_error(six_t *six) { AS_TYPE(Six, six)->clearError(); }

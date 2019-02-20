@@ -5,10 +5,15 @@
 #include "two.h"
 
 #include "constants.h"
-#include <winerror.h>
+
+#include <algorithm>
+#include <iostream>
 #include <sstream>
 
-Two::~Two() { Py_Finalize(); }
+Two::~Two() {
+    Py_XDECREF(_baseClass);
+    Py_Finalize();
+}
 
 bool Two::init(const char *pythonHome) {
     if (pythonHome != NULL) {
@@ -33,6 +38,22 @@ bool Two::init(const char *pythonHome) {
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
     PyEval_InitThreads();
+
+    // Set PYTHONPATH
+    if (_pythonPaths.size()) {
+        char pathchr[] = "path";
+        PyObject *path = PySys_GetObject(pathchr); // borrowed
+        for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
+            PyObject *p = PyString_FromString((*pit).c_str());
+            PyList_Append(path, p);
+            Py_XDECREF(p);
+        }
+    }
+
+    // import the base class
+    _baseClass = _importFrom("datadog_checks.base.checks", "AgentCheck");
+    return _baseClass != NULL;
+
     return true;
 }
 
@@ -89,6 +110,14 @@ bool Two::addModuleIntConst(six_module_t module, const char *name, long value) {
     return true;
 }
 
+bool Two::addPythonPath(const char *path) {
+    if (std::find(_pythonPaths.begin(), _pythonPaths.end(), path) == _pythonPaths.end()) {
+        _pythonPaths.push_back(path);
+        return true;
+    }
+    return false;
+}
+
 six_gilstate_t Two::GILEnsure() {
     PyGILState_STATE state = PyGILState_Ensure();
     if (state == PyGILState_LOCKED) {
@@ -132,17 +161,32 @@ error:
 }
 
 SixPyObject *Two::getCheckClass(const char *module) {
-    PyObject *base = NULL;
     PyObject *obj_module = NULL;
     PyObject *klass = NULL;
 
-    // import the base class
-    base = _importFrom("datadog_checks.base.checks", "AgentCheck");
-    if (base == NULL) {
-        std::string old_err = getError();
-        setError("Unable to import the base class: " + old_err);
-        goto done;
+done:
+    Py_XDECREF(obj_module);
+    Py_XDECREF(klass);
+
+    if (klass == NULL) {
+        return NULL;
     }
+
+    return reinterpret_cast<SixPyObject *>(klass);
+}
+
+bool Two::getCheck(const char *module, const char *init_config_str, const char *instances_str, SixPyObject *&pycheck,
+                   char *&version) {
+    PyObject *obj_module = NULL;
+    PyObject *klass = NULL;
+    PyObject *init_config = NULL;
+    PyObject *instances = NULL;
+    PyObject *check = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+
+    char load_config[] = "load_config";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
 
     // try to import python module containing the check
     obj_module = PyImport_ImportModule(module);
@@ -154,7 +198,7 @@ SixPyObject *Two::getCheckClass(const char *module) {
     }
 
     // find a subclass of the base check
-    klass = _findSubclassOf(base, obj_module);
+    klass = _findSubclassOf(_baseClass, obj_module);
     if (klass == NULL) {
         std::ostringstream err;
         err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
@@ -162,35 +206,8 @@ SixPyObject *Two::getCheckClass(const char *module) {
         goto done;
     }
 
-done:
-    Py_XDECREF(base);
-    Py_XDECREF(obj_module);
-    Py_XDECREF(klass);
-
-    if (klass == NULL) {
-        return NULL;
-    }
-
-    return reinterpret_cast<SixPyObject *>(klass);
-}
-
-SixPyObject *Two::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
-    PyObject *klass = NULL;
-    PyObject *init_config = NULL;
-    PyObject *instances = NULL;
-    PyObject *check = NULL;
-    PyObject *args = NULL;
-    PyObject *kwargs = NULL;
-
-    char load_config[] = "load_config";
-    char format[] = "(s)"; // use parentheses to force Tuple creation
-
-    // Gets Check class from module
-    klass = reinterpret_cast<PyObject *>(getCheckClass(module));
-    if (klass == NULL) {
-        // Error is already set by getCheckClass if class is not found
-        goto done;
-    }
+    // try to get Check version
+    version = _getCheckVersion(obj_module);
 
     // call `AgentCheck.load_config(init_config)`
     init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
@@ -220,6 +237,7 @@ SixPyObject *Two::getCheck(const char *module, const char *init_config_str, cons
     }
 
 done:
+    Py_XDECREF(obj_module);
     Py_XDECREF(klass);
     Py_XDECREF(init_config);
     Py_XDECREF(instances);
@@ -227,10 +245,11 @@ done:
     Py_XDECREF(kwargs);
 
     if (check == NULL) {
-        return NULL;
+        return false;
     }
 
-    return reinterpret_cast<SixPyObject *>(check);
+    pycheck = reinterpret_cast<SixPyObject *>(check);
+    return true;
 }
 
 PyObject *Two::_findSubclassOf(PyObject *base, PyObject *module) {
@@ -412,4 +431,28 @@ std::string Two::_fetchPythonError() {
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);
     return ret_val;
+}
+
+char *Two::_getCheckVersion(PyObject *module) const {
+    if (module == NULL) {
+        return NULL;
+    }
+
+    char *ret = NULL;
+    PyObject *py_version = NULL;
+    char version_field[] = "__version__";
+
+    // try getting module.__version__
+    py_version = PyObject_GetAttrString(module, version_field);
+    if (py_version != NULL && PyString_Check(py_version)) {
+        ret = strdup(PyString_AS_STRING(py_version));
+        goto done;
+    } else {
+        // we expect __version__ might not be there, don't clutter the error stream
+        PyErr_Clear();
+    }
+
+done:
+    Py_XDECREF(py_version);
+    return ret;
 }
