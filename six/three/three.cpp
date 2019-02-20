@@ -409,7 +409,7 @@ done:
     return klass;
 }
 
-std::string Three::_fetchPythonError() {
+std::string Three::_fetchPythonError() const {
     std::string ret_val = "";
 
     if (PyErr_Occurred() == NULL) {
