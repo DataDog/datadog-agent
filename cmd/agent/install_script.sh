@@ -79,9 +79,15 @@ if [ -n "$DD_UPGRADE" ]; then
   dd_upgrade=$DD_UPGRADE
 fi
 
-use_apt_backup_keyserver=
+keyserver="hkp://keyserver.ubuntu.com:80"
+# the user specifies a custom key servers.
+if [ -n "$KEYSERVER" ]; then
+  keyserver=$KEYSERVER
+fi
+# the user wants to use the backup keys server we've chosen,
+# overrides keyserver value.
 if [ -n "$USE_APT_BACKUP_KEYSERVER" ]; then
-  use_apt_backup_keyserver=$USE_APT_BACKUP_KEYSERVER
+  keyserver="hkp://keyserver.cns.vt.edu:80"
 fi
 
 if [ ! $apikey ]; then
@@ -142,11 +148,6 @@ if [ $OS = "RedHat" ]; then
     $sudo_cmd yum -y clean metadata
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install datadog-agent || $sudo_cmd yum -y install datadog-agent
 elif [ $OS = "Debian" ]; then
-
-    keyserver="hkp://keyserver.ubuntu.com:80"
-    if [ $use_apt_backup_keyserver ]; then
-        keyserver="hkp://pool.sks-keyservers.net:80"
-    fi
 
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
