@@ -2,8 +2,12 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 #include <dlfcn.h>
 #include <iostream>
+
 
 #include <datadog_agent_six.h>
 #include <six.h>
@@ -15,6 +19,8 @@
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
 #elif _WIN32
+#define DATADOG_AGENT_TWO "datadog-agent-two.dll"
+#define DATADOG_AGENT_THREE "datadog-agent-three.dll"
 #else
 #    error Platform not supported
 #endif
@@ -22,14 +28,96 @@
 #define AS_TYPE(Type, Obj) reinterpret_cast<Type *>(Obj)
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
 
-static void *six_backend = NULL;
 
-six_t *make2() {
+
+
+
+#ifdef _WIN32
+static HMODULE six_backend = NULL;
+#else
+static void *six_backend = NULL;
+#endif
+
+void init(six_t* six, char* pythonHome)
+{
+    AS_TYPE(Six, six)->init(pythonHome);
+}
+#ifdef _WIN32
+
+six_t *make2()
+{
+    // load library
+    six_backend = LoadLibraryA(DATADOG_AGENT_TWO);
+    if (!six_backend) {
+        std::cerr << "Unable to open 'two' library: " << GetLastError() << std::endl;
+        return 0;
+    }
+
+
+    // dlsym class factory
+    create_t* create = (create_t*)GetProcAddress(six_backend, "create");
+    if (!create) {
+        std::cerr << "Unable to open 'two' factory: " << GetLastError() << std::endl;
+        return 0;
+    }
+
+    return AS_TYPE(six_t, create());
+}
+
+void destroy2(six_t* six)
+{
+    if (six_backend) {
+        // dlsym object destructor
+        destroy_t* destroy = (destroy_t*)GetProcAddress(six_backend, "destroy");
+        if (!destroy) {
+            std::cerr << "Unable to open 'two' destructor: " << GetLastError() << std::endl;
+            return;
+        }
+        destroy(AS_TYPE(Six, six));
+    }
+}
+
+six_t *make3()
+{
+    // load the library
+    six_backend = LoadLibraryA(DATADOG_AGENT_THREE);
+    if (!three) {
+        std::cerr << "Unable to open 'three' library: " << GetLastError() << std::endl;
+        return 0;
+    }
+
+
+    // dlsym class factory
+    create_t* create_three = (create_t*)GetProcAddress(six_backend, "create");
+    if (!create_three) {
+        std::cerr << "Unable to open 'three' factory: " << GetLastError() << std::endl;
+        return 0;
+    }
+
+    return AS_TYPE(six_t, create_three());
+}
+
+void destroy3(six_t* six)
+{
+    if (three) {
+        // dlsym object destructor
+        destroy_t* destroy = (destroy_t*)GetProcAddress(six_backend, "destroy");
+        
+        if (!destroy) {
+            std::cerr << "Unable to open 'three' destructor: " << GetLastError() << std::endl;
+            return;
+        }
+        destroy(AS_TYPE(Six, six));
+    }
+}
+
+#else
+six_t *make2()
+{
     if (six_backend != NULL) {
         std::cerr << "Six alrady initialized!" << std::endl;
         return NULL;
     }
-
     // load library
     six_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY | RTLD_GLOBAL);
     if (!six_backend) {
@@ -90,6 +178,7 @@ void destroy(six_t *six) {
         destroy(AS_TYPE(Six, six));
     }
 }
+#endif
 
 int init(six_t *six, char *pythonHome) { return AS_TYPE(Six, six)->init(pythonHome) ? 1 : 0; }
 
