@@ -128,3 +128,5 @@ const char *run_check(six_t *six, six_pyobject_t *check) {
 int has_error(const six_t *six) { return AS_CTYPE(Six, six)->hasError() ? 1 : 0; }
 
 const char *get_error(const six_t *six) { return AS_CTYPE(Six, six)->getError(); }
+
+void clear_error(six_t *six) { AS_TYPE(Six, six)->clearError(); }

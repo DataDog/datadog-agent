@@ -17,7 +17,8 @@ class SixPyObject {};
 class Six {
 public:
     Six()
-        : _error() {};
+        : _error()
+        , _errorFlag(false) {};
     virtual ~Six() {};
 
     // Public API
@@ -31,6 +32,7 @@ public:
                           char *&version)
         = 0;
     virtual const char *runCheck(SixPyObject *check) = 0;
+    void clearError();
 
     // Public Const API
     virtual bool isInitialized() const = 0;
@@ -47,6 +49,7 @@ protected:
 
 private:
     mutable std::string _error;
+    mutable bool _errorFlag;
 };
 
 typedef Six *create_t();
