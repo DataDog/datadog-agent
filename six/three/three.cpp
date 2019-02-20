@@ -5,7 +5,9 @@
 #include "constants.h"
 #include "three.h"
 
+#include <algorithm>
 #include <sstream>
+
 PyModuleConstants Three::ModuleConstants;
 
 // we only populate the fields `m_base` and `m_name`, we don't need any of the
@@ -81,6 +83,17 @@ bool Three::init(const char *pythonHome) {
     Py_SetPythonHome(_pythonHome);
     Py_Initialize();
 
+    // Set PYTHONPATH
+    if (_pythonPaths.size()) {
+        char pathchr[] = "path";
+        PyObject *path = PySys_GetObject(pathchr); // borrowed
+        for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
+            PyObject *p = PyUnicode_FromString((*pit).c_str());
+            PyList_Append(path, p);
+            Py_XDECREF(p);
+        }
+    }
+
     // load the base class
     _baseClass = _importFrom("datadog_checks.base.checks", "AgentCheck");
 
@@ -135,6 +148,14 @@ bool Three::addModuleIntConst(six_module_t moduleID, const char *name, long valu
 
     ModuleConstants[moduleID].push_back(std::make_pair(std::string(name), value));
     return true;
+}
+
+bool Three::addPythonPath(const char *path) {
+    if (std::find(_pythonPaths.begin(), _pythonPaths.end(), path) == _pythonPaths.end()) {
+        _pythonPaths.push_back(path);
+        return true;
+    }
+    return false;
 }
 
 six_gilstate_t Three::GILEnsure() {
