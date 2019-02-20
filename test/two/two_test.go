@@ -53,10 +53,14 @@ func TestHasError(t *testing.T) {
 }
 
 func TestGetCheckAgent(t *testing.T) {
-	err := getFakeCheck()
+	version, err := getFakeCheck()
 
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if version != "0.4.2" {
+		t.Fatalf("expected version '0.4.2', found '%s'", version)
 	}
 }
 
@@ -69,21 +73,5 @@ func TestRunCheck(t *testing.T) {
 
 	if res != "" {
 		t.Fatal(res)
-	}
-}
-
-func TestGetCheckClassOk(t *testing.T) {
-	err := getCheckClass("fake_check")
-
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestGetCheckClassKo(t *testing.T) {
-	err := getCheckClass("unexisting_module")
-
-	if err == nil {
-		t.Fatal("Module was expected not to exist")
 	}
 }

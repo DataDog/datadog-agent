@@ -2,10 +2,13 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
-#include "constants.h"
 #include "three.h"
 
+#include "constants.h"
+
+#include <algorithm>
 #include <sstream>
+
 PyModuleConstants Three::ModuleConstants;
 
 // we only populate the fields `m_base` and `m_name`, we don't need any of the
@@ -54,6 +57,7 @@ Three::~Three() {
     if (_pythonHome) {
         PyMem_RawFree((void *)_pythonHome);
     }
+    Py_XDECREF(_baseClass);
     Py_Finalize();
     ModuleConstants.clear();
 }
@@ -80,7 +84,21 @@ bool Three::init(const char *pythonHome) {
     Py_SetPythonHome(_pythonHome);
     Py_Initialize();
 
-    return true;
+    // Set PYTHONPATH
+    if (_pythonPaths.size()) {
+        char pathchr[] = "path";
+        PyObject *path = PySys_GetObject(pathchr); // borrowed
+        for (PyPaths::iterator pit = _pythonPaths.begin(); pit != _pythonPaths.end(); ++pit) {
+            PyObject *p = PyUnicode_FromString((*pit).c_str());
+            PyList_Append(path, p);
+            Py_XDECREF(p);
+        }
+    }
+
+    // load the base class
+    _baseClass = _importFrom("datadog_checks.base.checks", "AgentCheck");
+
+    return _baseClass != NULL;
 }
 
 bool Three::isInitialized() const { return Py_IsInitialized(); }
@@ -133,6 +151,14 @@ bool Three::addModuleIntConst(six_module_t moduleID, const char *name, long valu
     return true;
 }
 
+bool Three::addPythonPath(const char *path) {
+    if (std::find(_pythonPaths.begin(), _pythonPaths.end(), path) == _pythonPaths.end()) {
+        _pythonPaths.push_back(path);
+        return true;
+    }
+    return false;
+}
+
 six_gilstate_t Three::GILEnsure() {
     PyGILState_STATE state = PyGILState_Ensure();
     if (state == PyGILState_LOCKED) {
@@ -149,54 +175,9 @@ void Three::GILRelease(six_gilstate_t state) {
     }
 }
 
-SixPyObject *Three::getCheckClass(const char *module) {
-    PyObject *klass = _getCheckClass(module);
-    if (klass != NULL) {
-        return reinterpret_cast<SixPyObject *>(klass);
-    }
-
-    return NULL;
-}
-
-PyObject *Three::_getCheckClass(const char *module) {
-    PyObject *base = NULL;
+bool Three::getCheck(const char *module, const char *init_config_str, const char *instances_str, SixPyObject *&pycheck,
+                     char *&version) {
     PyObject *obj_module = NULL;
-    PyObject *klass = NULL;
-
-    base = _importFrom("datadog_checks.base.checks", "AgentCheck");
-    if (base == NULL) {
-        std::ostringstream err;
-        err << "unable to import the base class: " << getError();
-        setError(err.str());
-        goto done;
-    }
-
-    obj_module = PyImport_ImportModule(module);
-    if (obj_module == NULL) {
-        std::ostringstream err;
-        err << "unable to import module '" << module << "': " + _fetchPythonError();
-        setError(err.str());
-        goto done;
-    }
-
-    // find a subclass of the base check
-    klass = _findSubclassOf(base, obj_module);
-    if (klass == NULL) {
-        std::ostringstream err;
-        err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
-        setError(err.str());
-        goto done;
-    }
-
-done:
-    Py_XDECREF(base);
-    Py_XDECREF(obj_module);
-    Py_XDECREF(klass);
-
-    return klass;
-}
-
-SixPyObject *Three::getCheck(const char *module, const char *init_config_str, const char *instances_str) {
     PyObject *klass = NULL;
     PyObject *init_config = NULL;
     PyObject *instances = NULL;
@@ -207,12 +188,25 @@ SixPyObject *Three::getCheck(const char *module, const char *init_config_str, co
     char load_config[] = "load_config";
     char format[] = "(s)";
 
-    // Gets Check class from module
-    klass = _getCheckClass(module);
-    if (klass == NULL) {
-        // Error is already set by getCheckClass if class is not found
+    obj_module = PyImport_ImportModule(module);
+    if (obj_module == NULL) {
+        std::ostringstream err;
+        err << "unable to import module '" << module << "': " + _fetchPythonError();
+        setError(err.str());
         goto done;
     }
+
+    // find a subclass of the base check
+    klass = _findSubclassOf(_baseClass, obj_module);
+    if (klass == NULL) {
+        std::ostringstream err;
+        err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
+        setError(err.str());
+        goto done;
+    }
+
+    // try to get Check version
+    version = _getCheckVersion(obj_module);
 
     // call `AgentCheck.load_config(init_config)`
     init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
@@ -242,6 +236,7 @@ SixPyObject *Three::getCheck(const char *module, const char *init_config_str, co
     }
 
 done:
+    Py_XDECREF(obj_module);
     Py_XDECREF(klass);
     Py_XDECREF(init_config);
     Py_XDECREF(instances);
@@ -249,10 +244,11 @@ done:
     Py_XDECREF(kwargs);
 
     if (check == NULL) {
-        return NULL;
+        return false;
     }
 
-    return reinterpret_cast<SixPyObject *>(check);
+    pycheck = reinterpret_cast<SixPyObject *>(check);
+    return true;
 }
 
 const char *Three::runCheck(SixPyObject *check) {
@@ -409,7 +405,7 @@ done:
     return klass;
 }
 
-std::string Three::_fetchPythonError() {
+std::string Three::_fetchPythonError() const {
     std::string ret_val = "";
 
     if (PyErr_Occurred() == NULL) {
@@ -478,4 +474,36 @@ std::string Three::_fetchPythonError() {
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);
     return ret_val;
+}
+
+char *Three::_getCheckVersion(PyObject *module) const {
+    if (module == NULL) {
+        return NULL;
+    }
+
+    char *ret = NULL;
+    PyObject *py_version = NULL;
+    PyObject *py_version_bytes = NULL;
+    char version_field[] = "__version__";
+
+    // try getting module.__version__
+    py_version = PyObject_GetAttrString(module, version_field);
+    if (py_version != NULL && PyUnicode_Check(py_version)) {
+        py_version_bytes = PyUnicode_AsEncodedString(py_version, "UTF-8", "strict");
+        if (py_version_bytes == NULL) {
+            setError("error converting __version__ to string: " + _fetchPythonError());
+            ret = NULL;
+            goto done;
+        }
+        ret = strdup(PyBytes_AsString(py_version_bytes));
+        goto done;
+    } else {
+        // we expect __version__ might not be there, don't clutter the error stream
+        PyErr_Clear();
+    }
+
+done:
+    Py_XDECREF(py_version);
+    Py_XDECREF(py_version_bytes);
+    return ret;
 }

@@ -16,19 +16,22 @@ class SixPyObject {};
 class Six {
 public:
     Six()
-        : _error() {};
+        : _error()
+        , _errorFlag(false) {};
     virtual ~Six() {};
 
     // Public API
     virtual bool init(const char *pythonHome) = 0;
     virtual bool addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) = 0;
     virtual bool addModuleIntConst(six_module_t module, const char *name, long value) = 0;
-    void setError(const std::string &msg);
+    virtual bool addPythonPath(const char *path) = 0;
     virtual six_gilstate_t GILEnsure() = 0;
     virtual void GILRelease(six_gilstate_t) = 0;
-    virtual SixPyObject *getCheckClass(const char *module) = 0; // FIXME: not sure we need this
-    virtual SixPyObject *getCheck(const char *name, const char *init_config, const char *instances) = 0;
+    virtual bool getCheck(const char *name, const char *init_config, const char *instances, SixPyObject *&check,
+                          char *&version)
+        = 0;
     virtual const char *runCheck(SixPyObject *check) = 0;
+    void clearError();
 
     // Public Const API
     virtual bool isInitialized() const = 0;
@@ -37,13 +40,15 @@ public:
     virtual SixPyObject *getNone() const = 0;
     const char *getError() const;
     bool hasError() const;
+    void setError(const std::string &msg) const; // let const methods set errors
 
 protected:
     const char *getExtensionModuleName(six_module_t m);
     const char *getUnknownModuleName();
 
 private:
-    std::string _error;
+    mutable std::string _error;
+    mutable bool _errorFlag;
 };
 
 typedef Six *create_t();
