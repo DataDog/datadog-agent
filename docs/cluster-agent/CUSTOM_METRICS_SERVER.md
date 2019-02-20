@@ -185,6 +185,20 @@ default     nginxext   Deployment/nginx   30/9 (avg)     1         3         3  
 
 Voilà.
 
+### Sparse Metrics
+
+If you want to use sparse metrics in your HPA manifest (AWS metrics for example), you might need to adjust the bucket size and the maximum age used to query the metrics.
+If these values are too low, the metrics will not be valid as no data point will be returned.
+
+You can adjust these values by using the following env vars in your manifest:
+
+```
+- name: DD_EXTERNAL_METRICS_PROVIDER_MAX_AGE
+  value: "1500"
+- name: DD_EXTERNAL_METRICS_PROVIDER_BUCKET_SIZE
+  value: "1500"
+```
+
 ### Troubleshooting
 
 - Make sure you have the Aggregation layer and the certificates set up as per the requirements section.
