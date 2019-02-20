@@ -143,6 +143,30 @@ SixPyObject *Two::getCheckClass(const char *module) {
     PyObject *obj_module = NULL;
     PyObject *klass = NULL;
 
+done:
+    Py_XDECREF(obj_module);
+    Py_XDECREF(klass);
+
+    if (klass == NULL) {
+        return NULL;
+    }
+
+    return reinterpret_cast<SixPyObject *>(klass);
+}
+
+bool Two::getCheck(const char *module, const char *init_config_str, const char *instances_str, SixPyObject *&pycheck,
+                   char *&version) {
+    PyObject *obj_module = NULL;
+    PyObject *klass = NULL;
+    PyObject *init_config = NULL;
+    PyObject *instances = NULL;
+    PyObject *check = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+
+    char load_config[] = "load_config";
+    char format[] = "(s)"; // use parentheses to force Tuple creation
+
     // try to import python module containing the check
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
@@ -161,35 +185,8 @@ SixPyObject *Two::getCheckClass(const char *module) {
         goto done;
     }
 
-done:
-    Py_XDECREF(obj_module);
-    Py_XDECREF(klass);
-
-    if (klass == NULL) {
-        return NULL;
-    }
-
-    return reinterpret_cast<SixPyObject *>(klass);
-}
-
-bool Two::getCheck(const char *module, const char *init_config_str, const char *instances_str, SixPyObject *&pycheck,
-                   char *&version) {
-    PyObject *klass = NULL;
-    PyObject *init_config = NULL;
-    PyObject *instances = NULL;
-    PyObject *check = NULL;
-    PyObject *args = NULL;
-    PyObject *kwargs = NULL;
-
-    char load_config[] = "load_config";
-    char format[] = "(s)"; // use parentheses to force Tuple creation
-
-    // Gets Check class from module
-    klass = reinterpret_cast<PyObject *>(getCheckClass(module));
-    if (klass == NULL) {
-        // Error is already set by getCheckClass if class is not found
-        goto done;
-    }
+    // try to get Check version
+    version = _getCheckVersion(obj_module);
 
     // call `AgentCheck.load_config(init_config)`
     init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
@@ -219,6 +216,7 @@ bool Two::getCheck(const char *module, const char *init_config_str, const char *
     }
 
 done:
+    Py_XDECREF(obj_module);
     Py_XDECREF(klass);
     Py_XDECREF(init_config);
     Py_XDECREF(instances);
@@ -412,4 +410,28 @@ std::string Two::_fetchPythonError() {
     Py_XDECREF(pvalue);
     Py_XDECREF(ptraceback);
     return ret_val;
+}
+
+char *Two::_getCheckVersion(PyObject *module) const {
+    if (module == NULL) {
+        return NULL;
+    }
+
+    char *ret = NULL;
+    PyObject *py_version = NULL;
+    char version_field[] = "__version__";
+
+    // try getting module.__version__
+    py_version = PyObject_GetAttrString(module, version_field);
+    if (py_version != NULL && PyString_Check(py_version)) {
+        ret = PyString_AS_STRING(py_version);
+        goto done;
+    } else {
+        // we expect __version__ might not be there, don't clutter the error stream
+        PyErr_Clear();
+    }
+
+done:
+    Py_XDECREF(py_version);
+    return ret;
 }
