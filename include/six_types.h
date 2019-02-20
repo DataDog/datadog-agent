@@ -9,7 +9,24 @@
 extern "C" {
 #endif
 
-typedef enum six_gilstate_e { DATADOG_AGENT_SIX_GIL_LOCKED, DATADOG_AGENT_SIX_GIL_UNLOCKED } six_gilstate_t;
+#ifndef DATADOG_AGENT_SIX_API
+#    ifdef DATADOG_AGENT_SIX_TEST
+#        define DATADOG_AGENT_SIX_API
+#    elif _WIN32
+#        define DATADOG_AGENT_SIX_API __declspec(dllexport)
+#    else
+#        if __GNUC__ >= 4
+#            define DATADOG_AGENT_SIX_API __attribute__((visibility("default")))
+#        else
+#            define DATADOG_AGENT_SIX_API
+#        endif
+#    endif
+#endif
+
+typedef enum six_gilstate_e { 
+    DATADOG_AGENT_SIX_GIL_LOCKED, 
+    DATADOG_AGENT_SIX_GIL_UNLOCKED 
+} six_gilstate_t;
 
 typedef enum six_module_func_e {
     DATADOG_AGENT_SIX_NOARGS,

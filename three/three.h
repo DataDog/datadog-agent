@@ -72,15 +72,4 @@ private:
     PyPaths _pythonPaths;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern  DATADOG_AGENT_SIX_API Six *  create() { return new Three(); }
-
-extern  DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
-
-#ifdef __cplusplus
-}
-#endif
 #endif

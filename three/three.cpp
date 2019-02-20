@@ -9,6 +9,11 @@
 #include <algorithm>
 #include <sstream>
 
+extern "C" DATADOG_AGENT_SIX_API Six *  create() { return new Three(); }
+
+extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
+
+
 PyModuleConstants Three::ModuleConstants;
 
 // we only populate the fields `m_base` and `m_name`, we don't need any of the
@@ -101,9 +106,17 @@ bool Three::init(const char *pythonHome) {
     return _baseClass != NULL;
 }
 
-bool Three::isInitialized() const { return Py_IsInitialized(); }
-const char *Three::getPyVersion() const { return Py_GetVersion(); }
-bool Three::runSimpleString(const char *code) const { return PyRun_SimpleString(code) == 0; }
+bool Three::isInitialized() const { 
+    return Py_IsInitialized(); 
+}
+
+const char *Three::getPyVersion() const { 
+    return Py_GetVersion(); 
+}
+
+bool Three::runSimpleString(const char *code) const { 
+    return PyRun_SimpleString(code) == 0; 
+}
 
 bool Three::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
     if (getExtensionModuleName(module) == getUnknownModuleName()) {
@@ -251,6 +264,7 @@ done:
     return true;
 }
 
+// 
 const char *Three::runCheck(SixPyObject *check) {
     if (check == NULL) {
         return NULL;
@@ -332,13 +346,13 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
     PyObject *klass = NULL;
     for (int i = 0; i < PyList_GET_SIZE(dir); i++) {
         // get symbol name
-        char *symbol_name;
+        std::string symbol_name;
         PyObject *symbol = PyList_GetItem(dir, i);
         if (symbol != NULL) {
             PyObject *bytes = PyUnicode_AsEncodedString(symbol, "UTF-8", "strict");
 
             if (bytes != NULL) {
-                symbol_name = _strdup(PyBytes_AsString(bytes));
+                symbol_name = PyBytes_AsString(bytes);
                 Py_XDECREF(bytes);
             } else {
                 continue;
@@ -349,11 +363,11 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
 
             // Clears exception and sets error
             PyException_SetTraceback(PyExc_IndexError, Py_None);
-            setError(_strdup(PyBytes_AsString(reason)));
+            setError((const char*)PyBytes_AsString(reason));
             goto done;
         }
 
-        klass = PyObject_GetAttrString(module, symbol_name);
+        klass = PyObject_GetAttrString(module, symbol_name.c_str());
         if (klass == NULL) {
             continue;
         }
@@ -495,7 +509,7 @@ char *Three::_getCheckVersion(PyObject *module) const {
             ret = NULL;
             goto done;
         }
-        ret = strdup(PyBytes_AsString(py_version_bytes));
+        ret = _strdup(PyBytes_AsString(py_version_bytes));
         goto done;
     } else {
         // we expect __version__ might not be there, don't clutter the error stream
