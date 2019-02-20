@@ -25,7 +25,8 @@ public:
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
     SixPyObject *getCheckClass(const char *module);
-    SixPyObject *getCheck(const char *module, const char *init_config, const char *instances);
+    bool getCheck(const char *module, const char *init_config, const char *instances, SixPyObject *&check,
+                  char *&version);
     const char *runCheck(SixPyObject *check);
 
     // const API
