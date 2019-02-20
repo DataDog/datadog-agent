@@ -8,7 +8,6 @@
 #include <mutex>
 #include <string>
 #include <vector>
-
 #include "types.h"
 
 // Opaque type to wrap PyObject
@@ -52,5 +51,10 @@ typedef void destroy_t(Six *);
 
 typedef std::pair<std::string, long> PyModuleConst;
 typedef std::map<six_module_t, std::vector<PyModuleConst> > PyModuleConstants;
+
+#ifndef WIN32
+#define _strdup(x)  strdup(x)
+#endif
+
 
 #endif
