@@ -15,3 +15,7 @@ jobs:
           command: |
             make clang-format
             [[ $(git ls-files -m | wc -l) -eq 0 ]]
+      - run:
+          name: Test
+          command: |
+            make -C test
