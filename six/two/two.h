@@ -17,7 +17,8 @@ public:
         : Six()
         , _modules()
         , _module_constants()
-        , _baseClass(NULL) {};
+        , _baseClass(NULL)
+        , _pythonPaths() {};
     ~Two();
 
     bool init(const char *pythonHome);
