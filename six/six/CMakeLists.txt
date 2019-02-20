@@ -17,7 +17,7 @@ target_include_directories(datadog-agent-six PUBLIC
     ${CMAKE_SOURCE_DIR}/include
 )
 find_library( LIBdl dl )
-install(TARGETS datadog-agent-six
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+#install(TARGETS datadog-agent-six
+#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+#)
