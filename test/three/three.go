@@ -20,13 +20,12 @@ func setUp() error {
 		return fmt.Errorf("`make3` failed")
 	}
 
-	C.init(six, nil)
+	// Updates sys.path so testing Check can be found
+	C.add_python_path(six, C.CString("../python"))
 
-	// Updates sys.path so Agent for testing can be found
-	code := C.CString("import sys; sys.path.insert(0, '../python/')")
-	success := C.run_simple_string(six, code)
-	if success != 0 {
-		return fmt.Errorf("setUp test failed")
+	ok := C.init(six, nil)
+	if ok != 1 {
+		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
 
 	return nil
@@ -47,7 +46,7 @@ func runString(code string) (string, error) {
 	var err error
 	var output []byte
 	output, err = common.Capture(func() {
-		ret = C.run_simple_string(six, C.CString(code)) == 0
+		ret = C.run_simple_string(six, C.CString(code)) == 1
 	})
 
 	if err != nil {
@@ -63,38 +62,39 @@ func runString(code string) (string, error) {
 
 func getError() string {
 	// following is supposed to raise an error
-	C.get_check(six, C.CString("foo"), C.CString(""), C.CString("[{foo: \"/\"}]"))
+	C.get_check(six, C.CString("foo"), C.CString(""), C.CString("[{foo: \"/\"}]"), nil, nil)
 	return C.GoString(C.get_error(six))
 }
 
 func hasError() bool {
 	// following is supposed to raise an error
-	C.get_check(six, C.CString("foo"), C.CString(""), C.CString("[{foo: \"/\"}]"))
-	return C.has_error(six) == 1
+	C.get_check(six, C.CString("foo"), C.CString(""), C.CString("[{foo: \"/\"}]"), nil, nil)
+	ret := C.has_error(six) == 1
+	C.clear_error(six)
+	return ret
 }
 
-func getFakeCheck() error {
-	ret := C.get_check(six, C.CString("fake_agent"), C.CString(""), C.CString("[{fake_agent: \"/\"}]"))
+func getFakeCheck() (string, error) {
+	var check *C.six_pyobject_t
+	var version *C.char
 
-	if ret == nil {
-		return fmt.Errorf(C.GoString(C.get_error(six)))
+	ret := C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"), &check, &version)
+
+	if ret != 1 || check == nil || version == nil {
+		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
-	return nil
+
+	return C.GoString(version), nil
 }
 
 func runFakeCheck() (string, error) {
-	check := C.get_check(six, C.CString("fake_agent"), C.CString(""), C.CString("[{fake_agent: \"/\"}]"))
-	if check == nil {
+	var check *C.six_pyobject_t
+	var version *C.char
+
+	ret := C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"), &check, &version)
+	if ret != 1 {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
 
 	return C.GoString(C.run_check(six, check)), nil
-}
-
-func getCheckClass(moduleName string) error {
-	ret := C.get_check_class(six, C.CString(moduleName))
-	if ret == nil {
-		return fmt.Errorf(C.GoString(C.get_error(six)))
-	}
-	return nil
 }
