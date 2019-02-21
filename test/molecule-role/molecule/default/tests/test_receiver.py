@@ -204,7 +204,7 @@ def test_host_metrics(host):
                 for wv in metrics[name]["agent-win"]:
                     assert win_predicate(wv)
 
-        assert_metric("system.swap.total", lambda v: v == 0, lambda v: v == 0, lambda v: v > 4000)
+        assert_metric("system.swap.total", lambda v: v == 0, lambda v: v == 0, lambda v: v > 2000)
         assert_metric("system.swap.pct_free", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
 
         # Memory
