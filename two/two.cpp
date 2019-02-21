@@ -361,7 +361,7 @@ const char *Two::runCheck(SixPyObject *check) {
         goto done;
     }
 
-    ret_copy = strdup(ret);
+    ret_copy = _strdup(ret);
 
 done:
     Py_XDECREF(result);

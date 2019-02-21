@@ -279,7 +279,7 @@ const char *Three::runCheck(SixPyObject *check) {
     // `ret` points to the Python string internal storage and will be eventually
     // deallocated along with the corresponding Python object.
     ret = PyBytes_AsString(bytes);
-    ret_copy = strdup(ret);
+    ret_copy = _strdup(ret);
     Py_XDECREF(bytes);
 
 done:
@@ -338,7 +338,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
             PyObject *bytes = PyUnicode_AsEncodedString(symbol, "UTF-8", "strict");
 
             if (bytes != NULL) {
-                symbol_name = strdup(PyBytes_AsString(bytes));
+                symbol_name = _strdup(PyBytes_AsString(bytes));
                 Py_XDECREF(bytes);
             } else {
                 continue;
@@ -349,7 +349,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
 
             // Clears exception and sets error
             PyException_SetTraceback(PyExc_IndexError, Py_None);
-            setError(strdup(PyBytes_AsString(reason)));
+            setError(_strdup(PyBytes_AsString(reason)));
             goto done;
         }
 

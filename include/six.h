@@ -4,6 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_SIX_H
 #define DATADOG_AGENT_SIX_SIX_H
+
 #include <map>
 #include <mutex>
 #include <string>
@@ -18,8 +19,8 @@ class Six {
 public:
     Six()
         : _error()
-        , _errorFlag(false) {};
-    virtual ~Six() {};
+        , _errorFlag(false){};
+    virtual ~Six(){};
 
     // Public API
     virtual bool init(const char *pythonHome) = 0;
@@ -57,5 +58,9 @@ typedef void destroy_t(Six *);
 
 typedef std::pair<std::string, long> PyModuleConst;
 typedef std::map<six_module_t, std::vector<PyModuleConst> > PyModuleConstants;
+
+#ifndef WIN32
+#    define _strdup(x) strdup(x)
+#endif
 
 #endif
