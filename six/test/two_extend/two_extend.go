@@ -33,6 +33,9 @@ func extend() (string, error) {
 		return "", fmt.Errorf("`add_module_int_const` errored")
 	}
 
+	// Updates sys.path so testing Check can be found
+	C.add_python_path(six, C.CString("../python"))
+
 	if ok := C.init(six, nil); ok != 1 {
 		return "", fmt.Errorf("`init` errored")
 	}
