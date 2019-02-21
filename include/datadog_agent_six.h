@@ -4,21 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_H_INCLUDED
 #define DATADOG_AGENT_SIX_H_INCLUDED
-#include <types.h>
-
-#ifndef DATADOG_AGENT_SIX_API
-#    ifdef DATADOG_AGENT_SIX_TEST
-#        define DATADOG_AGENT_SIX_API
-#    elif _WIN32
-#        define DATADOG_AGENT_SIX_API __declspec(dllexport)
-#    else
-#        if __GNUC__ >= 4
-#            define DATADOG_AGENT_SIX_API __attribute__((visibility("default")))
-#        else
-#            define DATADOG_AGENT_SIX_API
-#        endif
-#    endif
-#endif
+#include <six_types.h>
 
 #ifdef __cplusplus
 extern "C" {
