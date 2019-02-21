@@ -82,7 +82,7 @@ def apply_branding(ctx):
     """
     Apply stackstate branding
     """
-    # Linux Pkg config
+    # Config
     do_go_rename(ctx, '"\\"dd_url\\" -> \\"sts_url\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"https://app.datadoghq.com\\" -> \\"http://localhost:7077\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"DD_PROXY_HTTP\\" -> \\"STS_PROXY_HTTP\\""', "./pkg/config")
@@ -95,7 +95,7 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"/etc/datadog-agent/checks.d\\" -> \\"/etc/stackstate-agent/checks.d\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"/opt/datadog-agent/run\\" -> \\"/op/stackstate-agent/run\\""', "./pkg/config")
 
-    # Linux Defaults
+    # Defaults
     do_go_rename(ctx, '"\\"/etc/datadog-agent\\" -> \\"/etc/stackstate-agent\\""', "./cmd/agent/common")
     do_go_rename(ctx, '"\\"/var/log/datadog/agent.log\\" -> \\"/var/log/stackstate-agent/agent.log\\""', "./cmd/agent/common")
     do_go_rename(ctx, '"\\"/var/log/datadog/cluster-agent.log\\" -> \\"/var/log/stackstate-agent/cluster-agent.log\\""', "./cmd/agent/common")
@@ -105,9 +105,13 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"unable to load Datadog config file: %s\\" -> \\"unable to load StackState config file: %s\\""', "./cmd/agent/common")
     do_go_rename(ctx, '"\\"Starting Datadog Agent v%v\\" -> \\"Starting StackState Agent v%v\\""', "./cmd/agent/app")
 
-    # Windows defaults
     camel_replace = 's/Data[dD]og/StackState/g'
     lower_replace = 's/datadog/stackstate/g'
+
+    # Hardcoded checks and metrics
+    do_sed_rename(ctx, lower_replace, "./pkg/aggregator/aggregator.go")
+
+    # Windows defaults
     do_sed_rename(ctx, camel_replace, "./cmd/agent/agent.rc")
     do_sed_rename(ctx, camel_replace, "./cmd/agent/app/install_service_windows.go")
     do_sed_rename(ctx, lower_replace, "./cmd/agent/app/dependent_services_windows.go")

@@ -99,7 +99,7 @@ def generate_install(ctx, test_repo=False):
     win_official_repo = os.environ.get("STS_AWS_RELEASE_BUCKET_WIN")
     win_test_repo = os.environ.get("STS_AWS_TEST_BUCKET_WIN")
     win_repo = win_test_repo if test_repo else win_official_repo
-    print("Generating install.sh ...")
+    print("Generating install.sh and install.ps1 ...")
     ctx.run("sed -e 's/$DEBIAN_REPO/https:\/\/{0}.s3.amazonaws.com/g' ./cmd/agent/install_script.sh > ./cmd/agent/install_1.sh".format(deb_repo))
     ctx.run("sed -e 's/$YUM_REPO/https:\/\/{0}.s3.amazonaws.com/g' ./cmd/agent/install_1.sh > ./cmd/agent/install.sh".format(yum_repo))
     ctx.run("rm ./cmd/agent/install_1.sh")

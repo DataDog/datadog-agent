@@ -62,12 +62,12 @@ solve your problem.\n"
 }
 trap on_error ERR
 
-if [ -n "$STS_HOSTNAME" ]; then
-    sts_hostname=$STS_HOSTNAME
-fi
-
 if [ -n "$STS_API_KEY" ]; then
     api_key=$STS_API_KEY
+fi
+
+if [ -n "$STS_URL" ]; then
+    sts_url=$STS_URL
 fi
 
 no_start=
@@ -75,13 +75,16 @@ if [ -n "$STS_INSTALL_ONLY" ]; then
     no_start=true
 fi
 
-# comma-separated list of tags
-if [ -n "$STS_HOST_TAGS" ]; then
-    host_tags=$STS_HOST_TAGS
+if [ -n "$HOSTNAME" ]; then
+    hostname=$HOSTNAME
 fi
 
-if [ -n "$STS_URL" ]; then
-    sts_url=$STS_URL
+# comma-separated list of tags
+default_host_tags="os:linux"
+if [ -n "$HOST_TAGS" ]; then
+    host_tags="$default_host_tags,$HOST_TAGS"
+else
+    host_tags=$default_host_tags
 fi
 
 if [ -n "$CODE_NAME" ]; then
@@ -197,9 +200,9 @@ if [ $sts_url ]; then
     print_blu "* Adding StackState url to the Agent configuration: $CONF\n"
     $sudo_cmd sh -c "sed -i 's/sts_url:.*/sts_url: $sts_url_esc/' $CONF"
 fi
-if [ $sts_hostname ]; then
+if [ $hostname ]; then
     print_blu "* Adding your HOSTNAME to the Agent configuration: $CONF\n"
-    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $sts_hostname/' $CONF"
+    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $hostname/' $CONF"
 fi
 if [ $host_tags ]; then
     print_blu "* Adding your HOST TAGS to the Agent configuration: $CONF\n"

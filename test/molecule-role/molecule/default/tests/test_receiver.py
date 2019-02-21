@@ -75,43 +75,40 @@ def test_created_connection_after_start_with_metrics(host):
     fedora_conn_port = int(facts["connection_port_after_start_fedora"])
     windows_conn_port = int(facts["connection_port_after_start_windows"])
 
-    ubuntu_public_ip = _get_instance_config("agent-ubuntu")["address"]
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
-    print("ubuntu public: {}, private: {}".format(ubuntu_public_ip, ubuntu_private_ip))
-    fedora_public_ip = _get_instance_config("agent-fedora")["address"]
+    print("ubuntu private: {}".format(ubuntu_private_ip))
     fedora_private_ip = _get_instance_config("agent-fedora")["private_address"]
-    print("fedora public: {}, private: {}".format(fedora_public_ip, fedora_private_ip))
-    windows_public_ip = _get_instance_config("agent-win")["address"]
+    print("fedora private: {}".format(fedora_private_ip))
     windows_private_ip = _get_instance_config("agent-win")["private_address"]
-    print("windows public: {}, private: {}".format(windows_public_ip, windows_private_ip))
+    print("windows private: {}".format(windows_private_ip))
 
     def wait_for_connection():
         data = host.check_output("curl %s" % url)
         json_data = json.loads(data)
         print(json.dumps(json_data))
 
-        outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_public_ip)
+        outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print outgoing_conn
         assert outgoing_conn["direction"] == "OUTGOING"
         assert outgoing_conn["connectionType"] == "TCP"
         assert outgoing_conn["bytesSentPerSecond"] > 10.0
         assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
 
-        incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_public_ip, ubuntu_private_ip)
+        incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print incoming_conn
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
         assert incoming_conn["bytesSentPerSecond"] == 0.0
         assert incoming_conn["bytesReceivedPerSecond"] > 10.0
 
-        outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_public_ip)
+        outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print outgoing_conn
         assert outgoing_conn["direction"] == "OUTGOING"
         assert outgoing_conn["connectionType"] == "TCP"
         assert outgoing_conn["bytesSentPerSecond"] == 0.0       # We don't collect metrics on Windows
         assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
 
-        incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_public_ip, ubuntu_private_ip)
+        incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print incoming_conn
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
@@ -128,37 +125,34 @@ def test_created_connection_before_start(host):
     fedora_conn_port = int(facts["connection_port_before_start_fedora"])
     windows_conn_port = int(facts["connection_port_before_start_windows"])
 
-    ubuntu_public_ip = _get_instance_config("agent-ubuntu")["address"]
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
-    print("ubuntu public: {}, private: {}".format(ubuntu_public_ip, ubuntu_private_ip))
-    fedora_public_ip = _get_instance_config("agent-fedora")["address"]
+    print("ubuntu private: {}".format(ubuntu_private_ip))
     fedora_private_ip = _get_instance_config("agent-fedora")["private_address"]
-    print("fedora public: {}, private: {}".format(fedora_public_ip, fedora_private_ip))
-    windows_public_ip = _get_instance_config("agent-win")["address"]
+    print("fedora private: {}".format(fedora_private_ip))
     windows_private_ip = _get_instance_config("agent-win")["private_address"]
-    print("windows public: {}, private: {}".format(windows_public_ip, windows_private_ip))
+    print("windows private: {}".format(windows_private_ip))
 
     def wait_for_connection():
         data = host.check_output("curl %s" % url)
         json_data = json.loads(data)
         print(json.dumps(json_data))
 
-        outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_public_ip)
+        outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print outgoing_conn
         assert outgoing_conn["direction"] == "NONE"          # Outgoing gets no direction from Linux /proc scanning
         assert outgoing_conn["connectionType"] == "TCP"
 
-        incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_public_ip, ubuntu_private_ip)
+        incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print incoming_conn
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
 
-        outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_public_ip)
+        outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print outgoing_conn
         assert outgoing_conn["direction"] == "OUTGOING"
         assert outgoing_conn["connectionType"] == "TCP"
 
-        incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_public_ip, ubuntu_private_ip)
+        incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print incoming_conn
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
@@ -215,7 +209,7 @@ def test_host_metrics(host):
 
         # Memory
         assert_metric("system.mem.total", lambda v: v > 900.0, lambda v: v > 900.0, lambda v: v > 2000.0)
-        assert_metric("system.mem.usable", lambda v: 1000.0 > v > 500.0, lambda v: 1000.0 > v > 500.0, lambda v: 1800.0 > v > 900.0)
+        assert_metric("system.mem.usable", lambda v: 1000.0 > v > 450.0, lambda v: 1000.0 > v > 450.0, lambda v: 1800.0 > v > 600.0)
         assert_metric("system.mem.pct_usable", lambda v: 1.0 > v > 0.5, lambda v: 1.0 > v > 0.5, lambda v: 1.0 > v > 0.4)
 
         # Load - only linux
@@ -263,3 +257,12 @@ def test_process_metrics(host):
         assert get_keys("agent-win") == expected
 
     util.wait_until(wait_for_metrics, 30, 3)
+
+
+# def test_topology_components(host):
+#     url = "http://localhost:7070/api/topic/sts_topo_process_agents?limit=1000"
+#     data = host.check_output("curl %s" % url)
+#     json_data = json.loads(data)
+#     print(json.dumps(json_data))
+#
+#     # TODO expect 3 agent components, one for each agent processes and check its host tags

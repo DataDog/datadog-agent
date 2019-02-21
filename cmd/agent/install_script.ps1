@@ -13,19 +13,27 @@ new-module -name StsAgentInstaller -scriptblock {
             [ValidateNotNullOrEmpty()]
             [string]$stsUrl,
 
-            [string]$stsHostname = $env:computername,
-            [string]$stsSkipSSLValidation = "false",
-            [string]$stsCodeName = "stable",
-            [string]$stsAgentVersion = "latest"
+            [string]$hostname = $env:computername,
+            [string]$hostTags = "",
+            [string]$codeName = "stable",
+            [string]$skipSSLValidation = "false",
+            [string]$agentVersion = "latest"
         )
 
         $stsDownloadBase = "$WIN_REPO"
 
-        Write-Host "Building download uri from $stsDownloadBase/$stsCodeName/stackstate-agent-$stsAgentVersion-1-x86_64.msi"
-        $uri = "$stsDownloadBase/$stsCodeName/stackstate-agent-$stsAgentVersion-1-x86_64.msi"
+        Write-Host "Building download uri from $stsDownloadBase/$codeName/stackstate-agent-$agentVersion-1-x86_64.msi"
+        $uri = "$stsDownloadBase/$codeName/stackstate-agent-$agentVersion-1-x86_64.msi"
         $out = "c:\stackstate-agent.msi"
 
-        Write-Host "Script will download installer from $uri to $out, and execute passing params $stsApiKey ; $stsUrl ; $stsHostname ; $stsSkipSSLValidation ; $stsCodeName ; $stsAgentVersion ;"
+        $defaultHostTags = "os:windows"
+        If ([string]::IsNullOrEmpty($hostTags)) {
+            $hostTags = $defaultHostTags
+        } Else {
+            $hostTags = "$defaultHostTags,$hostTags"
+        }
+
+        Write-Host "Script will download installer from $uri to $out, and execute passing params $stsApiKey ; $stsUrl ; $hostname ; $hostTags ; $codeName ; $skipSSLValidation ; $agentVersion ;"
 
         Function Download_MSI_STS_Installer {
             Write-Host "About to download $uri to $out"
@@ -47,14 +55,13 @@ new-module -name StsAgentInstaller -scriptblock {
                 "/norestart"
                 "/L*v"
                 $logFile
-                " APIKEY=$stsApiKey STS_URL=$stsUrl HOSTNAME=$stsHostname SKIP_SSL_VALIDATION=$stsSkipSSLValidation "
+                " APIKEY=`"$stsApiKey`" STS_URL=`"$stsUrl`" HOSTNAME=`"$hostname`" TAGS=`"$hostTags`" SKIP_SSL_VALIDATION=`"$skipSSLValidation`" "
             )
             write-host "About to install $msifile with arguments "$MSIArguments
             If ($FileExists -eq $True) {
                 Start-Process "msiexec.exe" -ArgumentList $MSIArguments -passthru | wait-process
                 Write-Host "Finished msi "$msifile
-            }
-            Else {
+            } Else {
                 Write-Error "File $out doesn't exists - failed to download or corrupted. Please check." -ErrorAction Stop
                 exit 1
             }
