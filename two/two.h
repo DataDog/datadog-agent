@@ -32,7 +32,7 @@ public:
         , _modules()
         , _module_constants()
         , _baseClass(NULL)
-        , _pythonPaths() {};
+        , _pythonPaths(){};
     ~Two();
 
     bool init(const char *pythonHome);
@@ -73,9 +73,9 @@ private:
 extern "C" {
 #endif
 
- DATADOG_AGENT_SIX_API Six *create() { return new Two(); }
+DATADOG_AGENT_SIX_API Six *create() { return new Two(); }
 
- DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
+DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
 
 #ifdef __cplusplus
 }

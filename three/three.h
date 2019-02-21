@@ -26,7 +26,6 @@
 #    endif
 #endif
 
-
 class Three : public Six {
 public:
     // Python module constants need to be added in the init callback after calling
@@ -37,7 +36,7 @@ public:
         : _modules()
         , _pythonHome(NULL)
         , _baseClass(NULL)
-        , _pythonPaths() {};
+        , _pythonPaths(){};
     ~Three();
 
     bool init(const char *pythonHome);
@@ -76,9 +75,9 @@ private:
 extern "C" {
 #endif
 
-extern  DATADOG_AGENT_SIX_API Six *  create() { return new Three(); }
+extern DATADOG_AGENT_SIX_API Six *create() { return new Three(); }
 
-extern  DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
+extern DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
 
 #ifdef __cplusplus
 }
