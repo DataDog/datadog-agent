@@ -45,14 +45,8 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         fi
     fi
 
-    PIP_PATH=$INSTALL_DIR/embedded/bin/pip
-    if [ -x $PIP_PATH ]; then
-        echo "Resetting integrations..."
-        $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
-    fi
-
     # For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
-    # We need to clean that up on upgrade now, since it was only removed on uninstall.
+    # They were never being cleaned up, so let's do that now on install/upgrade
     TUF_REPO_DIR=$INSTALL_DIR/repositories
     if [ -d $TUF_REPO_DIR ]; then
         rm -rf $TUF_REPO_DIR
@@ -76,7 +70,15 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                 -c "Datadog Agent" dd-agent && \
                 { usermod -L dd-agent || echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"; }
 
+        # Uninstall every datadog integration
+        PIP_PATH=$INSTALL_DIR/embedded/bin/pip
+        if [ -x $PIP_PATH ]; then
+            echo "Uninstalling integrations..."
+            $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+        fi
+
         # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
+        # This MUST be done after using pip or any python, because it might generate .pyc files
         if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
             # (commented lines are filtered out)
             cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
