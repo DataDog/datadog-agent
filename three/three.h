@@ -26,7 +26,6 @@
 #    endif
 #endif
 
-
 class Three : public Six {
 public:
     // Python module constants need to be added in the init callback after calling
@@ -37,7 +36,7 @@ public:
         : _modules()
         , _pythonHome(NULL)
         , _baseClass(NULL)
-        , _pythonPaths() {};
+        , _pythonPaths(){};
     ~Three();
 
     bool init(const char *pythonHome);
