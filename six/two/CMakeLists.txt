@@ -2,6 +2,21 @@ cmake_minimum_required(VERSION 3.9)
 find_package (Python2 COMPONENTS Interpreter Development)
 
 project(datadog-agent-two VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
+
+if(WIN32)
+# explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
+# c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).  
+
+foreach(flag_var
+        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+   if(${flag_var} MATCHES "/MD")
+      string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+   endif(${flag_var} MATCHES "/MD")
+endforeach(flag_var)
+endif()
+
+
 include(GNUInstallDirs)
 configure_file(constants.h.in constants.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -14,7 +29,17 @@ target_include_directories(datadog-agent-two PUBLIC
     ${Python2_INCLUDE_DIRS}
 )
 target_link_libraries(datadog-agent-two ${Python2_LIBRARIES} datadog-agent-six)
-target_compile_options(datadog-agent-two PRIVATE "-Wno-deprecated-register")
-install(TARGETS datadog-agent-two
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
+
+if(NOT WIN32)
+    target_compile_options(datadog-agent-two PRIVATE "-Wno-deprecated-register")
+endif()
+
+if(WIN32)
+  install(TARGETS datadog-agent-two
+      RUNTIME DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+else()
+  install(TARGETS datadog-agent-two
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+endif()

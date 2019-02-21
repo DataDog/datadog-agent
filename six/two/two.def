@@ -1,0 +1,5 @@
+LIBRARY datadog-agent-two
+EXPORTS
+	create @1
+	destroy @2
+
