@@ -4,11 +4,11 @@
 // Copyright 2019 Datadog, Inc.
 #ifdef _WIN32
 #include <Windows.h>
-#include <iostream>
 #else
 #include <dlfcn.h>
-
 #endif
+
+#include <iostream>
 
 #include <datadog_agent_six.h>
 #include <six.h>
@@ -20,8 +20,8 @@
 #    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
 #elif _WIN32
-#define DATADOG_AGENT_TWO "datadog-agent-two.dll"
-#define DATADOG_AGENT_THREE "datadog-agent-three.dll"
+#    define DATADOG_AGENT_TWO "datadog-agent-two.dll"
+#    define DATADOG_AGENT_THREE "datadog-agent-three.dll"
 #else
 #    error Platform not supported
 #endif
@@ -29,10 +29,6 @@
 #define AS_TYPE(Type, Obj) reinterpret_cast<Type *>(Obj)
 #define AS_PTYPE(Type, Obj) reinterpret_cast<Type **>(Obj)
 #define AS_CTYPE(Type, Obj) reinterpret_cast<const Type *>(Obj)
-
-
-
-
 
 #ifdef _WIN32
 static HMODULE six_backend = NULL;

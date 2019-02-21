@@ -4,6 +4,8 @@ project(datadog-agent-six VERSION 0.1.0 DESCRIPTION "CPython backend for the Dat
 include(GNUInstallDirs)
 
 if(WIN32)
+# explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
+# c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).  
 foreach(flag_var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
@@ -35,8 +37,13 @@ target_include_directories(datadog-agent-six PRIVATE ./include)
 target_include_directories(datadog-agent-six PUBLIC
     ${CMAKE_SOURCE_DIR}/include
 )
+
+if(NOT WIN32)
+# install target not valid because we're generating a static link LIBRARY
+#on windows.  
 find_library( LIBdl dl )
-#install(TARGETS datadog-agent-six
-#    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-#)
+install(TARGETS datadog-agent-six
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+endif()
