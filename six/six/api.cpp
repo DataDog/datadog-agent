@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019 Datadog, Inc.
 #ifdef _WIN32
-#include <Windows.h>
+#    include <Windows.h>
 #else
-#include <dlfcn.h>
+#    include <dlfcn.h>
 #endif
 
 #include <iostream>
@@ -38,8 +38,7 @@ static void *six_backend = NULL;
 
 #ifdef _WIN32
 
-six_t *make2()
-{
+six_t *make2() {
     // load library
     six_backend = LoadLibraryA(DATADOG_AGENT_TWO);
     if (!six_backend) {
@@ -47,9 +46,8 @@ six_t *make2()
         return 0;
     }
 
-
     // dlsym class factory
-    create_t* create = (create_t*)GetProcAddress(six_backend, "create");
+    create_t *create = (create_t *)GetProcAddress(six_backend, "create");
     if (!create) {
         std::cerr << "Unable to open 'two' factory: " << GetLastError() << std::endl;
         return 0;
@@ -58,11 +56,10 @@ six_t *make2()
     return AS_TYPE(six_t, create());
 }
 
-void destroy2(six_t* six)
-{
+void destroy2(six_t *six) {
     if (six_backend) {
         // dlsym object destructor
-        destroy_t* destroy = (destroy_t*)GetProcAddress(six_backend, "destroy");
+        destroy_t *destroy = (destroy_t *)GetProcAddress(six_backend, "destroy");
         if (!destroy) {
             std::cerr << "Unable to open 'two' destructor: " << GetLastError() << std::endl;
             return;
@@ -71,8 +68,7 @@ void destroy2(six_t* six)
     }
 }
 
-six_t *make3()
-{
+six_t *make3() {
     // load the library
     six_backend = LoadLibraryA(DATADOG_AGENT_THREE);
     if (!six_backend) {
@@ -80,9 +76,8 @@ six_t *make3()
         return 0;
     }
 
-
     // dlsym class factory
-    create_t* create_three = (create_t*)GetProcAddress(six_backend, "create");
+    create_t *create_three = (create_t *)GetProcAddress(six_backend, "create");
     if (!create_three) {
         std::cerr << "Unable to open 'three' factory: " << GetLastError() << std::endl;
         return 0;
@@ -91,12 +86,11 @@ six_t *make3()
     return AS_TYPE(six_t, create_three());
 }
 
-void destroy3(six_t* six)
-{
+void destroy3(six_t *six) {
     if (six_backend) {
         // dlsym object destructor
-        destroy_t* destroy = (destroy_t*)GetProcAddress(six_backend, "destroy");
-        
+        destroy_t *destroy = (destroy_t *)GetProcAddress(six_backend, "destroy");
+
         if (!destroy) {
             std::cerr << "Unable to open 'three' destructor: " << GetLastError() << std::endl;
             return;
@@ -106,8 +100,7 @@ void destroy3(six_t* six)
 }
 
 #else
-six_t *make2()
-{
+six_t *make2() {
     if (six_backend != NULL) {
         std::cerr << "Six alrady initialized!" << std::endl;
         return NULL;
