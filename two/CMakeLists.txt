@@ -4,6 +4,9 @@ find_package (Python2 COMPONENTS Interpreter Development)
 project(datadog-agent-two VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 
 if(WIN32)
+# explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
+# c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).  
+
 foreach(flag_var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
         CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
