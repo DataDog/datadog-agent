@@ -19,7 +19,7 @@ public:
         , _modules()
         , _module_constants()
         , _baseClass(NULL)
-        , _pythonPaths() {};
+        , _pythonPaths(){};
     ~Two();
 
     bool init(const char *pythonHome);
