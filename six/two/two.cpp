@@ -10,8 +10,12 @@
 #include <iostream>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_SIX_API Six *create() { return new Two(); }
-extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
+extern "C" DATADOG_AGENT_SIX_API Six *create() {
+    return new Two();
+}
+extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) {
+    delete p;
+}
 
 Two::~Two() {
     Py_XDECREF(_baseClass);
@@ -60,16 +64,16 @@ bool Two::init(const char *pythonHome) {
     return true;
 }
 
-bool Two::isInitialized() const { 
-    return Py_IsInitialized(); 
+bool Two::isInitialized() const {
+    return Py_IsInitialized();
 }
 
-const char *Two::getPyVersion() const { 
-    return Py_GetVersion(); 
+const char *Two::getPyVersion() const {
+    return Py_GetVersion();
 }
 
-bool Two::runSimpleString(const char *code) const { 
-    return PyRun_SimpleString(code) == 0; 
+bool Two::runSimpleString(const char *code) const {
+    return PyRun_SimpleString(code) == 0;
 }
 
 bool Two::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {

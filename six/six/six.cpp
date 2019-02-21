@@ -25,8 +25,8 @@ const char *Six::getExtensionModuleName(six_module_t m) {
     }
 }
 
-const char *Six::getUnknownModuleName() { 
-    return datadog_agent_six_unknown; 
+const char *Six::getUnknownModuleName() {
+    return datadog_agent_six_unknown;
 }
 
 void Six::setError(const std::string &msg) const {
@@ -50,8 +50,8 @@ const char *Six::getError() const {
     return _error.c_str();
 }
 
-bool Six::hasError() const { 
-    return _errorFlag; 
+bool Six::hasError() const {
+    return _errorFlag;
 }
 
 void Six::clearError() {

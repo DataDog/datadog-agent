@@ -6,7 +6,6 @@
 #define DATADOG_AGENT_SIX_H_INCLUDED
 #include <six_types.h>
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
