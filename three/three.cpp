@@ -9,10 +9,13 @@
 #include <algorithm>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_SIX_API Six *  create() { return new Three(); }
+extern "C" DATADOG_AGENT_SIX_API Six *create() {
+    return new Three();
+}
 
-extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) { delete p; }
-
+extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) {
+    delete p;
+}
 
 PyModuleConstants Three::ModuleConstants;
 
@@ -106,16 +109,16 @@ bool Three::init(const char *pythonHome) {
     return _baseClass != NULL;
 }
 
-bool Three::isInitialized() const { 
-    return Py_IsInitialized(); 
+bool Three::isInitialized() const {
+    return Py_IsInitialized();
 }
 
-const char *Three::getPyVersion() const { 
-    return Py_GetVersion(); 
+const char *Three::getPyVersion() const {
+    return Py_GetVersion();
 }
 
-bool Three::runSimpleString(const char *code) const { 
-    return PyRun_SimpleString(code) == 0; 
+bool Three::runSimpleString(const char *code) const {
+    return PyRun_SimpleString(code) == 0;
 }
 
 bool Three::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
@@ -264,7 +267,7 @@ done:
     return true;
 }
 
-// 
+//
 const char *Three::runCheck(SixPyObject *check) {
     if (check == NULL) {
         return NULL;
@@ -363,7 +366,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
 
             // Clears exception and sets error
             PyException_SetTraceback(PyExc_IndexError, Py_None);
-            setError((const char*)PyBytes_AsString(reason));
+            setError((const char *)PyBytes_AsString(reason));
             goto done;
         }
 

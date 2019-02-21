@@ -11,7 +11,6 @@
 #include <Python.h>
 #include <six.h>
 
-
 class Two : public Six {
 public:
     Two()
@@ -37,7 +36,9 @@ public:
     bool isInitialized() const;
     const char *getPyVersion() const;
     bool runSimpleString(const char *code) const;
-    SixPyObject *getNone() const { return reinterpret_cast<SixPyObject *>(Py_None); }
+    SixPyObject *getNone() const {
+        return reinterpret_cast<SixPyObject *>(Py_None);
+    }
 
 private:
     PyObject *_importFrom(const char *module, const char *name);

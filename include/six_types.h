@@ -23,10 +23,7 @@ extern "C" {
 #    endif
 #endif
 
-typedef enum six_gilstate_e { 
-    DATADOG_AGENT_SIX_GIL_LOCKED, 
-    DATADOG_AGENT_SIX_GIL_UNLOCKED 
-} six_gilstate_t;
+typedef enum six_gilstate_e { DATADOG_AGENT_SIX_GIL_LOCKED, DATADOG_AGENT_SIX_GIL_UNLOCKED } six_gilstate_t;
 
 typedef enum six_module_func_e {
     DATADOG_AGENT_SIX_NOARGS,

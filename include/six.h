@@ -5,11 +5,11 @@
 #ifndef DATADOG_AGENT_SIX_SIX_H
 #define DATADOG_AGENT_SIX_SIX_H
 
+#include "six_types.h"
 #include <map>
 #include <mutex>
 #include <string>
 #include <vector>
-#include "six_types.h"
 
 // Opaque type to wrap PyObject
 class SixPyObject {};
@@ -42,7 +42,7 @@ public:
     const char *getError() const;
     bool hasError() const;
     void setError(const std::string &msg) const; // let const methods set errors
-    void setError(const char *msg) const; 
+    void setError(const char *msg) const;
 
 protected:
     const char *getExtensionModuleName(six_module_t m);
