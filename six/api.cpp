@@ -227,3 +227,7 @@ const char *get_error(const six_t *six) {
 void clear_error(six_t *six) {
     AS_TYPE(Six, six)->clearError();
 }
+
+void set_submit_metric_cb(six_t *six, cb_submit_metric_t cb) {
+    AS_TYPE(Six, six)->setSubmitMetricCb(cb);
+}

@@ -40,6 +40,10 @@ public:
         return reinterpret_cast<SixPyObject *>(Py_None);
     }
 
+    // Aggregator API
+    void setSubmitMetricCb(cb_submit_metric_t) {
+    }
+
 private:
     PyObject *_importFrom(const char *module, const char *name);
     PyObject *_findSubclassOf(PyObject *base, PyObject *moduleName);

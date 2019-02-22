@@ -5,7 +5,7 @@ project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the D
 
 if(WIN32)
 # explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
-# c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).  
+# c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).
 
 foreach(flag_var
         CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
@@ -21,6 +21,7 @@ configure_file(constants.h.in constants.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(datadog-agent-three SHARED
     three.cpp
+    aggregator.c
 )
 
 
