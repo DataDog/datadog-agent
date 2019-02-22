@@ -4,6 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #ifndef DATADOG_AGENT_SIX_TYPES_H
 #define DATADOG_AGENT_SIX_TYPES_H
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +22,10 @@ extern "C" {
 #            define DATADOG_AGENT_SIX_API
 #        endif
 #    endif
+#endif
+
+#ifndef WIN32
+#    define _strdup(x) strdup(x)
 #endif
 
 typedef enum six_gilstate_e { DATADOG_AGENT_SIX_GIL_LOCKED, DATADOG_AGENT_SIX_GIL_UNLOCKED } six_gilstate_t;
