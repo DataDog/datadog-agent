@@ -20,7 +20,7 @@ new-module -name StsAgentInstaller -scriptblock {
             [string]$agentVersion = "latest"
         )
 
-        $stsDownloadBase = "$WIN_REPO"
+        $stsDownloadBase = "$env:WIN_REPO"
 
         Write-Host "Building download uri from $stsDownloadBase/$codeName/stackstate-agent-$agentVersion-1-x86_64.msi"
         $uri = "$stsDownloadBase/$codeName/stackstate-agent-$agentVersion-1-x86_64.msi"
