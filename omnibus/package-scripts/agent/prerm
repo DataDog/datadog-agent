@@ -73,6 +73,7 @@ deregister_agent()
 remove_py_compiled_files()
 {
     # Delete all the .pyc files in the embedded dir that are part of the agent's package
+    # This MUST be done after using pip or any python, because executing python might generate .pyc files
     if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
         # (commented lines are filtered out)
         cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
@@ -92,6 +93,8 @@ remove_downloader_data()
 uninstall_integrations()
 {
     # Uninstall every datadog integration
+    # Starting with 6.10, integrations are uninstalled on package removal
+    # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
     PIP_PATH=$INSTALL_DIR/embedded/bin/pip
     if [ -x $PIP_PATH ]; then
         echo "Uninstalling integrations..."
@@ -102,13 +105,7 @@ uninstall_integrations()
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     stop_agent
     deregister_agent
-    # Starting with 6.10, integrations are uninstalled on package removal
-    # Upgrade from 6.8 or 6.9 to 6.10 won't uninstall integrations because it was previously done in preinst
-    # It might cause weird issues with pip and the integration command
-    # if several integration wheel metadata folders are present (pip wouldn't detect the right version of an integration),
-    # but they would be fairly easy to solve by manually removing them
     uninstall_integrations
-    # This MUST be done after using pip or any python, because it might generate .pyc files
     remove_py_compiled_files
     remove_downloader_data
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
