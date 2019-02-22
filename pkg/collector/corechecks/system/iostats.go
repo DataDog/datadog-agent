@@ -24,6 +24,10 @@ const (
 
 // Configure the IOstats check
 func (c *IOCheck) commonConfigure(data integration.Data, initConfig integration.Data) error {
+	if err := c.CommonConfigure(data); err != nil {
+		return err
+	}
+
 	conf := make(map[interface{}]interface{})
 
 	err := yaml.Unmarshal([]byte(initConfig), &conf)

@@ -28,8 +28,7 @@ const (
 
 // CRIConfig holds the config of the check
 type CRIConfig struct {
-	Tags        []string `yaml:"tags"`
-	CollectDisk bool     `yaml:"collect_disk"`
+	CollectDisk bool `yaml:"collect_disk"`
 }
 
 // CRICheck grabs CRI metrics
