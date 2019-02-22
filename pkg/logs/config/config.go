@@ -6,6 +6,8 @@
 package config
 
 import (
+	"encoding/json"
+
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -32,7 +34,13 @@ func DefaultSources() []*LogSource {
 // GlobalProcessingRules returns the global processing rules to apply to all logs.
 func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
-	err := coreConfig.Datadog.UnmarshalKey("logs_config.processing_rules", &rules)
+	var err error
+	raw := coreConfig.Datadog.GetString("logs_config.processing_rules")
+	if raw != "" {
+		err = json.Unmarshal([]byte(raw), &rules)
+	} else {
+		err = coreConfig.Datadog.UnmarshalKey("logs_config.processing_rules", &rules)
+	}
 	if err != nil {
 		return nil, err
 	}
