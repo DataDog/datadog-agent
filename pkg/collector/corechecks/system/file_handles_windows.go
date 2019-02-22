@@ -45,6 +45,10 @@ func (c *fhCheck) Run() error {
 
 // The check doesn't need configuration
 func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data) (err error) {
+	if err := c.CommonConfigure(data); err != nil {
+		return err
+	}
+
 	c.counter, err = pdhutil.GetMultiInstanceCounter("Process", "Handle Count", &[]string{"_Total"}, nil)
 	return err
 }

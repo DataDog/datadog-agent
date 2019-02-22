@@ -38,6 +38,10 @@ const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
 func (c *MemoryCheck) Configure(data integration.Data, initConfig integration.Data) (err error) {
+	if err := c.CommonConfigure(data); err != nil {
+		return err
+	}
+
 	c.cacheBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Cache Bytes")
 	if err == nil {
 		c.committedBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Committed Bytes")
