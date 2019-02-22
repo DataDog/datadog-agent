@@ -46,6 +46,19 @@ typedef enum six_module_e {
     DATADOG_AGENT_SIX_UTIL,
 } six_module_t;
 
+typedef enum {
+    DATADOG_AGENT_SIX_GAUGE = 0,
+    DATADOG_AGENT_SIX_RATE,
+    DATADOG_AGENT_SIX_COUNT,
+    DATADOG_AGENT_SIX_MONOTONIC_COUNT,
+    DATADOG_AGENT_SIX_COUNTER,
+    DATADOG_AGENT_SIX_HISTOGRAM,
+    DATADOG_AGENT_SIX_HISTORATE
+} metric_type_t;
+
+// custom builtins
+typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **, int, char *);
+
 // these strings need to be alive for the whole interpreter lifetime because
 // they'll be used from the CPython Inittab. Be sure to keep these in sync
 // with `six_module_e` contents.

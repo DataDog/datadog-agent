@@ -4,6 +4,7 @@
 // Copyright 2019 Datadog, Inc.
 #include "three.h"
 
+#include "aggregator.h"
 #include "constants.h"
 
 #include <algorithm>
@@ -56,7 +57,6 @@ PyModuleConstants Three::ModuleConstants;
 INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_DATADOG_AGENT, datadog_agent)
 INIT_PYTHON_MODULE(DATADOG_AGENT_SIX__UTIL, _util)
 INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_UTIL, util)
-INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_AGGREGATOR, aggregator)
 INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_CONTAINERS, containers)
 INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_KUBEUTIL, kubeutil)
 INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_TAGGER, tagger)
@@ -75,10 +75,11 @@ bool Three::init(const char *pythonHome) {
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_DATADOG_AGENT, datadog_agent)
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX__UTIL, _util)
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_UTIL, util)
-    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_AGGREGATOR, aggregator)
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_CONTAINERS, containers)
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_KUBEUTIL, kubeutil)
     APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_TAGGER, tagger)
+
+    PyImport_AppendInittab("aggregator", PyInit_aggregator);
 
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
@@ -523,4 +524,8 @@ done:
     Py_XDECREF(py_version);
     Py_XDECREF(py_version_bytes);
     return ret;
+}
+
+void Three::setSubmitMetricCb(cb_submit_metric_t cb) {
+    set_submit_metric_cb(cb);
 }
