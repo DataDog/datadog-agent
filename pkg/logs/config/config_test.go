@@ -38,6 +38,7 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal("", suite.config.GetString("logs_config.logs_dd_url"))
 	suite.Equal(false, suite.config.GetBool("logs_config.logs_no_ssl"))
 	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
+	suite.Equal(nil, suite.config.Get("logs_config.processing_rules"))
 }
 
 func (suite *ConfigTestSuite) TestDefaultSources() {

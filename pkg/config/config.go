@@ -321,6 +321,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// increase the number of files that can be tailed in parallel:
 	config.BindEnvAndSetDefault("logs_config.open_files_limit", 100)
+	// add global processing rules that are applied on all logs
+	config.BindEnv("logs_config.processing_rules")
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logset", "")
