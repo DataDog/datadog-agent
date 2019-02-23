@@ -44,6 +44,9 @@ public:
     void setError(const std::string &msg) const; // let const methods set errors
     void setError(const char *msg) const;
 
+    // Aggregator API
+    virtual void setSubmitMetricCb(cb_submit_metric_t) = 0;
+
 protected:
     const char *getExtensionModuleName(six_module_t m);
     const char *getUnknownModuleName();

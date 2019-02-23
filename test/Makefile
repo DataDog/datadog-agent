@@ -7,7 +7,8 @@ TWO_PKGS = \
 THREE_PKGS = \
 	./three/... \
 	./three_extend/... \
-	./three_init/...
+	./three_init/... \
+	./three_aggregator
 
 all: test
 
