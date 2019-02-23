@@ -4,6 +4,8 @@
 // Copyright 2019 Datadog, Inc.
 #include "aggregator.h"
 
+#include <assert.h>
+
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;
 
@@ -40,6 +42,9 @@ void _set_submit_metric_cb(cb_submit_metric_t cb) {
 }
 
 static PyObject *submit_metric(PyObject *self, PyObject *args) {
+    // callback must be set
+    assert(cb_submit_metric != NULL);
+
     PyObject *check = NULL;
     PyObject *py_tags = NULL;
     PyObject *py_tags_list = NULL;
