@@ -9,8 +9,14 @@
 
 PyMODINIT_FUNC PyInit_aggregator(void);
 
-static PyObject *submit_metric(PyObject *self, PyObject *args);
-static PyObject *submit_service_check(PyObject *self, PyObject *args);
-static PyObject *submit_event(PyObject *self, PyObject *args);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void _set_submit_metric_cb(cb_submit_metric_t);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

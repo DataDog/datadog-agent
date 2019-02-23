@@ -527,5 +527,5 @@ done:
 }
 
 void Three::setSubmitMetricCb(cb_submit_metric_t cb) {
-    set_submit_metric_cb(cb);
+    _set_submit_metric_cb(cb);
 }

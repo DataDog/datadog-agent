@@ -7,6 +7,11 @@
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;
 
+// forward declarations
+static PyObject *submit_metric(PyObject *self, PyObject *args);
+static PyObject *submit_service_check(PyObject *self, PyObject *args);
+static PyObject *submit_event(PyObject *self, PyObject *args);
+
 static PyMethodDef methods[] = {
     { "submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics to the aggregator." },
     { "submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS,
@@ -30,7 +35,7 @@ PyMODINIT_FUNC PyInit_aggregator(void) {
     return m;
 }
 
-void set_submit_metric_cb(cb_submit_metric_t cb) {
+void _set_submit_metric_cb(cb_submit_metric_t cb) {
     cb_submit_metric = cb;
 }
 
