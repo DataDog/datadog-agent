@@ -21,13 +21,14 @@ configure_file(constants.h.in constants.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(datadog-agent-three SHARED
     three.cpp
-    aggregator.c
+    ../common/aggregator.c
 )
 
 
 target_include_directories(datadog-agent-three PRIVATE .)
 target_include_directories(datadog-agent-three PUBLIC
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/common
     ${Python3_INCLUDE_DIRS}
 )
 target_link_libraries(datadog-agent-three ${Python3_LIBRARIES} datadog-agent-six)
