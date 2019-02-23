@@ -6,6 +6,7 @@
 
 #include "constants.h"
 
+#include <aggregator.h>
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -30,17 +31,8 @@ bool Two::init(const char *pythonHome) {
     Py_SetPythonHome(const_cast<char *>(_pythonHome));
     Py_Initialize();
 
-    PyModules::iterator it;
-    for (it = _modules.begin(); it != _modules.end(); ++it) {
-        six_module_t module = it->first;
-        PyObject *m = Py_InitModule(getExtensionModuleName(module), &_modules[module][0]);
-        if (_module_constants.find(module) != _module_constants.end()) {
-            std::vector<PyModuleConst>::iterator cit;
-            for (cit = _module_constants[module].begin(); cit != _module_constants[module].end(); ++cit) {
-                PyModule_AddIntConstant(m, cit->first.c_str(), cit->second);
-            }
-        }
-    }
+    // init custom builtins
+    Py2_init_aggregator();
 
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
@@ -468,4 +460,8 @@ char *Two::_getCheckVersion(PyObject *module) const {
 done:
     Py_XDECREF(py_version);
     return ret;
+}
+
+void Two::setSubmitMetricCb(cb_submit_metric_t cb) {
+    _set_submit_metric_cb(cb);
 }
