@@ -183,3 +183,8 @@
   name = "bitbucket.org/ww/goautoneg"
   source = "github.com/adjust/goautoneg"
   revision = "d788f35a0315672bc90f50a6145d1252a230ee0d"
+
+[[override]]
+  name = "github.com/spf13/cast"
+  source = "github.com/DataDog/cast"
+  revision = "1ee8c8bd14a3d768a7ff681617ed56bc6c204940"
