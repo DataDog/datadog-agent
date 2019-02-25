@@ -405,6 +405,10 @@ molecule_tests:
    - export MOLECULE_RUN_ID=${CI_JOB_ID}
    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
    - cd $CI_PROJECT_DIR/test && ./molecule.sh test
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/default/topic-*.json
+    expire_in: 1 week
 
 release_deb:
   stage: release

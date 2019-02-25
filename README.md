@@ -74,6 +74,10 @@ If you wanna install a branch version use the test repository:
 
 and replace `PR_NAME` with the branch name (e.g. `master`, `STAC-xxxx`). 
 
+### Docker
+
+    $ docker pull stackstate/stackstate-agent-2:latest
+
 ### Windows
 
 To install the official release:
