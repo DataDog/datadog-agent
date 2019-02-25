@@ -144,7 +144,7 @@ func TestGetExternalMetric(t *testing.T) {
 			[]external_metrics.ExternalMetricValue{},
 		},
 		{
-			"one matching metric with capital letterstored",
+			"one matching metric with capital letter stored",
 			[]ExternalMetricValue{
 				{
 					MetricName: "CapitalMetric",
