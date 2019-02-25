@@ -1,7 +1,8 @@
-package threeaggregator
+package testaggregator
 
 import (
 	"fmt"
+	"os"
 	"unsafe"
 
 	common "../common"
@@ -36,6 +37,36 @@ func resetOuputValues() {
 	hostname = ""
 }
 
+func setUp() error {
+	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
+		six = C.make2()
+		if six == nil {
+			return fmt.Errorf("`make2` failed")
+		}
+	} else {
+		six = C.make3()
+		if six == nil {
+			return fmt.Errorf("`make3` failed")
+		}
+	}
+
+	C.initAggregator(six)
+	// Updates sys.path so testing Check can be found
+	C.add_python_path(six, C.CString("../python"))
+
+	if ok := C.init(six, nil); ok != 1 {
+		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
+	}
+
+	resetOuputValues()
+	return nil
+}
+
+func tearDown() {
+	C.destroy(six)
+	six = nil
+}
+
 //export submitMetric
 func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.float, t **C.char, tagsLen C.int, hname *C.char) {
 	checkID = C.GoString(id)
@@ -52,16 +83,6 @@ func submitMetric(id *C.char, mt C.metric_type_t, mname *C.char, val C.float, t 
 
 func runSubmitMetric() (string, error) {
 	var err error
-	six = C.make3()
-	C.initAggregator(six)
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(six, C.CString("../python"))
-	if ok := C.init(six, nil); ok != 1 {
-		return "", fmt.Errorf("`init` errored")
-	}
-
-	resetOuputValues()
-
 	code := C.CString(`
 try:
 	import aggregator
