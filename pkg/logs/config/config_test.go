@@ -39,6 +39,7 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(false, suite.config.GetBool("logs_config.logs_no_ssl"))
 	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
 	suite.Equal(nil, suite.config.Get("logs_config.processing_rules"))
+	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
 }
 
 func (suite *ConfigTestSuite) TestDefaultSources() {
@@ -57,10 +58,9 @@ func (suite *ConfigTestSuite) TestDefaultSources() {
 	suite.Equal("docker", source.Config.Service)
 }
 
-func (suite *ConfigTestSuite) TestGlobalProcessingRules() {
+func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEmptyValues() {
 	var (
 		rules []*ProcessingRule
-		rule  *ProcessingRule
 		err   error
 	)
 
@@ -69,6 +69,20 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRules() {
 	rules, err = GlobalProcessingRules()
 	suite.Nil(err)
 	suite.Equal(0, len(rules))
+
+	suite.config.Set("logs_config.processing_rules", "")
+
+	rules, err = GlobalProcessingRules()
+	suite.Nil(err)
+	suite.Equal(0, len(rules))
+}
+
+func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithValidMap() {
+	var (
+		rules []*ProcessingRule
+		rule  *ProcessingRule
+		err   error
+	)
 
 	suite.config.Set("logs_config.processing_rules", []map[string]interface{}{
 		{
@@ -86,6 +100,27 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRules() {
 	suite.Equal(ExcludeAtMatch, rule.Type)
 	suite.Equal("exclude_foo", rule.Name)
 	suite.Equal("foo", rule.Pattern)
+	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithValidJSONString() {
+	var (
+		rules []*ProcessingRule
+		rule  *ProcessingRule
+		err   error
+	)
+
+	suite.config.Set("logs_config.processing_rules", `[{"type":"mask_sequences","name":"mask_api_keys","replace_placeholder":"****************************","pattern":"([A-Fa-f0-9]{28})"}]`)
+
+	rules, err = GlobalProcessingRules()
+	suite.Nil(err)
+	suite.Equal(1, len(rules))
+
+	rule = rules[0]
+	suite.Equal(MaskSequences, rule.Type)
+	suite.Equal("mask_api_keys", rule.Name)
+	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
+	suite.Equal("****************************", rule.ReplacePlaceholder)
 	suite.NotNil(rule.Regex)
 }
 
