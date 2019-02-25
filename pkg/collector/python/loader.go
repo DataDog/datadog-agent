@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build cpython
+// +build python
 
-package py
+package python
 
 import (
 	"errors"
@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -21,10 +22,13 @@ import (
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/sbinet/go-python"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// #include <stdlib.h>
+// #include "datadog_agent_six.h"
+import "C"
 
 var (
 	pyLoaderStats    *expvar.Map
@@ -45,7 +49,7 @@ func init() {
 	factory := func() (check.Loader, error) {
 		return NewPythonCheckLoader()
 	}
-	loaders.RegisterLoader(20, factory)
+	loaders.RegisterLoader(10, factory)
 
 	configureErrors = map[string][]string{}
 	py3Warnings = map[string]string{}
@@ -68,31 +72,19 @@ const agentCheckClassName = "AgentCheck"
 const agentCheckModuleName = "checks"
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
-type PythonCheckLoader struct {
-	agentCheckClass *python.PyObject
-}
+type PythonCheckLoader struct{}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
 func NewPythonCheckLoader() (*PythonCheckLoader, error) {
-	// Lock the GIL and release it at the end of the run
-	glock := newStickyLock()
-	defer glock.unlock()
+	return &PythonCheckLoader{}, nil
+}
 
-	agentCheckModule := python.PyImport_ImportModule(agentCheckModuleName)
-	if agentCheckModule == nil {
-		log.Errorf("Unable to import Python module: %s", agentCheckModuleName)
-		return nil, fmt.Errorf("unable to initialize AgentCheck module")
+func getSixError() error {
+	if C.has_error(six) == 1 {
+		c_err := C.get_error(six)
+		return errors.New(C.GoString(c_err))
 	}
-	defer agentCheckModule.DecRef()
-
-	agentCheckClass := agentCheckModule.GetAttrString(agentCheckClassName) // don't `DecRef` for now since we keep the ref around in the returned PythonCheckLoader
-	if agentCheckClass == nil {
-		python.PyErr_Clear()
-		log.Errorf("Unable to import %s class from Python module: %s", agentCheckClassName, agentCheckModuleName)
-		return nil, errors.New("unable to initialize AgentCheck class")
-	}
-
-	return &PythonCheckLoader{agentCheckClass: agentCheckClass}, nil
+	return nil
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
@@ -100,13 +92,10 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
-	whlModuleName := fmt.Sprintf("%s.%s", wheelNamespace, config.Name)
 
-	// Looking for wheels first
-	modules := []string{whlModuleName, moduleName}
-
-	// Lock the GIL while working with go-python directly
+	// Lock the GIL
 	glock := newStickyLock()
+	defer glock.unlock()
 
 	// Platform-specific preparation
 	var err error
@@ -116,112 +105,60 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 	}
 	defer platformLoaderDone()
 
-	var pyErr string
-	var checkModule *python.PyObject
-	var name string
+	// Looking for wheels first
+	modules := []string{fmt.Sprintf("%s.%s", wheelNamespace, moduleName), moduleName}
 	var loadedAsWheel bool
+
+	var name string
+	var checkModule *C.six_pyobject_t
+	var checkClass *C.six_pyobject_t
 	for _, name = range modules {
-		// import python module containing the check
-		checkModule = python.PyImport_ImportModule(name)
-		if checkModule != nil {
+		if res := C.get_class(six, C.CString(name), &checkModule, &checkClass); res != 0 {
 			if strings.HasPrefix(name, fmt.Sprintf("%s.", wheelNamespace)) {
 				loadedAsWheel = true
 			}
 			break
 		}
 
-		pyErr, err = glock.getPythonError()
-		if err != nil {
-			err = fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
+		if err = getSixError(); err != nil {
+			log.Debugf("Unable to load python module - %s: %v", name, err)
 		} else {
-			err = errors.New(pyErr)
+			log.Debugf("Unable to load python module - %s", name)
 		}
-		log.Debugf("Unable to load python module - %s: %v", name, err)
 	}
 
 	// all failed, return error for last failure
-	if checkModule == nil {
-		defer glock.unlock()
+	if checkModule == nil || checkClass == nil {
+		log.Errorf("PyLoader returning %s for %s", err, moduleName)
 		return nil, err
 	}
 
-	// Try to find a class inheriting from AgentCheck within the module
-	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule, glock)
-
 	wheelVersion := "unversioned"
-	if err == nil {
-		// getting the wheel version fo the check
-		wheelVersionPy := checkModule.GetAttrString("__version__")
-		if wheelVersionPy != nil {
-			defer wheelVersionPy.DecRef()
-			if python.PyString_Check(wheelVersionPy) {
-				wheelVersion = python.PyString_AS_STRING(wheelVersionPy.Str())
-			} else {
-				// This should never happen. If the check is a custom one
-				// (a simple .py file dropped in the check.d folder) it does
-				// not have a '__version__' attribute. If it's a datadog wheel
-				// the '__version__' is a string.
-				//
-				// If we end up here: we're dealing with a custom wheel from
-				// the user or a buggy official wheels.
-				//
-				// In any case we'll try to detect the type of '__version__' to
-				// display a meaningful error message.
-
-				typeName := "unable to detect type"
-				pyType := wheelVersionPy.Type()
-				if pyType != nil {
-					defer pyType.DecRef()
-					pyTypeStr := pyType.Str()
-					if pyTypeStr != nil {
-						defer pyTypeStr.DecRef()
-						typeName = python.PyString_AS_STRING(pyTypeStr)
-					}
-				}
-
-				log.Errorf("'%s' python wheel attribute '__version__' has the wrong type (%s) instead of 'string'", config.Name, typeName)
-			}
-		} else {
-			// GetAttrString will set an error in the interpreter
-			// if __version__ doesn't exist. We purge it here.
-			pyErr, err = glock.getPythonError()
-			if err != nil {
-				log.Errorf("An error occurred while retrieving the python check version and couldn't be formatted: %v", err)
-			} else {
-				log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, errors.New(pyErr))
-			}
-			log.Debugf("python check '%s' doesn't have a '__version__' attribute", config.Name)
-
-		}
-
-		if !agentConfig.Datadog.GetBool("disable_py3_validation") && !loadedAsWheel {
-			// Customers, though unlikely might version their custom checks.
-			// Let's use the module namespace to try to decide if this was a
-			// custom check, check for py3 compatibility
-			checkFilePath := checkModule.GetAttrString("__file__")
-
-			if checkFilePath != nil {
-				defer checkFilePath.DecRef()
-				if python.PyString_Check(checkFilePath) {
-					filePath := python.PyString_AsString(checkFilePath)
-					reportPy3Warnings(name, filePath)
-				} else {
-					reportPy3Warnings(name, "")
-					log.Debugf("Error: %s check attribute '__file__' is not a type string", name)
-				}
-			} else {
-				reportPy3Warnings(name, "")
-				log.Debugf("Could not query the __file__ attribute for check %s", name)
-				python.PyErr_Clear()
-			}
-		}
+	// getting the wheel version fo the check
+	var version *C.char
+	versionAttr := C.CString("__file__")
+	defer C.free(unsafe.Pointer(versionAttr))
+	if res := C.get_attr_string(six, checkModule, versionAttr, &version); res != 0 {
+		wheelVersion = C.GoString(version)
+		C.six_free(six, unsafe.Pointer(version))
+	} else {
+		log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, getSixError())
 	}
 
-	checkModule.DecRef()
-	glock.unlock()
-	if err != nil {
-		msg := fmt.Sprintf("Unable to find a check class in the module: %v", err)
-		return checks, errors.New(msg)
+	if !agentConfig.Datadog.GetBool("disable_py3_validation") && !loadedAsWheel {
+		// Customers, though unlikely might version their custom checks.
+		// Let's use the module namespace to try to decide if this was a
+		// custom check, check for py3 compatibility
+		var checkFilePath *C.char
+		fileAttr := C.CString("__file__")
+		defer C.free(unsafe.Pointer(fileAttr))
+		if res := C.get_attr_string(six, checkModule, fileAttr, &checkFilePath); res != 0 {
+			reportPy3Warnings(name, C.GoString(checkFilePath))
+			C.six_free(six, unsafe.Pointer(checkFilePath))
+		} else {
+			reportPy3Warnings(name, "")
+			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getSixError())
+		}
 	}
 
 	// Get an AgentCheck for each configuration instance and add it to the registry
@@ -237,10 +174,12 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		check.version = wheelVersion
 		checks = append(checks, check)
 	}
-	glock = newStickyLock()
-	defer glock.unlock()
-	checkClass.DecRef()
+	C.six_decref(six, checkClass)
+	C.six_decref(six, checkModule)
 
+	if len(checks) == 0 {
+		return nil, fmt.Errorf("Could not configure any python check %s", moduleName)
+	}
 	log.Debugf("python loader: done loading check %s (version %s)", moduleName, wheelVersion)
 	return checks, nil
 }
@@ -257,8 +196,6 @@ func expvarConfigureErrors() interface{} {
 }
 
 func addExpvarConfigureError(check string, errMsg string) {
-	log.Errorf("py.loader: could not configure check '%s': %s", check, errMsg)
-
 	statsLock.Lock()
 	defer statsLock.Unlock()
 
