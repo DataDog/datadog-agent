@@ -1,6 +1,23 @@
-package threeaggregator
+package testaggregator
 
-import "testing"
+import (
+	"fmt"
+	"os"
+	"testing"
+)
+
+func TestMain(m *testing.M) {
+	err := setUp()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error setting up tests: %v", err)
+		os.Exit(-1)
+	}
+
+	ret := m.Run()
+
+	tearDown()
+	os.Exit(ret)
+}
 
 func TestExtend(t *testing.T) {
 	out, err := runSubmitMetric()

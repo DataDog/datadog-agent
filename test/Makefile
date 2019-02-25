@@ -8,11 +8,13 @@ THREE_PKGS = \
 	./three/... \
 	./three_extend/... \
 	./three_init/... \
-	./three_aggregator
+
+PKGS = \
+	./aggregator/...
 
 all: test
 
 test:
-	@DYLD_LIBRARY_PATH=$(LIB_PATH) LD_LIBRARY_PATH=$(LIB_PATH) go test $(TWO_PKGS)
+	@DYLD_LIBRARY_PATH=$(LIB_PATH) LD_LIBRARY_PATH=$(LIB_PATH) TEST_TWO= go test $(TWO_PKGS) $(PKGS)
 	@echo
-	@DYLD_LIBRARY_PATH=$(LIB_PATH) LD_LIBRARY_PATH=$(LIB_PATH) go test $(THREE_PKGS)
+	@DYLD_LIBRARY_PATH=$(LIB_PATH) LD_LIBRARY_PATH=$(LIB_PATH) go test $(THREE_PKGS) $(PKGS)
