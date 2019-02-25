@@ -48,6 +48,7 @@ void Py2_init_aggregator() {
 
 void add_constants(PyObject *m) {
     PyModule_AddIntConstant(m, "GAUGE", DATADOG_AGENT_SIX_GAUGE);
+    PyModule_AddIntConstant(m, "RATE", DATADOG_AGENT_SIX_RATE);
     PyModule_AddIntConstant(m, "COUNT", DATADOG_AGENT_SIX_COUNT);
     PyModule_AddIntConstant(m, "MONOTONIC_COUNT", DATADOG_AGENT_SIX_MONOTONIC_COUNT);
     PyModule_AddIntConstant(m, "COUNTER", DATADOG_AGENT_SIX_COUNTER);
