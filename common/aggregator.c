@@ -64,9 +64,9 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
     // callback must be set
     assert(cb_submit_metric != NULL);
 
-    PyObject *check = NULL;
-    PyObject *py_tags = NULL;
-    PyObject *py_tags_list = NULL;
+    PyObject *check = NULL; // borrowed
+    PyObject *py_tags = NULL; // borrowed
+    PyObject *py_tags_list = NULL; // new reference
     char *err = NULL;
     char *name = NULL;
     char *hostname = NULL;
@@ -113,8 +113,6 @@ done:
     if (err != NULL) {
         free(err);
     }
-    Py_XDECREF(check);
-    Py_XDECREF(py_tags);
     Py_XDECREF(py_tags_list);
     PyGILState_Release(gstate);
 
