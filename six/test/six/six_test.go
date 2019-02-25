@@ -1,4 +1,4 @@
-package two
+package testsix
 
 import (
 	"fmt"
@@ -22,26 +22,26 @@ func TestMain(m *testing.M) {
 
 func TestGetVersion(t *testing.T) {
 	ver := getVersion()
-	if !strings.HasPrefix(ver, "2.7.") {
-		t.Errorf("Version doesn't start with `2.7.`: %s", ver)
+	if !strings.HasPrefix(ver, "3.") {
+		t.Errorf("Version doesn't start with `3.`: %s", ver)
 	}
 }
 
 func TestRunSimpleString(t *testing.T) {
-	output, err := runString("import sys; sys.stderr.write('Hello, World!') \n")
+	output, err := runString("print('Hello, World!', flush=True)\n")
 
 	if err != nil {
-		t.Fatal("`run_simple_string` error")
+		t.Fatalf("`run_simple_string` error: %v", err)
 	}
 
-	if output != "Hello, World!" {
+	if output != "Hello, World!\n" {
 		t.Errorf("Unexpected printed value: '%s'", output)
 	}
 }
 
 func TestGetError(t *testing.T) {
 	errorStr := getError()
-	if errorStr != "unable to import module 'foo': No module named foo" {
+	if errorStr != "unable to import module 'foo': No module named 'foo'" {
 		t.Fatalf("Wrong error string returned: %s", errorStr)
 	}
 }
@@ -52,7 +52,7 @@ func TestHasError(t *testing.T) {
 	}
 }
 
-func TestGetCheckAgent(t *testing.T) {
+func TestGetCheck(t *testing.T) {
 	version, err := getFakeCheck()
 
 	if err != nil {
