@@ -48,6 +48,7 @@ public:
     bool getCheck(const char *module, const char *init_config, const char *instances, SixPyObject *&check,
                   char *&version);
     const char *runCheck(SixPyObject *check);
+    void decref(SixPyObject *);
 
     // const API
     bool isInitialized() const;
