@@ -12,7 +12,7 @@ type ExternalMetricValue struct {
 	Labels     map[string]string `json:"labels"`
 	Timestamp  int64             `json:"ts"`
 	HPA        ObjectReference   `json:"hpa"`
-	Value      int64             `json:"value"`
+	Value      float64           `json:"value"`
 	Valid      bool              `json:"valid"`
 }
 

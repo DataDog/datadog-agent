@@ -103,7 +103,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 		extMetric.value = external_metrics.ExternalMetricValue{
 			MetricName:   metric.MetricName,
 			MetricLabels: metric.Labels,
-			Value:        *resource.NewQuantity(metric.Value, resource.DecimalSI),
+			Value:        *resource.NewMilliQuantity(int64(metric.Value*1000), resource.DecimalSI),
 		}
 		externalMetricsList = append(externalMetricsList, extMetric)
 
