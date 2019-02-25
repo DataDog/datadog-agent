@@ -1,12 +1,14 @@
-package two
+package testsix
 
 // #cgo CFLAGS: -I../../include
 // #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
 // #include <datadog_agent_six.h>
+//
 import "C"
 
 import (
 	"fmt"
+	"os"
 
 	common "../common"
 )
@@ -14,9 +16,16 @@ import (
 var six *C.six_t
 
 func setUp() error {
-	six = C.make2()
-	if six == nil {
-		return fmt.Errorf("`make2` failed")
+	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
+		six = C.make2()
+		if six == nil {
+			return fmt.Errorf("`make2` failed")
+		}
+	} else {
+		six = C.make3()
+		if six == nil {
+			return fmt.Errorf("`make3` failed")
+		}
 	}
 
 	// Updates sys.path so testing Check can be found
@@ -78,6 +87,7 @@ func getFakeCheck() (string, error) {
 	var version *C.char
 
 	ret := C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"), &check, &version)
+
 	if ret != 1 || check == nil || version == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
