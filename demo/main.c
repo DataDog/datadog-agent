@@ -11,9 +11,18 @@
 
 static six_t *six;
 
-static six_pyobject_t *print_foo() {
-    printf("I'm extending Python!\n\n");
-    return get_none(six);
+void submitMetric(char *id, metric_type_t mt, char *name, float val, char **tags, int tags_num, char *hostname) {
+    printf("I'm extending Python providing aggregator.submit_metric:\n");
+    printf("Check id: %s\n", id);
+    printf("Metric '%s': %f\n", name, val);
+    printf("Tags:\n");
+    for (int i = 0; i < tags_num; i++) {
+        printf(" %s", tags[i]);
+    }
+    printf("\n");
+    printf("Hostname: %s\n\n", hostname);
+
+    // TODO: cleanup memory
 }
 
 char *read_file(const char *path) {
@@ -69,9 +78,8 @@ int main(int argc, char *argv[]) {
         return 2;
     }
 
-    // add a new `print_foo` to the custom builtin module `datadog_agent`
-    add_module_func(six, DATADOG_AGENT_SIX__UTIL, DATADOG_AGENT_SIX_NOARGS, "print_foo", print_foo);
-    add_module_int_const(six, DATADOG_AGENT_SIX__UTIL, "constant_number", 21);
+    // set submitMetric callback
+    set_submit_metric_cb(six, submitMetric);
 
     if (!init(six, python_home)) {
         printf("Error initializing six: %s\n", get_error(six));
@@ -97,9 +105,9 @@ int main(int argc, char *argv[]) {
     }
 
     if (version != NULL) {
-        printf("Successfully imported Directory integration v%s.\n", version);
+        printf("Successfully imported Directory integration v%s.\n\n", version);
     } else {
-        printf("Successfully imported Directory integration.\n");
+        printf("Successfully imported Directory integration.\n\n");
     }
 
     const char *result = run_check(six, check);
