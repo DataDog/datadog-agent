@@ -58,3 +58,9 @@ void Six::clearError() {
     _errorFlag = false;
     _error = "";
 }
+
+void Six::free(void *ptr) {
+    if (ptr != NULL) {
+        free(ptr);
+    }
+}
