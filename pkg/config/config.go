@@ -262,6 +262,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubelet_client_crt", "")
 	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
+	config.BindEnvAndSetDefault("kubernetes_pod_expiration_minutes", 15)
 	config.BindEnvAndSetDefault("kubelet_wait_on_missing_container", 0)
 	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5) // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
@@ -274,7 +275,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
-	config.BindEnvAndSetDefault("kube_resources_namespace", "")
+	config.BindEnvAndSetDfeault("kube_resources_namespace", "")
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
