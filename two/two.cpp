@@ -469,3 +469,7 @@ done:
     Py_XDECREF(py_version);
     return ret;
 }
+
+void Two::decref(SixPyObject *obj) {
+    Py_XDECREF(reinterpret_cast<SixPyObject *>(obj));
+}
