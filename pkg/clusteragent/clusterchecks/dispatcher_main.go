@@ -31,6 +31,7 @@ func newDispatcher() *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
+	d.extraTags = config.Datadog.GetStringSlice("cluster_checks.extra_tags")
 
 	clusterTagValue := clustername.GetClusterName()
 	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
