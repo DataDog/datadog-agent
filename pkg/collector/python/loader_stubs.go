@@ -3,16 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build !cpython,!python
+// +build python,!windows
 
-package collector
+package python
 
-func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
-	return "", "", ""
-}
-
-func pyPrepareEnv() error {
+func platformLoaderPrep() error {
 	return nil
 }
 
-func pyTeardown() {}
+func platformLoaderDone() error {
+	return nil
+}
