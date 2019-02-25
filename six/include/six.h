@@ -33,6 +33,7 @@ public:
         = 0;
     virtual const char *runCheck(SixPyObject *check) = 0;
     void clearError();
+    void free(void *);
 
     // Public Const API
     virtual bool isInitialized() const = 0;
