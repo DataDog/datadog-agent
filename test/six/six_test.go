@@ -1,4 +1,4 @@
-package three
+package testsix
 
 import (
 	"fmt"

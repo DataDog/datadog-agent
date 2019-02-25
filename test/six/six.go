@@ -1,4 +1,4 @@
-package three
+package testsix
 
 // #cgo CFLAGS: -I../../include
 // #cgo LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
@@ -8,6 +8,7 @@ import "C"
 
 import (
 	"fmt"
+	"os"
 
 	common "../common"
 )
@@ -15,9 +16,16 @@ import (
 var six *C.six_t
 
 func setUp() error {
-	six = C.make3()
-	if six == nil {
-		return fmt.Errorf("`make3` failed")
+	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
+		six = C.make2()
+		if six == nil {
+			return fmt.Errorf("`make2` failed")
+		}
+	} else {
+		six = C.make3()
+		if six == nil {
+			return fmt.Errorf("`make3` failed")
+		}
 	}
 
 	// Updates sys.path so testing Check can be found
