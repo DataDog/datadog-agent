@@ -231,3 +231,7 @@ void clear_error(six_t *six) {
 void set_submit_metric_cb(six_t *six, cb_submit_metric_t cb) {
     AS_TYPE(Six, six)->setSubmitMetricCb(cb);
 }
+
+void six_free(six_t *six, void *ptr) {
+    AS_TYPE(Six, six)->free(ptr);
+}

@@ -33,6 +33,7 @@ DATADOG_AGENT_SIX_API void release_gil(six_t *, six_gilstate_t);
 DATADOG_AGENT_SIX_API int get_check(six_t *, const char *name, const char *init_config, const char *instances,
                                     six_pyobject_t **check, char **version);
 DATADOG_AGENT_SIX_API const char *run_check(six_t *, six_pyobject_t *check);
+DATADOG_AGENT_SIX_API void six_free(six_t *, void *ptr);
 
 // C CONST API
 DATADOG_AGENT_SIX_API int is_initialized(six_t *);
