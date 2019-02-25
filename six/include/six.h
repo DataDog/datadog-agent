@@ -34,6 +34,7 @@ public:
     virtual const char *runCheck(SixPyObject *check) = 0;
     void clearError();
     void free(void *);
+    virtual void decref(SixPyObject *) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;
