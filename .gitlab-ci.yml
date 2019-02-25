@@ -163,6 +163,29 @@ run_test_rpm-x64:
     # This is OK because the test on systemd still runs on the debian image above
     - inv -e test --race --profile --cpus 4 --build-exclude=systemd
 
+# run tests for windows
+run_test_windows-x64:
+  before_script:
+    - set WIN_CI_PROJECT_DIR=%CD%
+    - if exist .omnibus rd /s/q .omnibus
+    - mkdir .omnibus\pkg
+    - if exist \omnibus-ruby rd /s/q \omnibus-ruby
+    - if exist %OMNIBUS_BASE_DIR_WIN% rd /s/q %OMNIBUS_BASE_DIR_WIN%
+    - if exist \opt\datadog-agent rd /s/q \opt\datadog-agent
+    - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
+    - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
+    - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    - inv -e deps
+  stage: source_test
+  variables:
+    WINDOWS_BUILDER: 'true'
+    CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
+  tags: ["runner:windows-agent6"]
+  script:
+    - inv -e test --race --profile --cpus 4 --build-exclude=systemd
+
+
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
   stage: source_test
