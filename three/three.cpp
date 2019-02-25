@@ -280,7 +280,7 @@ const char *Three::runCheck(SixPyObject *check) {
     // string decref'ed, caller will be responsible for memory deallocation.
     char *ret, *ret_copy = NULL;
     char run[] = "run";
-    PyObject *result, *bytes = NULL;
+    PyObject *result = NULL, *bytes = NULL;
 
     result = PyObject_CallMethod(py_check, run, NULL);
     if (result == NULL || !PyUnicode_Check(result)) {
