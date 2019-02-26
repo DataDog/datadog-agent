@@ -183,7 +183,7 @@ run_test_windows-x64:
     CREDENTIALS_FILE_PATH: 'c:\users\gitlab\.aws\config'
   tags: ["runner:windows-agent6"]
   script:
-    - inv -e test --race --profile --cpus 4 --build-exclude=systemd
+    - inv -e test --race --profile --build-exclude=systemd
 
 
 # scan the dependencies for security vulnerabilities with snyk

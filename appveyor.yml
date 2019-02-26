@@ -39,5 +39,5 @@ build: off
 test_script:
   - cd %APPVEYOR_BUILD_FOLDER%
   - inv -e deps
-  - inv -e test --coverage --race --profile --fail-on-fmt
+  - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
   - codecov -f profile.cov -F windows
