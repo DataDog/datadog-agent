@@ -1,6 +1,4 @@
 LIB_PATH = ../../six/:../../two/:../../three/
-THREE_PKGS = \
-	./three_extend/...
 PKGS = \
 	./init/... \
 	./six/... \
@@ -14,4 +12,4 @@ test:
 	@DYLD_LIBRARY_PATH=$(LIB_PATH) LD_LIBRARY_PATH=$(LIB_PATH) TEST_TWO= go test -count=1 -p=1 $(PKGS)
 	@echo
 	@echo Run Python3 testsuite...
-	@DYLD_LIBRARY_PATH=$(LIB_PATH) LD_LIBRARY_PATH=$(LIB_PATH) go test -count=1 -p=1 $(THREE_PKGS) $(PKGS)
+	@DYLD_LIBRARY_PATH=$(LIB_PATH) LD_LIBRARY_PATH=$(LIB_PATH) go test -count=1 -p=1 $(PKGS)
