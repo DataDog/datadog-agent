@@ -101,7 +101,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 			Metric: metric.MetricName,
 		}
 		// Avoid overflowing when trying to get a 10^3 precision
-		q, err := resource.ParseQuantity(fmt.Sprintf("%ve3", metric.Value))
+		q, err := resource.ParseQuantity(fmt.Sprintf("%v", metric.Value))
 		if err != nil {
 			log.Errorf("Could not parse the metric value: %v into the exponential format", metric.Value)
 			continue
@@ -109,7 +109,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 		extMetric.value = external_metrics.ExternalMetricValue{
 			MetricName:   metric.MetricName,
 			MetricLabels: metric.Labels,
-			Value:        *resource.NewMilliQuantity(q.Value(), resource.DecimalSI),
+			Value:        q,
 		}
 		externalMetricsList = append(externalMetricsList, extMetric)
 
