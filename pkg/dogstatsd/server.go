@@ -71,8 +71,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		stats = s
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
-
-	packetsChannel := make(chan listeners.Packets, 100)
+	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
@@ -141,7 +140,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		if err != nil {
 			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
-			s.packetsIn = make(chan listeners.Packets, 100)
+			s.packetsIn = make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 			go s.forwarder(con, packetsChannel)
 		}
 	}
