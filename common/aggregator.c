@@ -5,6 +5,9 @@
 #include "aggregator.h"
 
 #include <assert.h>
+#include <sixstrings.h>
+
+#define MODULE_NAME "aggregator"
 
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;
@@ -13,6 +16,10 @@ static cb_submit_metric_t cb_submit_metric = NULL;
 static PyObject *submit_metric(PyObject *self, PyObject *args);
 static PyObject *submit_service_check(PyObject *self, PyObject *args);
 static PyObject *submit_event(PyObject *self, PyObject *args);
+void add_constants(PyObject *);
+
+// module object storage (Python2)
+static PyObject *module;
 
 static PyMethodDef methods[] = {
     { "submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics to the aggregator." },
@@ -22,19 +29,31 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
-static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, "aggregator", NULL, -1, methods };
+#ifdef DATADOG_AGENT_THREE
+static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_aggregator(void) {
     PyObject *m = PyModule_Create(&module_def);
+    add_constants(m);
+    return m;
+}
+#endif
 
+#ifdef DATADOG_AGENT_TWO
+void Py2_init_aggregator() {
+    module = Py_InitModule(MODULE_NAME, methods);
+    add_constants(module);
+}
+#endif
+
+void add_constants(PyObject *m) {
     PyModule_AddIntConstant(m, "GAUGE", DATADOG_AGENT_SIX_GAUGE);
+    PyModule_AddIntConstant(m, "RATE", DATADOG_AGENT_SIX_RATE);
     PyModule_AddIntConstant(m, "COUNT", DATADOG_AGENT_SIX_COUNT);
     PyModule_AddIntConstant(m, "MONOTONIC_COUNT", DATADOG_AGENT_SIX_MONOTONIC_COUNT);
     PyModule_AddIntConstant(m, "COUNTER", DATADOG_AGENT_SIX_COUNTER);
     PyModule_AddIntConstant(m, "HISTOGRAM", DATADOG_AGENT_SIX_HISTOGRAM);
     PyModule_AddIntConstant(m, "HISTORATE", DATADOG_AGENT_SIX_HISTORATE);
-
-    return m;
 }
 
 void _set_submit_metric_cb(cb_submit_metric_t cb) {
@@ -45,9 +64,9 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
     // callback must be set
     assert(cb_submit_metric != NULL);
 
-    PyObject *check = NULL;
-    PyObject *py_tags = NULL;
-    PyObject *py_tags_list = NULL;
+    PyObject *check = NULL; // borrowed
+    PyObject *py_tags = NULL; // borrowed
+    PyObject *py_tags_list = NULL; // new reference
     char *err = NULL;
     char *name = NULL;
     char *hostname = NULL;
@@ -78,13 +97,12 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
 
             for (int i = 0; i < len; i++) {
                 PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i); // `item` is borrowed, no need to decref
+                char *str = as_string(item);
                 // skip if not a string
-                if (!PyUnicode_Check(item)) {
+                if (str == NULL) {
                     continue;
                 }
-                PyObject *temp_bytes = PyUnicode_AsEncodedString(item, "UTF-8", "strict");
-                tags[i] = _strdup(PyBytes_AS_STRING(temp_bytes));
-                Py_XDECREF(temp_bytes);
+                tags[i] = str;
             }
         }
     }
@@ -95,8 +113,6 @@ done:
     if (err != NULL) {
         free(err);
     }
-    Py_XDECREF(check);
-    Py_XDECREF(py_tags);
     Py_XDECREF(py_tags_list);
     PyGILState_Release(gstate);
 

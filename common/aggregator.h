@@ -7,12 +7,17 @@
 #include <Python.h>
 #include <six_types.h>
 
+#ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_aggregator(void);
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifdef DATADOG_AGENT_TWO
+void Py2_init_aggregator();
+#endif
 void _set_submit_metric_cb(cb_submit_metric_t);
 
 #ifdef __cplusplus
