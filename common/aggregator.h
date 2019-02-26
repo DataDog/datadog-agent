@@ -18,7 +18,9 @@ extern "C" {
 #ifdef DATADOG_AGENT_TWO
 void Py2_init_aggregator();
 #endif
+
 void _set_submit_metric_cb(cb_submit_metric_t);
+void _set_submit_service_check_cb(cb_submit_service_check_t);
 
 #ifdef __cplusplus
 }
