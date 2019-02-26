@@ -12,6 +12,7 @@
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;
 static cb_submit_service_check_t cb_submit_service_check = NULL;
+static cb_submit_event_t cb_submit_event = NULL;
 
 // forward declarations
 static PyObject *submit_metric(PyObject *self, PyObject *args);
@@ -62,6 +63,10 @@ void _set_submit_metric_cb(cb_submit_metric_t cb) {
 
 void _set_submit_service_check_cb(cb_submit_service_check_t cb) {
     cb_submit_service_check = cb;
+}
+
+void _set_submit_event_cb(cb_submit_event_t cb) {
+    cb_submit_event = cb;
 }
 
 static PyObject *submit_metric(PyObject *self, PyObject *args) {
@@ -151,6 +156,7 @@ done:
 }
 
 static PyObject *submit_event(PyObject *self, PyObject *args) {
-    /*FIXME*/
+    // callback must be set
+    assert(cb_submit_event != NULL);
     return NULL;
 }

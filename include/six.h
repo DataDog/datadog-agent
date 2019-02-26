@@ -49,6 +49,7 @@ public:
     // Aggregator API
     virtual void setSubmitMetricCb(cb_submit_metric_t) = 0;
     virtual void setSubmitServiceCheckCb(cb_submit_service_check_t) = 0;
+    virtual void setSubmitEventCb(cb_submit_event_t) = 0;
 
 protected:
     const char *getExtensionModuleName(six_module_t m);
