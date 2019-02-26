@@ -8,7 +8,10 @@
 ---
 features:
   - |
-    JMXFetch 0.26.0 introduces support for concurrent instance
+    JMXFetch upgraded to 0.26.1: introduces support for concurrent instance
     metric collection. Concurrent collection should avoid stalling
-    healthy instances in the event of issues (networking, system) in 
+    healthy instances in the event of issues (networking, system) in
     any of the remaining instances configured.
+    See `0.25.0  <https://github.com/DataDog/jmxfetch/releases/tag/0.25.0>`_,
+    `0.26.0  <https://github.com/DataDog/jmxfetch/releases/tag/0.26.0>`_ and
+    `0.26.1  <https://github.com/DataDog/jmxfetch/releases/tag/0.26.1>`_.
