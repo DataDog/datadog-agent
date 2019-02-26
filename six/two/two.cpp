@@ -471,3 +471,7 @@ void Two::setSubmitMetricCb(cb_submit_metric_t cb) {
 void Two::setSubmitServiceCheckCb(cb_submit_service_check_t cb) {
     _set_submit_service_check_cb(cb);
 }
+
+void Two::setSubmitEventCb(cb_submit_event_t cb) {
+    _set_submit_event_cb(cb);
+}

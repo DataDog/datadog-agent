@@ -21,6 +21,7 @@ void Py2_init_aggregator();
 
 void _set_submit_metric_cb(cb_submit_metric_t);
 void _set_submit_service_check_cb(cb_submit_service_check_t);
+void _set_submit_event_cb(cb_submit_event_t);
 
 #ifdef __cplusplus
 }
