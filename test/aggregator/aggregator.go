@@ -14,10 +14,12 @@ import (
 //
 // extern void submitMetric(char *, metric_type_t, char *, float, char **, int, char *);
 // extern void submitServiceCheck(char *, char *, int, char **, int, char *, char *);
+// extern void submitEvent(char*, event_t*);
 //
-// static void initAggregator(six_t *six) {
+// static void initAggregatorTests(six_t *six) {
 //    set_submit_metric_cb(six, submitMetric);
 //    set_submit_service_check_cb(six, submitServiceCheck);
+//    set_submit_event_cb(six, submitEvent);
 // }
 import "C"
 
@@ -32,7 +34,21 @@ var (
 	scLevel    int
 	scName     string
 	scMessage  string
+	_event     *event
 )
+
+type event struct {
+	title          string
+	text           string
+	ts             int64
+	priority       string
+	host           string
+	tags           []string
+	alertType      string
+	aggregationKey string
+	sourceTypeName string
+	eventType      string
+}
 
 func resetOuputValues() {
 	checkID = ""
@@ -44,6 +60,7 @@ func resetOuputValues() {
 	scLevel = -1
 	scName = ""
 	scMessage = ""
+	_event = nil
 }
 
 func setUp() error {
@@ -59,7 +76,7 @@ func setUp() error {
 		}
 	}
 
-	C.initAggregator(six)
+	C.initAggregatorTests(six)
 
 	// Updates sys.path so testing Check can be found
 	C.add_python_path(six, C.CString("../python"))
@@ -132,6 +149,43 @@ func submitServiceCheck(id *C.char, name *C.char, level C.int, t **C.char, tagsL
 	if t != nil {
 		for _, s := range (*[1 << 30]*C.char)(unsafe.Pointer(t))[:tagsLen:tagsLen] {
 			tags = append(tags, C.GoString(s))
+		}
+	}
+}
+
+//export submitEvent
+func submitEvent(id *C.char, ev *C.event_t) {
+	checkID = C.GoString(id)
+	_event = &event{}
+	if ev.title != nil {
+		_event.title = C.GoString(ev.title)
+	}
+	if ev.text != nil {
+		_event.text = C.GoString(ev.text)
+	}
+	_event.ts = int64(ev.ts)
+	if ev.priority != nil {
+		_event.priority = C.GoString(ev.priority)
+	}
+	if ev.host != nil {
+		_event.host = C.GoString(ev.host)
+	}
+	if ev.alert_type != nil {
+		_event.alertType = C.GoString(ev.alert_type)
+	}
+	if ev.aggregation_key != nil {
+		_event.aggregationKey = C.GoString(ev.aggregation_key)
+	}
+	if ev.source_type_name != nil {
+		_event.sourceTypeName = C.GoString(ev.source_type_name)
+	}
+	if ev.event_type != nil {
+		_event.eventType = C.GoString(ev.event_type)
+	}
+
+	if ev.tags != nil {
+		for _, s := range (*[1 << 30]*C.char)(unsafe.Pointer(ev.tags))[:ev.tags_num:ev.tags_num] {
+			_event.tags = append(_event.tags, C.GoString(s))
 		}
 	}
 }

@@ -7,7 +7,12 @@
 #include <six_types.h>
 
 char *as_string(PyObject *object) {
+    if (object == NULL) {
+        return NULL;
+    }
+
     char *retval = NULL;
+
 #ifdef DATADOG_AGENT_THREE
     if (!PyUnicode_Check(object)) {
         return NULL;
