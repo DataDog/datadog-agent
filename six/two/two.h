@@ -42,8 +42,7 @@ public:
     }
 
     // Aggregator API
-    void setSubmitMetricCb(cb_submit_metric_t) {
-    }
+    void setSubmitMetricCb(cb_submit_metric_t);
 
 private:
     PyObject *_importFrom(const char *module, const char *name);

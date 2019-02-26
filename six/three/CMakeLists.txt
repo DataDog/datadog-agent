@@ -22,9 +22,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(datadog-agent-three SHARED
     three.cpp
     ../common/aggregator.c
+    ../common/sixstrings.c
 )
 
-
+add_compile_definitions(DATADOG_AGENT_THREE)
 target_include_directories(datadog-agent-three PRIVATE .)
 target_include_directories(datadog-agent-three PUBLIC
     ${CMAKE_SOURCE_DIR}/include
