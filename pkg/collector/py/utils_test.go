@@ -90,6 +90,10 @@ func TestFindSubclassOf(t *testing.T) {
 }
 
 func TestSubprocessBindings(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test in windows (for now)")
+	}
+
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
@@ -109,9 +113,17 @@ func TestSubprocessBindings(t *testing.T) {
 
 	cmdList := python.PyList_New(0)
 	defer cmdList.DecRef()
-	cmd := python.PyString_FromString("ls")
+	var cmd *python.PyObject
+	var arg *python.PyObject
+
+	if runtime.GOOS != "windows" {
+		cmd = python.PyString_FromString("ls")
+		arg = python.PyString_FromString("-l")
+	} else {
+		cmd = python.PyString_FromString("dir")
+		arg = python.PyString_FromString("/b")
+	}
 	defer cmd.DecRef()
-	arg := python.PyString_FromString("-l")
 	defer arg.DecRef()
 
 	err := python.PyList_Insert(cmdList, 0, cmd)

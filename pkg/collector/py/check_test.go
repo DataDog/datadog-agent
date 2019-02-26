@@ -9,6 +9,7 @@
 package py
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -79,12 +80,19 @@ func TestRun(t *testing.T) {
 }
 
 func TestSubprocessRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test in windows (for now)")
+	}
 	check, _ := getCheckInstance("testsubprocess", "TestSubprocessCheck")
 	err := check.Run()
 	assert.Nil(t, err)
 }
 
 func TestSubprocessRunConcurrent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test in windows (for now)")
+	}
+
 	instances := make([]*PythonCheck, 30)
 	for i := range instances {
 		check, _ := getCheckInstance("testsubprocess", "TestSubprocessCheck")
@@ -106,6 +114,10 @@ func TestSubprocessRunConcurrent(t *testing.T) {
 }
 
 func TestSubprocessRunConcurrentCancel(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test in windows (for now)")
+	}
+
 	instances := make([]*PythonCheck, 30)
 	for i := range instances {
 		check, _ := getCheckInstance("testsubprocess", "TestSubprocessCheck")
