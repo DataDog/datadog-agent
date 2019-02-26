@@ -250,7 +250,7 @@ api_key:
 # dogstatsd_origin_detection: false
 #
 # The buffer size use to receive statsd packet, in bytes
-# dogstatsd_buffer_size: 1024
+# dogstatsd_buffer_size: 8192
 #
 # Whether dogstatsd should listen to non local UDP traffic
 # dogstatsd_non_local_traffic: false
