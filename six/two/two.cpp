@@ -51,9 +51,7 @@ bool Two::init(const char *pythonHome) {
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.base.checks", "AgentCheck");
-    return _baseClass != NULL;
-
-    return true;
+    return (_baseClass != NULL);
 }
 
 bool Two::isInitialized() const {
@@ -462,10 +460,14 @@ done:
     return ret;
 }
 
+void Two::decref(SixPyObject *obj) {
+    Py_XDECREF(reinterpret_cast<SixPyObject *>(obj));
+}
+
 void Two::setSubmitMetricCb(cb_submit_metric_t cb) {
     _set_submit_metric_cb(cb);
 }
 
-void Two::decref(SixPyObject *obj) {
-    Py_XDECREF(reinterpret_cast<SixPyObject *>(obj));
+void Two::setSubmitServiceCheckCb(cb_submit_service_check_t cb) {
+    _set_submit_service_check_cb(cb);
 }
