@@ -239,3 +239,7 @@ void six_free(six_t *six, void *ptr) {
 void six_decref(six_t *six, six_pyobject_t *obj) {
     AS_TYPE(Six, six)->decref(AS_TYPE(SixPyObject, obj));
 }
+
+void set_submit_service_check_cb(six_t *six, cb_submit_service_check_t cb) {
+    AS_TYPE(Six, six)->setSubmitServiceCheckCb(cb);
+}

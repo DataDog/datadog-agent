@@ -58,6 +58,7 @@ typedef enum {
 
 // custom builtins
 typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **, int, char *);
+typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, int, char *, char *);
 
 // these strings need to be alive for the whole interpreter lifetime because
 // they'll be used from the CPython Inittab. Be sure to keep these in sync
