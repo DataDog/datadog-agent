@@ -83,15 +83,15 @@ func TestShortErrMsg(t *testing.T) {
 	expected := map[string]string{
 		"exceeded max connections":   "exceeded max conn...",
 		"cannot configure dogstatsd": "cannot configure ...",
-		"ooops":                      "ooops",
-		"0123456789abcdef":           "0123456789abcdef",
-		"0123456789abcdef0":          "0123456789abcdef0",
-		"0123456789abcdef01":         "0123456789abcdef0...",
-		"0123456789abcdef012":        "0123456789abcdef0...",
-		"0123456789abcdef0123":       "0123456789abcdef0...",
-		"0123456789abcdef01234":      "0123456789abcdef0...",
-		"":                           "",
-		"αβγ":                        "αβγ",
+		"ooops":                 "ooops",
+		"0123456789abcdef":      "0123456789abcdef",
+		"0123456789abcdef0":     "0123456789abcdef0",
+		"0123456789abcdef01":    "0123456789abcdef0...",
+		"0123456789abcdef012":   "0123456789abcdef0...",
+		"0123456789abcdef0123":  "0123456789abcdef0...",
+		"0123456789abcdef01234": "0123456789abcdef0...",
+		"":    "",
+		"αβγ": "αβγ",
 	}
 
 	for k, v := range expected {

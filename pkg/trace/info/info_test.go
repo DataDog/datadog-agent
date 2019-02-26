@@ -145,8 +145,10 @@ func TestInfo(t *testing.T) {
 	info := buf.String()
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := ioutil.ReadFile("./testdata/okay.info")
+	re := regexp.MustCompile(`\r\n`)
+	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
 	assert.NoError(err)
-	assert.Equal(string(expectedInfo), info)
+	assert.Equal(expectedInfoString, info)
 }
 
 func TestHideAPIKeys(t *testing.T) {
@@ -187,8 +189,11 @@ func TestWarning(t *testing.T) {
 	info := buf.String()
 
 	expectedWarning, err := ioutil.ReadFile("./testdata/warning.info")
+	re := regexp.MustCompile(`\r\n`)
+	expectedWarningString := re.ReplaceAllString(string(expectedWarning), "\n")
+
 	assert.NoError(err)
-	assert.Equal(string(expectedWarning), info)
+	assert.Equal(string(expectedWarningString), info)
 
 	t.Logf("Info:\n%s\n", info)
 }

@@ -22,7 +22,7 @@ import (
 
 func TestParseECSClusterName(t *testing.T) {
 	cases := map[string]string{
-		"old-cluster-name-09": "old-cluster-name-09",
+		"old-cluster-name-09":                                          "old-cluster-name-09",
 		"arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate": "xvello-fargate",
 	}
 
@@ -33,7 +33,7 @@ func TestParseECSClusterName(t *testing.T) {
 
 func TestParseFargateRegion(t *testing.T) {
 	cases := map[string]string{
-		"old-cluster-name-09": "",
+		"old-cluster-name-09":                                           "",
 		"arn:aws:ecs:eu-central-1:601427279990:cluster/xvello-fargate":  "eu-central-1",
 		"arn:aws:ecs:us-gov-east-1:601427279990:cluster/xvello-fargate": "us-gov-east-1",
 	}
