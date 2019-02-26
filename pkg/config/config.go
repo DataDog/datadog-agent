@@ -199,7 +199,7 @@ func initConfig(config Config) {
 	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
 	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
 	// we reach `dogstatsd_packet_buffer_size` datagrams or after `dogstatsd_packet_buffer_flush_timeout` ms.
-	// After this happens we flush this buffer of datagrams to a queue for processing. The size if this queue
+	// After this happens we flush this buffer of datagrams to a queue for processing. The size of this queue
 	// is `dogstatsd_queue_size`.
 	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)
 	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 512)
