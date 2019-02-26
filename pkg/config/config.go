@@ -201,7 +201,7 @@ func initConfig(config Config) {
 	// we reach `dogstatsd_packet_buffer_size` datagrams or after `dogstatsd_packet_buffer_flush_timeout` ms.
 	// After this happens we flush this buffer of datagrams to a queue for processing. The size if this queue
 	// is `dogstatsd_queue_size`.
-	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*4)
+	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)
 	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 512)
 	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond)
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 100)
