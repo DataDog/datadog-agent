@@ -51,10 +51,13 @@ public:
         return reinterpret_cast<SixPyObject *>(Py_None);
     }
 
-    // Aggregator API
+    // aggregator API
     void setSubmitMetricCb(cb_submit_metric_t);
     void setSubmitServiceCheckCb(cb_submit_service_check_t);
     void setSubmitEventCb(cb_submit_event_t);
+
+    // datadog_agent
+    void setGetVersionCb(cb_get_version_t);
 
 private:
     PyObject *_importFrom(const char *module, const char *name);
