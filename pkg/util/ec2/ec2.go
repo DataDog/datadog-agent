@@ -59,7 +59,7 @@ func GetClusterName() (string, error) {
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "kubernetes") { // tag key format: kubernetes.io/cluster/clustername"
 			key := strings.Split(tag, ":")[0]
-			clusterName = strings.Split(key, "/")[3]
+			clusterName = strings.Split(key, "/")[2]
 			break
 		}
 	}
