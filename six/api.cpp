@@ -259,3 +259,7 @@ void set_submit_event_cb(six_t *six, cb_submit_event_t cb) {
 void set_get_version_cb(six_t *six, cb_get_version_t cb) {
     AS_TYPE(Six, six)->setGetVersionCb(cb);
 }
+
+void set_get_config_cb(six_t *six, cb_get_config_t cb) {
+    AS_TYPE(Six, six)->setGetConfigCb(cb);
+}

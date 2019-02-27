@@ -32,3 +32,18 @@ func TestGetVersion(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
+
+func TestGetConfig(t *testing.T) {
+	code := `
+	d = datadog_agent.get_config("foo")
+	sys.stderr.write("{}:{}:{}".format(d.get('name'), d.get('body'), d.get('time')))
+	sys.stderr.flush()
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "foo:Hello:123456" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}

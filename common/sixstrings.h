@@ -7,5 +7,6 @@
 #include <Python.h>
 
 char *as_string(PyObject *);
+PyObject *from_json(const char *);
 
 #endif
