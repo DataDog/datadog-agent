@@ -451,3 +451,7 @@ void Three::setSubmitEventCb(cb_submit_event_t cb) {
 void Three::setGetVersionCb(cb_get_version_t cb) {
     _set_get_version_cb(cb);
 }
+
+void Three::setGetConfigCb(cb_get_config_t cb) {
+    _set_get_config_cb(cb);
+}
