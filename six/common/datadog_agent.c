@@ -11,12 +11,16 @@
 
 // these must be set by the Agent
 static cb_get_version_t cb_get_version = NULL;
+static cb_get_config_t cb_get_config = NULL;
 
 // forward declarations
 static PyObject *get_version(PyObject *self, PyObject *args);
+static PyObject *get_config(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
-    { "get_version", (PyCFunction)get_version, METH_NOARGS, "Get Agent version." }, { NULL, NULL } // guards
+    { "get_version", (PyCFunction)get_version, METH_NOARGS, "Get Agent version." },
+    { "get_config", (PyCFunction)get_config, METH_VARARGS, "Get an Agent config item." },
+    { NULL, NULL } // guards
 };
 
 #ifdef DATADOG_AGENT_THREE
@@ -40,6 +44,10 @@ void _set_get_version_cb(cb_get_version_t cb) {
     cb_get_version = cb;
 }
 
+void _set_get_config_cb(cb_get_config_t cb) {
+    cb_get_config = cb;
+}
+
 PyObject *get_version(PyObject *self, PyObject *args) {
     // callback must be set
     assert(cb_get_version != NULL);
@@ -53,4 +61,24 @@ PyObject *get_version(PyObject *self, PyObject *args) {
         return retval;
     }
     Py_RETURN_NONE;
+}
+
+PyObject *get_config(PyObject *self, PyObject *args) {
+    // callback must be set
+    assert(cb_get_config != NULL);
+
+    char *key;
+    if (!PyArg_ParseTuple(args, "s", &key)) {
+        Py_RETURN_NONE;
+    }
+
+    char *data;
+    cb_get_config(key, &data);
+
+    // new ref
+    PyObject *value = from_json(data);
+    if (value == NULL) {
+        Py_RETURN_NONE;
+    }
+    return value;
 }

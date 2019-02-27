@@ -1,6 +1,7 @@
 package testdatadogagent
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -12,13 +13,21 @@ import (
 // #include <datadog_agent_six.h>
 //
 // extern void getVersion(char **);
+// extern void getConfig(char *, char **);
 //
 // static void initDatadogAgentTests(six_t *six) {
 //    set_get_version_cb(six, getVersion);
+//    set_get_config_cb(six, getConfig);
 // }
 import "C"
 
 var six *C.six_t
+
+type message struct {
+	Name string `json:"name"`
+	Body string `json:"body"`
+	Time int64  `json:"time"`
+}
 
 func setUp() error {
 	if _, ok := os.LookupEnv("TESTING_TWO"); ok {
@@ -86,4 +95,12 @@ except Exception as e:
 //export getVersion
 func getVersion(in **C.char) {
 	*in = C.CString("1.2.3")
+}
+
+//export getConfig
+func getConfig(key *C.char, in **C.char) {
+	m := message{C.GoString(key), "Hello", 123456}
+	b, _ := json.Marshal(m)
+
+	*in = C.CString(string(b))
 }

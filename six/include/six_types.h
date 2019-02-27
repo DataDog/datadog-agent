@@ -71,6 +71,8 @@ typedef void (*cb_submit_event_t)(char *, event_t *);
 //
 // (string_to_be_filled)
 typedef void (*cb_get_version_t)(char **);
+// (key, string_to_be_filled)
+typedef void (*cb_get_config_t)(char *, char **);
 
 #ifdef __cplusplus
 }
