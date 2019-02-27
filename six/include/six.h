@@ -23,8 +23,6 @@ public:
 
     // Public API
     virtual bool init(const char *pythonHome) = 0;
-    virtual bool addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) = 0;
-    virtual bool addModuleIntConst(six_module_t module, const char *name, long value) = 0;
     virtual bool addPythonPath(const char *path) = 0;
     virtual six_gilstate_t GILEnsure() = 0;
     virtual void GILRelease(six_gilstate_t) = 0;
@@ -51,10 +49,6 @@ public:
     virtual void setSubmitServiceCheckCb(cb_submit_service_check_t) = 0;
     virtual void setSubmitEventCb(cb_submit_event_t) = 0;
 
-protected:
-    const char *getExtensionModuleName(six_module_t m);
-    const char *getUnknownModuleName();
-
 private:
     mutable std::string _error;
     mutable bool _errorFlag;
@@ -62,8 +56,5 @@ private:
 
 typedef Six *create_t();
 typedef void destroy_t(Six *);
-
-typedef std::pair<std::string, long> PyModuleConst;
-typedef std::map<six_module_t, std::vector<PyModuleConst> > PyModuleConstants;
 
 #endif

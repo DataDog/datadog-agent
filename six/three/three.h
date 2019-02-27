@@ -28,20 +28,13 @@
 
 class Three : public Six {
 public:
-    // Python module constants need to be added in the init callback after calling
-    // "PyModule_Create". The constants need to be globally available.
-    static PyModuleConstants ModuleConstants;
-
     Three()
-        : _modules()
-        , _pythonHome(NULL)
+        : _pythonHome(NULL)
         , _baseClass(NULL)
         , _pythonPaths(){};
     ~Three();
 
     bool init(const char *pythonHome);
-    bool addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
-    bool addModuleIntConst(six_module_t module, const char *name, long value);
     bool addPythonPath(const char *path);
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
@@ -69,18 +62,11 @@ private:
     std::string _fetchPythonError() const;
     char *_getCheckVersion(PyObject *module) const;
 
-    typedef std::vector<PyMethodDef> PyMethods;
-    typedef std::map<six_module_t, PyMethods> PyModules;
     typedef std::vector<std::string> PyPaths;
 
-    PyModules _modules;
     wchar_t *_pythonHome;
     PyObject *_baseClass;
     PyPaths _pythonPaths;
 };
-
-extern "C" {
-void set_submit_metric_cb(cb_submit_metric_t);
-}
 
 #endif

@@ -18,67 +18,16 @@ extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) {
     delete p;
 }
 
-PyModuleConstants Three::ModuleConstants;
-
-// we only populate the fields `m_base` and `m_name`, we don't need any of the
-// rest since we're doing Single-phase initialization
-//
-// INIT_PYTHON_MODULE creates the def_<moduleName> (a PyModuleDef struct) and
-// the needed PyInit_<moduleName> callback.
-#define INIT_PYTHON_MODULE(moduleID, moduleName)                                                                       \
-    static struct PyModuleDef def_##moduleName                                                                         \
-        = { PyModuleDef_HEAD_INIT, datadog_agent_six_##moduleName, NULL, -1, NULL, NULL, NULL, NULL, NULL };           \
-    PyMODINIT_FUNC PyInit_##moduleName(void) {                                                                         \
-        PyObject *m = PyModule_Create(&def_##moduleName);                                                              \
-        PyModuleConstants::iterator it = Three::ModuleConstants.find(moduleID);                                        \
-        if (it != Three::ModuleConstants.end()) {                                                                      \
-            std::vector<PyModuleConst>::iterator cit;                                                                  \
-            for (cit = it->second.begin(); cit != it->second.end(); ++cit) {                                           \
-                PyModule_AddIntConstant(m, cit->first.c_str(), cit->second);                                           \
-            }                                                                                                          \
-        }                                                                                                              \
-        return m;                                                                                                      \
-    }
-
-// APPEND_TO_PYTHON_INITTAB set the module methods and call
-// PyImport_AppendInittab with it, allowing Python to import it
-#define APPEND_TO_PYTHON_INITTAB(moduleID, moduleName)                                                                 \
-    {                                                                                                                  \
-        if (_modules[moduleID].size() > 0) {                                                                           \
-            def_##moduleName.m_methods = &_modules[moduleID][0];                                                       \
-            if (PyImport_AppendInittab(getExtensionModuleName(moduleID), &PyInit_##moduleName) == -1) {                \
-                setError("PyImport_AppendInittab failed to append " #moduleName);                                      \
-                return false;                                                                                          \
-            }                                                                                                          \
-        }                                                                                                              \
-    }
-
-// initializing all Python C module
-INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_DATADOG_AGENT, datadog_agent)
-INIT_PYTHON_MODULE(DATADOG_AGENT_SIX__UTIL, _util)
-INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_UTIL, util)
-INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_CONTAINERS, containers)
-INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_KUBEUTIL, kubeutil)
-INIT_PYTHON_MODULE(DATADOG_AGENT_SIX_TAGGER, tagger)
-
 Three::~Three() {
     if (_pythonHome) {
         PyMem_RawFree((void *)_pythonHome);
     }
     Py_XDECREF(_baseClass);
     Py_Finalize();
-    ModuleConstants.clear();
 }
 
 bool Three::init(const char *pythonHome) {
-    // insert module to Python inittab one by one
-    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_DATADOG_AGENT, datadog_agent)
-    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX__UTIL, _util)
-    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_UTIL, util)
-    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_CONTAINERS, containers)
-    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_KUBEUTIL, kubeutil)
-    APPEND_TO_PYTHON_INITTAB(DATADOG_AGENT_SIX_TAGGER, tagger)
-
+    // add custom builtins init funcs to Python inittab, one by one
     PyImport_AppendInittab("aggregator", PyInit_aggregator);
 
     if (pythonHome == NULL) {
@@ -120,52 +69,6 @@ const char *Three::getPyVersion() const {
 
 bool Three::runSimpleString(const char *code) const {
     return PyRun_SimpleString(code) == 0;
-}
-
-bool Three::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
-    if (getExtensionModuleName(module) == getUnknownModuleName()) {
-        setError("Unknown ExtensionModule value");
-        return false;
-    }
-
-    int ml_flags;
-    switch (t) {
-    case DATADOG_AGENT_SIX_NOARGS:
-        ml_flags = METH_NOARGS;
-        break;
-    case DATADOG_AGENT_SIX_ARGS:
-        ml_flags = METH_VARARGS;
-        break;
-    case DATADOG_AGENT_SIX_KEYWORDS:
-        ml_flags = METH_VARARGS | METH_KEYWORDS;
-        break;
-    default:
-        setError("Unknown MethType value");
-        return false;
-    }
-
-    PyMethodDef def = { funcName, (PyCFunction)func, ml_flags, "" };
-
-    if (_modules.find(module) == _modules.end()) {
-        _modules[module] = PyMethods();
-        // add the guard
-        PyMethodDef guard = { NULL, NULL, 0, NULL };
-        _modules[module].push_back(guard);
-    }
-
-    // insert at beginning so we keep guard at the end
-    _modules[module].insert(_modules[module].begin(), def);
-
-    return true;
-}
-
-bool Three::addModuleIntConst(six_module_t moduleID, const char *name, long value) {
-    if (ModuleConstants.find(moduleID) == ModuleConstants.end()) {
-        ModuleConstants[moduleID] = std::vector<PyModuleConst>();
-    }
-
-    ModuleConstants[moduleID].push_back(std::make_pair(std::string(name), value));
-    return true;
 }
 
 bool Three::addPythonPath(const char *path) {

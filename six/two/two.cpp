@@ -66,53 +66,6 @@ bool Two::runSimpleString(const char *code) const {
     return PyRun_SimpleString(code) == 0;
 }
 
-bool Two::addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func) {
-    if (getExtensionModuleName(module) == getUnknownModuleName()) {
-        setError("Unknown ExtensionModule value");
-        return false;
-    }
-
-    int ml_flags;
-    switch (t) {
-    case DATADOG_AGENT_SIX_NOARGS:
-        ml_flags = METH_NOARGS;
-        break;
-    case DATADOG_AGENT_SIX_ARGS:
-        ml_flags = METH_VARARGS;
-        break;
-    case DATADOG_AGENT_SIX_KEYWORDS:
-        ml_flags = METH_VARARGS | METH_KEYWORDS;
-        break;
-    default:
-        setError("Unknown MethType value");
-        return false;
-    }
-
-    PyMethodDef def = { funcName, (PyCFunction)func, ml_flags, "" };
-
-    if (_modules.find(module) == _modules.end()) {
-        _modules[module] = PyMethods();
-        // add the guard
-        PyMethodDef guard = { NULL, NULL };
-        _modules[module].push_back(guard);
-    }
-
-    // insert at beginning so we keep guard at the end
-    _modules[module].insert(_modules[module].begin(), def);
-
-    // success
-    return true;
-}
-
-bool Two::addModuleIntConst(six_module_t module, const char *name, long value) {
-    if (_module_constants.find(module) == _module_constants.end()) {
-        _module_constants[module] = std::vector<PyModuleConst>();
-    }
-
-    _module_constants[module].push_back(std::make_pair(std::string(name), value));
-    return true;
-}
-
 bool Two::addPythonPath(const char *path) {
     if (std::find(_pythonPaths.begin(), _pythonPaths.end(), path) == _pythonPaths.end()) {
         _pythonPaths.push_back(path);
