@@ -56,9 +56,30 @@ typedef enum {
     DATADOG_AGENT_SIX_HISTORATE
 } metric_type_t;
 
+typedef struct event_t {
+    char *title;
+    char *text;
+    long ts;
+    char *priority;
+    char *host;
+    char **tags;
+    int tags_num;
+    char *alert_type;
+    char *aggregation_key;
+    char *source_type_name;
+    char *event_type;
+} event_t;
+
 // custom builtins
+//
+// aggregator
+//
+// (id, metric_type, metric_name, value, tags, tags_len, hostname)
 typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **, int, char *);
+// (id, sc_name, status, tags, tags_len, hostname, message)
 typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, int, char *, char *);
+// (id, event)
+typedef void (*cb_submit_event_t)(char *, event_t *);
 
 // these strings need to be alive for the whole interpreter lifetime because
 // they'll be used from the CPython Inittab. Be sure to keep these in sync

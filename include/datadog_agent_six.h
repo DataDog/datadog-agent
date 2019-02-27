@@ -47,6 +47,7 @@ DATADOG_AGENT_SIX_API const char *get_error(const six_t *);
 // AGGREGATOR API
 DATADOG_AGENT_SIX_API void set_submit_metric_cb(six_t *, cb_submit_metric_t);
 DATADOG_AGENT_SIX_API void set_submit_service_check_cb(six_t *, cb_submit_service_check_t);
+DATADOG_AGENT_SIX_API void set_submit_event_cb(six_t *, cb_submit_event_t);
 
 #ifdef __cplusplus
 }

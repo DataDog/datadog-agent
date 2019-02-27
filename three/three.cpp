@@ -537,3 +537,7 @@ void Three::setSubmitMetricCb(cb_submit_metric_t cb) {
 void Three::setSubmitServiceCheckCb(cb_submit_service_check_t cb) {
     _set_submit_service_check_cb(cb);
 }
+
+void Three::setSubmitEventCb(cb_submit_event_t cb) {
+    _set_submit_event_cb(cb);
+}
