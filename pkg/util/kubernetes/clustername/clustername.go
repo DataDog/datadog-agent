@@ -6,13 +6,13 @@
 package clustername
 
 import (
-	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+q	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type clusterNameData struct {
@@ -27,13 +27,6 @@ type Provider func() (string, error)
 // ProviderCatalog holds all the various kinds of clustername providers
 var ProviderCatalog = make(map[string]Provider)
 
-// RegisterClusterNameProviders registers a hostname provider as part of the catalog
-func RegisterClusterNameProviders() {
-	ProviderCatalog["gce"] = gce.GetClusterName
-	ProviderCatalog["azure"] = azure.GetClusterName
-	ProviderCatalog["ec2"] = ec2.GetClusterName
-}
-
 func newClusterNameData() *clusterNameData {
 	return &clusterNameData{}
 }
@@ -42,6 +35,9 @@ var defaultClusterNameData *clusterNameData
 
 func init() {
 	defaultClusterNameData = newClusterNameData()
+	ProviderCatalog["gce"] = gce.GetClusterName
+	ProviderCatalog["azure"] = azure.GetClusterName
+	ProviderCatalog["ec2"] = ec2.GetClusterName
 }
 
 func getClusterName(data *clusterNameData) string {
@@ -52,14 +48,16 @@ func getClusterName(data *clusterNameData) string {
 		data.clusterName = config.Datadog.GetString("cluster_name")
 		// autodiscover clustername through k8s providers' API
 		if data.clusterName == "" {
-			RegisterClusterNameProviders()
-			for _, getClusterNameFunc := range ProviderCatalog {
+			for cloudProvider, getClusterNameFunc := range ProviderCatalog {
+				log.Debug("Trying to auto discover the clustername from the %s API...", cloudProvider)
 				clusterName, err := getClusterNameFunc()
 				if err != nil {
+					log.Debug("Unable to auto discover the clustername from the %s API: %s", cloudProvider, err)
 					// try the next cloud provider
 					continue
 				}
 				if clusterName != "" {
+					log.Debug("Using clustername %s auto discovered from the %s API", clusterName, cloudProvider)
 					data.clusterName = clusterName
 					break
 				}

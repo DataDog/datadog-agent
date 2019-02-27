@@ -60,3 +60,36 @@ func TestGetHostname(t *testing.T) {
 	assert.Equal(t, "", val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 }
+
+func TestExtractClusterNameFound(t *testing.T) {
+	tags := []string{
+		"Name:myclustername-eksnodes-Node",
+		"aws:autoscaling:groupName:myclustername-eks-nodes-NodeGroup-11111111",
+		"aws:cloudformation:logical-id:NodeGroup",
+		"aws:cloudformation:stack-id:arn:aws:cloudformation:zone:1111111111:stack/myclustername-eks-nodes/1111111111",
+		"aws:cloudformation:stack-name:myclustername-eks-nodes",
+		"kubernetes.io/role/master:1",
+		"kubernetes.io/cluster/myclustername:owned",
+	}
+
+	expectedClusterName := "myclustername"
+	clusterName, err := extractClusterName(tags)
+	assert.Nil(t, err)
+	assert.Equal(t, expectedClusterName, clusterName)
+}
+
+func TestExtractClusterNameNotFound(t *testing.T) {
+	tags := []string{
+		"Name:myclustername-eksnodes-Node",
+		"aws:autoscaling:groupName:myclustername-eks-nodes-NodeGroup-11111111",
+		"aws:cloudformation:logical-id:NodeGroup",
+		"aws:cloudformation:stack-id:arn:aws:cloudformation:zone:1111111111:stack/myclustername-eks-nodes/1111111111",
+		"aws:cloudformation:stack-name:myclustername-eks-nodes",
+		"kubernetes.io/role/master:1",
+	}
+
+	expectedClusterName := ""
+	clusterName, err := extractClusterName(tags)
+	assert.NotNil(t, err)
+	assert.Equal(t, expectedClusterName, clusterName)
+}
