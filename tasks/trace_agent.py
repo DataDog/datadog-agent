@@ -83,3 +83,30 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
     for prefix in prefixes:
         ctx.run("{} {}".format(go_cmd, prefix))
+
+@task
+def cross_compile(ctx, tag=""):
+    """
+    Cross-compiles the trace-agent binaries. Use the "--tag=X" argument to specify build tag.
+    """
+    if not tag:
+        print("Argument --tag=<version> is required.")
+        return
+
+    print("Buliding tag %s..." % tag)
+
+    env = {
+        "TRACE_AGENT_VERSION": tag,
+        "V": tag,
+    }
+
+    ctx.run("git checkout $V", env=env)
+    ctx.run("mkdir -p ./bin/trace-agent/$V", env=env)
+    ctx.run("go generate ./pkg/trace/info", env=env)
+    ctx.run("go get -u github.com/karalabe/xgo")
+    ctx.run("xgo -dest=bin/trace-agent/$V -go=1.11 -out=trace-agent-$V -targets=windows-6.1/amd64,linux/amd64,darwin-10.11/amd64 ./cmd/trace-agent", env=env)
+    ctx.run("mv ./bin/trace-agent/$V/trace-agent-$V-windows-6.1-amd64.exe ./bin/trace-agent/$V/trace-agent-$V-windows-amd64.exe", env=env)
+    ctx.run("mv ./bin/trace-agent/$V/trace-agent-$V-darwin-10.11-amd64 ./bin/trace-agent/$V/trace-agent-$V-darwin-amd64 ", env=env)
+    ctx.run("git checkout -")
+
+    print("Done! Binaries are located in ./bin/trace-agent/%s" % tag)
