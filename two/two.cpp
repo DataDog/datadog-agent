@@ -7,6 +7,8 @@
 #include "constants.h"
 
 #include <aggregator.h>
+#include <datadog_agent.h>
+
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -33,6 +35,7 @@ bool Two::init(const char *pythonHome) {
 
     // init custom builtins
     Py2_init_aggregator();
+    Py2_init_datadog_agent();
 
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
@@ -427,4 +430,8 @@ void Two::setSubmitServiceCheckCb(cb_submit_service_check_t cb) {
 
 void Two::setSubmitEventCb(cb_submit_event_t cb) {
     _set_submit_event_cb(cb);
+}
+
+void Two::setGetVersionCb(cb_get_version_t cb) {
+    _set_get_version_cb(cb);
 }

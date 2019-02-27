@@ -44,10 +44,13 @@ public:
     void setError(const std::string &msg) const; // let const methods set errors
     void setError(const char *msg) const;
 
-    // Aggregator API
+    // aggregator API
     virtual void setSubmitMetricCb(cb_submit_metric_t) = 0;
     virtual void setSubmitServiceCheckCb(cb_submit_service_check_t) = 0;
     virtual void setSubmitEventCb(cb_submit_event_t) = 0;
+
+    // datadog_agent API
+    virtual void setGetVersionCb(cb_get_version_t) = 0;
 
 private:
     mutable std::string _error;
