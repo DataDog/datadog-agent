@@ -6,7 +6,7 @@
 package clustername
 
 import (
-q	"sync"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
