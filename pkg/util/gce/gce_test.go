@@ -66,3 +66,20 @@ func TestGetHostAliases(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "gce-hostname.gce-project", val)
 }
+
+func TestGetClusterName(t *testing.T) {
+	expected := "test-cluster-name"
+	var lastRequest *http.Request
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, expected)
+		lastRequest = r
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	val, err := GetClusterName()
+	assert.Nil(t, err)
+	assert.Equal(t, expected, val)
+	assert.Equal(t, "/instance/attributes/cluster-name", lastRequest.URL.Path)
+}

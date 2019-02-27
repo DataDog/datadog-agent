@@ -48,6 +48,29 @@ func getMetadataItem(endpoint string) (string, error) {
 	return string(all), nil
 }
 
+// GetClusterName returns the name of the cluster containing the current EC2 instance
+func GetClusterName() (string, error) {
+	tags, err := GetTags()
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve clustername from EC2: %s", err)
+	}
+
+	var clusterName string
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "kubernetes") { // tag key format: kubernetes.io/cluster/clustername"
+			key := strings.Split(tag, ":")[0]
+			clusterName = strings.Split(key, "/")[3]
+			break
+		}
+	}
+
+	if clusterName == "" {
+		return "", fmt.Errorf("unable to parse cluster name from EC2 tags")
+	}
+
+	return clusterName, nil
+}
+
 func getResponse(url string) (*http.Response, error) {
 	client := http.Client{
 		Timeout: timeout,

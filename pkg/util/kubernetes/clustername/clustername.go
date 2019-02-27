@@ -8,13 +8,30 @@ package clustername
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/gce"
 )
 
 type clusterNameData struct {
 	clusterName string
 	initDone    bool
 	mutex       sync.Mutex
+}
+
+// Provider is a generic function to grab the clustername and return it
+type Provider func() (string, error)
+
+// ProviderCatalog holds all the various kinds of clustername providers
+var ProviderCatalog = make(map[string]Provider)
+
+// RegisterClusterNameProviders registers a hostname provider as part of the catalog
+func RegisterClusterNameProviders() {
+	ProviderCatalog["gce"] = gce.GetClusterName
+	ProviderCatalog["azure"] = azure.GetClusterName
+	ProviderCatalog["ec2"] = ec2.GetClusterName
 }
 
 func newClusterNameData() *clusterNameData {
@@ -33,7 +50,21 @@ func getClusterName(data *clusterNameData) string {
 
 	if !data.initDone {
 		data.clusterName = config.Datadog.GetString("cluster_name")
-		// TODO: autodiscover clustername through k8s providers' API
+		// autodiscover clustername through k8s providers' API
+		if data.clusterName == "" {
+			RegisterClusterNameProviders()
+			for _, getClusterNameFunc := range ProviderCatalog {
+				clusterName, err := getClusterNameFunc()
+				if err != nil {
+					// try the next cloud provider
+					continue
+				}
+				if clusterName != "" {
+					data.clusterName = clusterName
+					break
+				}
+			}
+		}
 		data.initDone = true
 	}
 	return data.clusterName
