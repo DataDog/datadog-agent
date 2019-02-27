@@ -16,7 +16,7 @@ static cb_get_version_t cb_get_version = NULL;
 static PyObject *get_version(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
-    { "get_version", (PyCFunction)get_version, METH_VARARGS, "Get Agent version." }, { NULL, NULL } // guards
+    { "get_version", (PyCFunction)get_version, METH_NOARGS, "Get Agent version." }, { NULL, NULL } // guards
 };
 
 #ifdef DATADOG_AGENT_THREE
@@ -41,5 +41,16 @@ void _set_get_version_cb(cb_get_version_t cb) {
 }
 
 PyObject *get_version(PyObject *self, PyObject *args) {
+    // callback must be set
+    assert(cb_get_version != NULL);
+
+    char **v;
+    cb_get_version(v);
+
+    if (v != NULL) {
+        PyObject *retval = PyUnicode_FromString(*v);
+        free(*v);
+        return retval;
+    }
     Py_RETURN_NONE;
 }
