@@ -4,8 +4,10 @@
 // Copyright 2019 Datadog, Inc.
 #include "three.h"
 
-#include "aggregator.h"
 #include "constants.h"
+
+#include <aggregator.h>
+#include <datadog_agent.h>
 
 #include <algorithm>
 #include <sstream>
@@ -29,6 +31,7 @@ Three::~Three() {
 bool Three::init(const char *pythonHome) {
     // add custom builtins init funcs to Python inittab, one by one
     PyImport_AppendInittab("aggregator", PyInit_aggregator);
+    PyImport_AppendInittab("datadog_agent", PyInit_datadog_agent);
 
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
@@ -443,4 +446,8 @@ void Three::setSubmitServiceCheckCb(cb_submit_service_check_t cb) {
 
 void Three::setSubmitEventCb(cb_submit_event_t cb) {
     _set_submit_event_cb(cb);
+}
+
+void Three::setGetVersionCb(cb_get_version_t cb) {
+    _set_get_version_cb(cb);
 }

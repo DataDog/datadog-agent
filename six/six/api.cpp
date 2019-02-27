@@ -208,6 +208,10 @@ const char *run_check(six_t *six, six_pyobject_t *check) {
     return AS_TYPE(Six, six)->runCheck(AS_TYPE(SixPyObject, check));
 }
 
+/*
+ * error API
+ */
+
 int has_error(const six_t *six) {
     return AS_CTYPE(Six, six)->hasError() ? 1 : 0;
 }
@@ -220,6 +224,10 @@ void clear_error(six_t *six) {
     AS_TYPE(Six, six)->clearError();
 }
 
+/*
+ * memory management
+ */
+
 void six_free(six_t *six, void *ptr) {
     AS_TYPE(Six, six)->free(ptr);
 }
@@ -229,7 +237,7 @@ void six_decref(six_t *six, six_pyobject_t *obj) {
 }
 
 /*
- * Aggregator API
+ * aggregator API
  */
 
 void set_submit_metric_cb(six_t *six, cb_submit_metric_t cb) {
@@ -242,4 +250,12 @@ void set_submit_service_check_cb(six_t *six, cb_submit_service_check_t cb) {
 
 void set_submit_event_cb(six_t *six, cb_submit_event_t cb) {
     AS_TYPE(Six, six)->setSubmitEventCb(cb);
+}
+
+/*
+ * datadog_agent API
+ */
+
+void set_get_version_cb(six_t *six, cb_get_version_t cb) {
+    AS_TYPE(Six, six)->setGetVersionCb(cb);
 }

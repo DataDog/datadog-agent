@@ -20,7 +20,7 @@ typedef struct six_pyobject_s six_pyobject_t;
 DATADOG_AGENT_SIX_API six_t *make2();
 DATADOG_AGENT_SIX_API six_t *make3();
 
-// C API
+// API
 DATADOG_AGENT_SIX_API void destroy(six_t *);
 DATADOG_AGENT_SIX_API int init(six_t *, char *);
 DATADOG_AGENT_SIX_API int add_python_path(six_t *, const char *path);
@@ -33,7 +33,7 @@ DATADOG_AGENT_SIX_API const char *run_check(six_t *, six_pyobject_t *check);
 DATADOG_AGENT_SIX_API void six_free(six_t *, void *ptr);
 DATADOG_AGENT_SIX_API void six_decref(six_t *, six_pyobject_t *);
 
-// C CONST API
+// CONST API
 DATADOG_AGENT_SIX_API int is_initialized(six_t *);
 DATADOG_AGENT_SIX_API six_pyobject_t *get_none(const six_t *);
 DATADOG_AGENT_SIX_API const char *get_py_version(const six_t *);
@@ -45,6 +45,9 @@ DATADOG_AGENT_SIX_API const char *get_error(const six_t *);
 DATADOG_AGENT_SIX_API void set_submit_metric_cb(six_t *, cb_submit_metric_t);
 DATADOG_AGENT_SIX_API void set_submit_service_check_cb(six_t *, cb_submit_service_check_t);
 DATADOG_AGENT_SIX_API void set_submit_event_cb(six_t *, cb_submit_event_t);
+
+// DATADOG_AGENT API
+DATADOG_AGENT_SIX_API void set_get_version_cb(six_t *, cb_get_version_t);
 
 #ifdef __cplusplus
 }

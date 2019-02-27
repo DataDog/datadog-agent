@@ -2,7 +2,8 @@ LIB_PATH = ../../six/:../../two/:../../three/
 PKGS = \
 	./init/... \
 	./six/... \
-	./aggregator/...
+	./aggregator/... \
+	./datadog_agent/...
 
 all: test
 

@@ -54,8 +54,10 @@ typedef struct event_t {
     char *event_type;
 } event_t;
 
-// custom builtins
-//
+/*
+ * custom builtins
+ */
+
 // aggregator
 //
 // (id, metric_type, metric_name, value, tags, tags_len, hostname)
@@ -64,6 +66,11 @@ typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **
 typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, int, char *, char *);
 // (id, event)
 typedef void (*cb_submit_event_t)(char *, event_t *);
+
+// datadog_agent
+//
+// (string_to_be_filled)
+typedef void (*cb_get_version_t)(char **);
 
 #ifdef __cplusplus
 }
