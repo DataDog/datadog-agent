@@ -12,6 +12,7 @@
 // these must be set by the Agent
 static cb_submit_metric_t cb_submit_metric = NULL;
 static cb_submit_service_check_t cb_submit_service_check = NULL;
+static cb_submit_event_t cb_submit_event = NULL;
 
 // forward declarations
 static PyObject *submit_metric(PyObject *self, PyObject *args);
@@ -64,6 +65,10 @@ void _set_submit_service_check_cb(cb_submit_service_check_t cb) {
     cb_submit_service_check = cb;
 }
 
+void _set_submit_event_cb(cb_submit_event_t cb) {
+    cb_submit_event = cb;
+}
+
 static PyObject *submit_metric(PyObject *self, PyObject *args) {
     // callback must be set
     assert(cb_submit_metric != NULL);
@@ -104,7 +109,7 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
 done:
     free(err);
     Py_XDECREF(py_tags_list);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 static PyObject *submit_service_check(PyObject *self, PyObject *args) {
@@ -147,10 +152,67 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
 done:
     free(err);
     Py_XDECREF(py_tags_list);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 static PyObject *submit_event(PyObject *self, PyObject *args) {
-    /*FIXME*/
-    return NULL;
+    // callback must be set
+    assert(cb_submit_event != NULL);
+
+    PyObject *check = NULL; // borrowed
+    PyObject *event_dict = NULL; // borrowed
+    PyObject *py_tags = NULL; // borrowed
+    PyObject *py_tags_list = NULL; // new reference
+    char *check_id = NULL;
+    char *err = NULL;
+    event_t *ev = NULL;
+
+    // aggregator.submit_event(self, check_id, event)
+    if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &event_dict)) {
+        goto done;
+    }
+
+    if (!PyDict_Check(event_dict)) {
+        goto done;
+    }
+
+    ev = (event_t *)malloc(sizeof(event_t));
+    // notice: PyDict_GetItemString returns a borrowed ref
+    ev->title = as_string(PyDict_GetItemString(event_dict, "msg_title"));
+    ev->text = as_string(PyDict_GetItemString(event_dict, "msg_text"));
+    ev->ts = PyLong_AsLong(PyDict_GetItemString(event_dict, "timestamp"));
+    ev->priority = as_string(PyDict_GetItemString(event_dict, "priority"));
+    ev->host = as_string(PyDict_GetItemString(event_dict, "host"));
+    ev->alert_type = as_string(PyDict_GetItemString(event_dict, "alert_type"));
+    ev->aggregation_key = as_string(PyDict_GetItemString(event_dict, "aggregation_key"));
+    ev->source_type_name = as_string(PyDict_GetItemString(event_dict, "source_type_name"));
+    ev->event_type = as_string(PyDict_GetItemString(event_dict, "event_type"));
+
+    int len = 0;
+    py_tags = PyDict_GetItemString(event_dict, "tags");
+    if (py_tags != NULL && py_tags != Py_None) {
+        len = PySequence_Length(py_tags);
+    }
+
+    if (len) {
+        ev->tags_num = len;
+        py_tags_list = PySequence_Fast(py_tags, err); // new reference
+        if (py_tags_list == NULL) {
+            goto done;
+        }
+
+        ev->tags = malloc(len * sizeof(char *));
+        for (int i = 0; i < len; i++) {
+            // `item` is borrowed, no need to decref
+            PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
+            ev->tags[i] = as_string(item);
+        }
+    }
+
+    cb_submit_event(check_id, ev);
+
+done:
+    free(err);
+    Py_XDECREF(py_tags_list);
+    Py_RETURN_NONE;
 }
