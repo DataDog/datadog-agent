@@ -187,14 +187,6 @@ six_pyobject_t *get_none(const six_t *six) {
     return AS_TYPE(six_pyobject_t, AS_CTYPE(Six, six)->getNone());
 }
 
-int add_module_func(six_t *six, six_module_t module, six_module_func_t func_type, char *func_name, void *func) {
-    return AS_TYPE(Six, six)->addModuleFunction(module, func_type, func_name, func) ? 1 : 0;
-}
-
-int add_module_int_const(six_t *six, six_module_t module, const char *name, long value) {
-    return AS_TYPE(Six, six)->addModuleIntConst(module, name, value) ? 1 : 0;
-}
-
 int add_python_path(six_t *six, const char *path) {
     return AS_TYPE(Six, six)->addPythonPath(path) ? 1 : 0;
 }

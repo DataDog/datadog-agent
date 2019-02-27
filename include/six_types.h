@@ -30,22 +30,6 @@ extern "C" {
 
 typedef enum six_gilstate_e { DATADOG_AGENT_SIX_GIL_LOCKED, DATADOG_AGENT_SIX_GIL_UNLOCKED } six_gilstate_t;
 
-typedef enum six_module_func_e {
-    DATADOG_AGENT_SIX_NOARGS,
-    DATADOG_AGENT_SIX_ARGS,
-    DATADOG_AGENT_SIX_KEYWORDS
-} six_module_func_t;
-
-typedef enum six_module_e {
-    DATADOG_AGENT_SIX__UTIL = 0,
-    DATADOG_AGENT_SIX_AGGREGATOR,
-    DATADOG_AGENT_SIX_CONTAINERS,
-    DATADOG_AGENT_SIX_DATADOG_AGENT,
-    DATADOG_AGENT_SIX_KUBEUTIL,
-    DATADOG_AGENT_SIX_TAGGER,
-    DATADOG_AGENT_SIX_UTIL,
-} six_module_t;
-
 typedef enum {
     DATADOG_AGENT_SIX_GAUGE = 0,
     DATADOG_AGENT_SIX_RATE,
@@ -80,18 +64,6 @@ typedef void (*cb_submit_metric_t)(char *, metric_type_t, char *, float, char **
 typedef void (*cb_submit_service_check_t)(char *, char *, int, char **, int, char *, char *);
 // (id, event)
 typedef void (*cb_submit_event_t)(char *, event_t *);
-
-// these strings need to be alive for the whole interpreter lifetime because
-// they'll be used from the CPython Inittab. Be sure to keep these in sync
-// with `six_module_e` contents.
-static const char *datadog_agent_six_unknown = "";
-static const char *datadog_agent_six__util = "_util";
-static const char *datadog_agent_six_aggregator = "aggregator";
-static const char *datadog_agent_six_containers = "containers";
-static const char *datadog_agent_six_datadog_agent = "datadog_agent";
-static const char *datadog_agent_six_kubeutil = "kubeutil";
-static const char *datadog_agent_six_tagger = "tagger";
-static const char *datadog_agent_six_util = "util";
 
 #ifdef __cplusplus
 }

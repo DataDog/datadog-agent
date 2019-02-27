@@ -15,15 +15,11 @@ class Two : public Six {
 public:
     Two()
         : Six()
-        , _modules()
-        , _module_constants()
         , _baseClass(NULL)
         , _pythonPaths(){};
     ~Two();
 
     bool init(const char *pythonHome);
-    bool addModuleFunction(six_module_t module, six_module_func_t t, const char *funcName, void *func);
-    bool addModuleIntConst(six_module_t module, const char *name, long value);
     bool addPythonPath(const char *path);
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
@@ -53,12 +49,8 @@ private:
     std::string _fetchPythonError();
     char *_getCheckVersion(PyObject *module) const;
 
-    typedef std::vector<PyMethodDef> PyMethods;
-    typedef std::map<six_module_t, PyMethods> PyModules;
     typedef std::vector<std::string> PyPaths;
 
-    PyModules _modules;
-    PyModuleConstants _module_constants;
     PyObject *_baseClass;
     PyPaths _pythonPaths;
     PyThreadState *_state;
