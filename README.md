@@ -19,10 +19,16 @@ using the `make2` and `make3` functions, the corresponding Python backend will
 be loaded at runtime. Under the hood the library provides `Six`, a C++ interface
 that must be implemented by any supported backend, see `include/six.h` for details.
 
-### libdatadog-agent-three and libdatadog-agent-two
+### Two and Three
 
-These libraries provide Python support for extending and embedding by linking
-different versions of the CPython library.
+`libdatadog-agent-three` and `libdatadog-agent-two` libraries provide Python support
+for extending and embedding by linking different versions of the CPython library.
+
+### Common
+
+The `common` folder contains C/C++ modules that are compiled into both \
+`libdatadog-agent-three` and `libdatadog-agent-two` to avoid code duplication.
+Most of the code used to extend the embedded interpreter is there.
 
 ## Requirements
 
@@ -72,10 +78,9 @@ Unix
 LD_LIBRARY_PATH=./three:./two ./demo/demo 3 $VIRTUAL_ENV
 ```
 
-
 ## Test
 
-Tests are written in Golang using `cgo`, to run the testsuite from the root folder:
+Tests are written in Golang using `cgo`, run the testsuite from the root folder:
 ```sh
 make -C test
 ```
