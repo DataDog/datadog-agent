@@ -44,12 +44,12 @@ PyObject *get_version(PyObject *self, PyObject *args) {
     // callback must be set
     assert(cb_get_version != NULL);
 
-    char **v;
-    cb_get_version(v);
+    char *v;
+    cb_get_version(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyUnicode_FromString(*v);
-        free(*v);
+        PyObject *retval = PyUnicode_FromString(v);
+        free(v);
         return retval;
     }
     Py_RETURN_NONE;
