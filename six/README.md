@@ -26,7 +26,7 @@ for extending and embedding by linking different versions of the CPython library
 
 ### Common
 
-The `common` folder contains C/C++ modules that are compiled into both \
+The `common` folder contains C/C++ modules that are compiled into both
 `libdatadog-agent-three` and `libdatadog-agent-two` to avoid code duplication.
 Most of the code used to extend the embedded interpreter is there.
 
