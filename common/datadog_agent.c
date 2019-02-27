@@ -32,7 +32,7 @@ PyMODINIT_FUNC PyInit_datadog_agent(void) {
 #endif
 
 #ifdef DATADOG_AGENT_TWO
-// module object storage
+// in Python2 keep the object alive for the program lifetime
 static PyObject *module;
 
 void Py2_init_datadog_agent() {
@@ -63,6 +63,15 @@ PyObject *get_version(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
+/**
+ * Before Six the Agent used reflection to inspect the contents of a configuration
+ * value and the CPython API to perform conversion to a Python equivalent. Such
+ * a conversion wouldn't be possible in a Python-agnostic way so we use JSON to
+ * pass the data from Go to Python. The configuration value is loaded in the Agent,
+ * marshalled into JSON and passed as a `char*` to Six, where the string is
+ * decoded back to Python and passed to the caller. JSON usage is transparent to
+ * the caller, who would receive a Python object as returned from `json.loads`.
+ */
 PyObject *get_config(PyObject *self, PyObject *args) {
     // callback must be set
     assert(cb_get_config != NULL);
