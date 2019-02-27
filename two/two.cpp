@@ -35,6 +35,7 @@ bool Two::init(const char *pythonHome) {
 
     // init custom builtins
     Py2_init_aggregator();
+    Py2_init_datadog_agent();
 
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.

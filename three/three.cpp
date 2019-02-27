@@ -31,6 +31,7 @@ Three::~Three() {
 bool Three::init(const char *pythonHome) {
     // add custom builtins init funcs to Python inittab, one by one
     PyImport_AppendInittab("aggregator", PyInit_aggregator);
+    PyImport_AppendInittab("datadog_agent", PyInit_datadog_agent);
 
     if (pythonHome == NULL) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
