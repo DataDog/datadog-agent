@@ -30,3 +30,28 @@ char *as_string(PyObject *object) {
 #endif
     return retval;
 }
+
+PyObject *from_json(const char *data) {
+    PyObject *retval = NULL;
+    PyObject *json = NULL;
+    PyObject *loads = NULL;
+
+    char module_name[] = "json";
+    json = PyImport_ImportModule(module_name);
+    if (json == NULL) {
+        goto done;
+    }
+
+    char func_name[] = "loads";
+    loads = PyObject_GetAttrString(json, func_name);
+    if (loads == NULL) {
+        goto done;
+    }
+
+    retval = PyObject_CallFunction(loads, "s", data);
+
+done:
+    Py_XDECREF(json);
+    Py_XDECREF(loads);
+    return retval;
+}

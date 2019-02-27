@@ -48,6 +48,7 @@ DATADOG_AGENT_SIX_API void set_submit_event_cb(six_t *, cb_submit_event_t);
 
 // DATADOG_AGENT API
 DATADOG_AGENT_SIX_API void set_get_version_cb(six_t *, cb_get_version_t);
+DATADOG_AGENT_SIX_API void set_get_config_cb(six_t *, cb_get_config_t);
 
 #ifdef __cplusplus
 }

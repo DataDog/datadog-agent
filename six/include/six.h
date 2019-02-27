@@ -51,6 +51,7 @@ public:
 
     // datadog_agent API
     virtual void setGetVersionCb(cb_get_version_t) = 0;
+    virtual void setGetConfigCb(cb_get_config_t) = 0;
 
 private:
     mutable std::string _error;
