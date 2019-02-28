@@ -102,7 +102,9 @@ PyObject *get_version(PyObject *self, PyObject *args) {
  */
 PyObject *get_config(PyObject *self, PyObject *args) {
     // callback must be set
-    assert(cb_get_config != NULL);
+    if (cb_get_config == NULL) {
+        Py_RETURN_NONE;
+    }
 
     char *key;
     if (!PyArg_ParseTuple(args, "s", &key)) {
