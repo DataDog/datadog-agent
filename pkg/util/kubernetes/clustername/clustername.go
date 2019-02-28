@@ -48,6 +48,10 @@ func getClusterName(data *clusterNameData) string {
 
 	if !data.initDone {
 		data.clusterName = config.Datadog.GetString("cluster_name")
+		if data.clusterName != "" {
+			log.Infof("Got cluster name %s from config", data.clusterName)
+		}
+
 		// autodiscover clustername through k8s providers' API
 		if data.clusterName == "" {
 			log.Debug("cluster_name not provided, trying to auto discover...")
