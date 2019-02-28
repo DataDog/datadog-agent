@@ -10,7 +10,6 @@
 #include <datadog_agent.h>
 
 #include <algorithm>
-#include <iostream>
 #include <sstream>
 
 extern "C" DATADOG_AGENT_SIX_API Six *create() {
@@ -21,6 +20,7 @@ extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) {
 }
 
 Two::~Two() {
+    PyEval_RestoreThread(_threadState);
     Py_XDECREF(_baseClass);
     Py_Finalize();
 }
@@ -53,8 +53,12 @@ bool Two::init(const char *pythonHome) {
     }
 
     // import the base class
-    _baseClass = _importFrom("datadog_checks.base.checks", "AgentCheck");
-    return (_baseClass != NULL);
+    _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
+
+    // save tread state and release the GIL
+    _threadState = PyEval_SaveThread();
+
+    return _baseClass != NULL;
 }
 
 bool Two::isInitialized() const {

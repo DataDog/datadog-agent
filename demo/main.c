@@ -89,6 +89,7 @@ int main(int argc, char *argv[]) {
 
     printf("Embedding Python version %s\n\n", get_py_version(six));
 
+    six_gilstate_t state = ensure_gil(six);
     // run a script from file
     char *code = read_file("./demo/main.py");
     run_simple_string(six, code);
@@ -158,6 +159,10 @@ int main(int argc, char *argv[]) {
     } else {
         printf("Error running the check, output:\n %s\n", result);
     }
+    release_gil(six, state);
+
+    printf("Destroying python\n");
+    destroy(six);
 
     return 0;
 }
