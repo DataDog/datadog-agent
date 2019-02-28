@@ -472,6 +472,10 @@ void Three::decref(SixPyObject *obj) {
     Py_XDECREF(reinterpret_cast<PyObject *>(obj));
 }
 
+void Three::incref(SixPyObject *obj) {
+    Py_XINCREF(reinterpret_cast<PyObject *>(obj));
+}
+
 void Three::setSubmitMetricCb(cb_submit_metric_t cb) {
     _set_submit_metric_cb(cb);
 }

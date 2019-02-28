@@ -455,6 +455,10 @@ void Two::decref(SixPyObject *obj) {
     Py_XDECREF(reinterpret_cast<PyObject *>(obj));
 }
 
+void Two::incref(SixPyObject *obj) {
+    Py_XINCREF(reinterpret_cast<SixPyObject *>(obj));
+}
+
 void Two::setSubmitMetricCb(cb_submit_metric_t cb) {
     _set_submit_metric_cb(cb);
 }

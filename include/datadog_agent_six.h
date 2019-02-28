@@ -35,6 +35,7 @@ DATADOG_AGENT_SIX_API int get_check(six_t *six, six_pyobject_t *py_class, const 
 DATADOG_AGENT_SIX_API const char *run_check(six_t *, six_pyobject_t *check);
 DATADOG_AGENT_SIX_API void six_free(six_t *, void *ptr);
 DATADOG_AGENT_SIX_API void six_decref(six_t *, six_pyobject_t *);
+DATADOG_AGENT_SIX_API void six_incref(six_t *, six_pyobject_t *);
 
 // CONST API
 DATADOG_AGENT_SIX_API int is_initialized(six_t *);

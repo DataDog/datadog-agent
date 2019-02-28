@@ -45,7 +45,8 @@ public:
                   const char *agent_config_str, const char *check_id, SixPyObject *&check);
 
     const char *runCheck(SixPyObject *check);
-    void decref(SixPyObject *);
+    void decref(SixPyObject *obj);
+    void incref(SixPyObject *obj);
 
     // const API
     bool isInitialized() const;
