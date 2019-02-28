@@ -1,6 +1,6 @@
 {
 	"nightly": {
-		"INTEGRATIONS_CORE_VERSION": "master",
+		"INTEGRATIONS_CORE_VERSION": "xvello/hugepodlist",
 		"TRACE_AGENT_VERSION": "master",
 		"PROCESS_AGENT_VERSION": "master",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
