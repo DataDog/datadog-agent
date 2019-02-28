@@ -93,7 +93,7 @@ def cross_compile(ctx, tag=""):
         print("Argument --tag=<version> is required.")
         return
 
-    print("Buliding tag %s..." % tag)
+    print("Building tag %s..." % tag)
 
     env = {
         "TRACE_AGENT_VERSION": tag,
