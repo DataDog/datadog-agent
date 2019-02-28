@@ -10,7 +10,6 @@ package kubelet
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"io/ioutil"
@@ -19,6 +18,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -83,6 +84,11 @@ func newKubeUtil() *KubeUtil {
 	waitOnMissingContainer := config.Datadog.GetDuration("kubelet_wait_on_missing_container")
 	if waitOnMissingContainer > 0 {
 		ku.waitOnMissingContainer = waitOnMissingContainer * time.Second
+	}
+
+	// Register our custom filtering decoder when pod expiration is set
+	if config.Datadog.GetInt("kubernetes_pod_expiration_minutes") > 0 {
+		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", decodeAndFilterPodList)
 	}
 
 	return ku
@@ -189,7 +195,8 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
 	}
 
-	err = json.Unmarshal(data, &pods)
+	// Will use the decodePodList decoder if kubernetes_pod_expiration_minutes is not zero
+	err = jsoniter.Unmarshal(data, &pods)
 	if err != nil {
 		return nil, err
 	}

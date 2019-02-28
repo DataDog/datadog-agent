@@ -275,7 +275,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
-	config.BindEnvAndSetDfeault("kube_resources_namespace", "")
+	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
