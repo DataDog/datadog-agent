@@ -25,7 +25,7 @@ type clusterNameData struct {
 type Provider func() (string, error)
 
 // ProviderCatalog holds all the various kinds of clustername providers
-var ProviderCatalog = make(map[string]Provider)
+var ProviderCatalog map[string]Provider
 
 func newClusterNameData() *clusterNameData {
 	return &clusterNameData{}
@@ -35,9 +35,11 @@ var defaultClusterNameData *clusterNameData
 
 func init() {
 	defaultClusterNameData = newClusterNameData()
-	ProviderCatalog["gce"] = gce.GetClusterName
-	ProviderCatalog["azure"] = azure.GetClusterName
-	ProviderCatalog["ec2"] = ec2.GetClusterName
+	ProviderCatalog = map[string]Provider{
+		"gce":   gce.GetClusterName,
+		"azure": azure.GetClusterName,
+		"ec2":   ec2.GetClusterName,
+	}
 }
 
 func getClusterName(data *clusterNameData) string {
@@ -48,6 +50,7 @@ func getClusterName(data *clusterNameData) string {
 		data.clusterName = config.Datadog.GetString("cluster_name")
 		// autodiscover clustername through k8s providers' API
 		if data.clusterName == "" {
+			log.Debug("cluster_name not provided, trying to auto discover...")
 			for cloudProvider, getClusterNameFunc := range ProviderCatalog {
 				log.Debugf("Trying to auto discover the cluster name from the %s API...", cloudProvider)
 				clusterName, err := getClusterNameFunc()
@@ -57,7 +60,7 @@ func getClusterName(data *clusterNameData) string {
 					continue
 				}
 				if clusterName != "" {
-					log.Debugf("Using cluster name %s auto discovered from the %s API", clusterName, cloudProvider)
+					log.Infof("Using cluster name %s auto discovered from the %s API", clusterName, cloudProvider)
 					data.clusterName = clusterName
 					break
 				}
