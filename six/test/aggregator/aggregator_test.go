@@ -13,10 +13,7 @@ func TestMain(m *testing.M) {
 		os.Exit(-1)
 	}
 
-	ret := m.Run()
-
-	tearDown()
-	os.Exit(ret)
+	os.Exit(m.Run())
 }
 
 func TestSubmitMetric(t *testing.T) {
