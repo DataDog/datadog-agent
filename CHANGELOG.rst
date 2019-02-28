@@ -16,9 +16,9 @@ Release on: 2019-02-28
 
 - Please refer to the `6.10.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6100>`_ for the list of changes on the Core Checks.
 
-- Please refer to the `6.10.0 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.10.0>`_ for the list of changes on the Trace Agent.
-
 - Please refer to the `6.10.0 tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/6.10.0>`_ for the list of changes on the Process Agent.
+
+- Starting with this release, the changes on the Trace Agent are listed in the present release notes.
 
 
 .. _Release Notes_6.10.0_Security Notes:
