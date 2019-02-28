@@ -13,6 +13,7 @@ import (
 	"expvar"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -503,25 +504,39 @@ func (ku *KubeUtil) init() error {
 	// setting the kubeletHost
 	ku.kubeletHost = config.Datadog.GetString("kubernetes_kubelet_host")
 	if ku.kubeletHost == "" {
-		ku.kubeletHost, err = docker.HostnameProvider()
+		dockerHost, err := docker.HostnameProvider()
 		if err != nil {
 			return fmt.Errorf("unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
 		}
+
+		log.Debugf("Trying to resolve host name %s provided by docker to ip...", dockerHost)
+		IPsSlice, err := net.LookupHost(dockerHost)
+		if err != nil {
+			log.Debugf("Cannot resolve host name %s provided by docker to ip: %s", dockerHost, err)
+			log.Warnf("kubernetes_kubelet_host is not set, using host name %s provided by docker", dockerHost)
+			ku.kubeletHost = dockerHost
+		} else {
+			log.Debugf("Resolved host name %s provided by docker to %s", dockerHost, IPsSlice)
+			for _, ip := range IPsSlice {
+				log.Debugf("Checking connection to kubelet using %s", ip)
+				err := checkKubeletConnection(ip)
+				if err != nil {
+					log.Debugf("Cannot connect to kubelet using %s: %s", ip, err)
+					log.Warnf("kubernetes_kubelet_host is not set, using host name %s provided by docker", dockerHost)
+					ku.kubeletHost = dockerHost
+				} else {
+					log.Debugf("Can connect to kubelet using %s", ip)
+					log.Infof("Using %s as kubelet host", ip)
+					ku.kubeletHost = ip
+					break
+				}
+			}
+		}
 	}
 
-	// Trying connectivity insecurely with a dedicated client
-	c := http.Client{Timeout: time.Second}
-	c.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
-
-	// HTTPS first
-	if _, errHTTPS := c.Get(fmt.Sprintf("https://%s:%d/", ku.kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port"))); errHTTPS != nil {
-		log.Debugf("Cannot connect through HTTPS: %s, trying through http", errHTTPS)
-
-		// Only try the HTTP if HTTPS failed
-		if _, errHTTP := c.Get(fmt.Sprintf("http://%s:%d/", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port"))); errHTTP != nil {
-			log.Debugf("Cannot connect through HTTP: %s", errHTTP)
-			return fmt.Errorf("cannot connect: https: %q, http: %q", errHTTPS, errHTTP)
-		}
+	err = checkKubeletConnection(ku.kubeletHost)
+	if err != nil {
+		return err
 	}
 
 	err = ku.setupKubeletApiClient()
@@ -535,6 +550,25 @@ func (ku *KubeUtil) init() error {
 	}
 
 	return ku.setupKubeletApiEndpoint()
+}
+
+func checkKubeletConnection(kubeletHost string) error {
+	// Trying connectivity insecurely with a dedicated client
+	c := http.Client{Timeout: time.Second}
+	c.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+
+	// HTTPS first
+	if _, errHTTPS := c.Get(fmt.Sprintf("https://%s:%d/", kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port"))); errHTTPS != nil {
+		log.Debugf("Cannot connect through HTTPS: %s, trying through http", errHTTPS)
+
+		// Only try the HTTP if HTTPS failed
+		if _, errHTTP := c.Get(fmt.Sprintf("http://%s:%d/", kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port"))); errHTTP != nil {
+			log.Debugf("Cannot connect through HTTP: %s", errHTTP)
+			return fmt.Errorf("cannot connect: https: %q, http: %q", errHTTPS, errHTTP)
+		}
+	}
+
+	return nil
 }
 
 // IsPodReady return a bool if the Pod is ready
