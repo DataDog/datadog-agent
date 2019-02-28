@@ -35,13 +35,8 @@ func setUp() error {
 	if ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
-
+	C.ensure_gil(six)
 	return nil
-}
-
-func tearDown() {
-	C.destroy(six)
-	six = nil
 }
 
 func getVersion() string {
@@ -70,19 +65,21 @@ func runString(code string) (string, error) {
 
 func getError() string {
 	// following is supposed to raise an error
-	C.get_check(six, C.CString("foo"), C.CString(""), C.CString("[{foo: \"/\"}]"), nil, nil)
+	C.get_class(six, C.CString("foo"), nil, nil)
 	return C.GoString(C.get_error(six))
 }
 
 func hasError() bool {
 	// following is supposed to raise an error
-	C.get_check(six, C.CString("foo"), C.CString(""), C.CString("[{foo: \"/\"}]"), nil, nil)
+	C.get_class(six, C.CString("foo"), nil, nil)
 	ret := C.has_error(six) == 1
 	C.clear_error(six)
 	return ret
 }
 
 func getFakeCheck() (string, error) {
+	var module *C.six_pyobject_t
+	var class *C.six_pyobject_t
 	var check *C.six_pyobject_t
 	var version *C.char
 
@@ -98,7 +95,9 @@ func getFakeCheck() (string, error) {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
 
-	if ret != 1 || check == nil || version == nil {
+	// check instance
+	ret = C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString(""), C.CString("checkID"), &check)
+	if ret != 1 || check == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
 
@@ -106,6 +105,8 @@ func getFakeCheck() (string, error) {
 }
 
 func runFakeCheck() (string, error) {
+	var module *C.six_pyobject_t
+	var class *C.six_pyobject_t
 	var check *C.six_pyobject_t
 	var version *C.char
 

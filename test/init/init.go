@@ -33,11 +33,6 @@ func runInit() error {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
 
-	ok := C.init(six, nil)
-	if ok != 1 {
-		return fmt.Errorf("`init` failed")
-	}
-
 	if C.is_initialized(six) != 1 {
 		return fmt.Errorf("Six not initialized")
 	}

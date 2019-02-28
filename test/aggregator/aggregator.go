@@ -85,12 +85,8 @@ func setUp() error {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(six)))
 	}
 
+	C.ensure_gil(six)
 	return nil
-}
-
-func tearDown() {
-	C.destroy(six)
-	six = nil
 }
 
 func run(call string) (string, error) {
@@ -98,10 +94,12 @@ func run(call string) (string, error) {
 
 	code := C.CString(fmt.Sprintf(`
 try:
+	import sys
 	import aggregator
 	%s
 except Exception as e:
-	print(e, flush=True)
+	sys.stderr.write("{}\n".format(e))
+	sys.stderr.flush()
 `, call))
 
 	var (

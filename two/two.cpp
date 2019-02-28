@@ -10,6 +10,7 @@
 #include <datadog_agent.h>
 
 #include <algorithm>
+#include <iostream>
 #include <sstream>
 
 extern "C" DATADOG_AGENT_SIX_API Six *create() {
@@ -33,13 +34,13 @@ bool Two::init(const char *pythonHome) {
     Py_SetPythonHome(const_cast<char *>(_pythonHome));
     Py_Initialize();
 
-    // init custom builtins
-    Py2_init_aggregator();
-    Py2_init_datadog_agent();
-
     // In recent versions of Python3 this is called from Py_Initialize already,
     // for Python2 it has to be explicit.
     PyEval_InitThreads();
+
+    // init custom builtins
+    Py2_init_aggregator();
+    Py2_init_datadog_agent();
 
     // Set PYTHONPATH
     if (_pythonPaths.size()) {
