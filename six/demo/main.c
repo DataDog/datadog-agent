@@ -94,21 +94,56 @@ int main(int argc, char *argv[]) {
     run_simple_string(six, code);
 
     // load the Directory check if available
+    six_pyobject_t *py_module;
+    six_pyobject_t *py_class;
+
+    printf("importing check\n");
+    int ok = get_class(six, "datadog_checks.directory", &py_module, &py_class);
+    if (!ok) {
+        if (has_error(six)) {
+            printf("error getting class: %s\n", get_error(six));
+        }
+        printf("Failed to get_class\n");
+        return 1;
+    }
+
     char *version = NULL;
+    ok = get_attr_string(six, py_module, "__version__", &version);
+    if (!ok) {
+        if (has_error(six)) {
+            printf("error getting class version: %s\n", get_error(six));
+        }
+        printf("Failed to get_version\n");
+        return 1;
+    }
+
+    char *file = NULL;
+    ok = get_attr_string(six, py_module, "__file__", &file);
+    if (!ok) {
+        if (has_error(six)) {
+            printf("error getting class file: %s\n", get_error(six));
+        }
+        printf("Failed to get_file\n");
+        return 1;
+    }
+    if (version != NULL) {
+        printf("Successfully imported Directory integration v%s.\n\n", version);
+    } else {
+        printf("Successfully imported Directory integration.\n\n");
+    }
+    printf("Directory __file__: %s.\n", file);
+    free(version);
+    free(file);
+
+    // load the Directory check if available
     six_pyobject_t *check;
 
-    int ok = get_check(six, "datadog_checks.directory", "", "[{directory: \"/\"}]", &check, &version);
+    ok = get_check(six, py_class, "", "{directory: \"/\"}", "", "directoryID", &check);
     if (!ok) {
         if (has_error(six)) {
             printf("error loading check: %s\n", get_error(six));
         }
         return 1;
-    }
-
-    if (version != NULL) {
-        printf("Successfully imported Directory integration v%s.\n\n", version);
-    } else {
-        printf("Successfully imported Directory integration.\n\n");
     }
 
     const char *result = run_check(six, check);

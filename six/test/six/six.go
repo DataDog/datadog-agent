@@ -86,7 +86,17 @@ func getFakeCheck() (string, error) {
 	var check *C.six_pyobject_t
 	var version *C.char
 
-	ret := C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"), &check, &version)
+	// class
+	ret := C.get_class(six, C.CString("fake_check"), &module, &class)
+	if ret != 1 || module == nil || class == nil {
+		return "", fmt.Errorf(C.GoString(C.get_error(six)))
+	}
+
+	// version
+	ret = C.get_attr_string(six, module, C.CString("__version__"), &version)
+	if ret != 1 || version == nil {
+		return "", fmt.Errorf(C.GoString(C.get_error(six)))
+	}
 
 	if ret != 1 || check == nil || version == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
@@ -99,10 +109,9 @@ func runFakeCheck() (string, error) {
 	var check *C.six_pyobject_t
 	var version *C.char
 
-	ret := C.get_check(six, C.CString("fake_check"), C.CString(""), C.CString("[{fake_check: \"/\"}]"), &check, &version)
-	if ret != 1 {
-		return "", fmt.Errorf(C.GoString(C.get_error(six)))
-	}
+	C.get_class(six, C.CString("datadog_checks.directory"), &module, &class)
+	C.get_attr_string(six, module, C.CString("__version__"), &version)
+	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString(""), C.CString("checkID"), &check)
 
 	return C.GoString(C.run_check(six, check)), nil
 }

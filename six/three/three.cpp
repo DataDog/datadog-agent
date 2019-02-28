@@ -98,38 +98,46 @@ void Three::GILRelease(six_gilstate_t state) {
     }
 }
 
-bool Three::getCheck(const char *module, const char *init_config_str, const char *instances_str, SixPyObject *&pycheck,
-                     char *&version) {
+bool Three::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass) {
     PyObject *obj_module = NULL;
-    PyObject *klass = NULL;
-    PyObject *init_config = NULL;
-    PyObject *instances = NULL;
-    PyObject *check = NULL;
-    PyObject *args = NULL;
-    PyObject *kwargs = NULL;
-
-    char load_config[] = "load_config";
-    char format[] = "(s)";
+    PyObject *obj_class = NULL;
 
     obj_module = PyImport_ImportModule(module);
     if (obj_module == NULL) {
         std::ostringstream err;
         err << "unable to import module '" << module << "': " + _fetchPythonError();
         setError(err.str());
-        goto done;
+        return false;
     }
 
-    // find a subclass of the base check
-    klass = _findSubclassOf(_baseClass, obj_module);
-    if (klass == NULL) {
+    obj_class = _findSubclassOf(_baseClass, obj_module);
+    if (obj_class == NULL) {
         std::ostringstream err;
         err << "unable to find a subclass of the base check in module '" << module << "': " << _fetchPythonError();
         setError(err.str());
-        goto done;
+        Py_XDECREF(obj_module);
+        return false;
     }
 
-    // try to get Check version
-    version = _getCheckVersion(obj_module);
+    pyModule = reinterpret_cast<SixPyObject *>(obj_module);
+    pyClass = reinterpret_cast<SixPyObject *>(obj_class);
+    return true;
+}
+
+bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const char *instance_str,
+                     const char *agent_config_str, const char *check_id, SixPyObject *&pycheck) {
+
+    PyObject *klass = reinterpret_cast<PyObject *>(py_class);
+    PyObject *init_config = NULL;
+    PyObject *instance = NULL;
+    PyObject *instances = NULL;
+    PyObject *check = NULL;
+    PyObject *args = NULL;
+    PyObject *kwargs = NULL;
+    PyObject *py_check_id = NULL;
+
+    char load_config[] = "load_config";
+    char format[] = "(s)";
 
     // call `AgentCheck.load_config(init_config)`
     init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
@@ -138,10 +146,17 @@ bool Three::getCheck(const char *module, const char *init_config_str, const char
         goto done;
     }
 
-    // call `AgentCheck.load_config(instances)`
-    instances = PyObject_CallMethod(klass, load_config, format, instances_str);
-    if (instances == NULL) {
-        setError("error parsing instances: " + _fetchPythonError());
+    // call `AgentCheck.load_config(instance)`
+    printf("instance: %s\n", instance_str);
+    instance = PyObject_CallMethod(klass, load_config, format, instance_str);
+    if (instance == NULL) {
+        setError("error parsing instance: " + _fetchPythonError());
+        goto done;
+    }
+
+    instances = PyTuple_New(1);
+    if (PyTuple_SetItem(instances, 0, instance) != 0) {
+        setError("Could not create Tuple for instances: " + _fetchPythonError());
         goto done;
     }
 
@@ -158,11 +173,29 @@ bool Three::getCheck(const char *module, const char *init_config_str, const char
         goto done;
     }
 
+    if (check_id != NULL && strlen(check_id) != 0) {
+        py_check_id = PyUnicode_FromString(check_id);
+        if (py_check_id == NULL) {
+            std::ostringstream err;
+            err << "error could not set check_id: " << check_id;
+            setError(err.str());
+            Py_XDECREF(check);
+            check = NULL;
+            goto done;
+        }
+
+        if (PyObject_SetAttrString(check, "check_id", py_check_id) != 0) {
+            setError("error could not set 'check_id' attr: " + _fetchPythonError());
+            Py_XDECREF(check);
+            check = NULL;
+            goto done;
+        }
+    }
+
 done:
-    Py_XDECREF(obj_module);
-    Py_XDECREF(klass);
+    Py_XDECREF(py_check_id);
     Py_XDECREF(init_config);
-    Py_XDECREF(instances);
+    Py_XDECREF(instance);
     Py_XDECREF(args);
     Py_XDECREF(kwargs);
 
@@ -323,6 +356,7 @@ PyObject *Three::_findSubclassOf(PyObject *base, PyObject *module) {
     }
 
     setError("cannot find a subclass");
+    klass = NULL;
 
 done:
     Py_DECREF(dir);
@@ -400,40 +434,39 @@ std::string Three::_fetchPythonError() const {
     return ret_val;
 }
 
-char *Three::_getCheckVersion(PyObject *module) const {
-    if (module == NULL) {
-        return NULL;
+bool Three::getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const {
+    if (obj == NULL) {
+        return false;
     }
 
-    char *ret = NULL;
-    PyObject *py_version = NULL;
-    PyObject *py_version_bytes = NULL;
-    char version_field[] = "__version__";
+    bool res = false;
+    PyObject *py_attr = NULL;
+    PyObject *py_attr_bytes = NULL;
+    PyObject *py_obj = reinterpret_cast<PyObject *>(obj);
 
-    // try getting module.__version__
-    py_version = PyObject_GetAttrString(module, version_field);
-    if (py_version != NULL && PyUnicode_Check(py_version)) {
-        py_version_bytes = PyUnicode_AsEncodedString(py_version, "UTF-8", "strict");
-        if (py_version_bytes == NULL) {
-            setError("error converting __version__ to string: " + _fetchPythonError());
-            ret = NULL;
-            goto done;
+    py_attr = PyObject_GetAttrString(py_obj, attributeName);
+    if (py_attr != NULL && PyUnicode_Check(py_attr)) {
+        py_attr_bytes = PyUnicode_AsEncodedString(py_attr, "UTF-8", "strict");
+        if (py_attr_bytes == NULL) {
+            setError("error converting attribute " + std::string(attributeName) + " to string: " + _fetchPythonError());
+        } else {
+            value = _strdup(PyBytes_AsString(py_attr_bytes));
+            res = true;
         }
-        ret = _strdup(PyBytes_AsString(py_version_bytes));
-        goto done;
+    } else if (py_attr != NULL && !PyUnicode_Check(py_attr)) {
+        setError("error attribute " + std::string(attributeName) + " is has a different type than unicode");
+        PyErr_Clear();
     } else {
-        // we expect __version__ might not be there, don't clutter the error stream
         PyErr_Clear();
     }
 
-done:
-    Py_XDECREF(py_version);
-    Py_XDECREF(py_version_bytes);
-    return ret;
+    Py_XDECREF(py_attr_bytes);
+    Py_XDECREF(py_attr);
+    return res;
 }
 
 void Three::decref(SixPyObject *obj) {
-    Py_XDECREF(reinterpret_cast<SixPyObject *>(obj));
+    Py_XDECREF(reinterpret_cast<PyObject *>(obj));
 }
 
 void Three::setSubmitMetricCb(cb_submit_metric_t cb) {
