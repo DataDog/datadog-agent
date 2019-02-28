@@ -38,8 +38,12 @@ public:
     bool addPythonPath(const char *path);
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
-    bool getCheck(const char *module, const char *init_config, const char *instances, SixPyObject *&check,
-                  char *&version);
+
+    bool getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass);
+    bool getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const;
+    bool getCheck(SixPyObject *py_class, const char *init_config_str, const char *instance_str,
+                  const char *agent_config_str, const char *check_id, SixPyObject *&check);
+
     const char *runCheck(SixPyObject *check);
     void decref(SixPyObject *);
 
@@ -68,7 +72,6 @@ private:
     PyObject *_importFrom(const char *module, const char *name);
     PyObject *_findSubclassOf(PyObject *base, PyObject *module);
     std::string _fetchPythonError() const;
-    char *_getCheckVersion(PyObject *module) const;
 
     typedef std::vector<std::string> PyPaths;
 

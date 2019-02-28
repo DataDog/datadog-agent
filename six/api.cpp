@@ -199,9 +199,21 @@ void release_gil(six_t *six, six_gilstate_t state) {
     AS_TYPE(Six, six)->GILRelease(state);
 }
 
-int get_check(six_t *six, const char *name, const char *init_config, const char *instances, six_pyobject_t **check,
-              char **version) {
-    return AS_TYPE(Six, six)->getCheck(name, init_config, instances, *AS_PTYPE(SixPyObject, check), *version) ? 1 : 0;
+int get_class(six_t *six, const char *name, six_pyobject_t **py_module, six_pyobject_t **py_class) {
+    return AS_TYPE(Six, six)->getClass(name, *AS_PTYPE(SixPyObject, py_module), *AS_PTYPE(SixPyObject, py_class)) ? 1
+                                                                                                                  : 0;
+}
+
+int get_attr_string(six_t *six, six_pyobject_t *py_class, const char *attr_name, char **value) {
+    return AS_TYPE(Six, six)->getAttrString(AS_TYPE(SixPyObject, py_class), attr_name, *value);
+}
+
+int get_check(six_t *six, six_pyobject_t *py_class, const char *init_config, const char *instance,
+              const char *agent_config, const char *check_id, six_pyobject_t **check) {
+    return AS_TYPE(Six, six)->getCheck(AS_TYPE(SixPyObject, py_class), init_config, instance, agent_config, check_id,
+                                       *AS_PTYPE(SixPyObject, check))
+        ? 1
+        : 0;
 }
 
 const char *run_check(six_t *six, six_pyobject_t *check) {

@@ -24,8 +24,12 @@ public:
     six_gilstate_t GILEnsure();
     void GILRelease(six_gilstate_t);
     SixPyObject *getCheckClass(const char *module);
-    bool getCheck(const char *module, const char *init_config, const char *instances, SixPyObject *&check,
-                  char *&version);
+
+    bool getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass);
+    bool getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const;
+    bool getCheck(SixPyObject *py_class, const char *init_config, const char *instance, const char *agent_config,
+                  const char *check_id, SixPyObject *&check);
+
     const char *runCheck(SixPyObject *check);
     void decref(SixPyObject *);
 
@@ -55,7 +59,6 @@ private:
     PyObject *_findSubclassOf(PyObject *base, PyObject *moduleName);
     PyObject *_getClass(const char *module, const char *base);
     std::string _fetchPythonError();
-    char *_getCheckVersion(PyObject *module) const;
 
     typedef std::vector<std::string> PyPaths;
 
