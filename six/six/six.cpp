@@ -36,6 +36,6 @@ void Six::clearError() {
 
 void Six::free(void *ptr) {
     if (ptr != NULL) {
-        free(ptr);
+        ::free(ptr);
     }
 }
