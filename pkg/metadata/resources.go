@@ -22,6 +22,7 @@ type ResourcesCollector struct{}
 func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
 	hostname, _ := util.GetHostname()
 
+	// GetPayload builds a payload of processes metadata collected from gohai.
 	res := resources.GetPayload(hostname)
 	if res == nil {
 		return errors.New("empty processes metadata")
