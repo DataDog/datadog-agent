@@ -133,8 +133,8 @@ int main(int argc, char *argv[]) {
         printf("Successfully imported Directory integration.\n\n");
     }
     printf("Directory __file__: %s.\n", file);
-    free(version);
-    free(file);
+    six_free(six, version);
+    six_free(six, file);
 
     // load the Directory check if available
     six_pyobject_t *check;
