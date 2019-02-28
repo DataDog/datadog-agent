@@ -49,15 +49,15 @@ func getClusterName(data *clusterNameData) string {
 		// autodiscover clustername through k8s providers' API
 		if data.clusterName == "" {
 			for cloudProvider, getClusterNameFunc := range ProviderCatalog {
-				log.Debugf("Trying to auto discover the clustername from the %s API...", cloudProvider)
+				log.Debugf("Trying to auto discover the cluster name from the %s API...", cloudProvider)
 				clusterName, err := getClusterNameFunc()
 				if err != nil {
-					log.Debugf("Unable to auto discover the clustername from the %s API: %s", cloudProvider, err)
+					log.Debugf("Unable to auto discover the cluster name from the %s API: %s", cloudProvider, err)
 					// try the next cloud provider
 					continue
 				}
 				if clusterName != "" {
-					log.Debugf("Using clustername %s auto discovered from the %s API", clusterName, cloudProvider)
+					log.Debugf("Using cluster name %s auto discovered from the %s API", clusterName, cloudProvider)
 					data.clusterName = clusterName
 					break
 				}

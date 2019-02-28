@@ -6,6 +6,7 @@
 package ec2
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -63,13 +64,13 @@ func extractClusterName(tags []string) (string, error) {
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "kubernetes.io/cluster/") { // tag key format: kubernetes.io/cluster/clustername"
 			key := strings.Split(tag, ":")[0]
-			clusterName = strings.Split(key, "/")[2]
+			clusterName = strings.Split(key, "/")[2] // rely on ec2 tag format to extract clustername
 			break
 		}
 	}
 
 	if clusterName == "" {
-		return "", fmt.Errorf("unable to parse cluster name from EC2 tags")
+		return "", errors.New("unable to parse cluster name from EC2 tags")
 	}
 
 	return clusterName, nil

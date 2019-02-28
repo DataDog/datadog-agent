@@ -6,6 +6,7 @@
 package azure
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -48,12 +49,12 @@ func GetClusterName() (string, error) {
 		return "", fmt.Errorf("error while reading response from azure metadata endpoint: %s", err)
 	}
 
-	splittedAll := strings.Split(string(all), "_")
-	if len(splittedAll) < 4 || splittedAll[0] != "MC" {
-		return "", fmt.Errorf("Cannot parse the clustername from metadata")
+	splitAll := strings.Split(string(all), "_")
+	if len(splitAll) < 4 || splitAll[0] != "MC" {
+		return "", errors.New("Cannot parse the clustername from metadata")
 	}
 
-	clusterName := splittedAll[len(splittedAll)-2]
+	clusterName := splitAll[len(splitAll)-2]
 	return clusterName, nil
 }
 
