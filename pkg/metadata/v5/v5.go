@@ -19,17 +19,18 @@ import (
 func GetPayload(hostname string) *Payload {
 	cp := common.GetPayload(hostname)
 	hp := host.GetPayload(hostname)
+	rp := resources.GetPayload(hostname)
 
 	p := &Payload{
 		CommonPayload: CommonPayload{*cp},
 		HostPayload:   HostPayload{*hp},
 	}
 
+	if rp != nil {
+		p.ResourcesPayload = ResourcesPayload{*rp}
+	}
+
 	if config.Datadog.GetBool("enable_gohai") {
-		rp := resources.GetPayload(hostname)
-		if rp != nil {
-			p.ResourcesPayload = ResourcesPayload{*rp}
-		}
 		p.GohaiPayload = GohaiPayload{MarshalledGohaiPayload{*gohai.GetPayload()}}
 	}
 
