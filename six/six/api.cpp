@@ -248,6 +248,10 @@ void six_decref(six_t *six, six_pyobject_t *obj) {
     AS_TYPE(Six, six)->decref(AS_TYPE(SixPyObject, obj));
 }
 
+void six_incref(six_t *six, six_pyobject_t *obj) {
+    AS_TYPE(Six, six)->incref(AS_TYPE(SixPyObject, obj));
+}
+
 /*
  * aggregator API
  */

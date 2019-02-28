@@ -32,10 +32,12 @@ public:
     virtual bool getCheck(SixPyObject *py_class, const char *init_config, const char *instance,
                           const char *agent_config, const char *check_id, SixPyObject *&check)
         = 0;
+
     virtual const char *runCheck(SixPyObject *check) = 0;
     void clearError();
     void free(void *);
     virtual void decref(SixPyObject *) = 0;
+    virtual void incref(SixPyObject *) = 0;
 
     // Public Const API
     virtual bool isInitialized() const = 0;
