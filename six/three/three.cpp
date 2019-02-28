@@ -21,6 +21,7 @@ extern "C" DATADOG_AGENT_SIX_API void destroy(Six *p) {
 }
 
 Three::~Three() {
+    PyEval_RestoreThread(_threadState);
     if (_pythonHome) {
         PyMem_RawFree((void *)_pythonHome);
     }
@@ -57,8 +58,10 @@ bool Three::init(const char *pythonHome) {
     }
 
     // load the base class
-    _baseClass = _importFrom("datadog_checks.base.checks", "AgentCheck");
+    _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
 
+    // save tread state and release the GIL
+    _threadState = PyEval_SaveThread();
     return _baseClass != NULL;
 }
 

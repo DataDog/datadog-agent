@@ -64,7 +64,7 @@ private:
 
     PyObject *_baseClass;
     PyPaths _pythonPaths;
-    PyThreadState *_state;
+    PyThreadState *_threadState;
 };
 
 #endif
