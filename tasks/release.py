@@ -22,8 +22,6 @@ def add_prelude(ctx, version):
 
     - Please refer to the `{0} tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-{2}>`_ for the list of changes on the Core Checks.
 
-    - Please refer to the `{0} tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/{0}>`_ for the list of changes on the Trace Agent.
-
     - Please refer to the `{0} tag on process-agent <https://github.com/DataDog/datadog-process-agent/releases/tag/{0}>`_ for the list of changes on the Process Agent.\n""".format(version, date.today(), version.replace('.', '')))
 
     ctx.run("git add {}".format(new_releasenote))
