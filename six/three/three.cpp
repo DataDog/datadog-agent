@@ -455,3 +455,7 @@ void Three::setGetVersionCb(cb_get_version_t cb) {
 void Three::setGetConfigCb(cb_get_config_t cb) {
     _set_get_config_cb(cb);
 }
+
+void Three::setHeadersCb(cb_headers_t cb) {
+    _set_headers_cb(cb);
+}

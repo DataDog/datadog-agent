@@ -12,14 +12,17 @@
 // these must be set by the Agent
 static cb_get_version_t cb_get_version = NULL;
 static cb_get_config_t cb_get_config = NULL;
+static cb_headers_t cb_headers = NULL;
 
 // forward declarations
 static PyObject *get_version(PyObject *self, PyObject *args);
 static PyObject *get_config(PyObject *self, PyObject *args);
+static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
-    { "get_version", (PyCFunction)get_version, METH_NOARGS, "Get Agent version." },
-    { "get_config", (PyCFunction)get_config, METH_VARARGS, "Get an Agent config item." },
+    { "get_version", get_version, METH_NOARGS, "Get Agent version." },
+    { "get_config", get_config, METH_VARARGS, "Get an Agent config item." },
+    { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
     { NULL, NULL } // guards
 };
 
@@ -46,6 +49,10 @@ void _set_get_version_cb(cb_get_version_t cb) {
 
 void _set_get_config_cb(cb_get_config_t cb) {
     cb_get_config = cb;
+}
+
+void _set_headers_cb(cb_headers_t cb) {
+    cb_headers = cb;
 }
 
 PyObject *get_version(PyObject *self, PyObject *args) {
@@ -90,4 +97,42 @@ PyObject *get_config(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
     return value;
+}
+
+/**
+ * datadog_agent.headers() isn't used by any official integration provided by
+ * Datdog but custom checks might still rely on that.
+ * Currently the contents of the returned string are the same but defined in two
+ * different places:
+ *
+ *  1. github.com/DataDog/integrations-core/datadog_checks_base/datadog_checks/base/utils/headers.py
+ *  2. github.com/DataDog/datadog-agent/pkg/util/common.go
+ */
+PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs) {
+    // callback must be set but be resilient for the Python caller
+    if (cb_headers == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *data;
+    cb_headers(&data);
+
+    // new ref
+    PyObject *headers_dict = from_json(data);
+    if (headers_dict == NULL || !PyDict_Check(headers_dict)) {
+        Py_RETURN_NONE;
+    }
+
+    // `args` contains `agentConfig` but we don't need it
+    // `kwargs` might contain the `http_host` key, let's grab it
+    if (kwargs != NULL) {
+        char key[] = "http_host";
+        // borrowed
+        PyObject *pyHTTPHost = PyDict_GetItemString(kwargs, key);
+        if (pyHTTPHost != NULL) {
+            PyDict_SetItemString(headers_dict, "Host", pyHTTPHost);
+        }
+    }
+
+    return headers_dict;
 }
