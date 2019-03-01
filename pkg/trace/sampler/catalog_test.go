@@ -1,10 +1,42 @@
 package sampler
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// TestCatalogRegression is a regression tests ensuring that there is no race
+// occurring when registering entries in the catalog in parallel to obtaining
+// the rates by service map.
+func TestCatalogRegression(t *testing.T) {
+	cat := newServiceLookup()
+	n := 100
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			cat.register(ServiceSignature{})
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			cat.ratesByService(map[Signature]float64{
+				ServiceSignature{}.Hash():                 0.3,
+				ServiceSignature{"web", "staging"}.Hash(): 0.4,
+			}, 0.2)
+		}
+	}()
+
+	wg.Wait()
+}
 
 func TestServiceSignatureString(t *testing.T) {
 	assert := assert.New(t)
