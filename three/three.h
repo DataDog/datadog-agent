@@ -42,7 +42,7 @@ public:
     bool getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&pyClass);
     bool getAttrString(SixPyObject *obj, const char *attributeName, char *&value) const;
     bool getCheck(SixPyObject *py_class, const char *init_config_str, const char *instance_str,
-                  const char *agent_config_str, const char *check_id, SixPyObject *&check);
+                  const char *check_id_str, const char *check_name, const char *agent_config_str, SixPyObject *&check);
 
     const char *runCheck(SixPyObject *check);
     void decref(SixPyObject *obj);
