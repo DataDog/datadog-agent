@@ -40,7 +40,7 @@ func GetHostAlias() (string, error) {
 func GetClusterName() (string, error) {
 	res, err := getResponse(metadataURL + "/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
 	if err != nil {
-		return "", fmt.Errorf("Unable to query metadata endpoint: %s", err)
+		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 	}
 
 	defer res.Body.Close()
@@ -51,7 +51,7 @@ func GetClusterName() (string, error) {
 
 	splitAll := strings.Split(string(all), "_")
 	if len(splitAll) < 4 || splitAll[0] != "MC" {
-		return "", errors.New("Cannot parse the clustername from metadata")
+		return "", errors.New("cannot parse the clustername from metadata")
 	}
 
 	clusterName := splitAll[len(splitAll)-2]
