@@ -128,23 +128,29 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     if (version != NULL) {
-        printf("Successfully imported Directory integration v%s.\n\n", version);
+        printf("Successfully imported Directory integration v%s.\n", version);
     } else {
-        printf("Successfully imported Directory integration.\n\n");
+        printf("Successfully imported Directory integration.\n");
     }
-    printf("Directory __file__: %s.\n", file);
+    printf("Directory __file__: %s.\n\n", file);
     six_free(six, version);
     six_free(six, file);
 
     // load the Directory check if available
     six_pyobject_t *check;
 
-    ok = get_check(six, py_class, "", "{directory: \"/\"}", "", "directoryID", &check);
+    ok = get_check(six, py_class, "", "{directory: \"/\"}", "directoryID", "directory", &check);
     if (!ok) {
-        if (has_error(six)) {
-            printf("error loading check: %s\n", get_error(six));
+        printf("warning: could not get_check with new api: trying with deprecated API\n");
+        // clean error
+        get_error(six);
+
+        if (!get_check_deprecated(six, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "", &check)) {
+            if (has_error(six)) {
+                printf("error loading check: %s\n", get_error(six));
+            }
+            return 1;
         }
-        return 1;
     }
 
     const char *result = run_check(six, check);

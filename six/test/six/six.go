@@ -96,7 +96,7 @@ func getFakeCheck() (string, error) {
 	}
 
 	// check instance
-	ret = C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString(""), C.CString("checkID"), &check)
+	ret = C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
 	if ret != 1 || check == nil {
 		return "", fmt.Errorf(C.GoString(C.get_error(six)))
 	}
@@ -112,7 +112,7 @@ func runFakeCheck() (string, error) {
 
 	C.get_class(six, C.CString("datadog_checks.directory"), &module, &class)
 	C.get_attr_string(six, module, C.CString("__version__"), &version)
-	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString(""), C.CString("checkID"), &check)
+	C.get_check(six, class, C.CString(""), C.CString("[{fake_check: \"/\"}]"), C.CString("checkID"), C.CString("fake_check"), &check)
 
 	return C.GoString(C.run_check(six, check)), nil
 }

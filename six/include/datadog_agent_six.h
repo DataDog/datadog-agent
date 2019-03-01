@@ -31,7 +31,10 @@ DATADOG_AGENT_SIX_API int get_class(six_t *six, const char *name, six_pyobject_t
                                     six_pyobject_t **py_class);
 DATADOG_AGENT_SIX_API int get_attr_string(six_t *six, six_pyobject_t *py_class, const char *attr_name, char **value);
 DATADOG_AGENT_SIX_API int get_check(six_t *six, six_pyobject_t *py_class, const char *init_config, const char *instance,
-                                    const char *agent_config, const char *check_id, six_pyobject_t **check);
+                                    const char *check_id, const char *check_name, six_pyobject_t **check);
+DATADOG_AGENT_SIX_API int get_check_deprecated(six_t *six, six_pyobject_t *py_class, const char *init_config,
+                                               const char *instance, const char *check_id, const char *check_name,
+                                               const char *agent_config, six_pyobject_t **check);
 DATADOG_AGENT_SIX_API const char *run_check(six_t *, six_pyobject_t *check);
 DATADOG_AGENT_SIX_API void six_free(six_t *, void *ptr);
 DATADOG_AGENT_SIX_API void six_decref(six_t *, six_pyobject_t *);

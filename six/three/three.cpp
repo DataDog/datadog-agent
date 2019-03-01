@@ -128,16 +128,19 @@ bool Three::getClass(const char *module, SixPyObject *&pyModule, SixPyObject *&p
 }
 
 bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const char *instance_str,
-                     const char *agent_config_str, const char *check_id, SixPyObject *&pycheck) {
+                     const char *check_id_str, const char *check_name, const char *agent_config_str,
+                     SixPyObject *&check) {
 
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
+    PyObject *agent_config = NULL;
     PyObject *init_config = NULL;
     PyObject *instance = NULL;
     PyObject *instances = NULL;
-    PyObject *check = NULL;
+    PyObject *py_check = NULL;
     PyObject *args = NULL;
     PyObject *kwargs = NULL;
-    PyObject *py_check_id = NULL;
+    PyObject *check_id = NULL;
+    PyObject *name = NULL;
 
     char load_config[] = "load_config";
     char format[] = "(s)";
@@ -150,7 +153,6 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
     }
 
     // call `AgentCheck.load_config(instance)`
-    printf("instance: %s\n", instance_str);
     instance = PyObject_CallMethod(klass, load_config, format, instance_str);
     if (instance == NULL) {
         setError("error parsing instance: " + _fetchPythonError());
@@ -166,47 +168,61 @@ bool Three::getCheck(SixPyObject *py_class, const char *init_config_str, const c
     // create `args` and `kwargs` to invoke `AgentCheck` constructor
     args = PyTuple_New(0);
     kwargs = PyDict_New();
+    name = PyUnicode_FromString(check_name);
+    PyDict_SetItemString(kwargs, "name", name);
     PyDict_SetItemString(kwargs, "init_config", init_config);
     PyDict_SetItemString(kwargs, "instances", instances);
 
-    // call `AgentCheck` constructor
-    check = PyObject_Call(klass, args, kwargs);
-    if (check == NULL) {
-        setError("error creating check instance: " + _fetchPythonError());
-        goto done;
-    }
-
-    if (check_id != NULL && strlen(check_id) != 0) {
-        py_check_id = PyUnicode_FromString(check_id);
-        if (py_check_id == NULL) {
-            std::ostringstream err;
-            err << "error could not set check_id: " << check_id;
-            setError(err.str());
-            Py_XDECREF(check);
-            check = NULL;
+    if (agent_config_str != NULL) {
+        agent_config = PyObject_CallMethod(klass, load_config, format, agent_config_str);
+        if (agent_config == NULL) {
+            setError("error parsing agent_config: " + _fetchPythonError());
             goto done;
         }
 
-        if (PyObject_SetAttrString(check, "check_id", py_check_id) != 0) {
+        PyDict_SetItemString(kwargs, "agentConfig", agent_config);
+    }
+
+    // call `AgentCheck` constructor
+    py_check = PyObject_Call(klass, args, kwargs);
+    if (py_check == NULL) {
+        setError(_fetchPythonError());
+        goto done;
+    }
+
+    if (check_id_str != NULL && strlen(check_id_str) != 0) {
+        check_id = PyUnicode_FromString(check_id_str);
+        if (check_id == NULL) {
+            std::ostringstream err;
+            err << "error could not set check_id: " << check_id_str;
+            setError(err.str());
+            Py_XDECREF(py_check);
+            py_check = NULL;
+            goto done;
+        }
+
+        if (PyObject_SetAttrString(py_check, "check_id", check_id) != 0) {
             setError("error could not set 'check_id' attr: " + _fetchPythonError());
-            Py_XDECREF(check);
-            check = NULL;
+            Py_XDECREF(py_check);
+            py_check = NULL;
             goto done;
         }
     }
 
 done:
-    Py_XDECREF(py_check_id);
+    Py_XDECREF(name);
+    Py_XDECREF(check_id);
     Py_XDECREF(init_config);
     Py_XDECREF(instance);
+    Py_XDECREF(agent_config);
     Py_XDECREF(args);
     Py_XDECREF(kwargs);
 
-    if (check == NULL) {
+    if (py_check == NULL) {
         return false;
     }
 
-    pycheck = reinterpret_cast<SixPyObject *>(check);
+    check = reinterpret_cast<SixPyObject *>(py_check);
     return true;
 }
 

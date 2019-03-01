@@ -208,10 +208,19 @@ int get_attr_string(six_t *six, six_pyobject_t *py_class, const char *attr_name,
     return AS_TYPE(Six, six)->getAttrString(AS_TYPE(SixPyObject, py_class), attr_name, *value);
 }
 
-int get_check(six_t *six, six_pyobject_t *py_class, const char *init_config, const char *instance,
-              const char *agent_config, const char *check_id, six_pyobject_t **check) {
-    return AS_TYPE(Six, six)->getCheck(AS_TYPE(SixPyObject, py_class), init_config, instance, agent_config, check_id,
-                                       *AS_PTYPE(SixPyObject, check))
+int get_check(six_t *six, six_pyobject_t *py_class, const char *init_config, const char *instance, const char *check_id,
+              const char *check_name, six_pyobject_t **check) {
+    return AS_TYPE(Six, six)->getCheck(AS_TYPE(SixPyObject, py_class), init_config, instance, check_id, check_name,
+                                       NULL, *AS_PTYPE(SixPyObject, check))
+        ? 1
+        : 0;
+}
+
+int get_check_deprecated(six_t *six, six_pyobject_t *py_class, const char *init_config, const char *instance,
+                         const char *agent_config, const char *check_id, const char *check_name,
+                         six_pyobject_t **check) {
+    return AS_TYPE(Six, six)->getCheck(AS_TYPE(SixPyObject, py_class), init_config, instance, check_id, check_name,
+                                       agent_config, *AS_PTYPE(SixPyObject, check))
         ? 1
         : 0;
 }
