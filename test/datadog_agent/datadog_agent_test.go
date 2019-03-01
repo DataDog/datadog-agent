@@ -47,3 +47,18 @@ func TestGetConfig(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
+
+func TestHeaders(t *testing.T) {
+	code := `
+	d = datadog_agent.headers(http_host="myhost", ignore_me="snafu")
+	sys.stderr.write(",".join(d.keys()))
+	sys.stderr.flush()
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "Accept,Content-Type,User-Agent,Host" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
