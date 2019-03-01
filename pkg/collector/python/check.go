@@ -174,33 +174,37 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		}
 	}
 
-	allSettings := config.Datadog.AllSettings()
-	agentConfig, err := yaml.Marshal(allSettings)
-	if err != nil {
-		log.Errorf("error serializing agent config: %s", err)
-		return err
-	}
-
 	cInitConfig := C.CString(string(initConfig))
 	cInstance := C.CString(string(data))
-	cAgentConfig := C.CString(string(agentConfig))
 	cCheckID := C.CString(string(c.id))
+	cCheckName := C.CString(c.ModuleName)
 	defer C.free(unsafe.Pointer(cInitConfig))
 	defer C.free(unsafe.Pointer(cInstance))
-	defer C.free(unsafe.Pointer(cAgentConfig))
 	defer C.free(unsafe.Pointer(cCheckID))
+	defer C.free(unsafe.Pointer(cCheckName))
 
 	var check *C.six_pyobject_t
-	res := C.get_check(six, c.class, (*C.char)(cInitConfig), (*C.char)(cInstance), (*C.char)(cAgentConfig), (*C.char)(cCheckID), &check)
+	res := C.get_check(six, c.class, (*C.char)(cInitConfig), (*C.char)(cInstance), (*C.char)(cCheckID), (*C.char)(cCheckName), &check)
 	if res == 0 {
-		return fmt.Errorf("could not invoke python check constructor: %s", getSixError())
+		log.Warnf("could not get a check instance with the new api: %s", getSixError())
+		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
+
+		allSettings := config.Datadog.AllSettings()
+		agentConfig, err := yaml.Marshal(allSettings)
+		if err != nil {
+			log.Errorf("error serializing agent config: %s", err)
+			return err
+		}
+		cAgentConfig := C.CString(string(agentConfig))
+		defer C.free(unsafe.Pointer(cAgentConfig))
+
+		res := C.get_check_deprecated(six, c.class, (*C.char)(cInitConfig), (*C.char)(cInstance), (*C.char)(cAgentConfig), (*C.char)(cCheckID), (*C.char)(cCheckName), &check)
+		if res == 0 {
+			return fmt.Errorf("could not invoke python check constructor: %s", getSixError())
+		}
+		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 	}
 	c.instance = check
-
-	// TODO: handle warning when using old check instantiation API
-	//log.Warnf("could not get a check instance with the new api: %s", err)
-	//log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
-	//log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 
 	log.Debugf("python check configure done %s", c.ModuleName)
 	return nil
