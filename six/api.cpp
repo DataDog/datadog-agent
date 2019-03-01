@@ -263,3 +263,7 @@ void set_get_version_cb(six_t *six, cb_get_version_t cb) {
 void set_get_config_cb(six_t *six, cb_get_config_t cb) {
     AS_TYPE(Six, six)->setGetConfigCb(cb);
 }
+
+void set_headers_cb(six_t *six, cb_headers_t cb) {
+    AS_TYPE(Six, six)->setHeadersCb(cb);
+}
