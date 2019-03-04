@@ -25,6 +25,7 @@ void _set_headers_cb(cb_headers_t);
 void _set_get_hostname_cb(cb_get_hostname_t);
 void _set_get_clustername_cb(cb_get_clustername_t);
 void _set_log_cb(cb_log_t);
+void _set_set_external_tags_cb(cb_set_external_tags_t);
 
 #ifdef __cplusplus
 }

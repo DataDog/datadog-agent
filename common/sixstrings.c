@@ -55,3 +55,31 @@ done:
     Py_XDECREF(loads);
     return retval;
 }
+
+char *as_json(PyObject *object) {
+    char *retval = NULL;
+    PyObject *json = NULL;
+    PyObject *dumps = NULL;
+    PyObject *dumped = NULL;
+
+    char module_name[] = "json";
+    json = PyImport_ImportModule(module_name);
+    if (json == NULL) {
+        goto done;
+    }
+
+    char func_name[] = "dumps";
+    dumps = PyObject_GetAttrString(json, func_name);
+    if (dumps == NULL) {
+        goto done;
+    }
+
+    dumped = PyObject_CallFunctionObjArgs(dumps, object, NULL);
+    retval = as_string(dumped);
+
+done:
+    Py_XDECREF(json);
+    Py_XDECREF(dumps);
+    Py_XDECREF(dumped);
+    return retval;
+}

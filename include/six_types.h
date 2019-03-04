@@ -81,6 +81,8 @@ typedef void (*cb_get_hostname_t)(char **);
 typedef void (*cb_get_clustername_t)(char **);
 // (message, level)
 typedef void (*cb_log_t)(char *, int);
+// (json_dump)
+typedef void (*cb_set_external_tags_t)(char *);
 
 #ifdef __cplusplus
 }

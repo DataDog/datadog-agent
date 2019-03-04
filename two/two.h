@@ -54,6 +54,7 @@ public:
     void setGetHostnameCb(cb_get_hostname_t);
     void setGetClusternameCb(cb_get_clustername_t);
     void setLogCb(cb_log_t);
+    void setSetExternalTagsCb(cb_set_external_tags_t);
 
 private:
     PyObject *_importFrom(const char *module, const char *name);

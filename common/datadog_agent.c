@@ -16,6 +16,7 @@ static cb_headers_t cb_headers = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
 static cb_get_clustername_t cb_get_clustername = NULL;
 static cb_log_t cb_log = NULL;
+static cb_set_external_tags_t cb_set_external_tags = NULL;
 
 // forward declarations
 static PyObject *get_version(PyObject *self, PyObject *args);
@@ -24,6 +25,7 @@ static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_hostname(PyObject *self, PyObject *args);
 static PyObject *get_clustername(PyObject *self, PyObject *args);
 static PyObject *log_message(PyObject *self, PyObject *args);
+static PyObject *set_external_tags(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_version", get_version, METH_NOARGS, "Get Agent version." },
@@ -32,6 +34,7 @@ static PyMethodDef methods[] = {
     { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
     { "log", log_message, METH_VARARGS, "Log a message through the agent logger." },
+    { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { NULL, NULL } // guards
 };
 
@@ -74,6 +77,10 @@ void _set_get_clustername_cb(cb_get_clustername_t cb) {
 
 void _set_log_cb(cb_log_t cb) {
     cb_log = cb;
+}
+
+void _set_set_external_tags_cb(cb_set_external_tags_t cb) {
+    cb_set_external_tags = cb;
 }
 
 PyObject *get_version(PyObject *self, PyObject *args) {
@@ -209,5 +216,23 @@ static PyObject *log_message(PyObject *self, PyObject *args) {
     }
 
     cb_log(message, log_level);
+    Py_RETURN_NONE;
+}
+
+static PyObject *set_external_tags(PyObject *self, PyObject *args) {
+    // callback must be set
+    if (cb_set_external_tags == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    // function expects only one positional arg containing a list
+    PyObject *input_list = NULL; // borrowed
+    if (!PyArg_ParseTuple(args, "O", &input_list)) {
+        Py_RETURN_NONE;
+    }
+
+    char *lst = as_json(input_list);
+    cb_set_external_tags(lst);
+    free(lst);
     Py_RETURN_NONE;
 }
