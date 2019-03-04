@@ -18,7 +18,7 @@ import (
 import "C"
 
 // stickyLock is a convenient wrapper to interact with the Python GIL
-// from go code when using `go-python`.
+// from go code when using python.
 //
 // We are going to call the Python C API from different goroutines that
 // in turn will be executed on multiple, different threads, making the
