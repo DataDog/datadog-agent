@@ -11,16 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestApiKeyPrefixer(t *testing.T) {
+func TestPrefixer(t *testing.T) {
 
-	prefixer := NewAPIKeyPrefixer("foo", "")
-	assert.Equal(t, []byte("foo bar"), prefixer.prefix([]byte("bar")))
-
-}
-
-func TestApiKeyPrefixerScope(t *testing.T) {
-
-	prefixer := NewAPIKeyPrefixer("foo", "bar")
-	assert.Equal(t, []byte("foo/bar baz"), prefixer.prefix([]byte("baz")))
+	prefixer := newPrefixer("foo ")
+	assert.Equal(t, []byte("foo bar"), prefixer.apply([]byte("bar")))
 
 }
