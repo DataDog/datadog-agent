@@ -54,6 +54,7 @@ public:
     virtual void setGetConfigCb(cb_get_config_t) = 0;
     virtual void setHeadersCb(cb_headers_t) = 0;
     virtual void setGetHostnameCb(cb_get_hostname_t) = 0;
+    virtual void setGetClusternameCb(cb_get_clustername_t) = 0;
 
 private:
     mutable std::string _error;

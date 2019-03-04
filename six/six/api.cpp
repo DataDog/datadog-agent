@@ -271,3 +271,7 @@ void set_headers_cb(six_t *six, cb_headers_t cb) {
 void set_get_hostname_cb(six_t *six, cb_get_hostname_t cb) {
     AS_TYPE(Six, six)->setGetHostnameCb(cb);
 }
+
+void set_get_clustername_cb(six_t *six, cb_get_clustername_t cb) {
+    AS_TYPE(Six, six)->setGetClusternameCb(cb);
+}
