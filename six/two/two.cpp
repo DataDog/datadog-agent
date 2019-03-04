@@ -451,3 +451,7 @@ void Two::setGetHostnameCb(cb_get_hostname_t cb) {
 void Two::setGetClusternameCb(cb_get_clustername_t cb) {
     _set_get_clustername_cb(cb);
 }
+
+void Two::setLogCb(cb_log_t cb) {
+    _set_log_cb(cb);
+}
