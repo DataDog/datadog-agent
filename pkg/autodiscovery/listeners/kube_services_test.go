@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -254,6 +254,387 @@ func TestServicesDiffer(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.result, servicesDiffer(tc.first, tc.second))
+		})
+	}
+}
+
+func TestProcessEndpoint(t *testing.T) {
+	kendpt := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: "123",
+			UID:             types.UID("test"),
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
+				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+				"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\": \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+			},
+			Name:      "myendpoint",
+			Namespace: "default",
+		},
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{IP: "10.0.0.1", Hostname: "testhost1"},
+					{IP: "10.0.0.2", Hostname: "testhost2"},
+				},
+				Ports: []v1.EndpointPort{
+					{Name: "testport1", Port: 123},
+					{Name: "testport2", Port: 126},
+				},
+			},
+		},
+	}
+
+	endpt := processEndpoint(kendpt, true)
+	assert.Equal(t, "kube_endpoint://test", endpt.GetEntity())
+	assert.Equal(t, integration.Before, endpt.GetCreationTime())
+
+	adID, err := endpt.GetADIdentifiers()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"kube_endpoint://test"}, adID)
+
+	hosts, err := endpt.GetHosts()
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"testhost1": "10.0.0.1", "testhost2": "10.0.0.2"}, hosts)
+
+	ports, err := endpt.GetPorts()
+	assert.NoError(t, err)
+	assert.Equal(t, []ContainerPort{{123, "testport1"}, {126, "testport2"}}, ports)
+
+	tags, err := endpt.GetTags()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"kube_endpoint:myendpoint", "kube_namespace:default"}, tags)
+
+	endpt = processEndpoint(kendpt, false)
+	assert.Equal(t, integration.After, endpt.GetCreationTime())
+}
+
+func TestEndpointsDiffer(t *testing.T) {
+	for name, tc := range map[string]struct {
+		first  *v1.Endpoints
+		second *v1.Endpoints
+		result bool
+	}{
+		"Same resversion": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+			},
+			result: false,
+		},
+		"Change resversion, same subsets": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 126},
+						},
+					},
+				},
+			},
+			result: false,
+		},
+		"Change IP": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.3", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 126},
+						},
+					},
+				},
+			},
+			result: true,
+		},
+		"Change Hostname": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.3", Hostname: "testhost3"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 126},
+						},
+					},
+				},
+			},
+			result: true,
+		},
+		"Change port number": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			result: true,
+		},
+		"Remove IP": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			result: true,
+		},
+		"Remove port": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+						},
+					},
+				},
+			},
+			result: true,
+		},
+		"Add annotation": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
+						"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+						"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\": \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+					},
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			result: true,
+		},
+		"Remove annotation": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/endpoints.check_names":  "[\"etcd\"]",
+						"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+						"ad.datadoghq.com/endpoints.instances":    "[{\"use_preview\": \"true\", \"prometheus_url\": \"http://%%host%%:2379/metrics\"}]",
+					},
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "testhost1"},
+							{IP: "10.0.0.2", Hostname: "testhost2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "testport1", Port: 123},
+							{Name: "testport2", Port: 124},
+						},
+					},
+				},
+			},
+			result: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.result, endpointsDiffer(tc.first, tc.second))
 		})
 	}
 }
