@@ -13,16 +13,19 @@
 static cb_get_version_t cb_get_version = NULL;
 static cb_get_config_t cb_get_config = NULL;
 static cb_headers_t cb_headers = NULL;
+static cb_get_hostname_t cb_get_hostname = NULL;
 
 // forward declarations
 static PyObject *get_version(PyObject *self, PyObject *args);
 static PyObject *get_config(PyObject *self, PyObject *args);
 static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *get_hostname(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_version", get_version, METH_NOARGS, "Get Agent version." },
     { "get_config", get_config, METH_VARARGS, "Get an Agent config item." },
     { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
+    { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
     { NULL, NULL } // guards
 };
 
@@ -53,6 +56,10 @@ void _set_get_config_cb(cb_get_config_t cb) {
 
 void _set_headers_cb(cb_headers_t cb) {
     cb_headers = cb;
+}
+
+void _set_get_hostname_cb(cb_get_hostname_t cb) {
+    cb_get_hostname = cb;
 }
 
 PyObject *get_version(PyObject *self, PyObject *args) {
@@ -135,4 +142,21 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs) {
     }
 
     return headers_dict;
+}
+
+PyObject *get_hostname(PyObject *self, PyObject *args) {
+    // callback must be set
+    if (cb_get_hostname == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *v;
+    cb_get_hostname(&v);
+
+    if (v != NULL) {
+        PyObject *retval = PyUnicode_FromString(v);
+        free(v);
+        return retval;
+    }
+    Py_RETURN_NONE;
 }

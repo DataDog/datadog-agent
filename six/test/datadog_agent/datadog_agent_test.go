@@ -62,3 +62,17 @@ func TestHeaders(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
+
+func TestGetHostname(t *testing.T) {
+	code := `
+	sys.stderr.write(datadog_agent.get_hostname())
+	sys.stderr.flush()
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "localfoobar" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
