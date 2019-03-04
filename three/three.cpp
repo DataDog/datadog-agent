@@ -459,3 +459,7 @@ void Three::setGetConfigCb(cb_get_config_t cb) {
 void Three::setHeadersCb(cb_headers_t cb) {
     _set_headers_cb(cb);
 }
+
+void Three::setGetHostnameCb(cb_get_hostname_t cb) {
+    _set_get_hostname_cb(cb);
+}
