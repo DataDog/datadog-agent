@@ -8,5 +8,6 @@
 
 char *as_string(PyObject *);
 PyObject *from_json(const char *);
+char *as_json(PyObject *);
 
 #endif

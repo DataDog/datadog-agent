@@ -304,3 +304,7 @@ void set_get_clustername_cb(six_t *six, cb_get_clustername_t cb) {
 void set_log_cb(six_t *six, cb_log_t cb) {
     AS_TYPE(Six, six)->setLogCb(cb);
 }
+
+void set_set_external_tags_cb(six_t *six, cb_set_external_tags_t cb) {
+    AS_TYPE(Six, six)->setSetExternalTagsCb(cb);
+}

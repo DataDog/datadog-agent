@@ -512,3 +512,7 @@ void Two::setGetClusternameCb(cb_get_clustername_t cb) {
 void Two::setLogCb(cb_log_t cb) {
     _set_log_cb(cb);
 }
+
+void Two::setSetExternalTagsCb(cb_set_external_tags_t cb) {
+    _set_set_external_tags_cb(cb);
+}
