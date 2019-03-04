@@ -17,6 +17,7 @@ import (
 // extern void headers(char **);
 // extern void getHostname(char **);
 // extern void getClustername(char **);
+// extern void doLog(char*, int);
 //
 // static void initDatadogAgentTests(six_t *six) {
 //    set_get_version_cb(six, getVersion);
@@ -24,6 +25,7 @@ import (
 //    set_headers_cb(six, headers);
 //    set_get_hostname_cb(six, getHostname);
 //    set_get_clustername_cb(six, getClustername);
+//    set_log_cb(six, doLog);
 // }
 import "C"
 
@@ -131,4 +133,10 @@ func getHostname(in **C.char) {
 //export getClustername
 func getClustername(in **C.char) {
 	*in = C.CString("the-cluster")
+}
+
+//export doLog
+func doLog(msg *C.char, level C.int) {
+	fmt.Printf("[%d]%s", int(level), C.GoString(msg))
+	// in a real implementation, msg should be freed
 }

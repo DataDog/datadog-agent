@@ -15,6 +15,7 @@ static cb_get_config_t cb_get_config = NULL;
 static cb_headers_t cb_headers = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
 static cb_get_clustername_t cb_get_clustername = NULL;
+static cb_log_t cb_log = NULL;
 
 // forward declarations
 static PyObject *get_version(PyObject *self, PyObject *args);
@@ -22,6 +23,7 @@ static PyObject *get_config(PyObject *self, PyObject *args);
 static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_hostname(PyObject *self, PyObject *args);
 static PyObject *get_clustername(PyObject *self, PyObject *args);
+static PyObject *log_message(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_version", get_version, METH_NOARGS, "Get Agent version." },
@@ -29,6 +31,7 @@ static PyMethodDef methods[] = {
     { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
     { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
+    { "log", log_message, METH_VARARGS, "Log a message through the agent logger." },
     { NULL, NULL } // guards
 };
 
@@ -67,6 +70,10 @@ void _set_get_hostname_cb(cb_get_hostname_t cb) {
 
 void _set_get_clustername_cb(cb_get_clustername_t cb) {
     cb_get_clustername = cb;
+}
+
+void _set_log_cb(cb_log_t cb) {
+    cb_log = cb;
 }
 
 PyObject *get_version(PyObject *self, PyObject *args) {
@@ -182,5 +189,23 @@ PyObject *get_clustername(PyObject *self, PyObject *args) {
         free(v);
         return retval;
     }
+    Py_RETURN_NONE;
+}
+
+static PyObject *log_message(PyObject *self, PyObject *args) {
+    // callback must be set
+    if (cb_log == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *message;
+    int log_level;
+
+    // datadog_agent.log(message, log_level)
+    if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
+        Py_RETURN_NONE;
+    }
+
+    cb_log(message, log_level);
     Py_RETURN_NONE;
 }
