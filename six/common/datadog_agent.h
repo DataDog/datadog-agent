@@ -22,6 +22,7 @@ void Py2_init_datadog_agent();
 void _set_get_version_cb(cb_get_version_t);
 void _set_get_config_cb(cb_get_config_t);
 void _set_headers_cb(cb_headers_t);
+void _set_get_hostname_cb(cb_get_hostname_t);
 
 #ifdef __cplusplus
 }

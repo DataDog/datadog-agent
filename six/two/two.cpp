@@ -443,3 +443,7 @@ void Two::setGetConfigCb(cb_get_config_t cb) {
 void Two::setHeadersCb(cb_headers_t cb) {
     _set_headers_cb(cb);
 }
+
+void Two::setGetHostnameCb(cb_get_hostname_t cb) {
+    _set_get_hostname_cb(cb);
+}

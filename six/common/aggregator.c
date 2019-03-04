@@ -97,7 +97,8 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
         }
 
         tags = malloc(len * sizeof(char *));
-        for (int i = 0; i < len; i++) {
+        int i;
+        for (i = 0; i < len; i++) {
             // `item` is borrowed, no need to decref
             PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
             tags[i] = as_string(item);
@@ -140,7 +141,8 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
         }
 
         tags = malloc(len * sizeof(char *));
-        for (int i = 0; i < len; i++) {
+        int i;
+        for (i = 0; i < len; i++) {
             // `item` is borrowed, no need to decref
             PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
             tags[i] = as_string(item);
@@ -202,7 +204,8 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
         }
 
         ev->tags = malloc(len * sizeof(char *));
-        for (int i = 0; i < len; i++) {
+        int i;
+        for (i = 0; i < len; i++) {
             // `item` is borrowed, no need to decref
             PyObject *item = PySequence_Fast_GET_ITEM(py_tags_list, i);
             ev->tags[i] = as_string(item);
