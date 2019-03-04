@@ -17,6 +17,7 @@ from .utils import bin_name, get_build_flags, get_version_numeric_only, load_rel
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
+from .docker import pull_base_images
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -218,7 +219,7 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus"):
+def image_build(ctx, base_dir="omnibus", skip_tests=False):
     """
     Build the docker image
     """
@@ -232,9 +233,17 @@ def image_build(ctx, base_dir="omnibus"):
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, "Dockerfiles/agent/")
-    ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
-    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
 
+    # Pull base image with content trust enabled
+    pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
+
+    # Build with the testing target
+    if not skip_tests:
+        ctx.run("docker build -t {} --target testing Dockerfiles/agent".format(AGENT_TAG))
+
+    # Build with the release target
+    ctx.run("docker build -t {} --target release Dockerfiles/agent".format(AGENT_TAG))
+    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
 
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
