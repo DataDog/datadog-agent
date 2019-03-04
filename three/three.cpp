@@ -463,3 +463,7 @@ void Three::setHeadersCb(cb_headers_t cb) {
 void Three::setGetHostnameCb(cb_get_hostname_t cb) {
     _set_get_hostname_cb(cb);
 }
+
+void Three::setGetClusternameCb(cb_get_clustername_t cb) {
+    _set_get_clustername_cb(cb);
+}

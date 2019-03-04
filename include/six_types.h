@@ -77,6 +77,8 @@ typedef void (*cb_get_config_t)(char *, char **);
 typedef void (*cb_headers_t)(char **);
 // (hostname)
 typedef void (*cb_get_hostname_t)(char **);
+// (clustername)
+typedef void (*cb_get_clustername_t)(char **);
 
 #ifdef __cplusplus
 }
