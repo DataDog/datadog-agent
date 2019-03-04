@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	common "../common"
 )
@@ -18,6 +19,7 @@ import (
 // extern void getHostname(char **);
 // extern void getClustername(char **);
 // extern void doLog(char*, int);
+// extern void setExternalHostTags(char*);
 //
 // static void initDatadogAgentTests(six_t *six) {
 //    set_get_version_cb(six, getVersion);
@@ -26,6 +28,7 @@ import (
 //    set_get_hostname_cb(six, getHostname);
 //    set_get_clustername_cb(six, getClustername);
 //    set_log_cb(six, doLog);
+//    set_set_external_tags_cb(six, setExternalHostTags);
 // }
 import "C"
 
@@ -139,4 +142,36 @@ func getClustername(in **C.char) {
 func doLog(msg *C.char, level C.int) {
 	fmt.Printf("[%d]%s", int(level), C.GoString(msg))
 	// in a real implementation, msg should be freed
+}
+
+//export setExternalHostTags
+func setExternalHostTags(dump *C.char) {
+	jsonData := []byte(C.GoString(dump))
+	type HostTag []interface{}
+	var hostTags []HostTag
+	err := json.Unmarshal(jsonData, &hostTags)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	for _, t := range hostTags {
+		out := []string{}
+
+		// hostname
+		out = append(out, t[0].(string))
+		stypes := t[1].(map[string]interface{})
+		for k, v := range stypes {
+			// source type
+			out = append(out, k)
+			// tags
+			tags := v.([]interface{})
+			for _, tag := range tags {
+				out = append(out, tag.(string))
+			}
+		}
+		fmt.Println(strings.Join(out, ","))
+	}
+
+	// in a real implementation, dump should be freed
 }

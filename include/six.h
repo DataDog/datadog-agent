@@ -56,6 +56,7 @@ public:
     virtual void setGetHostnameCb(cb_get_hostname_t) = 0;
     virtual void setGetClusternameCb(cb_get_clustername_t) = 0;
     virtual void setLogCb(cb_log_t) = 0;
+    virtual void setSetExternalTagsCb(cb_set_external_tags_t) = 0;
 
 private:
     mutable std::string _error;
