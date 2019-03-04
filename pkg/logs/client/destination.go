@@ -40,7 +40,7 @@ func (e *FramingError) Error() string {
 
 // Destination is responsible for shipping logs to a remote server over TCP.
 type Destination struct {
-	prefixer            Prefixer
+	prefixer            *prefixer
 	delimiter           Delimiter
 	connManager         *ConnectionManager
 	destinationsContext *DestinationsContext
@@ -52,8 +52,9 @@ type Destination struct {
 
 // NewDestination returns a new destination.
 func NewDestination(endpoint Endpoint, destinationsContext *DestinationsContext) *Destination {
+	prefix := endpoint.APIKey + string(' ')
 	return &Destination{
-		prefixer:            NewAPIKeyPrefixer(endpoint.APIKey, endpoint.Logset),
+		prefixer:            newPrefixer(prefix),
 		delimiter:           NewDelimiter(endpoint.UseProto),
 		connManager:         NewConnectionManager(endpoint),
 		destinationsContext: destinationsContext,
@@ -73,7 +74,7 @@ func (d *Destination) Send(payload []byte) error {
 		}
 	}
 
-	content := d.prefixer.prefix(payload)
+	content := d.prefixer.apply(payload)
 	frame, err := d.delimiter.delimit(content)
 	if err != nil {
 		return NewFramingError(err)
