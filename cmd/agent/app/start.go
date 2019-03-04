@@ -234,19 +234,12 @@ func StartAgent() error {
 
 // setupMetadataCollection initializes the metadata scheduler and its collectors based on the config
 func setupMetadataCollection(s *serializer.Serializer, hostname string) error {
-	addDefaultResourcesCollector := true
 	common.MetadataScheduler = metadata.NewScheduler(s, hostname)
 	var C []config.MetadataProviders
 	err := config.Datadog.UnmarshalKey("metadata_providers", &C)
 	if err == nil {
 		log.Debugf("Adding configured providers to the metadata collector")
 		for _, c := range C {
-			if c.Name == "host" || c.Name == "agent_checks" {
-				continue
-			}
-			if c.Name == "resources" {
-				addDefaultResourcesCollector = false
-			}
 			if c.Interval == 0 {
 				log.Infof("Interval of metadata provider '%v' set to 0, skipping provider", c.Name)
 				continue
@@ -261,21 +254,6 @@ func setupMetadataCollection(s *serializer.Serializer, hostname string) error {
 		}
 	} else {
 		log.Errorf("Unable to parse metadata_providers config: %v", err)
-	}
-	// Should be always true, except in some edge cases (multiple agents per host)
-	err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
-	if err != nil {
-		return log.Error("Host metadata is supposed to be always available in the catalog!")
-	}
-	err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
-	if err != nil {
-		return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
-	}
-	if addDefaultResourcesCollector && runtime.GOOS == "linux" {
-		err = common.MetadataScheduler.AddCollector("resources", defaultResourcesMetadataCollectorInterval*time.Second)
-		if err != nil {
-			log.Warn("Could not add resources metadata provider: ", err)
-		}
 	}
 
 	return nil

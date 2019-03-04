@@ -14,6 +14,8 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util"
 )
 
+// ResourcesCollector disabled by default, we will not support the resource collector on it's own.
+
 // ResourcesCollector sends the old metadata payload used in the
 // Agent v5
 type ResourcesCollector struct{}
@@ -22,6 +24,7 @@ type ResourcesCollector struct{}
 func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
 	hostname, _ := util.GetHostname()
 
+	// GetPayload builds a payload of processes metadata collected from gohai.
 	res := resources.GetPayload(hostname)
 	if res == nil {
 		return errors.New("empty processes metadata")
@@ -33,8 +36,4 @@ func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
 		return fmt.Errorf("unable to serialize processes metadata payload, %s", err)
 	}
 	return nil
-}
-
-func init() {
-	catalog["resources"] = new(ResourcesCollector)
 }
