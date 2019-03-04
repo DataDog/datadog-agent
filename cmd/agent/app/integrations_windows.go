@@ -10,6 +10,8 @@ package app
 
 import (
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -26,4 +28,9 @@ var (
 func authorizedUser() bool {
 	// TODO: implement something useful
 	return true
+}
+
+func isIntegrationUser() bool {
+	elevated, _ := winutil.IsProcessElevated()
+	return elevated
 }

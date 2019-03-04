@@ -227,22 +227,25 @@ shared_examples_for "an installed Agent" do
     end
   end
 
-  it 'is properly signed' do
+  # We retrieve the value defined in .kitchen.yml because there is no simple way
+  # to set env variables on the target machine or via parameters in Kitchen/Busser
+  # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
+  let(:skip_windows_signing_check) {
     if os == :windows
+      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+    else
+      dna_json_path = "/tmp/kitchen/dna.json"
+    end
+    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
+  }
+  
+  it 'is properly signed' do
+    puts "swsc is #{skip_windows_signing_check}"
+    if os == :windows and !skip_windows_signing_check
       # The user in the yaml file is "datadog", however the default test kitchen user is azure.
       # This allows either to be used without changing the test.
-      msi_path_base = 'C:\\Users\\'
-      msi_path_end = '\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi'
-      msi_path_azure = msi_path_base + 'azure' + msi_path_end
-      msi_path_datadog = msi_path_base + 'datadog' + msi_path_end
-      msi_path_admin = msi_path_base + 'administrator' + msi_path_end
-      if File.exist?(msi_path_azure)
-        msi_path = msi_path_azure
-      elsif File.exist?(msi_path_admin)
-        msi_path = msi_path_admin
-      else
-        msi_path = msi_path_datadog
-      end
+      msi_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi"
+      expect(File).to exist(msi_path)
       output = `powershell -command "get-authenticodesignature #{msi_path}"`
       signature_hash = "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C"
       expect(output).to include(signature_hash)
@@ -447,3 +450,39 @@ shared_examples_for 'an Agent that is removed' do
     expect(File).not_to exist(trace_agent_path)
   end
 end
+
+shared_examples_for 'an Agent with APM enabled' do
+    it 'has apm enabled' do
+      confYaml = read_conf_file()
+      expect(confYaml).to have_key("apm_config")
+      expect(confYaml["apm_config"]).to have_key("enabled")
+      expect(confYaml["apm_config"]["enabled"]).to be_truthy
+      expect(is_port_bound(8126)).to be_truthy
+    end
+    it 'has the apm agent running' do
+      expect(is_process_running?("trace-agent.exe")).to be_truthy
+      expect(is_service_running?("datadog-trace-agent")).to be_truthy
+    end
+  end
+  
+  shared_examples_for 'an Agent with logs enabled' do
+    it 'has logs enabled' do
+      confYaml = read_conf_file()
+      expect(confYaml).to have_key("logs_config")
+      expect(confYaml).to have_key("logs_enabled")
+      expect(confYaml["logs_enabled"]).to be_truthy
+    end
+  end
+  
+  shared_examples_for 'an Agent with process enabled' do
+    it 'has process enabled' do
+      confYaml = read_conf_file()
+      expect(confYaml).to have_key("process_config")
+      expect(confYaml["process_config"]).to have_key("enabled")
+      expect(confYaml["process_config"]["enabled"]).to be_truthy
+    end
+    it 'has the process agent running' do
+      expect(is_process_running?("process-agent.exe")).to be_truthy
+      expect(is_service_running?("datadog-process-agent")).to be_truthy
+    end
+  end

@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build windows
+// +build !secrets
+
+// Placeholder for the secrets package when compiled without it
 
 package secrets
 
@@ -11,9 +13,8 @@ import (
 	"fmt"
 )
 
-// Init encrypted secrets are not available on windows
-func Init(command string, arguments []string, timeout int, maxSize int) {
-}
+// Init placeholder when compiled without the 'secrets' build tag
+func Init(command string, arguments []string, timeout int, maxSize int) {}
 
 // Decrypt encrypted secrets are not available on windows
 func Decrypt(data []byte, origin string) ([]byte, error) {
@@ -22,5 +23,5 @@ func Decrypt(data []byte, origin string) ([]byte, error) {
 
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func GetDebugInfo() (*SecretInfo, error) {
-	return nil, fmt.Errorf("Secret feature is not yet available on windows")
+	return nil, fmt.Errorf("Secret feature is disabled")
 }

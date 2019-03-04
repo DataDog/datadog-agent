@@ -27,3 +27,7 @@ var (
 func authorizedUser() bool {
 	return (os.Geteuid() != 0)
 }
+
+func isIntegrationUser() bool {
+	return true
+}

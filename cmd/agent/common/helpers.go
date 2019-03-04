@@ -7,7 +7,6 @@ package common
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,7 +28,6 @@ func SetupConfig(confFilePath string) error {
 	// load the configuration
 	err := config.Load()
 	if err != nil {
-		log.Printf("config.load %v", err)
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
 	return nil

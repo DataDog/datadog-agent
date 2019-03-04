@@ -5,7 +5,7 @@
 #endif
 
 #ifndef _WIN32_WINNT            // Specifies that the minimum required platform is Windows XP.
-#define _WIN32_WINNT 0x0501     // Change this to the appropriate value to target other versions of Windows.
+#define _WIN32_WINNT  _WIN32_WINNT_VISTA     // Change this to the appropriate value to target other versions of Windows.
 #endif
 
 #ifndef _WIN32_IE               // Specifies that the minimum required platform is Internet Explorer 6.0 SP3.

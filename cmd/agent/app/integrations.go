@@ -270,6 +270,9 @@ func pip(args []string) error {
 }
 
 func install(cmd *cobra.Command, args []string) error {
+	if !isIntegrationUser() {
+		return fmt.Errorf("Installation requires an elevated/root user")
+	}
 	if err := validateArgs(args, localWheel); err != nil {
 		return err
 	}
@@ -671,6 +674,10 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func remove(cmd *cobra.Command, args []string) error {
+	if !isIntegrationUser() {
+		return fmt.Errorf("Removal requires an elevated/root user")
+	}
+
 	if err := validateArgs(args, false); err != nil {
 		return err
 	}
