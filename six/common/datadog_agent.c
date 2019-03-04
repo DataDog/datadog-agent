@@ -4,7 +4,6 @@
 // Copyright 2019 Datadog, Inc.
 #include "datadog_agent.h"
 
-#include <assert.h>
 #include <sixstrings.h>
 
 #define MODULE_NAME "datadog_agent"
@@ -84,8 +83,9 @@ void _set_set_external_tags_cb(cb_set_external_tags_t cb) {
 }
 
 PyObject *get_version(PyObject *self, PyObject *args) {
-    // callback must be set
-    assert(cb_get_version != NULL);
+    if (cb_get_version == NULL) {
+        Py_RETURN_NONE;
+    }
 
     char *v;
     cb_get_version(&v);
