@@ -105,6 +105,5 @@ func SetupAutoConfig(confdPath string) {
 //   1. load all the configurations available at startup
 //   2. run all the Checks for each configuration found
 func StartAutoConfig() {
-	AC.StartTagFreshnessChecker()
 	AC.LoadAndRun()
 }
