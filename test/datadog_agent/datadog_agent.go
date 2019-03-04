@@ -15,11 +15,13 @@ import (
 // extern void getVersion(char **);
 // extern void getConfig(char *, char **);
 // extern void headers(char **);
+// extern void getHostname(char **);
 //
 // static void initDatadogAgentTests(six_t *six) {
 //    set_get_version_cb(six, getVersion);
 //    set_get_config_cb(six, getConfig);
 //    set_headers_cb(six, headers);
+//    set_get_hostname_cb(six, getHostname);
 // }
 import "C"
 
@@ -117,4 +119,9 @@ func headers(in **C.char) {
 	retval, _ := json.Marshal(h)
 
 	*in = C.CString(string(retval))
+}
+
+//export getHostname
+func getHostname(in **C.char) {
+	*in = C.CString("localfoobar")
 }

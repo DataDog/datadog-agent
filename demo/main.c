@@ -16,7 +16,8 @@ void submitMetric(char *id, metric_type_t mt, char *name, float val, char **tags
     printf("Check id: %s\n", id);
     printf("Metric '%s': %f\n", name, val);
     printf("Tags:\n");
-    for (int i = 0; i < tags_num; i++) {
+    int i;
+    for (i = 0; i < tags_num; i++) {
         printf(" %s", tags[i]);
     }
     printf("\n");

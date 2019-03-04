@@ -75,6 +75,8 @@ typedef void (*cb_get_version_t)(char **);
 typedef void (*cb_get_config_t)(char *, char **);
 // (json_dump)
 typedef void (*cb_headers_t)(char **);
+// (hostname)
+typedef void (*cb_get_hostname_t)(char **);
 
 #ifdef __cplusplus
 }

@@ -267,3 +267,7 @@ void set_get_config_cb(six_t *six, cb_get_config_t cb) {
 void set_headers_cb(six_t *six, cb_headers_t cb) {
     AS_TYPE(Six, six)->setHeadersCb(cb);
 }
+
+void set_get_hostname_cb(six_t *six, cb_get_hostname_t cb) {
+    AS_TYPE(Six, six)->setGetHostnameCb(cb);
+}
