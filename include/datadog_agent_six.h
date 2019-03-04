@@ -51,6 +51,7 @@ DATADOG_AGENT_SIX_API void set_get_version_cb(six_t *, cb_get_version_t);
 DATADOG_AGENT_SIX_API void set_get_config_cb(six_t *, cb_get_config_t);
 DATADOG_AGENT_SIX_API void set_headers_cb(six_t *, cb_headers_t);
 DATADOG_AGENT_SIX_API void set_get_hostname_cb(six_t *, cb_get_hostname_t);
+DATADOG_AGENT_SIX_API void set_get_clustername_cb(six_t *, cb_get_clustername_t);
 
 #ifdef __cplusplus
 }

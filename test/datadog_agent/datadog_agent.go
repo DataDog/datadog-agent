@@ -16,12 +16,14 @@ import (
 // extern void getConfig(char *, char **);
 // extern void headers(char **);
 // extern void getHostname(char **);
+// extern void getClustername(char **);
 //
 // static void initDatadogAgentTests(six_t *six) {
 //    set_get_version_cb(six, getVersion);
 //    set_get_config_cb(six, getConfig);
 //    set_headers_cb(six, headers);
 //    set_get_hostname_cb(six, getHostname);
+//    set_get_clustername_cb(six, getClustername);
 // }
 import "C"
 
@@ -124,4 +126,9 @@ func headers(in **C.char) {
 //export getHostname
 func getHostname(in **C.char) {
 	*in = C.CString("localfoobar")
+}
+
+//export getClustername
+func getClustername(in **C.char) {
+	*in = C.CString("the-cluster")
 }

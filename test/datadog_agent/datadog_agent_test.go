@@ -76,3 +76,17 @@ func TestGetHostname(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
+
+func TestGetClustername(t *testing.T) {
+	code := `
+	sys.stderr.write(datadog_agent.get_clustername())
+	sys.stderr.flush()
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "the-cluster" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
