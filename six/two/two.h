@@ -47,6 +47,7 @@ public:
     void setGetConfigCb(cb_get_config_t);
     void setHeadersCb(cb_headers_t);
     void setGetHostnameCb(cb_get_hostname_t);
+    void setGetClusternameCb(cb_get_clustername_t);
 
 private:
     PyObject *_importFrom(const char *module, const char *name);
