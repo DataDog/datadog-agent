@@ -275,3 +275,7 @@ void set_get_hostname_cb(six_t *six, cb_get_hostname_t cb) {
 void set_get_clustername_cb(six_t *six, cb_get_clustername_t cb) {
     AS_TYPE(Six, six)->setGetClusternameCb(cb);
 }
+
+void set_log_cb(six_t *six, cb_log_t cb) {
+    AS_TYPE(Six, six)->setLogCb(cb);
+}
