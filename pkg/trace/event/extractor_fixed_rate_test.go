@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/stretchr/testify/assert"
 )
 
 func createTestSpans(serviceName string, operationName string) []*pb.Span {
@@ -15,16 +16,37 @@ func createTestSpans(serviceName string, operationName string) []*pb.Span {
 	return spans
 }
 
+func TestFixedCases(t *testing.T) {
+	assert := assert.New(t)
+	e := NewFixedRateExtractor(map[string]map[string]float64{
+		"service1": {
+			"op1": 1,
+			"op2": 0.5,
+		},
+	})
+
+	span1 := &pb.Span{Service: "service1", Name: "op1"}
+	span2 := &pb.Span{Service: "SerVice1", Name: "Op2"}
+
+	rate, ok := e.Extract(span1, 0)
+	assert.Equal(rate, 1.)
+	assert.True(ok)
+
+	rate, ok = e.Extract(span2, 0)
+	assert.Equal(rate, 0.5)
+	assert.True(ok)
+}
+
 func TestAnalyzedExtractor(t *testing.T) {
 	config := make(map[string]map[string]float64)
-	config["serviceA"] = make(map[string]float64)
-	config["serviceA"]["opA"] = 0
+	config["servicea"] = make(map[string]float64)
+	config["servicea"]["opa"] = 0
 
-	config["serviceB"] = make(map[string]float64)
-	config["serviceB"]["opB"] = 0.5
+	config["serviceb"] = make(map[string]float64)
+	config["serviceb"]["opb"] = 0.5
 
-	config["serviceC"] = make(map[string]float64)
-	config["serviceC"]["opC"] = 1
+	config["servicec"] = make(map[string]float64)
+	config["servicec"]["opc"] = 1
 
 	tests := []extractorTestCase{
 		// Name: <priority>/(<no match reason>/<extraction rate>)

@@ -1,6 +1,8 @@
 package event
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
@@ -13,6 +15,7 @@ type fixedRateExtractor struct {
 
 // NewFixedRateExtractor returns an APM event extractor that decides whether to extract APM events from spans following
 // the provided extraction rates for a span's (service name, operation name) pair.
+// The map keys must strictly be lower-cased, as provided by Viper.
 func NewFixedRateExtractor(rateByServiceAndName map[string]map[string]float64) Extractor {
 	return &fixedRateExtractor{
 		rateByServiceAndName: rateByServiceAndName,
@@ -24,11 +27,11 @@ func NewFixedRateExtractor(rateByServiceAndName map[string]map[string]float64) E
 // extraction rate and a true value. If no extraction happened, false is returned as the third value and the others
 // are invalid.
 func (e *fixedRateExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
-	operations, ok := e.rateByServiceAndName[s.Service]
+	operations, ok := e.rateByServiceAndName[strings.ToLower(s.Service)]
 	if !ok {
 		return 0, false
 	}
-	extractionRate, ok := operations[s.Name]
+	extractionRate, ok := operations[strings.ToLower(s.Name)]
 	if !ok {
 		return 0, false
 	}
