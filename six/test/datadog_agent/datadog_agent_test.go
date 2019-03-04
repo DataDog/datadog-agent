@@ -90,3 +90,16 @@ func TestGetClustername(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
+
+func TestLog(t *testing.T) {
+	code := `
+	datadog_agent.log("foo message", 99)
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "[99]foo message" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
