@@ -4,7 +4,6 @@
 // Copyright 2019 Datadog, Inc.
 #include "aggregator.h"
 
-#include <assert.h>
 #include <sixstrings.h>
 
 #define MODULE_NAME "aggregator"
@@ -70,8 +69,9 @@ void _set_submit_event_cb(cb_submit_event_t cb) {
 }
 
 static PyObject *submit_metric(PyObject *self, PyObject *args) {
-    // callback must be set
-    assert(cb_submit_metric != NULL);
+    if (cb_submit_metric == NULL) {
+        Py_RETURN_NONE;
+    }
 
     PyObject *check = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
@@ -114,8 +114,9 @@ done:
 }
 
 static PyObject *submit_service_check(PyObject *self, PyObject *args) {
-    // callback must be set
-    assert(cb_submit_service_check != NULL);
+    if (cb_submit_service_check == NULL) {
+        Py_RETURN_NONE;
+    }
 
     PyObject *check = NULL; // borrowed
     PyObject *py_tags = NULL; // borrowed
@@ -158,8 +159,9 @@ done:
 }
 
 static PyObject *submit_event(PyObject *self, PyObject *args) {
-    // callback must be set
-    assert(cb_submit_event != NULL);
+    if (cb_submit_event == NULL) {
+        Py_RETURN_NONE;
+    }
 
     PyObject *check = NULL; // borrowed
     PyObject *event_dict = NULL; // borrowed
