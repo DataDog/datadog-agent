@@ -69,10 +69,12 @@ typedef void (*cb_submit_event_t)(char *, event_t *);
 
 // datadog_agent
 //
-// (string_to_be_filled)
+// (version)
 typedef void (*cb_get_version_t)(char **);
-// (key, string_to_be_filled)
+// (key, json_dump)
 typedef void (*cb_get_config_t)(char *, char **);
+// (json_dump)
+typedef void (*cb_headers_t)(char **);
 
 #ifdef __cplusplus
 }

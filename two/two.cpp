@@ -439,3 +439,7 @@ void Two::setGetVersionCb(cb_get_version_t cb) {
 void Two::setGetConfigCb(cb_get_config_t cb) {
     _set_get_config_cb(cb);
 }
+
+void Two::setHeadersCb(cb_headers_t cb) {
+    _set_headers_cb(cb);
+}
