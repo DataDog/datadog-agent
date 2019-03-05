@@ -28,18 +28,12 @@ const (
 	kubeServiceAnnotationPrefix = "ad.datadoghq.com/service."
 	// AD on the individual service endpoints (TODO)
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
-	// kubeEndpointIDPrefix         = "kube_endpoint://"
+	kubeEndpointIDPrefix         = "kube_endpoint://"
 )
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeServiceConfigProvider struct {
 	lister   listersv1.ServiceLister
-	upToDate bool
-}
-
-// KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
-type KubeEndpointConfigProvider struct {
-	lister   listersv1.EndpointsLister
 	upToDate bool
 }
 
@@ -121,6 +115,11 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 		k.upToDate = false
 		return
 	}
+	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
+		log.Trace("Invalidating configs on service change")
+		k.upToDate = false
+		return
+	}
 }
 
 func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, error) {
@@ -131,117 +130,23 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 			continue
 		}
 		service_id := apiserver.EntityForService(svc)
-		c, errors := extractTemplatesFromMap(service_id, svc.Annotations, kubeServiceAnnotationPrefix)
+		svcConf, errors := extractTemplatesFromMap(service_id, svc.Annotations, kubeServiceAnnotationPrefix)
+		for _, err := range errors {
+			log.Errorf("Cannot parse template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+		}
+		endptConf, errors := extractTemplatesFromMap(fmt.Sprintf("%s%s/%s", kubeEndpointIDPrefix, svc.Namespace, svc.Name), svc.Annotations, kubeEndpointAnnotationPrefix)
 		for _, err := range errors {
 			log.Errorf("Cannot parse template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 		// All configurations are cluster checks
-		for i := range c {
-			c[i].ClusterCheck = true
+		for i := range svcConf {
+			svcConf[i].ClusterCheck = true
 		}
-		configs = append(configs, c...)
-	}
-
-	return configs, nil
-}
-
-// NewKubeEndpointConfigProvider returns a new ConfigProvider connected to kubelet.
-// Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
-	ac, err := apiserver.GetAPIClient()
-	if err != nil {
-		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
-	}
-	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
-	if endpointsInformer == nil {
-		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
-	}
-
-	p := &KubeEndpointConfigProvider{
-		lister: endpointsInformer.Lister(),
-	}
-
-	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    p.invalidate,
-		UpdateFunc: p.invalidateIfChanged,
-		DeleteFunc: p.invalidate,
-	})
-
-	return p, nil
-}
-
-// String returns a string representation of the KubeEndpointConfigProvider
-func (k *KubeEndpointConfigProvider) String() string {
-	return KubeServices
-}
-
-// Collect retrieves services from the apiserver, builds Config objects and returns them
-func (k *KubeEndpointConfigProvider) Collect() ([]integration.Config, error) {
-	endpoints, err := k.lister.List(labels.Everything())
-	if err != nil {
-		return nil, err
-	}
-	k.upToDate = true
-
-	return parseEndpointAnnotations(endpoints)
-}
-
-// IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-func (k *KubeEndpointConfigProvider) IsUpToDate() (bool, error) {
-	return k.upToDate, nil
-}
-
-func (k *KubeEndpointConfigProvider) invalidate(obj interface{}) {
-	if obj != nil {
-		log.Trace("Invalidating configs on new/deleted endpoint")
-		k.upToDate = false
-	}
-}
-
-func (k *KubeEndpointConfigProvider) invalidateIfChanged(old, obj interface{}) {
-	// Cast the updated object, don't invalidate on casting error.
-	// nil pointers are safely handled by the casting logic.
-	castedObj, ok := obj.(*v1.Endpoints)
-	if !ok {
-		log.Errorf("Expected a Endpoints type, got: %v", obj)
-		return
-	}
-	// Cast the old object, invalidate on casting error
-	castedOld, ok := old.(*v1.Endpoints)
-	if !ok {
-		log.Errorf("Expected a Endpoints type, got: %v", old)
-		k.upToDate = false
-		return
-	}
-	// Quick exit if resversion did not change
-	if castedObj.ResourceVersion == castedOld.ResourceVersion {
-		return
-	}
-	// Compare annotations
-	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeEndpointAnnotationPrefix) {
-		log.Trace("Invalidating configs on endpoint change")
-		k.upToDate = false
-		return
-	}
-}
-
-func parseEndpointAnnotations(endpoints []*v1.Endpoints) ([]integration.Config, error) {
-	var configs []integration.Config
-	for _, endpt := range endpoints {
-		if endpt == nil || endpt.ObjectMeta.UID == "" {
-			log.Debug("Ignoring a nil endpoint")
-			continue
+		for i := range endptConf {
+			endptConf[i].ClusterCheck = true
 		}
-		endpoint_id := apiserver.EntityForEndpoints(endpt)
-		c, errors := extractTemplatesFromMap(endpoint_id, endpt.Annotations, kubeEndpointAnnotationPrefix)
-		for _, err := range errors {
-			log.Errorf("Cannot parse template for endpoint %s/%s: %s", endpt.Namespace, endpt.Name, err)
-		}
-		// All configurations are cluster checks
-		for i := range c {
-			c[i].ClusterCheck = true
-		}
-		configs = append(configs, c...)
+		configs = append(configs, svcConf...)
+		configs = append(configs, endptConf...)
 	}
 
 	return configs, nil

@@ -41,5 +41,5 @@ func EntityForEndpoints(endpt *v1.Endpoints) string {
 	if endpt == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s%s", kubeEndpointIDPrefix, endpt.ObjectMeta.UID)
+	return fmt.Sprintf("%s%s/%s", kubeEndpointIDPrefix, endpt.Namespace, endpt.Name)
 }

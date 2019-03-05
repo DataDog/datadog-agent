@@ -286,12 +286,12 @@ func TestProcessEndpoint(t *testing.T) {
 	}
 
 	endpt := processEndpoint(kendpt, true)
-	assert.Equal(t, "kube_endpoint://test", endpt.GetEntity())
+	assert.Equal(t, "kube_endpoint://default/myendpoint", endpt.GetEntity())
 	assert.Equal(t, integration.Before, endpt.GetCreationTime())
 
 	adID, err := endpt.GetADIdentifiers()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_endpoint://test"}, adID)
+	assert.Equal(t, []string{"kube_endpoint://default/myendpoint"}, adID)
 
 	hosts, err := endpt.GetHosts()
 	assert.NoError(t, err)
