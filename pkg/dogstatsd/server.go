@@ -300,7 +300,7 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 				continue
 			}
 			if s.debugMetricsStats {
-				s.storeMetricsStats(sample.Name)
+				s.storeMetricStats(sample.Name)
 			}
 			if len(extraTags) > 0 {
 				sample.Tags = append(sample.Tags, extraTags...)
@@ -331,7 +331,7 @@ func (s *Server) Stop() {
 	s.Started = false
 }
 
-func (s *Server) storeMetricsStats(name string) {
+func (s *Server) storeMetricStats(name string) {
 	now := time.Now()
 	s.statsLock.Lock()
 	defer s.statsLock.Unlock()

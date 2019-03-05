@@ -353,10 +353,10 @@ func TestDebugStats(t *testing.T) {
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	s.storeMetricsStats("some.metric1")
-	s.storeMetricsStats("some.metric2")
+	s.storeMetricStats("some.metric1")
+	s.storeMetricStats("some.metric2")
 	time.Sleep(10 * time.Millisecond)
-	s.storeMetricsStats("some.metric1")
+	s.storeMetricStats("some.metric1")
 
 	data, err := s.GetJSONDebugStats()
 	require.NoError(t, err, "cannot get debug stats")
@@ -370,9 +370,9 @@ func TestDebugStats(t *testing.T) {
 
 	require.True(t, stats["some.metric1"].LastSeen.After(stats["some.metric2"].LastSeen), "some.metric1 should have appeared again after sometag2")
 
-	s.storeMetricsStats("some.metric3")
+	s.storeMetricStats("some.metric3")
 	time.Sleep(10 * time.Millisecond)
-	s.storeMetricsStats("some.metric1")
+	s.storeMetricStats("some.metric1")
 
 	data, _ = s.GetJSONDebugStats()
 	err = json.Unmarshal(data, &stats)
