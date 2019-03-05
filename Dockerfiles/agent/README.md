@@ -57,6 +57,7 @@ Send custom metrics via [the statsd protocol](https://docs.datadoghq.com/develop
 - `DD_HISTOGRAM_AGGREGATES`: histogram aggregates to compute, separated by spaces. The default is "max median avg count"
 - `DD_DOGSTATSD_SOCKET`: path to the unix socket to listen to. Must be in a `rw` mounted volume.
 - `DD_DOGSTATSD_ORIGIN_DETECTION`: enable container detection and tagging for unix socket metrics. Running in host PID mode (e.g. with --pid=host) is required.
+- `DD_DOGSTATSD_TAGS`: Attach an arbitrary list of tags to all custom metrics that pass through the agent, for example: `["env:golden", "group:retrievers"]`.
 
 #### Tagging
 
