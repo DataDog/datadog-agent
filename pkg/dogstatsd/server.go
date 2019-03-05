@@ -49,18 +49,18 @@ func init() {
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners        []listeners.StatsdListener
-	packetsIn        chan listeners.Packets
-	Statistics       *util.Stats
-	Started          bool
-	packetPool       *listeners.PacketPool
-	stopChan         chan bool
-	health           *health.Handle
-	metricPrefix     string
-	defaultHostname  string
-	histToDist       bool
-	histToDistPrefix string
-	extraTags        []string
+	listeners         []listeners.StatsdListener
+	packetsIn         chan listeners.Packets
+	Statistics        *util.Stats
+	Started           bool
+	packetPool        *listeners.PacketPool
+	stopChan          chan bool
+	health            *health.Handle
+	metricPrefix      string
+	defaultHostname   string
+	histToDist        bool
+	histToDistPrefix  string
+	extraTags         []string
 	debugMetricsStats bool
 	metricsStats      map[string]metricStat
 	statsLock         sync.Mutex
@@ -92,7 +92,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		metricsStats = true
 	}
 
-  packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
+	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
@@ -135,19 +135,19 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
 
 	s := &Server{
-		Started:          true,
-		Statistics:       stats,
-		packetsIn:        packetsChannel,
-		listeners:        tmpListeners,
-		packetPool:       packetPool,
-		stopChan:         make(chan bool),
-		health:           health.Register("dogstatsd-main"),
-		metricPrefix:     metricPrefix,
-		defaultHostname:  defaultHostname,
-		histToDist:       histToDist,
-		histToDistPrefix: histToDistPrefix,
-		extraTags:        extraTags,
-    debugMetricsStats: metricsStats,
+		Started:           true,
+		Statistics:        stats,
+		packetsIn:         packetsChannel,
+		listeners:         tmpListeners,
+		packetPool:        packetPool,
+		stopChan:          make(chan bool),
+		health:            health.Register("dogstatsd-main"),
+		metricPrefix:      metricPrefix,
+		defaultHostname:   defaultHostname,
+		histToDist:        histToDist,
+		histToDistPrefix:  histToDistPrefix,
+		extraTags:         extraTags,
+		debugMetricsStats: metricsStats,
 		metricsStats:      make(map[string]metricStat),
 	}
 
