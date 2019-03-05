@@ -54,7 +54,9 @@ var statusCmd = &cobra.Command{
 }
 
 func requestStatus() error {
-	fmt.Printf("Getting the status from the agent.\n\n")
+	if !prettyPrintJSON && !jsonStatus {
+		fmt.Printf("Getting the status from the agent.\n\n")
+	}
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true

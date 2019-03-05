@@ -76,11 +76,11 @@ func (cache *TemplateCache) Get(adID string) ([]integration.Config, error) {
 }
 
 // GetUnresolvedTemplates returns templates yet to be resolved
-func (cache *TemplateCache) GetUnresolvedTemplates() map[string]integration.Config {
-	tpls := make(map[string]integration.Config)
+func (cache *TemplateCache) GetUnresolvedTemplates() map[string][]integration.Config {
+	tpls := make(map[string][]integration.Config)
 	for d, config := range cache.digestToTemplate {
 		ids := strings.Join(cache.digestToADId[d][:], ",")
-		tpls[ids] = config
+		tpls[ids] = append(tpls[ids], config)
 	}
 	return tpls
 }

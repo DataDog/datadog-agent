@@ -10,10 +10,6 @@ package collectors
 import (
 	"strings"
 
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -61,10 +57,6 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 				continue
 			}
 		}
-		if len(metadataNames) == 0 {
-			log.Tracef("No cluster metadata for the pod %s on node %s", po.Metadata.Name, po.Spec.NodeName)
-			continue
-		}
 		for _, tagDCA := range metadataNames {
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)
 			tag = strings.Split(tagDCA, ":")
@@ -108,7 +100,7 @@ func (c *KubeMetadataCollector) addToCacheMetadataMapping(kubeletPodList []*kube
 		return nil
 	}
 
-	podList := &v1.PodList{}
+	reachablePods := make([]*kubelet.Pod, 0)
 	nodeName := ""
 	for _, p := range kubeletPodList {
 		if p.Status.PodIP == "" {
@@ -117,18 +109,7 @@ func (c *KubeMetadataCollector) addToCacheMetadataMapping(kubeletPodList []*kube
 		if nodeName == "" && p.Spec.NodeName != "" {
 			nodeName = p.Spec.NodeName
 		}
-
-		pod := &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      p.Metadata.Name,
-				Namespace: p.Metadata.Namespace,
-				UID:       types.UID(p.Metadata.UID),
-			},
-			Status: v1.PodStatus{
-				PodIP: p.Status.PodIP,
-			},
-		}
-		podList.Items = append(podList.Items, *pod)
+		reachablePods = append(reachablePods, p)
 	}
-	return c.apiClient.NodeMetadataMapping(nodeName, podList)
+	return c.apiClient.NodeMetadataMapping(nodeName, reachablePods)
 }

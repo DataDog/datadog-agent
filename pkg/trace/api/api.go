@@ -67,6 +67,8 @@ type HTTPReceiver struct {
 
 	maxRequestBodyLength int64
 	debug                bool
+
+	exit chan struct{}
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -85,6 +87,8 @@ func NewHTTPReceiver(
 
 		maxRequestBodyLength: maxRequestBodyLength,
 		debug:                strings.ToLower(conf.LogLevel) == "debug",
+
+		exit: make(chan struct{}),
 	}
 }
 
@@ -153,6 +157,11 @@ func (r *HTTPReceiver) Listen(addr, logExtra string) error {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
+	r.exit <- struct{}{}
+	<-r.exit
+
+	r.PreSampler.Stop()
+
 	expiry := time.Now().Add(20 * time.Second) // give it 20 seconds
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
@@ -201,7 +210,7 @@ func (r *HTTPReceiver) replyTraces(v Version, w http.ResponseWriter) {
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	if !r.PreSampler.Sample(req) {
 		io.Copy(ioutil.Discard, req.Body)
-		HTTPOK(w)
+		r.replyTraces(v, w)
 		return
 	}
 
@@ -300,36 +309,46 @@ func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *htt
 
 // logStats periodically submits stats about the receiver to statsd
 func (r *HTTPReceiver) logStats() {
+	defer close(r.exit)
+
 	var lastLog time.Time
 	accStats := info.NewReceiverStats()
 
-	for now := range time.Tick(10 * time.Second) {
-		metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
 
-		// We update accStats with the new stats we collected
-		accStats.Acc(r.Stats)
+	for {
+		select {
+		case <-r.exit:
+			return
+		case now := <-t.C:
+			metrics.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
 
-		// Publish the stats accumulated during the last flush
-		r.Stats.Publish()
+			// We update accStats with the new stats we collected
+			accStats.Acc(r.Stats)
 
-		// We reset the stats accumulated during the last 10s.
-		r.Stats.Reset()
+			// Publish the stats accumulated during the last flush
+			r.Stats.Publish()
 
-		if now.Sub(lastLog) >= time.Minute {
-			// We expose the stats accumulated to expvar
-			info.UpdateReceiverStats(accStats)
+			// We reset the stats accumulated during the last 10s.
+			r.Stats.Reset()
 
-			for _, logStr := range accStats.Strings() {
-				log.Info(logStr)
+			if now.Sub(lastLog) >= time.Minute {
+				// We expose the stats accumulated to expvar
+				info.UpdateReceiverStats(accStats)
+
+				for _, logStr := range accStats.Strings() {
+					log.Info(logStr)
+				}
+
+				// We reset the stats accumulated during the last minute
+				accStats.Reset()
+				lastLog = now
+
+				// Also publish rates by service (they are updated by receiver)
+				rates := r.dynConf.RateByService.GetAll()
+				info.UpdateRateByService(rates)
 			}
-
-			// We reset the stats accumulated during the last minute
-			accStats.Reset()
-			lastLog = now
-
-			// Also publish rates by service (they are updated by receiver)
-			rates := r.dynConf.RateByService.GetAll()
-			info.UpdateRateByService(rates)
 		}
 	}
 }

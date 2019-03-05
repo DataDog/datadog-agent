@@ -79,6 +79,13 @@ if [ -n "$DD_UPGRADE" ]; then
   dd_upgrade=$DD_UPGRADE
 fi
 
+keyserver="hkp://keyserver.ubuntu.com:80"
+# use this env var to specify another key server, such as
+# hkp://p80.pool.sks-keyservers.net:80 for example.
+if [ -n "$DD_KEYSERVER" ]; then
+  keyserver="$DD_KEYSERVER"
+fi
+
 if [ ! $apikey ]; then
   # if it's an upgrade, then we will use the transition script
   if [ ! $dd_upgrade ]; then
@@ -137,6 +144,7 @@ if [ $OS = "RedHat" ]; then
     $sudo_cmd yum -y clean metadata
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install datadog-agent || $sudo_cmd yum -y install datadog-agent
 elif [ $OS = "Debian" ]; then
+
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
     $sudo_cmd apt-get install -y apt-transport-https
@@ -148,7 +156,7 @@ elif [ $OS = "Debian" ]; then
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
     $sudo_cmd sh -c "echo 'deb https://apt.${repo_url}/ stable 6' > /etc/apt/sources.list.d/datadog.list"
-    $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 382E94DE
+    $sudo_cmd apt-key adv --recv-keys --keyserver ${keyserver} 382E94DE
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR

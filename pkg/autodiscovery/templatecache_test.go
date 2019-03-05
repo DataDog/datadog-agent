@@ -93,8 +93,8 @@ func TestGetUnresolvedTemplates(t *testing.T) {
 	cache := NewTemplateCache()
 	tpl := integration.Config{ADIdentifiers: []string{"foo", "bar"}}
 	cache.Set(tpl)
-	expected := map[string]integration.Config{
-		"foo,bar": tpl,
+	expected := map[string][]integration.Config{
+		"foo,bar": {tpl},
 	}
 
 	assert.Equal(t, cache.GetUnresolvedTemplates(), expected)

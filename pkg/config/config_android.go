@@ -25,7 +25,7 @@ const (
 	defaultAdditionalChecksPath = ""
 	defaultRunPath              = ""
 	defaultSyslogURI            = ""
-	defaultGuiPort              = "5002"
+	defaultGuiPort              = 5002
 )
 
 func setAssetFs(config Config) {

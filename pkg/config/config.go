@@ -31,6 +31,8 @@ const DefaultSite = "datadoghq.com"
 
 const infraURLPrefix = "https://app."
 
+var overrideVars = map[string]interface{}{}
+
 // Datadog is the global configuration object
 var (
 	Datadog Config
@@ -147,6 +149,9 @@ func initConfig(config Config) {
 	// Use to force client side TLS version to 1.2
 	config.BindEnvAndSetDefault("force_tls_12", false)
 
+	// Defaults to safe YAML methods in base and custom checks.
+	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
+
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
@@ -172,6 +177,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
+	config.BindEnvAndSetDefault("enable_stream_payload_serialization", false)
 	config.BindEnvAndSetDefault("use_v2_api.series", false)
 	config.BindEnvAndSetDefault("use_v2_api.events", false)
 	config.BindEnvAndSetDefault("use_v2_api.service_checks", false)
@@ -188,8 +194,18 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125)          // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
+
+	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
+	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
+	// we reach `dogstatsd_packet_buffer_size` datagrams or after `dogstatsd_packet_buffer_flush_timeout` ms.
+	// After this happens we flush this buffer of datagrams to a queue for processing. The size of this queue
+	// is `dogstatsd_queue_size`.
+	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 512)
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond)
+	config.BindEnvAndSetDefault("dogstatsd_queue_size", 100)
+
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -243,6 +259,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
 	config.BindEnvAndSetDefault("kubelet_wait_on_missing_container", 0)
+	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5) // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
@@ -279,6 +296,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_max_restarts", int64(3))
 	config.BindEnvAndSetDefault("jmx_restart_interval", int64(5))
+	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)
+	config.BindEnvAndSetDefault("jmx_reconnection_thread_pool_size", 3)
+	config.BindEnvAndSetDefault("jmx_collection_timeout", 60)
+	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -308,6 +329,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// increase the number of files that can be tailed in parallel:
 	config.BindEnvAndSetDefault("logs_config.open_files_limit", 100)
+	// add global processing rules that are applied on all logs
+	config.BindEnv("logs_config.processing_rules")
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logset", "")
@@ -350,6 +373,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
+	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 
 	setAssetFs(config)
 }
@@ -441,8 +465,12 @@ func loadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() error {
+	return load(Datadog, "datadog.yaml")
+}
+
+func load(config Config, origin string) error {
 	log.Infof("config.Load()")
-	if err := Datadog.ReadInConfig(); err != nil {
+	if err := config.ReadInConfig(); err != nil {
 		log.Warnf("config.load() error %v", err)
 		return err
 	}
@@ -451,34 +479,35 @@ func Load() error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secrets.Init(
-		Datadog.GetString("secret_backend_command"),
-		Datadog.GetStringSlice("secret_backend_arguments"),
-		Datadog.GetInt("secret_backend_timeout"),
-		Datadog.GetInt("secret_backend_output_max_size"),
+		config.GetString("secret_backend_command"),
+		config.GetStringSlice("secret_backend_arguments"),
+		config.GetInt("secret_backend_timeout"),
+		config.GetInt("secret_backend_output_max_size"),
 	)
 
-	if Datadog.IsSet("secret_backend_command") {
+	if config.IsSet("secret_backend_command") {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
-		// localtions we let viper determine the one to use before
+		// locations we let viper determine the one to use before
 		// updating it.
-		conf, err := yaml.Marshal(Datadog.AllSettings())
+		yamlConf, err := yaml.Marshal(config.AllSettings())
 		if err != nil {
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		finalConfig, err := secrets.Decrypt(conf)
+		finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
-		r := bytes.NewReader(finalConfig)
-		if err = Datadog.MergeConfig(r); err != nil {
+		r := bytes.NewReader(finalYamlConf)
+		if err = config.MergeConfigOverride(r); err != nil {
 			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
 		}
 	}
 
-	loadProxyFromEnv(Datadog)
-	sanitizeAPIKey(Datadog)
+	loadProxyFromEnv(config)
+	sanitizeAPIKey(config)
+	applyOverrides(config)
 	return nil
 }
 
@@ -631,4 +660,18 @@ func IsKubernetes() bool {
 		return true
 	}
 	return false
+}
+
+// SetOverrides provides an externally accessible method for
+// overriding config variables.
+// This method must be called before Load() to be effective.
+func SetOverrides(vars map[string]interface{}) {
+	overrideVars = vars
+}
+
+// applyOverrides overrides config variables.
+func applyOverrides(config Config) {
+	for k, v := range overrideVars {
+		config.Set(k, v)
+	}
 }

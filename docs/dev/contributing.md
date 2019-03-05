@@ -87,7 +87,9 @@ $> reno new <topic-of-my-pr> --edit
 ```
 
 Then just add and commit the new releasenote (located in `releasenotes/notes/`)
-with your PR.
+with your PR. If the change is on the `trace-agent` (folders `cmd/trace-agent` or `pkg/trace`)
+please prefix the release note with "APM :" and the <topic-of-my-pr> argument with
+"apm-".
 
 #### Reno sections
 

@@ -595,3 +595,22 @@ func TestSanitizeAPIKey(t *testing.T) {
 	sanitizeAPIKey(config)
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
+
+// TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
+// key includes the key delimiter. Affects the config package when both secrets and multiple
+// endpoints are configured.
+// Refer to https://github.com/DataDog/viper/pull/2 for more details.
+func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
+	conf := setupConf()
+	conf.SetConfigFile("./tests/datadog_secrets.yaml")
+	// load the configuration
+	err := load(conf, "datadog_secrets.yaml")
+	assert.NoError(t, err)
+
+	expectedKeysPerDomain := map[string][]string{
+		"https://app.datadoghq.com": {"someapikey", "someotherapikey"},
+	}
+	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
+}

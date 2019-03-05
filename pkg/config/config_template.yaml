@@ -250,7 +250,7 @@ api_key:
 # dogstatsd_origin_detection: false
 #
 # The buffer size use to receive statsd packet, in bytes
-# dogstatsd_buffer_size: 1024
+# dogstatsd_buffer_size: 8192
 #
 # Whether dogstatsd should listen to non local UDP traffic
 # dogstatsd_non_local_traffic: false
@@ -324,6 +324,29 @@ api_key:
 # Duration of the restart interval in seconds
 # jmx_restart_interval: 5
 #
+# JMXFetch collects multiples instances concurrently. The following options may
+# help fine-tune the level of concurrency and timeouts that come into play during the
+# collection of metrics from configured instances:
+#
+# Defines the maximum level of concurrency. Higher concurrency will increase CPU
+# utilization during metric collection. Lower concurrency will result in lower CPU
+# usage but may increase the total collection time - a value of 1 will process
+# instances serially. The total collection is allowed to take up to `jmx_collection_timeout`
+# seconds.
+# jmx_thread_pool_size: 3
+#
+# Defines the maximum waiting period in seconds before timing up on metric collection.
+# jmx_collection_timeout: 60
+#
+# Defines the maximum level of concurrency. Higher concurrency will increase CPU
+# utilization during reconnection. Lower concurrency will result in lower CPU
+# usage but may increase the total reconnection time - a value of 1 will process
+# instance reconnections serially. In total, reconnections are allowed to take up to
+# `jmx_reconnection_timeout` seconds.
+# jmx_reconnection_thread_pool_size: 3
+#
+# Determines the maximum waiting period in seconds before timing up on instance reconnection.
+# jmx_reconnection_timeout: 10
 #
 {{ end -}}
 {{- if .Autoconfig }}
@@ -542,6 +565,9 @@ api_key:
 #   You can use another tag name, or disable it by setting an empty name.
 #   cluster_tag_name: cluster_name
 #
+#   Additionnal tags can be set here. They will be added to every cluster-check configuration
+#   extra_tags: []
+#
 {{ end -}}
 {{- if .DockerTagging }}
 # Container detection
@@ -654,6 +680,9 @@ api_key:
 # number of seconds (in 250ms chunks) when a container does not exist in the podlist.
 # kubelet_wait_on_missing_container: 0
 #
+# Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
+# kubelet_cache_pods_duration: 5
+#
 {{ end -}}
 {{- if .KubeApiServer }}
 # Kubernetes apiserver integration
@@ -755,7 +784,7 @@ api_key:
 #   Whether or not the APM Agent should run
 #   enabled: true
 #   The environment tag that Traces should be tagged with
-#   Will inherit from "env" tag if none is applied here
+#   Will inherit from "env" tag if "none" is applied here
 #   env: none
 #   The port that the Receiver should listen on
 #   receiver_port: 8126

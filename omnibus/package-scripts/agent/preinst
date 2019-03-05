@@ -45,10 +45,11 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         fi
     fi
 
-    PIP_PATH=$INSTALL_DIR/embedded/bin/pip
-    if [ -x $PIP_PATH ]; then
-        echo "Resetting integrations..."
-        $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+    # For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
+    # They were not being cleaned by these versions, so let's do that now on install/upgrade
+    TUF_REPO_DIR=$INSTALL_DIR/repositories
+    if [ -d $TUF_REPO_DIR ]; then
+        rm -rf $TUF_REPO_DIR
     fi
 
     if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
@@ -69,10 +70,25 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                 -c "Datadog Agent" dd-agent && \
                 { usermod -L dd-agent || echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"; }
 
+        # Uninstall every datadog integration
+        # Starting with 6.10, integrations are also uninstalled on package removal
+        # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
+        PIP_PATH=$INSTALL_DIR/embedded/bin/pip
+        if [ -x $PIP_PATH ]; then
+            echo "Uninstalling integrations..."
+            $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+        fi
+
         # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
+        # This MUST be done after using pip or any python, because executing python might generate .pyc files
         if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
             # (commented lines are filtered out)
             cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
+        fi
+        # Remove all the data that was downloaded using the integration command
+        DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
+        if [ -f $DOWNLOADER_DATA ]; then
+            rm -rf $DOWNLOADER_DATA
         fi
     else
         echo "[ FAILED ]\tYour system is currently not supported by this script.";

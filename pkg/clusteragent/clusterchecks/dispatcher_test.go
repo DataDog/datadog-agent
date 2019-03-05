@@ -101,6 +101,39 @@ func TestScheduleReschedule(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestDescheduleRescheduleSameNode(t *testing.T) {
+	dispatcher := newDispatcher()
+	config := generateIntegration("cluster-check")
+
+	// Schedule to node1
+	dispatcher.addConfig(config, "node1")
+	configs1, _, err := dispatcher.getNodeConfigs("node1")
+	assert.NoError(t, err)
+	assert.Len(t, configs1, 1)
+	assert.Contains(t, configs1, config)
+
+	// Deschedule
+	dispatcher.removeConfig(config.Digest())
+	stored, err := dispatcher.getAllConfigs()
+	assert.NoError(t, err)
+	assert.Len(t, stored, 0)
+
+	// Re-schedule to node1
+	dispatcher.addConfig(config, "node1")
+	configs2, _, err := dispatcher.getNodeConfigs("node1")
+	assert.NoError(t, err)
+	assert.Len(t, configs2, 1)
+	assert.Contains(t, configs2, config)
+
+	// Only registered once in global list
+	stored, err = dispatcher.getAllConfigs()
+	assert.NoError(t, err)
+	assert.Len(t, stored, 1)
+	assert.Contains(t, stored, config)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 func TestProcessNodeStatus(t *testing.T) {
 	dispatcher := newDispatcher()
 	status1 := types.NodeStatus{LastChange: 10}
@@ -193,6 +226,56 @@ func TestExpireNodes(t *testing.T) {
 	assert.Equal(t, 2, len(dispatcher.store.danglingConfigs))
 
 	requireNotLocked(t, dispatcher.store)
+}
+
+func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
+	// This test case can represent a rollout of the cluster check workers
+	dispatcher := newDispatcher()
+
+	// Register a node with a correct status & schedule a Check
+	dispatcher.processNodeStatus("nodeA", types.NodeStatus{})
+	dispatcher.Schedule([]integration.Config{
+		generateIntegration("A")})
+
+	// Ensure it's dispatch correctly
+	allConfigs, err := dispatcher.getAllConfigs()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(allConfigs))
+	assert.Equal(t, []string{"A"}, extractCheckNames(allConfigs))
+
+	// Ensure it's running correctly
+	configsA, _, err := dispatcher.getNodeConfigs("nodeA")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(configsA))
+
+	// Expire NodeA
+	dispatcher.store.nodes["nodeA"].heartbeat = timestampNow() - 35
+
+	// Assert config becomes dangling when we trigger a expireNodes.
+	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
+	dispatcher.expireNodes()
+	assert.Equal(t, 0, len(dispatcher.store.nodes))
+	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
+
+	requireNotLocked(t, dispatcher.store)
+
+	// Register new node as healthy
+	dispatcher.processNodeStatus("nodeB", types.NodeStatus{})
+
+	// Ensure we have 1 dangling to schedule, as new available node is registered
+	assert.True(t, dispatcher.shouldDispatchDanling())
+	configs := dispatcher.retrieveAndClearDangling()
+	// Assert the check is scheduled
+	dispatcher.reschedule(configs)
+	danglingConfig, err := dispatcher.getAllConfigs()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(danglingConfig))
+	assert.Equal(t, []string{"A"}, extractCheckNames(danglingConfig))
+
+	// Make sure make sure the dangling check is rescheduled on the new node
+	configsB, _, err := dispatcher.getNodeConfigs("nodeB")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(configsB))
 }
 
 func TestDispatchFourConfigsTwoNodes(t *testing.T) {
@@ -316,19 +399,23 @@ func TestPatchConfiguration(t *testing.T) {
 	assert.Equal(t, true, rawConfig["empty_default_hostname"])
 }
 
-func TestClusterNameTag(t *testing.T) {
+func TestExtraTags(t *testing.T) {
 	for _, tc := range []struct {
+		extraTagsConfig   []string
 		clusterNameConfig string
 		tagNameConfig     string
 		expected          []string
 	}{
-		{"testing", "cluster_name", []string{"cluster_name:testing"}},
-		{"mycluster", "custom_name", []string{"custom_name:mycluster"}},
-		{"", "cluster_name", nil},
-		{"testing", "", nil},
+		{nil, "testing", "cluster_name", []string{"cluster_name:testing"}},
+		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster"}},
+		{nil, "", "cluster_name", nil},
+		{nil, "testing", "", nil},
+		{[]string{"one", "two"}, "", "", []string{"one", "two"}},
+		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster"}},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
 			mockConfig := config.Mock()
+			mockConfig.Set("cluster_checks.extra_tags", tc.extraTagsConfig)
 			mockConfig.Set("cluster_name", tc.clusterNameConfig)
 			mockConfig.Set("cluster_checks.cluster_tag_name", tc.tagNameConfig)
 
@@ -337,5 +424,4 @@ func TestClusterNameTag(t *testing.T) {
 			assert.EqualValues(t, tc.expected, dispatcher.extraTags)
 		})
 	}
-
 }

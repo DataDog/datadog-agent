@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+)
+
+const (
+	podAnnotationPrefix              = "ad.datadoghq.com/"
+	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
+	podTagsAnnotation                = podAnnotationPrefix + "tags"
 )
 
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
@@ -52,6 +59,14 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				tags.AddAuto(tagName, value)
 			}
 		}
+		if podTags, found := extractTagsFromMap(podTagsAnnotation, pod.Metadata.Annotations); found {
+			for tagName, value := range podTags {
+				tags.AddAuto(tagName, value)
+			}
+		}
+
+		// Pod phase
+		tags.AddLow("pod_phase", strings.ToLower(pod.Status.Phase))
 
 		// OpenShift pod annotations
 		if dc_name, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
@@ -129,6 +144,17 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				}
 			}
 
+			// container-specific tags provided through pod annotation
+			containerTags, found := extractTagsFromMap(
+				fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name),
+				pod.Metadata.Annotations,
+			)
+			if found {
+				for tagName, value := range containerTags {
+					cTags.AddAuto(tagName, value)
+				}
+			}
+
 			cLow, cOrch, cHigh := cTags.Compute()
 			info := &TagInfo{
 				Source:               kubeletCollectorName,
@@ -163,4 +189,38 @@ func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
 	}
 
 	return name[:lastDash]
+}
+
+// extractTagsFromMap extracts tags contained in a JSON string stored at the
+// given key. If no valid tag definition is found at this key, it will return
+// false. Otherwise it returns a map containing extracted tags.
+func extractTagsFromMap(key string, input map[string]string) (map[string]string, bool) {
+	jsonTags, found := input[key]
+	if !found {
+		return nil, false
+	}
+
+	tags, err := parseJSONValue(jsonTags)
+	if err != nil {
+		log.Errorf("can't parse value for annotation %s: %s", key, err)
+		return nil, false
+	}
+
+	return tags, true
+}
+
+// parseJSONValue returns a map from the given JSON string.
+func parseJSONValue(value string) (map[string]string, error) {
+	if value == "" {
+		return nil, fmt.Errorf("value is empty")
+	}
+
+	var result map[string]string
+
+	err := json.Unmarshal([]byte(value), &result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON: %s", err)
+	}
+
+	return result, nil
 }

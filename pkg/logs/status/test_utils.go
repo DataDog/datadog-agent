@@ -26,7 +26,8 @@ func CreateSources(sourcesArray []*config.LogSource) *config.LogSources {
 		logSources.AddSource(source)
 	}
 	ConsumeSources(logSources)
-	Initialize(logSources)
+	var isRunning int32 = 1
+	Init(&isRunning, logSources)
 
 	return logSources
 }

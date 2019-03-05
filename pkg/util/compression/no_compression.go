@@ -23,3 +23,8 @@ func Decompress(dst []byte, src []byte) ([]byte, error) {
 	dst = src
 	return dst, nil
 }
+
+// CompressBound returns the worst case size needed for a destination buffer
+func CompressBound(sourceLen int) int {
+	return sourceLen
+}

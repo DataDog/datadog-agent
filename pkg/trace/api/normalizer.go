@@ -61,12 +61,10 @@ func normalize(s *pb.Span) error {
 	}
 	s.Name = name
 
-	// Resource
-	resource := toUTF8(s.Resource)
 	if s.Resource == "" {
-		return fmt.Errorf("`Resource` is invalid UTF-8: %q", resource)
+		return errors.New("`Resource` can not be empty")
 	}
-	s.Resource = resource
+	s.Resource = toUTF8(s.Resource)
 
 	// ParentID, TraceID and SpanID set in the client could be the same
 	// Supporting the ParentID == TraceID == SpanID for the root span, is compliant
@@ -97,11 +95,7 @@ func normalize(s *pb.Span) error {
 	// ParentID set on the client side, no way of checking
 
 	// Type
-	typ := toUTF8(s.Type)
-	if typ == "" {
-		return fmt.Errorf("`Type` is invalid UTF-8: %q", typ)
-	}
-	s.Type = typ
+	s.Type = toUTF8(s.Type)
 	if len(s.Type) > MaxTypeLen {
 		return fmt.Errorf("`Type` too long (%d chars max): %s", MaxTypeLen, s.Type)
 	}

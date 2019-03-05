@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
@@ -24,10 +23,11 @@ import (
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/platform"
 	"github.com/shirou/w32"
+	"golang.org/x/sys/windows"
 )
 
 var (
-	modkernel = syscall.NewLazyDLL("kernel32.dll")
+	modkernel = windows.NewLazyDLL("kernel32.dll")
 
 	procGetTickCount64 = modkernel.NewProc("GetTickCount64")
 )

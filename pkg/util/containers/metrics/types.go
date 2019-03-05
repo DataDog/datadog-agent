@@ -51,7 +51,6 @@ type CgroupMemStat struct {
 	TotalActiveFile         uint64
 	TotalUnevictable        uint64
 	MemUsageInBytes         uint64
-	MemFailCnt              uint64
 }
 
 // CgroupTimesStat stores CPU times for a cgroup.

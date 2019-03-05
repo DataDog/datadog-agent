@@ -178,7 +178,7 @@ func TestExternalMetricValueKeyFunc(t *testing.T) {
 					Namespace: "DefauLt",
 				},
 			},
-			output: "external_metric-default-bar-foo",
+			output: "external_metric-DefauLt-bar-FoO",
 		},
 	}
 

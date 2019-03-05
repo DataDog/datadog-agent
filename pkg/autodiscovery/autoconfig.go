@@ -61,10 +61,6 @@ type AutoConfig struct {
 	healthPolling      *health.Handle
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
-	tagFreshnessTicker *time.Ticker
-	tagFreshnessStop   chan struct{}
-	tagFreshnessActive bool
-	healthTagFreshness *health.Handle
 	newService         chan listeners.Service
 	delService         chan listeners.Service
 	store              *store
@@ -79,77 +75,58 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
 		healthListening:    health.Register("ad-servicelistening"),
-		tagFreshnessStop:   make(chan struct{}),
-		healthTagFreshness: health.Register("ad-tagfreshnesschecker"),
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
 		scheduler:          scheduler,
 	}
 	// We need to listen to the service channels before anything is sent to them
-	ac.startServiceListening()
+	go ac.serviceListening()
 	return ac
 }
 
-// StartTagFreshnessChecker checks periodically if tags associated to a service
-// are up-to-date, act as the service was restarted to reschedule potential checks
-func (ac *AutoConfig) StartTagFreshnessChecker() {
-	ac.tagFreshnessTicker = time.NewTicker(15 * time.Second) // we can miss tags for one run
-	ac.tagFreshnessActive = true
-	go func() {
-		for {
-			select {
-			case <-ac.healthTagFreshness.C:
-			case <-ac.tagFreshnessStop:
-				if ac.tagFreshnessTicker != nil {
-					ac.tagFreshnessTicker.Stop()
-				}
-				ac.healthTagFreshness.Deregister()
-				return
-			case <-ac.tagFreshnessTicker.C:
-				// check if services tags are up to date
-				var servicesToRefresh []listeners.Service
-				for _, service := range ac.store.getServices() {
-					previousHash := ac.store.getTagsHashForService(service.GetEntity())
-					currentHash := tagger.GetEntityHash(service.GetEntity())
-					if currentHash != previousHash {
-						ac.store.setTagsHashForService(service.GetEntity(), currentHash)
-						if previousHash != "" {
-							// only refresh service if we already had a hash to avoid resetting it
-							servicesToRefresh = append(servicesToRefresh, service)
-						}
-					}
-				}
-				for _, service := range servicesToRefresh {
-					log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
-					ac.processDelService(service)
-					ac.processNewService(service)
-				}
-			}
+// serviceListening is the main management goroutine for services.
+// It waits for service events to trigger template resolution and
+// checks the tags on existing services are up to date.
+func (ac *AutoConfig) serviceListening() {
+	tagFreshnessTicker := time.NewTicker(15 * time.Second) // we can miss tags for one run
+	defer tagFreshnessTicker.Stop()
+
+	for {
+		select {
+		case <-ac.listenerStop:
+			ac.healthListening.Deregister()
+			return
+		case <-ac.healthListening.C:
+		case svc := <-ac.newService:
+			ac.processNewService(svc)
+		case svc := <-ac.delService:
+			ac.processDelService(svc)
+		case <-tagFreshnessTicker.C:
+			ac.checkTagFreshness()
 		}
-	}()
+	}
 }
 
-// startServiceListening waits on services and templates and process them as they come.
-// It can trigger scheduling decisions or just update its cache.
-func (ac *AutoConfig) startServiceListening() {
-	ac.m.Lock()
-	defer ac.m.Unlock()
-
-	go func() {
-		for {
-			select {
-			case <-ac.listenerStop:
-				ac.healthListening.Deregister()
-				return
-			case <-ac.healthListening.C:
-			case svc := <-ac.newService:
-				ac.processNewService(svc)
-			case svc := <-ac.delService:
-				ac.processDelService(svc)
+func (ac *AutoConfig) checkTagFreshness() {
+	// check if services tags are up to date
+	var servicesToRefresh []listeners.Service
+	for _, service := range ac.store.getServices() {
+		previousHash := ac.store.getTagsHashForService(service.GetEntity())
+		currentHash := tagger.GetEntityHash(service.GetEntity())
+		if currentHash != previousHash {
+			ac.store.setTagsHashForService(service.GetEntity(), currentHash)
+			if previousHash != "" {
+				// only refresh service if we already had a hash to avoid resetting it
+				servicesToRefresh = append(servicesToRefresh, service)
 			}
 		}
-	}()
+	}
+	for _, service := range servicesToRefresh {
+		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
+		ac.processDelService(service)
+		ac.processNewService(service)
+	}
 }
 
 // Stop just shuts down AutoConfig in a clean way.
@@ -158,12 +135,6 @@ func (ac *AutoConfig) startServiceListening() {
 func (ac *AutoConfig) Stop() {
 	ac.m.Lock()
 	defer ac.m.Unlock()
-
-	// stop the tag freshness ticker if running
-	if ac.tagFreshnessActive {
-		ac.tagFreshnessStop <- struct{}{}
-		ac.tagFreshnessActive = false
-	}
 
 	// stop polled config providers
 	for _, pd := range ac.providers {
@@ -446,27 +417,27 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	var err error
 
 	// init_config
-	conf.InitConfig, err = secrets.Decrypt(conf.InitConfig)
+	conf.InitConfig, err = secrets.Decrypt(conf.InitConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
 
 	// instances
 	for idx := range conf.Instances {
-		conf.Instances[idx], err = secrets.Decrypt(conf.Instances[idx])
+		conf.Instances[idx], err = secrets.Decrypt(conf.Instances[idx], conf.Name)
 		if err != nil {
 			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
 	}
 
 	// metrics
-	conf.MetricConfig, err = secrets.Decrypt(conf.MetricConfig)
+	conf.MetricConfig, err = secrets.Decrypt(conf.MetricConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
-	conf.LogsConfig, err = secrets.Decrypt(conf.LogsConfig)
+	conf.LogsConfig, err = secrets.Decrypt(conf.LogsConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
 	}
@@ -478,9 +449,23 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.unschedule(configs)
 	for _, c := range configs {
 		ac.store.removeLoadedConfig(c)
-		// if the config is a template, remove it from the cache
+	}
+}
+
+func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
+	for _, c := range configs {
 		if c.IsTemplate() {
-			ac.store.templateCache.Del(c)
+			// Remove the resolved configurations
+			tplDigest := c.Digest()
+			configs := ac.store.getConfigsForTemplate(tplDigest)
+			ac.store.removeConfigsForTemplate(tplDigest)
+			ac.processRemovedConfigs(configs)
+
+			// Remove template from the cache
+			err := ac.store.templateCache.Del(c)
+			if err != nil {
+				log.Debugf("Could not delete template: %v", err)
+			}
 		}
 	}
 }
@@ -545,6 +530,7 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	}
 	ac.store.setLoadedConfig(resolvedConfig)
 	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
+	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
 		svc.GetEntity(),
 		tagger.GetEntityHash(svc.GetEntity()),
@@ -559,7 +545,7 @@ func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
-func (ac *AutoConfig) GetUnresolvedTemplates() map[string]integration.Config {
+func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.GetUnresolvedTemplates()
 }
 

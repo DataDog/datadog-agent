@@ -34,10 +34,22 @@ var (
 		},
 		[]string{"node"},
 	)
+
+	allMetrics = []prometheus.Collector{
+		nodeAgents,
+		danglingConfigs,
+		dispatchedConfigs,
+	}
 )
 
-func init() {
-	prometheus.MustRegister(nodeAgents)
-	prometheus.MustRegister(danglingConfigs)
-	prometheus.MustRegister(dispatchedConfigs)
+func registerMetrics() {
+	for _, m := range allMetrics {
+		prometheus.Register(m)
+	}
+}
+
+func unregisterMetrics() {
+	for _, m := range allMetrics {
+		prometheus.Unregister(m)
+	}
 }

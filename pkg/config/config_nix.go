@@ -13,7 +13,7 @@ const (
 	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
 	defaultRunPath              = "/opt/datadog-agent/run"
 	defaultSyslogURI            = "unixgram:///dev/log"
-	defaultGuiPort              = "-1"
+	defaultGuiPort              = -1
 )
 
 // called by init in config.go, to ensure any os-specific config is done

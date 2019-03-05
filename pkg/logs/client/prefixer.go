@@ -5,31 +5,19 @@
 
 package client
 
-import (
-	"fmt"
-)
-
-// Prefixer adds a prefix to a message.
-type Prefixer interface {
-	prefix(content []byte) []byte
+// prefixer prepends a prefix to a message.
+type prefixer struct {
+	prefix []byte
 }
 
-// framePrefixer is responsible for prefixing frames being sent with the API key.
-type apiKeyPrefixer struct {
-	Prefixer
-	key []byte
-}
-
-// NewAPIKeyPrefixer returns a prefixer that prepends the given API key to a message.
-func NewAPIKeyPrefixer(apikey, logset string) Prefixer {
-	if logset != "" {
-		apikey = fmt.Sprintf("%s/%s", apikey, logset)
-	}
-	return &apiKeyPrefixer{
-		key: append([]byte(apikey), ' '),
+// newPrefixer returns a prefixer that prepends the given prefix to a message.
+func newPrefixer(prefix string) *prefixer {
+	return &prefixer{
+		prefix: append([]byte(prefix)),
 	}
 }
 
-func (p *apiKeyPrefixer) prefix(content []byte) []byte {
-	return append(p.key, content...)
+// apply prepends the prefix to the message.
+func (p *prefixer) apply(content []byte) []byte {
+	return append(p.prefix, content...)
 }

@@ -191,6 +191,66 @@ func TestServicesDiffer(t *testing.T) {
 			},
 			result: true,
 		},
+		"Add annotation": {
+			first: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			second: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			result: true,
+		},
+		"Remove annotation": {
+			first: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/service.init_configs": "[{}]",
+						"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			second: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			result: true,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.result, servicesDiffer(tc.first, tc.second))

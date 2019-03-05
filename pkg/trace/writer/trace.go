@@ -100,7 +100,7 @@ func (w *TraceWriter) Run() {
 		for event := range w.sender.Monitor() {
 			switch event.typ {
 			case eventTypeSuccess:
-				log.Infof("flushed trace payload to the API, time:%s, size:%d bytes", event.stats.sendTime,
+				log.Debugf("flushed trace payload to the API, time:%s, size:%d bytes", event.stats.sendTime,
 					len(event.payload.bytes))
 				tags := []string{"url:" + event.stats.host}
 				metrics.Gauge("datadog.trace_agent.trace_writer.flush_duration",

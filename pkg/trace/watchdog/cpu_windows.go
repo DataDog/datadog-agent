@@ -1,8 +1,6 @@
 package watchdog
 
 import (
-	"syscall"
-
 	"golang.org/x/sys/windows"
 )
 
@@ -18,10 +16,10 @@ func cpuTimeUser(pid int32) (float64, error) {
 }
 
 type systemTimes struct {
-	CreateTime syscall.Filetime
-	ExitTime   syscall.Filetime
-	KernelTime syscall.Filetime
-	UserTime   syscall.Filetime
+	CreateTime windows.Filetime
+	ExitTime   windows.Filetime
+	KernelTime windows.Filetime
+	UserTime   windows.Filetime
 }
 
 func getProcessCPUTimes(pid int32) (systemTimes, error) {
@@ -34,8 +32,8 @@ func getProcessCPUTimes(pid int32) (systemTimes, error) {
 	}
 	defer windows.CloseHandle(h)
 
-	err = syscall.GetProcessTimes(
-		syscall.Handle(h),
+	err = windows.GetProcessTimes(
+		windows.Handle(h),
 		&times.CreateTime,
 		&times.ExitTime,
 		&times.KernelTime,
