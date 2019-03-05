@@ -149,7 +149,7 @@ api_key:
 # enable_metadata_collection: true
 
 # Enable the gohai collection of systems data
-# enable_gohai: true
+enable_gohai: false
 
 # IPC api server timeout in seconds
 # server_timeout: 15
@@ -197,9 +197,9 @@ api_key:
 # Metadata providers, add or remove from the list to enable or disable collection.
 # Intervals are expressed in seconds. You can also set a provider's interval to 0
 # to disable it.
-# metadata_providers:
-#  - name: k8s
-#    interval: 60
+metadata_providers:
+ - name: agent_checks
+   interval: 600
 {{ end -}}
 {{- if .Dogstatsd }}
 # DogStatsd
